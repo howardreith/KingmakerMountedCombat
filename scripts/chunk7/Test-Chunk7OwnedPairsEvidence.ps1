@@ -580,6 +580,41 @@ Check-SeedProne 'pair A spending in the stand-up window' {@((Get-Prone $args[0])
 Check-SeedProne 'pair command authority after the stand-up' {(Get-Prone $args[0]).standUp.riderAfter.pairCommandB=$true} 'pair command authority'
 Check-SeedProne 'attacks outside the prone windows' {$P=Get-Prone $args[0];$P.rules.events=@($P.rules.events)+@(Copy-Value $P.rules.events[0])} 'outside its windows'
 Check-SeedProne 'an unreleased healer stack' {(Get-Prone $args[0]).healerScroll.scroll.ownedItemReleased=$false} 'not released'
+# b207 r57: the healed rider lay outside the target's threat; the target's own native turn approaches it (natively costed, no attack).
+function Add-KmcProneTargetApproach($v,[bool]$Approached=$true){$P=Get-Prone $v;$st=$P.standUp;$round=[long]$P.healedRound
+ $tg={param([string]$label,[bool]$engaged)$x=Copy-Value $st.gates;$x.label=$label;$x.engagesSubject=$engaged;$x.engagedUnits=@(if($engaged){$v.request.ownedPairs.riderBId});$x|Add-Member targetRemembersSubject $true;$x|Add-Member threatReachMeters 0.3048;$x|Add-Member subjectCorpulence 0.5;$x|Add-Member subjectMechanicsDistance 2.06;$x|Add-Member subjectLineOfSight $true;$x}
+ $t=[pscustomobject][ordered]@{round=$round;targetBefore=(&$tg 'target-turn-before' (-not$Approached));engagedBefore=(-not$Approached);approached=$Approached}
+ if($Approached){$wb=Copy-Value $st.before;$wb.label='prone-target-before';$wb.gameTicks=2050000000;$wa=Copy-Value $st.before;$wa.label='prone-target-after';$wa.gameTicks=2060000000
+  $rider=Copy-Value $st.rider;$rider.label='target-turn-after';$rider.engagedByTarget=$true
+  $proposal=[pscustomobject][ordered]@{angle=0.0;length=0.6;requested=@(0.0,0.0,2.7);goal=@(0.0,0.0,2.7);walkable=$true;traceResidual=0.0;geometryAccepted=$true;geometryRefusal=$null;refusal=$null;eligible=$true}
+  $cost={param([double]$time,[double]$move)[pscustomobject][ordered]@{timeMoved=$time;metersFiveFootStep=0.0;fiveFootStep=$false;move=$move;standard=0.0;swift=0.0}}
+  foreach($kv in ([ordered]@{geometry=[pscustomobject][ordered]@{corpulence=1.0;weaponReachMeters=0.3048;reach=1.3048;near=1.05;far=1.1548;gap=1.1024;engagers=@()};proposals=@($proposal);destination=@(0.0,0.0,2.7);before=$wb;ruleCountBefore=0;traceSequenceBefore=915;turnBefore=(&$cost 0.0 0.0);command=7788
+   after=$wa;targetAfter=(&$tg 'target-turn-after' $true);riderAfter=$rider;turnAfter=(&$cost 0.4 0.4);turnEndedNatively=$false;rules=@();traceSequenceAfter=918;displacement=0.6;commandResult='Success';engagedAfter=$true}).GetEnumerator()){$t|Add-Member $kv.Key $kv.Value}}
+ # One JSON round trip, so numbers carry the native reader shape (PowerShell 5.1 parses fractions as decimal).
+ $P|Add-Member targetTurn (Copy-Value $t) -Force;$v}
+function Check-ProneTarget([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=Add-KmcProneTargetApproach (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');&$Mutation $v;Check ('owner-seed prone target turn refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+Check 'owner-seed prone stand-up accepts the target''s native approach on its own turn' {Invoke-OwnedReader (Add-KmcProneTargetApproach (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup'))}
+Check 'owner-seed prone stand-up accepts a target turn that already threatened rider B' {Invoke-OwnedReader (Add-KmcProneTargetApproach (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup') $false)}
+Check-ProneTarget 'an approach that drew an attack' {$t=(Get-Prone $args[0]).targetTurn;$t.rules=@(Copy-Value (Get-Prone $args[0]).standUp.rules[0])} 'drew an attack'
+Check-ProneTarget 'an approach without native movement cost' {(Get-Prone $args[0]).targetTurn.turnAfter.timeMoved=0.0} 'natively costed'
+Check-ProneTarget 'an approach spending neither Move nor five-foot step' {(Get-Prone $args[0]).targetTurn.turnAfter.move=0.0} 'natively costed'
+Check-ProneTarget 'an approach that left rider B unthreatened' {$t=(Get-Prone $args[0]).targetTurn;$t.engagedAfter=$false} 'boolean|Boolean'
+Check-ProneTarget 'an approach whose target state does not threaten rider B' {(Get-Prone $args[0]).targetTurn.targetAfter.engagesSubject=$false} 'threatened area'
+Check-ProneTarget 'an approach without the target''s memory of rider B' {(Get-Prone $args[0]).targetTurn.targetBefore.targetRemembersSubject=$false} 'engagement prerequisites'
+Check-ProneTarget 'an approach although the target already threatened rider B' {$t=(Get-Prone $args[0]).targetTurn;$t.engagedBefore=$true} 'inconsistent'
+Check-ProneTarget 'a target turn before the heal' {(Get-Prone $args[0]).targetTurn.round=[long](Get-Prone $args[0]).healedRound-1} 'between the heal'
+Check-ProneTarget 'rider B moving before its stand-up' {(Get-Prone $args[0]).targetTurn.riderAfter.position=@(0.0,0.0,1.0)} 'moved before its stand-up'
+Check-ProneTarget 'rider B no longer prone after the approach' {(Get-Prone $args[0]).targetTurn.riderAfter.prone=$false} 'conscious prone unpaired'
+Check-ProneTarget 'pair A spending in the approach window' {@((Get-Prone $args[0]).targetTurn.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].move=3.0} 'expenditure changed'
+Check-ProneTarget 'a destination that is not the accepted proposal' {(Get-Prone $args[0]).targetTurn.destination=@(0.0,0.0,2.2)} 'accepted native proposal'
+Check-ProneTarget 'an extra unrecorded field' {(Get-Prone $args[0]).targetTurn|Add-Member teleported $true} 'prone target approach'
+Check-ProneTarget 'a geometry that differs from the recorded native reach' {(Get-Prone $args[0]).targetTurn.geometry.weaponReachMeters=1.524} 'native engagement terms'
+Check-ProneTarget 'an approach although the target already reached rider B in line of sight' {(Get-Prone $args[0]).targetTurn.targetBefore.subjectMechanicsDistance=1.2} 'no geometry gap'
+Check-ProneTarget 'an approach recorded before the restoring heal' {$t=(Get-Prone $args[0]).targetTurn;$t.traceSequenceBefore=905} 'between the heal and rider B'
+Check-ProneTarget 'an approach recorded after the stand-up began' {(Get-Prone $args[0]).targetTurn.traceSequenceAfter=925} 'between the heal and rider B'
+Check-ProneTarget 'an interrupted approach' {(Get-Prone $args[0]).targetTurn.commandResult='Interrupt'} 'one native move'
+Check-ProneTarget 'an approach without its native turn-end flag' {(Get-Prone $args[0]).targetTurn.PSObject.Properties.Remove('turnEndedNatively')} 'prone target approach'
+Check-ProneTarget 'an unapproached turn carrying an approach' {$t=(Get-Prone $args[0]).targetTurn;$t.approached=$false;$t.engagedBefore=$true;$t.targetBefore.engagesSubject=$true} 'prone target turn'
 Check 'prone fold refused outside the owner-seed incapacitation case' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0];$v.artifact.observations|Add-Member proneStandUp ([pscustomobject]@{contract='owner-seed-prone-stand-up-v1'}) -Force;Invoke-OwnedReader $v} $true 'Only the owner-seed incapacitation case'Check 'owner-seed-derived native life evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
 Check-SeedCombat 'owner-seed-derived native life refuses a native Mount input' 'native-life-cleanup' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@((Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0]).artifact.observations.inputs|Where-Object label -CEQ 'mount-a')} 'native Mount input is not admitted'
 Check-SeedCombat 'owner-seed-derived native life refuses a missing mounted start' 'native-life-cleanup' {$args[0].artifact.observations.PSObject.Properties.Remove('mountedStart')} 'mounted-start admission'

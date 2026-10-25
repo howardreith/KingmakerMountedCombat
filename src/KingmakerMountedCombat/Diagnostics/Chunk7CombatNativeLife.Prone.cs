@@ -3,8 +3,10 @@ using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Items.Equipment;
+using Kingmaker.Controllers.Combat;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -17,7 +19,9 @@ namespace KingmakerMountedCombat.Diagnostics
     // another party actor outside both pairs (one that uses the scroll without Use Magic Device, chosen and given
     // the disposable stack out of combat) heals the unconscious rider B with one native Cure Light Wounds scroll
     // click; at most two attempts, each on the healer's own native turn. Rider B is then conscious and natively
-    // prone; on its own native turn one ordinary native ground order is its action attempt, the native stand-up
+    // prone. On the target's own native turn in between, a target not yet threatening rider B makes one ordinary native
+    // ground move toward it (BeginProneTargetTurn); rider B itself never moves before it stands. On rider B's own native
+    // turn one ordinary native ground order is its action attempt, the native stand-up
     // runs (it spends the Move and drops the triggering command) and the threatening diagnostic target makes its
     // native attack of opportunity. Nothing is granted, refunded or written; a missing prerequisite refuses as
     // uncovered before the input it would need.
@@ -90,7 +94,105 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var state = TargetReactionState(label);
             state["engagesSubject"] = target.CombatState.IsEngage(br); state["subjectRemembersTarget"] = br.Memory.Contains(target);
+            // The native engagement terms toward rider B (UnitEngagementExtension.IsEngage): the target's group memory of it,
+            // the threat hand's weapon reach, both corpulences, the native mechanics distance and line of sight.
+            state["targetRemembersSubject"] = target.Memory.Contains(br);
+            // The entity reach (ItemEntityWeapon.AttackRange: the wielder's weapon range, ReachRange included) is the one native IsReach reads.
+            state["threatReachMeters"] = target.GetThreatHand()?.MaybeWeapon?.AttackRange.Meters;
+            state["subjectCorpulence"] = br.View.Corpulence; state["subjectMechanicsDistance"] = target.DistanceTo(br);
+            state["subjectLineOfSight"] = target.HasLOS(br);
             return state;
+        }
+        // 7E row 57 (b207 r57): the healed prone rider B lay outside the target's threatened area (2.06 m, engaged by nobody), so
+        // the stand-up had no native attack of opportunity to draw. On the target's own native turn between the heal and rider
+        // B's turn, the brain-leased target makes one ordinary native ground move toward rider B (the TB hostile-command precedent:
+        // a command for the hostile is issued only on its own turn), natively costed by its TurnController (TickMovement). Rider B
+        // never moves before it stands. Units that already engage the target keep reaching its destination (native IsReach with the
+        // destination), so no disengagement attack is provoked by design; any attack in the window FAILs. A target that cannot
+        // engage rider B refuses as uncovered before the move; a clean move that leaves rider B unthreatened refuses as uncovered.
+        private JObject proneTargetTurn;
+        private TurnController proneTargetController;
+        private UnitMoveTo proneTargetMove;
+        private Vector3 proneTargetStart, proneTargetRiderStart;
+        private bool proneTargetCaptured;
+        private void BeginProneTargetTurn(CombatController controller, TurnController turn)
+        {
+            var before = ProneTarget("target-turn-before"); var engaged = target.CombatState.IsEngage(br);
+            proneTargetTurn = new JObject { ["round"] = controller.RoundNumber, ["targetBefore"] = before, ["engagedBefore"] = engaged, ["approached"] = !engaged };
+            prone["targetTurn"] = proneTargetTurn;
+            if (engaged) { EndNative(turn); return; }
+            var hand = target.GetThreatHand(); var weapon = hand?.MaybeWeapon;
+            Require(target.Memory.Contains(br) && weapon != null && target.Descriptor.State.CanAct && target.Commands.Empty &&
+                br.Descriptor.State.IsConscious && br.Descriptor.State.Prone.Active,
+                "The diagnostic target cannot engage the healed prone rider on its own native turn (group memory, threat hand, ability to act or a pending command); the C11 prone stand-up is uncovered on this fixture: " +
+                before.ToString(Newtonsoft.Json.Formatting.None));
+            var corpulence = target.View.Corpulence + br.View.Corpulence; var meters = weapon.AttackRange.Meters; var reach = corpulence + meters;
+            // The destination band: clear of rider B by 5 cm (no push of the prone rider) and 15 cm inside the native reach; aimed at its middle.
+            var near = corpulence + .05f; var far = reach - .15f; var gap = (near + far) / 2f;
+            // Distance is the only term a move can change: inside reach and in line of sight, a non-engaging target is not a geometry gap.
+            Require(target.DistanceTo(br) >= reach || !target.HasLOS(br),
+                "The diagnostic target already reaches the healed prone rider in line of sight without engaging it; no native move can supply the missing engagement term, so the C11 prone stand-up is uncovered on this fixture: " +
+                before.ToString(Newtonsoft.Json.Formatting.None));
+            Require(far > near, "The diagnostic target's native reach leaves no destination band clear of the healed prone rider; the C11 prone stand-up is uncovered on this fixture: " +
+                before.ToString(Newtonsoft.Json.Formatting.None));
+            var engagers = target.CombatState.EngagedBy.ToArray();
+            proneTargetTurn["geometry"] = new JObject { ["corpulence"] = corpulence, ["weaponReachMeters"] = meters, ["reach"] = reach, ["near"] = near, ["far"] = far, ["gap"] = gap,
+                ["engagers"] = new JArray(engagers.Select(unit => unit.UniqueId)) };
+            var proposals = new JArray(); proneTargetTurn["proposals"] = proposals; Vector3 destination;
+            var found = TryNavmeshDestination(target.Position, br.Position - target.Position, Math.Max(.6f, Flat(target.Position, br.Position) - gap),
+                point => Kingmaker.Utility.GeometryUtils.MechanicsDistance(point, br.Position) >= far ? "outside the predicted threat reach" :
+                    Flat(point, br.Position) < near ? "too close to rider B" :
+                    engagers.Any(unit => unit.GetThreatHand() == null || !unit.IsReach(target, unit.GetThreatHand(), point)) ? "leaves an engaging unit's reach" : null,
+                proposals, FullCircleFan, new[] { .8f, 1f }, out destination);
+            Require(found, "No walkable native destination puts the diagnostic target's threat on the healed prone rider without leaving an engaging unit's reach; the C11 prone stand-up is uncovered on this fixture.");
+            proneTargetTurn["destination"] = Point(destination);
+            proneTargetTurn["before"] = WorldSnapshot("prone-target-before"); proneTargetTurn["ruleCountBefore"] = proneRules.EventCount;
+            proneTargetTurn["traceSequenceBefore"] = trace.EventCount;
+            proneTargetTurn["turnBefore"] = ProneTargetTurnCost(turn);
+            proneTargetController = turn; proneTargetStart = target.Position; proneTargetRiderStart = br.Position; proneTargetCaptured = false;
+            proneTargetMove = new UnitMoveTo(destination, .1f) { CreatedByPlayer = true };
+            target.Commands.Run(proneTargetMove); issuedCommands.Add(proneTargetMove);
+            proneTargetTurn["command"] = trace.ObjectIdentity(proneTargetMove);
+            proneFrames = 0; LifeStage(16);
+        }
+        private JObject ProneTargetTurnCost(TurnController turn) => new JObject { ["timeMoved"] = turn.TimeMoved,
+            ["metersFiveFootStep"] = turn.MetersMovedByFiveFootStep, ["fiveFootStep"] = turn.EnabledFiveFootStep,
+            ["move"] = target.CombatState.Cooldown.MoveAction, ["standard"] = target.CombatState.Cooldown.StandardAction, ["swift"] = target.CombatState.Cooldown.SwiftAction };
+        // The brain-leased target is not directly controllable: TurnController.ContinueActing ends its turn natively shortly after it
+        // idles (End() then sets its Standard and interrupts commands), so everything is read at the first frame its move has finished
+        // and it stands still, from the target's own TurnController object, whether or not its turn has ended natively since.
+        private void TickProneTargetApproach(CombatController controller, TurnController turn)
+        {
+            var record = proneTargetTurn;
+            if (!proneTargetCaptured)
+            {
+                if (!proneTargetMove.IsFinished || target.View?.AgentASP?.IsReallyMoving == true) return;
+                proneTargetCaptured = true; proneFrames = 0;
+                record["after"] = WorldSnapshot("prone-target-after"); record["turnAfter"] = ProneTargetTurnCost(proneTargetController);
+                record["turnEndedNatively"] = !ReferenceEquals(controller.CurrentTurn, proneTargetController);
+                record["riderAfter"] = ProneRider("target-turn-after");
+                record["rules"] = proneRules.Since((int)record["ruleCountBefore"]); record["traceSequenceAfter"] = trace.EventCount;
+                record["displacement"] = Flat(proneTargetStart, target.Position); record["commandResult"] = proneTargetMove.Result.ToString();
+                var cost = (JObject)record["turnBefore"]; var spent = (JObject)record["turnAfter"];
+                Require(((JArray)record["rules"]).Count == 0 && new[] { ar, am, br, bm }.All(actor => NeverSpentNatively((JObject)record["before"], (JObject)record["after"], actor)),
+                    "The diagnostic target's native approach drew an attack or spent another actor's budget: " + record["rules"].ToString(Newtonsoft.Json.Formatting.None));
+                Require(Flat(proneTargetRiderStart, br.Position) <= .05f && br.Descriptor.State.IsConscious && br.Descriptor.State.Prone.Active &&
+                    b.Relationship.State == RelationshipState.Unmounted, "Rider B moved or left its conscious prone unpaired state during the target's approach.");
+                Require(proneTargetMove.Result == UnitCommand.ResultType.Success,
+                    "The diagnostic target's native approach did not complete on its own turn (" + record["commandResult"] + "); the C11 prone stand-up is uncovered on this fixture.");
+                Require((float)spent["timeMoved"] > (float)cost["timeMoved"] &&
+                    ((float)spent["move"] > (float)cost["move"] || (float)spent["metersFiveFootStep"] > (float)cost["metersFiveFootStep"]),
+                    "The diagnostic target's approach was not natively costed on its own turn.");
+                return;
+            }
+            // Native engagement ticks every frame: it is read two frames after the move settled.
+            if (++proneFrames < 2) return;
+            record["targetAfter"] = ProneTarget("target-turn-after"); record["engagedAfter"] = target.CombatState.IsEngage(br);
+            Require((bool)record["engagedAfter"],
+                "The diagnostic target's native approach did not put the healed prone rider inside its threatened area; the C11 prone stand-up is uncovered on this fixture: " +
+                record["targetAfter"].ToString(Newtonsoft.Json.Formatting.None));
+            if (ReferenceEquals(controller.CurrentTurn, proneTargetController)) EndNative(proneTargetController);
+            LifeStage(14);
         }
         private void TickProneFold(CombatController controller, TurnController turn)
         {
@@ -141,6 +243,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Rider B's own native turn after the heal: the native stand-up needs its own action attempt.
                 if (ReferenceEquals(turn, proneHealTurn)) { EndNative(turn); return; }
                 Require(controller.RoundNumber <= proneHealRound + 1, "Rider B's native turn after the heal missed its round.");
+                // The target's own native turn between the heal and rider B's turn (b207 r57: it did not threaten the rider).
+                if (turn?.Unit == target && proneTargetTurn == null && Chunk7NativeFixture.ReadyForTurnInput(turn)) { BeginProneTargetTurn(controller, turn); return; }
                 if (turn?.Unit != br || !Chunk7NativeFixture.ReadyForTurnInput(turn)) { if (turn?.Unit?.Descriptor.State.IsConscious == true && turn.Unit != br) EndNative(turn); return; }
                 var rider = ProneRider("stand-precondition"); var gates = ProneTarget("stand-precondition");
                 proneStand = new JObject { ["round"] = controller.RoundNumber, ["rider"] = rider, ["gates"] = gates }; prone["standUp"] = proneStand;
@@ -176,6 +280,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(clicked && !turn.EnabledFiveFootStep && !turn.EnabledSingleActionMove, "Rider B's ordinary native ground input was not admitted.");
                 proneFrames = 0; LifeStage(15); return;
             }
+            if (lifeStage == 16) { TickProneTargetApproach(controller, turn); return; }
             if (lifeStage == 15)
             {
                 var settled = (proneMove == null || proneMove.IsFinished) && br.Commands.Empty && target.Commands.Empty && !br.AreHandsBusyWithAnimation &&

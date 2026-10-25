@@ -297,9 +297,47 @@ function Assert-KmcChunk7ProneStandUp($P,$o,$life,$ids,$control,$controlRows){
  foreach($f in @('standard','swift')){if([double]$ra.$f-gt[double]$rb.$f+0.001){throw 'Rider B spent another action on its stand-up.'}}
  Assert-KmcChunk7NeverSpentCombatBudget $st.before $st.after @($ids[0],$ids[1],$ids[3])
  if($st.riderAfter.pairState-cne'Unmounted'-or$st.riderAfter.registryActive-ne$false-or$st.riderAfter.pairCommandA-ne$false-or$st.riderAfter.pairCommandB-ne$false){throw 'The stand-up created pair command authority or re-paired rider B.'}
+ if($null-ne$P.PSObject.Properties['targetTurn']){Assert-KmcChunk7ProneTargetTurn $P.targetTurn $P $st $ids}
  $cap=$P.rules
  if($null-eq$cap-or$cap.dropped-ne0-or@($cap.errors).Count-ne0){throw 'Prone stand-up rule observation dropped or failed.'}
  if((ConvertTo-Json -InputObject @($cap.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($allRules)+@($sr)) -Depth 10 -Compress)){throw 'The prone rule observer recorded attacks outside its windows.'}
+}
+# b207 r57: the target's own native turn between the heal and rider B's stand-up. Already threatening rider B, it only
+# ends natively; otherwise the brain-leased target makes one ordinary native ground move toward rider B, natively costed
+# on its own turn (TurnController TimeMoved and its Move or five-foot step), drawing no attack and spending no pair actor's
+# budget, after which it threatens rider B. Rider B never moves before its stand-up.
+function Assert-KmcChunk7ProneTargetTurn($T,$P,$st,$ids){
+ if($null-eq$T-or$T.approached-isnot[bool]-or$T.engagedBefore-isnot[bool]-or$T.engagedBefore-eq$T.approached){throw 'The prone target turn record is inconsistent.'}
+ if(-not(Test-KmcExactJsonInteger $T.round)-or$T.round-lt$P.healedRound-or$T.round-gt$st.round){throw 'The prone target turn is not between the heal and rider B''s stand-up.'}
+ if($null-eq$T.targetBefore-or$T.targetBefore.engagesSubject-ne$T.engagedBefore){throw 'The prone target turn record is inconsistent.'}
+ if(-not$T.approached){Assert-KmcExactProperties $T @('round','targetBefore','engagedBefore','approached') 'prone target turn';return}
+ Assert-KmcExactProperties $T @('round','targetBefore','engagedBefore','approached','geometry','proposals','destination','before','ruleCountBefore','traceSequenceBefore','turnBefore','command','after','turnAfter','turnEndedNatively','riderAfter','rules','traceSequenceAfter','displacement','commandResult','targetAfter','engagedAfter') 'prone target approach'
+ if($T.targetBefore.targetRemembersSubject-ne$true-or$T.targetBefore.threatHand-ne$true-or$T.targetBefore.canAct-ne$true-or$T.targetBefore.conscious-ne$true){throw 'The prone target approached without its native engagement prerequisites.'}
+ # The recorded geometry is the native engagement terms the C# used: entity reach plus both corpulences, and a gap only a move can close.
+ $tb=$T.targetBefore;$gm=$T.geometry;$num={param($v)$v-is[double]-or$v-is[decimal]-or$v-is[single]-or(Test-KmcExactJsonInteger $v)}
+ foreach($x in @($tb.threatReachMeters,$tb.corpulence,$tb.subjectCorpulence,$tb.subjectMechanicsDistance,$gm.corpulence,$gm.weaponReachMeters,$gm.reach,$gm.near,$gm.far,$gm.gap)){if(-not(&$num $x)){throw 'The prone target geometry is mistyped.'}}
+ if($tb.subjectLineOfSight-isnot[bool]){throw 'The prone target geometry is mistyped.'}
+ $close={param($a,$b)[Math]::Abs([double]$a-[double]$b)-le0.001}
+ if(-not(&$close $gm.weaponReachMeters $tb.threatReachMeters)-or-not(&$close $gm.corpulence ([double]$tb.corpulence+[double]$tb.subjectCorpulence))-or-not(&$close $gm.reach ([double]$gm.corpulence+[double]$gm.weaponReachMeters))-or
+    -not(&$close $gm.near ([double]$gm.corpulence+0.05))-or-not(&$close $gm.far ([double]$gm.reach-0.15))-or[double]$gm.far-le[double]$gm.near){throw 'The prone target geometry differs from its native engagement terms.'}
+ if([double]$tb.subjectMechanicsDistance-lt[double]$gm.reach-and$tb.subjectLineOfSight){throw 'The prone target approached although it already reached rider B in line of sight (no geometry gap).'}
+ # Order: after the restoring heal, before rider B's stand-up.
+ foreach($f in @('traceSequenceBefore','traceSequenceAfter','ruleCountBefore','command')){if(-not(Test-KmcExactJsonInteger $T.$f)){throw 'The prone target approach record is mistyped.'}}
+ if($T.traceSequenceBefore-lt@($P.healAttempts)[-1].traceSequenceAfter-or$T.traceSequenceAfter-lt$T.traceSequenceBefore-or$T.traceSequenceAfter-gt$st.traceSequenceBefore){throw 'The prone target approach is not between the heal and rider B''s stand-up.'}
+ if(-not(&$num $T.displacement)-or[double]$T.displacement-le0-or$T.commandResult-cne'Success'-or$T.turnEndedNatively-isnot[bool]){throw 'The prone target approach did not complete one native move.'}
+ $pp=@($T.proposals);if($pp.Count-lt1-or$pp[-1].eligible-ne$true-or(ConvertTo-Json -InputObject @($pp[-1].goal) -Compress)-cne(ConvertTo-Json -InputObject @($T.destination) -Compress)-or@($pp|Where-Object{$_.eligible-eq$true}).Count-ne1){throw 'The prone target destination is not its one accepted native proposal.'}
+ if(@($T.rules).Count-ne0){throw 'The prone target approach drew an attack.'}
+ Assert-KmcChunk7NeverSpentCombatBudget $T.before $T.after @($ids[0],$ids[1],$ids[2],$ids[3])
+ $b=$T.turnBefore;$a=$T.turnAfter
+ foreach($f in @('timeMoved','metersFiveFootStep','move','standard','swift')){foreach($x in @($b,$a)){if($null-eq$x-or-not($x.$f-is[double]-or$x.$f-is[decimal]-or(Test-KmcExactJsonInteger $x.$f))){throw 'The prone target turn cost record is mistyped.'}}}
+ if([double]$a.timeMoved-le[double]$b.timeMoved-or([double]$a.move-le[double]$b.move-and[double]$a.metersFiveFootStep-le[double]$b.metersFiveFootStep)){throw 'The prone target approach was not natively costed on its own turn.'}
+ Assert-KmcChunk7Boolean $T.engagedAfter $true
+ if($T.targetAfter.engagesSubject-ne$true){throw 'The prone target approach did not put rider B inside its threatened area.'}
+ $r=$T.riderAfter;if($r.life.conscious-ne$true-or$r.prone-ne$true-or$r.pairState-cne'Unmounted'-or$r.registryActive-ne$false){throw 'Rider B left its conscious prone unpaired state before its stand-up.'}
+ # Rider B issued no move before its stand-up: its flat position stays within 0.05 m from the restoring heal to the stand-up.
+ $healed=@(@($P.healAttempts)[-1].riderAfter.position)
+ $flat={param($a,$b)$a=@($a);$b=@($b);if($a.Count-ne3-or$b.Count-ne3){throw 'Rider B position record is malformed.'};[Math]::Sqrt([Math]::Pow([double]$a[0]-[double]$b[0],2)+[Math]::Pow([double]$a[2]-[double]$b[2],2))}
+ if((&$flat $r.position $healed)-gt0.05-or(&$flat $st.rider.position $healed)-gt0.05){throw 'Rider B moved before its stand-up.'}
 }
 # ---- 7E X1 death proper (owner-seed-native-death-cleanup) ---------------------------------------
 # A dead actor record: life label Dead, dead, not conscious; the extended record adds finallyDead,
