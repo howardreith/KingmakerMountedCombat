@@ -188,6 +188,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.AssistedFixture.cs"><Link>Shared\PersistenceSaveAuthorization.AssistedFixture.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7CumulativeAcquisitionSelection.cs"><Link>Shared\Chunk7CumulativeAcquisitionSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs"><Link>Shared\Chunk7OwnedPairsSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SixPairCombatEntry.cs"><Link>Shared\Chunk7SixPairCombatEntry.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs"><Link>Shared\PersistenceSaveAuthorization.OwnedPairs.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.ProgressionManual.cs"><Link>Shared\PersistenceSaveAuthorization.ProgressionManual.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">

@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Bounded six-pair scenario deadline at step " + step + ".");
             // An open sampling window verifies full custody at its own boundaries instead.
             if (measurement == null) inherited.RequirePreserved();
-            Require(!Game.Instance.Player.IsInCombat, "Six-pair exploration entered unexpected native combat.");
+            if (Game.Instance.Player.IsInCombat) RefuseSixPairCombatEntry();
             if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
             switch (step)
             {

@@ -122,6 +122,7 @@ Check 'strict six-pair reader refuses v2 without its custody declaration' {$v=Ne
 Check 'strict six-pair reader refuses a mistyped v2 custody declaration' {$v=New-V2Artifact;$v.observations.sixPairStress.measuredFramesCarryFullCustody='false';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 Check 'strict six-pair reader refuses v1 carrying the v2 declaration' {$v=Clone $artifact;$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 Check 'strict six-pair reader refuses an unknown contract version' {$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v3';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){Check ('strict six-pair reader refuses PASS evidence carrying '+$key) {$v=New-V2Artifact;$v.observations|Add-Member $key ([pscustomobject]@{classification='unclassified-six-pair-combat-entry'});Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true}
 foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-profile','remote-XP','remote-descriptor','remote-field-alias','changed-source-class','wrong-producer',
  'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
  'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',

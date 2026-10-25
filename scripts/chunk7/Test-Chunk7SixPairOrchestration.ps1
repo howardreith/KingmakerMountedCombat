@@ -8,12 +8,13 @@ if(Test-Path -LiteralPath $OutputDirectory){throw 'Preserve prior orchestration 
 $source=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7WorldScenarioEngine.SixPair.cs'
 $identity=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs'
 $template=Join-Path $chunk7TestSource 'SixPairOrchestrationTemplate.cs'
+$classifier=Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7SixPairCombatEntry.cs'
 $json='C:/Program Files (x86)/Steam/steamapps/common/Pathfinder Kingmaker/Kingmaker_Data/Managed/Newtonsoft.Json.dll'
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
 $exe=Join-Path $OutputDirectory 'six-orchestration.exe'
-&$compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 "/reference:$json" "/out:$exe" $source $identity $template
+&$compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 "/reference:$json" "/out:$exe" $source $identity $classifier $template
 if($LASTEXITCODE-ne0){throw 'Actual six-pair partial compilation failed.'}
 Copy-Item -LiteralPath $json -Destination (Join-Path $OutputDirectory 'Newtonsoft.Json.dll')
 $lines=@(&$exe);$code=$LASTEXITCODE;$lines|Write-Output
-[ordered]@{nativeInvoked=$false;archiveRead=$false;exitCode=$code;inputs=@($source,$identity,$template,$json)|ForEach-Object{[ordered]@{path=$_;sha256=(Get-KmcSha256 $_)}};results=$lines;limits='Unchanged production six-pair partial and actual retained identity registry. Native engine, input, resources and sampler are external facades; no native gameplay, performance or preservation qualification.'}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
+[ordered]@{nativeInvoked=$false;archiveRead=$false;exitCode=$code;inputs=@($source,$identity,$classifier,$template,$json)|ForEach-Object{[ordered]@{path=$_;sha256=(Get-KmcSha256 $_)}};results=$lines;limits='Unchanged production six-pair partial and actual retained identity registry. Native engine, input, resources and sampler are external facades; no native gameplay, performance or preservation qualification.'}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 if($code-ne0){throw 'Actual six-pair orchestration failed.'}
