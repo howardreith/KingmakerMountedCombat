@@ -11,6 +11,19 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**F04 defensive casting folded into row 69 (offline; product diagnostics changed; no launch).**
+`owner-seed-combat-reaction` (contract v2) keeps the round-N disengagement unchanged, then on rider A's next
+turn (N+1) brings pair A back inside the target's threatened area if needed (one ordinary native approach that
+must draw no attack) and clicks one disposable native Cure Light Wounds scroll (four units on rider A's own
+equipped quick slot, `NativeCastingItemLease`, prepared out of combat) on mount A. The producer and the new
+reader `Assert-KmcChunk7ReactionDefensiveCast` require exactly one native casting-defensively hook and rule on
+rider A with its DC, roll and outcome; exactly one in-place spend of the exact stack; no attack after a passed
+check and at most one native AoO from the target after a failed one (count matching); concentration only with
+damage; mount A and pair B never spending; rider A never refunded; the stack released. A target without its
+N+1 AoO refuses as uncovered; a cast that acts before the window FAILs (no check). Shared helper
+`Chunk7CombatScenario.ScrollFixture.cs` (also used by row 57). Owned reader 1122/0 (25 new checks, success and
+both failure shapes plus 22 refusals). The matrix F04 exclusion now says covered by row 69.
+
 **Owner decision (d) seed registered: `KMC_C7_LEVEL6_SEED` (no launch).** Master `b1447ae7…` (1,217,335 bytes,
 byte-identical to the owner's `Manual_307_KMC_C7_LEVEL6_SEED.zks`, which was only hashed), intake
 `c3e0fc6f…` recorded read-only beside the master, registry entry added; the real registry/master/intake/header

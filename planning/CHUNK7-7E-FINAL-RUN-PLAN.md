@@ -239,7 +239,7 @@ Reader: owned + area family.
 | p2 | 65 | `native-life-cleanup` | B1 c5 | b197-p2 | `Assert-KmcChunk7NativeLifeEvidence` |
 | d1 | 67 | `owner-seed-native-death-cleanup` | r01 / r02 | b205-d1 | death branch (`Assert-KmcChunk7NativeDeathChain`, `Assert-KmcChunk7DeathCleanup`) + `Assert-KmcChunk7OwnerSeedDerivedCombatStart` |
 | am | 68 | `owner-seed-attack-modes` | r01 / r02 | b205-am | `Assert-KmcChunk7AttackModesCombat` |
-| cr | 69 | `owner-seed-combat-reaction` | r01 / r02 | b205-cr | `Assert-KmcChunk7ReactionCombat` |
+| cr | 69 | `owner-seed-combat-reaction` (contract v2: disengagement in N, the folded defensive scroll cast in N+1) | r01 / r02 | b205-cr (selection unchanged; the fold is producer behaviour) | `Assert-KmcChunk7ReactionCombat` + `Assert-KmcChunk7ReactionDefensiveCast` |
 | st | 70 | `owner-seed-staged` | r01 / r02 | b205-st | `Assert-KmcChunk7StagedCombat` |
 
 The pilots used the earlier world26 row-1 lineage as a fixture input; here the start is F's own r01/r02.

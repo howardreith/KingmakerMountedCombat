@@ -26,7 +26,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7PairRuleObserver reactionRules;
         private JObject reaction, reactionLeg, reactionDelay;
         private UnitMoveTo reactionMove;
-        private int reactionStage, reactionRound, reactionSettledFrames;
+        private int reactionStage, reactionRound, reactionSettledFrames, reactionCastFrames;
+        // F04 defensive casting folded into this case (round N+1): rider A casts the scroll at mount A from inside
+        // the target's threatened area; the native casting-defensively check runs on the shell (a touch cast at
+        // another unit acts at about 1.5 s, past the native one-second window).
+        private FoldedScrollFixture reactionScroll;
+        private JObject reactionDefense, reactionCast;
+        private UnitUseAbility reactionCastShell;
         private Vector3 reactionStart;
         internal const string ProneHalfUncovered = "No deterministic native prone source exists for the diagnostic target on the owner-seed fixture. " +
             "The only prone stand-up observed (batch 5/6 slot 1, rt-aoo-diagnosis01, fix 4850445b) was an inferred roll-dependent knockdown " +
@@ -103,9 +109,11 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(ReactionCase && OwnerSeedDerived && SelectedScenario == RiderFirst, "Reaction admission differs.");
             reactionRules = new Chunk7PairRuleObserver(ar, am, br, bm, target);
             reactionDelay = null;
-            reaction = new JObject { ["contract"] = "owner-seed-combat-reaction-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
+            reaction = new JObject { ["contract"] = "owner-seed-combat-reaction-v2", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["targetId"] = target.UniqueId, ["proneStandUp"] = new JObject { ["covered"] = false, ["reason"] = ProneHalfUncovered } };
             evidence["reaction"] = reaction;
+            Require(reactionDefense != null && reactionScroll != null, "The reaction's defensive-cast scroll fixture was not prepared out of combat.");
+            reaction["defensiveCast"] = reactionDefense;
             ReactionStage(0);
         }
         // One ordinary native ground order for pair A (the mount executes); five-foot-step and
@@ -266,8 +274,115 @@ namespace KingmakerMountedCombat.Diagnostics
                 var approachRules = (reaction["approach"]?["rules"] as JArray)?.Count ?? 0;
                 Require((int)capture["dropped"] == 0 && ((JArray)capture["errors"]).Count == 0 && ((JArray)capture["events"]).Count == approachRules + rules.Length,
                     "Reaction rule observation dropped, failed or recorded attacks outside its windows.");
-                reaction["rules"] = capture; reactionRules.Dispose(); reactionRules = null;
-                reaction["complete"] = true; Pass("C7-combat-reaction-disengage-opportunity");
+                reaction["rules"] = capture;
+                Pass("C7-combat-reaction-disengage-opportunity");
+                ReactionStage(5); return;
+            }
+            if (reactionStage >= 5) TickReactionDefensiveCast(controller, turn);
+        }
+        // Out of combat, before the encounter: the one disposable scroll stack on rider A (cast at mount A in N+1).
+        private void PrepareReactionCast()
+        {
+            reactionDefense = new JObject { ["contract"] = "reaction-defensive-cast-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId };
+            reactionScroll = AcquireFoldedScroll(ar, am, reactionDefense,
+                "Rider A cannot use the native Cure Light Wounds scroll; the F04 defensive casting check is uncovered on this fixture.");
+        }
+        // Round N+1, rider A's next prepared turn: pair A is (or ordinarily approaches back) inside the target's
+        // threatened area, then rider A's one native scroll click on mount A. The native engine decides the
+        // casting-defensively check, a failed check's attack of opportunity, any concentration check and the spend.
+        private void TickReactionDefensiveCast(CombatController controller, TurnController turn)
+        {
+            reactionDefense["stage"] = reactionStage;
+            if (reactionStage == 5)
+            {
+                if (ReferenceEquals(turn, actingTurn)) { EndNative(turn); return; }
+                Require(controller.RoundNumber <= reactionRound + 1, "Rider A's next native turn for the defensive cast missed its round.");
+                var due = controller.RoundNumber == reactionRound + 1;
+                if (!due || !ReadyPrincipal(a)) { if (turn?.Unit != target && (turn?.Unit != ar || !due)) EndNative(turn); return; }
+                actingTurn = turn; reactionDefense["round"] = controller.RoundNumber;
+                var state = TargetReactionState("defensive-precondition"); reactionDefense["precondition"] = state;
+                Require(a.Relationship.State == RelationshipState.Mounted && target.CombatState.CanAttackOfOpportunity &&
+                    target.CombatState.AttackOfOpportunityCount == 1 && target.Descriptor.State.IsConscious && !target.Descriptor.State.Prone.Active &&
+                    (bool)state["canActInCombat"] && !(bool)state["waitingInitiative"] && !(bool)state["surprised"] && (bool)state["canAct"] &&
+                    (bool)state["threatHand"],
+                    "The diagnostic target holds no single available native attack of opportunity in round N+1; the F04 defensive casting check is uncovered on this fixture: " +
+                    state.ToString(Newtonsoft.Json.Formatting.None));
+                if (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) { ReactionStage(7); return; }
+                var inward = target.Position - am.Position; var reach = am.View.Corpulence + target.View.Corpulence + .4f;
+                var proposals = new JArray();
+                var approach = NavmeshDestination(am.Position, inward, Math.Max(.6f, Flat(target.Position, am.Position) - reach),
+                    point => Flat(point, target.Position) <= reach + .5f, proposals);
+                IssueReactionLeg("defensive-approach", approach)["proposals"] = proposals; reactionDefense["approach"] = reactionLeg;
+                ReactionStage(6); return;
+            }
+            if (reactionStage == 6)
+            {
+                if (!ReactionLegSettled()) return;
+                FinishReactionLeg();
+                Require(ReferenceEquals(turn, actingTurn) && (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) &&
+                    ((JArray)reactionLeg["rules"]).Count == 0,
+                    "The native approach did not bring pair A back inside the target's threatened area without an attack.");
+                ReactionStage(7); return;
+            }
+            if (reactionStage == 7)
+            {
+                Require(ReferenceEquals(turn, actingTurn) && ReadyPrincipal(a) && (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)),
+                    "Pair A lost its native turn or the target's threatened area before the defensive cast.");
+                reactionCast = new JObject { ["round"] = controller.RoundNumber, ["before"] = WorldSnapshot("defensive-cast-before"),
+                    ["targetBefore"] = TargetReactionState("defensive-cast-before"), ["pairBefore"] = PairResidue(),
+                    ["riderEngaged"] = target.CombatState.IsEngage(ar), ["mountEngaged"] = target.CombatState.IsEngage(am),
+                    ["ruleCountBefore"] = reactionRules.EventCount, ["traceSequenceBefore"] = trace.EventCount };
+                reactionDefense["cast"] = reactionCast;
+                reactionCastShell = IssueFoldedScrollCast(reactionScroll, am, reactionCast);
+                reactionCastFrames = 0; ReactionStage(8); return;
+            }
+            if (reactionStage == 8)
+            {
+                if (!FoldedCastSettled(reactionScroll, reactionCastShell, am, ref reactionCastFrames)) return;
+                FinishFoldedCast(reactionScroll, reactionCastShell, reactionCast);
+                var cast = reactionCast;
+                cast["after"] = WorldSnapshot("defensive-cast-after"); cast["targetAfter"] = TargetReactionState("defensive-cast-after");
+                cast["residue"] = PairResidue(); cast["rules"] = reactionRules.Since((int)cast["ruleCountBefore"]);
+                cast["traceSequenceAfter"] = trace.EventCount; cast["turnActor"] = controller.CurrentTurn?.Unit?.UniqueId;
+                var defensive = CastEvents(cast, "defensive-rule-after", ar.UniqueId);
+                var hooks = CastEvents(cast, "defensive-before", ar.UniqueId);
+                var spends = CastEvents(cast, "item-spend-after", ar.UniqueId).Where(e => (int)e["identity"] == (int)cast["ability"]["sourceItem"]).ToArray();
+                var check = defensive.Length == 1 ? new JObject { ["kind"] = "casting-defensively", ["dc"] = defensive[0]["dc"],
+                    ["roll"] = defensive[0]["roll"], ["success"] = defensive[0]["success"] } : null;
+                reactionDefense["check"] = check;
+                reactionDefense["outcome"] = check == null ? null : (bool)check["success"] ? "success" : "failure";
+                // The native window must have opened: one casting-defensively hook and one rule on the engaged shell.
+                Require(hooks.Length == 1 && defensive.Length == 1,
+                    "The native casting-defensively check did not run exactly once on rider A's engaged scroll cast (hooks " + hooks.Length +
+                    ", rules " + defensive.Length + ", shell time " + (string)cast["terminal"]["timeSinceStart"] + ").");
+                var rules = ((JArray)cast["rules"]).OfType<JObject>().ToArray();
+                var opportunities = rules.Where(e => (bool)e["opportunity"] && (string)e["actor"] == target.UniqueId &&
+                    ((string)e["target"] == ar.UniqueId || (string)e["target"] == am.UniqueId)).ToArray();
+                var success = (bool)check["success"];
+                var itemsBefore = (JObject)cast["itemsBefore"]; var itemsAfter = (JObject)cast["itemsAfter"];
+                Require(spends.Length == 1 && (bool?)spends[0]["result"] == true && (bool)itemsBefore["exactSlot"] && (bool)itemsAfter["exactSlot"] &&
+                    (int)itemsBefore["count"] >= 2 && (int)itemsAfter["count"] == (int)itemsBefore["count"] - 1,
+                    "The defensive scroll cast did not spend the exact equipped stack exactly once in place.");
+                Require(rules.Length == opportunities.Length && (success ? opportunities.Length == 0 : opportunities.Length <= 1) &&
+                    (int)cast["targetAfter"]["reactions"] == (int)cast["targetBefore"]["reactions"] - opportunities.Length,
+                    "The defensive check's native attack of opportunity differs from its outcome: " + new JArray(rules).ToString(Newtonsoft.Json.Formatting.None));
+                var before = (JObject)cast["before"]; var after = (JObject)cast["after"];
+                var elapsed = ((long)after["gameTicks"] - (long)before["gameTicks"]) / 10000000.0;
+                var residue = (JObject)cast["residue"];
+                Require(NeverSpentNatively(before, after, am) && new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)) &&
+                    new[] { "move", "swift" }.All(f => (float)Actor(after, ar)[f] <= (float)Actor(before, ar)[f] + .001f) &&
+                    (float)Actor(after, ar)["standard"] >= (float)Actor(before, ar)["standard"] - elapsed * 1.1 - .001 &&
+                    !(bool)residue["activeCommand"] && !(bool)residue["groundMovement"] && (string)residue["state"] == "Mounted",
+                    "The defensive cast spent mount A or pair B, refunded rider A, or left pair residue.");
+                var capture = reactionRules.Capture();
+                var approachRules = (reactionDefense["approach"]?["rules"] as JArray)?.Count ?? 0;
+                Require((int)capture["dropped"] == 0 && ((JArray)capture["errors"]).Count == 0 &&
+                    ((JArray)capture["events"]).Count == ((JArray)reaction["rules"]["events"]).Count + approachRules + rules.Length,
+                    "Reaction rule observation dropped, failed or recorded attacks outside its windows.");
+                reactionDefense["rulesCapture"] = capture; reactionRules.Dispose(); reactionRules = null;
+                ReleaseFoldedScrollFixtures();
+                reactionDefense["complete"] = true; Pass("C7-combat-reaction-defensive-cast");
+                reaction["complete"] = true;
                 BeginCleanup();
             }
         }

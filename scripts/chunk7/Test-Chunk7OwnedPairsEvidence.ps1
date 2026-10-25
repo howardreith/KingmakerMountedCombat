@@ -832,7 +832,7 @@ function New-KmcSeedReactionFixture([bool]$Approach=$false){
    fiveFootStep=$false;singleActionMove=$false;clicked=$true;command=(700+$rulesBefore);proposals=@();after=(&$snap ($label+'-after') $moveAfter);targetAfter=(&$state ($label+'-after') $reactionsAfter $engagedAfter $distanceAfter);rules=@($rules);traceSequenceAfter=($script:rxTraceBase+$traceBefore+5)
    distance=4.5;result='Success';residue=(Copy-Value $residue);pairBefore=(Copy-Value $residue);turnActor=$roles[0]}}
  $victim=$roles[1];$aoo=[pscustomobject][ordered]@{sequence=1;kind='attack';identity=4242;frame=101;round=10;actor=$o.targetId;target=$victim;opportunity=$true;fullAttack=$false;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;actorPosition=@(0.0,0.0,3.5);targetPosition=@(0.0,0.0,-1.0)}
- $x=[ordered]@{contract='owner-seed-combat-reaction-v1';riderId=$roles[0];mountId=$roles[1];targetId=$o.targetId;proneStandUp=[pscustomobject][ordered]@{covered=$false;reason='No deterministic native prone source exists for the diagnostic target on the owner-seed fixture.'};stage=3;firstRound=10}
+ $x=[ordered]@{contract='owner-seed-combat-reaction-v2';riderId=$roles[0];mountId=$roles[1];targetId=$o.targetId;proneStandUp=[pscustomobject][ordered]@{covered=$false;reason='No deterministic native prone source exists for the diagnostic target on the owner-seed fixture.'};stage=3;firstRound=10}
  if($Approach){
   $x.precondition=&$state 'precondition' 1 $false 9.0
   $x.approach=&$leg 'approach' 0.0 1.5 0 @() $false $true 1 9.0 3.5 10
@@ -843,6 +843,22 @@ function New-KmcSeedReactionFixture([bool]$Approach=$false){
  }
  $d|Add-Member clearDistance 8.0;$x.disengageGates=&$state 'disengage-gates' 1 $true 3.5;$x.disengage=$d
  $x.rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($aoo)};$x.complete=$true
+ # Round N+1 (11): the folded F04 defensive cast on mount A from inside the threatened area (success shape).
+ $w11={param([string]$label,[long]$ticks)$s=&$snap $label 0.0;$s.round=11;$s.gameTicks=$ticks;$s}
+ $item=[pscustomobject][ordered]@{item=9101;blueprint='cd635d5720937b044a354dba17abad8d';count=4;charges=1;exactSlot=$true}
+ $ability=[pscustomobject][ordered]@{identity=9102;blueprint='5590652e1c2225c4ca30c4a699ab3649';caster=$roles[0];sourceItem=9101;sourceItemBlueprint='cd635d5720937b044a354dba17abad8d'}
+ $cs=&$state 'defensive-cast-before' 1 $true 3.5;$cs.round=11;$ca=&$state 'defensive-cast-after' 1 $true 3.5;$ca.round=11;$pre=&$state 'defensive-precondition' 1 $true 3.5;$pre.round=11
+ $after=Copy-Value $item;$after.count=3
+ $events=@([pscustomobject]@{kind='defensive-before';actor=$roles[0];identity=9103},[pscustomobject]@{kind='defensive-rule-after';actor=$roles[0];identity=9104;dc=17;roll=19;success=$true},
+  [pscustomobject]@{kind='cast-after';actor=$roles[0];identity=9105;ability=$ability;target=$roles[1]},[pscustomobject]@{kind='item-spend-after';actor=$roles[0];identity=9101;blueprint='cd635d5720937b044a354dba17abad8d';result=$true;count=3})
+ $cast=[pscustomobject][ordered]@{round=11;before=(&$w11 'defensive-cast-before' 1000000000);targetBefore=$cs;pairBefore=(Copy-Value $residue);riderEngaged=$true;mountEngaged=$true;ruleCountBefore=1;traceSequenceBefore=($script:rxTraceBase+40)
+  itemsBefore=$item;castEventsBefore=0;ability=$ability;target=$roles[1];selected=$true;canTarget=$true;clicked=$true;admittedShellCount=1;shell=[pscustomobject]@{identity=9106};shellIdentity=9106
+  itemsAfter=$after;castEvents=$events;terminal=[pscustomobject]@{identity=9106;executor=$roles[0];finished=$true;acted=$true;result='Success';timeSinceStart=1.5}
+  after=(&$w11 'defensive-cast-after' 1015000000);targetAfter=$ca;residue=(Copy-Value $residue);rules=@();traceSequenceAfter=($script:rxTraceBase+50);turnActor=$roles[0]}
+ $rb=@($cast.after.actors|Where-Object id -CEQ $roles[0])[0];$rb.standard=6.0
+ $x.defensiveCast=[pscustomobject][ordered]@{contract='reaction-defensive-cast-v1';riderId=$roles[0];mountId=$roles[1];casterId=$roles[0];scrollUnits=4;scrollBlueprint='cd635d5720937b044a354dba17abad8d';scrollAbility=$ability
+  stage=8;round=11;precondition=$pre;cast=$cast;check=[pscustomobject][ordered]@{kind='casting-defensively';dc=17;roll=19;success=$true};outcome='success'
+  rulesCapture=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($aoo)};scroll=[pscustomobject]@{ownedItemReleased=$true;disposed=$true};originalSlots=[pscustomobject]@{before=@()};castTrace=[pscustomobject]@{dropped=0;faults=0};complete=$true}
  $o|Add-Member reaction ([pscustomobject]$x) -Force
  $v.name='combat-reaction';$v
 }
@@ -851,7 +867,37 @@ function Get-RxLeg($v){$v.artifact.observations.reaction.disengage}
 function RActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
 Check 'owner-seed combat reaction evidence accepted (threatened start, one native attack of opportunity)' {Invoke-OwnedReader (New-KmcSeedReactionFixture)}
 Check 'owner-seed combat reaction accepts a native approach before the disengagement' {Invoke-OwnedReader (New-KmcSeedReactionFixture $true)}
-Check 'owner-seed combat reaction accepts the attack of opportunity on rider A' {$v=New-KmcSeedReactionFixture;$e=(Get-RxLeg $v).rules[0];$e.target=$v.request.ownedPairs.riderAId;$v.artifact.observations.reaction.rules.events[0].target=$e.target;Invoke-OwnedReader $v}
+function Set-RxDefenseFailure($v,[bool]$Aoo){$x=$v.artifact.observations.reaction;$d=$x.defensiveCast;$c=$d.cast;$roles=@(Get-KmcChunk7OwnedPairIds $v.request)
+ $d.check.success=$false;$d.check.roll=3;$d.outcome='failure';@($c.castEvents|Where-Object kind -CEQ 'defensive-rule-after')[0].success=$false;@($c.castEvents|Where-Object kind -CEQ 'defensive-rule-after')[0].roll=3
+ $c.castEvents=@($c.castEvents|Where-Object kind -CNE 'cast-after')
+ if($Aoo){$e=Copy-Value $x.rules.events[0];$e.sequence=2;$e.round=11;$e.target=$roles[0];$c.rules=@($e);$c.targetAfter.reactions=0;$d.rulesCapture.events=@($x.rules.events[0],$e)};$v}
+function Get-RxDefense($v){$v.artifact.observations.reaction.defensiveCast}
+Check 'owner-seed combat reaction accepts the N+1 defensive cast with a passed native check' {Invoke-OwnedReader (New-KmcSeedReactionFixture)}
+Check 'owner-seed combat reaction accepts a failed native defensive check with its one attack of opportunity' {Invoke-OwnedReader (Set-RxDefenseFailure (New-KmcSeedReactionFixture) $true)}
+Check 'owner-seed combat reaction accepts a failed native defensive check whose attack is not made' {Invoke-OwnedReader (Set-RxDefenseFailure (New-KmcSeedReactionFixture) $false)}
+Check-SeedReaction 'the v1 contract without the defensive cast' {$x=$args[0].artifact.observations.reaction;$x.contract='owner-seed-combat-reaction-v1';$x.PSObject.Properties.Remove('defensiveCast')} 'exact pair A'
+Check-SeedReaction 'a missing defensive cast' {$args[0].artifact.observations.reaction.PSObject.Properties.Remove('defensiveCast')} 'defensive casting measurement is missing'
+Check-SeedReaction 'a defensive cast in round N' {(Get-RxDefense $args[0]).round=10} 'next native round'
+Check-SeedReaction 'a cast from outside the threatened area' {$c=(Get-RxDefense $args[0]).cast;$c.riderEngaged=$false;$c.mountEngaged=$false} 'inside the target'
+Check-SeedReaction 'a cast on rider A itself' {(Get-RxDefense $args[0]).cast.target=$args[0].request.ownedPairs.riderAId} 'one native scroll click by rider A on mount A'
+Check-SeedReaction 'a skipped native defensive check' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents|Where-Object kind -CNotIn @('defensive-before','defensive-rule-after'))} 'did not run exactly once'
+Check-SeedReaction 'a duplicated native defensive check' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents)+@(Copy-Value @($c.castEvents|Where-Object kind -CEQ 'defensive-rule-after')[0])} 'did not run exactly once'
+Check-SeedReaction 'a recorded check differing from its rule' {(Get-RxDefense $args[0]).check.roll=2} 'differs from its native rule'
+Check-SeedReaction 'no scroll spend' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents|Where-Object kind -CNE 'item-spend-after')} 'spend exactly once'
+Check-SeedReaction 'two scroll spends' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents)+@(Copy-Value @($c.castEvents|Where-Object kind -CEQ 'item-spend-after')[0])} 'spend exactly once'
+Check-SeedReaction 'a stack not decremented in place' {(Get-RxDefense $args[0]).cast.itemsAfter.count=4} 'decrement in place'
+Check-SeedReaction 'an attack of opportunity after a passed check' {$x=$args[0].artifact.observations.reaction;$d=$x.defensiveCast;$e=Copy-Value $x.rules.events[0];$e.round=11;$d.cast.rules=@($e);$d.cast.targetAfter.reactions=0;$d.rulesCapture.events=@($x.rules.events[0],$e)} 'differ from its outcome'
+Check-SeedReaction 'a target count not matching the attack' {(Get-RxDefense (Set-RxDefenseFailure $args[0] $true)).cast.targetAfter.reactions=1} 'count does not match'
+Check-SeedReaction 'a passed check with no cast' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents|Where-Object kind -CNE 'cast-after')} 'cast the scroll exactly once'
+Check-SeedReaction 'a concentration check without damage' {$c=(Get-RxDefense $args[0]).cast;$c.castEvents=@($c.castEvents)+@([pscustomobject]@{kind='concentration-rule-after';actor=$args[0].request.ownedPairs.riderAId;dc=16;roll=10;success=$false})} 'without damage'
+Check-SeedReaction 'mount A spending on the rider cast' {@((Get-RxDefense $args[0]).cast.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.mountAId)[0].standard=6.0} 'expenditure changed'
+Check-SeedReaction 'pair B spending on the rider cast' {@((Get-RxDefense $args[0]).cast.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderBId)[0].move=3.0} 'expenditure changed'
+Check-SeedReaction 'a refunded rider A Standard' {$c=(Get-RxDefense $args[0]).cast;@($c.before.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].standard=6.0;@($c.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].standard=0.0} 'refunded'
+Check-SeedReaction 'rider A moving on its cast' {@((Get-RxDefense $args[0]).cast.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].move=3.0} 'move or swift'
+Check-SeedReaction 'attacks outside the windows' {$d=Get-RxDefense $args[0];$d.rulesCapture.events=@($d.rulesCapture.events)+@(Copy-Value $d.rulesCapture.events[0])} 'outside the reaction and defensive windows'
+Check-SeedReaction 'an unreleased scroll stack' {(Get-RxDefense $args[0]).scroll.ownedItemReleased=$false} 'not released'
+Check-SeedReaction 'another scroll item' {(Get-RxDefense $args[0]).cast.ability.sourceItemBlueprint='d52566ae8cbe8dc4dae977ef51c27d91'} 'one native scroll click'
+Check-SeedReaction 'a target without its attack of opportunity before the cast' {(Get-RxDefense $args[0]).precondition.reactions=0} 'one native attack of opportunity before the defensive cast'Check 'owner-seed combat reaction accepts the attack of opportunity on rider A' {$v=New-KmcSeedReactionFixture;$e=(Get-RxLeg $v).rules[0];$e.target=$v.request.ownedPairs.riderAId;$v.artifact.observations.reaction.rules.events[0].target=$e.target;Invoke-OwnedReader $v}
 function Add-RxDelay($v){$o=$v.artifact.observations;$x=$o.reaction;$roles=@(Get-KmcChunk7OwnedPairIds $v.request)
  $tb=Copy-Value $x.precondition;$tb.label='delay-before';$tb.canActInCombat=$false;$tb.waitingInitiative=$true;$tb.initiativeCooldown=3.0
  $b=Copy-Value $x.disengage.before;$b.label='reaction-delay-before';$b|Add-Member currentActor $roles[0] -Force;$rs=Copy-Value $b;$rs.label='reaction-delay-resumed';$rs.gameTicks=[long]$b.gameTicks+30000000
