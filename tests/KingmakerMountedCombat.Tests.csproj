@@ -40,6 +40,8 @@
     <Compile Include="ChargeCohortTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\CastingSummonResidue.cs"><Link>Shared\Diagnostics\CastingSummonResidue.cs</Link></Compile>
     <Compile Include="CastingSummonResidueTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DeclaredMemberCommandPolicy.cs"><Link>Shared\Diagnostics\DeclaredMemberCommandPolicy.cs</Link></Compile>
+    <Compile Include="DeclaredMemberCommandPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\InterruptedEvidenceFinalizer.cs"><Link>Shared\Diagnostics\InterruptedEvidenceFinalizer.cs</Link></Compile>
     <Compile Include="InterruptedEvidenceFinalizerTests.cs" />
     <Compile Include="Program.cs" />
