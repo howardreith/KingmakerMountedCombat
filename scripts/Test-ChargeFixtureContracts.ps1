@@ -65,7 +65,7 @@ public static class ChargeFixtureProbe {
   var identityType=mod.GetType("KingmakerMountedCombat.Diagnostics.RetainedObjectIdentity",true);
   var identities=Activator.CreateInstance(identityType,F,null,new object[]{16000,new Func<object,int>(value=>41)},null);
   var trace=Blank(traceType);
-  Set(trace,"identities",identities);Set(trace,"events",new JArray());Set(trace,"installedHooks",new JArray());
+  Set(trace,"identities",identities);Set(trace,"events",new JArray());Set(trace,"installedHooks",new JArray());Set(trace,"forceToEnd",new JArray());
   var harmonyType=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll")).GetType("Harmony12.HarmonyInstance",true);
   Set(trace,"harmony",harmonyType.GetMethod("Create").Invoke(null,new object[]{"KingmakerMountedCombat.Diagnostics.ActorAllocation"}));
   var observe=traceType.GetMethod("ObjectIdentity",F);var internalId=traceType.GetMethod("Id",F);
