@@ -1,5 +1,24 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**F2 r15 re-evaluation redone on the full offline verdict path; r16 still blocked by the runner's source gate (offline; tools only).**
+- Re-review findings (M1 partial verdict path; S2 old FAIL not re-proven; S3 native calls under Stop; S4 evidence root; S5 self-test)
+  fixed in `4552f083`, `3219903d`; a fresh review then found the r16 blocker below plus should-fixes, fixed in `134f3a18`, `5dc584ff`.
+- `tools/chunk7-7e/final-reevaluation.ps1` (deriver admission) + `final-reevaluate.ps1` (verifier): New re-runs all of
+  `Test-RuntimeGameResult -RequirePass`, the base-game native inventory (admission + isolation receipts) and the runner's owned-pairs
+  post-game checks on the retained profile; Old re-proves the exact error from the run commit (LF archive, temporary tree, removed).
+  Six NAMED stand-ins are recorded in the receipt. The receipt lists every `scripts/` change by blob; nothing under `scripts/` may
+  change after its corrected reader; product/platform paths (src, Info, version, solution, fingerprint) must be unchanged.
+  `final-reevaluation-selftest.ps1` 15/0.
+- r15 receipt `analysis-cache/chunk7-continuation/final2-B4-r15-reader-reevaluation.json` SHA-256 `39c0c08b…` (corrected reader
+  `5dc584ff`, reader fix `95a69cfc`); old FAIL reproduced, new PASS, run directory and profile unchanged; the manifest-only receipt is
+  kept as `.superseded-1.json`; the intermediate full-path receipt (`3e673648…`) was overwritten, not retained.
+- Deriver proof (`final2-r16-derive-reevaluation-proof.log`): r16 derives from `{r01, r15+reevaluation}`; plain, bad-hash, traversal
+  and verdict-less maps refuse. Reproduce 73/0, Fast 3/0.
+- **Open, needs a decision:** the runner's own source gate (`Assert-KmcChunk7OwnedSourceCompletion`) requires r15's result PASS
+  and its base-game receipt flags true, so r16 cannot launch from r15 even with a derived selection; and r16 needs the corrected cold
+  reader, which the F2 package (harness `fa819113`) lacks, while a new package breaks the deriver's same-commit predecessor check.
+  Options: teach the gate the receipt (reviewed harness change, new package and suite) or re-run r15/r16 on a successor package.
+
 **Final F2 r15 reader-only defect fixed and re-evaluated (offline; harness only, `src/` untouched; no launch).** r15
 (`20261025-c7e-final-B4-r15`, zero-mounted TB checkpoint save, preview.94) game PASS 4/0, runner FAIL "Retained native actor was
 released before or after its first legitimate native round." (`final2-B4-r15-reader-defect.json`).
