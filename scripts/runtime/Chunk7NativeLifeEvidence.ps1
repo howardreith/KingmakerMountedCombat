@@ -136,8 +136,15 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
  Assert-KmcChunk7SameCombatBudget $before.world $after.world $ids
  foreach($name in @('mount','healthyRider','healthyMount')){if((ConvertTo-KmcChunk7Canonical $before.$name)-cne(ConvertTo-KmcChunk7Canonical $after.$name)-or(ConvertTo-KmcChunk7Canonical $before.$name)-cne(ConvertTo-KmcChunk7Canonical $delivery.$name)){throw 'Targeted native damage changed another actor life state.'}}
  if($life.nativeEffects.dropped-ne0){throw 'Native damage rule observations were dropped.'}
- $damageBefore=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-before'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
- $damageAfter=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-after'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
+ # b209: the observer runs past the stimulus; the stimulus is the target's damage on rider B in the stimulus frame. Every later
+ # target damage on rider B must be the folded prone stand-up's attack of opportunity (row 57), accounted exactly below.
+ $damage=@($life.nativeEffects.events|Where-Object{($_.kind-ceq'damage-before'-or$_.kind-ceq'damage-after')-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
+ $damageBefore=@($damage|Where-Object{$_.kind-ceq'damage-before'-and$_.frame-eq$before.world.frame})
+ $damageAfter=@($damage|Where-Object{$_.kind-ceq'damage-after'-and$_.frame-eq$before.world.frame})
+ $laterDamage=@($damage|Where-Object{$_.frame-ne$before.world.frame})
+ $pc=$owned-and(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-native-life-cleanup'
+ # The prone fold accounts for its later damage itself (Assert-KmcChunk7ProneStandUp); no other case may carry any.
+ if(-not$pc-and$laterDamage.Count-ne0){throw 'Life stimulus lacks one exact native damage rule observation.'}
  if($damageBefore.Count-ne1-or$damageAfter.Count-ne1-or$damageBefore[0].identity-eq0-or$damageBefore[0].identity-ne$damageAfter[0].identity-or
     $damageBefore[0].targetDamage-ne$before.rider.damage-or$damageAfter[0].targetDamage-ne$after.rider.damage-or$damageAfter[0].damage-ne$life.nativeDamage-or$damageAfter[0].beforeDifficulty-ne$life.requestedDamage){throw 'Life stimulus lacks one exact native damage rule observation.'}
  if($probe.actorId-cne$ids[2]-or$probe.nativeModuleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or$probe.nativeTickToken-cne'06009162'-or$probe.nativeSetToken-cne'06009164'-or
@@ -303,6 +310,28 @@ function Assert-KmcChunk7ProneStandUp($P,$o,$life,$ids,$control,$controlRows){
  $cap=$P.rules
  if($null-eq$cap-or$cap.dropped-ne0-or@($cap.errors).Count-ne0){throw 'Prone stand-up rule observation dropped or failed.'}
  if((ConvertTo-Json -InputObject @($cap.events) -Depth 10 -Compress)-cne(ConvertTo-Json -InputObject @(@($allRules)+@($sr)) -Depth 10 -Compress)){throw 'The prone rule observer recorded attacks outside its windows.'}
+ # b209: every target damage on rider B after the life stimulus frame is this stand-up attack of opportunity, exactly.
+ $f0=$life.beforeDamage.world.frame
+ Assert-KmcChunk7ProneAttackDamage @($life.nativeEffects.events|Where-Object{($_.kind-ceq'damage-before'-or$_.kind-ceq'damage-after')-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]-and$_.frame-ne$f0}) $P $f0
+}
+# b209: target damage on rider B after the stimulus is admitted only as the folded stand-up's attack of opportunity: before/after pairs
+# by rule identity, inside the stand-up window (its before and after world frames), at most one per stand-up attack, chained from
+# rider B's stand-up damage, summing exactly to rider B's recorded damage increase.
+function Assert-KmcChunk7ProneAttackDamage($Damage,$P,$StimulusFrame){
+ $st=$P.standUp;if($null-eq$st){throw 'Life stimulus lacks one exact native damage rule observation.'}
+ $after=@($Damage|Where-Object kind -CEQ 'damage-after');$beforeRows=@($Damage|Where-Object kind -CEQ 'damage-before')
+ # A miss (or no hit damage) leaves rider B's recorded damage unchanged; a recorded increase needs its native damage rule.
+ if(-not(Test-KmcExactJsonInteger $st.before.frame)-or$st.before.frame-le$StimulusFrame){throw 'The stand-up window does not follow the life stimulus.'}
+ if($after.Count-eq0-and$beforeRows.Count-eq0){if([long]$st.riderAfter.life.damage-ne[long]$st.rider.life.damage){throw 'The stand-up attack of opportunity damage differs from rider B''s recorded damage.'};return}
+ if($after.Count-eq0-or$after.Count-ne$beforeRows.Count-or$after.Count-gt@($st.rules).Count){throw 'Damage after the life stimulus is not the stand-up attack of opportunity.'}
+ $level=[long]$st.rider.life.damage;$sum=0
+ for($i=0;$i-lt$after.Count;$i++){$a=$after[$i];$b=$beforeRows[$i]
+  foreach($e in @($a,$b)){if(-not(Test-KmcExactJsonInteger $e.frame)-or$e.frame-lt$st.before.frame-or$e.frame-gt$st.after.frame){throw 'Damage after the life stimulus lies outside the stand-up window.'}}
+  # Tied to the attack itself: the damage resolves in the stand-up attack rule's own frame, from a weapon (no ability or area source).
+  $rule=@($st.rules)[$i];if($a.frame-ne$rule.frame-or$b.frame-ne$rule.frame-or$null-eq$a.PSObject.Properties['sourceAbility']-or$null-eq$a.PSObject.Properties['sourceArea']-or$null-ne$a.sourceAbility-or$null-ne$a.sourceArea){throw 'Damage after the life stimulus is not the stand-up attack of opportunity.'}
+  if($a.identity-ne$b.identity-or$a.identity-eq0-or$b.targetDamage-ne$level-or-not(Test-KmcExactJsonInteger $a.damage)-or$a.damage-lt0-or$a.targetDamage-ne$level+$a.damage){throw 'Damage after the life stimulus does not chain from rider B''s stand-up damage.'}
+  $level=[long]$a.targetDamage;$sum+=[long]$a.damage}
+ if($level-ne[long]$st.riderAfter.life.damage){throw 'The stand-up attack of opportunity damage differs from rider B''s recorded damage.'}
 }
 # b208 r57: when rider B's next turn after the heal came before the target's, and the target had not acted since the heal nor
 # engaged rider B, that one rider-B turn is given up with no input through the native End Turn (PauseBind -> ForceToEnd:
@@ -437,8 +466,11 @@ function Assert-KmcChunk7NativeDeathChain($Request,$o,$life,$ids){
  Assert-KmcChunk7SameCombatBudget $before.world $after.world $ids
  foreach($name in @('mount','healthyRider','healthyMount')){if((ConvertTo-KmcChunk7Canonical $before.$name)-cne(ConvertTo-KmcChunk7Canonical $after.$name)-or(ConvertTo-KmcChunk7Canonical $before.$name)-cne(ConvertTo-KmcChunk7Canonical $delivery.$name)){throw 'Targeted native damage changed another actor life state.'}}
  if($life.nativeEffects.dropped-ne0){throw 'Native damage rule observations were dropped.'}
- $damageBefore=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-before'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
- $damageAfter=@($life.nativeEffects.events|Where-Object{$_.kind-ceq'damage-after'-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
+ # Bound to the stimulus frame; no other target damage on rider B may follow its death.
+ $damage=@($life.nativeEffects.events|Where-Object{($_.kind-ceq'damage-before'-or$_.kind-ceq'damage-after')-and$_.actor-ceq$o.targetId-and$_.target-ceq$ids[2]})
+ $damageBefore=@($damage|Where-Object{$_.kind-ceq'damage-before'-and$_.frame-eq$before.world.frame})
+ $damageAfter=@($damage|Where-Object{$_.kind-ceq'damage-after'-and$_.frame-eq$before.world.frame})
+ if(@($damage|Where-Object{$_.frame-ne$before.world.frame}).Count-ne0){throw 'Death stimulus lacks one exact native damage rule observation.'}
  if($damageBefore.Count-ne1-or$damageAfter.Count-ne1-or$damageBefore[0].identity-eq0-or$damageBefore[0].identity-ne$damageAfter[0].identity-or
     $damageBefore[0].targetDamage-ne$before.rider.damage-or$damageAfter[0].targetDamage-ne$after.rider.damage-or$damageAfter[0].damage-ne$life.nativeDamage-or$damageAfter[0].beforeDifficulty-ne$life.requestedDamage){throw 'Death stimulus lacks one exact native damage rule observation.'}
  # The exact native chain: Tick -> SetLifeState(Dead) -> OnUnitDeath -> HandleUnitDeath, then the life-state event.
