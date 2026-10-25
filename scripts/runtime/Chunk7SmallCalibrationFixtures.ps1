@@ -5,12 +5,13 @@ Set-StrictMode -Version Latest
 # verdict. Neither historical identity is projected onto a later consumer.
 # This is a read-only source gate; it grants no load or profile authority.
 # The receipt pins its two readers by the path they had in the root repository when it was written (at 6fb1eee8). The
-# pin is an immutable statement about what was evaluated: it binds to the archived blobs of that reader commit, whichever
-# tree the harness runs from (root or a frozen worktree), never to today's live root files (F2 s1/r33: the root readers
-# had moved on, and a worktree run never matched its own root path).
-function Resolve-KmcF09AcceptedReaderPin($Pin){
+# pin is an immutable statement about what was evaluated: it resolves to the hash-verified snapshot of those reader files
+# under analysis-cache\chunk7-continuation\f09-accepted-readers-6fb1eee8\ (byte-equal to their 6fb1eee8 blobs; the code
+# reads the snapshot files, not git objects), whichever tree the harness runs from (root or a frozen worktree), never
+# today's live root files (F2 s1/r33: the root readers had moved on, and a worktree run never matched its own root path).
+function Resolve-KmcF09AcceptedReaderPin($Pin,[string]$SnapshotRoot){
  $prior=[IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'repo\KingmakerMountedCombat\scripts\runtime'))
- $snapshot=Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk7-continuation/f09-accepted-readers-6fb1eee8'
+ $snapshot=if($SnapshotRoot){$SnapshotRoot}else{Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk7-continuation/f09-accepted-readers-6fb1eee8'}
  foreach($row in @(
   @('Chunk7AssistedColdInventoryEvidence.ps1','0ecb969f676392a23bf5c9ab02bcad0ace20db7621d54af93bd8b89ca663e071',75040),
   @('Chunk7SmallFixtureColdSource.ps1','2e11048380afad6102e8a54dd4f10a31d0e5e74e360c49b5c9b587278cd4da0b',5531))){
@@ -21,19 +22,25 @@ function Resolve-KmcF09AcceptedReaderPin($Pin){
  }
  return $Pin.path
 }
-# The receipt's nine input pins: seven immutable evidence files at their recorded paths and the two readers at their archived
-# reader-commit blobs; each must exist once with its exact length and SHA-256.
-function Assert-KmcF09AcceptedInputPins($Pins){
+# The receipt's nine input pins: seven immutable evidence files at their recorded paths and the two readers at their
+# hash-verified snapshot files; each must exist once with its exact length and SHA-256. Used at both source boundaries.
+function Assert-KmcF09AcceptedInputPins($Pins,[string]$ChangedMessage='F09 cold reader input changed after accepted re-evaluation.',[string]$SnapshotRoot){
  $lab=Get-KmcLabRoot
  if($Pins-isnot[Array]-or$Pins.Count-ne9){throw 'F09 cold reader input pin set changed.'}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
  foreach($pin in $Pins){
-  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold reader input'
+  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin $SnapshotRoot) $lab 'F09 cold reader input'
   if(-not$seen.Add($path)-or$pin.sha256-isnot[string]-or$pin.sha256-cnotmatch'^[a-f0-9]{64}$') {throw 'F09 cold reader input pin is missing or repeated.'}
   Assert-KmcNotReparsePoint $path 'F09 cold reader input';Assert-KmcNotHardLink $path 'F09 cold reader input'
   $file=Get-Item -LiteralPath $path
-  if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw 'F09 cold reader input changed after accepted re-evaluation.'}
+  if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw $ChangedMessage}
  }
+}
+# The accepted cold receipt: one pinned file under analysis-cache with its exact SHA-256.
+function Read-KmcF09AcceptedReceipt([string]$Path){
+ $lab=Get-KmcLabRoot
+ $receiptPath=Assert-KmcChildPath $Path (Join-Path $lab 'analysis-cache') 'F09 separate cold reader receipt'
+ [pscustomobject]@{path=$receiptPath;receipt=(Read-KmcSmallFixturePinnedJson $receiptPath 'd188012fb1f9a19410a572b67381bfb15be5e813a215a79196ed734b49c59bfc' 65536)}
 }
 function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  Assert-KmcChunk7SmallF09SourceSelection $Selection 'unassigned-f09-calibration'
@@ -55,8 +62,8 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  if($Consumer.commit-ceq$producer.commit-and$Consumer.dllSha256-ceq$producer.dllSha256-and$Consumer.dllMvid-ceq$producer.dllMvid){throw 'F09 cross-candidate source route cannot claim a same-candidate consumer.'}
  $source=Get-KmcChunk7SmallFixtureColdSource $expected.sourceRunId $expected.sourceArtifactSha256 $expected.sourceArchiveSha256 $Fixture $producer
  $lab=Get-KmcLabRoot
- $receiptPath=Assert-KmcChildPath (Join-Path $lab 'analysis-cache/chunk7-continuation/codex-takeover/group71-native-b53/b53s2-f09-reader-only-reevaluation.json') (Join-Path $lab 'analysis-cache') 'F09 separate cold reader receipt'
- $receipt=Read-KmcSmallFixturePinnedJson $receiptPath 'd188012fb1f9a19410a572b67381bfb15be5e813a215a79196ed734b49c59bfc' 65536
+ $loaded=Read-KmcF09AcceptedReceipt (Join-Path $lab 'analysis-cache/chunk7-continuation/codex-takeover/group71-native-b53/b53s2-f09-reader-only-reevaluation.json')
+ $receiptPath=$loaded.path;$receipt=$loaded.receipt
  $r=$receipt.value
  Assert-KmcOrdinaryInteger $r.schemaVersion 1 1
  foreach($pair in @(@('kind','f09-small-fixture-cold-reader-only-reevaluation'),@('status','PASS'),@('originalOuterStatus','FAIL'),
@@ -84,12 +91,8 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  Assert-KmcAssistedColdNoPreparation $coldArtifact.observations.noPreparation $coldRequest
  Assert-KmcAssistedSettledFile $source.path $source.descriptor 'F09 producer archive at final source boundary'
  foreach($pin in $source.receiptPins){Assert-KmcAssistedSettledFile $pin.path $pin 'F09 producer receipt at final source boundary'}
- foreach($pin in $r.inputPins){
-  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold input at final source boundary'
-  Assert-KmcNotReparsePoint $path 'F09 cold input at final source boundary';Assert-KmcNotHardLink $path 'F09 cold input at final source boundary'
-  $file=Get-Item -LiteralPath $path
-  if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw 'F09 cold input changed before qualification returned.'}
- }
+ # The same nine-pin check (count, duplicates, lengths, hashes) at the final boundary.
+ Assert-KmcF09AcceptedInputPins $r.inputPins 'F09 cold input changed before qualification returned.'
  if((Get-KmcSha256 $receiptPath)-cne$receipt.sha256){throw 'F09 accepted cold receipt changed during qualification.'}
  [pscustomobject]@{path=$source.path;descriptor=$source.descriptor;artifactPath=$source.artifactPath;artifactSha256=$source.artifactSha256;
   artifactLength=$source.artifactLength;sourceRunId=$source.sourceRunId;historicalProducer=$producer;coldReaderReceiptSha256=$receipt.sha256;
