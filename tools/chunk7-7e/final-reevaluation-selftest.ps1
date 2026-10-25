@@ -18,7 +18,7 @@ function New-Fixture([string]$Name,[scriptblock]$Mutate={}){
  $error0='Retained native actor was released before or after its first legitimate native round.'
  $f=[ordered]@{id=$id;dir=$dir;error0=$error0;errors=@($error0);gameStatus='PASS';flags=[ordered]@{modsRestored=$true;saveProtectionPassed=$true;baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true}
   oldCommit=$runCommit;newCommit=$readerCommit;receiptLeaf='final2-B4-r15-reader-reevaluation.json';evidenceSha=('e'*64);receiptEvidenceSha=('e'*64)
-  badReceiptHash=$false;evidenceRoot=$dir;changedMutate={};verifierOld='REEVALUATION-OLD-FAIL-REPRODUCED';verifierNew='REEVALUATION-PASS'}
+  badReceiptHash=$false;evidenceRoot=$dir;changedMutate={param($c)$c};verifierOld='REEVALUATION-OLD-FAIL-REPRODUCED';verifierNew='REEVALUATION-PASS'}
  &$Mutate $f
  [IO.File]::WriteAllText((Join-Path $dir 'runtime-game-result.json'),(ConvertTo-Json ([ordered]@{status=$f.gameStatus}) -Compress),$utf8)
  $result=[ordered]@{runId=$id;status='FAIL';errors=$f.errors;gameResultSha256=(Sha (Join-Path $dir 'runtime-game-result.json'))};foreach($k in $f.flags.Keys){$result[$k]=$f.flags[$k]}
