@@ -11,6 +11,15 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**G7 met (option (a), harness plus request validators; no launch).** Row 32 now consumes F's own r31:
+`Get-KmcOwnerStockCleanupSource` admits a final-campaign `…-c7e-final-B<n>-r31[r]` run only through the
+runner's new `-OwnerStockCleanupRunMapPath` (settled `r31` receipt: run id, reader PASS, restoration
+verified, result SHA-256 re-hashed), on the consuming run's own commit, DLL, MVID and suite, on the stock
+Mammoth input, with its cleanup write's SHA-256; batch65 stays admitted exactly as before, for history.
+The request validator, `RuntimeProtocol` and the observer request accept any genuine cleanup hash other
+than the stock input with a bounded length (batch65's hash keeps its exact length). Tests: removal
+evidence 64/0 (2 positive, 23 refusals), observer request 7/0, components 877/0, Fast 3/0.
+
 The matrix exclusions table no longer says "agreed": every row cites its owner decision or mission text,
 and the uncovered rows (C11 prone, F04 defensive check, X3 residual) say they are not approved exclusions.
 

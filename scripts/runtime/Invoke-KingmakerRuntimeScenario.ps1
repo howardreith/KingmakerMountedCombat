@@ -72,6 +72,9 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
+    # Row 32 under run plan gate G7 (a): the executor's settled run map naming this
+    # candidate's own final-campaign r31 (owner stock prepare-removal) as the no-DLL source.
+    [string]$OwnerStockCleanupRunMapPath,
     # F12 upgrade/rollback rehearsal: a step of the request-free normal-player control
     # (planning/CHUNK7-7E-QUALIFICATION-MATRIX.md, X5). u2/u3 name the passed u1 run.
     [ValidateSet('u1-previous-install','u2-upgrade','u3-rollback')][string]$UpgradeRehearsalStep,
@@ -203,14 +206,20 @@ if($PSBoundParameters.ContainsKey('OwnerStockRemoval')){
     $ownerProducer=$Scenario-ceq'persistence-p07-save'-and$PersistenceCase-ceq'prepare-removal'-and$BaseGameOnly-and
         -not$PSBoundParameters.ContainsKey('PersistenceSourceRunId')-and-not$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-and
         -not$PSBoundParameters.ContainsKey('ObserverPackagePath')
-    $ownerCold=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-ceq'removal-no-dll'-and-not$BaseGameOnly-and
-        $PersistenceSourceRunId-ceq'20261020-c7b-world81-b65s1-owner-stock-removal'-and
+    # The no-DLL consumer reads batch65's cleanup Manual (history) or, under run plan gate G7 (a), the same
+    # candidate's settled final-campaign r31 named by the executor's run map (source gate re-proves every pin).
+    $ownerColdBatch65=$PersistenceSourceRunId-ceq'20261020-c7b-world81-b65s1-owner-stock-removal'-and
         $ExpectedPersistenceSourceSha256-ceq'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'-and
-        -not[string]::IsNullOrEmpty($ObserverPackagePath)
-    if(-not$OwnerStockRemoval-or-not($ownerProducer-or$ownerCold)-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')){
-        throw 'Owner stock removal selects only the closed batch64 P07 producer or its exact batch65 no-DLL cleanup consumer.'
+        -not$PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath')
+    $ownerColdFinal=(Test-KmcOwnerStockFinalCleanupRunId $PersistenceSourceRunId)-and
+        $PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-and-not[string]::IsNullOrEmpty($OwnerStockCleanupRunMapPath)
+    $ownerCold=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-ceq'removal-no-dll'-and-not$BaseGameOnly-and
+        ($ownerColdBatch65-or$ownerColdFinal)-and-not[string]::IsNullOrEmpty($ObserverPackagePath)
+    if(-not$OwnerStockRemoval-or-not($ownerProducer-or$ownerCold)-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')-or
+        ($ownerProducer-and$PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath'))){
+        throw 'Owner stock removal selects only the closed batch64 P07 producer or its no-DLL cleanup consumer of the exact batch65 Manual or a same-candidate final-campaign r31 named by its settled run map.'
     }
-}
+}elseif($PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath')){throw 'The owner stock cleanup run map is admitted only for the owner stock no-DLL consumer.'}
 $acquiredManualInput=$null;$acquiredManualSource=$null
 if(Test-KmcChunk7AcquiredManualScenario $Scenario){
     if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($AcquiredManualSelectionPath)){throw 'Acquired Manual acquisition requires explicit base-only staging and exact successful Manual lineage plus observed readiness pins.'}
@@ -933,7 +942,7 @@ try{
                 elseif($sourceCase-cin @('absent-kmc','removal-no-dll')){
                     # The cleanup archive a prepare-removal run wrote, under its
                     # own name, is what the integration-absent process opens.
-                    if($OwnerStockRemoval){Get-KmcOwnerStockCleanupSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload}
+                    if($OwnerStockRemoval){Get-KmcOwnerStockCleanupSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload $manifest $ExpectedQualificationSuiteId $OwnerStockCleanupRunMapPath}
                     else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase prepare-removal -ArtifactRole cleanup-manual}
                 }
                 elseif($sourceCase-ceq'rider-size-change'){

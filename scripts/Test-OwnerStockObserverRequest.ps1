@@ -27,12 +27,19 @@ $r.Archive.Sha256='2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bd
 $r.Archive.Length=1263594;$r.Archive.GameId='3f7381f7-aba6-43bf-bae6-39c6a66a7180'
 $r.Archive.GameName='Testy the Modless';$r.Archive.Area='b10e86516b6437d45a629931c30936fe'
 if(@($r.Validate()).Count-ne0){throw 'Exact batch65 cleanup observer request was rejected.'}
-$r.Archive.Sha256='e'*64
-if(@($r.Validate()).Count-eq0){throw 'Observer accepted another Manual 306 hash.'}
-$r.Archive.Sha256='2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'
+$r.Archive.Length=1263595
+if(@($r.Validate()).Count-eq0){throw 'Observer accepted the batch65 hash with another length.'}
+# Run plan gate G7 (a): a same-candidate final r31 cleanup Manual (provenance proved by the runner's source gate).
+$r.Archive.Sha256='e'*64;$r.Archive.Length=1270001
+if(@($r.Validate()).Count-ne0){throw 'Observer rejected a final r31 Manual 306 cleanup.'}
+$r.Archive.Length=0
+if(@($r.Validate()).Count-eq0){throw 'Observer accepted an empty Manual 306 cleanup.'}
+$r.Archive.Length=1270001;$r.Archive.Sha256='e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'
+if(@($r.Validate()).Count-eq0){throw 'Observer accepted the stock Mammoth input as its cleanup.'}
+$r.Archive.Sha256='2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2';$r.Archive.Length=1263594
 $r.Archive.GameId='00000000-0000-0000-0000-000000000001'
 if(@($r.Validate()).Count-eq0){throw 'Observer accepted another Manual 306 campaign.'}
 $r.Archive.FileName='Manual_301_KMC_CLEANUP.zks';$r.Archive.Sha256='e'*64
 $r.Archive.GameId='3f7381f7-aba6-43bf-bae6-39c6a66a7180'
 if(@($r.Validate()).Count-ne0){throw 'Legacy Manual 301 observer path changed.'}
-Write-Host 'OWNER STOCK OBSERVER REQUEST PASS=4 FAIL=0 (compiled observer, offline only)'
+Write-Host 'OWNER STOCK OBSERVER REQUEST PASS=7 FAIL=0 (compiled observer, offline only)'
