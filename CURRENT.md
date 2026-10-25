@@ -1,5 +1,25 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**b208 r57 sequencing fixed (offline; product diagnostics changed; no launch).** b208 on `3b0e4f6a`: m5 PASS (set 0's native
+`maybeWeapon` was the empty hand `20375b5a…`, confirming the stored-item fix; BAB 6 gave off [14, 9], on [12, 12, 7]); r57 refused
+as uncovered again before the approach could run: native order rider A, rider B, target, healer, 5dd7, mount B, mount A, so rider
+B's round-5 turn came before the target's (target reach 0.6096 m + corpulences 1.2 ≈ 1.81 m against 2.058 m, LOS true, memory true).
+- Native seam: when rider B's turn comes after the heal, the target has not acted since the heal and does not engage rider B, that
+  one turn is given up with no input through the existing native End Turn (`Game.PauseBind` → `CanEndTurnAndNoActing` →
+  `ForceToEnd`: Standard 6, Move 3, Swift 6; `End()` keeps them). In TB `UnitProneController` keeps an idle controllable unit prone,
+  so the prone state persists natively (recorded right after the forfeit and again at the stand-up). Rider B's next turn is a new
+  TurnController prepared natively. The target approaches on its own turn; rider B stands on its next turn. The reverse order (the
+  target acted after the heal) and a target already engaging skip nothing. The stand bound is the skipped round + 1 only (heal + 1
+  otherwise); the N+6 bound stays.
+- Reader `Assert-KmcChunk7ProneRiderSkip`: exactly one forfeited turn, rider B's own current turn (actor and current actor), untouched
+  before (TimeMoved and all cooldowns 0, not acted, Preparing/Acting), the native forfeit after (6/3/6, acted, Ending/Ended, world
+  record agrees), no command, no attack, no movement over 0.05 m, conscious prone unpaired, no other pair actor spend, the target's
+  turn after it, the stand-up on the next turn. The unapproached target-turn record now carries its trace sequence.
+- Independent review: no must-fix; 2 should-fix (identify the forfeited turn's unit; a skip followed by an already-engaged target
+  was falsely refused) and 3 small points (producer round bound, untouched-turn cooldowns, missing status tests), all fixed.
+- Tests: owned reader 1258/0 (23 new), owned authority 756/0, native life 85/0, combat 53/0, components 881/0, Validate-Source
+  149/0, deriver Reproduce 73/0, Fast 3/0, Release build (`fcacbbe7…`). Needs the next native pilot (r57).
+
 **b207 development pilot findings fixed (offline; product diagnostics changed; no launch).** b207 ran 7 launches on `e096038a`
 (package `b76b1ae1…`, suite `chunk7e-b207-pilots-20261025`): m1–m4 and cr PASS, m5 and r57 refused as uncovered.
 - **m5 false refusal (hand sets).** Kingmaker 2.1.7b contract (local metadata, summarized): `WeaponSlot.MaybeWeapon` answers
