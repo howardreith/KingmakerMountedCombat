@@ -877,6 +877,9 @@ function New-KmcSeedChargeFixture{
 }
 function Check-SeedCharge([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcSeedChargeFixture;&$Mutation $v;Check ('owner-seed real-time Charge refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
 Check 'owner-seed real-time Charge evidence accepted (charge seed lineage, saved melee hand set)' {Invoke-OwnedReader (New-KmcSeedChargeFixture)}
+# Owner decision (d): KMC_C7_LEVEL6_SEED reaches no owned two-pair case (rider A owns a native animal companion).
+foreach($kind in @('realtime-charge','combat-rider-first','combat-mount-first','native-life-cleanup')){$lk=$kind;Check ('level-6 seed refused for owner-seed '+$lk) {$v=New-KmcOwnerSeedDerivedCombatFixture $lk;$c=Get-KmcChunk7Level6Seed;$v.request.ownedPairs.seedId=$c.seedId;$v.request.ownedPairs.seedSha256=$c.sha256;Invoke-OwnedReader $v} $true 'KMC_C7_LEVEL6_SEED is refused'}
+Check 'level-6 seed hash under another id refused' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.request.ownedPairs.seedSha256=(Get-KmcChunk7Level6Seed).sha256;Invoke-OwnedReader $v} $true 'KMC_C7_LEVEL6_SEED is refused'
 Check 'generic acquired RT Charge evidence accepted with a melee weapon' {Invoke-OwnedReader (Copy-Value @($fixtures|Where-Object name -CEQ 'realtime-charge')[0])}
 Check-SeedCharge 'the original owner seed' {foreach($x in @($args[0].request.ownedPairs)){$x.seedId='KMC_C7_NO_MODS_OWNER_SEED';$x.seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}} 'exactly the registered KMC_C7_CHARGE_SEED'
 Check-SeedCharge 'the charge seed id with another hash' {$args[0].request.ownedPairs.seedSha256=('9'*64)} 'exactly the registered KMC_C7_CHARGE_SEED'

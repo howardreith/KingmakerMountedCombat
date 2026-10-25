@@ -326,8 +326,9 @@ Six-pair stress takes 10–40 min of game time. Row 42 is last: it is the fresh-
 | Tag | Row | Case (PersistenceCase) | Source / checkpoint | T: | Reader |
 | --- | --- | --- | --- | --- | --- |
 | x3 | 75 | `owner-seed-checkpoint-load` (`pending-schema3-control-manual`) | r01 / r17 (B4, same candidate) | `20261019-c7b-directive4-b37s1-schema3-corrected` (outer-FAIL development run; selection shape only, never a predecessor) | owned control branch + combat-persistence reader |
+| l6 | 76 | `chunk7-assisted-cold-inventory` / `owner-seed-readonly-inventory` on `KMC_C7_LEVEL6_SEED` | level-6 seed master (registered owner seed, no lineage pins) | none: the selection is the literal `{"case":"owner-seed-readonly-inventory","baseGameOnly":true,"expectedNativeLoadCount":1,"expectedNativeWriteCount":0,"seedId":"KMC_C7_LEVEL6_SEED","seedSha256":"b1447ae77246d418256ec4aae9be1ee97828880a30376ae1985ca880a80e37d5"}` (the b201-k1 shape with the seed fields) | `Assert-KmcChunk7AssistedColdInventoryEvidence` |
 
-x3 may run in any batch after B4 settles; it is placed here so no earlier batch exceeds five launches.
+x3 may run in any batch after B4 settles and l6 at any time; both are placed here so no earlier batch exceeds five launches.
 ## 6. F11 acceptance (rows 39–42; criteria fixed, never moved)
 
 Computed from the recorded windows of r39 (0/1/2/6/0 pairs, three windows each) and r40 (0/1/2/0), with
