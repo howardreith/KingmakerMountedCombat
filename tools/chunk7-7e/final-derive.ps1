@@ -194,6 +194,7 @@ function Get-LeafDiff($A,$B,[string]$Path){
 }
 # A runner FAIL settled by its reader-only re-evaluation (plan section 8): see final-reevaluation.ps1.
 . (Join-Path $PSScriptRoot 'final-reevaluation.ps1')
+$deriverRepo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 function Derive([string]$T,[string]$DeriveMode,$RunMap){
  $s=$Spec[$T];if($null-eq$s){throw "No selection is derived for tag $T."}
  $template=Get-Run $s.tpl;$tplSel=$template.request.($s.key);if($null-eq$tplSel){throw "Template $($s.tpl) has no $($s.key) selection."}
@@ -215,7 +216,7 @@ function Derive([string]$T,[string]$DeriveMode,$RunMap){
    if($run.result.status-cne'PASS'){
     # Plan section 8, reader-only defect: a runner FAIL is a predecessor only in Final mode and only with its reviewed
     # re-evaluation receipt (Test-KmcFinalReaderReevaluation); the retained runner verdict is never rewritten.
-    if($DeriveMode-cne'Final'-or-not(Test-KmcFinalReaderReevaluation -Pred $pred -Entry $entry -Run $run -EvidenceRoot $ev -CacheRoot $cache -RepoRoot ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'+[IO.Path]::DirectorySeparatorChar+'..'))) -LabRoot $LabRoot)){throw "Predecessor $pred ($id) is not PASS."}
+    if($DeriveMode-cne'Final'-or-not(Test-KmcFinalReaderReevaluation -Pred $pred -Entry $entry -Run $run -EvidenceRoot $ev -CacheRoot $cache -RepoRoot $deriverRepo -LabRoot $LabRoot)){throw "Predecessor $pred ($id) is not PASS."}
    }
    foreach($k in @(@('commit',$Commit),@('dllSha256',$DllSha256),@('dllMvid',$DllMvid))){if($run.request.($k[0])-cne$k[1]){throw "Predecessor $pred ($id) is not on the final candidate ($($k[0]))."}}
    $useRuns[$role]=$run}
