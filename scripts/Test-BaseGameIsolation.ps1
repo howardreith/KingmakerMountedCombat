@@ -48,6 +48,20 @@ $duplicate=$f.parameters.Replace('</ModParams>','<Mod Id="kingmakermountedcombat
 Reject 'case-ambiguous mod parameters rejected' {Assert-KmcBaseGameParameters $duplicate|Out-Null}
 $copy=$receipt|ConvertTo-Json -Depth 8|ConvertFrom-Json;$copy.dependencyDigest='0'*64
 Reject 'tampered dependency receipt rejected' {Assert-KmcBaseGameDependencyReceipt $copy}
+# The dependency digest must not follow the checkout's line endings (a CRLF worktree once computed another digest and
+# recovery refused): load the actual source normalised to CRLF and to LF and require the explicit LF-joined digest from both.
+Check 'dependency digest is identical from CRLF and LF checkouts and equals the LF-joined rows' {
+    $sourceText=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'runtime/BaseGameIsolation.ps1'),[Text.Encoding]::UTF8)
+    $lf=$sourceText.Replace("`r`n","`n");$crlf=$lf.Replace("`n","`r`n")
+    [string[]]$rows=@($receipt.files|ForEach-Object {'{0}|{1}|{2}' -f $_.relativePath,$_.length,$_.sha256});[Array]::Sort($rows,[StringComparer]::Ordinal)
+    $expected=Get-KmcTextSha256 ((@([string]$receipt.gameRoot,[string]$receipt.configSha256)+$rows)-join "`n")
+    foreach($variant in @(@('lf',$lf),@('crlf',$crlf))){
+        $copy=Join-Path $testRoot ('BaseGameIsolation.'+$variant[0]+'.ps1');[IO.File]::WriteAllText($copy,$variant[1],[Text.UTF8Encoding]::new($false))
+        $digest=& {param($path,$value). $path;Get-KmcBaseGameDependencyDigest $value} $copy $receipt
+        Need ($digest-ceq$expected) ('The '+$variant[0]+' checkout computes another dependency digest.')
+    }
+    Need ((Get-KmcBaseGameDependencyDigest $receipt)-ceq$expected) 'The loaded dependency digest differs from the LF-joined rows.'
+}
 $dependency=Join-Path $f.loader 'dnlib.dll';$saved=[IO.File]::ReadAllBytes($dependency)
 try{[IO.File]::WriteAllText($dependency,'changed');Reject 'dependency changed between intake and staging rejected' {Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles}}
 finally{[IO.File]::WriteAllBytes($dependency,$saved)}
