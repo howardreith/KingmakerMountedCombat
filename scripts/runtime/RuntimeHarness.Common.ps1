@@ -139,6 +139,8 @@ function Get-KmcLabRoot {
 
 function Get-KmcSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
+    # Hashing is read-only: a caller's -WhatIf must not reach Get-FileHash's internal path resolution (final B1 c4 recovery).
+    $WhatIfPreference = $false
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 

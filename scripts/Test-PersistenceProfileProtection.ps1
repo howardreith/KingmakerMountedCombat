@@ -218,6 +218,44 @@ try{
     if($delta.Count-ne1-or$delta[0].change-cne'rewritten'-or$delta[0].beforeSha256-cne('a'*64)-or$delta[0].afterSha256-cne('b'*64)){
         throw 'Legitimate rewrite churn was not reported with before and after hashes.'};$passes++
     if(@(Get-KmcPersistenceProfileCacheDelta $before $before).Count-ne0){throw 'Unchanged cache reported churn.'};$passes++
+    # Final 7E B1 c4: the settled-empty admission. A NEW zero-length leaf of the native family, with the exact empty
+    # bytes, written after every intake leaf and untouched for the 60 s settlement window, is admitted as 'created-empty'
+    # only under -EmptyNewLeaf Admit. Refuse stays the default; Defer neither admits nor refuses a zero-length new leaf.
+    $now=[DateTime]::UtcNow.Ticks;$intakeTicks=$now-3000000000L
+    $empty='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    $intakeRow=[pscustomobject]@{kind='file';path='achievements.dat7';length=$native;sha256=('a'*64);lastWriteTimeUtcTicks=$intakeTicks}
+    $snapRows=[pscustomobject]@{entries=@($intakeRow)}
+    $c4Name='achievements.dat#3'+([string][char]0xfffd)*5+'O'
+    $leaf={param($path,$length,$sha,$ticks)[pscustomobject]@{kind='file';path=$path;length=$length;sha256=$sha;lastWriteTimeUtcTicks=$ticks}}
+    $ok=@(Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)))}) -EmptyNewLeaf Admit -NowUtcTicks $now)
+    if($ok.Count-ne1-or$ok[0].change-cne'created-empty'-or$ok[0].path-cne$c4Name-or$ok[0].length-ne0-or$ok[0].afterSha256-cne$empty){throw 'The c4 settled empty native cache leaf was not admitted as created-empty.'};$passes++
+    foreach($case in @(
+        @{name='default policy';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)));mode='Refuse'},
+        @{name='non-empty bytes at length zero';after=@($intakeRow,(&$leaf $c4Name 0 ('b'*64) ($now-900000000L)));mode='Admit'},
+        @{name='written before the intake';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($intakeTicks-10000000L)));mode='Admit'},
+        @{name='written inside the settlement window';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-300000000L)));mode='Admit'},
+        @{name='no write time';after=@($intakeRow,[pscustomobject]@{kind='file';path=$c4Name;length=0;sha256=$empty});mode='Admit'},
+        @{name='a non-zero unsettled size';after=@($intakeRow,(&$leaf $c4Name 4096 ('b'*64) ($now-900000000L)));mode='Admit'},
+        @{name='an existing leaf truncated to zero';after=@((&$leaf 'achievements.dat7' 0 $empty ($now-900000000L)));mode='Admit'},
+        @{name='an existing leaf deleted';after=@();mode='Admit'})){
+        $rejected=$false
+        try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($case.after)}) -EmptyNewLeaf $case.mode -NowUtcTicks $now)}catch{$rejected=$true}
+        if(!$rejected){throw ('Settled-empty admission accepted: '+$case.name+'.')};$passes++
+    }
+    foreach($outside in @('achievements.dat.bak','Areas/achievements.dat$','settings.dat')){
+        if($null-ne(Get-KmcNativeEmptyCacheAdmission $snapRows (&$leaf $outside 0 $empty ($now-900000000L)) $now)){throw ('Settled-empty admission accepted a leaf outside the native family: '+$outside)};$passes++
+    }
+    $rejected=$false;try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)),(&$leaf 'achievements.datQ' 0 $empty ($now-900000000L)))}) -EmptyNewLeaf Admit -NowUtcTicks $now)}catch{$rejected=$true}
+    if(!$rejected){throw 'More than one settled empty native cache leaf was admitted in one comparison.'};$passes++
+    $deferred=@(Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-10000000L)))}) -EmptyNewLeaf Defer -NowUtcTicks $now)
+    if($deferred.Count-ne0){throw 'A deferred young empty leaf was recorded or admitted.'};$passes++
+    $rejected=$false;try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 4096 ('b'*64) ($now-10000000L)))}) -EmptyNewLeaf Defer -NowUtcTicks $now)}catch{$rejected=$true}
+    if(!$rejected){throw 'Defer admitted a non-zero unsettled new leaf.'};$passes++
+    # Recovery -WhatIf (final B1 c4): hashing is read-only and must not inherit a caller's WhatIf preference.
+    $hashProbe=Join-Path $profile 'whatif-probe.bin';[IO.File]::WriteAllBytes($hashProbe,[byte[]]@(1,2,3))
+    try{$h=& {$WhatIfPreference=$true;Get-KmcSha256 $hashProbe};if($h-cne'039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81'){throw 'Get-KmcSha256 failed under a WhatIf preference.'};$passes++}finally{[IO.File]::Delete($hashProbe)}
+    $recoverText=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'runtime\Recover-KmcPersistenceProfile.ps1'),[Text.Encoding]::UTF8)
+    if($recoverText-notmatch'\$dryRun=\[bool\]\$WhatIfPreference;\$WhatIfPreference=\$false'-or$recoverText-notmatch'if\(\$dryRun-or-not\$PSCmdlet\.ShouldProcess'){throw 'The profile recovery tool no longer isolates its -WhatIf dry run from read-only checks.'};$passes++
     # A nested or unrelated leaf is outside the exception at either size, and a
     # dotted lookalike is not the demonstrated native naming rule.
     foreach($leaf in @('Areas/achievements.dat$','settings.dat','achievements.dat.bak')){

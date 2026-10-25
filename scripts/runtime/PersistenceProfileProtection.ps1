@@ -79,6 +79,22 @@ function New-KmcPersistenceProfileSnapshot {
 # truncate a populated one. Accepted churn is returned so the caller records it
 # as an expected external change rather than claiming the profile is untouched.
 $script:KmcNativeAchievementCacheSettledSize = 12288
+# Final 7E B1 c4 (20261025-c7e-final-B1-c4, owner decision of October 25): the game also leaves NEW zero-length
+# leaves of the same native family and never populates them. Evidence of native origin: the owner's own profile
+# already held zero-length achievements.dat* leaves written by the owner's own play on 2026-09-08, 2026-10-09 and
+# 2026-10-11, among about 100 leaves of the family; c4's leaf (achievements.dat#3 + five U+FFFD + O, 0 bytes, written
+# 2026-10-25 11:18:14 local) is one more. This is not a profile delta or cache whitelist: it admits only a leaf of
+# exactly this name family (the same name rule as above), absent from the intake snapshot, of length exactly 0 with
+# the empty-content SHA-256, with a write time later than the newest leaf recorded in the intake snapshot (a lower bound:
+# snapshots carry no capture time) and untouched for the whole native settlement window (60 s) before admission, at
+# most one such leaf per comparison (c4 had one). It is left in place, never restored, quarantined or whitelisted for
+# content, and recorded as 'created-empty'. Every other name, every other new size, and every change to an existing
+# leaf (rewrite at another length, truncation, growth, deletion) still refuses. Callers choose the policy:
+#   Refuse (default) - the historical rule; Admit - the rule above; Defer - a young zero-length leaf is neither
+#   admitted nor refused (Restore-KmcPersistenceStartupSettings only; the runner's Wait-KmcPersistenceProfileUnchanged
+#   or the recovery tool's own pre-check is the authority that admits or refuses it).
+$script:KmcNativeEmptyCacheSettleSeconds = 60
+$script:KmcEmptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
 function Test-KmcNativeAchievementCacheName {
     param($Entry)
@@ -151,7 +167,7 @@ function Get-KmcPersistenceProfileIdentityDigest {
 }
 
 function Get-KmcPersistenceProfileCacheDelta {
-    param($Before,$After)
+    param($Before,$After,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse',[long]$NowUtcTicks=0)
     $priorByPath=@{};foreach($entry in $Before.entries){if(Test-KmcNativeAchievementCacheName $entry){$priorByPath[$entry.path]=$entry}}
     $currentByPath=@{};foreach($entry in $After.entries){if(Test-KmcNativeAchievementCacheName $entry){$currentByPath[$entry.path]=$entry}}
     $changes=@()
@@ -169,12 +185,18 @@ function Get-KmcPersistenceProfileCacheDelta {
                 beforeSha256=[string]$prior.sha256;afterSha256=[string]$current.sha256}
         }
     }
-    $unsettled=@()
+    $unsettled=@();$admittedEmpty=0
     foreach($path in @($currentByPath.Keys)){
         if($priorByPath.ContainsKey($path)){continue}
         $current=$currentByPath[$path]
         if([long]$current.length-ne[long]$script:KmcNativeAchievementCacheSettledSize){
-            if([long]$current.length-eq0){$unsettled+=$path;continue}
+            if([long]$current.length-eq0){
+                if($EmptyNewLeaf-ceq'Admit'){
+                    $empty=Get-KmcNativeEmptyCacheAdmission $Before $current $NowUtcTicks
+                    if($null-ne$empty-and$admittedEmpty-lt1){$admittedEmpty++;$changes+=$empty;continue}
+                }elseif($EmptyNewLeaf-ceq'Defer'){continue}
+                $unsettled+=$path;continue
+            }
             throw ('A new profile leaf used the achievement cache name without its settled native size: '+
                 $path+' '+$current.length)
         }
@@ -192,8 +214,22 @@ function Get-KmcPersistenceProfileCacheDelta {
     return $changes
 }
 
+# The settled-empty admission (see KmcNativeEmptyCacheSettleSeconds): exact empty bytes, written later than the newest leaf of the
+# intake snapshot and untouched for the whole settlement window. Returns the receipt row, or $null to keep refusing.
+function Get-KmcNativeEmptyCacheAdmission {
+    param($Before,$Entry,[long]$NowUtcTicks=0)
+    if($NowUtcTicks-le0){$NowUtcTicks=[DateTime]::UtcNow.Ticks}
+    if(-not(Test-KmcNativeAchievementCacheName $Entry)-or[long]$Entry.length-ne0-or[string]$Entry.sha256-cne$script:KmcEmptySha256){return $null}
+    if($null-eq$Entry.PSObject.Properties['lastWriteTimeUtcTicks']){return $null}
+    $written=[long]$Entry.lastWriteTimeUtcTicks
+    $intake=[long]0;foreach($prior in @($Before.entries)){
+        if($null-ne$prior.PSObject.Properties['lastWriteTimeUtcTicks']-and[long]$prior.lastWriteTimeUtcTicks-gt$intake){$intake=[long]$prior.lastWriteTimeUtcTicks}}
+    if($intake-le0-or$written-le$intake-or$written-gt$NowUtcTicks-[long]$script:KmcNativeEmptyCacheSettleSeconds*10000000L){return $null}
+    return [pscustomobject]@{path=[string]$Entry.path;change='created-empty';length=[long]0;beforeSha256=$null;afterSha256=[string]$Entry.sha256}
+}
+
 function Assert-KmcPersistenceProfileUnchanged {
-    param($Snapshot)
+    param($Snapshot,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse')
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
@@ -203,7 +239,7 @@ function Assert-KmcPersistenceProfileUnchanged {
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
     $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
-    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
+    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after -EmptyNewLeaf $EmptyNewLeaf
     # Admitted native cache churn and appended analytics batches, for the caller
     # to record as expected external changes with their exact hashes. An empty
     # result means the profile really is byte-equal.
@@ -222,8 +258,10 @@ function Wait-KmcPersistenceProfileUnchanged {
             # settings or process violation fails on its first observation.
             if(-not$_.Exception.Message.StartsWith('A new profile leaf used the achievement cache name without its settled native size:',
                     [StringComparison]::Ordinal)-or
-                    -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)-or
-                    $elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){throw}
+                    -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)){throw}
+            # A zero-length leaf that never populated within the window: only the settled-empty admission may take it
+            # (exact empty bytes, untouched for the whole settlement window); otherwise the original refusal stands.
+            if($elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){return @(Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Admit)}
             Start-Sleep -Milliseconds $PollMilliseconds
         }
     }
@@ -350,7 +388,9 @@ function Restore-KmcPersistenceStartupSettings {
         throw 'Current settings changed after the restoration review; refusing a stale overwrite.'
     }
     $profile=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $createdAnalytics=@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $profile)
+    # A young zero-length native cache leaf is deferred here, never admitted: the runner's Wait-KmcPersistenceProfileUnchanged
+    # or the recovery tool's own pre-check (settled-empty admission) decides it.
+    $createdAnalytics=@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $profile -EmptyNewLeaf Defer)
     Assert-KmcObservedPreparationTimeoutRecord $Snapshot.runId
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
@@ -371,7 +411,7 @@ function Restore-KmcPersistenceStartupSettings {
         Assert-KmcDirectoryTreeCloneable $source 'owned analytics cache'
         if(Test-Path -LiteralPath $destination){throw 'Analytics quarantine already exists; refusing an ambiguous move.'}
         $now=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-        [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now)
+        [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now -EmptyNewLeaf Defer)
         # Both resolved absolute roots and the exact four contents were checked.
         # Same-volume rename keeps evidence intact; no recursive delete is used.
         [IO.Directory]::Move($source,$destination)
@@ -390,7 +430,7 @@ function Restore-KmcPersistenceStartupSettings {
             $key.Flush()
         }finally{if($null-ne$key){$key.Dispose()}}
     }
-    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Defer)
 }
 
 # Exact one-run cache delta: native Unity analytics archived four new files on
@@ -415,8 +455,8 @@ function Test-KmcObservedValidationAnalyticsEntry {
 }
 
 function Get-KmcPersistenceProfileRecoveryDelta {
-    param($Snapshot,$Current)
-    [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current)
+    param($Snapshot,$Current,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse')
+    [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current -EmptyNewLeaf $EmptyNewLeaf)
     [void](Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $Current)
     if((Get-KmcPersistenceProfileIdentityDigest $Current $Snapshot.inventory)-ceq
         (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Current)){return @()}
