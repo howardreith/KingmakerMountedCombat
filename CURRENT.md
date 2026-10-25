@@ -11,6 +11,14 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**X3 residual closed offline (row 75; no launch).** `pending-schema3-control-manual` is reinstated as the
+separate-process cold consumer of row 17's own genuine pending-only Manual (`owner-seed-checkpoint-load`, one
+load, zero writes), read by the existing control branches of the owned and combat-persistence readers. Its
+October 23 prelaunch refusal is removed; the gate itself stays (`Test-Chunk7RetiredPersistenceCases.ps1` 4/0:
+every runner case passes it and the actual runner admits the control to its intake checks). Deriver tag `x3`
+(template b37s1, outer-FAIL, selection shape only) reproduces 1/0. Plan batch B16. The matrix exclusion row
+now says covered by row 75; the release notes drop the X3 gap.
+
 **G7 met (option (a), harness plus request validators; no launch).** Row 32 now consumes F's own r31:
 `Get-KmcOwnerStockCleanupSource` admits a final-campaign `…-c7e-final-B<n>-r31[r]` run only through the
 runner's new `-OwnerStockCleanupRunMapPath` (settled `r31` receipt: run id, reader PASS, restoration

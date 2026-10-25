@@ -1,7 +1,15 @@
 # Chunk 7 retired persistence case: the schema-3 pending control
 
-Status: **RETIRED and not selected (October 23, 2026, 7E blocker X3).** Its prelaunch refusal
-remains. No PASS is claimed or transferred, and its batch35–37 FAILs keep their records.
+**Reinstated October 24, 2026 as 7E matrix row 75** (lead direction to close the X3 residual): the case is now
+the separate-process cold consumer of row 17's own genuine pending-only Manual, read by its existing control
+branches of the owned and combat-persistence readers. The prelaunch refusal is removed
+(`Get-KmcChunk7RetiredPersistenceCaseReason` returns no reason for any case; `Test-Chunk7RetiredPersistenceCases.ps1`
+now checks that the gate stays in place and that the actual runner admits the case to its intake checks).
+The batch35–37 FAILs keep their records; no PASS is claimed or transferred. The text below is the October 23
+retirement record, unchanged.
+
+Status on October 23: **RETIRED and not selected (7E blocker X3).** Its prelaunch refusal
+remained. No PASS is claimed or transferred, and its batch35–37 FAILs keep their records.
 
 ## What it was
 
