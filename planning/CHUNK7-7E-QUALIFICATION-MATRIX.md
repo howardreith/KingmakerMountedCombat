@@ -16,8 +16,9 @@ now an explicit numbered row. Rows 60–74 add the development-pilot cases that 
 sections (the acquired chain c1/c4/c5, X4 producer and three-area cold, two-pair native life, Small
 items, death proper, attack modes, C11, F04 staged and the RT Charge k1–k4 lineage). Rows 42 and 55–56
 name their consumer binders. The executable order, batches, readers and restoration checks are in
-the [final run plan](CHUNK7-7E-FINAL-RUN-PLAN.md), which supersedes the batch table below. **75 native
-launches in 15 batches.**
+the [final run plan](CHUNK7-7E-FINAL-RUN-PLAN.md), which supersedes the batch table below. **77 native
+launches in 16 batches** (October 24: rows 75–76 added in B16; the C11 prone stand-up and the F04 defensive cast
+are folded into rows 57 and 69, which keep their launches).
 
 ## Reuse rule and its result
 
