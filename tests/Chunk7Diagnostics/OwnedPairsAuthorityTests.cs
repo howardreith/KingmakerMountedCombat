@@ -252,8 +252,19 @@ namespace KingmakerMountedCombat.Tests
     TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(true,false,false),"A pair actor was counted hostile.");
     TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(false,true,true),"A party member was counted hostile.");
     TestRunner.True(!Chunk7SixPairCombatEntry.IsHostileCombatant(false,false,true),"A player-faction non-party unit was counted hostile.");});
-   foreach(var c in new[]{"no-hostile-only-party-pets-or-player-faction","commands-open","input-in-flight","both"})t.Run("six-pair combat entry stays an unclassified FAIL when "+c,()=>{
-    var n=c=="no-hostile-only-party-pets-or-player-faction"?0:2;var free=c!="commands-open"&&c!="both";var flight=c=="input-in-flight"||c=="both";
+   // b210 r39: native vision clearance (2.1.7b VisionRangeMeters, 2D LOS distance) plus the declared margin, before any input.
+   t.Run("six-pair clearance refuses b210 r39's hostile at 8.30 m and admits the margin bound",()=>{
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(8.304787,8.5f,false),"The r39 hostile inside native vision was admitted.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(11.49,8.5f,false),"A unit inside vision plus margin was admitted.");
+    TestRunner.True(Chunk7SixPairCombatEntry.ClearanceHolds(11.5,8.5f,false),"A unit at vision plus margin was refused.");
+    TestRunner.True(Chunk7SixPairCombatEntry.ClearanceHolds(18.6109734,8.5f,false),"r39's distant fogged group member was refused.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(18.6,20f,false),"A vision override was not honoured.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(100,8.5f,true),"A native extended vision area covering a point was admitted.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(double.NaN,8.5f,false),"A nonnumeric distance was admitted.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(100,float.NaN,false)&&!Chunk7SixPairCombatEntry.ClearanceHolds(100,float.PositiveInfinity,false)&&!Chunk7SixPairCombatEntry.ClearanceHolds(100,0f,false),"A nonnumeric or empty vision range was admitted.");
+    TestRunner.True(Math.Abs(Chunk7SixPairCombatEntry.Distance2D(0,0,3,4)-5)<1e-12,"The clearance distance is not the native 2D distance.");});
+   foreach(var c in new[]{"no-hostile-only-party-pets-or-player-faction","kmc-commands-open","input-in-flight","both"})t.Run("six-pair combat entry stays an unclassified FAIL when "+c,()=>{
+    var n=c=="no-hostile-only-party-pets-or-player-faction"?0:2;var free=c!="kmc-commands-open"&&c!="both";var flight=c=="input-in-flight"||c=="both";
     TestRunner.Equal(Chunk7SixPairCombatEntry.Unclassified,Chunk7SixPairCombatEntry.Classify(n,free,flight),"Combat entry was classified as uncovered: "+c);
     TestRunner.Equal("Six-pair exploration entered unexpected native combat.",Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.Unclassified),"Unclassified guard message changed.");});
    // The census facts of the mounted6 seed: rider A Ranger 6 with its pinned pre-owned KMC Horse; rider B with pending levels.

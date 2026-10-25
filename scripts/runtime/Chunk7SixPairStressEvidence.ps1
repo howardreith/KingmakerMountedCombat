@@ -120,6 +120,26 @@ function Assert-KmcChunk7SixPairGroundSnapshot($Snapshot,[string[]]$Roles,[strin
  }
  if($null-ne$Snapshot.PSObject.Properties['environmentError']){throw 'Six-pair ground environment observation failed.'}
 }
+# b210 r39: the before-stress native vision clearance (2.1.7b VisionRangeMeters plus a 3 m margin, 2D distance) of every
+# conscious non-player-faction unit from the twelve pair actors and six declared waypoints. A PASS run must record it clear.
+function Assert-KmcChunk7SixPairHostileClearance($C){
+ Assert-KmcExactProperties $C @('contract','phase','frame','gameTicks','combatVisionMeters','marginMeters','points','units','breaches','clear') 'six-pair native vision clearance'
+ if($C.contract-isnot[string]-or$C.contract-cne'six-pair-native-vision-clearance-v1'-or$C.phase-isnot[string]-or$C.phase-cne'before-stress'){throw 'Six-pair native vision clearance contract differs.'}
+ Assert-KmcOrdinaryInteger $C.frame 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $C.gameTicks 0 ([long]::MaxValue);Assert-KmcOrdinaryInteger $C.points 18 18
+ if(-not(Test-KmcChunk7FiniteNumber $C.marginMeters)-or[double]$C.marginMeters-ne3-or-not(Test-KmcChunk7FiniteNumber $C.combatVisionMeters)-or[Math]::Abs([double]$C.combatVisionMeters-11.7)-gt0.0001){throw 'Six-pair native vision clearance constants differ.'}
+ Assert-KmcChunk7Boolean $C.clear $true
+ if($C.breaches-isnot[Array]-or@($C.breaches).Count-ne0-or$C.units-isnot[Array]){throw 'Six-pair native vision clearance was breached or malformed.'}
+ $seen=@{}
+ foreach($u in @($C.units)){
+  Assert-KmcExactProperties $u @('id','blueprint','faction','peacefulFaction','groupId','awake','inFog','position','visionRangeMeters','requiredClearanceMeters','nearestPoint','nearestDistance2D','extendedVisionCoversPoint','clear') 'six-pair clearance unit'
+  if($u.id-isnot[string]-or$u.id.Length-eq0-or$seen.ContainsKey($u.id)){throw 'Six-pair clearance unit identity is missing or repeated.'};$seen[$u.id]=$true
+  foreach($k in @('peacefulFaction','awake','inFog')){if($u.$k-isnot[bool]){throw 'Six-pair clearance unit flag is not boolean.'}}
+  Assert-KmcChunk7Boolean $u.extendedVisionCoversPoint $false;Assert-KmcChunk7Boolean $u.clear $true
+  foreach($k in @('visionRangeMeters','requiredClearanceMeters','nearestDistance2D')){if(-not(Test-KmcChunk7FiniteNumber $u.$k)){throw 'Six-pair clearance distance is not finite.'}}
+  if([double]$u.visionRangeMeters-le0-or[Math]::Abs([double]$u.requiredClearanceMeters-([double]$u.visionRangeMeters+3))-gt0.0001-or[double]$u.nearestDistance2D-lt[double]$u.requiredClearanceMeters){throw 'Six-pair clearance unit is inside native vision plus margin.'}
+  if($u.nearestPoint-isnot[string]-or$u.nearestPoint-cnotmatch'^(actor|waypoint):.+'){throw 'Six-pair clearance nearest point differs.'}
+ }
+}
 function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
  Assert-KmcChunk7InheritedEvidence $Request $O
@@ -127,6 +147,8 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  $roles=@(Get-KmcChunk7SixPairRoles);$s=$O.sixPairStress
  # F2 r39: the guard records a combat entry only on its refused path; PASS evidence never carries one.
  foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){if($null-ne$O.PSObject.Properties[$key]){throw ('Six-pair evidence carries its refused-path record '+$key+'.')}}
+ # Producers from b210 on record the before-stress clearance; earlier accepted evidence predates it.
+ if($null-ne$O.PSObject.Properties['sixPairHostileClearance']){Assert-KmcChunk7SixPairHostileClearance $O.sixPairHostileClearance}
  # v1 (batch186-188) verified full inherited custody on every measured frame; v2 verifies it
  # at sampling-window boundaries and declares that its measured frames carry only the guard.
  $fields=@('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',

@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics {
   void Move(Actor a,Actor b,Vector3 goal,Actor next,string label){Require(movementFrames==0,"native movement replay");groundInputs.Add(new JObject{{"label",label}});moves++;movementFrames=3;}
   bool MovementSettled()=>movementFrames==0;
   // The read-only combat-entry capture partial needs the native census; its facade keeps the guard's throw and records the call.
+  int clearanceChecks;bool clearanceBreached;void RequireSixPairHostileClearance(){clearanceChecks++;Require(!clearanceBreached,"Six-pair stress is uncovered on this placement: 1 native unit(s) within vision clearance of the pairs or their waypoints; no input was issued.");}
   int combatEntryRefusals;void RefuseSixPairCombatEntry(){combatEntryRefusals++;throw new InvalidOperationException(Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.Unclassified));}
   void BeginCleanup(){cleanup=true;ReleaseSixSamplePins();}
   void Pass(string name){passed.Add(name);}
@@ -80,6 +81,9 @@ namespace KingmakerMountedCombat.Diagnostics {
    var m=Create();m.BeginSixPairStress();m.holdMovement=true;m.Drive(100);Check(m.moves==1&&m.inputs.Count==6&&!m.cleanup,"native movement wait never replays ground input");m.holdMovement=false;m.Drive();Check(m.cleanup&&m.moves==6,"ground continuation preserves exact six input bound");
    Refuse("wrong native capacity refuses before input",x=>Integration.GameMountedRelationshipService.NativePairCapacity=2);
    Refuse("eleven field roles refuse before input",x=>x.inherited.Actors=x.inherited.Actors.Take(11).ToArray());
+   Check(e.clearanceChecks==1,"actual partial checks native vision clearance once, before the first input");
+   var h=Create();h.clearanceBreached=true;bool uncovered=false;try{h.BeginSixPairStress();}catch(InvalidOperationException error){uncovered=error.Message.StartsWith("Six-pair stress is uncovered");}
+   Check(uncovered&&h.inputs.Count==0&&h.sixObservation==null&&h.step==0,"a native unit inside vision clearance refuses as uncovered before any input or observation");
    Refuse("native combat refuses without issuing input",x=>Kingmaker.Game.Instance.Player.IsInCombat=true,true);
    var c=Create();c.BeginSixPairStress();Kingmaker.Game.Instance.Player.IsInCombat=true;string combatMessage=null;try{c.TickNative();c.UpdateSixPairStress();}catch(InvalidOperationException error){combatMessage=error.Message;}
    Check(c.combatEntryRefusals==1&&combatMessage=="Six-pair exploration entered unexpected native combat."&&c.inputs.Count==0&&!c.cleanup,"native combat routes once through the combat-entry refusal with the unchanged guard message");

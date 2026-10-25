@@ -28,6 +28,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(SixPairStress && inherited?.Actors.Length == 12 && GameMountedRelationshipService.NativePairCapacity == 6,
                 "Six-pair stress requires twelve exact inherited roles and selected capacity six.");
+            // b210 r39: the cold-saved placement and its declared waypoints must keep native vision clearance, before any input.
+            RequireSixPairHostileClearance();
             // v2: full inherited custody (which hashes the staged source receipt and rebuilds the
             // roster and progression) runs at sampling-window boundaries; measured frames carry
             // only the lightweight scope, ownership, settledness and identity-pin guard.
