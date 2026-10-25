@@ -227,6 +227,28 @@ CheckSeed 'owner seed blocked control refused' $false {param($f)$f.artifact.obse
 CheckSeed 'owner seed PostLoad events with a null Player.GameId (header-only GameId) are accepted' $true {param($f)foreach($e in $f.artifact.observations.nativeLoad.events){$e.gameId=$null};VerifySeed $f}
 CheckSeed 'owner seed PostLoad event with a foreign GameId refused' $false {param($f)$f.artifact.observations.nativeLoad.events[1].gameId='00000000-0000-0000-0000-000000000001';VerifySeed $f}
 CheckSeed 'owner seed restorable KMC metadata refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.kmcMetadata.kind='Current';VerifySeed $f}
+# Owner decision of October 24: the owner-made KMC_C7_MOUNTED6_SEED (exact registered identity) is the only owner seed
+# admitted with KMC metadata, as an empty schema-3 archive; every other seed keeps the Missing statement and kind.
+function ConvertTo-Mounted6SeedFixture($f){
+ $old=$f.request.persistenceLoad.sha256;$m6='2ef426c408e7271c850baab17c4f61a59e2fa34445d297b4b104b88917938f7c'
+ foreach($part in @('request','artifact')){$json=(Json $f.$part).Replace('KMC_C7_OWNER_SEED','KMC_C7_MOUNTED6_SEED').Replace('Manual_302_','Manual_308_').Replace($old,$m6);$f.$part=ConvertFrom-Json $json}
+ $record=ConvertFrom-Json ((Json $f.seedRecord.value).Replace('KMC_C7_OWNER_SEED','KMC_C7_MOUNTED6_SEED').Replace('Manual_302_','Manual_308_').Replace($old,$m6));Put $f.recordPath (Json $record)
+ $f.artifact.observations.seedSource.recordSha256=Get-KmcSha256 $f.recordPath;$f.seedRecord=[pscustomobject]@{path=$f.recordPath;sha256=(Get-KmcSha256 $f.recordPath);value=$record}
+ $metadata=[pscustomobject]@{kind='Current';canRestore=$true;loadedArchivePresent=$true;mountedRestorationProven=$false;statement='The owner-made KMC seed carries an empty schema-3 archive of its own campaign and area (no pairs, participations, slots or combat); nothing is restored from it. This proves no mounted restoration.'}
+ $f.artifact.observations.ownerSeedQualification.kmcMetadata=$metadata;$f.artifact.observations.kmcMetadata=Clone $metadata;$f
+}
+function CheckMounted6([string]$Name,[bool]$Expected,[scriptblock]$Action){
+ $accepted=$true;$errorText=$null;$ready=$false
+ try{$f=ConvertTo-Mounted6SeedFixture (ConvertTo-SeedFixture (New-Fixture));$ready=$true;&$Action $f|Out-Null}catch{$accepted=$false;$errorText=$_.Exception.Message}
+ $ok=$ready-and$accepted-eq$Expected
+ if($ok){$script:passed++}else{$script:failed++}
+ $cases.Add([pscustomobject]@{name=$Name;status=$(if($ok){'PASS'}else{'FAIL'});expectedAccepted=$Expected;actualAccepted=$accepted;fixtureComposed=$ready;error=$errorText})
+ Write-Host ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok-and$errorText){': '+$errorText}else{''}))
+}
+CheckMounted6 'owner-made mounted6 seed with its empty schema-3 archive accepted' $true {param($f)VerifySeed $f}
+CheckMounted6 'owner-made mounted6 seed with the Missing metadata kind refused' $false {param($f)$k=$f.artifact.observations.ownerSeedQualification.kmcMetadata;$k.kind='Missing';$f.artifact.observations.kmcMetadata=Clone $k;VerifySeed $f}
+CheckMounted6 'owner-made mounted6 seed claiming mounted restoration refused' $false {param($f)$k=$f.artifact.observations.ownerSeedQualification.kmcMetadata;$k.mountedRestorationProven=$true;$f.artifact.observations.kmcMetadata=Clone $k;VerifySeed $f}
+CheckMounted6 'owner-made mounted6 seed with another statement refused' $false {param($f)$k=$f.artifact.observations.ownerSeedQualification.kmcMetadata;$k.statement='The seed carries no KMC metadata; the supported missing-metadata path selected no archive. This proves no mounted restoration.';$f.artifact.observations.kmcMetadata=Clone $k;VerifySeed $f}
 CheckSeed 'owner seed partial qualification shape refused' $false {param($f)$f.artifact.observations.ownerSeedQualification.PSObject.Properties.Remove('control');VerifySeed $f}
 CheckSeed 'owner seed fabricated producer provenance refused' $false {param($f)$f.artifact.observations|Add-Member NoteProperty source ([pscustomobject]@{runId='assisted-source'});VerifySeed $f}
 CheckSeed 'owner seed claimed producer ancestry refused' $false {param($f)$f.artifact.observations.seedSource.producerAncestry=$true;VerifySeed $f}
