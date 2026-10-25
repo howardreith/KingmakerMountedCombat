@@ -1,5 +1,14 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**Owner decision of October 24 ("I'll make a mod seed"): `KMC_C7_MOUNTED6_SEED` registered and its lineage built (offline; product diagnostics changed; no launch).**
+- Seed: master `2ef426c4…` (1,204,811 bytes, byte-identical to the owner's `Manual_308_KMC_C7_MOUNTED6_SEED.zks`, only hashed), intake `f4e8afd3…` read-only beside it, registry entry added. The real registry/master/intake/header gate passes offline (charge and level-6 seeds too; the mounted6 id under another hash is refused).
+- Census (party.json read in memory): main Ranger `73681ef2` level 6 (XP 35,022, level 7 pending), BAB 6, Rapid Shot feat and toggle (on), active hand set 1 (longsword `571c56d1…`), set 0 the ranged `4de4658c…`; memorized available level-1 slots Cure Light Wounds `5590652e…` and `3e9d1119…`; one pet `6eb039a1…`, blueprint `4016c7db…` (the KMC Horse), level 6, reciprocal; KMC Horse feature (selected at Ranger 4 from the native Ranger companion selection) and companion rank 6 (the level-6 seed had rank 3; the level-5 feat `8fc01f06…` most plausibly Boon Companion, not resolved by name). Linzi 7 knows Haste. Rider B `fd213210` is level 4 with XP 35,022 (ready 7), Ranger 0. `kmc-mounted-state` is an empty schema-3 archive (no pairs, participations, slots or combat).
+- **Suspicious, reported, not admitted as earned:** play time grew only about 2 min 43 s from the charge seed while every party character went from 9,000 to 35,022 XP with no combat recorded, so the XP was almost certainly granted by a foreign tool (the coordinator reports CheatMenu 1.2.3 was in the shared Mods folder). The level-ups are native level-plan actions; money is unchanged (400,057); no impossible stat, foreign type or unknown buff source found (the all-18 base attributes predate this seed; buff `83f1f237…` on all five field units looks like a native camp meal buff). The seed stays registered for development; its XP provenance needs the owner's word before final-ledger use.
+- Admission: the only owner seed admitted with KMC metadata (exact id and hash; the empty schema-3 archive of its own campaign and area) in the cold inventory, the owner-seed setup and both readers; every other seed keeps the Missing path. It reaches only its lineage: Manual producer (`mountAId` pins the pre-owned Horse, verified and never built; rider B built after the exact minimal XP to level 8, its pending levels admitted on this seed only), its `multi-exploration-manual` cold consumer, the new `owner-seed-prepared-casting` (unchanged realtime-casting engine; rider A the one caster of its one prepared Cure Light Wounds slot) and `owner-seed-attack-modes` (BAB ≥ 6; the saved ranged set selected out of combat through the public native setter; an iterative Rapid Shot off full attack required). Every gap refuses as uncovered before mutation. Pair B is required: the Chunk 7 combat engines are strictly two-pair (no single-pair support exists).
+- b206 fixes (separate commits): the row-57/69 fold subscenarios registered (with a Validate-Source guard over every `Pass("C7-…")`), the prone-fold healer's scroll commands declared to the non-pair AI lease (at most two sequential declarations of the same member), and the combat cleanup failure record written as an explicit JObject (guarded).
+- Save compatibility: `704904fe..HEAD` changes only `Diagnostics` and the project file (no Integration, Domain or codec file), so the b205-made seed's data loads under HEAD's product unchanged.
+- Tests: owned reader 1200/0, owned authority 747/0, assisted cold composed 232/0 (scenario 101, reader 131; 13 new mounted6 metadata checks), combat 53/0, native life 85/0, RT 69/0, owned source 323/0, components 881/0, Validate-Source 149/0, deriver Reproduce 70/0, Fast 3/0 (0.48 min). Release build. Plan: 82 launches in 17 batches (B17 m1–m5); matrix rows 77–81.
+
 Owner decisions of October 24, 2026 (the owner answered a direct question; recorded verbatim in the
 [7E matrix exclusions](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md) and the [release notes](docs/CHUNK7-RELEASE-NOTES.md)):
 - (a) Haste attack variation (C03): "Approve exclusion".
@@ -9,7 +18,9 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
   AreaLedger, UnrelatedFullLedger): "Report as classified". They stay FAIL with unresolved cause, separate
   from Chunk 7, no re-qualification; the current behaviour checks must pass.
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
-  level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
+  level 6, a memorized rested level-1 Ranger spell). That seed (`KMC_C7_LEVEL6_SEED`) could not form a rider A pair,
+  so the owner was asked again and answered "I'll make a mod seed": `KMC_C7_MOUNTED6_SEED`, made with the b205
+  candidate installed, registered October 24 (rows 77–81, plan B17).
 
 **Independent adversarial review of `2c70df0c..bad38f0c`: FINDINGS (1 must-fix, 7 should-fix); fixed in one follow-up commit.**
 - M1 (must-fix): the prone fold keeps the allocation trace recording to N+6, so the row-57 reader's unbounded

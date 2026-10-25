@@ -78,8 +78,13 @@ folded into the incapacitation row.
 - The owner's level-6 test save (October 24) holds a level-6 Ranger with base attack bonus 6 and two prepared
   spells, but that Ranger took an animal companion (a Smilodon) at level 4. A Ranger keeps one animal companion,
   so the test Horse cannot be given to it and it cannot ride; prepared casting and a full attack at base attack
-  bonus 6 while mounted stay untested and need an owner decision. A character whose animal companion is not the
-  KMC Horse (or a supported Mammoth) keeps that companion and is not offered Mount Companion.
+  bonus 6 while mounted cannot be tested on it. A character whose animal companion is not the KMC Horse (or a
+  supported Mammoth) keeps that companion and is not offered Mount Companion.
+- The owner then made a test save with this mod installed (`KMC_C7_MOUNTED6_SEED`, October 24): the Ranger took
+  the KMC Horse at level 4 and is level 6 with base attack bonus 6 and a memorized Cure Light Wounds. Prepared
+  casting while mounted and the Rapid Shot off full attack at base attack bonus 6 now have automated cases on that
+  save; until they pass in the game, both stay in this uncovered list. That save is a mod-made save, not a test of
+  loading without the mod.
 - Saves: the upgrade of a mounted save written by preview.211 (above).
 - The full Small rider calibration on a save made by the same build: the two cases that did it were
   retired; the Small profile is covered by its own calibration and by mounted save and load.
@@ -97,6 +102,8 @@ Recorded verbatim; the owner answered a direct question:
   Chunk 7, and are not re-qualified; the current behaviour checks must pass.
 - Prepared-spell casting and a full attack at base attack bonus 6 or more: the owner chose to supply a
   new no-mods test save (a level-6 Ranger with a memorized, rested level-1 spell). Pending at the time.
+- After that save could not be used (its Ranger has a Smilodon), the owner was asked again and answered "I'll make
+  a mod seed": a new save made with this mod installed, whose Ranger takes the KMC Horse at level 4.
 
 ## Known limits
 

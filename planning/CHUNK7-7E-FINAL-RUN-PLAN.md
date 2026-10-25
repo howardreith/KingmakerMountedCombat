@@ -2,13 +2,13 @@
 
 Status: **PLAN, NOT RUN.** Written offline on October 24, 2026 at HEAD `c2c451d3`; gates G3, G6 and G7 updated
 the same day. No final candidate F exists. Nothing here is a PASS. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md)
-(rows 1–76; row 55 is two launches). Governing rules: [AGENTS.md](../AGENTS.md),
+(rows 1–81; row 55 is two launches). Governing rules: [AGENTS.md](../AGENTS.md),
 [VALIDATION-POLICY](../docs/VALIDATION-POLICY.md), the [F11 protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md)
 and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
 
-**Totals (updated October 24 after the folds and rows 75–76):** 77 native launches in 16 batches (B1–B15 five each,
-B16 two), about 2.2 h offline tiers plus about 9.1 h native plus about 0.75 h ledger and closeout: **about 12.1
-hours**, excluding failure handling. The folded halves lengthen r57 (heal and stand-up, rounds N+2 to at most N+6)
+**Totals (updated October 24 after the folds, rows 75–76 and the mounted6 rows 77–81):** 82 native launches in 17 batches
+(B1–B15 and B17 five each, B16 two), about 2.2 h offline tiers plus about 9.6 h native plus about 0.75 h ledger and
+closeout: **about 12.6 hours**, excluding failure handling. The folded halves lengthen r57 (heal and stand-up, rounds N+2 to at most N+6)
 and cr (round N+1 approach and cast) by an estimated 2–4 min each of game time.
 
 ## 0. Pre-freeze gates (all must hold before step 1)
@@ -19,7 +19,7 @@ and cr (round N+1 approach and cast) by an estimated 2–4 min each of game time
 | G2 | The F11 acceptance arithmetic (§6) is either implemented as a reviewed reader committed before the freeze, or applied by hand in the closeout exactly as §6 states. A reader added after the freeze changes the harness commit and needs a new package (see §8). |
 | G3 | **Met (2026-10-24).** `Test-ScenarioDispatchEvidence.ps1` is fixed, harness-only: the four Chunk 7 fixture/cold families registered by `ee2bdfc9` (`chunk7-assisted-fixture-preparation`, `chunk7-assisted-cold-inventory`), `38318d57` (`chunk7-small-fixture-preparation`) and `fbb1116a` (`chunk7-stock-mammoth-fixture-preparation`) are in its reviewed list, each with its one dedicated reader (`Test-KmcChunk7AssistedFixtureScenario`, `…AssistedColdInventoryScenario`, `…SmallFixtureScenario`, `…StockMammothFixtureScenario`). PASS 181/0 (165/0 at `ee2bdfc9~1` plus four checks per family). It is outside FULL and the Chunk 7 umbrella; run it once beside them. |
 | G4 | Branch `codex/mounted-combat-chunk7-successor` clean and pushed; the freeze commit is that pushed HEAD. **No commit lands on the root branch from step 1 until the closeout** (the package manifest binds the harness HEAD; b196 refused when root advanced). Batch notes go to `analysis-cache/chunk7-continuation/final-*` receipts, committed only at closeout. |
-| G5 | Preview.211 package `KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-b-diagnostic.zip` (`e89f431a…`, manifest `ca54c37c…`, DLL `11e99309…`) and the observer.6 source present and unchanged; owner seeds `KMC_C7_NO_MODS_OWNER_SEED` `3405d7c8…`, `KMC_C7_CHARGE_SEED` `1ec2f321…`, `KMC_C7_LEVEL6_SEED` `b1447ae7…` (row 76; intake `c3e0fc6f…`), `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN` `90789101…` and every fixture source named below hash-verified. |
+| G5 | Preview.211 package `KingmakerMountedCombat-0.1.0-chunk6d-preview.211-chunk6-closeout211-b-diagnostic.zip` (`e89f431a…`, manifest `ca54c37c…`, DLL `11e99309…`) and the observer.6 source present and unchanged; owner seeds `KMC_C7_NO_MODS_OWNER_SEED` `3405d7c8…`, `KMC_C7_CHARGE_SEED` `1ec2f321…`, `KMC_C7_LEVEL6_SEED` `b1447ae7…` (row 76; intake `c3e0fc6f…`), `KMC_C7_MOUNTED6_SEED` `2ef426c4…` (rows 77–81; intake `f4e8afd3…`), `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN` `90789101…` and every fixture source named below hash-verified. |
 | G6 | **Deriver written; review recorded in CURRENT.md.** `tools/chunk7-7e/final-derive.ps1` (in the repo, so the freeze commit pins it; it is a selection deriver only, never a run plan or launcher). Offline proofs (receipts in `analysis-cache/chunk7-continuation/`): `-Mode Reproduce -Tag all` re-derives all 69 selection tags from each template's own predecessor receipts, byte-identical to the template request's selection and to every retained selection file (`final-derive-reproduce-01.log`, 69/0; 70/0 on October 24 with the added tag `x3`, row 75); `final-derive-cross.ps1` re-pins templates onto earlier candidates' own runs and reproduces those batches' retained selections or recorded request selections byte for byte (`final-derive-cross-04.log`, 21/0: b198 c2–c5, x4s, r58; b197 c3, c4, x4s, r58; b195/b194 x4c; b194 p2; world25 r02; b100/b89 r34; b117 r36, r54; b150 r44, r45; b151 r45). **Rows 33/34 → 48, 50, 51: yes, one pair suffices.** The progression readers and source admission (`Assert-KmcChunk7OwnedProgressionSelection`, `Get-KmcChunk7PaidProgressionSource`, `Copy-KmcChunk7ProgressionInputs`) only read the producer and cold receipts and copy the archive into the consumer's own run; nothing marks a source consumed, and the pilots made separate pairs only because b89, b100 and b108 were different candidates (the b108 cold already fed rows 48 and 49, the b100 cold rows 51 and 52). `final-shared-small-pair-proof.ps1` derives r48, r50 and r51 from the one b108 pair and runs the selection and descriptor validators and the read-only source admission: 3/3 admitted (`final-shared-small-pair-proof-01.log`). No batch or launch count changes. |
 | G7 | **Met (2026-10-24, option (a)).** Row 32 consumes F's own r31. `Get-KmcOwnerStockCleanupSource` (`Chunk7OwnerStockRemovalFixtures.ps1`) keeps the batch65 cleanup Manual (`20261020-c7b-world81-b65s1-owner-stock-removal`, `2c46c270…`) accepted exactly as before, for history only, and admits a final-campaign `<date>-c7e-final-B<n>-r31[r]` run only when: the runner's new `-OwnerStockCleanupRunMapPath` names the executor's `final-runs.json` whose `r31` receipt carries that run id, `readerVerdict` PASS, `restorationVerified` true and the SHA-256 of its `runtime-result.json` (re-hashed before and after); its request is `persistence-p07-save`/`prepare-removal` with `ownerStockRemoval`, on the stock Mammoth input `e475d49c…`, on the consuming run's own commit, DLL, MVID and qualification suite; its owner record, outer PASS, restoration flags and native removal evidence pass `Assert-KmcCurrentRemovalSource`; and its `Manual_306_KMC_CLEANUP.zks` equals the expected SHA-256 (the r31 `removal-prepared` cleanup write). The runner admits the map only for the owner-stock no-DLL consumer and refuses it with the batch65 source. Because F's cleanup bytes are not known in advance, the request validator (`Test-RuntimeRequest.ps1`), the product request contract (`RuntimeProtocol.cs`) and the observer request (`ObserverRequest.cs`) now accept any genuine 64-hex cleanup hash other than the stock input with a bounded length (batch65's hash still requires its exact length); the campaign identity stays exact and the runner's source gate is the provenance authority. Tests: `Test-CurrentRemovalEvidence.ps1` 64/0 (2 positive and 21 refusals of the final source, 2 batch65 refusals), `Test-OwnerStockObserverRequest.ps1` 7/0, components 877/0. |
 
@@ -28,6 +28,11 @@ and cr (round N+1 approach and cast) by an estimated 2–4 min each of game time
 1. `git worktree add --detach worktrees\chunk7-final-<sha8> <sha>`; re-materialize LF with per-command
    `git -c core.autocrlf=false rm --cached -r . ; git -c core.autocrlf=false reset --hard`. Never run
    `git config` against any worktree. Record `git status` clean.
+   **Branch fact (b206):** a detached HEAD records an empty branch, which `Test-RuntimeRequest.ps1:349` refuses for
+   every runtime request, so the b206 pilot worktree used a local branch `codex/mounted-combat-chunk7-b206-pilot`.
+   The final worktree therefore needs a local `codex/mounted-combat-*` branch at the freeze commit (for example
+   `git worktree add -b codex/mounted-combat-chunk7-final-<sha8> worktrees\chunk7-final-<sha8> <sha>`); the guard
+   stays unchanged and the root branch is untouched.
 2. Record the root `bin\Release\KingmakerMountedCombat.dll` SHA-256 before packaging.
 3. Package once from the frozen worktree through a detached freeze-step helper (b205 pattern):
    `scripts\Package.ps1 -ArtifactQualifier c7-final-<sha8>`. Record package, manifest, DLL SHA-256,
@@ -333,6 +338,26 @@ Six-pair stress takes 10–40 min of game time. Row 42 is last: it is the fresh-
 | l6 | 76 | `chunk7-assisted-cold-inventory` / `owner-seed-readonly-inventory` on `KMC_C7_LEVEL6_SEED` | level-6 seed master (registered owner seed, no lineage pins) | none: the selection is the literal `{"case":"owner-seed-readonly-inventory","baseGameOnly":true,"expectedNativeLoadCount":1,"expectedNativeWriteCount":0,"seedId":"KMC_C7_LEVEL6_SEED","seedSha256":"b1447ae77246d418256ec4aae9be1ee97828880a30376ae1985ca880a80e37d5"}` (the b201-k1 shape with the seed fields) | `Assert-KmcChunk7AssistedColdInventoryEvidence` |
 
 x3 may run in any batch after B4 settles and l6 at any time; both are placed here so no earlier batch exceeds five launches.
+Row 75 development evidence (b206): x3 PASSed with a cross-candidate source (`20261019-c7b-directive4-b41s1-schema3-producer`).
+That is development evidence only; the deriver cannot re-pin x3 to a cross-candidate source, and the final run uses the
+same-candidate row 17.
+
+### B17 — KMC_C7_MOUNTED6_SEED lineage (owner decision of October 24, "I'll make a mod seed"; ~35 min)
+
+| Tag | Row | Case (PersistenceCase) | Source / checkpoint | T: | Reader |
+| --- | --- | --- | --- | --- | --- |
+| m1 | 77 | `chunk7-assisted-cold-inventory` / `owner-seed-readonly-inventory` on `KMC_C7_MOUNTED6_SEED` | mounted6 seed master | none: literal `{"case":"owner-seed-readonly-inventory","baseGameOnly":true,"expectedNativeLoadCount":1,"expectedNativeWriteCount":0,"seedId":"KMC_C7_MOUNTED6_SEED","seedSha256":"2ef426c408e7271c850baab17c4f61a59e2fa34445d297b4b104b88917938f7c"}` | `Assert-KmcChunk7AssistedColdInventoryEvidence` |
+| m2 | 78 | `owner-seed-persistence-save` (`multi-exploration-manual`) | mounted6 seed (after m1) | none: literal `ownedPairs` `{"case":"owner-seed-persistence-save","seedId":"KMC_C7_MOUNTED6_SEED","seedSha256":"2ef426c4…","riderAId":"73681ef2-b281-4bc6-bc05-2de68c1616cb","mountAId":"6eb039a1-d500-405e-987c-5a823ee41626","riderBId":"fd213210-71cd-41b0-b35b-68e1b18e9b43","partyIds":[the six field ids of the census: 73681ef2, 6eb039a1, 8265f8cf, 5dd7bd1d, fd213210, 4718d3c6],"xpAssistance":{"unitId":"fd213210-…","targetCharacterLevel":8},"baseGameOnly":true,"expectedNativeLoadCount":1,"expectedNativeWriteCount":1}` | owned (pre-owned branch) |
+| m3 | 79 | `owner-seed-persistence-load` (`multi-exploration-manual`) | m2 | the development pilot's m3 (deriver tag added after it settles) | owned |
+| m4 | 80 | `owner-seed-prepared-casting` | m2 / m3 | the development pilot's m4 | `Assert-KmcChunk7RealtimeEvidence` |
+| m5 | 81 | `owner-seed-attack-modes` | m2 / m3 | the development pilot's m5 | `Assert-KmcChunk7AttackModesCombat` |
+
+No development run of this lineage exists yet. m3–m5 need template runs before the deriver can re-pin them; adding
+those tags changes the deriver, so it gets its own review. The seed is admitted with its empty schema-3 KMC archive
+only on this lineage, and m4 requires it. The m2 setup refuses before any mutation if rider A's pinned Horse, its
+Horse feature and rank, or rider B's exact minimal assistance (CL 4, ready level 7, target 8, 15 978 XP) differ;
+m4 refuses as uncovered unless rider A alone holds exactly one memorized prepared Cure Light Wounds slot; m5 refuses
+as uncovered below BAB 6 or with other saved hand sets. A first refusal on this lineage goes to the owner.
 ## 6. F11 acceptance (rows 39–42; criteria fixed, never moved)
 
 Computed from the recorded windows of r39 (0/1/2/6/0 pairs, three windows each) and r40 (0/1/2/0), with
@@ -353,7 +378,7 @@ the protocol are reported with the verdict. A failing required criterion is a de
 ## 7. Final consumer bindings and ledger
 
 After B15, with every run restored and read:
-1. Re-run `Test-RuntimeResult` on all 77 retained run folders from the frozen worktree; record result
+1. Re-run `Test-RuntimeResult` on all 82 retained run folders from the frozen worktree; record result
    SHA-256 and reader verdict per run (old/new verdicts kept if any reader-only correction occurred).
 2. Row 42: `Assert-KmcChunk7NormalPlayerRow42Binding <r42 runId> <resultSha256>`; requires PASS and
    `requestBinding` bound.
@@ -402,7 +427,8 @@ a guarded push.
 | Per-step inventory of both umbrellas | Chunk 7 umbrella about 18 min plus Test.ps1 steps | 70 |
 | B1–B6, B8–B10, B14 (10 batches) | b205: 5 launches in 16 min plus WhatIfs and checks; B8/B9 carry the longer r57 and cr | 310 |
 | B16 (x3, l6) | two short launches plus WhatIfs and checks | 15 |
+| B17 (m1–m5) | cold inventory, the Manual producer with one rider build (about the b201 k2 time), its cold consumer and two combat cases | 35 |
 | B7, B11–B13 | x4c 3.6 min, progression and fixture runs | 140 |
 | B15 | six-pair stress 10–40 min plus F11 | 80 |
 | Bindings, ledger, closeout | | 45 |
-| **Total** | | **about 720 (≈ 12 h)** |
+| **Total** | | **about 755 (≈ 12.6 h)** |
