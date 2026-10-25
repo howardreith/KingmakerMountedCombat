@@ -11,6 +11,29 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**Independent adversarial review of `2c70df0c..bad38f0c`: FINDINGS (1 must-fix, 7 should-fix); fixed in one follow-up commit.**
+- M1 (must-fix): the prone fold keeps the allocation trace recording to N+6, so the row-57 reader's unbounded
+  count of the still-unconscious control's prepares would fail. The producer now records
+  `traceSequenceAtGrantAfter` with the control's grant count; the reader bounds the count by it and requires it
+  for the owner-seed incapacitation case. Regression: the synthetic fold adds an N+2 control prepare.
+- S1: the healer prefers companions that can never be the control (essential, immortal or not dying-allowed);
+  if the healer is the only eligible control, the case refuses as uncovered (with the control record).
+- S2: the healer must be a conscious acting combatant at the fold, or the case refuses as uncovered.
+  Not addressed: the healer's reach to rider B is not pre-checked (an interrupted approach is a FAIL).
+- S3: healer candidate rows record `commandsEmpty`, `inCombat` and `controlStaticallyIneligible`; the reader
+  recomputes eligibility exactly and checks the order.
+- S4: the defensive cast now requires rider A itself engaged (the native window keys on the caster); the
+  approach targets that and refuses as uncovered otherwise; the reader requires `riderEngaged`.
+- S5: exactly one native outcome is required: one scroll cast with rider A's Standard charged, or a cast lost to
+  a failed concentration check with no cast (both producer and reader).
+- S6: run-map receipt fields must be typed (`readerVerdict` string, `restorationVerified` bool); plan §7 now
+  re-derives row 32's link to r31 in the ledger. Residuals noted: the receipt is executor-written and the suite
+  snapshot SHA is not compared.
+- S7: stale X3 blocker text fixed; plan G5 lists `KMC_C7_LEVEL6_SEED`.
+- Unverified IL risks noted by the reviewer, for a pre-freeze check: whether the sticky-touch child command can
+  open its own defensive window, and whether touch delivery triggers `RuleAttackWithWeapon`.
+Tests: owned reader 1157/0, native life 85/0, removal evidence 64/0, components 877/0, Fast.
+
 **Plan totals (October 24, offline):** 77 native launches in 16 batches (B1–B15 five each; B16: x3 row 75 and
 l6 row 76), about 12 h with the offline tiers; the folds keep their rows' launches (r57, cr) and lengthen them
 by an estimated 2–4 min each. Deriver reproduce 70/0 (tag `x3` added). Gates: G3, G6, G7 met; G1 (docs and

@@ -46,13 +46,18 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(scroll != null, "Native Cure Light Wounds scroll blueprint is unavailable.");
             var rows = new JArray(); UnitEntityData chosen = null;
             var pairActors = new[] { ar, am, br, bm };
-            foreach (var unit in Game.Instance.Player.PartyCharacters.Select(reference => reference.Value).Where(unit => unit != null && !pairActors.Contains(unit)))
+            // A companion that can never be the unconscious control (essential, immortal or not allowed to be dying) is
+            // preferred, so the healer does not take the control's place; party order otherwise.
+            foreach (var unit in Game.Instance.Player.PartyCharacters.Select(reference => reference.Value).Where(unit => unit != null && !pairActors.Contains(unit))
+                .OrderBy(unit => ControlStaticallyIneligible(unit) ? 0 : 1))
             {
                 var state = unit.Descriptor.State; var umd = scroll.IsUnitNeedUMDForUse(unit.Descriptor);
-                var eligible = !unit.Descriptor.IsPet && state.IsConscious && !state.IsDead && unit.IsInGame && unit.IsDirectlyControllable && !umd &&
+                var eligible = !unit.Descriptor.IsPet && state.IsConscious && unit.IsInGame && unit.IsDirectlyControllable && !umd &&
                     unit.Commands.Empty && !unit.IsInCombat;
                 rows.Add(new JObject { ["actorId"] = unit.UniqueId, ["pet"] = unit.Descriptor.IsPet, ["conscious"] = state.IsConscious,
-                    ["inGame"] = unit.IsInGame, ["controllable"] = unit.IsDirectlyControllable, ["needsUseMagicDevice"] = umd, ["eligible"] = eligible });
+                    ["inGame"] = unit.IsInGame, ["controllable"] = unit.IsDirectlyControllable, ["needsUseMagicDevice"] = umd,
+                    ["commandsEmpty"] = unit.Commands.Empty, ["inCombat"] = unit.IsInCombat,
+                    ["controlStaticallyIneligible"] = ControlStaticallyIneligible(unit), ["eligible"] = eligible });
                 if (eligible && chosen == null) chosen = unit;
             }
             prone["healerCandidates"] = rows;
@@ -62,9 +67,15 @@ namespace KingmakerMountedCombat.Diagnostics
             lifeScroll = AcquireFoldedScroll(chosen, br, stack,
                 "The healer cannot use the native Cure Light Wounds scroll; the C11 prone stand-up is uncovered on this fixture.");
         }
+        private static bool ControlStaticallyIneligible(UnitEntityData unit) => unit.Descriptor.IsEssentialForGame ||
+            (bool)unit.Descriptor.State.Immortality || !(bool)unit.Descriptor.State.AllowDyingCondition;
         private void BeginProneFold()
         {
             Require(prone != null && lifeHealer != null && lifeScroll != null, "The prone stand-up healer was not prepared out of combat.");
+            prone["healerAtFold"] = new JObject { ["inCombat"] = lifeHealer.IsInCombat, ["conscious"] = lifeHealer.Descriptor.State.IsConscious,
+                ["canAct"] = lifeHealer.Descriptor.State.CanAct };
+            Require(lifeHealer.IsInCombat && lifeHealer.Descriptor.State.IsConscious && lifeHealer.Descriptor.State.CanAct,
+                "The prone healer is not a conscious acting combatant in the encounter; the C11 prone stand-up is uncovered on this fixture.");
             proneAttempts = new JArray(); prone["healAttempts"] = proneAttempts;
             proneRules = new Chunk7PairRuleObserver(ar, am, br, bm, lifeHealer, target);
             prone["firstRound"] = lifeDamageRound + 2;
