@@ -4,18 +4,36 @@ Set-StrictMode -Version Latest
 # source with that producer identity, then retain the separate cold reader-only
 # verdict. Neither historical identity is projected onto a later consumer.
 # This is a read-only source gate; it grants no load or profile authority.
+# The receipt pins its two readers by the path they had in the root repository when it was written (at 6fb1eee8). The
+# pin is an immutable statement about what was evaluated: it binds to the archived blobs of that reader commit, whichever
+# tree the harness runs from (root or a frozen worktree), never to today's live root files (F2 s1/r33: the root readers
+# had moved on, and a worktree run never matched its own root path).
 function Resolve-KmcF09AcceptedReaderPin($Pin){
- $prior=Join-Path (Get-KmcRepositoryRoot) 'scripts/runtime'
+ $prior=[IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'repo\KingmakerMountedCombat\scripts\runtime'))
  $snapshot=Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk7-continuation/f09-accepted-readers-6fb1eee8'
  foreach($row in @(
   @('Chunk7AssistedColdInventoryEvidence.ps1','0ecb969f676392a23bf5c9ab02bcad0ace20db7621d54af93bd8b89ca663e071',75040),
   @('Chunk7SmallFixtureColdSource.ps1','2e11048380afad6102e8a54dd4f10a31d0e5e74e360c49b5c9b587278cd4da0b',5531))){
-  if($Pin.path-ceq(Join-Path $prior $row[0])){
+  if([string]$Pin.path-ceq(Join-Path $prior $row[0])){
    if($Pin.sha256-cne$row[1]-or$Pin.length-ne$row[2]){throw 'Historical F09 reader identity differs from the accepted receipt.'}
    return Assert-KmcChildPath (Join-Path $snapshot $row[0]) (Join-Path (Get-KmcLabRoot) 'analysis-cache') 'immutable accepted F09 reader'
   }
  }
  return $Pin.path
+}
+# The receipt's nine input pins: seven immutable evidence files at their recorded paths and the two readers at their archived
+# reader-commit blobs; each must exist once with its exact length and SHA-256.
+function Assert-KmcF09AcceptedInputPins($Pins){
+ $lab=Get-KmcLabRoot
+ if($Pins-isnot[Array]-or$Pins.Count-ne9){throw 'F09 cold reader input pin set changed.'}
+ $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+ foreach($pin in $Pins){
+  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold reader input'
+  if(-not$seen.Add($path)-or$pin.sha256-isnot[string]-or$pin.sha256-cnotmatch'^[a-f0-9]{64}$') {throw 'F09 cold reader input pin is missing or repeated.'}
+  Assert-KmcNotReparsePoint $path 'F09 cold reader input';Assert-KmcNotHardLink $path 'F09 cold reader input'
+  $file=Get-Item -LiteralPath $path
+  if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw 'F09 cold reader input changed after accepted re-evaluation.'}
+ }
 }
 function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  Assert-KmcChunk7SmallF09SourceSelection $Selection 'unassigned-f09-calibration'
@@ -48,15 +66,7 @@ function Get-KmcChunk7SmallF09CalibrationSource($Selection,$Fixture,$Consumer){
  }
  foreach($key in @('nativeRerun')){Assert-KmcChunk7Boolean $r.$key $false}
  foreach($key in @('modsRestored','profileBytesRestoredExactly')){Assert-KmcChunk7Boolean $r.$key $true}
- if($r.inputPins-isnot[Array]-or$r.inputPins.Count-ne9){throw 'F09 cold reader input pin set changed.'}
- $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
- foreach($pin in $r.inputPins){
-  $path=Assert-KmcChildPath (Resolve-KmcF09AcceptedReaderPin $pin) $lab 'F09 cold reader input'
-  if(-not$seen.Add($path)-or$pin.sha256-isnot[string]-or$pin.sha256-cnotmatch'^[a-f0-9]{64}$') {throw 'F09 cold reader input pin is missing or repeated.'}
-  Assert-KmcNotReparsePoint $path 'F09 cold reader input';Assert-KmcNotHardLink $path 'F09 cold reader input'
-  $file=Get-Item -LiteralPath $path
-  if($file.PSIsContainer-or$file.Length-ne[long]$pin.length-or(Get-KmcSha256 $path)-cne$pin.sha256){throw 'F09 cold reader input changed after accepted re-evaluation.'}
- }
+ Assert-KmcF09AcceptedInputPins $r.inputPins
  $coldRoot=Join-Path (Join-Path $lab 'runtime-evidence') $r.consumerRunId
  $requestPath=Join-Path $coldRoot 'runtime-request.json';$artifactPath=Join-Path $coldRoot 'chunk7-assisted-cold-inventory-evidence.json'
  $requestPin=@($r.inputPins|Where-Object path -CEQ $requestPath);$artifactPin=@($r.inputPins|Where-Object path -CEQ $artifactPath)
