@@ -236,7 +236,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ObserveSetupAutosave(int index)
         {
             if (SetupBusy()) return false;
-            var rider = index == 0 ? firstRider : secondRider; var probe = setupProbe; var sequence = index + 1;
+            var rider = index == 0 ? firstRider : secondRider; var probe = setupProbe;
+            // Numbered by observed builds: the mounted6 producer builds only rider B, which is then build 1.
+            var sequence = setupAutosaves.Count + 1;
             RequireOwnerSeedAuthority();
             var observed = probe?.Capture();
             Require(observed != null && (bool)observed["installed"] && ((JArray)observed["errors"]).Count == 0 && (int)observed["completionEntries"] == 0 &&
@@ -335,6 +337,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) && Idle(rider) && Idle(mount),
                     "Owner-seed pair " + (index == 0 ? "A" : "B") + " does not resolve medium-humanoid-horse-v1 with a supported idle reciprocal rig.");
                 ((JObject)setupRiderRows[index])["profileId"] = profile.Id; ((JObject)setupRiderRows[index])["rigValidated"] = true;
+                // The pre-owned rider A's progression is observed again at the boundary, after rider B's XP and build, so the
+                // reader's unchanged-progression check compares two real observations.
+                if (index == 0 && request.OwnedPairs.PreOwnedRiderA) ((JObject)setupRiderRows[0])["after"] = ProgressionState(rider);
             }
             Require(world.Registry.ActiveCount == 0 && !controls.HasUnsettledRelationshipTransition, "Owner-seed setup already holds mounted ownership.");
             // Close the write scope exactly once: every selected setup Auto completed, the owned

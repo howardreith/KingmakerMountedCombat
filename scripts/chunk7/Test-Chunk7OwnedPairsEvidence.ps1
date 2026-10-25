@@ -1043,7 +1043,7 @@ function New-KmcMounted6ManualFixture{
  $ra=$u.riders[0];$ra.before=Prog 6 35022 6;$ra.after=Prog 6 35022 6;$ra.nativeCommits=0;$ra.nativeChoices=0;$ra.nativeAutoLevelupOverrides=0;$ra.presentation='owner-pre-owned'
  $u.riders[1].before=Prog 4 51000 0;$u.riders[1].after=Prog 8 51000 4
  $u.riderBExperience=[pscustomobject][ordered]@{assisted=$true;targetCharacterLevel=8;before=35022;after=51000;delta=15978;threshold=51000;characterLevelBefore=4;characterLevelAfter=4;levelReadyAfter=$true;readyLevelAfter=8}
- $u.nativeLevelUpAutosave.riderBuilds=1;$u.setupAutosaves=@($u.setupAutosaves[1]);$u.setupAutosaves[0].sequence=1
+ $u.nativeLevelUpAutosave.riderBuilds=1;$u.setupAutosaves=@($u.setupAutosaves[1]);$u.setupAutosaves[0].sequence=1 # the producer numbers autosave observations by observed builds (rider B is build 1)
  $items=@($u.assistance|Where-Object{-not($_.kind-ceq'native-ordinary-ranger-levels'-and$_.unitId-ceq$a)});foreach($item in $items){if($item.kind-ceq'native-xp'){$item.before=35022;$item.after=51000;$item.amount=15978}};$u.assistance=$items
  $o.setupComplete.assistanceCount=$items.Count;$o.ownerSeedManual.assistanceCount=$items.Count;$o.ownerSeedManual.twoOwners[0].presentation='owner-pre-owned'
  $v
@@ -1095,6 +1095,7 @@ $script:pcReq=[pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';ownedP
 Check 'mounted6 prepared casting by rider A accepted' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'a1') @('a1','m1','b1','m2')}
 Check 'mounted6 prepared casting refuses rider B as caster' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'b1') @('a1','m1','b1','m2')} $true 'not cast by rider A'
 Check 'mounted6 prepared casting refuses two prepared healing slots on rider A' {Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq (New-KmcPreparedCastObservation 'a1' 2) @('a1','m1','b1','m2')} $true 'exactly one memorized'
+Check 'mounted6 prepared casting refuses the healing spell also on rider B' {$x=New-KmcPreparedCastObservation 'a1';$x.castingInventory[1].preparedSpells=@([pscustomobject]@{blueprint='5590652e1c2225c4ca30c4a699ab3649';available=$true});Assert-KmcChunk7OwnerSeedPreparedCaster $script:pcReq $x @('a1','m1','b1','m2')} $true 'on another rider'
 Check 'the generic acquired casting case keeps its either-rider rule' {Assert-KmcChunk7OwnerSeedPreparedCaster ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';ownedPairs=[pscustomobject]@{case='realtime-casting'}}) (New-KmcPreparedCastObservation 'b1') @('a1','m1','b1','m2')}
 Check 'generic acquired RT Charge evidence accepted with a melee weapon' {Invoke-OwnedReader (Copy-Value @($fixtures|Where-Object name -CEQ 'realtime-charge')[0])}
 Check-SeedCharge 'the original owner seed' {foreach($x in @($args[0].request.ownedPairs)){$x.seedId='KMC_C7_NO_MODS_OWNER_SEED';$x.seedSha256='3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f'}} 'exactly the registered KMC_C7_CHARGE_SEED'
