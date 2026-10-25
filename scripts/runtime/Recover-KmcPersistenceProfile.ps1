@@ -7,6 +7,9 @@ param(
 )
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+# -WhatIf is a dry run of this whole script. Its read-only checks must not inherit the preference (final B1 c4: it reached
+# Get-FileHash's path resolution and the dry run could not run), so it is taken here and every mutation stays behind the gate below.
+$dryRun=[bool]$WhatIfPreference;$WhatIfPreference=$false
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backups=Join-Path $lab 'runtime-backups'
@@ -29,7 +32,9 @@ if((Get-KmcSha256 $snapshot.paramsPath)-cne$CurrentParamsSha256-or(Get-KmcTextSh
     throw 'Current settings differ from the exact reviewed recovery pins.'
 }
 $currentProfile=Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-[void]@(Get-KmcPersistenceProfileRecoveryDelta $snapshot $currentProfile)
+# A new zero-length native achievement-cache leaf is admitted only by the settled-empty rule (PersistenceProfileProtection.ps1).
+[void]@(Get-KmcPersistenceProfileRecoveryDelta $snapshot $currentProfile -EmptyNewLeaf Admit)
+$admittedBefore=@(Get-KmcPersistenceProfileCacheDelta $snapshot.inventory $currentProfile -EmptyNewLeaf Admit|Where-Object change -CEQ 'created-empty')
 Assert-KmcObservedPreparationTimeoutRecord $RunId
 [void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $RunId)
 $original=Join-Path $backups ('profile-'+$RunId+'/Params.xml')
@@ -47,7 +52,7 @@ if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
     }
 }
 Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver
-if(-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
+if($dryRun-or-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return
 }
@@ -55,12 +60,18 @@ $lock=$null
 try{
     $lock=Adopt-KmcStaleRuntimeLock $stateRoot
     Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $snapshot -BackupRoot $backups -ExpectedCurrentParamsSha256 $CurrentParamsSha256 -ExpectedCurrentPrefsSha256 $CurrentPrefsSha256 -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -Confirm:$false
+    # Restore defers a zero-length native cache leaf; the settled-empty rule is the authority again after the mutation, and
+    # the admitted leaf is recorded, so the PASS below never rests on a deferred check.
+    $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit)
+    $acceptedEmpty=@($accepted|Where-Object change -CEQ 'created-empty')
+    if((ConvertTo-Json -InputObject @($acceptedEmpty|ForEach-Object path) -Compress)-cne(ConvertTo-Json -InputObject @($admittedBefore|ForEach-Object path) -Compress)){throw 'The admitted empty native cache leaf changed during recovery.'}
     Close-KmcRuntimeLock $lock;$lock=$null
     Write-KmcJsonCreateNewDurable -Path (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-recovery.json')) -Value ([ordered]@{
         runId=$RunId;status='PASS';recoveredAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
         snapshotSha256=$SnapshotSha256;paramsSha256=$snapshot.paramsSha256
         prefsSha256=Get-KmcTextSha256 $snapshot.playerPrefsJson;nativeScenarioStatus='FAIL'
         protectedSavesUnchanged=$true;foreignModsUnchanged=$true;gameAbsent=$true;lockReleased=$true
+        acceptedNativeCacheChanges=@($accepted|ForEach-Object{[ordered]@{path=[string]$_.path;change=[string]$_.change;length=[long]$_.length;beforeSha256=[string]$_.beforeSha256;afterSha256=[string]$_.afterSha256}})
     })
     Write-Host 'PROFILE RECOVERY PASS; exact actual intake restored, game absent, lock released.'
 }finally{if($null-ne$lock){Abandon-KmcRuntimeLock $lock}}
