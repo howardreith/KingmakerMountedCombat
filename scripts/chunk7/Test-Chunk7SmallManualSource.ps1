@@ -48,35 +48,9 @@ function New-Case([bool]$Paid=$true){
 function Qualify($C){Get-KmcChunk7SmallManualSource $C.selection $C.fixture $C.candidate}
 function Good([string]$Name,[scriptblock]$Action){&$Action;$script:passes++;Write-Host ('PASS '+$Name)}
 function Bad([string]$Name,[scriptblock]$Action){$bad=$false;try{&$Action}catch{$bad=$true};if(-not$bad){throw ('Accepted '+$Name)};$script:passes++;Write-Host ('PASS refuses '+$Name)}
-foreach($paid in @($true)){Good ('exact real qualifier body '+$paid){$c=New-Case $paid;$r=Qualify $c;if($r.descriptor.fileName-cne'Manual_7_KMC_C7_ACQUIRED_FIELD.zks'-or$r.descriptor.sha256-cne$c.selection.sourceArchiveSha256){throw 'Observed descriptor lost'};foreach($gate in @('full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){if(@($script:calls|Where-Object{$_-ceq$gate}).Count-ne1){throw ('Required external gate omitted '+$gate)}}}}
-foreach($gate in @('cloneable','not-reparse','not-hardlink','unique-json','full-bootstrap-cold-lineage','strict-manifest','full-manual-artifact','settled-native-output')){Bad ('mandatory external refusal '+$gate){$c=New-Case;$script:failure=$gate;[void](Qualify $c)}}
-$cases=[ordered]@{
- 'source already has two owners'={param($c)$c.request.acquiredManual.case='preserve-two-acquired-field'}
- 'source prior owner substituted'={param($c)$c.selection.actorId='99999999-1111-4111-8111-111111111111'}
- 'source prior pet substituted'={param($c)$c.selection.petId='99999999-2222-4222-8222-222222222222'}
- 'existing acquisition ancestry'={param($c)$c.artifact.observations.sourceAcquisition.selection.case='existing-ranger-horse'}
- 'Medium acquisition ancestry'={param($c)$c.artifact.observations.sourceAcquisition.selection.case='paid-medium-ranger-horse'}
- 'source reciprocal graph removed'={param($c)$c.artifact.observations.nativeProfileInventory.party[1].petId=$null}
- 'candidate SHA'={param($c)$c.candidate.dllSha256='0'*64}
- 'candidate MVID'={param($c)$c.candidate.dllMvid='11111111-1111-4111-8111-111111111111'}
- 'source status FAIL'={param($c)$c.result.status='FAIL'}
- 'source error'={param($c)$c.game.errors=@('failed')}
- 'missing Mods restoration'={param($c)$c.result.modsRestored=$false}
- 'missing save restoration'={param($c)$c.result.saveProtectionPassed=$false}
- 'source save changed'={param($c)$c.result.workingRestored=$false}
- 'source second load'={param($c)$c.game.loadRequestCount=2}
- 'source unauthorized write'={param($c)$c.game.unauthorizedSaveRequestCount=1}
- 'native load identity not verified'={param($c)$c.game.fixtureIdentityVerified=$false}
- 'source base-only unqualified'={param($c)$c.isolation.nativeCompatibilityQualified=$false}
- 'owner token changed'={param($c)$c.owner.transactionToken='0'*64}
- 'foreign source role'={param($c)$c.owner.scenario='chunk7-bootstrap-cold-inventory'}
- 'foreign persistence case'={param($c)$c.owner.persistenceCase='multi-exploration-manual'}
- 'source metadata substituted'={param($c)$c.artifact.observations.nativeWrite.sha256='0'*64}
- 'source restore digest absent'={param($c)$c.result.restoredSaveInventoryDigest=$null}
- 'source result body hash unbound'={param($c)$c.result.gameResultSha256='0'*64}
- 'source receipt changes during qualification'={param($c)$script:drift=Join-Path $script:sourceRoot 'runtime-result.json'}
-}
-
-foreach($pair in $cases.GetEnumerator()){Bad $pair.Key {$c=New-Case;&$pair.Value $c;[void](Qualify $c)}}
-@{schemaVersion=1;pass=$script:passes;fail=0;scope='actual new qualifier; full existing lineage/manifest/output and OS file boundaries substituted; no whole ancestry/native proof';nativeExecution=$false;archiveAccess=$false;sourceSha256=(Get-FileHash -LiteralPath (Join-Path $sourceReader 'Chunk7SmallCalibrationFixtures.ps1')).Hash.ToLowerInvariant()}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $sourceOutput 'receipt.json') -Encoding UTF8
-Write-Host ('TOTAL PASS='+$script:passes+' FAIL=0')
+# RETIRED (owner decision 2026-10-24, docs/CHUNK7-RETIRED-SMALL-MANUAL-CALIBRATION-2026-10-24.md). The fixture's one-owner source
+# is the retired Auto-derived acquisition (Auto_1.zks), which the unchanged acquired-Manual reader refuses since ed40ef95 because it
+# is not a closed field Manual. Its former refusal matrix ran against that refused base and passed vacuously; it is not run.
+$retiredError=$null;try{[void](Qualify (New-Case $true))}catch{$retiredError=$_.Exception.Message}
+if($retiredError-cne'One-owner acquired source is not a closed field Manual.'){throw ('The retired Small Manual source was not refused as a non-closed field Manual: '+$retiredError)}
+Write-Host 'RETIRED PASS=1 FAIL=0: the retired Auto-derived Small Manual source is refused as a non-closed field Manual; no refusal matrix runs on a refused base.'
