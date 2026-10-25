@@ -121,7 +121,8 @@ $Spec=[ordered]@{
  r41=S '20261021-c7d-world156-b156s1-f11-native' $O $OP @{}
 }
 # Rows 31, 32, 42, 55 and 56 (r31, r32, r42, u1-u3) take no selection file: their runner parameters
-# are fixed in the plan (section 5, B14/B15), so this deriver has nothing to derive for them.
+# are fixed in the plan (section 5, B14/B15), so this deriver has nothing to derive for them. Row 76 (l6, B16) has no
+# lineage pin: its selection is the literal owner-seed cold-inventory selection on KMC_C7_LEVEL6_SEED given in the plan.
 
 function Read-Json([string]$Path){if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){throw "Missing receipt: $Path"};[IO.File]::ReadAllText($Path)|ConvertFrom-Json}
 function Compact($Value){ConvertTo-Json -InputObject $Value -Depth 8 -Compress}

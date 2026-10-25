@@ -260,6 +260,14 @@ function Assert-KmcChunk7ChargeSeedBinding($Selection,$Checkpoint){
  if(($id-is[string]-and$id-ceq$c.seedId)-or($sha-is[string]-and$sha-ceq$c.sha256)){
   if(-not$exact-or-not($case-ceq'owner-seed-persistence-save'-or($case-ceq'owner-seed-persistence-load'-and$Checkpoint-ceq'multi-exploration-manual'))){throw 'KMC_C7_CHARGE_SEED is admitted only along the owner-seed real-time Charge lineage.'}}
 }
+# Owner decision (d), October 24: KMC_C7_LEVEL6_SEED is registered only for its read-only cold inventory. Its main
+# Ranger owns a native animal companion (owner: Smilodon) and is Ranger 6, so no owned two-pair case can use it.
+function Get-KmcChunk7Level6Seed {[pscustomobject][ordered]@{seedId='KMC_C7_LEVEL6_SEED';sha256='b1447ae77246d418256ec4aae9be1ee97828880a30376ae1985ca880a80e37d5';petId='7347ab0c-d284-44a1-8c5a-d3c322488404'}}
+function Assert-KmcChunk7NoLevel6SeedBinding($Selection){
+ $c=Get-KmcChunk7Level6Seed;$p=$Selection.PSObject.Properties
+ $id=if($null-ne$p['seedId']){$Selection.seedId}else{$null};$sha=if($null-ne$p['seedSha256']){$Selection.seedSha256}else{$null}
+ if(($id-is[string]-and$id-ceq$c.seedId)-or($sha-is[string]-and$sha-ceq$c.sha256)){throw 'KMC_C7_LEVEL6_SEED is refused for every owned two-pair case before input: its main Ranger already owns a native animal companion (owner: Smilodon) and is Ranger 6, so the owner-seed Horse setup (a petless rider reaching exactly Ranger 4) cannot run.'}
+}
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
@@ -269,6 +277,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($null-ne$s.PSObject.Properties['areaRoute']-and
     ($s.areaRoute-isnot[string]-or$s.areaRoute-cne'manticore-to-spider-v1'-or$checkpoint-cne'multi-area-autosave'-or
      $s.case-cnotin@('owner-seed-checkpoint-save','owner-seed-checkpoint-load'))){throw 'Only the exact owner-seed area checkpoint admits the Manticore return route.'}
+ Assert-KmcChunk7NoLevel6SeedBinding $s
  Assert-KmcChunk7ChargeSeedBinding $s $checkpoint
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}

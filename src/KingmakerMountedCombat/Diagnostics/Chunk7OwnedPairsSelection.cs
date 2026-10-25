@@ -54,6 +54,15 @@ namespace KingmakerMountedCombat.Diagnostics
         // The saved active hand set (weapon set 2) and its primary weapon, read offline from the seed's party.json.
         internal const int ChargeSeedHandSetIndex = 1;
         internal const string ChargeSeedPrimaryWeapon = "571c56d11dafbb04094cbaae659974b5";
+        // Owner decision (d), October 24, 2026: the owner's no-mods KMC_C7_LEVEL6_SEED (main Ranger 6, two memorized
+        // rested level-1 slots, BAB 6). Its saved main Ranger already owns a native animal companion (pet
+        // 7347ab0c-d284-44a1-8c5a-d3c322488404, blueprint 8a6986e17799d7d4b90f0c158b31c5b9, owner: Smilodon) and is past
+        // Ranger 4, so the owner-seed Horse setup (Chunk7OwnerSeedSetupPlan: a petless rider reaching exactly Ranger 4)
+        // cannot give rider A a Horse. Every owned two-pair case refuses the seed before input; it is registered only for
+        // its read-only cold inventory (chunk7-assisted-cold-inventory / owner-seed-readonly-inventory).
+        internal const string Level6SeedId = "KMC_C7_LEVEL6_SEED";
+        internal const string Level6SeedSha256 = "b1447ae77246d418256ec4aae9be1ee97828880a30376ae1985ca880a80e37d5";
+        internal const string Level6SeedRefusal = "KMC_C7_LEVEL6_SEED is refused for every owned two-pair case before input: its main Ranger already owns a native animal companion (owner: Smilodon) and is Ranger 6, so the owner-seed Horse setup (a petless rider reaching exactly Ranger 4) cannot run; prepared casting and a BAB >= 6 mounted full attack stay uncovered on it and need an owner decision.";
         public const string OwnerSeedLoadRefusalCase = "owner-seed-load-refusal";
         internal const string OwnerSeedLoadRefusalLeaf = "Manual_812_KMC_C7_SEED_REFUSAL.zks";
         internal static bool LoadRefusalCheckpoint(string value) => value == "multi-malformed-refusal-manual" || value == "multi-future-refusal-manual";
@@ -369,7 +378,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var errors = ValidateKind(scenario, runId, checkpoint);
             var charge = ChargeSeedError(checkpoint);
-            return charge == null ? errors : new List<string>(errors) { charge };
+            var level6 = SeedId == Level6SeedId || SeedSha256 == Level6SeedSha256 ? Level6SeedRefusal : null;
+            if (charge == null && level6 == null) return errors;
+            var all = new List<string>(errors);
+            if (charge != null) all.Add(charge);
+            if (level6 != null) all.Add(level6);
+            return all;
         }
         internal bool CarriesChargeSeed => SeedId == ChargeSeedId || SeedSha256 == ChargeSeedSha256;
         // The charge case requires exactly the registered charge seed; that seed reaches only the charge lineage.

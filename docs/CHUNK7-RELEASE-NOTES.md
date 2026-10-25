@@ -74,6 +74,11 @@ Exact-package 7E qualification re-runs each of them on the final candidate.
 - Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
   spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
   bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have development evidence.
+- The owner's level-6 test save (October 24) holds a level-6 Ranger with base attack bonus 6 and two prepared
+  spells, but that Ranger took an animal companion (a Smilodon) at level 4. A Ranger keeps one animal companion,
+  so the test Horse cannot be given to it and it cannot ride; prepared casting and a full attack at base attack
+  bonus 6 while mounted stay untested and need an owner decision. A character whose animal companion is not the
+  KMC Horse (or a supported Mammoth) keeps that companion and is not offered Mount Companion.
 - Saves: the upgrade of a mounted save written by preview.211 (above).
 - The full Small rider calibration on a save made by the same build: the two cases that did it were
   retired; the Small profile is covered by its own calibration and by mounted save and load.

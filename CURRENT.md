@@ -11,6 +11,23 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**Owner decision (d) seed registered: `KMC_C7_LEVEL6_SEED` (no launch).** Master `b1447ae7…` (1,217,335 bytes,
+byte-identical to the owner's `Manual_307_KMC_C7_LEVEL6_SEED.zks`, which was only hashed), intake
+`c3e0fc6f…` recorded read-only beside the master, registry entry added; the real registry/master/intake/header
+gate passes offline (and still for the charge seed; another hash is refused). Offline census (party.json read
+in memory): main Ranger `73681ef2` level 6, BAB 6, Rapid Shot feature and toggle (on), active hand set 1 (the
+melee longsword `571c56d1…`), two memorized available level-1 slots (Cure Light Wounds `5590652e…` and
+`3e9d1119…`); a native animal companion `7347ab0c…` (blueprint `8a6986e1…`, owner: Smilodon), stored as the
+rider's `m_Pet.m_UniqueId` and the pet's `Master.m_UniqueId` (not `m_Master`); Linzi `8265f8cf` level 7 with
+Haste known and two level-3 slots. **Consequence:** the owner-seed Horse setup refuses rider A before any
+mutation (`Chunk7OwnerSeedSetupPlan`: a petless rider reaching exactly Ranger 4; one pet per master), so no
+mounted rider A exists on this seed; every owned two-pair case now refuses the seed before input with that
+reason (C# selection and PS reader). Prepared casting and the BAB ≥ 6 mounted full attack therefore stay
+uncovered and need a further owner decision; haste stays excluded (decision (a)). Product check: KMC leases
+Mount Companion only to a character whose pet is a supported Horse/Mammoth (`ShouldLease`), so a Ranger with
+another companion keeps it and is offered nothing to mount — no mishandling found offline. Row 76 (B16) is the
+seed's read-only cold census. Tests: owned authority 723/0 (13 new), owned reader 1097/0 (5 new).
+
 **X3 residual closed offline (row 75; no launch).** `pending-schema3-control-manual` is reinstated as the
 separate-process cold consumer of row 17's own genuine pending-only Manual (`owner-seed-checkpoint-load`, one
 load, zero writes), read by the existing control branches of the owned and combat-persistence readers. Its
