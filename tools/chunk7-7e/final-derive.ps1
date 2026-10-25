@@ -203,7 +203,7 @@ function Get-LeafDiff($A,$B,[string]$Path){
 function Test-ReaderReevaluation([string]$Pred,$Entry,$Run){
  if($Entry-is[string]-or$null-eq$Entry.PSObject.Properties['reevaluation']){return $false}
  $r=$Entry.reevaluation
- if([string]$r.receipt-cnotmatch('^final[0-9]*-B[0-9]+-'+[regex]::Escape($Pred)+'r?-reader-reevaluation.json$')-or[string]$r.receiptSha256-cnotmatch'^[0-9a-f]{64}$'){throw "Predecessor $Pred re-evaluation reference is malformed."}
+ if([string]$r.receipt-cnotmatch('^final[0-9]*-B[0-9]+-'+[regex]::Escape($Pred)+'r?-reader-reevaluation\.json$')-or[string]$r.receiptSha256-cnotmatch'^[0-9a-f]{64}$'){throw "Predecessor $Pred re-evaluation reference is malformed."}
  $path=Join-Path $cache ([string]$r.receipt)
  if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()-cne[string]$r.receiptSha256){throw "Predecessor $Pred re-evaluation receipt differs from its recorded hash."}
  $k=Read-Json $path;$root=Join-Path $ev $Run.runId;$res=$Run.result
@@ -216,15 +216,15 @@ function Test-ReaderReevaluation([string]$Pred,$Entry,$Run){
     $k.oldReader.verdict-cne'FAIL'-or$k.oldReader.error-cne[string]$errors[0]-or$k.oldReader.commit-cne$Run.request.commit-or
     $k.newReader.verdict-cne'PASS'-or[string]$k.newReader.commit-cnotmatch'^[0-9a-f]{40}$'-or$k.newReader.commit-ceq$k.oldReader.commit){
   throw "Predecessor $Pred re-evaluation receipt does not settle its retained runner FAIL."}
- $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '....'))
+ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
  $head=(& git -C $repo rev-parse HEAD 2>$null|Out-String).Trim();$dirty=(& git -C $repo status --porcelain -- scripts tools src 2>$null|Out-String).Trim()
  if(-not$head-or$dirty){throw "Predecessor $Pred re-evaluation needs this deriver's own clean tree."}
  & git -C $repo merge-base --is-ancestor $k.newReader.commit $head 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred corrected reader commit is not in this deriver's history."}
  & git -C $repo merge-base --is-ancestor $k.oldReader.commit $k.newReader.commit 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred corrected reader does not descend from the run's commit."}
  & git -C $repo diff --quiet $k.oldReader.commit $k.newReader.commit -- src Info.json version.json 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred re-evaluation spans a product change; it is not reader-only."}
- $runner=Join-Path $repo 'scriptsuntimeRuntimeHarness.Common.ps1'
+ $runner=Join-Path $repo 'scripts\runtime\RuntimeHarness.Common.ps1'
  $code="`$ErrorActionPreference='Stop';Set-StrictMode -Version Latest;. '"+$runner.Replace("'","''")+"';`$q=[IO.File]::ReadAllText('"+(Join-Path $root 'runtime-request.json').Replace("'","''")+"',[Text.Encoding]::UTF8)|ConvertFrom-Json;try{[void](Get-KmcValidatedOrchestrationArtifactManifestHash -Request `$q);'REEVALUATION-PASS'}catch{'REEVALUATION-FAIL '+`$_.Exception.Message}"
- $out=@(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))) 2>&1|ForEach-Object{[string]$_})
+ $out=@(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))) 2>$null|ForEach-Object{[string]$_})
  if(@($out|Where-Object{$_-ceq'REEVALUATION-PASS'}).Count-ne1){throw ("Predecessor $Pred corrected reader did not PASS its immutable evidence: "+($out-join' '))}
  return $true
 }
