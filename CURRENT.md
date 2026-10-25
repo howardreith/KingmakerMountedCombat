@@ -1,5 +1,23 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**F2 r32 removal-observer UMM rule and F09 reader pins fixed (offline; harness only; no launch).**
+- r32 (`20261025-c7e-final-B14-r32`, row 32, removal observer, no `-BaseGameOnly`) game PASS, outer FAIL: UMM pruned the owner's
+  stale `<Mod Id="CheatMenu">` (folder absent) beside the expected KMC→observer replacement and a forward `LastUpdateCheck`; the lock
+  stayed held (`final2-B14-r32-incident.json`). The removal-observer startup rule now shares the base-game rule's two native helpers
+  (`Step-KmcUmmLastUpdateCheck`, `Remove-KmcUmmAbsentModEntries`): it admits the original or the original minus every entry absent
+  from the run's own staged Mods tree (`Get-KmcRunStagedModIds`: the staged manifest sidecar, digest-checked against the transaction
+  state, observer staging mode, must include `KmcRemovalObserver`; folder names matched case-insensitively); a prune of a present
+  mod, a reorder, a changed attribute or an added entry still refuses; without a sidecar nothing is pruned. Params.xml is still
+  restored byte-for-byte. Runner guard and recovery both pass the staged ids. Recovery `-WhatIf` against r32's exact pins PASS,
+  `runtime-state` unchanged (`final2-r32-profile-recovery-whatif-fixed.log`). Executor (from a worktree at this HEAD, profile first):
+  `Recover-KmcPersistenceProfile.ps1 -RunId 20261025-c7e-final-B14-r32 -SnapshotSha256 aabe22e5d087f55a25a39a5fdb8716a7150200047988723d0a99a4c81d9996c7
+  -CurrentParamsSha256 17781485b7aa01b58c781f8605ea396b4d9b2629902d4357691366b4c173309c -CurrentPrefsSha256
+  db8ae27195fded87bf1cd1302a1f860e76647c51fe6a0cc0190a2863760ae4c2 -Confirm:$false`, then transaction recovery if the lock remains.
+- F09 (s1/r33 WhatIf refusal): the receipt's two reader pins now bind to their archived 6fb1eee8 blobs from any tree (`b4a86012`);
+  the current readers also pass the F09 cold evidence; no other receipt pins live reader files.
+- Review (r32): no must-fix; should-fix applied (case-insensitive folder presence; observer staging and observer id required).
+- Tests: profile protection 94/0, base-game isolation 98/0, F09 reader pins 11/0, Fast 3/0.
+
 **Coordinator decision (October 25): F2 is a discovery pass; F3 re-runs every row on a new candidate.** The runner's source gate is
 not changed; r15 and r16 are re-run on F3; the re-evaluation machinery stays as committed (plan §8).
 
