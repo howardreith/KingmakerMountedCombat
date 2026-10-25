@@ -1282,6 +1282,34 @@ Assert-Kmc ($chargeRowsBody.Success -and $chargeRowNames.Count -ge 7 -and $pathR
     $unregisteredChargeRows.Count -eq 0 -and $unregisteredPathRows.Count -eq 0) `
     'every Chunk 6B charge and carrier row the readers require is in the shared subscenario registry'
 
+# The same chain for the Chunk 7 two-pair combat engines (b206: rows 57 and 69 passed in game 7/0 but the
+# outer gate refused their new C7-combat-reaction-defensive-cast and C7-life-prone-* rows as unknown). Every
+# C7-combat/C7-life/C7-rt subscenario a Chunk7Combat*.cs file passes must be in its PowerShell reader's row
+# list (C7-life in the native-life rows, C7-rt in the RT rows, C7-combat in any of the three) and in the
+# compiled RuntimeSubscenarioResult registry.
+function Get-KmcChunk7RowListNames([string]$Relative, [string]$Function) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot $Relative)
+    $body = [Regex]::Match($text, ('(?s)function ' + [Regex]::Escape($Function) + '\b.*?\n\}'))
+    if (-not $body.Success) { return @() }
+    @([Regex]::Matches($body.Value, "'(C7-[a-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+}
+$chunk7CombatRows = @(Get-KmcChunk7RowListNames 'scripts\runtime\Chunk7CombatEvidence.ps1' 'Get-KmcChunk7CombatRows')
+$chunk7LifeRows = @(Get-KmcChunk7RowListNames 'scripts\runtime\Chunk7NativeLifeEvidence.ps1' 'Get-KmcChunk7NativeLifeRows')
+$chunk7RealtimeRows = @(Get-KmcChunk7RowListNames 'scripts\runtime\Chunk7RealtimeEvidence.ps1' 'Get-KmcChunk7RealtimeRows')
+$chunk7Protocol = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs')
+$chunk7Mission = [Regex]::Match($chunk7Protocol, '(?s)HashSet<string> MissionScenarios = new HashSet<string>\(StringComparer\.Ordinal\)\s*\{(.*?)\};')
+$chunk7MissionNames = @([Regex]::Matches($chunk7Mission.Groups[1].Value, '"(C7-[a-z0-9-]+)"') | ForEach-Object { $_.Groups[1].Value })
+$chunk7Passed = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics') -Filter 'Chunk7Combat*.cs' -File |
+    ForEach-Object { [Regex]::Matches((Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName), 'Pass\("(C7-(?:combat|life|rt)-[a-z0-9-]+)"\)') } |
+    ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+$chunk7Unregistered = @($chunk7Passed | Where-Object {
+    $rows = if ($_ -clike 'C7-life-*') { $chunk7LifeRows } elseif ($_ -clike 'C7-rt-*') { $chunk7RealtimeRows } else { @($chunk7CombatRows) + @($chunk7LifeRows) + @($chunk7RealtimeRows) }
+    $rows -cnotcontains $_ -or $chunk7MissionNames -cnotcontains $_ })
+Assert-Kmc ($chunk7CombatRows.Count -ge 10 -and $chunk7LifeRows.Count -ge 4 -and $chunk7RealtimeRows.Count -ge 4 -and $chunk7Mission.Success -and
+    $chunk7Passed.Count -ge 30 -and $chunk7Unregistered.Count -eq 0) `
+    ('every Chunk 7 combat, life and RT subscenario a scenario passes is in its reader row list and the compiled registry' +
+        $(if ($chunk7Unregistered.Count) { ' (unregistered: ' + ($chunk7Unregistered -join ', ') + ')' } else { '' }))
+
 # And the last link of that chain: the fixture's own case arrays and the reader's row lists must agree, per
 # mode. A row the fixture emits that the reader does not require is refused as unknown; a row the reader
 # requires that the fixture never emits is refused as missing. Both refusals arrive only after a live run

@@ -5,7 +5,7 @@ function Test-KmcChunk7NativeLifeScenario([string]$Scenario){$Scenario-ceq'chunk
 function Test-KmcChunk7NativeDeathCase($Request){(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-native-death-cleanup'}
 function Get-KmcChunk7NativeLifeRows([string]$Scenario){
  if(-not(Test-KmcChunk7NativeLifeScenario $Scenario)){throw 'Unknown native life case.'}
- @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-life-safe-native-damage','C7-life-native-callback','C7-life-healthy-neighbour','C7-life-independent-survivor','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+ @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-life-safe-native-damage','C7-life-native-callback','C7-life-healthy-neighbour','C7-life-independent-survivor','C7-life-prone-native-heal','C7-life-prone-stand-up-opportunity','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7NativeLifeRuntimeRows{Get-KmcChunk7NativeLifeRows 'chunk7-two-pair-native-life-cleanup'}
 function Assert-KmcChunk7NativeLifeArtifact($Request,$Manifest,[string]$Status='PASS'){
