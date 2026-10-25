@@ -1,5 +1,32 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**Coordinator decision (October 25): F2 is a discovery pass; F3 re-runs every row on a new candidate.** The runner's source gate is
+not changed; r15 and r16 are re-run on F3; the re-evaluation machinery stays as committed (plan §8).
+
+**F2 r09 companion-window fix for F3 (product diagnostics changed: a new DLL; no launch).** r09 (`20261025-c7e-final-B8-r09`,
+`owner-seed-realtime-core`) game FAIL 6/1: mount A, already engaging the target before the companion input, made the native
+engagement-controller attack of opportunity in the companion window (`UnitCombatEngagementController.Tick →
+UnitCombatState.AttackOfOpportunity → UnitCommands.Run`, own reaction, Free) and was counted as a pair touch
+(`final2-B8-r09-incident.json`).
+- `NativeOpportunityAttacks` accounts such an attack apart, strictly: one closed stock `UnitAttackOfOpportunity` (Free) per
+  identity with exactly admission-before/after and cost-before/after of one pair actor, aimed at the provoking target, caller chain
+  exactly Run < AttackOfOpportunity < UnitCombatEngagementController (Tick; no KMC frame), finished, its reaction spent once
+  (n → n−1, n ≥ 1), no Standard/Move/Swift rise, in no pair command slot; at most the actor's reactions; the window's reaction check
+  admits exactly n fewer (or natively restored with no cooldown). Everything else stays a pair touch. Applied to the companion window
+  and, consistently, to pair B in the player-click window; the reader derives the same independently (`companionAction.pairNativeOpportunityAttacks`,
+  `playerClick.pairBNativeOpportunityAttacks`).
+- Residual: the other neighbour-silence checks (`NeverSpentNatively`/`SameActorBudget` in TB, reaction, staged, attack-mode and life
+  windows) still refuse a neighbour's native attack of opportunity; none failed in F2 so far.
+
+- Independent review: no must-fix; should-fix applied: the reaction-restoration clause now follows the native RT contract
+  (`UnitCombatState.AttackOfOpportunity` sets a 5.4 s cooldown on first use; `UnitCombatCooldownsController` restores the count at
+  zero): only when the cooldown recorded at the last attack fully elapsed in game time by the after snapshot and no prepare/clear
+  of the actor occurred; the capped caller chain must reach `Kingmaker.Runner.Update`; the actor must already engage the target in
+  the before window; cost rows must be native `Success`. Note: an AoO animation still running at a poll would hard-fail
+  `PairIdle` (not seen in r09).
+- Tests: owned reader 1285/0 (13 new), actual-method harness (refused proposals + AoO accounting) 0 failures (24 new), owned source
+  323/0, Fast 3/0, Release build `f39cbbb3…` (a new DLL for F3). Old F2 artifacts now lack the two new fields and are refused (F3 re-runs every row).
+
 **F2 r15 re-evaluation redone on the full offline verdict path; r16 still blocked by the runner's source gate (offline; tools only).**
 - Re-review findings (M1 partial verdict path; S2 old FAIL not re-proven; S3 native calls under Stop; S4 evidence root; S5 self-test)
   fixed in `4552f083`, `3219903d`; a fresh review then found the r16 blocker below plus should-fixes, fixed in `134f3a18`, `5dc584ff`.
