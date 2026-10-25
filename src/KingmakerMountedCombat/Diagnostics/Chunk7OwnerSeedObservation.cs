@@ -198,6 +198,21 @@ namespace KingmakerMountedCombat.Diagnostics
     internal static class Chunk7OwnerSeedObservation
     {
         internal const string Contract = "owner-seed-cold-qualification-v1";
+        internal const string MissingStatement = "The seed carries no KMC metadata; the supported missing-metadata path selected no archive. This proves no mounted restoration.";
+        internal const string OwnerMadeEmptyStatement = "The owner-made KMC seed carries an empty schema-3 archive of its own campaign and area (no pairs, participations, slots or combat); nothing is restored from it. This proves no mounted restoration.";
+        // The one admitted KMC-metadata shape for an owner seed: exactly KMC_C7_MOUNTED6_SEED (registered identity) with an
+        // empty schema-3 archive. Every other owner seed keeps the Missing path (a mod-absent control).
+        internal static bool OwnerMadeEmptyArchive(MountedPersistenceService persistence, string gameId, string area)
+        {
+            var data = persistence?.LoadedArchive;
+            return data != null && persistence.LoadedArchiveKind == MountedSaveReadKind.Current && data.SchemaVersion == MountedArchiveData.Schema &&
+                data.CampaignId == gameId && data.AreaId == area && data.Pairs != null && data.Pairs.Length == 0 &&
+                data.Participations != null && data.Participations.Length == 0 && data.Slots != null && data.Slots.Length == 0 && data.Combat == null;
+        }
+        internal static bool MissingMetadata(MountedPersistenceService persistence) => persistence != null && persistence.LoadedArchive == null &&
+            persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore;
+        internal static bool AdmittedSeedMetadata(MountedPersistenceService persistence, bool ownerMadeSeed, string gameId, string area) =>
+            ownerMadeSeed ? OwnerMadeEmptyArchive(persistence, gameId, area) : MissingMetadata(persistence);
         // Same installed-field contract as the assisted story boundary: exact token,
         // declared type, instance field and module MVID, read only.
         private static T ReadField<T>(Type type, object owner, string name, int token)
@@ -251,7 +266,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal static JObject Capture(Game game, UnitEntityData[] actors, UnitEntityData[] characters, SaveInfo descriptor,
-            string[] headerDlc, Chunk7OwnerSeedLoadProbe resolution, MountedPersistenceService persistence, bool nativeBusy, string archivePath)
+            string[] headerDlc, Chunk7OwnerSeedLoadProbe resolution, MountedPersistenceService persistence, bool nativeBusy, string archivePath, bool ownerMadeSeed = false)
         {
             var failures = new List<string>(); var failureIds = new List<string>();
             // Every failure carries the stable identifier of what it asserts (Chunk7OwnerSeedAssertions).
@@ -380,9 +395,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var kind = persistence.LoadedArchiveKind;
             var metadata = new JObject { ["kind"] = kind?.ToString(), ["canRestore"] = persistence.LoadedArchiveCanRestore,
                 ["loadedArchivePresent"] = persistence.LoadedArchive != null, ["mountedRestorationProven"] = false,
-                ["statement"] = "The seed carries no KMC metadata; the supported missing-metadata path selected no archive. This proves no mounted restoration." };
-            if (kind != MountedSaveReadKind.Missing || persistence.LoadedArchiveCanRestore || persistence.LoadedArchive != null)
-                Failed(Chunk7OwnerSeedAssertions.MetadataNotMissing, "KMC metadata is not the supported Missing path.");
+                ["statement"] = ownerMadeSeed ? OwnerMadeEmptyStatement : MissingStatement };
+            if (!AdmittedSeedMetadata(persistence, ownerMadeSeed, game.Player.GameId, game.CurrentlyLoadedArea.AssetGuidThreadSafe))
+                Failed(Chunk7OwnerSeedAssertions.MetadataNotMissing, ownerMadeSeed ? "KMC metadata is not the admitted owner-made empty schema-3 archive." : "KMC metadata is not the supported Missing path.");
 
             return new JObject { ["contract"] = Contract, ["qualified"] = failures.Count == 0, ["failures"] = new JArray(failures), ["failureIds"] = new JArray(failureIds),
                 ["identity"] = new JObject { ["gameId"] = game.Player.GameId, ["gameName"] = main.CharacterName, ["mainActorId"] = main.UniqueId,

@@ -201,7 +201,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case 1:
                         if (CombatController.IsInTurnBasedCombat()) return;
-                        if (OwnerSeed) { BeginOwnerSeedRider(0); Next(50); break; }
+                        // The mounted6 producer verifies rider A's pre-owned Horse and builds only rider B (step 51).
+                        if (OwnerSeed) { if (request.OwnedPairs.PreOwnedRiderA) { AdmitPreOwnedRider(); Next(51); } else { BeginOwnerSeedRider(0); Next(50); } break; }
                         if (inherited != null)
                         {
                             inherited.RequirePreserved(); Pass("C7-owned-pairs-inherited-custody");

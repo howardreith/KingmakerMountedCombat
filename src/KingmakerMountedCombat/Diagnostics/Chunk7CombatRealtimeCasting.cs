@@ -28,7 +28,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     .Take(64).Select(slot => new JObject { ["blueprint"] = slot.Spell.Blueprint.AssetGuid, ["available"] = slot.Available })) }));
             var healers = candidates.Where(actor => actor.Descriptor.State.IsConscious && actor.Descriptor.Spellbooks
                 .SelectMany(book => book.GetAllMemorizedSpells()).Any(slot => slot.Spell.Blueprint.AssetGuid == RealtimeHealBlueprint)).ToArray();
-            Require(healers.Length == 1, "Concrete fixture prerequisite: exactly one of the two mounted riders must have the native prepared healing spell. Inventory: " + evidence["castingInventory"]);
+            // Owner-seed prepared casting (mounted6 lineage): rider A is the one caster. Any other inventory is refused before
+            // any wound or input and records F03 prepared casting as uncovered on this source; nothing is memorized or refreshed.
+            var ownerSeed = request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedPreparedCastingCase;
+            Require(healers.Length == 1 && (!ownerSeed || healers[0] == ar), (ownerSeed ? "F03 prepared casting is uncovered on this source: rider A must be the only mounted rider with the native prepared healing spell. " :
+                "Concrete fixture prerequisite: exactly one of the two mounted riders must have the native prepared healing spell. ") + "Inventory: " + evidence["castingInventory"]);
             realtimeCaster = healers[0];
             var slots = realtimeCaster.Descriptor.Spellbooks.SelectMany(book => book.GetAllMemorizedSpells())
                 .Where(slot => slot.Spell.Blueprint.AssetGuid == RealtimeHealBlueprint).ToArray();

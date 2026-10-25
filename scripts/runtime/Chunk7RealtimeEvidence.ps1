@@ -98,7 +98,7 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
     $mounts=@($o.inputs|Where-Object{$_.label-cin@('mount-a','mount-b')});if($mounts.Count-ne2){throw 'Two native mounts missing.'}
     for($i=0;$i-lt2;$i++){$m=$mounts[$i];if($m.casterId-cne$ids[$i*2]-or$m.targetId-cne$ids[$i*2+1]-or$m.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$m.nativeCastDelta-ne1-or$m.nativeRefusalDelta-ne0-or$m.generationAtInit-lt0){throw 'Native RT mount binding differs.'};foreach($f in @('clicked','terminal','processTerminal')){Assert-KmcChunk7Boolean $m.$f $true}}}
     if((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-core') {Assert-KmcChunk7RealtimeCore $o $ids $trace;if($derived){Assert-KmcChunk7OwnerSeedCompanionAction $Request $o;Assert-KmcChunk7OwnerSeedPlayerClick $Request $o}elseif($null-ne$o.PSObject.Properties['companionAction']-or$null-ne$o.PSObject.Properties['playerClick']){throw 'Only owner-seed-derived RT records an unrelated companion action or player-click window.'}}
-    elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace}
+    elseif((Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-two-pair-realtime-casting'){Assert-KmcChunk7RealtimeCasting $o $ids $trace;Assert-KmcChunk7OwnerSeedPreparedCaster $Request $o $ids}
     else{Assert-KmcChunk7RealtimeCharge $o $ids $trace;Assert-KmcChunk7ChargeWeapon $Request $o;Assert-KmcChunk7ChargeTargetPlacement $o}
     if($owned){foreach($field in @('pairResidueAbsent','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','inheritedPetsPreserved')){Assert-KmcChunk7Boolean $o.cleanup.$field $true};Assert-KmcChunk7Boolean $o.cleanup.ownedHorseRemoved $false;Assert-KmcChunk7Boolean $o.cleanup.nativeProgressionRequiresExternalWorkingRestoration $false}else{foreach($field in @('pairResidueAbsent','ownedHorseRemoved','nativeCombatEnded','initiativeInputsRestored','firstPairAiRestored','controlsSettled','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$field $true}}
     Assert-KmcChunk7Boolean $o.cleanup.nativeSaveWrittenByThisDriver $false;Assert-KmcChunk7Boolean $o.cleanup.delegatedPersistenceCleanup $false
@@ -128,6 +128,14 @@ function Assert-KmcChunk7RealtimeCore($o,[string[]]$ids,$trace){
     $f=$o.localFailure;if($f.failureCount-ne1-or$f.injectedPair-cne'b'){throw 'Selected local cleanup failure differs.'};Assert-KmcChunk7Boolean $f.healthyNeighbourVisited $true
     if(@($f.held.owners|Where-Object{(Test-KmcChunk7OwnerActorMatch $_.riderId $ids[2])-and(Test-KmcChunk7OwnerActorMatch $_.mountId $ids[3])-and$_.retainsObligations}).Count-ne1){throw 'RT failed owner lost cleanup custody.'}
     Assert-KmcChunk7SameCombatBudget $f.before $f.held @($ids[1])
+}
+# Owner-seed prepared casting (mounted6 lineage, F03): rider A is the one caster of its one memorized prepared slot;
+# the generic acquired casting case keeps its either-rider rule.
+function Assert-KmcChunk7OwnerSeedPreparedCaster($Request,$o,[string[]]$ids){
+    $prepared=(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and$Request.ownedPairs.case-ceq'owner-seed-prepared-casting'
+    if(-not$prepared){return}
+    if($o.casting.casterId-cne$ids[0]){throw 'Owner-seed prepared casting was not cast by rider A.'}
+    $rows=@($o.castingInventory|Where-Object actorId -CEQ $ids[0]);if($rows.Count-ne1-or@($rows[0].preparedSpells|Where-Object{$_.blueprint-ceq'5590652e1c2225c4ca30c4a699ab3649'}).Count-ne1){throw 'Owner-seed prepared casting rider A did not hold exactly one memorized prepared healing slot.'}
 }
 function Assert-KmcChunk7RealtimeCasting($o,[string[]]$ids,$trace){
     foreach($i in 0..1){Assert-KmcChunk7RealtimeOwnerStable $o.casting.before $o.casting.after $ids[2*$i] $ids[2*$i+1]}

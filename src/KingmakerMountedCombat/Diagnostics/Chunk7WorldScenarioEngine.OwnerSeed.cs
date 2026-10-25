@@ -47,6 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeOrdinaryAcquisitionProbe setupProbe;
         private bool setupSlotOwned;
         private int setupWritesExpected = -1, setupWritesAtBoundary = -1;
+        private int setupRiderBuilds = -1;
         private JArray setupAutosaves;
         private JObject setupEconomyBefore;
         private UnitEntityData[] setupCharacters;
@@ -66,8 +67,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(horses.State == HorseCompanionBlueprintState.Registered && horses.HorseFeature != null && horses.LevelRank != null && horses.HorseUnit != null,
                 "Exact registered ordinary Horse contracts are unavailable.");
             var input = request.PersistenceLoad;
+            // Every owner seed loads through the Missing path, except the owner-made KMC_C7_MOUNTED6_SEED (exact identity),
+            // whose one admitted shape is an empty schema-3 archive of its own campaign and area; neither restores anything.
+            var preOwned = selection.PreOwnedRiderA;
             Require(game.Player.MainCharacter.Value?.CharacterName == input.GameName && game.CurrentlyLoadedArea?.AssetGuidThreadSafe == input.Area &&
-                persistence != null && persistence.LoadedArchive == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore,
+                Chunk7OwnerSeedObservation.AdmittedSeedMetadata(persistence, selection.IsMounted6, input.GameId, input.Area),
+                selection.IsMounted6 ? "The owner-made seed must load with exactly its empty schema-3 KMC archive (it proves no mounted restoration)." :
                 "The owner seed must load through the supported missing-metadata path (it proves no mounted restoration).");
             originalParty = Chunk7NativeFieldRoster.Capture(game.Player);
             Require(originalParty.Select(x => x.UniqueId).OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(selection.PartyIds.OrderBy(x => x, StringComparer.Ordinal)),
@@ -88,9 +93,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var autosaveSlots = settings.AutosaveSlots.CurrentValue;
             var riderBuilds = new[] { firstRider, secondRider }.Count(rider => rider.Descriptor.Pet == null);
             setupWritesExpected = Chunk7OwnerSeedSetupPlan.ExpectedSetupWrites(autosaveEnabled, riderBuilds); setupAutosaves = new JArray();
-            ownerSeedSetup = new JObject { ["contract"] = "owner-seed-fixture-setup-v1", ["disclosure"] = selection.IsOwnerSeedManual ? OwnerSeedManualDisclosure : OwnerSeedDisclosure,
+            ownerSeedSetup = new JObject { ["contract"] = "owner-seed-fixture-setup-v1", ["disclosure"] = preOwned ? OwnerSeedPreOwnedManualDisclosure : selection.IsOwnerSeedManual ? OwnerSeedManualDisclosure : OwnerSeedDisclosure,
                 ["seedId"] = selection.SeedId, ["seedSha256"] = selection.SeedSha256, ["fixtureSetupOnly"] = true, ["acquisitionProof"] = false,
-                ["producerAncestry"] = false, ["loadedArchiveKind"] = "Missing", ["loadedArchiveCanRestore"] = false,
+                ["producerAncestry"] = false, ["loadedArchiveKind"] = persistence.LoadedArchiveKind?.ToString(), ["loadedArchiveCanRestore"] = persistence.LoadedArchiveCanRestore,
                 ["riderFacts"] = new JArray(FactsRow("A", a), FactsRow("B", b)),
                 ["nativeLevelUpAutosave"] = new JObject { ["autosaveEnabled"] = autosaveEnabled, ["onlyOneSave"] = onlyOneSave,
                     ["autosaveSlots"] = autosaveSlots, ["settingsWritten"] = false, ["case"] = NoLevelupAutosaveCase,
@@ -98,8 +103,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["slotProjectionDuringBuild"] = false, ["mountedPersistenceProof"] = false },
                 ["riders"] = setupRiderRows, ["events"] = setupEvents, ["setupAutosaves"] = setupAutosaves,
                 ["economyBefore"] = setupEconomyBefore, ["nativeXpTable"] = new JArray(Enumerable.Range(1, 20).Select(level => BlueprintRoot.Instance.Progression.XPTable.GetBonus(level))) };
+            if (selection.IsMounted6) ownerSeedSetup["ownerMadeEmptyArchive"] = OwnerMadeArchiveRow();
+            if (preOwned) ownerSeedSetup["preOwnedRiderA"] = PreOwnedRow(a);
             evidence["ownerSeedSetup"] = ownerSeedSetup;
-            var refusals = Chunk7OwnerSeedSetupPlan.RiderErrors(a, "A").Concat(Chunk7OwnerSeedSetupPlan.RiderErrors(b, "B"))
+            setupRiderBuilds = riderBuilds;
+            var refusals = (preOwned ? Chunk7OwnerSeedSetupPlan.PreOwnedHorseErrors(a, "A", selection.MountAId) : Chunk7OwnerSeedSetupPlan.RiderErrors(a, "A")).Concat(Chunk7OwnerSeedSetupPlan.RiderErrors(b, "B"))
                 .Concat(Chunk7OwnerSeedSetupPlan.AssistanceErrors(selection, a, b))
                 .Concat(Chunk7OwnerSeedSetupPlan.WriteErrors(selection, autosaveEnabled, onlyOneSave, riderBuilds)).ToArray();
             ownerSeedSetup["admissionRefusals"] = new JArray(refusals);
@@ -164,6 +172,40 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginMeasurement("unmounted-0"); Next(20); break;
                 default: throw new InvalidOperationException("Unknown owner-seed setup step " + step + ".");
             }
+        }
+
+        internal const string OwnerSeedPreOwnedManualDisclosure = "Fixture setup on a disposable run copy of an owner-supplied KMC-made seed: rider A's KMC Horse was taken by the owner in ordinary play with KMC installed and is only verified here (nothing is built, granted or levelled for rider A); rider B's Horse was created by the native ordinary Ranger level-up (Hunter's Bond -> Ranger companion -> KMC Horse) after only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof. Setup makes no native write; after SETUP-COMPLETE the only native write is one measured Manual into the run-owned isolated save root, labelled owner-seed-derived with disclosed assistance.";
+
+        // Read only: the owner-made seed's admitted empty archive.
+        private JObject OwnerMadeArchiveRow()
+        {
+            var data = persistence.LoadedArchive;
+            return new JObject { ["schemaVersion"] = data?.SchemaVersion, ["campaignId"] = data?.CampaignId, ["areaId"] = data?.AreaId,
+                ["pairs"] = data?.Pairs?.Length, ["participations"] = data?.Participations?.Length, ["slots"] = data?.Slots?.Length,
+                ["combatPresent"] = data?.Combat != null, ["nativeRestorationGrantedByDiagnostic"] = false };
+        }
+
+        private JObject PreOwnedRow(Chunk7OwnerSeedRiderFacts facts) => new JObject { ["riderId"] = facts.Id, ["horseId"] = facts.PetId,
+            ["petIsKmcHorse"] = facts.PetIsKmcHorse, ["petReciprocal"] = facts.PetReciprocal, ["petInField"] = facts.PetInField,
+            ["horseFeature"] = facts.HasHorseFeature, ["horseRank"] = facts.HasHorseRank, ["characterLevel"] = facts.CharacterLevel,
+            ["rangerLevel"] = facts.RangerLevel, ["experience"] = facts.Experience, ["readyLevel"] = facts.ReadyLevel,
+            ["source"] = "taken by the owner in ordinary play with KMC installed; verified only" };
+
+        // Mounted6 rider A: verified, never built. Its row keeps the shared rider-row shape with zero native commits.
+        private void AdmitPreOwnedRider()
+        {
+            setupLedger.RequireOpen("pre-owned rider A verification");
+            RequireOwnerSeedAuthority();
+            var rider = firstRider; var pet = rider.Descriptor.Pet; var feature = rider.Descriptor.GetFact(horses.HorseFeature) as Feature;
+            Require(request.OwnedPairs.PreOwnedRiderA && pet != null && pet.UniqueId == request.OwnedPairs.MountAId && pet.Blueprint == horses.HorseUnit &&
+                ReferenceEquals(pet.Descriptor.Master.Value, rider) && feature != null && feature.Source != null && rider.Descriptor.GetFact(horses.LevelRank) != null &&
+                originalParty.Contains(pet), "Rider A's pinned pre-owned reciprocal KMC Horse is unavailable; this fixture is uncovered on this seed.");
+            var state = ProgressionState(rider);
+            setupRiderRows.Add(new JObject { ["role"] = "A", ["riderId"] = rider.UniqueId, ["before"] = state, ["after"] = state.DeepClone(),
+                ["nativeCommits"] = 0, ["nativeChoices"] = 0, ["nativeAutoLevelupOverrides"] = 0,
+                ["horseId"] = pet.UniqueId, ["horseBlueprint"] = pet.Blueprint.AssetGuid, ["horseMasterId"] = rider.UniqueId,
+                ["horseFeatureSourceGuid"] = feature.Source.AssetGuid, ["presentation"] = "owner-pre-owned", ["acquisitionProof"] = false });
+            firstMount = pet; nativeScope.Track(pet);
         }
 
         private void BeginOwnerSeedRider(int index)
@@ -311,7 +353,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativePersistenceIsolation.DisableNativeSlotRotation(); setupSlotOwned = false;
             }
             setupWritesAtBoundary = fixtureAuthority.AdmittedNativeWriteRequests;
-            Require(setupWritesAtBoundary == setupWritesExpected && setupAutosaves.Count == setupRiderRows.Count,
+            Require(setupWritesAtBoundary == setupWritesExpected && setupAutosaves.Count == setupRiderBuilds && setupRiderRows.Count == 2,
                 "SETUP-COMPLETE observed a native write count that differs from the selected setup Autos.");
             // No money or item effect across the whole setup (the native level-up may only identify items).
             var economy = SetupEconomy();
@@ -476,6 +518,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 Controllable = actor.IsDirectlyControllable, IsPet = actor.Descriptor.IsPet, HasPet = actor.Descriptor.Pet != null,
                 HasDualCompanion = actor.Get<UnitPartDualCompanion>() != null, InCombat = actor.IsInCombat, Idle = Idle(actor),
                 Polymorphed = actor.GetActivePolymorph() != null, HasHorseRank = actor.Descriptor.GetFact(horses.LevelRank) != null,
+                PetId = actor.Descriptor.Pet?.UniqueId, PetIsKmcHorse = actor.Descriptor.Pet != null && actor.Descriptor.Pet.Blueprint == horses.HorseUnit,
+                PetReciprocal = actor.Descriptor.Pet != null && ReferenceEquals(actor.Descriptor.Pet.Descriptor.Master.Value, actor),
+                PetInField = actor.Descriptor.Pet != null && originalParty.Contains(actor.Descriptor.Pet),
+                HasHorseFeature = actor.Descriptor.GetFact(horses.HorseFeature) != null,
                 Size = actor.Descriptor.State.Size.ToString(), OriginalSize = actor.Descriptor.OriginalSize.ToString(),
                 CharacterLevel = progression.CharacterLevel, RangerLevel = progression.GetClassLevel(RangerClass()),
                 Experience = progression.Experience, ReadyLevel = ReadyLevel(progression.Experience),

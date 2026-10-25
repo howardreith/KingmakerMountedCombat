@@ -67,6 +67,9 @@ function Assert-KmcAssistedColdSeparateProcess($Selection,$SourceArtifact,$ColdA
 # writes underscores only in the file name): no leading, trailing or repeated space, no tab or
 # other whitespace, at most 64 characters. Same rule as Chunk7AssistedColdInventorySelection.IsOwnerSeedName.
 function Get-KmcChunk7OwnerSeedNamePattern {'^(?=[\s\S]{1,64}\z)[A-Za-z0-9][A-Za-z0-9_.-]*(?: [A-Za-z0-9_.-]+)*\z'}
+# The one owner seed made with KMC installed (owner decision of October 24, 2026): admitted with an empty schema-3
+# KMC archive only when its registry entry carries exactly the pinned identity and master hash.
+function Test-KmcChunk7OwnerMadeSeedEntry($Entry){$null-ne$Entry-and$Entry.seedId-is[string]-and$Entry.seedId-ceq'KMC_C7_MOUNTED6_SEED'-and$Entry.sha256-is[string]-and$Entry.sha256-ceq'2ef426c408e7271c850baab17c4f61a59e2fa34445d297b4b104b88917938f7c'}
 function Assert-KmcChunk7OwnerSeedEntry($Entry){
  Assert-KmcAssistedObjectValue $Entry @('seedId','sha256','length','internalName','fileName','type','compatibilityVersion','gameId','gameName','area','campaignDlc','dlc','masterPath','intakePath','intakeSha256') 'owner seed registry entry'
  if($Entry.seedId-isnot[string]-or$Entry.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner seed registry identity is malformed.'}
@@ -595,8 +598,16 @@ function Assert-KmcChunk7OwnerSeedQualification($Q,$Request,$World,$Entry){
  foreach($key in @('cutscene','dialogActive','dialogScheduled','cuePlayScheduled','dialogStopScheduled','popupShown','inCombat','nativeLoading','kmcAreaTransitionPending')){Assert-KmcChunk7Boolean $c.$key $false}
  Assert-KmcBootstrapInventoryString $c.mode 'Default';if($c.paused-isnot[bool]){throw 'Owner seed pause observation is not boolean.'}
  $k=$Q.kmcMetadata;Assert-KmcAssistedObjectValue $k @('kind','canRestore','loadedArchivePresent','mountedRestorationProven','statement') 'owner seed KMC metadata'
+ # Every owner seed takes the Missing path (a mod-absent control), except the exact owner-made KMC_C7_MOUNTED6_SEED
+ # (registry entry and code pin agree), whose one admitted shape is an empty schema-3 archive; neither restores anything.
+ if(Test-KmcChunk7OwnerMadeSeedEntry $Entry){
+  Assert-KmcBootstrapInventoryString $k.kind 'Current';Assert-KmcChunk7Boolean $k.loadedArchivePresent $true;Assert-KmcChunk7Boolean $k.mountedRestorationProven $false
+  if($k.canRestore-isnot[bool]){throw 'Owner-made seed archive restorability is not an observed boolean.'}
+  Assert-KmcBootstrapInventoryString $k.statement 'The owner-made KMC seed carries an empty schema-3 archive of its own campaign and area (no pairs, participations, slots or combat); nothing is restored from it. This proves no mounted restoration.'
+ }else{
  Assert-KmcBootstrapInventoryString $k.kind 'Missing';foreach($key in @('canRestore','loadedArchivePresent','mountedRestorationProven')){Assert-KmcChunk7Boolean $k.$key $false}
  if($k.statement-isnot[string]-or$k.statement-cnotmatch'proves no mounted restoration'){throw 'Owner seed evidence must state that missing KMC metadata proves no mounted restoration.'}
+ }
 }
 function Assert-KmcChunk7OwnerSeedColdEvidence($Request,$Artifact,$SeedRecord){
  $o=$Artifact.observations;$s=$Request.assistedColdInventory

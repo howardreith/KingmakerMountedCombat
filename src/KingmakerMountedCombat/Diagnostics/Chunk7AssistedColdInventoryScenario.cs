@@ -196,9 +196,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 RequireNoOwners(); RequireNoEffects();
                 var data = persistence.LoadedArchive;
+                // Every owner seed takes the Missing path (a mod-absent control) except the exact owner-made KMC_C7_MOUNTED6_SEED,
+                // whose one admitted shape is an empty schema-3 archive of its own campaign and area.
+                var ownerMadeSeed = selection.IsOwnerSeed && Chunk7OwnedPairsSelection.IsMounted6Seed(selection.SeedId, selection.SeedSha256);
                 if (selection.IsOwnerSeed)
-                    Require(data == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore,
-                        "Owner seed did not take the supported missing-KMC-metadata path.", Chunk7OwnerSeedAssertions.MetadataNotMissing);
+                    Require(Chunk7OwnerSeedObservation.AdmittedSeedMetadata(persistence, ownerMadeSeed, saved.GameId, saved.Area),
+                        ownerMadeSeed ? "Owner-made seed KMC metadata is not the admitted empty schema-3 archive." : "Owner seed did not take the supported missing-KMC-metadata path.", Chunk7OwnerSeedAssertions.MetadataNotMissing);
                 else Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                     data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source is not the qualified empty mounted archive.");
@@ -229,7 +232,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (selection.IsOwnerSeed)
                 {
                     // Observe and record; qualify only on what this load actually showed.
-                    var qualification = Chunk7OwnerSeedObservation.Capture(game, actors, characters, loader.Descriptor, seedDlc, resolution, persistence, Busy(), archivePath);
+                    var qualification = Chunk7OwnerSeedObservation.Capture(game, actors, characters, loader.Descriptor, seedDlc, resolution, persistence, Busy(), archivePath, ownerMadeSeed);
                     evidence["ownerSeedQualification"] = qualification;
                     evidence["kmcMetadata"] = qualification["kmcMetadata"].DeepClone();
                     // The authored route observation belongs to the Spider Cave seed only; another

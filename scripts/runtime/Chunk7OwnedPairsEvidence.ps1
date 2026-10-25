@@ -22,6 +22,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'owner-seed-combat-reaction'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-staged'{'chunk7-two-pair-combat-rider-first'}
   'owner-seed-realtime-charge'{'chunk7-two-pair-realtime-charge'}
+  'owner-seed-prepared-casting'{'chunk7-two-pair-realtime-casting'}
   'owner-seed-checkpoint-save'{'chunk7-persistence-save'}
   'owner-seed-checkpoint-load'{'chunk7-persistence-load'}
   'small-fixture-persistence-save'{'chunk7-persistence-save'}
@@ -173,7 +174,7 @@ function Assert-KmcChunk7OwnedPairsMediumSelection($Request,$Selection,$Checkpoi
 }
 function Test-KmcChunk7OwnedPairsSeedDerivedLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-load'}
 # Owner-seed-derived combat (scenarios 3-5): a disposable copy of the derived Manual, restored mounted.
-function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged','owner-seed-realtime-charge')}
+function Test-KmcChunk7OwnedPairsSeedDerivedCombat($Request){(Get-KmcChunk7OwnedPairsCase $Request)-cin@('owner-seed-realtime-core','owner-seed-combat-rider-first','owner-seed-combat-mount-first','owner-seed-combat-disable','owner-seed-native-life-cleanup','owner-seed-native-death-cleanup','owner-seed-attack-modes','owner-seed-combat-reaction','owner-seed-staged','owner-seed-realtime-charge','owner-seed-prepared-casting')}
 function Test-KmcChunk7OwnedPairsAttackModes($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-attack-modes'}
 function Test-KmcChunk7OwnedPairsCombatReaction($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-combat-reaction'}
 function Test-KmcChunk7OwnedPairsStaged($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-staged'}
@@ -225,7 +226,11 @@ function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Chec
 }
 function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$manual=$s.case-ceq'owner-seed-persistence-save'
- Assert-KmcExactProperties $s @('case','seedId','seedSha256','riderAId','riderBId','partyIds','xpAssistance','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount') 'owner-seed two-pair selection'
+ # Only the mounted6 Manual producer pins rider A's pre-owned native KMC Horse (mountAId); every other owner seed is petless.
+ $preOwned=$manual-and(Test-KmcChunk7Mounted6Selection $s)
+ $fields=@('case','seedId','seedSha256','riderAId','riderBId','partyIds','xpAssistance','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($preOwned){$fields+='mountAId'}
+ Assert-KmcExactProperties $s $fields 'owner-seed two-pair selection'
+ if($preOwned){$m6=Get-KmcChunk7Mounted6Seed;if($s.riderAId-cne$m6.riderAId-or$s.mountAId-cne$m6.horseId-or@($s.partyIds)-cnotcontains$m6.horseId){throw 'The mounted6 Manual producer pins exactly rider A and its pre-owned native KMC Horse, a member of the selected field roster.'}}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed consumer run identity is malformed.'}
  if($s.seedId-isnot[string]-or$s.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.seedId-ceq$Request.runId){throw 'Owner-seed two-pair exploration requires an exact registered seed identity.'}
  if($s.seedSha256-isnot[string]-or$s.seedSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-seed two-pair exploration requires its exact seed SHA256.'}
@@ -268,6 +273,24 @@ function Assert-KmcChunk7NoLevel6SeedBinding($Selection){
  $id=if($null-ne$p['seedId']){$Selection.seedId}else{$null};$sha=if($null-ne$p['seedSha256']){$Selection.seedSha256}else{$null}
  if(($id-is[string]-and$id-ceq$c.seedId)-or($sha-is[string]-and$sha-ceq$c.sha256)){throw 'KMC_C7_LEVEL6_SEED is refused for every owned two-pair case before input: its main Ranger already owns a native animal companion (owner: Smilodon) and is Ranger 6, so the owner-seed Horse setup (a petless rider reaching exactly Ranger 4) cannot run.'}
 }
+# Owner decision of October 24, 2026 ("I'll make a mod seed"): KMC_C7_MOUNTED6_SEED, made by the owner with the b205
+# candidate installed (rider A took the KMC Horse at Ranger 4 in ordinary play; Ranger 6, BAB 6, memorized rested slots).
+# A KMC-made save, never a mod-absent control. It reaches only its own lineage: the Manual producer (rider A keeps its
+# pinned pre-owned Horse), that Manual's multi-exploration-manual cold consumer, prepared casting (which requires it)
+# and attack modes. Every other kind refuses it; every other seed keeps its original rules.
+function Get-KmcChunk7Mounted6Seed {[pscustomobject][ordered]@{seedId='KMC_C7_MOUNTED6_SEED';sha256='2ef426c408e7271c850baab17c4f61a59e2fa34445d297b4b104b88917938f7c';riderAId='73681ef2-b281-4bc6-bc05-2de68c1616cb';horseId='6eb039a1-d500-405e-987c-5a823ee41626';meleeHandSet=1;meleeWeapon='571c56d11dafbb04094cbaae659974b5';rangedHandSet=0;rangedWeapon='4de4658c0e9b0d146b9a08ed6f030f8a';minimumBab=6}}
+function Test-KmcChunk7Mounted6Selection($Selection){
+ $c=Get-KmcChunk7Mounted6Seed;$p=$Selection.PSObject.Properties
+ ($null-ne$p['seedId']-and$Selection.seedId-is[string]-and$Selection.seedId-ceq$c.seedId)-and($null-ne$p['seedSha256']-and$Selection.seedSha256-is[string]-and$Selection.seedSha256-ceq$c.sha256)
+}
+function Assert-KmcChunk7Mounted6SeedBinding($Selection,$Checkpoint){
+ $c=Get-KmcChunk7Mounted6Seed;$p=$Selection.PSObject.Properties
+ $id=if($null-ne$p['seedId']){$Selection.seedId}else{$null};$sha=if($null-ne$p['seedSha256']){$Selection.seedSha256}else{$null};$case=if($null-ne$p['case']){$Selection.case}else{$null}
+ $exact=Test-KmcChunk7Mounted6Selection $Selection
+ if($case-ceq'owner-seed-prepared-casting'){if(-not$exact){throw 'Owner-seed prepared casting requires exactly the registered KMC_C7_MOUNTED6_SEED lineage.'};return}
+ if(($id-is[string]-and$id-ceq$c.seedId)-or($sha-is[string]-and$sha-ceq$c.sha256)){
+  if(-not$exact-or-not($case-ceq'owner-seed-persistence-save'-or$case-ceq'owner-seed-attack-modes'-or($case-ceq'owner-seed-persistence-load'-and$Checkpoint-ceq'multi-exploration-manual'))){throw 'KMC_C7_MOUNTED6_SEED is admitted only along its own lineage (exact registered identity).'}}
+}
 function Assert-KmcChunk7OwnedPairsSelection($Request){
  if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
  $has=$null-ne$Request.PSObject.Properties['ownedPairs']
@@ -279,6 +302,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
      $s.case-cnotin@('owner-seed-checkpoint-save','owner-seed-checkpoint-load'))){throw 'Only the exact owner-seed area checkpoint admits the Manticore return route.'}
  Assert-KmcChunk7NoLevel6SeedBinding $s
  Assert-KmcChunk7ChargeSeedBinding $s $checkpoint
+ Assert-KmcChunk7Mounted6SeedBinding $s $checkpoint
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
@@ -585,6 +609,7 @@ function Assert-KmcChunk7OwnedFinalSaveRoot($Request,[string[]]$Leaves,$Observat
 # item, the SETUP-COMPLETE boundary and the fixture-setup (not acquisition) outcome
 # per rider are required exactly; returns the observed roles riderA, mountA, riderB, mountB.
 function Get-KmcChunk7OwnerSeedManualDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof. Setup makes no native write; after SETUP-COMPLETE the only native write is one measured Manual into the run-owned isolated save root, labelled owner-seed-derived with disclosed assistance.'}
+function Get-KmcChunk7OwnerSeedPreOwnedManualDisclosure {'Fixture setup on a disposable run copy of an owner-supplied KMC-made seed: rider A''s KMC Horse was taken by the owner in ordinary play with KMC installed and is only verified here (nothing is built, granted or levelled for rider A); rider B''s Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) after only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof. Setup makes no native write; after SETUP-COMPLETE the only native write is one measured Manual into the run-owned isolated save root, labelled owner-seed-derived with disclosed assistance.'}
 function Get-KmcChunk7OwnerSeedDisclosure {'Fixture setup on a disposable run copy of an owner-supplied seed: each Horse was created by the native ordinary Ranger level-up (Hunter''s Bond -> Ranger companion -> KMC Horse) and rider B received only the exact native XP its Ranger 4 eligibility requires. This is not acquisition proof; the only native writes are the game''s own level-up Autos into the run-owned isolated save root during setup, none after SETUP-COMPLETE.'}
 # Stock Kingmaker character XP table (BlueprintRoot.Progression.XPTable, the
 # Pathfinder medium advancement track): index = character level, threshold = XP.
@@ -630,14 +655,32 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
  Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
  $u=$o.ownerSeedSetup
- Assert-KmcExactProperties $u @('contract','disclosure','seedId','seedSha256','fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveKind','loadedArchiveCanRestore','riderFacts','nativeLevelUpAutosave','riders','events','setupAutosaves','economyBefore','nativeXpTable','admissionRefusals','eventCount','eventsTruncated','riderBExperience','assistance') 'owner-seed fixture setup disclosure'
+ # The mounted6 Manual producer (owner-made KMC seed): rider A's pre-owned Horse is verified, never built; only rider B is built.
+ $preOwned=$manual-and(Test-KmcChunk7Mounted6Selection $s)
+ $setupFields=@('contract','disclosure','seedId','seedSha256','fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveKind','loadedArchiveCanRestore','riderFacts','nativeLevelUpAutosave','riders','events','setupAutosaves','economyBefore','nativeXpTable','admissionRefusals','eventCount','eventsTruncated','riderBExperience','assistance')
+ if($preOwned){$setupFields+=@('ownerMadeEmptyArchive','preOwnedRiderA')}
+ Assert-KmcExactProperties $u $setupFields 'owner-seed fixture setup disclosure'
+ if($preOwned){
+  $m6=Get-KmcChunk7Mounted6Seed;$e=$u.ownerMadeEmptyArchive
+  Assert-KmcExactProperties $e @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'owner-made seed empty archive'
+  Assert-KmcOrdinaryInteger $e.schemaVersion 3 3;Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
+  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $e.$key 0 0};Assert-KmcChunk7Boolean $e.combatPresent $false;Assert-KmcChunk7Boolean $e.nativeRestorationGrantedByDiagnostic $false
+  $q=$u.preOwnedRiderA
+  Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'mounted6 pre-owned rider A'
+  Assert-KmcBootstrapInventoryString $q.riderId $m6.riderAId;Assert-KmcBootstrapInventoryString $q.horseId $m6.horseId;Assert-KmcBootstrapInventoryString $q.source 'taken by the owner in ordinary play with KMC installed; verified only'
+  foreach($key in @('petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank')){Assert-KmcChunk7Boolean $q.$key $true}
+  foreach($key in @('characterLevel','rangerLevel','experience','readyLevel')){Assert-KmcOrdinaryInteger $q.$key 0 1000000000}
+  if($q.rangerLevel-lt4-or$q.rangerLevel-gt$q.characterLevel-or$q.readyLevel-ne(Get-KmcChunk7XpReadyLevel $q.experience)-or$q.readyLevel-lt$q.characterLevel){throw 'Mounted6 rider A is not a consistent Ranger of at least level 4.'}
+ }
  $table=Get-KmcChunk7StockXpTable
  if($u.nativeXpTable-isnot[Array]-or$u.nativeXpTable.Count-ne20){throw 'Owner-seed native XP table observation is missing.'}
  for($level=1;$level-le20;$level++){Assert-KmcOrdinaryInteger $u.nativeXpTable[$level-1] $table[$level] $table[$level]}
  Assert-KmcChunk7OwnerSeedEconomy $u.economyBefore 'economy before setup' $s
- Assert-KmcBootstrapInventoryString $u.contract 'owner-seed-fixture-setup-v1';Assert-KmcBootstrapInventoryString $u.disclosure $(if($manual){Get-KmcChunk7OwnerSeedManualDisclosure}else{Get-KmcChunk7OwnerSeedDisclosure})
- Assert-KmcBootstrapInventoryString $u.seedId $s.seedId;Assert-KmcBootstrapInventoryString $u.seedSha256 $s.seedSha256;Assert-KmcBootstrapInventoryString $u.loadedArchiveKind 'Missing'
- Assert-KmcChunk7Boolean $u.fixtureSetupOnly $true;foreach($key in @('acquisitionProof','producerAncestry','loadedArchiveCanRestore','eventsTruncated')){Assert-KmcChunk7Boolean $u.$key $false}
+ Assert-KmcBootstrapInventoryString $u.contract 'owner-seed-fixture-setup-v1';Assert-KmcBootstrapInventoryString $u.disclosure $(if($preOwned){Get-KmcChunk7OwnerSeedPreOwnedManualDisclosure}elseif($manual){Get-KmcChunk7OwnerSeedManualDisclosure}else{Get-KmcChunk7OwnerSeedDisclosure})
+ # Every owner seed loads through the Missing path except the owner-made mounted6 seed, whose empty schema-3 archive is checked above.
+ Assert-KmcBootstrapInventoryString $u.seedId $s.seedId;Assert-KmcBootstrapInventoryString $u.seedSha256 $s.seedSha256;Assert-KmcBootstrapInventoryString $u.loadedArchiveKind $(if($preOwned){'Current'}else{'Missing'})
+ Assert-KmcChunk7Boolean $u.fixtureSetupOnly $true;foreach($key in @('acquisitionProof','producerAncestry','eventsTruncated')){Assert-KmcChunk7Boolean $u.$key $false}
+ if($preOwned){if($u.loadedArchiveCanRestore-isnot[bool]){throw 'Owner-made seed archive restorability is not an observed boolean.'}}else{Assert-KmcChunk7Boolean $u.loadedArchiveCanRestore $false}
  if($u.admissionRefusals-isnot[Array]-or$u.admissionRefusals.Count-ne0){throw 'Owner-seed setup recorded an admission refusal.'}
  $a=$u.nativeLevelUpAutosave;Assert-KmcExactProperties $a @('autosaveEnabled','onlyOneSave','autosaveSlots','settingsWritten','case','riderBuilds','expectedWrites','selectedWrites','slotProjectionDuringBuild','mountedPersistenceProof') 'native level-up autosave observation'
  if($a.autosaveEnabled-isnot[bool]){throw 'Native autosave setting must be an observed boolean.'}
@@ -645,7 +688,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if(-not(Test-KmcChunk7FiniteNumber $a.autosaveSlots)){throw 'Native autosave slot setting must be a finite observation.'}
  # The installed game has no level-up autosave (LevelUpAutoSaveController is never registered):
  # zero setup writes whatever the observed (read-only) autosave setting.
- Assert-KmcOrdinaryInteger $a.riderBuilds 2 2;$writesExpected=0
+ $builds=if($preOwned){1}else{2};Assert-KmcOrdinaryInteger $a.riderBuilds $builds $builds;$writesExpected=0
  Assert-KmcBootstrapInventoryString $a.case 'no-native-levelup-autosave'
  Assert-KmcOrdinaryInteger $a.expectedWrites $writesExpected $writesExpected;Assert-KmcOrdinaryInteger $a.selectedWrites $writesExpected $writesExpected
  # The Manual producer's one selected write is its measured Manual, never a setup write.
@@ -653,7 +696,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  Assert-KmcChunk7Boolean $a.slotProjectionDuringBuild $false
  $autos=@($u.setupAutosaves);if($u.setupAutosaves-isnot[Array]-or$autos.Count-ne$a.riderBuilds){throw 'Owner-seed setup must observe the absence of a native level-up autosave once per rider build.'}
  for($i=0;$i-lt$autos.Count;$i++){
-  $w=$autos[$i];$rid=if($i-eq0){$s.riderAId}else{$s.riderBId}
+  $w=$autos[$i];$rid=if($i-eq0-and-not$preOwned){$s.riderAId}else{$s.riderBId}
   Assert-KmcExactProperties $w @('sequence','riderId','case','requested','written','probe') 'owner-seed absent level-up autosave'
   Assert-KmcOrdinaryInteger $w.sequence ($i+1) ($i+1);Assert-KmcBootstrapInventoryString $w.riderId $rid;Assert-KmcBootstrapInventoryString $w.case 'no-native-levelup-autosave'
   Assert-KmcChunk7Boolean $w.requested $false;Assert-KmcChunk7Boolean $w.written $false
@@ -670,24 +713,34 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($u.riderFacts-isnot[Array]-or$u.riderFacts.Count-ne2-or$u.riders-isnot[Array]-or$u.riders.Count-ne2){throw 'Owner-seed setup must disclose exactly two riders.'}
  $party=@($s.partyIds);$horses=@();$roles=@()
  for($i=0;$i-lt2;$i++){
-  $role=@('A','B')[$i];$id=if($i-eq0){$s.riderAId}else{$s.riderBId};$f=$u.riderFacts[$i];$r=$u.riders[$i]
+  $role=@('A','B')[$i];$id=if($i-eq0){$s.riderAId}else{$s.riderBId};$f=$u.riderFacts[$i];$r=$u.riders[$i];$pre=$preOwned-and$i-eq0
   Assert-KmcExactProperties $f @('role','riderId','size','originalSize','polymorphed','controllable','petless','characterLevel','rangerLevel','experience','readyLevel','eligibleWithoutAssistance','minimalTargetLevel') 'owner-seed rider facts'
   Assert-KmcBootstrapInventoryString $f.role $role;Assert-KmcBootstrapInventoryString $f.riderId $id;Assert-KmcBootstrapInventoryString $f.size 'Medium';Assert-KmcBootstrapInventoryString $f.originalSize 'Medium'
-  Assert-KmcChunk7Boolean $f.polymorphed $false;Assert-KmcChunk7Boolean $f.controllable $true;Assert-KmcChunk7Boolean $f.petless $true
+  Assert-KmcChunk7Boolean $f.polymorphed $false;Assert-KmcChunk7Boolean $f.controllable $true;Assert-KmcChunk7Boolean $f.petless (-not$pre)
   foreach($key in @('characterLevel','rangerLevel','experience','readyLevel','minimalTargetLevel')){Assert-KmcOrdinaryInteger $f.$key 0 1000000000}
   if($f.eligibleWithoutAssistance-isnot[bool]-or$f.eligibleWithoutAssistance-ne(($f.rangerLevel+$f.readyLevel-$f.characterLevel)-ge4)-or$f.minimalTargetLevel-ne($f.characterLevel+4-$f.rangerLevel)){throw 'Owner-seed eligibility arithmetic differs from the ordinary driver rule.'}
-  if($i-eq0-and-not$f.eligibleWithoutAssistance){throw 'Rider A received setup without its own native eligibility.'}
+  if($i-eq0-and-not$pre-and-not$f.eligibleWithoutAssistance){throw 'Rider A received setup without its own native eligibility.'}
   Assert-KmcExactProperties $r @('role','riderId','before','after','nativeCommits','nativeChoices','nativeAutoLevelupOverrides','horseId','horseBlueprint','horseMasterId','horseFeatureSourceGuid','presentation','acquisitionProof','profileId','rigValidated') 'owner-seed rider setup outcome'
   Assert-KmcBootstrapInventoryString $r.role $role;Assert-KmcBootstrapInventoryString $r.riderId $id;Assert-KmcBootstrapInventoryString $r.horseMasterId $id
   Assert-KmcBootstrapInventoryString $r.horseBlueprint '4016c7db400ab721ff125aef9e65e202';Assert-KmcBootstrapInventoryString $r.profileId 'medium-humanoid-horse-v1'
-  Assert-KmcBootstrapInventoryString $r.presentation 'fixture-setup';Assert-KmcChunk7Boolean $r.acquisitionProof $false;Assert-KmcChunk7Boolean $r.rigValidated $true
-  Assert-KmcOrdinaryGuid $r.horseId;if($r.horseId-cin$party-or$r.horseId-cin$horses){throw 'Owner-seed setup Horse aliases a party actor or the other Horse.'};$horses+=$r.horseId
+  Assert-KmcBootstrapInventoryString $r.presentation $(if($pre){'owner-pre-owned'}else{'fixture-setup'});Assert-KmcChunk7Boolean $r.acquisitionProof $false;Assert-KmcChunk7Boolean $r.rigValidated $true
+  Assert-KmcOrdinaryGuid $r.horseId
+  # The pre-owned Horse is the pinned field member; a built Horse is new and aliases no party actor.
+  if($pre){if($r.horseId-cne$m6.horseId-or$r.horseId-cnotin$party){throw 'Mounted6 rider A row does not name its pinned pre-owned Horse in the field.'}}
+  elseif($r.horseId-cin$party-or$r.horseId-cin$horses-or$r.horseId-cin@($roles)){throw 'Owner-seed setup Horse aliases a party actor or the other Horse.'}else{$horses+=$r.horseId}
   if($r.horseFeatureSourceGuid-isnot[string]-or$r.horseFeatureSourceGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Owner-seed Horse feature lacks its native progression source.'}
-  Assert-KmcOrdinaryInteger $r.nativeCommits 1 20;Assert-KmcOrdinaryInteger $r.nativeChoices 1 512;Assert-KmcOrdinaryInteger $r.nativeAutoLevelupOverrides 0 20
   foreach($state in @($r.before,$r.after)){Assert-KmcExactProperties $state @('characterLevel','experience','rangerLevel','classes') 'owner-seed rider progression';foreach($key in @('characterLevel','experience','rangerLevel')){Assert-KmcOrdinaryInteger $state.$key 0 1000000000}}
+  if($pre){
+   # Verified only: zero native commits or choices and an unchanged progression (Ranger 4 or above, pending levels untouched).
+   foreach($key in @('nativeCommits','nativeChoices','nativeAutoLevelupOverrides')){Assert-KmcOrdinaryInteger $r.$key 0 0}
+   if((ConvertTo-KmcChunk7Canonical $r.before)-cne(ConvertTo-KmcChunk7Canonical $r.after)-or$r.before.characterLevel-ne$f.characterLevel-or$r.before.rangerLevel-ne$f.rangerLevel-or$r.before.rangerLevel-lt4-or$r.before.experience-ne$f.experience-or
+      $f.readyLevel-ne(Get-KmcChunk7XpReadyLevel $f.experience)-or$f.characterLevel-ne$q.characterLevel-or$f.rangerLevel-ne$q.rangerLevel-or$f.experience-ne$q.experience){throw 'Mounted6 rider A progression changed or differs from its pre-owned observation.'}
+  }else{
+  Assert-KmcOrdinaryInteger $r.nativeCommits 1 20;Assert-KmcOrdinaryInteger $r.nativeChoices 1 512;Assert-KmcOrdinaryInteger $r.nativeAutoLevelupOverrides 0 20
   if($r.after.rangerLevel-ne4-or$r.after.characterLevel-ne($r.before.characterLevel+$r.nativeCommits)-or$r.before.characterLevel-ne$f.characterLevel){throw 'Owner-seed rider did not reach exactly Ranger 4 through exactly its native commits.'}
   # Pinned XP table: reported ready levels and the final level follow the stock thresholds; no extra levels.
   if($f.readyLevel-ne(Get-KmcChunk7XpReadyLevel $f.experience)-or$r.after.characterLevel-ne(Get-KmcChunk7XpReadyLevel $r.after.experience)-or$r.after.experience-ne$r.before.experience){throw 'Owner-seed rider levels differ from the stock XP table or exceed the XP-ready level.'}
+  }
   $roles+=@($id,$r.horseId)
  }
  $x=$u.riderBExperience;$assist=$s.xpAssistance
@@ -703,13 +756,16 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
      $x.before-ne$u.riderFacts[1].experience-or$u.riders[1].before.experience-ne$x.after){throw 'Rider B XP assistance exceeds or differs from the exact minimal eligibility it requires.'}
  # Pinned stock XP table: threshold is the target level's value, 'before' lies in the current level's band.
  $target=[int]$assist.targetCharacterLevel;$cl=[int]$x.characterLevelBefore
- if($cl-lt1-or$cl-ge20-or$x.threshold-ne$table[$target]-or$x.before-lt$table[$cl]-or$x.before-ge$table[$cl+1]-or$x.delta-ne($table[$target]-$x.before)-or
+ # The mounted6 producer's rider B holds pending levels (party XP is shared) short of Ranger 4: its band ends at the target, not at CL+1.
+ $bandEnd=if($preOwned){$table[$target]}else{$table[$cl+1]}
+ if($cl-lt1-or$cl-ge20-or$x.threshold-ne$table[$target]-or$x.before-lt$table[$cl]-or$x.before-ge$bandEnd-or$x.delta-ne($table[$target]-$x.before)-or
     $x.after-ne$table[$target]-or$u.riders[1].after.characterLevel-ne$target-or$u.riders[1].after.rangerLevel-ne4){throw 'Rider B XP assistance differs from the stock XP table minimum or ends beyond its exact target level.'}
  }
  # Ledger order: A build, [B XP], B build (no native level-up autosave exists).
  $expected=@();$units=@();$riderOf=@()
  foreach($step in @(@('native-ordinary-ranger-levels',$s.riderAId,0),@('native-xp',$s.riderBId,1),@('native-ordinary-ranger-levels',$s.riderBId,1))){
   if($step[0]-ceq'native-xp'-and$null-eq$assist){continue}
+  if($preOwned-and$step[2]-eq0){continue}
   $expected+=$step[0];$units+=$step[1];$riderOf+=$step[2]
  }
  $items=@($u.assistance)
@@ -745,7 +801,8 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($b.state-eq$null-or$b.state.pairs-isnot[Array]-or$b.state.pairs.Count-ne2){throw 'SETUP-COMPLETE lacks its captured setup state.'}
  for($i=0;$i-lt2;$i++){$p=$b.state.pairs[$i];if($p.riderId-cne$roles[$i*2]-or$p.petId-cne$roles[$i*2+1]-or$p.petMasterId-cne$roles[$i*2]){throw 'SETUP-COMPLETE state differs from the disclosed setup pairs.'}}
  Assert-KmcChunk7ExactIds @($o.partyBefore) $party
- foreach($id in @($s.riderAId,$s.riderBId)){$row=@($o.partyBefore|Where-Object id -CEQ $id);if($row.Count-ne1-or$null-ne$row[0].petId){throw 'Owner-seed rider was not petless before setup.'}}
+ foreach($id in @($s.riderAId,$s.riderBId)){$row=@($o.partyBefore|Where-Object id -CEQ $id);$petBefore=if($preOwned-and$id-ceq$s.riderAId){$s.mountAId}else{$null}
+  if($row.Count-ne1-or$row[0].petId-cne$petBefore){throw 'Owner-seed rider was not petless before setup (or the mounted6 rider A lacked its pre-owned Horse).'}}
  Assert-KmcChunk7ExactIds @($o.partyWithHorse) @($party+$horses)
  for($i=0;$i-lt2;$i++){$rider=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2]);$horse=@($o.partyWithHorse|Where-Object id -CEQ $roles[$i*2+1]);if($rider.Count-ne1-or$horse.Count-ne1-or$rider[0].petId-cne$horse[0].id-or$horse[0].masterId-cne$rider[0].id-or$horse[0].blueprint-cne'4016c7db400ab721ff125aef9e65e202'){throw 'Owner-seed setup Horse reciprocity differs.'}}
  return ,@($roles)
@@ -834,7 +891,8 @@ function Assert-KmcChunk7OwnerSeedManualArchive($Request,$Archive,[string[]]$Rol
 function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  if(-not(Test-KmcChunk7OwnedPairsSeedManual $Request)){throw 'Owner-seed Manual evidence belongs only to its producer kind.'}
  $o=$Observations;$roles=[string[]](Assert-KmcChunk7OwnerSeedWorldSetup $Request $o);$actors=@($roles);$s=$Request.ownedPairs
- $original=@(@($s.partyIds)+@($roles[1],$roles[3]))
+ # The mounted6 rider A Horse is already a member of the selected field roster; each actor appears once.
+ $original=@(@(@($s.partyIds)+@($roles[1],$roles[3]))|Select-Object -Unique);$preOwnedA=Test-KmcChunk7Mounted6Selection $s
  foreach($snapshot in @($o.snapshots)){foreach($owner in $snapshot.owners){Assert-KmcChunk7WorldCounters $owner @('generation')}}
  # Only the two native Mounts precede the save: no move, door, cycle or matched-pool step.
  foreach($key in @('movements','groundInputs','cycleInputs','cycles')){$step=$o.PSObject.Properties[$key];if($null-eq$step-or$step.Value-isnot[Array]-or@($step.Value).Count-ne0){throw ('Owner-seed Manual producer carries an undeclared '+$key+' step.')}}
@@ -907,7 +965,7 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  if(@($m.twoOwners).Count-ne2){throw 'Owner-seed Manual requires its two owner rows.'}
  for($i=0;$i-lt2;$i++){
   $r=$m.twoOwners[$i];Assert-KmcExactProperties $r @('actorId','petId','sourceGuid','featureGuid','rank','profileId','presentation','acquisitionProof') 'owner-seed Manual owner'
-  if($r.actorId-cne$roles[$i*2]-or$r.petId-cne$roles[$i*2+1]-or$r.sourceGuid-cne$o.ownerSeedSetup.riders[$i].horseFeatureSourceGuid-or$r.profileId-cne'medium-humanoid-horse-v1'-or$r.presentation-cne'fixture-setup'-or
+  if($r.actorId-cne$roles[$i*2]-or$r.petId-cne$roles[$i*2+1]-or$r.sourceGuid-cne$o.ownerSeedSetup.riders[$i].horseFeatureSourceGuid-or$r.profileId-cne'medium-humanoid-horse-v1'-or$r.presentation-cne$(if($preOwnedA-and$i-eq0){'owner-pre-owned'}else{'fixture-setup'})-or
      $r.featureGuid-isnot[string]-or$r.featureGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Owner-seed Manual owner row differs from its disclosed setup pair.'}
   Assert-KmcOrdinaryInteger $r.rank 1 20;Assert-KmcChunk7Boolean $r.acquisitionProof $false
  }
