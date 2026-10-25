@@ -108,7 +108,7 @@ function Get-KmcOwnerStockFinalCleanupSource([string]$SourceRunId,[string]$Expec
  Assert-KmcNotReparsePoint $RunMapPath 'final run map'
  $map=Read-KmcJson $RunMapPath
  $entry=if($null-ne$map.PSObject.Properties['r31']){$map.r31}else{$null}
- if($null-eq$entry-or$entry-is[string]-or$entry.runId-cne$SourceRunId-or$entry.readerVerdict-cne'PASS'-or$entry.restorationVerified-ne$true-or
+ if($null-eq$entry-or$entry-is[string]-or$entry.runId-cne$SourceRunId-or$entry.readerVerdict-isnot[string]-or$entry.readerVerdict-cne'PASS'-or$entry.restorationVerified-isnot[bool]-or$entry.restorationVerified-ne$true-or
     [string]$entry.resultSha256-cnotmatch'^[0-9a-f]{64}$'){
   throw 'Final r31 lacks its settled receipt (runId, resultSha256, readerVerdict PASS, restorationVerified true) in the run map.'
  }

@@ -234,7 +234,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var order = Game.Instance.TurnBasedCombatController.SortedUnits.ToArray();
             var survivorSlot = Array.IndexOf(order, bm); var main = Game.Instance.Player.MainCharacter.Value;
-            var rows = new JArray(); UnitEntityData chosen = null;
+            var rows = new JArray(); UnitEntityData chosen = null; var healerTookControl = false;
             foreach (var unit in Game.Instance.Player.PartyCharacters.Select(reference => reference.Value)
                 .Where(unit => unit != null && !actors.Contains(unit)).OrderBy(unit => Array.IndexOf(order, unit)))
             {
@@ -250,6 +250,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (lifeHealer != null) row["healer"] = unit == lifeHealer;
                 rows.Add(row);
                 if (eligible && chosen == null) chosen = unit;
+                if (unit == lifeHealer && chosen == null && !unit.Descriptor.IsPet && !unit.Descriptor.IsEssentialForGame && !state.Immortality &&
+                    state.AllowDyingCondition && state.IsConscious && !state.IsDead && unit.IsInCombat && world.Registry.FindActive(unit) == null && slot >= 0 && slot < survivorSlot)
+                    healerTookControl = true;
+            }
+            // The healer would have been the first eligible control: the two roles collide on this fixture.
+            if (healerTookControl && chosen == null && lifeHealer != null)
+            {
+                nativeLife["unconsciousControl"] = new JObject { ["contract"] = "unmounted-unconscious-native-turn-control-v1", ["survivorSlot"] = survivorSlot,
+                    ["candidates"] = rows, ["available"] = false };
+                Require(false, "The prone healer is the only eligible unmounted unconscious control; the C11 prone stand-up is uncovered on this fixture.");
             }
             var control = new JObject { ["contract"] = "unmounted-unconscious-native-turn-control-v1", ["survivorSlot"] = survivorSlot,
                 ["candidates"] = rows, ["available"] = chosen != null };
@@ -328,6 +338,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!(bool)control["available"]) return;
             var observed = UnconsciousNativeTurn(lifeControl, round); control["turn"] = observed;
             control["grantAfter"] = trace.GrantCount(lifeControl);
+            // The grant count is read here (round N+1); the allocation trace keeps recording later rounds (the row-57
+            // prone fold runs to N+6), so the reader bounds the control's prepares by this trace position.
+            control["traceSequenceAtGrantAfter"] = trace.EventCount;
             var survivor = ((JArray)trace.Capture()["events"]).OfType<JObject>().FirstOrDefault(e => (int?)e["round"] == round &&
                 (string)e["boundary"] == "prepare-before" && (string)e["state"]?["actor"] == bm.UniqueId);
             Require(ExactUnconsciousNativeTurn(observed, false) &&

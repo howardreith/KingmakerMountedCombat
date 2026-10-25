@@ -307,7 +307,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     (bool)state["threatHand"],
                     "The diagnostic target holds no single available native attack of opportunity in round N+1; the F04 defensive casting check is uncovered on this fixture: " +
                     state.ToString(Newtonsoft.Json.Formatting.None));
-                if (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) { ReactionStage(7); return; }
+                // The native casting-defensively window keys on the caster: rider A itself must be engaged.
+                if (target.CombatState.IsEngage(ar)) { ReactionStage(7); return; }
                 var inward = target.Position - am.Position; var reach = am.View.Corpulence + target.View.Corpulence + .4f;
                 var proposals = new JArray();
                 var approach = NavmeshDestination(am.Position, inward, Math.Max(.6f, Flat(target.Position, am.Position) - reach),
@@ -319,14 +320,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!ReactionLegSettled()) return;
                 FinishReactionLeg();
-                Require(ReferenceEquals(turn, actingTurn) && (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)) &&
-                    ((JArray)reactionLeg["rules"]).Count == 0,
-                    "The native approach did not bring pair A back inside the target's threatened area without an attack.");
+                Require(ReferenceEquals(turn, actingTurn) && ((JArray)reactionLeg["rules"]).Count == 0,
+                    "The native approach back toward the target drew an attack or left rider A's native turn.");
+                Require(target.CombatState.IsEngage(ar),
+                    "Rider A is not inside the target's threatened area after the native approach; the F04 defensive casting check is uncovered on this fixture.");
                 ReactionStage(7); return;
             }
             if (reactionStage == 7)
             {
-                Require(ReferenceEquals(turn, actingTurn) && ReadyPrincipal(a) && (target.CombatState.IsEngage(am) || target.CombatState.IsEngage(ar)),
+                Require(ReferenceEquals(turn, actingTurn) && ReadyPrincipal(a) && target.CombatState.IsEngage(ar),
                     "Pair A lost its native turn or the target's threatened area before the defensive cast.");
                 reactionCast = new JObject { ["round"] = controller.RoundNumber, ["before"] = WorldSnapshot("defensive-cast-before"),
                     ["targetBefore"] = TargetReactionState("defensive-cast-before"), ["pairBefore"] = PairResidue(),
@@ -359,6 +361,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 var opportunities = rules.Where(e => (bool)e["opportunity"] && (string)e["actor"] == target.UniqueId &&
                     ((string)e["target"] == ar.UniqueId || (string)e["target"] == am.UniqueId)).ToArray();
                 var success = (bool)check["success"];
+                // Exactly one native outcome of the shell: it acted (one scroll cast and rider A's Standard charged) or a
+                // failed concentration check force-finished it before it acted (spent, no cast, no cost).
+                var casts = CastEvents(cast, "cast-after", ar.UniqueId).Where(e => (string)e["ability"]?["blueprint"] == StagedClwGuid).ToArray();
+                var failedConcentration = CastEvents(cast, "concentration-rule-after", ar.UniqueId).Any(e => (bool?)e["success"] == false);
+                var riderStandardBefore = (float)Actor((JObject)cast["before"], ar)["standard"]; var riderStandardAfter = (float)Actor((JObject)cast["after"], ar)["standard"];
+                Require(casts.Length == 1 ? !failedConcentration && riderStandardAfter > riderStandardBefore + .001f : casts.Length == 0 && failedConcentration,
+                    "The defensive scroll cast neither acted once with rider A's native Standard charged nor was lost to a failed concentration check.");
                 var itemsBefore = (JObject)cast["itemsBefore"]; var itemsAfter = (JObject)cast["itemsAfter"];
                 Require(spends.Length == 1 && (bool?)spends[0]["result"] == true && (bool)itemsBefore["exactSlot"] && (bool)itemsAfter["exactSlot"] &&
                     (int)itemsBefore["count"] >= 2 && (int)itemsAfter["count"] == (int)itemsBefore["count"] - 1,

@@ -200,7 +200,11 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
  $controlRequired=$true;if($null-ne$Request.PSObject.Properties['nativeLifeControlRequired']){if($Request.nativeLifeControlRequired-isnot[bool]){throw 'Native life control requirement must be a boolean.'};$controlRequired=$Request.nativeLifeControlRequired}
  if($controlRequired-and-not$control.available){throw 'Required unmounted unconscious control is unavailable.'}
  if($control.available){
-  Assert-KmcExactProperties $control @('contract','survivorSlot','candidates','available','actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter') 'unconscious control'
+  $grantBound=$null-ne$control.PSObject.Properties['traceSequenceAtGrantAfter']
+  Assert-KmcExactProperties $control @(@('contract','survivorSlot','candidates','available','actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter')+@(if($grantBound){'traceSequenceAtGrantAfter'})) 'unconscious control'
+  # The prone fold (row 57) keeps the trace running past N+1: its control grant count must carry its own trace bound.
+  if(($owned-and(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-native-life-cleanup')-and-not$grantBound){throw 'The owner-seed incapacitation control lacks its grant trace bound.'}
+  $grantLimit=if($grantBound){if(-not(Test-KmcExactJsonInteger $control.traceSequenceAtGrantAfter)-or$control.traceSequenceAtGrantAfter-lt$control.traceSequenceAtDamage){throw 'Unconscious control grant trace bound is invalid.'};[long]$control.traceSequenceAtGrantAfter}else{[long]::MaxValue}
   if($control.actorId-cne$eligible[0].actorId-or$control.slot-ne$eligible[0].slot){throw 'Unconscious control is not the first eligible companion in native order.'}
   Assert-KmcChunk7LifeActor $control.before $control.actorId $true;Assert-KmcChunk7LifeActor $control.afterDamage $control.actorId $true
   foreach($f in @('mainCharacter','essential','immortal')){Assert-KmcChunk7Boolean $control.before.$f $false};Assert-KmcChunk7Boolean $control.before.allowDyingCondition $true
@@ -212,7 +216,7 @@ function Assert-KmcChunk7UnconsciousNativeTurn($Recorded,$Trace,[string]$Actor,[
      $control.turn.standardBefore-ne$life.incapacitatedRiderTurn.standardBefore-or$control.turn.standardAfterEnd-ne$life.incapacitatedRiderTurn.standardAfterEnd){throw 'Unmounted unconscious control differs from the incapacitated rider native turn.'}
   if(-not$prepares.ContainsKey($ids[3])-or$control.turn.prepareSequence-ge$prepares[$ids[3]]){throw 'Unconscious control native turn does not precede the surviving mount.'}
   foreach($f in @('grantBefore','grantAfter','traceSequenceAtDamage')){if(-not(Test-KmcExactJsonInteger $control.$f)-or$control.$f-lt0){throw 'Unconscious control grant record is invalid.'}}
-  $controlPrepares=@($lifeTrace.events|Where-Object{$_.sequence-gt$control.traceSequenceAtDamage-and$_.boundary-ceq'prepare-before'-and$null-ne$_.state-and$_.state.actor-ceq$control.actorId}).Count
+  $controlPrepares=@($lifeTrace.events|Where-Object{$_.sequence-gt$control.traceSequenceAtDamage-and$_.sequence-le$grantLimit-and$_.boundary-ceq'prepare-before'-and$null-ne$_.state-and$_.state.actor-ceq$control.actorId}).Count
   if($control.grantAfter-ne$control.grantBefore+$controlPrepares-or$control.traceSequenceAtDamage-ge$control.turn.prepareSequence){throw 'Unconscious control grants differ from its observed native preparations.'}
  }else{foreach($f in @('actorId','slot','grantBefore','traceSequenceAtDamage','before','requestedDamage','nativeDamage','afterDamage','turn','grantAfter')){if($null-ne$control.PSObject.Properties[$f]){throw 'Unavailable unconscious control carries a stimulus.'}}}
  # 7E row 57 fold: the owner-seed incapacitation case carries the healed rider's native prone stand-up; no other case may.
@@ -241,14 +245,16 @@ function Assert-KmcChunk7ProneStandUp($P,$o,$life,$ids,$control,$controlRows){
  Assert-KmcChunk7Boolean $P.complete $true
  $rows=@($P.healerCandidates);$eligible=@()
  foreach($r in $rows){
-  Assert-KmcExactProperties $r @('actorId','pet','conscious','inGame','controllable','needsUseMagicDevice','eligible') 'prone healer candidate'
+  Assert-KmcExactProperties $r @('actorId','pet','conscious','inGame','controllable','needsUseMagicDevice','commandsEmpty','inCombat','controlStaticallyIneligible','eligible') 'prone healer candidate'
   if($r.actorId-cin$ids){throw 'A pair actor was offered as the prone healer.'}
-  $g=-not$r.pet-and$r.conscious-and$r.inGame-and$r.controllable-and-not$r.needsUseMagicDevice
-  if($r.eligible-isnot[bool]){throw 'Prone healer eligibility is mistyped.'}
-  # Commands and combat were empty out of combat; the producer's own extra conditions may only narrow.
-  if($r.eligible-and-not$g){throw 'An ineligible prone healer was admitted.'};if($r.eligible){$eligible+=$r}
+  foreach($f in @('pet','conscious','inGame','controllable','needsUseMagicDevice','commandsEmpty','inCombat','controlStaticallyIneligible','eligible')){if($r.$f-isnot[bool]){throw 'Prone healer candidate flag is mistyped.'}}
+  $g=-not$r.pet-and$r.conscious-and$r.inGame-and$r.controllable-and-not$r.needsUseMagicDevice-and$r.commandsEmpty-and-not$r.inCombat
+  if($r.eligible-ne$g){throw 'Prone healer eligibility differs from its recorded native facts.'};if($r.eligible){$eligible+=$r}
  }
+ # Candidates that can never be the unconscious control come first (so the healer does not take its place).
+ for($i=1;$i-lt$rows.Count;$i++){if($rows[$i].controlStaticallyIneligible-and-not$rows[$i-1].controlStaticallyIneligible){throw 'Prone healer candidates are not ordered control-ineligible first.'}}
  if($eligible.Count-lt1-or$P.healerId-cne$eligible[0].actorId){throw 'The prone healer is not the first eligible party actor.'}
+ $hf=$P.healerAtFold;if($null-eq$hf-or$hf.inCombat-ne$true-or$hf.conscious-ne$true-or$hf.canAct-ne$true){throw 'The prone healer was not a conscious acting combatant at the fold.'}
  $hr=@($controlRows|Where-Object actorId -CEQ $P.healerId)
  foreach($r in @($controlRows)){if($null-eq$r.PSObject.Properties['healer']-or$r.healer-ne($r.actorId-ceq$P.healerId)){throw 'Unconscious control candidates do not mark the prone healer exactly.'}}
  if($hr.Count-gt1-or($hr.Count-eq1-and$hr[0].eligible)-or($control.available-and$control.actorId-ceq$P.healerId)){throw 'The prone healer was used as the unconscious control.'}

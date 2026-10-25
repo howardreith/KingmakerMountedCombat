@@ -432,12 +432,13 @@ function Assert-KmcChunk7ReactionDefensiveCast($D,$X,[long]$N,$o,$roles){
  if($p.round-ne$N+1-or$p.reactions-ne1-or$p.canAttackOfOpportunity-ne$true-or$p.canActInCombat-ne$true-or$p.waitingInitiative-ne$false-or$p.surprised-ne$false-or$p.canAct-ne$true-or$p.threatHand-ne$true){throw 'The target did not hold its one native attack of opportunity before the defensive cast.'}
  $approachRules=@()
  if($null-ne$D.PSObject.Properties['approach']){
-  if($p.engagesRider-or$p.engagesMount){throw 'A native approach ran although pair A was already threatened in N+1.'}
+  if($p.engagesRider){throw 'A native approach ran although rider A was already threatened in N+1.'}
   $approachRules=@(Assert-KmcChunk7ReactionLeg $D.approach 'defensive-approach' ($N+1) $o $roles)
-  if($approachRules.Count-ne0-or-not($D.approach.targetAfter.engagesRider-or$D.approach.targetAfter.engagesMount)){throw 'The N+1 approach drew an attack or did not re-enter the threatened area.'}
- }elseif(-not($p.engagesRider-or$p.engagesMount)){throw 'Pair A was not threatened in N+1 and no native approach ran.'}
+  if($approachRules.Count-ne0-or-not$D.approach.targetAfter.engagesRider){throw 'The N+1 approach drew an attack or did not bring rider A inside the threatened area.'}
+ }elseif(-not$p.engagesRider){throw 'Rider A was not threatened in N+1 and no native approach ran.'}
  $c=$D.cast
- if($null-eq$c-or$c.round-ne$N+1-or-not($c.riderEngaged-eq$true-or$c.mountEngaged-eq$true)){throw 'Rider A did not cast from inside the target''s threatened area.'}
+ # The native casting-defensively window keys on the caster, so rider A itself must be engaged.
+ if($null-eq$c-or$c.round-ne$N+1-or$c.riderEngaged-ne$true){throw 'Rider A did not cast from inside the target''s threatened area.'}
  Assert-KmcChunk7Boolean $c.clicked $true;Assert-KmcChunk7Boolean $c.selected $true;Assert-KmcChunk7Boolean $c.canTarget $true
  if($c.admittedShellCount-ne1-or$c.target-cne$roles[1]-or$null-eq$c.ability-or$c.ability.blueprint-cne$script:KmcReactionScrollAbility-or$c.ability.caster-cne$roles[0]-or$c.ability.sourceItemBlueprint-cne$script:KmcReactionScrollItem-or-not(Test-KmcExactJsonInteger $c.ability.sourceItem)-or$c.ability.sourceItem-eq0){throw 'The defensive cast is not one native scroll click by rider A on mount A.'}
  Assert-KmcChunk7ReactionTargetState $c.targetBefore $o.targetId;Assert-KmcChunk7ReactionTargetState $c.targetAfter $o.targetId
@@ -457,7 +458,11 @@ function Assert-KmcChunk7ReactionDefensiveCast($D,$X,[long]$N,$o,$roles){
  # Damage inside the running cast shows its native concentration check; none without damage.
  $damage=@($ev|Where-Object{$_.kind-ceq'damage'-and$_.target-ceq$roles[0]-and$_.damage-gt0});$conc=@($ev|Where-Object{$_.kind-ceq'concentration-rule-after'-and$_.actor-ceq$roles[0]})
  if(($damage.Count-eq0-and$conc.Count-ne0)-or$conc.Count-gt$damage.Count){throw 'A concentration check ran without damage inside the cast.'}
- if($rule[0].success-and@($ev|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$roles[0]-and$_.ability.blueprint-ceq$script:KmcReactionScrollAbility}).Count-ne1){throw 'A successful defensive check did not cast the scroll exactly once.'}
+ # Exactly one native outcome: the shell acted (one scroll cast, rider A's Standard charged) or a failed concentration check lost it (no cast, no cost).
+ $acted=@($ev|Where-Object{$_.kind-ceq'cast-after'-and$_.actor-ceq$roles[0]-and$_.ability.blueprint-ceq$script:KmcReactionScrollAbility});$lost=@($conc|Where-Object{$_.success-eq$false}).Count-gt0
+ $sb=Get-KmcChunk7CombatActor $c.before $roles[0];$sa=Get-KmcChunk7CombatActor $c.after $roles[0]
+ if($(if($acted.Count-eq1){$lost-or[double]$sa.standard-le[double]$sb.standard+0.001}else{$acted.Count-ne0-or-not$lost})){throw 'The defensive scroll cast neither acted once with rider A''s native Standard charged nor was lost to a failed concentration check.'}
+ if($rule[0].success-and$acted.Count-ne1){throw 'A successful defensive check did not cast the scroll exactly once.'}
  $t=$c.terminal;if($null-eq$t-or$t.finished-ne$true-or$t.executor-cne$roles[0]){throw 'The defensive cast shell did not finish on rider A.'}
  Assert-KmcChunk7NeverSpentCombatBudget $c.before $c.after @($roles[1],$roles[2],$roles[3])
  $elapsed=([double]$c.after.gameTicks-[double]$c.before.gameTicks)/10000000.0;$rb=Get-KmcChunk7CombatActor $c.before $roles[0];$ra=Get-KmcChunk7CombatActor $c.after $roles[0]
