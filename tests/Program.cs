@@ -482,6 +482,19 @@ namespace KingmakerMountedCombat.Tests
                         GameId = "3f7381f7-aba6-43bf-bae6-39c6a66a7180", GameName = "Testy the Modless",
                         Area = "b10e86516b6437d45a629931c30936fe" };
                     TestRunner.Equal(0, request.Validate().Count, "Exact owner stock no-DLL cold source rejected.");
+                    request.PersistenceLoad.Length = 1263595;
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted batch65's hash with another length.");
+                    // 7E run plan gate G7 (a): a same-candidate final r31 cleanup Manual (harness-proven provenance).
+                    request.PersistenceLoad.Sha256 = new string('4', 64); request.PersistenceLoad.Length = 1270001;
+                    TestRunner.Equal(0, request.Validate().Count, "Final r31 owner stock no-DLL cold source rejected.");
+                    request.PersistenceLoad.Length = 0;
+                    TestRunner.True(request.Validate().Count > 0, "Final r31 owner stock no-DLL request accepted an empty archive.");
+                    request.PersistenceLoad.Length = 1270001;
+                    request.PersistenceLoad.Sha256 = "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted the stock Mammoth input as its cleanup.");
+                    request.PersistenceLoad.Sha256 = "NOT-A-HASH";
+                    TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted a malformed cleanup hash.");
+                    request.PersistenceLoad.Sha256 = "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2"; request.PersistenceLoad.Length = 1263594;
                     request.PersistenceLoad.FileName = "Manual_301_KMC_CLEANUP.zks";
                     TestRunner.True(request.Validate().Count > 0, "Owner stock no-DLL request accepted the legacy cleanup leaf.");
                     request.PersistenceLoad.FileName = "Manual_306_KMC_CLEANUP.zks";

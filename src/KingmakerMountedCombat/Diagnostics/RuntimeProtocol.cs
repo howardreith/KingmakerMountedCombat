@@ -611,9 +611,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", ownerCold ? "KMC_CLEANUP" : "KMC_C7_STOCK_MAMMOTH",
                         ownerCold ? "^Manual_306_KMC_CLEANUP\\.zks$" : "^Manual_304_KMC_C7_STOCK_MAMMOTH\\.zks$"));
-                    if (PersistenceLoad.Sha256 != (ownerCold ? "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2" :
-                            "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa") ||
-                        PersistenceLoad.Length != (ownerCold ? 1263594 : 1257468) ||
+                    // The no-DLL consumer opens batch65's exact cleanup Manual or (7E run plan gate G7 (a)) the same
+                    // candidate's settled final r31 cleanup, whose provenance the harness source gate proves.
+                    var batch65Cleanup = ownerCold && PersistenceLoad.Sha256 == "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2";
+                    if ((ownerCold ? PersistenceLoad.Sha256 == null || !Regex.IsMatch(PersistenceLoad.Sha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) ||
+                            PersistenceLoad.Sha256 == "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa" :
+                            PersistenceLoad.Sha256 != "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa") ||
+                        (batch65Cleanup ? PersistenceLoad.Length != 1263594 : ownerCold ? PersistenceLoad.Length < 1 || PersistenceLoad.Length > 256L * 1024 * 1024 :
+                            PersistenceLoad.Length != 1257468) ||
                         PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
                         PersistenceLoad.GameName != "Testy the Modless" || PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" ||
                         PersistenceLoad.GameId == Fixture?.Working?.GameId || PersistenceLoad.Sha256 == Fixture?.Working?.Sha256)

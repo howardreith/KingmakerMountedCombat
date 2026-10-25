@@ -42,8 +42,8 @@ function Bind-RemovalResult($v){
  Write-KmcJsonAtomic (Join-Path $e 'runtime-result.json') $result
  $v|Add-Member manifest $manifest -Force;$v|Add-Member game $game -Force
 }
-function New-CurrentRemovalFixture{
- $id='synthetic-current-removal-'+[Guid]::NewGuid().ToString('N');$script:removalRoot=Join-Path $script:ownedRemovalLab ('runtime-staging/persistence-'+$id+'/Saved Games');[IO.Directory]::CreateDirectory($script:removalRoot)|Out-Null
+function New-CurrentRemovalFixture([string]$RunId=$null){
+ $id=if($RunId){$RunId}else{'synthetic-current-removal-'+[Guid]::NewGuid().ToString('N')};$script:removalRoot=Join-Path $script:ownedRemovalLab ('runtime-staging/persistence-'+$id+'/Saved Games');[IO.Directory]::CreateDirectory($script:removalRoot)|Out-Null
  $input=Join-Path $script:removalRoot 'Manual_299_KMC_AUTOMATION_WORKING.zks';[IO.File]::WriteAllBytes($input,[byte[]]@(1,2,3,4))
  $fixture=[pscustomobject]@{baseline=[pscustomobject]@{sha256=('b'*64)};working=[pscustomobject]@{internalName='KMC_AUTOMATION_WORKING';fileName=[IO.Path]::GetFileName($input);sha256=(Get-KmcSha256 $input);length=4;lastWriteTimeUtcTicks=(Get-Item -LiteralPath $input).LastWriteTimeUtc.Ticks;gameId='90909090-9090-4090-8090-909090909090';gameName='Generated fixture';area=('a'*32)}}
  $r=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='prepare-removal';runId=$id;fixture=$fixture;commit=('1'*40);dllSha256=('2'*64);dllMvid='33333333-3333-4333-8333-333333333333';branch='codex/private-reader-test';productVersion='generated';transactionToken=('f'*64);evidenceRoot=(Join-Path $script:ownedRemovalLab ('runtime-evidence/'+$id))}
@@ -63,8 +63,8 @@ function New-CurrentRemovalFixture{
  foreach($row in $rows){foreach($kv in @(@('runId',$id),@('scenario',$r.scenario),@('source',$r.commit),@('dll',$r.dllSha256),@('processId',4242),@('controls',[pscustomobject]@{DuplicateFactCount=0}))){$row|Add-Member $kv[0] $kv[1] -Force}}
  $v=[pscustomobject]@{request=$r;rows=$rows};Sync-RemovalArchive $v $false $null;Sync-RemovalArchive $v $true ([ordered]@{'areas/stashed.json'='{"native":"stock references only"}'});Bind-RemovalResult $v;$v
 }
-function New-OwnerStockRemovalReaderFixture{
- $v=New-CurrentRemovalFixture
+function New-OwnerStockRemovalReaderFixture([string]$RunId=$null){
+ $v=New-CurrentRemovalFixture $RunId
  $root=$script:removalRoot;$source=Join-Path $root 'Manual_304_KMC_C7_STOCK_MAMMOTH.zks'
  Move-Item -LiteralPath (Join-Path $root 'Manual_299_KMC_AUTOMATION_WORKING.zks') -Destination $source
  $file=Get-Item -LiteralPath $source
@@ -143,5 +143,51 @@ foreach($key in @('source failed','source un-restored','source manifest changed'
  Get-KmcPersistenceSource $v.request.runId $v.rows[5].detail.cleanup.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
 foreach($key in @('schema1','schema string','future schema')){Check ('public current source refuses '+$key){$v=New-CurrentRemovalFixture;$rec=$v.rows[5].detail.cleanup;$rec.nativeArchive.SchemaVersion=switch($key){'schema1'{1}'schema string'{'3'}'future schema'{4}};Sync-RemovalArchive $v $true $null;Bind-RemovalResult $v
  Get-KmcPersistenceSource $v.request.runId $rec.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
+# Run plan gate G7 (a): row 32's no-DLL source is batch65 (history) or the same candidate's settled final r31.
+. (Join-Path $reader 'Chunk7OwnerStockRemovalFixtures.ps1')
+if(-not(Get-Command ConvertTo-KmcChunk7Canonical -ErrorAction SilentlyContinue)){. (Join-Path $reader 'Chunk7PersistenceEvidence.ps1')}
+$script:finalOrdinal=0;$script:stockSha=$null
+function Get-KmcOwnerStockMammothSha256{$script:stockSha}
+function New-FinalCleanupCase([string]$Suffix=''){
+ $script:finalOrdinal++;$id='20261024-c7e-final-B'+(13+$script:finalOrdinal)+'-r31'+$Suffix
+ $v=New-OwnerStockRemovalReaderFixture $id
+ $v.request|Add-Member qualificationSuite ([pscustomobject]@{suiteId='chunk7e-final-synthetic';snapshotSha256=('5'*64)}) -Force
+ Bind-FinalRemoval $v;$script:stockSha=$v.request.persistenceLoad.sha256
+ $map=Join-Path $OutputDirectory ('final-runs-'+$script:finalOrdinal+'.json')
+ $entry=[ordered]@{runId=$id;resultSha256=(Get-KmcSha256 (Join-Path $script:ownedRemovalLab ('runtime-evidence/'+$id+'/runtime-result.json')));readerVerdict='PASS';restorationVerified=$true}
+ Write-KmcJsonAtomic $map ([ordered]@{r31=$entry})
+ [pscustomobject]@{v=$v;id=$id;sha=$v.rows[5].detail.cleanup.sha256;map=$map;entry=$entry;suite='chunk7e-final-synthetic'
+  candidate=[pscustomobject]@{commit=$v.request.commit;dllSha256=$v.request.dllSha256;dllMvid=$v.request.dllMvid}}
+}
+function Bind-FinalRemoval($v){Bind-RemovalResult $v;$r=$v.request;Write-KmcJsonAtomic (Join-Path $script:ownedRemovalLab ('runtime-staging/persistence-'+$r.runId+'/owner.json')) ([ordered]@{runId=$r.runId;scenario=$r.scenario;persistenceCase=$r.persistenceCase;transactionToken=$r.transactionToken;sourceSha256=$r.persistenceLoad.sha256})}
+function Invoke-FinalCleanup($c){Get-KmcOwnerStockCleanupSource $c.id $c.sha $c.v.request.fixture $c.candidate $c.suite $c.map}
+function Set-FinalMapEntry($c,[string]$Key,$Value){$c.entry[$Key]=$Value;Write-KmcJsonAtomic $c.map ([ordered]@{r31=$c.entry})}
+Check 'G7 final r31: same-candidate settled cleanup Manual is admitted as the no-DLL source' {$c=New-FinalCleanupCase;$s=Invoke-FinalCleanup $c
+ if($s.descriptor.sha256-cne$c.sha-or$s.descriptor.fileName-cne'Manual_306_KMC_CLEANUP.zks'-or$s.producerRunId-cne$c.id-or$s.settledResultSha256-cne$c.entry.resultSha256-or$s.descriptor.length-ne(Get-Item -LiteralPath $s.path).Length){throw 'Final r31 source descriptor differs.'}}
+Check 'G7 final r31: a retry tag r31r is admitted' {$c=New-FinalCleanupCase 'r';[void](Invoke-FinalCleanup $c)}
+$finalFaults=[ordered]@{
+ 'no run map'={param($c)$c.map=$null}
+ 'missing run map file'={param($c)$c.map=Join-Path $OutputDirectory 'absent-final-runs.json'}
+ 'reader verdict FAIL'={param($c)Set-FinalMapEntry $c 'readerVerdict' 'FAIL'}
+ 'restoration unverified'={param($c)Set-FinalMapEntry $c 'restorationVerified' $false}
+ 'receipt names another run'={param($c)Set-FinalMapEntry $c 'runId' '20261024-c7e-final-B99-r31'}
+ 'receipt result hash differs'={param($c)Set-FinalMapEntry $c 'resultSha256' ('9'*64)}
+ 'result edited after its receipt'={param($c)$path=Join-Path $script:ownedRemovalLab ('runtime-evidence/'+$c.id+'/runtime-result.json');[IO.File]::AppendAllText($path,' ')}
+ 'another commit'={param($c)$c.candidate.commit=('7'*40)}
+ 'another DLL'={param($c)$c.candidate.dllSha256=('8'*64)}
+ 'another MVID'={param($c)$c.candidate.dllMvid='44444444-4444-4444-8444-444444444444'}
+ 'another suite'={param($c)$c.suite='chunk7e-final-other'}
+ 'no candidate'={param($c)$c.candidate=$null}
+ 'non-final run id'={param($c)$c.id='synthetic-current-removal-not-final'}
+ 'final id of another row'={param($c)$c.id='20261024-c7e-final-B14-r30'}
+ 'another expected archive hash'={param($c)$c.sha=('6'*64)}
+ 'producer on another stock input'={param($c)$script:stockSha=('3'*64)}
+ 'producer outer FAIL'={param($c)$path=Join-Path $script:ownedRemovalLab ('runtime-evidence/'+$c.id+'/runtime-result.json');$r=Read-KmcJson $path;$r.status='FAIL';Write-KmcJsonAtomic $path $r;Set-FinalMapEntry $c 'resultSha256' (Get-KmcSha256 $path)}
+ 'owner record names another source'={param($c)$path=Join-Path $script:ownedRemovalLab ('runtime-staging/persistence-'+$c.id+'/owner.json');$o=Read-KmcJson $path;$o.sourceSha256=('2'*64);Write-KmcJsonAtomic $path $o}
+ 'cleanup Manual replaced'={param($c)[IO.File]::WriteAllBytes($c.v.rows[5].detail.cleanup.path,[byte[]]@(1,2,3))}
+}
+foreach($key in $finalFaults.Keys){$finalFault=$finalFaults[$key];Check ('G7 final r31 refuses '+$key) {$c=New-FinalCleanupCase;&$finalFault $c;[void](Invoke-FinalCleanup $c)} $true}
+Check 'G7 batch65 source refuses a run map (history path unchanged)' {Get-KmcOwnerStockCleanupSource '20261020-c7b-world81-b65s1-owner-stock-removal' '2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2' $null $null $null (Join-Path $OutputDirectory 'final-runs-1.json')} $true
+Check 'G7 batch65 source refuses another hash' {Get-KmcOwnerStockCleanupSource '20261020-c7b-world81-b65s1-owner-stock-removal' ('6'*64) $null} $true
 $clock.Stop();$summary=[ordered]@{scope='generated current P07 legacy and owner-stock reader/source checks only; no native or DLL-absent credit';passed=@($results|Where-Object pass -EQ $true).Count;failed=@($results|Where-Object pass -EQ $false).Count;durationSeconds=$clock.Elapsed.TotalSeconds;inputs=@(@($PSCommandPath,(Join-Path $reader 'CurrentRemovalEvidence.ps1'),(Join-Path $reader 'PersistenceSaveFixtures.ps1'),(Join-Path $draft 'scripts/Test-PersistenceSaveFixtures.ps1'))|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-KmcSha256 $_)}});results=$results.ToArray()}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'summary.json'),($summary|ConvertTo-Json -Depth 60),[Text.UTF8Encoding]::new($false));Write-Output ('RESULT '+$summary.passed+' passed; '+$summary.failed+' failed; '+$clock.Elapsed.TotalSeconds+' seconds');if($summary.failed-gt0){exit 1}

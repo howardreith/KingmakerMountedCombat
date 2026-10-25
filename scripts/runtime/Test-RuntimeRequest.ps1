@@ -231,10 +231,15 @@ elseif ($schemaVersion -eq 2) {
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'owner stock removal source'
         foreach($pair in @(@('internalName',$(if($ownerCold){'KMC_CLEANUP'}else{'KMC_C7_STOCK_MAMMOTH'})),
             @('fileName',$(if($ownerCold){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_304_KMC_C7_STOCK_MAMMOTH.zks'})),
-            @('sha256',$(if($ownerCold){'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'}else{'e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'})),
             @('gameId','3f7381f7-aba6-43bf-bae6-39c6a66a7180'),@('gameName','Testy the Modless'),
             @('area','b10e86516b6437d45a629931c30936fe'))){Assert-KmcBootstrapInventoryString $d.($pair[0]) $pair[1]}
-        if(-not(Test-JsonInteger $d.length)-or$d.length-ne$(if($ownerCold){1263594}else{1257468})-or-not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or
+        # The no-DLL consumer's cleanup Manual is batch65's exact bytes or (run plan gate G7 (a)) a same-candidate
+        # final r31 cleanup whose provenance the runner's source gate proved; its bytes are then any genuine Manual.
+        $batch65Cleanup=$ownerCold-and$d.sha256-ceq'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'
+        if($ownerCold){
+            if($d.sha256-isnot[string]-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or$d.sha256-ceq'e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'){throw 'Owner stock cleanup source bytes or campaign identity differ.'}
+        }else{Assert-KmcBootstrapInventoryString $d.sha256 'e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa'}
+        if(-not(Test-JsonInteger $d.length)-or$(if($batch65Cleanup){$d.length-ne1263594}elseif($ownerCold){$d.length-lt1-or$d.length-gt256MB}else{$d.length-ne1257468})-or-not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or
             $d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks-or
             $d.gameId-ceq$request.fixture.working.gameId){throw 'Owner stock source bytes or campaign identity differ.'}
     }
