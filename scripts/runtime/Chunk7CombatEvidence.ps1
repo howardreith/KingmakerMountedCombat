@@ -7,7 +7,7 @@ function Get-KmcChunk7CombatRows([string]$Scenario) {
     if(-not(Test-KmcChunk7CombatScenario $Scenario)){throw 'Unknown native combat scenario.'}
     @($Scenario,'C7-combat-fixture','C7-combat-native-mounts','C7-combat-restored-mounts','C7-combat-native-orders','C7-combat-pair-a-full-activation',
       'C7-combat-pair-b-full-activation','C7-combat-tb-charge-refusal','C7-combat-refresh','C7-combat-r1-round-release','C7-combat-first-action-mount',
-      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-attack-modes-mounted-off','C7-combat-attack-modes-mounted-on','C7-combat-attack-modes-unmounted-control','C7-combat-reaction-disengage-opportunity','C7-combat-staged-move-cast-move','C7-combat-staged-double-move-ranged','C7-combat-staged-ranged-approach','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
+      'C7-combat-native-pending-survivor','C7-combat-local-cleanup-failure','C7-combat-permanent-horse-removal-refusal','C7-combat-registered-disable-local-failure','C7-combat-attack-modes-mounted-off','C7-combat-attack-modes-mounted-on','C7-combat-attack-modes-unmounted-control','C7-combat-reaction-disengage-opportunity','C7-combat-reaction-defensive-cast','C7-combat-staged-move-cast-move','C7-combat-staged-double-move-ranged','C7-combat-staged-ranged-approach','C7-combat-cleanup','C7-combat-runtime','C7-combat-interrupted')
 }
 function Get-KmcChunk7CombatRuntimeRows {
     @('chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first' | ForEach-Object { Get-KmcChunk7CombatRows $_ } | Select-Object -Unique)
