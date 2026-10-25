@@ -1,5 +1,34 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**Final 7E freeze attempt 1 stopped at B1 c4; harness fixed for the refreeze (offline; harness only, `src/` untouched; no launch).**
+F1 (`651ae757`, package `cf2a44e7…`): FULL FAIL (retained), B1 c1–c3 PASS, c4 game PASS 7/0 but outer FAIL on the profile guard (a NEW
+zero-length native achievement-cache leaf never reached 12288; lock held, Params/PlayerPrefs startup drift unrestored;
+`analysis-cache/chunk7-continuation/final-B1-c4-incident.json`). Attempt 1 is superseded, never relabelled (plan §0 preface).
+- Existing rule (batch45/contract64 characterisation, `PersistenceProfileProtection.ps1`): the achievement-cache family is admitted only as a
+  before/after transition — an existing leaf rewritten at its exact length, a new leaf at the settled size 12288 — and a new zero-length
+  leaf only gets a read-only settlement wait (`Wait-KmcPersistenceProfileUnchanged`), then refuses. `Get-KmcPersistenceProfileCacheDelta` is
+  the one function behind the runner guard (Restore, Wait) and `Get-KmcPersistenceProfileRecoveryDelta`.
+- Narrow extension (`-EmptyNewLeaf Refuse|Admit|Defer`, default Refuse): at most one NEW leaf of the same family, exactly 0 bytes with the
+  empty SHA-256, written later than the newest intake leaf and untouched for 60 s, is admitted as `created-empty`, left in place, never
+  restored or whitelisted for content. Admit: the runner's Wait once its window expires, and the recovery tool before and after its
+  mutation (recorded in `profile-recovery.json`); Defer: inside Restore only (settings are now restored before the profile verdict).
+  Native origin: the owner's own zero-length leaves of the family (2026-09-08, 2026-10-09, 2026-10-11) among ~100.
+- Recovery `-WhatIf` is a whole-script dry run (`$dryRun` taken before any read; `Get-KmcSha256` ignores a caller's WhatIf).
+- c4 needs no pinned incident script: a read-only check against the exact pins (snapshot `909236f1…`, Params `f1d575f5…`, prefs
+  `c1a4a8d0…`) admits the cache delta (two same-length rewrites + one `created-empty`), the prefs delta and the base-game UMM delta, and the
+  fixed tool's `-WhatIf` printed PASS with `runtime-state` unchanged (`final-c4-profile-recovery-whatif-fixed.log`). The executor runs
+  `Recover-KmcPersistenceProfile.ps1 -RunId 20261025-c7e-final-B1-c4 -SnapshotSha256 909236f1d965565946d954a129eab8ea78307e8936d35c34eda450cc6699ed1f
+  -CurrentParamsSha256 f1d575f53ac6e91dfc117ead7bd09c1f684757daab35b4209859ce1d6a6892c5 -CurrentPrefsSha256
+  c1a4a8d06f7700ba12506504b75fbef51255f8db54586ce62cb75eaf441c6a2f -Confirm:$false`, profile recovery before transaction recovery.
+- FULL-inventory harness fixes: `Test-ChargeFixtureContracts.ps1` trace `forceToEnd` (14/0); combat cleanup adapter template `proneRules`
+  and `ReleaseFoldedScrollFixtures` (43/0).
+- Independent review: no must-fix; should-fix (post-mutation Admit check and recorded leaf in the recovery tool; honest time-bound
+  wording; explicit consumer decision) fixed; a one-leaf cap added from its notes. Residuals: a leaf written in the last seconds before
+  Wait starts is refused at expiry (fail-closed); receipts with `created-empty` are refused by strict source readers (plan §0, handled
+  under §8); the Wait expiry→Admit path is covered by unit tests of the delta, not by a real aged file.
+- Tests: profile protection 85/0 (17 new), profile Areas isolation 39/0, base-game isolation 98/0, charge fixture contracts 14/0, combat
+  cleanup adapter 43/0, Validate-Source 149/0, Fast 3/0, Release build DLL `fcacbbe7…` / MVID `6ad861eb…` (identical to F1).
+
 **b209 r57 reader defect fixed (offline; reader only, no product change; no launch).** b209 on `99b84c8c`: r57 passed in game 11/0
 (target approach 2.057 m → 1.448 m inside its 1.81 m reach; the stand-up drew exactly one AoO, 1 damage; no skip, the healer
 preceded the target). The outer verdict FAILed on a reader defect: the life-stimulus filters counted every target→rider-B damage

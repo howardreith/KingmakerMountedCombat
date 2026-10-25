@@ -11,6 +11,35 @@ and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
 closeout: **about 12.6 hours**, excluding failure handling. The folded halves lengthen r57 (heal and stand-up, rounds N+2 to at most N+6)
 and cr (round N+1 approach and cast) by an estimated 2–4 min each of game time.
 
+**Freeze attempt 1 — superseded (October 25; retained, never relabelled).** F1 froze `651ae757` (tree `51eae1c4`,
+package `cf2a44e7…`, DLL `fcacbbe7…`, suite `chunk7e-final-651ae757-20261025`; `analysis-cache/chunk7-continuation/final-freeze.json`).
+Its FULL tier FAILed and stays FAIL (`final-full-01.log`, `final-full-classification.json`); B1 c1–c3 settled PASS
+(`final-runs.json`). B1 c4 (`20261025-c7e-final-B1-c4`, row 61) was game PASS 7/0 but outer FAIL on the runner's profile
+guard: a NEW zero-length native achievement-cache leaf (`achievements.dat#3` + five U+FFFD + `O`, written 11:18:14 local)
+never reached the settled size 12288 (`final-B1-c4-incident.json`). The guarded stop left the lock held and the Params/PlayerPrefs
+startup drift unrestored; the profile recovery tool refused on the same leaf and its `-WhatIf` could not run. Owner/coordinator
+decision: fix the harness rule narrowly and refreeze. Harness-only changes after F1 (product `src/` untouched):
+- the settled-empty admission (`PersistenceProfileProtection.ps1`): at most one NEW leaf of the same native name family, exactly 0
+  bytes with the empty SHA-256, written later than the newest intake leaf (a lower bound; snapshots carry no capture time) and
+  untouched for 60 s, is admitted as `created-empty` and left in place, in the runner's `Wait-KmcPersistenceProfileUnchanged`
+  (once its window expires) and in the recovery tool before and after its mutation (recorded in `profile-recovery.json`);
+  Restore defers it, so the startup settings are now restored before the profile verdict; every other name, size and
+  existing-leaf change still refuses. **Consumers:** a run whose receipt carries a `created-empty` row is not admitted as a
+  source by the readers that accept only `created`/`rewritten` or require zero changes (assisted fixture/acquisition, six-pair
+  checkpoint, sixth-Horse cold, Medium mounted, F09 sixth hire, owned area sources); such a run is handled under §8 (re-run,
+  not relabelled), never by widening those readers. The owner's own zero-length leaves of the family
+  (2026-09-08, 2026-10-09, 2026-10-11) are the evidence of native origin;
+- the recovery tool's `-WhatIf` is a whole-script dry run (read-only checks no longer inherit it; `Get-KmcSha256` ignores it);
+- two FULL-inventory harness test fixes (`Test-ChargeFixtureContracts.ps1` trace `forceToEnd`; the combat cleanup adapter
+  template's `proneRules` and `ReleaseFoldedScrollFixtures`).
+c4's stale state is recoverable by the unchanged generalized tool after the fix (read-only check and a `-WhatIf` dry run
+passed against the exact pins): `Recover-KmcPersistenceProfile.ps1 -RunId 20261025-c7e-final-B1-c4 -SnapshotSha256
+909236f1d965565946d954a129eab8ea78307e8936d35c34eda450cc6699ed1f -CurrentParamsSha256
+f1d575f53ac6e91dfc117ead7bd09c1f684757daab35b4209859ce1d6a6892c5 -CurrentPrefsSha256
+c1a4a8d06f7700ba12506504b75fbef51255f8db54586ce62cb75eaf441c6a2f -Confirm:$false`, run by the executor from the new frozen
+worktree, profile recovery before any transaction recovery; no pinned incident script was needed. The refreeze F2 repeats
+§1–§5 from the start on its own commit, package and suite; no F1 run is a predecessor of an F2 run.
+
 ## 0. Pre-freeze gates (all must hold before step 1)
 
 | Gate | Requirement |
