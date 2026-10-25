@@ -309,7 +309,7 @@ function Get-KmcPersistencePreferenceChanges {
 }
 
 function Assert-KmcNativeUmmStartupDelta {
-    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver)
+    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver,[string[]]$StagedModIds)
     if($BaseGameOnly-and$RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
     if($WithObserver-and-not$BaseGameOnly){throw 'The co-staged observer authority exists only in the isolated base-game mode.'}
     if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver;return}
@@ -321,6 +321,10 @@ function Assert-KmcNativeUmmStartupDelta {
     # requiring the append made a byte-identical file fail.
     if($current.OuterXml-ceq$original.OuterXml){return}
     if($RemovalObserver){
+        # F2 r32: UMM also moves LastUpdateCheck forward and prunes the entry of a mod whose folder was absent from the run's
+        # own staged Mods tree (the owner's Params.xml still listed CheatMenu after its folder was removed). Both are the shared
+        # native rules of the base-game delta; the prune needs the run's staged Mods ids, otherwise nothing is pruned.
+        Step-KmcUmmLastUpdateCheck $original $current
         # UMM records the staged observer in place of an existing KMC entry, or
         # appends it when the owner's settled parameters contain no KMC entry.
         # Both cases must leave every other parsed parameter exactly unchanged.
@@ -344,7 +348,8 @@ function Assert-KmcNativeUmmStartupDelta {
             }
             [void]$modList.RemoveChild($observerAfter[0])
         }
-        if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
+        $pruned=if($null-ne$StagedModIds){Remove-KmcUmmAbsentModEntries $original @(@($StagedModIds)+@('KingmakerMountedCombat')) -FolderNames}else{$original}
+        if($current.OuterXml-cne$original.OuterXml-and$current.OuterXml-cne$pruned.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
         return
     }
     # The one historical startup transition is still accepted, and nothing else.
@@ -358,6 +363,21 @@ function Assert-KmcNativeUmmStartupDelta {
     if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include an unrelated change.'}
 }
 
+# The top-level mod folders of the run's own staged Mods tree, read from its staged manifest sidecar (digest-checked against
+# the transaction state recorded before launch). The removal-observer startup rule prunes only entries absent from these.
+function Get-KmcRunStagedModIds([string]$RunId){
+    $lab=Get-KmcLabRoot
+    $state=Read-KmcJson (Get-KmcTransactionStatePath (Join-Path $lab 'runtime-state') $RunId)
+    if([string]$state.runId-cne$RunId){throw 'Staged Mods record belongs to another run.'}
+    # A state without a staged manifest sidecar (older schema) admits no prune at all.
+    if($null-eq$state.PSObject.Properties['stagedManifestSidecar']){return $null}
+    if([string]$state.stagingMode-cne'live-clone-minus-kmc-plus-observer'){throw 'Staged Mods record is not a removal-observer staging.'}
+    $entries=Read-KmcModsStagedManifestSidecar -State $state -StagingRoot (Join-Path $lab 'runtime-staging') -RunId $RunId
+    $ids=[string[]]@($entries|Where-Object{$_.kind-ceq'directory'-and-not([string]$_.path).Contains('/')}|ForEach-Object{[string]$_.path})
+    # The staged tree must carry the observer itself; an empty or foreign id list would prune every entry.
+    if($ids-cnotcontains'KmcRemovalObserver'){throw 'Staged Mods record lacks the removal observer.'}
+    return ,$ids
+}
 function Restore-KmcPersistenceStartupSettings {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
     param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly)
@@ -395,7 +415,8 @@ function Restore-KmcPersistenceStartupSettings {
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
-        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver
+        if($RemovalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver -StagedModIds (Get-KmcRunStagedModIds ([string]$Lock.RunId))}
+        else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver}
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}

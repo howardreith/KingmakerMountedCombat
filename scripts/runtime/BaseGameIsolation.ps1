@@ -191,6 +191,33 @@ function New-KmcBaseGameReadyTree {
     Assert-KmcDirectoryManifestsEqual $Before (Get-KmcDirectoryManifest $clone) 'Preserved base-game clone after ready-tree construction'
 }
 
+# One native UMM difference shared by every startup-delta rule: the LastUpdateCheck stamp, present on both sides, may only
+# move forward; the current document takes the original stamp back so the rest compares exactly.
+function Step-KmcUmmLastUpdateCheck([Xml.XmlDocument]$Original,[Xml.XmlDocument]$Current){
+    $beforeChecks=@($Original.SelectNodes('/Param/LastUpdateCheck'))
+    $afterChecks=@($Current.SelectNodes('/Param/LastUpdateCheck'))
+    if($beforeChecks.Count-eq1-and$afterChecks.Count-eq1-and$beforeChecks[0].InnerText-cne$afterChecks[0].InnerText){
+        foreach($check in @($beforeChecks[0],$afterChecks[0])){
+            if($check.Attributes.Count-ne0-or$check.ChildNodes.Count-ne1-or$check.FirstChild.NodeType-cne'Text'){throw 'UMM LastUpdateCheck is not a plain xs:dateTime element.'}
+        }
+        $beforeStamp=[DateTimeOffset]::MinValue;$afterStamp=[DateTimeOffset]::MinValue
+        try{$beforeStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$beforeChecks[0].FirstChild.Value);$afterStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$afterChecks[0].FirstChild.Value)}
+        catch{throw 'UMM LastUpdateCheck is not a valid xs:dateTime.'}
+        if($afterStamp.UtcTicks-lt$beforeStamp.UtcTicks){throw 'UMM LastUpdateCheck moved backwards.'}
+        $afterChecks[0].FirstChild.Value=$beforeChecks[0].FirstChild.Value
+    }
+}
+# The other shared native difference: UMM rebuilds ModParams from the mods it actually found, so an entry whose mod folder
+# was absent from the run's own staged Mods tree is pruned. Returns a copy without exactly those entries.
+function Remove-KmcUmmAbsentModEntries([Xml.XmlDocument]$Document,[string[]]$PresentIds,[switch]$FolderNames){
+    $reduced=$Document.Clone()
+    foreach($mod in @($reduced.SelectNodes('/*/ModParams/Mod|/*/ModParamsList/Mod'))){
+        # Staged folder names stand in for UMM ids: matched case-insensitively, so a present mod is never taken for absent.
+        $absent=if($FolderNames){[string]$mod.GetAttribute('Id')-notin@($PresentIds)}else{[string]$mod.GetAttribute('Id')-cnotin@($PresentIds)}
+        if($absent){[void]$mod.ParentNode.RemoveChild($mod)}
+    }
+    return ,$reduced
+}
 function Assert-KmcBaseGameUmmStartupDelta {
     param([Parameter(Mandatory=$true)][string]$Before,[Parameter(Mandatory=$true)][string]$After,
         # The normal-player observer mode found exactly KMC and the observer.
@@ -203,24 +230,10 @@ function Assert-KmcBaseGameUmmStartupDelta {
     # KMC entry - one default KMC entry (Enabled=true, default hotkey). A process that
     # ended without OnDestroy leaves the file unchanged. One other native difference is
     # admitted: the LastUpdateCheck stamp, present on both sides, may only move forward.
-    $beforeChecks=@($original.SelectNodes('/Param/LastUpdateCheck'))
-    $afterChecks=@($current.SelectNodes('/Param/LastUpdateCheck'))
-    if($beforeChecks.Count-eq1-and$afterChecks.Count-eq1-and$beforeChecks[0].InnerText-cne$afterChecks[0].InnerText){
-        foreach($check in @($beforeChecks[0],$afterChecks[0])){
-            if($check.Attributes.Count-ne0-or$check.ChildNodes.Count-ne1-or$check.FirstChild.NodeType-cne'Text'){throw 'UMM LastUpdateCheck is not a plain xs:dateTime element.'}
-        }
-        $beforeStamp=[DateTimeOffset]::MinValue;$afterStamp=[DateTimeOffset]::MinValue
-        try{$beforeStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$beforeChecks[0].FirstChild.Value);$afterStamp=[Xml.XmlConvert]::ToDateTimeOffset([string]$afterChecks[0].FirstChild.Value)}
-        catch{throw 'UMM LastUpdateCheck is not a valid xs:dateTime.'}
-        if($afterStamp.UtcTicks-lt$beforeStamp.UtcTicks){throw 'UMM LastUpdateCheck moved backwards.'}
-        $afterChecks[0].FirstChild.Value=$beforeChecks[0].FirstChild.Value
-    }
+    Step-KmcUmmLastUpdateCheck $original $current
     $actual=Get-KmcBaseGameXmlShapeText $current
     $found=@('KingmakerMountedCombat')+@(if($WithObserver){'KmcRemovalObserver'})
-    $reduced=$original.Clone()
-    foreach($mod in @($reduced.SelectNodes('/Param/ModParams/Mod'))){
-        if([string]$mod.GetAttribute('Id')-cnotin$found){[void]$mod.ParentNode.RemoveChild($mod)}
-    }
+    $reduced=Remove-KmcUmmAbsentModEntries $original $found
     $allowed=New-Object 'Collections.Generic.List[string]'
     $allowed.Add((Get-KmcBaseGameXmlShapeText $original))
     $allowed.Add((Get-KmcBaseGameXmlShapeText $reduced))
