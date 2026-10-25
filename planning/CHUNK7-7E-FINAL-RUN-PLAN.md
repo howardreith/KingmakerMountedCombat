@@ -437,11 +437,16 @@ After B15, with every run restored and read:
   predecessor only through its receipt `final<n>-B<k>-<tag>-reader-reevaluation.json` in `analysis-cache/chunk7-continuation/`
   (run id, result and evidence SHA-256, the single runner error, game PASS, old reader = the run's commit FAIL with that
   error, new reader = the corrected commit PASS). Its `final-runs.json` entry keeps `readerVerdict:"PASS"` (the new verdict)
-  and adds `"reevaluation":{"receipt":<leaf>,"receiptSha256":<sha256>}`. The deriver's Final mode (`Test-ReaderReevaluation`)
-  checks the receipt against the run (result, evidence and game-result hashes, the single error, all restoration flags) and
-  proves the rest itself: the corrected reader commit is in its own clean history, descends from the run's commit with no
-  product change (`src/`, `Info.json`, `version.json`), and its own reader, run in a child process on the run's request and
-  immutable evidence, PASSes. Otherwise a runner FAIL is still refused. The runner result stays FAIL.
+  and adds `"reevaluation":{"receipt":<leaf>,"receiptSha256":<sha256>}`. The deriver's Final mode
+  (`tools/chunk7-7e/final-reevaluation.ps1`) checks the receipt against the run (result, evidence and game-result hashes,
+  exactly one runner error, all five restoration flags, the request's evidence root) and proves the rest itself: both commits
+  exist, the corrected one is in its own clean history and descends from the run's commit with no product or platform change
+  (`src/`, `Info.json`, `version.json`, the solution, the environment fingerprint); the run commit's scripts (a temporary
+  archive) throw exactly the recorded error; and `final-reevaluate.ps1` re-runs every offline-replayable remaining check of the
+  runner's verdict path with its own scripts (all of `Test-RuntimeGameResult -RequirePass`, the base-game native inventory
+  against the run's admission receipt, the owned-pairs post-game checks on the retained run profile), naming every check whose
+  live inputs are gone and the retained evidence standing in for it, and refusing scenarios it does not replay. Otherwise a
+  runner FAIL is still refused. The runner result stays FAIL.
 - **Observer or fixture change:** re-run the affected native rows.
 - **Unrestored run:** stop; profile recovery before transaction recovery; never a PASS.
 
