@@ -1,5 +1,25 @@
 # Chunk 7B–7D — IN PROGRESS
 
+**F2 r39 six-pair combat entry now recorded (offline; product diagnostics plus reader; no launch).**
+- r39 (`20261025-c7e-final-B15-r39`, row 39, six-pair F11 stress) game 4/1: "Six-pair exploration entered unexpected native combat."
+  after sample 5 in cycle 3. The timing and ground positions are identical to b190's, and the evidence held no hostile or initiator data,
+  so the cause is unknown and probably nondeterministic (`final2-B15-r39-incident.json`).
+- `ba545808`: the guard still fails the run. Before it throws, `RefuseSixPairCombatEntry`
+  (`Chunk7WorldScenarioEngine.SixPairCombatEntry.cs`) records `evidence.sixPairCombatEntry` read-only: step, cycle, index, sample,
+  input and preparation state, and for each combatant its id, blueprint, faction, group, party, pair-actor, player-faction, awake, fog
+  and position, its nearest pair actor and distance, and its group-memory enemies.
+- The pure `Chunk7SixPairCombatEntry` classifier names `uncovered-native-hostile-engagement` only when a hostile combatant is
+  present, every pair actor is command-free and no KMC input is in flight. A hostile combatant is not a pair actor (the Horse pets
+  are outside Player.Party), not a party member and not player faction. Anything else is an unclassified FAIL with the unchanged
+  message. The six-pair PASS reader refuses either refused-path key.
+- New DLL for F3: Release SHA256 `1ddd700772460e7d2024e9fa8f8b33c876007bbe055c8fd132eef6fab837cd85`. Product-diagnostics changes since
+  `fa819113`: r09 (`5dfdc897`) and r39 (`ba545808`).
+- Review: CHANGES REQUIRED, then APPROVE. Fixes applied: pets excluded from the hostile count; the orchestration check compiles again
+  through a refusal facade; unsettled preparation is counted as in flight. Remaining gap: nothing outside the game runs the real
+  capture partial; only the build covers its native calls.
+- Tests: Validate-Source 149/0, unit 881/0, OwnedPairsAuthority 762/0, LoadRefusal 71/0, RegisteredDisable 762/0,
+  SaveBoundary 115/0, six-pair reader 52/0, six-pair orchestration 22/0, Fast 3/0.
+
 **F2 r32 removal-observer UMM rule and F09 reader pins fixed (offline; harness only; no launch).**
 - r32 (`20261025-c7e-final-B14-r32`, row 32, removal observer, no `-BaseGameOnly`) game PASS, outer FAIL: UMM pruned the owner's
   stale `<Mod Id="CheatMenu">` (folder absent) beside the expected KMC→observer replacement and a forward `LastUpdateCheck`; the lock
