@@ -18,13 +18,15 @@ function New-Fixture([string]$Name,[scriptblock]$Mutate={}){
  $error0='Retained native actor was released before or after its first legitimate native round.'
  $f=[ordered]@{id=$id;dir=$dir;error0=$error0;errors=@($error0);gameStatus='PASS';flags=[ordered]@{modsRestored=$true;saveProtectionPassed=$true;baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true}
   oldCommit=$runCommit;newCommit=$readerCommit;receiptLeaf='final2-B4-r15-reader-reevaluation.json';evidenceSha=('e'*64);receiptEvidenceSha=('e'*64)
-  badReceiptHash=$false;evidenceRoot=$dir;verifierOld='REEVALUATION-OLD-FAIL-REPRODUCED';verifierNew='REEVALUATION-PASS'}
+  badReceiptHash=$false;evidenceRoot=$dir;changedMutate={};verifierOld='REEVALUATION-OLD-FAIL-REPRODUCED';verifierNew='REEVALUATION-PASS'}
  &$Mutate $f
  [IO.File]::WriteAllText((Join-Path $dir 'runtime-game-result.json'),(ConvertTo-Json ([ordered]@{status=$f.gameStatus}) -Compress),$utf8)
  $result=[ordered]@{runId=$id;status='FAIL';errors=$f.errors;gameResultSha256=(Sha (Join-Path $dir 'runtime-game-result.json'))};foreach($k in $f.flags.Keys){$result[$k]=$f.flags[$k]}
  [IO.File]::WriteAllText((Join-Path $dir 'runtime-result.json'),(ConvertTo-Json $result -Depth 5 -Compress),$utf8)
  $resultSha=Sha (Join-Path $dir 'runtime-result.json')
- $receipt=[ordered]@{runId=$id;resultSha256=$resultSha;evidenceSha256=$f.receiptEvidenceSha;runnerStatus='FAIL';runnerErrors=@($f.error0);gameStatus='PASS'
+ $changed=@((Invoke-KmcReevaluationGit $repo @('diff','--name-only',$f.oldCommit,$f.newCommit,'--','scripts')).text-split"`n"|Where-Object{$_}|ForEach-Object{[pscustomobject][ordered]@{path=$_;blob=(Invoke-KmcReevaluationGit $repo @('rev-parse',($f.newCommit+':'+$_))).text}})
+ $changed=@(& $f.changedMutate $changed)
+ $receipt=[ordered]@{changedScripts=$changed;runId=$id;resultSha256=$resultSha;evidenceSha256=$f.receiptEvidenceSha;runnerStatus='FAIL';runnerErrors=@($f.error0);gameStatus='PASS'
   oldReader=[ordered]@{commit=$f.oldCommit;verdict='FAIL';error=$f.error0};newReader=[ordered]@{commit=$f.newCommit;verdict='PASS'}}
  $rp=Join-Path $cache 'final2-B4-r15-reader-reevaluation.json';[IO.File]::WriteAllText($rp,(ConvertTo-Json $receipt -Depth 5),$utf8)
  $entry=[pscustomobject]@{runId=$id;resultSha256=$resultSha;readerVerdict='PASS';restorationVerified=$true
@@ -52,6 +54,8 @@ try{
  Expect 'a missing corrected commit refuses' {param($f)$f.newCommit=('a'*40)} $false 'missing from this repository'
  Expect 'a request evidence root elsewhere refuses' {param($f)$f.evidenceRoot='C:\elsewhere\20261025-c7e-final-B4-r15'} $false 'evidence root'
  Expect 'an old reader that does not reproduce the error refuses' {param($f)$f.verifierOld='REEVALUATION-FAIL old reader did not throw exactly the recorded error'} $false 'did not reproduce'
+ Expect 'a receipt that omits a reader change refuses' {param($f)$f.changedMutate={param($c)@($c|Select-Object -Skip 1)}} $false 'list exactly the reader changes'
+ Expect 'a receipt naming another blob refuses' {param($f)$f.changedMutate={param($c)$c[0].blob=('b'*40);$c}} $false 'another blob'
  Expect 'a corrected verdict path that fails refuses' {param($f)$f.verifierNew='REEVALUATION-FAIL owned post-game: x'} $false 'did not PASS'
  $x=New-Fixture 'no reference';$x.entry.PSObject.Properties.Remove('reevaluation')
  if((Test-KmcFinalReaderReevaluation -Pred 'r15' -Entry $x.entry -Run $x.run -EvidenceRoot $ev -CacheRoot $cache -RepoRoot $repo -LabRoot $root -Verifier $x.verifier)-eq$false){$passes++;'PASS an entry without a re-evaluation reference is not settled'}else{$fails+='no reference';'FAIL no reference'}

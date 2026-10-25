@@ -152,8 +152,9 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
   any further run of that row. The folded halves added on October 24 (row 57 prone stand-up, row 69
   defensive cast) have **no development run**: a first refusal or failure there is expected to be possible;
   it is retained, diagnosed, and an "uncovered" outcome is taken to the owner for a decision.
-- **Selections:** derived per launch by the one unchanged deriver `tools/chunk7-7e/final-derive.ps1`
-  from the frozen worktree: `-Tag <tag> -Mode Final -RunMapPath <final-runs.json> -Commit <F.sha>
+- **Selections:** derived per launch by the deriver `tools/chunk7-7e/final-derive.ps1` (changed after F2 for the §8
+  re-evaluation admission; a Final derivation that settles a re-evaluated predecessor must run from a clean tree descending
+  from the corrected reader) from the frozen worktree: `-Tag <tag> -Mode Final -RunMapPath <final-runs.json> -Commit <F.sha>
   -DllSha256 <F.dll> -DllMvid <F.mvid>` prints the compact selection. It starts from the named template
   request's selection and changes only lineage pins (role run ids, evidence artifact and written archive
   SHA-256, minted actor ids, r59 `sourceArea`, r45 assisted readiness facts), each read from the final
@@ -446,7 +447,11 @@ After B15, with every run restored and read:
   runner's verdict path with its own scripts (all of `Test-RuntimeGameResult -RequirePass`, the base-game native inventory
   against the run's admission receipt, the owned-pairs post-game checks on the retained run profile), naming every check whose
   live inputs are gone and the retained evidence standing in for it, and refusing scenarios it does not replay. Otherwise a
-  runner FAIL is still refused. The runner result stays FAIL.
+  runner FAIL is still refused. The receipt also lists every `scripts/` change from the run commit to the corrected reader by
+  path and blob (checked against git), and nothing under `scripts/` may change after it. **Open (B4 r15/r16):** the runner's
+  own source gate (`Assert-KmcChunk7OwnedSourceCompletion`) still requires the source run's result PASS and its base-game
+  receipt flags true, so a re-evaluated r15 cannot yet feed a launched r16; a coordinator decision is needed (teach the gate the
+  receipt, a reviewed harness change and new package, or re-run r15/r16 on the successor package). The runner result stays FAIL.
 - **Observer or fixture change:** re-run the affected native rows.
 - **Unrestored run:** stop; profile recovery before transaction recovery; never a PASS.
 

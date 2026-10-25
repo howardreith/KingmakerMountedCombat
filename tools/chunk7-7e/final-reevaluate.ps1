@@ -44,10 +44,13 @@ catch{Fail ('Test-RuntimeGameResult: '+$_.Exception.Message)}
 . (Join-Path $ScriptsRoot 'runtime\RuntimeHarness.Common.ps1')
 $game=Read-KmcJson $gamePath;$named=@()
 if(Test-KmcBoundaryRuntimeScenario ([string]$request.scenario)){Fail 'boundary scenarios need the live terminal Working identity; not replayable'}
+$named+='ExpectedProcessId and NotBeforeUtc: the runner passed its live process; here they come from the run''s own orchestration.json (runner-written, not hash-bound), so the process check is consistency between that record, the game result and the loader inventory'
 $named+='VerifyLiveWorkingIdentity: applies only to boundary scenarios (Assert-KmcBoundaryScenarioEvidence returns before it for this scenario)'
 # Base-game native inventory (runner Invoke-KingmakerRuntimeScenario.ps1, base-game branch) against the run's own admission receipt.
 $admissionPath=Join-Path $runDir 'base-game-isolation-admission.json'
-if(Test-Path -LiteralPath $admissionPath -PathType Leaf){
+# Owned-pairs runs are always base-game-only staged, so the runner always ran this check: a missing admission refuses.
+if(-not(Test-Path -LiteralPath $admissionPath -PathType Leaf)){Fail 'the base-game admission receipt is missing'}
+& {
  $admission=Read-KmcJson $admissionPath
  if($admission.runId-cne$RunId-or$admission.transactionToken-cne$request.transactionToken){Fail 'base-game admission belongs to another transaction'}
  $manifestPath=Join-Path $runDir 'runtime-artifacts.json'
@@ -56,8 +59,10 @@ if(Test-Path -LiteralPath $admissionPath -PathType Leaf){
  if($inventory.observations.processId-ne$processId){Fail 'loader inventory came from another native process'}
  try{Assert-KmcBaseGameNativeInventory $request $inventory $admission.dependencies}catch{Fail ('base-game native inventory: '+$_.Exception.Message)}
  $isolation=Read-KmcJson (Join-Path $runDir 'base-game-isolation-result.json')
- if($isolation.runId-cne$RunId-or$isolation.dependenciesUnchanged-ne$true-or$isolation.processExited-ne$true){Fail 'base-game dependency receipt does not show unchanged dependencies'}
- $named+='Assert-KmcBaseGameDependencyReceipt -VerifyFiles (live game files): stood in by the run''s own base-game-isolation-result dependenciesUnchanged=true'
+ if($admission.stagingMode-cne'base-game-only-kmc'-or$admission.dependencies.mode-cne'base-game-only-kmc'-or$isolation.runId-cne$RunId-or$isolation.stagingMode-cne'base-game-only-kmc'-or
+  $isolation.dependencyDigest-cne$admission.dependencies.dependencyDigest-or
+  @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed'|Where-Object{$isolation.$_-ne$true}).Count-ne0){Fail 'base-game isolation receipt does not show a verified, unchanged, restored staging'}
+ $script:named+='Assert-KmcBaseGameDependencyReceipt -VerifyFiles (live game files): the run''s finally block ran it after exit; stood in by its base-game-isolation-result (stageVerified, dependenciesUnchanged, processExited, modsRestored, saveProtectionPassed, matching dependencyDigest). That receipt still records gameReportedPass, nativeInventoryObserved and nativeCompatibilityQualified as false, because the runner stopped first; downstream source gates read those flags'
 }
 if(-not(Test-KmcChunk7OwnedPairsScenario ([string]$request.scenario))){Fail ('the runner post-game checks of scenario '+$request.scenario+' are not replayed offline')}
 $case=[string]$request.persistenceCase
@@ -67,6 +72,7 @@ $profileRoot=[IO.Path]::GetFullPath((Join-Path $LabRoot ('runtime-staging\persis
 if(-not(Test-Path -LiteralPath $isolatedSaves -PathType Container)){Fail 'the retained run profile is missing'}
 $candidate=[pscustomobject]@{commit=[string]$request.commit;dllSha256=[string]$request.dllSha256;dllMvid=[string]$request.dllMvid}
 try{$verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $case $request.fixture $candidate $null}catch{Fail ('owned source lineage: '+$_.Exception.Message)}
+$script:named=$named
 $named+='inherited lineage unchanged across native execution: the pre-run object is not retained; stood in by the lineage recomputed now from the immutable source receipts (Get-KmcChunk7OwnedPairsSource with the request''s fixture and candidate)'
 $r=[pscustomobject]$request
 try{
@@ -114,5 +120,7 @@ try{
  }
 }catch{Fail ('owned post-game: '+$_.Exception.Message)}
 $named+='the retained run profile is read as the runner left it (runtime-staging); its final save-root listing and output hash were rechecked'
+# The outer result reader in its PASS form and the result composition were never reached: the retained result is FAIL.
+$named+='Test-RuntimeResult in PASS form and the composition of runtime-result.json from a validated game result: not replayable (the retained result is the runner''s FAIL); the deriver requires that result to carry exactly the one reader error'
 foreach($n in $named){'NAMED '+$n}
 'REEVALUATION-PASS'
