@@ -274,6 +274,30 @@ function Assert-KmcChunk7AttackModeMeasurement($m,[string]$Label,[bool]$Mounted,
  if($riderCosts-lt1-or$mountCosts-ne0){throw ('Attack mode '+$Label+' has no native cost on rider A or spent the mount.')}
  [pscustomobject]@{rangedCount=$rangedCount;inner=@(Get-KmcChunk7AttackModeInner $m);rapid=(Get-KmcChunk7AttackModeRapidBonus $m);riderCosts=$riderCosts}
 }
+# Every saved primary slot as the native body held it before the switch (b207 m5). Kingmaker 2.1.7b: the saved weapon is
+# the slot's stored item (ItemSlot.MaybeItem); HandSlot.UpdateActive makes only the current set's slots Active and
+# WeaponSlot.MaybeWeapon answers the empty-hand weapon for an inactive slot.
+function Assert-KmcChunk7AttackModesMounted6SavedSets($M,$C){
+ $s=$M.savedSets;if($null-eq$s){throw 'Mounted6 attack modes lack their saved hand-set record.'}
+ Assert-KmcExactProperties $s @('count','current','polymorphed','emptyHandWeapon','sets') 'mounted6 saved hand sets'
+ Assert-KmcOrdinaryInteger $s.count ([Math]::Max([long]$C.meleeHandSet,[long]$C.rangedHandSet)+1) 4
+ if(-not(Test-KmcExactJsonInteger $s.current)-or$s.current-ne$M.before.handSet){throw 'Mounted6 saved hand sets do not record the hand set selected before the switch.'}
+ Assert-KmcChunk7Boolean $s.polymorphed $false
+ $guid={param($v)$null-eq$v-or($v-is[string]-and$v-cmatch'^[0-9a-f]{32}$')}
+ if(-not(&$guid $s.emptyHandWeapon)){throw 'Mounted6 empty-hand weapon identity is mistyped.'}
+ $rows=@($s.sets);if($rows.Count-ne$s.count){throw 'Mounted6 saved hand sets do not record every set.'}
+ for($i=0;$i-lt$rows.Count;$i++){$r=$rows[$i]
+  Assert-KmcExactProperties $r @('index','hasItem','active','disabled','item','weapon','weaponRanged','maybeWeapon') 'mounted6 saved hand set'
+  if(-not(Test-KmcExactJsonInteger $r.index)-or$r.index-ne$i){throw 'Mounted6 saved hand set index differs.'}
+  foreach($k in @('hasItem','active','disabled','weaponRanged')){if($r.$k-isnot[bool]){throw ('Mounted6 saved hand set flag is not boolean: '+$k)}}
+  foreach($k in @('item','weapon','maybeWeapon')){if(-not(&$guid $r.$k)){throw ('Mounted6 saved hand set identity is mistyped: '+$k)}}
+  if($r.hasItem-ne($null-ne$r.item)-or($null-ne$r.weapon-and$r.weapon-cne$r.item)-or($null-eq$r.weapon-and$r.weaponRanged)){throw 'Mounted6 saved hand set item clauses disagree.'}
+  if($r.active-ne($i-eq$s.current-and-not$r.disabled)){throw 'Mounted6 saved hand set activity differs from the native current-set rule.'}
+  if(-not$r.active-and$r.maybeWeapon-cne$s.emptyHandWeapon){throw 'Mounted6 inactive hand set does not answer the native empty-hand weapon.'}
+  if($r.active-and$null-ne$r.weapon-and$r.maybeWeapon-cne$r.weapon){throw 'Mounted6 active hand set does not answer its stored weapon.'}}
+ $ranged=$rows[[int]$C.rangedHandSet];if(-not$ranged.hasItem-or$ranged.item-cne$C.rangedWeapon-or$ranged.weapon-cne$C.rangedWeapon-or$ranged.weaponRanged-ne$true){throw 'Mounted6 saved ranged hand set does not hold the seed''s ranged weapon.'}
+ if($M.switched){$melee=$rows[[int]$C.meleeHandSet];if(-not$melee.hasItem-or$melee.item-cne$C.meleeWeapon-or$melee.weapon-cne$C.meleeWeapon){throw 'Mounted6 saved longsword hand set does not hold the seed''s longsword.'}}
+}
 # Mounted6 lineage (C03 BAB variation): rider A's native BAB is at least 6, the seed's saved ranged hand set was
 # selected out of combat (from its saved longsword set, or already active), and the mounted Rapid Shot off leg is a
 # native full attack with an iterative second ranged attack. Every other seed records no mounted6 block.
@@ -281,13 +305,14 @@ function Assert-KmcChunk7AttackModesMounted6($Request,$Modes,$OffMeasurement,$Of
  $m6seed=Test-KmcChunk7Mounted6Selection $Request.ownedPairs;$has=$null-ne$Modes.PSObject.Properties['mounted6']
  if(-not$m6seed){if($has){throw 'Only the mounted6 lineage records a BAB and hand-set selection block.'};return}
  if(-not$has){throw 'Mounted6 attack modes lack their BAB and hand-set selection record.'};$c=Get-KmcChunk7Mounted6Seed;$m=$Modes.mounted6
- Assert-KmcExactProperties $m @('baseAttackBonus','before','switched','nativeApi','after') 'mounted6 attack modes selection'
+ Assert-KmcExactProperties $m @('baseAttackBonus','before','savedSets','switched','nativeApi','after') 'mounted6 attack modes selection'
  Assert-KmcOrdinaryInteger $m.baseAttackBonus $c.minimumBab 40;Assert-KmcBootstrapInventoryString $m.nativeApi 'Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)'
  foreach($k in @('before','after')){Assert-KmcExactProperties $m.$k @('handSet','primaryBlueprint','firstWeapon','firstWeaponRanged','inCombat') ('mounted6 hand set '+$k);Assert-KmcChunk7Boolean $m.$k.inCombat $false}
  if($m.switched-isnot[bool]){throw 'Mounted6 hand-set switch flag is not boolean.'}
  if($m.switched){if($m.before.handSet-ne$c.meleeHandSet-or$m.before.primaryBlueprint-cne$c.meleeWeapon){throw 'Mounted6 hand-set switch did not start from the seed''s saved longsword set.'}}
  elseif($m.before.handSet-ne$c.rangedHandSet-or$m.before.firstWeapon-cne$c.rangedWeapon){throw 'Mounted6 attack modes skipped a needed hand-set selection.'}
  if($m.after.handSet-ne$c.rangedHandSet-or$m.after.primaryBlueprint-cne$c.rangedWeapon-or$m.after.firstWeapon-cne$c.rangedWeapon-or$m.after.firstWeaponRanged-ne$true-or$Modes.weapon-cne$c.rangedWeapon){throw 'Mounted6 attack modes did not use the seed''s saved ranged weapon.'}
+ Assert-KmcChunk7AttackModesMounted6SavedSets $m $c
  if($OffMeasurement.expectedFull-ne$true-or$OffMeasurement.nativeEstimate-lt2-or$Off.rangedCount-lt2){throw 'Mounted Rapid Shot off attack at BAB >= 6 was not a native full attack with an iterative second ranged attack.'}
 }
 function Assert-KmcChunk7AttackModesCombat($Request,$Observations){

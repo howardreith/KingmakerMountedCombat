@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Items;
 using Kingmaker.UI.UnitSettings;
 using Kingmaker.UnitLogic.ActivatableAbilities;
 using Kingmaker.UnitLogic.Commands;
@@ -43,6 +44,23 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject HandSetState() => new JObject { ["handSet"] = ar.Body.CurrentHandEquipmentSetIndex,
             ["primaryBlueprint"] = ar.Body.PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid, ["firstWeapon"] = ar.GetFirstWeapon()?.Blueprint.AssetGuid,
             ["firstWeaponRanged"] = ar.GetFirstWeapon()?.Blueprint.IsRanged == true, ["inCombat"] = ar.IsInCombat };
+        private ItemEntityWeapon SavedPrimaryWeapon(int index) =>
+            index < ar.Body.HandsEquipmentSets.Count ? ar.Body.HandsEquipmentSets[index].PrimaryHand.MaybeItem as ItemEntityWeapon : null;
+        // Every hand set's primary slot as saved: stored item (MaybeItem), whether it is a weapon and ranged, the slot's native
+        // Active/Disabled state and the native MaybeWeapon answer (the empty-hand weapon for an inactive slot).
+        private JObject SavedHandSets()
+        {
+            var sets = ar.Body.HandsEquipmentSets; var rows = new JArray();
+            for (var index = 0; index < sets.Count; index++)
+            {
+                var slot = sets[index].PrimaryHand; var item = slot.MaybeItem; var weapon = item as ItemEntityWeapon;
+                rows.Add(new JObject { ["index"] = index, ["hasItem"] = slot.HasItem, ["active"] = slot.Active, ["disabled"] = slot.Disabled,
+                    ["item"] = item?.Blueprint.AssetGuid, ["weapon"] = weapon?.Blueprint.AssetGuid, ["weaponRanged"] = weapon?.Blueprint.IsRanged == true,
+                    ["maybeWeapon"] = slot.MaybeWeapon?.Blueprint.AssetGuid });
+            }
+            return new JObject { ["count"] = sets.Count, ["current"] = ar.Body.CurrentHandEquipmentSetIndex, ["polymorphed"] = ar.Body.IsPolymorphed,
+                ["emptyHandWeapon"] = ar.Body.EmptyHandWeapon?.Blueprint.AssetGuid, ["sets"] = rows };
+        }
         // Mounted6 lineage (C03 BAB variation): rider A must have BAB >= 6, so with Rapid Shot off the native routine has
         // an iterative second attack. The seed saved hand set 1 (the longsword) active; out of combat, before the encounter,
         // the saved ranged hand set 0 is selected through the public native UnitBody.CurrentHandEquipmentSetIndex setter
@@ -52,13 +70,16 @@ namespace KingmakerMountedCombat.Diagnostics
             var bab = ar.Stats.BaseAttackBonus.ModifiedValue; var selection = new JObject { ["baseAttackBonus"] = bab, ["before"] = HandSetState() };
             Require(bab >= Chunk7OwnedPairsSelection.Mounted6MinimumBaseAttackBonus,
                 "Rider A's native BAB is below 6; the C03 BAB variation (Rapid Shot off full attack) is uncovered on this fixture.");
+            // A saved weapon in an inactive set is its slot's stored item (ItemSlot.MaybeItem); WeaponSlot.MaybeWeapon answers
+            // the empty-hand weapon for an inactive slot (b207 m5's false refusal). Every clause is recorded for a refusal.
             var sets = ar.Body.HandsEquipmentSets; var current = ar.Body.CurrentHandEquipmentSetIndex;
-            Require(!ar.IsInCombat && sets.Count > Chunk7OwnedPairsSelection.Mounted6MeleeHandSet &&
-                sets[Chunk7OwnedPairsSelection.Mounted6RangedHandSet].PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid == Chunk7OwnedPairsSelection.Mounted6RangedWeapon &&
-                sets[Chunk7OwnedPairsSelection.Mounted6RangedHandSet].PrimaryHand.MaybeWeapon.Blueprint.IsRanged &&
-                (current == Chunk7OwnedPairsSelection.Mounted6RangedHandSet ||
-                 current == Chunk7OwnedPairsSelection.Mounted6MeleeHandSet && ar.Body.PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid == Chunk7OwnedPairsSelection.Mounted6MeleeWeapon),
-                "Rider A's saved hand sets differ from the mounted6 seed's (set 0 ranged, set 1 longsword); C03 attack modes are uncovered on this fixture: " + selection["before"].ToString(Newtonsoft.Json.Formatting.None));
+            var saved = SavedHandSets(); selection["savedSets"] = saved;
+            var rangedSaved = SavedPrimaryWeapon(Chunk7OwnedPairsSelection.Mounted6RangedHandSet);
+            Require(Chunk7OwnedPairsSelection.Mounted6HandSetsAdmitted(ar.IsInCombat, ar.Body.IsPolymorphed, sets.Count, current, rangedSaved?.Blueprint.AssetGuid,
+                    rangedSaved?.Blueprint.IsRanged == true, SavedPrimaryWeapon(Chunk7OwnedPairsSelection.Mounted6MeleeHandSet)?.Blueprint.AssetGuid,
+                    ar.Body.PrimaryHand.MaybeWeapon?.Blueprint.AssetGuid),
+                "Rider A's saved hand sets differ from the mounted6 seed's (set 0 ranged, set 1 longsword); C03 attack modes are uncovered on this fixture: " +
+                new JObject { ["before"] = selection["before"], ["savedSets"] = saved }.ToString(Newtonsoft.Json.Formatting.None));
             selection["switched"] = current != Chunk7OwnedPairsSelection.Mounted6RangedHandSet;
             selection["nativeApi"] = "Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)";
             if ((bool)selection["switched"]) ar.Body.CurrentHandEquipmentSetIndex = Chunk7OwnedPairsSelection.Mounted6RangedHandSet;

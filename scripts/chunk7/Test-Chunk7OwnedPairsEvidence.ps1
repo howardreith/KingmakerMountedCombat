@@ -1074,10 +1074,32 @@ Check 'the original owner-seed Manual producer still refuses a carried Horse pin
 function New-KmcMounted6AttackModesFixture([bool]$Bab6=$true){$c=Get-KmcChunk7Mounted6Seed;$json=(New-KmcSeedAttackModesFixture $Bab6)|ConvertTo-Json -Depth 90
  $v=Repair-KmcJsonArrays (ConvertFrom-Json $json.Replace('KMC_C7_OWNER_SEED',$c.seedId).Replace(('9'*64),$c.sha256))
  $hs={param($set,$bp)[pscustomobject][ordered]@{handSet=$set;primaryBlueprint=$bp;firstWeapon=$bp;firstWeaponRanged=($bp-ceq$c.rangedWeapon);inCombat=$false}}
- $v.artifact.observations.attackModes|Add-Member mounted6 ([pscustomobject][ordered]@{baseAttackBonus=6;before=(&$hs 1 $c.meleeWeapon);switched=$true;nativeApi='Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)';after=(&$hs 0 $c.rangedWeapon)}) -Force;$v}
+ $v.artifact.observations.attackModes|Add-Member mounted6 ([pscustomobject][ordered]@{baseAttackBonus=6;before=(&$hs 1 $c.meleeWeapon);savedSets=(New-KmcMounted6SavedSets 1);switched=$true;nativeApi='Kingmaker.Items.UnitBody.CurrentHandEquipmentSetIndex (public setter, out of combat)';after=(&$hs 0 $c.rangedWeapon)}) -Force;$v}
+# b207 m5's native saved hand sets (current set 1): the inactive ranged set 0 stores the ranged weapon (MaybeItem) while its
+# native MaybeWeapon answers the empty-hand weapon; only the current set's slot is Active; sets 2 and 3 are empty.
+$script:m6EmptyHand='118fdd03e569a66459ab01a20af6811a'
+function New-KmcMounted6SavedSets([int]$Current){$c=Get-KmcChunk7Mounted6Seed;$items=@($c.rangedWeapon,$c.meleeWeapon,$null,$null)
+ $rows=@(0..3|ForEach-Object{$item=$items[$_];$active=$_-eq$Current;[pscustomobject][ordered]@{index=$_;hasItem=($null-ne$item);active=$active;disabled=$false;item=$item;weapon=$item;weaponRanged=($item-ceq$c.rangedWeapon);maybeWeapon=$(if($active-and$null-ne$item){$item}else{$script:m6EmptyHand})}})
+ [pscustomobject][ordered]@{count=4;current=$Current;polymorphed=$false;emptyHandWeapon=$script:m6EmptyHand;sets=$rows}}
 function Check-Mounted6Attack([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcMounted6AttackModesFixture;&$Mutation $v;Check ('mounted6 attack modes refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
 Check 'mounted6 attack modes accepted (BAB 6, saved ranged set selected, iterative Rapid Shot off full attack)' {Invoke-OwnedReader (New-KmcMounted6AttackModesFixture)}
-Check 'mounted6 attack modes accepted with the ranged set already active' {$v=New-KmcMounted6AttackModesFixture;$m=$v.artifact.observations.attackModes.mounted6;$m.switched=$false;$m.before=Copy-Value $m.after;Invoke-OwnedReader $v}
+Check 'mounted6 attack modes accepted with the ranged set already active' {$v=New-KmcMounted6AttackModesFixture;$m=$v.artifact.observations.attackModes.mounted6;$m.switched=$false;$m.before=Copy-Value $m.after;$m.savedSets=New-KmcMounted6SavedSets 0;Invoke-OwnedReader $v}
+Check-Mounted6Attack 'a missing saved hand-set record' {$args[0].artifact.observations.attackModes.mounted6.PSObject.Properties.Remove('savedSets')} 'mounted6 attack modes selection'
+Check-Mounted6Attack 'a saved hand-set count below two' {$s=$args[0].artifact.observations.attackModes.mounted6.savedSets;$s.count=1;$s.sets=@($s.sets[0])} 'Integer|integer|range'
+Check-Mounted6Attack 'a saved hand-set record missing a set' {$s=$args[0].artifact.observations.attackModes.mounted6.savedSets;$s.sets=@($s.sets[0..2])} 'every set'
+Check-Mounted6Attack 'a saved current set other than the one before the switch' {$args[0].artifact.observations.attackModes.mounted6.savedSets.current=0} 'selected before the switch'
+Check-Mounted6Attack 'an empty saved ranged set' {$r=$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[0];$r.hasItem=$false;$r.item=$null;$r.weapon=$null;$r.weaponRanged=$false} 'ranged weapon'
+Check-Mounted6Attack 'a saved ranged-set item that is not ranged' {$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[0].weaponRanged=$false} 'ranged weapon'
+Check-Mounted6Attack 'another saved longsword-set item' {$r=$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[1];$r.item='35dfad6517f401145af54111be04d6cf';$r.weapon=$r.item;$r.maybeWeapon=$r.item} 'longsword'
+Check-Mounted6Attack 'an inactive set answering its stored weapon' {$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[0].maybeWeapon=(Get-KmcChunk7Mounted6Seed).rangedWeapon} 'empty-hand weapon'
+Check-Mounted6Attack 'two active saved sets' {$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[0].active=$true} 'current-set rule'
+Check-Mounted6Attack 'a polymorphed rider' {$args[0].artifact.observations.attackModes.mounted6.savedSets.polymorphed=$true} 'boolean|Boolean'
+Check-Mounted6Attack 'disagreeing saved item clauses' {$args[0].artifact.observations.attackModes.mounted6.savedSets.sets[2].hasItem=$true} 'item clauses disagree'
+# The C# attack-modes admission reads an inactive set's saved weapon through ItemSlot.MaybeItem: Kingmaker 2.1.7b's
+# WeaponSlot.MaybeWeapon answers the empty-hand weapon for an inactive slot (b207 m5's false refusal).
+Check 'mounted6 attack modes admission reads saved hand sets through the stored item' {$cs=[IO.File]::ReadAllText((Join-Path $script:m6repo 'src\KingmakerMountedCombat\Diagnostics\Chunk7CombatScenario.AttackModes.cs'),[Text.Encoding]::UTF8)
+ if($cs-match'HandsEquipmentSets\[[^\]]+\]\.PrimaryHand\.MaybeWeapon'-or$cs-match'sets\[[^\]]+\]\.PrimaryHand\.MaybeWeapon'){throw 'An inactive hand set is read through WeaponSlot.MaybeWeapon.'}
+ if($cs-notmatch'HandsEquipmentSets\[index\]\.PrimaryHand\.MaybeItem as ItemEntityWeapon'-or$cs-notmatch'Chunk7OwnedPairsSelection\.Mounted6HandSetsAdmitted\('){throw 'The mounted6 hand-set admission no longer reads the stored item through the shared predicate.'}}
 Check 'mounted6 prepared casting maps to the unchanged RT casting engine' {$pv=New-KmcMounted6AttackModesFixture;$pv.request.ownedPairs.case='owner-seed-prepared-casting';if((Get-KmcChunk7SelectedScenario $pv.request)-cne'chunk7-two-pair-realtime-casting'){throw 'Prepared casting scenario mapping differs.'}}
 Check 'BAB 6 attack modes on the original seed accepted without a mounted6 block' {Invoke-OwnedReader (New-KmcSeedAttackModesFixture $true)}
 Check-Mounted6Attack 'a missing mounted6 record' {$args[0].artifact.observations.attackModes.PSObject.Properties.Remove('mounted6')} 'lack their BAB'

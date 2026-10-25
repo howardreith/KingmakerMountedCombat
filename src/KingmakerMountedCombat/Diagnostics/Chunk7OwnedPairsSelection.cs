@@ -78,6 +78,16 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Mounted6MeleeWeapon = "571c56d11dafbb04094cbaae659974b5";
         internal const string Mounted6RangedWeapon = "4de4658c0e9b0d146b9a08ed6f030f8a";
         internal const int Mounted6MinimumBaseAttackBonus = 6;
+        // Native contract (Kingmaker 2.1.7b): WeaponSlot.MaybeWeapon answers Owner.Body.EmptyHandWeapon for a slot that is
+        // not Active, and HandSlot.UpdateActive makes only the current set's slots Active, so a saved weapon in an inactive
+        // set is read from ItemSlot.MaybeItem (the stored item, independent of Active). b207 m5 refused falsely because the
+        // inactive ranged set was read through MaybeWeapon. The current set's primary weapon is the native active answer.
+        internal static bool Mounted6HandSetsAdmitted(bool inCombat, bool polymorphed, int setCount, int currentSet, string rangedSetItem,
+            bool rangedSetItemIsRangedWeapon, string meleeSetItem, string currentPrimaryWeapon) =>
+            !inCombat && !polymorphed && setCount > Math.Max(Mounted6MeleeHandSet, Mounted6RangedHandSet) &&
+            rangedSetItem == Mounted6RangedWeapon && rangedSetItemIsRangedWeapon &&
+            (currentSet == Mounted6RangedHandSet ||
+             currentSet == Mounted6MeleeHandSet && meleeSetItem == Mounted6MeleeWeapon && currentPrimaryWeapon == Mounted6MeleeWeapon);
         // F03 prepared casting while mounted: the unchanged chunk7-two-pair-realtime-casting engine on the mounted6
         // owner-seed-derived start; rider A must be the one caster of its one memorized prepared healing slot.
         public const string OwnerSeedPreparedCastingCase = "owner-seed-prepared-casting";
