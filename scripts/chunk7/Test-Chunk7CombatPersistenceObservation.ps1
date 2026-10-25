@@ -118,6 +118,26 @@ $wrongPendingSource.artifact.observations.combatContinuation.continuation[1].lab
 Reject 'preview.57 pending source refuses obsolete mount-only label' {
     Assert-KmcChunk7PersistenceObservation $wrongPendingSource.request $wrongPendingSource.artifact 'PASS'
 }
+# Final F2 r15 (preview.94): since d96a4b06 (preview.55) the producer labels every independent-turn row
+# independent-native-actor-<id>, also for the zero-mounted kind and its cold consumer (r16); older producers keep the mount label.
+# The admitted graph is relabelled in place and restored (Copy-Test would change its empty native-control array shape).
+function Invoke-KmcLabelledZero($Spec,[string]$Version,[string]$Prefix,[scriptblock]$Mutate={}){
+ $oldReq=$Spec.request.productVersion;$oldArt=$Spec.artifact.productVersion
+ $rows=@($Spec.artifact.observations.combatContinuation.continuation|Where-Object{$_.PSObject.Properties['label']-and[string]$_.label-clike'independent-native-*'})
+ $labels=@($rows|ForEach-Object{[string]$_.label})
+ try{$Spec.request.productVersion=$Version;$Spec.artifact.productVersion=$Version;foreach($row in $rows){$row.label=$Prefix+[string]$row.currentActor};&$Mutate $rows
+  Assert-KmcChunk7PersistenceObservation $Spec.request $Spec.artifact 'PASS'}
+ finally{$Spec.request.productVersion=$oldReq;$Spec.artifact.productVersion=$oldArt;for($i=0;$i-lt$rows.Count;$i++){$rows[$i].label=$labels[$i]}}}
+foreach($zi in @(4,5)){$zs=$complete[$zi];$zn=$zs.request.scenario
+ Check ('pre-preview.55 zero-mounted '+$zn+' keeps the producer''s mount label') {Assert-KmcChunk7PersistenceObservation $zs.request $zs.artifact 'PASS'}
+ Check ('preview.94 zero-mounted '+$zn+' accepts the producer''s actor label') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7b-preview.94' 'independent-native-actor-'}
+ Reject ('preview.94 zero-mounted '+$zn+' refuses the obsolete mount label') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7b-preview.94' 'independent-native-mount-'}
+ Reject ('pre-preview.55 zero-mounted '+$zn+' refuses an actor label its producer never wrote') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7b-preview.52' 'independent-native-actor-'}
+ Reject ('preview.94 zero-mounted '+$zn+' refuses a mixed actor and mount continuation') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7b-preview.94' 'independent-native-actor-' {param($r)$r[1].label='independent-native-mount-'+[string]$r[1].currentActor}}
+ Reject ('zero-mounted '+$zn+' refuses an unrecognised producer revision') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7c-preview.1' 'independent-native-actor-'}
+ Reject ('preview.94 zero-mounted '+$zn+' refuses an actor label naming another actor') {Invoke-KmcLabelledZero $zs '0.1.0-chunk7b-preview.94' 'independent-native-actor-' {param($r)$r[0].label='independent-native-actor-'+[string]$r[1].currentActor}}
+ Check ('zero-mounted '+$zn+' is restored after the relabelled checks') {Assert-KmcChunk7PersistenceObservation $zs.request $zs.artifact 'PASS'}
+}
 function New-RenewedPending {
     $spec=Copy-Test $coldLegacy
     $spec.request.productVersion='0.1.0-chunk7b-preview.55'

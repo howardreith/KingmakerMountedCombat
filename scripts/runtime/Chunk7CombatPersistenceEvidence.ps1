@@ -259,6 +259,24 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
     }
     if($zero){$dismounts=@($Checkpoint.source.inputs|Where-Object{$_.label-clike'checkpoint-native-dismount-*'});if($dismounts.Count-ne2){throw 'Zero-mounted checkpoint did not execute two native Dismount inputs.'};foreach($nativeInput in $dismounts){if($nativeInput.nativeCastDelta-ne1-or$nativeInput.nativeRefusalDelta-ne0-or$nativeInput.clicked-ne$true){throw 'Native detached checkpoint input was refused or duplicated.'}}}
 }
+# The independent-turn row label is the producer's own. Chunk7CombatCheckpointDriver labelled those rows
+# independent-native-mount-<id> until d96a4b06, which relabelled every row independent-native-actor-<id> and raised the
+# product, in that same commit, from 0.1.0-chunk7b-preview.54 to .55. The evidence carries no separate label schema, so its
+# own product revision (productVersion, bound by the runner to the run's DLL and echoed in the artifact) selects exactly one
+# family for every continuation kind and both readers (source and cold); the other family is refused. Older and synthetic
+# producers keep the mount family (b28s1, preview.52). Final F2 r15 (preview.94) failed on the stale mount expectation.
+# The checkpoint producer's revision: the chunk7b preview number, 0 for the synthetic reader fixtures; any other version
+# scheme refuses explicitly instead of silently choosing a label family.
+function Get-KmcChunk7CheckpointProducerPreview($Request){
+    $v=[string]$Request.productVersion
+    if($v-ceq'synthetic'){return 0}
+    if($v-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'){return [int]$Matches[1]}
+    throw ('Unrecognised checkpoint producer revision: '+$v)
+}
+function Get-KmcChunk7IndependentTurnLabelPrefix($Request){
+    if((Get-KmcChunk7CheckpointProducerPreview $Request)-ge55){return 'independent-native-actor-'}
+    return 'independent-native-mount-'
+}
 function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$Cold) {
     $case=$Request.persistenceCase;$kind=switch($case){'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
     Assert-KmcChunk7Boolean $Value.ready $true;Assert-KmcChunk7Boolean $Value.continuationComplete $true
@@ -301,10 +319,9 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
         }
     } else {
         $mounts=if($kind-ceq'MountedPendingOnly'){@($ids[1])}else{@($ids[1],$ids[3])}
-        $renewedPending=$Cold-and$kind-ceq'MountedPendingOnly'-and
-            $Request.productVersion-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'-and[int]$Matches[1]-ge55
-        $renewedSource=-not$Cold-and$kind-ceq'MountedPendingOnly'-and
-            $Request.productVersion-cmatch'^0[.]1[.]0-chunk7b-preview[.]([0-9]+)$'-and[int]$Matches[1]-ge55
+        $producer=Get-KmcChunk7CheckpointProducerPreview $Request
+        $renewedPending=$Cold-and$kind-ceq'MountedPendingOnly'-and$producer-ge55
+        $renewedSource=-not$Cold-and$kind-ceq'MountedPendingOnly'-and$producer-ge55
         if($renewedPending){
             $rider=$ids[0];$join=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq'native-rider-reentry-new-round'})
             if($join.Count-ne1-or@($Value.continuation).Count-ne5-or
@@ -359,8 +376,11 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
             }
             $mounts=@($rider,$ids[1])
         }
+        $prefix=Get-KmcChunk7IndependentTurnLabelPrefix $Request
+        $foreign=if($prefix-ceq'independent-native-actor-'){'independent-native-mount-*'}else{'independent-native-actor-*'}
+        if(@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and[string]$_.label-clike$foreign}).Count-ne0){throw 'Continuation carries an independent-turn label its producer revision never writes.'}
         foreach($id in $mounts){
-            $label=if($renewedPending-or$renewedSource){'independent-native-actor-'+$id}else{'independent-native-mount-'+$id}
+            $label=$prefix+$id
             $row=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq$label})
             if($row.Count-ne1-or$row[0].currentActor-cne$id-or$row[0].round-ne$Archive.Combat.Round+1-or
                 ($renewedPending-and$row[0].frame-le$join[0].frame)){throw 'Retained native actor was released before or after its first legitimate native round.'}
