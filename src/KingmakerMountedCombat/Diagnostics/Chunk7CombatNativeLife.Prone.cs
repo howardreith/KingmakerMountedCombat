@@ -110,12 +110,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["healerEngaged"] = target.CombatState.IsEngage(lifeHealer), ["before"] = WorldSnapshot("prone-heal-before"),
                     ["ruleCountBefore"] = proneRules.EventCount, ["traceSequenceBefore"] = trace.EventCount };
                 proneAttempts.Add(proneAttempt);
+                // The healer is a leased non-pair member whose AI stays off: declare its one native command per attempt to the lease
+                // (at most two sequential declarations, same healer only), mirroring the owner-seed companion action.
+                Require(targetService.NonPairPartyAiLease.BeginDeclaredMemberCommand(lifeHealer, ProneHealAttempts),
+                    "The healer's declared native scroll command was refused by the non-pair AI lease.");
                 proneShell = IssueFoldedScrollCast(lifeScroll, br, proneAttempt);
                 proneFrames = 0; LifeStage(13); return;
             }
             if (lifeStage == 13)
             {
                 if (!FoldedCastSettled(lifeScroll, proneShell, br, ref proneFrames)) return;
+                Require(targetService.NonPairPartyAiLease.EndDeclaredMemberCommand(lifeHealer), "The healer's declared scroll command did not settle back into the non-pair AI lease.");
+                proneAttempt["declaredLeaseCommands"] = targetService.NonPairPartyAiLease.DeclaredMemberCommandCount;
                 FinishFoldedCast(lifeScroll, proneShell, proneAttempt);
                 proneAttempt["riderAfter"] = ProneRider("heal-after"); proneAttempt["targetAfter"] = ProneTarget("heal-after");
                 proneAttempt["after"] = WorldSnapshot("prone-heal-after"); proneAttempt["rules"] = proneRules.Since((int)proneAttempt["ruleCountBefore"]);

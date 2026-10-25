@@ -269,6 +269,8 @@ function Assert-KmcChunk7ProneStandUp($P,$o,$life,$ids,$control,$controlRows){
   if($a.admittedShellCount-ne1-or$a.target-cne$ids[2]-or$a.ability.blueprint-cne'5590652e1c2225c4ca30c4a699ab3649'-or$a.ability.caster-cne$P.healerId-or$a.ability.sourceItemBlueprint-cne'cd635d5720937b044a354dba17abad8d'){throw 'A prone heal attempt is not one native scroll click by the healer on rider B.'}
   if($null-eq$item){$item=$a.ability.sourceItem}elseif($a.ability.sourceItem-ne$item){throw 'Prone heal attempts used different stacks.'}
   if($a.riderBefore.life.conscious-ne$false-or$a.riderBefore.life.dead-ne$false){throw 'A prone heal attempt did not start on the unconscious living rider.'}
+  # Each attempt is the healer's own declared command to the non-pair AI lease, sequentially (b206: an undeclared command broke the lease).
+  if($null-eq$a.PSObject.Properties['declaredLeaseCommands']-or-not(Test-KmcExactJsonInteger $a.declaredLeaseCommands)-or$a.declaredLeaseCommands-ne$i+1){throw 'A prone heal attempt was not the healer''s next sequential declared lease command.'}
   $ev=@($a.castEvents);$sp=@($ev|Where-Object{$_.kind-ceq'item-spend-after'-and$_.actor-ceq$P.healerId-and$_.identity-eq$item})
   if($sp.Count-ne1-or$sp[0].result-ne$true-or$a.itemsBefore.exactSlot-ne$true-or$a.itemsAfter.exactSlot-ne$true-or$a.itemsBefore.count-lt2-or$a.itemsAfter.count-ne$a.itemsBefore.count-1){throw 'A prone heal attempt did not spend the exact stack exactly once in place.'}
   if($a.riderConsciousAfter-isnot[bool]-or$a.riderConsciousAfter-ne$last-or$a.riderAfter.life.conscious-ne$last-or$a.riderAfter.life.dead-ne$false){throw 'Prone heal attempts do not end exactly when rider B is conscious.'}

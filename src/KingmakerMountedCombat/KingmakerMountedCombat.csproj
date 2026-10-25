@@ -199,6 +199,7 @@
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
     <Compile Include="Diagnostics\ExpectedAttackDispatchLedger.cs" />
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
+    <Compile Include="Diagnostics\DeclaredMemberCommandPolicy.cs" />
     <Compile Include="Diagnostics\HorseNativeAssetAuditService.cs" />
     <Compile Include="Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs" />
     <Compile Include="Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs" />

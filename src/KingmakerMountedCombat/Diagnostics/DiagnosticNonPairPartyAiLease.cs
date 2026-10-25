@@ -129,20 +129,22 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // One declared ordinary command by one exact leased member (owner-seed scenario 3):
         // its AI stays disabled; only its own empty-command invariant is waived until the
-        // command settles. At most one declaration per lease, never a pair actor.
-        private UnitEntityData declaredCommandMember;
+        // command settles. At most one declaration per lease, never a pair actor; a caller may
+        // ask for at most two sequential declarations of the same member (the row-57 prone fold's
+        // bounded two-attempt heal), never a second member (DeclaredMemberCommandPolicy).
+        private UnitEntityData declaredCommandMember, lastDeclaredCommandMember;
         public int DeclaredMemberCommandCount { get; private set; }
         public bool DeclaredMemberCommandOpen => declaredCommandMember != null;
 
-        public bool BeginDeclaredMemberCommand(UnitEntityData unit)
+        public bool BeginDeclaredMemberCommand(UnitEntityData unit, int maximumSequentialSameMember = 1)
         {
             ThrowIfDisposed();
-            if (declaredCommandMember != null || DeclaredMemberCommandCount != 0 || !OwnsExactMember(unit) ||
-                unit.Commands == null || !unit.Commands.Empty || !ValidateActive())
+            if (!DeclaredMemberCommandPolicy.Admits(declaredCommandMember, lastDeclaredCommandMember, DeclaredMemberCommandCount, unit, maximumSequentialSameMember) ||
+                !OwnsExactMember(unit) || unit.Commands == null || !unit.Commands.Empty || !ValidateActive())
             {
                 return false;
             }
-            declaredCommandMember = unit;
+            declaredCommandMember = unit; lastDeclaredCommandMember = unit;
             DeclaredMemberCommandCount++;
             return true;
         }
