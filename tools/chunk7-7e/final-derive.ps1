@@ -192,42 +192,8 @@ function Get-LeafDiff($A,$B,[string]$Path){
  }
  if((Compact $A)-cne(Compact $B)){[pscustomobject]@{path=$Path;old=$A}}
 }
-# A run whose game PASSed and whose restoration was verified, but whose runner verdict FAILed on a reader-only defect, is
-# settled only by its immutable re-evaluation (plan section 8). The run-map entry adds
-# "reevaluation":{"receipt":"<leaf in analysis-cache/chunk7-continuation>","receiptSha256":"<sha256>"}. The receipt binds the
-# run id, result and evidence hashes, the runner's single error, the game PASS and the old/new reader commits; the deriver
-# then proves it independently: the new reader commit is in this deriver's clean history, descends from the run's commit with
-# no product change (src/, Info.json, version.json), the game result matches the result's own hash, every restoration flag
-# is true, and the corrected reader of this tree, run here in a child process on the run's own request and immutable
-# evidence, PASSes. Any mismatch refuses; the retained runner FAIL is never rewritten.
-function Test-ReaderReevaluation([string]$Pred,$Entry,$Run){
- if($Entry-is[string]-or$null-eq$Entry.PSObject.Properties['reevaluation']){return $false}
- $r=$Entry.reevaluation
- if([string]$r.receipt-cnotmatch('^final[0-9]*-B[0-9]+-'+[regex]::Escape($Pred)+'r?-reader-reevaluation\.json$')-or[string]$r.receiptSha256-cnotmatch'^[0-9a-f]{64}$'){throw "Predecessor $Pred re-evaluation reference is malformed."}
- $path=Join-Path $cache ([string]$r.receipt)
- if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()-cne[string]$r.receiptSha256){throw "Predecessor $Pred re-evaluation receipt differs from its recorded hash."}
- $k=Read-Json $path;$root=Join-Path $ev $Run.runId;$res=$Run.result
- $gamePath=Join-Path $root 'runtime-game-result.json';$game=Read-Json $gamePath
- $errors=@($res.errors)
- if($k.runId-cne$Run.runId-or$k.resultSha256-cne[string]$Entry.resultSha256-or$null-eq$Run.artifactSha256-or$k.evidenceSha256-cne$Run.artifactSha256-or
-    $k.runnerStatus-cne'FAIL'-or$res.status-cne'FAIL'-or$errors.Count-ne1-or(Compact @($k.runnerErrors))-cne(Compact $errors)-or
-    $k.gameStatus-cne'PASS'-or$game.status-cne'PASS'-or(Get-FileHash -LiteralPath $gamePath -Algorithm SHA256).Hash.ToLowerInvariant()-cne[string]$res.gameResultSha256-or
-    @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed'|Where-Object{$res.$_-ne$true}).Count-ne0-or
-    $k.oldReader.verdict-cne'FAIL'-or$k.oldReader.error-cne[string]$errors[0]-or$k.oldReader.commit-cne$Run.request.commit-or
-    $k.newReader.verdict-cne'PASS'-or[string]$k.newReader.commit-cnotmatch'^[0-9a-f]{40}$'-or$k.newReader.commit-ceq$k.oldReader.commit){
-  throw "Predecessor $Pred re-evaluation receipt does not settle its retained runner FAIL."}
- $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
- $head=(& git -C $repo rev-parse HEAD 2>$null|Out-String).Trim();$dirty=(& git -C $repo status --porcelain -- scripts tools src 2>$null|Out-String).Trim()
- if(-not$head-or$dirty){throw "Predecessor $Pred re-evaluation needs this deriver's own clean tree."}
- & git -C $repo merge-base --is-ancestor $k.newReader.commit $head 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred corrected reader commit is not in this deriver's history."}
- & git -C $repo merge-base --is-ancestor $k.oldReader.commit $k.newReader.commit 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred corrected reader does not descend from the run's commit."}
- & git -C $repo diff --quiet $k.oldReader.commit $k.newReader.commit -- src Info.json version.json 2>$null;if($LASTEXITCODE-ne0){throw "Predecessor $Pred re-evaluation spans a product change; it is not reader-only."}
- $runner=Join-Path $repo 'scripts\runtime\RuntimeHarness.Common.ps1'
- $code="`$ErrorActionPreference='Stop';Set-StrictMode -Version Latest;. '"+$runner.Replace("'","''")+"';`$q=[IO.File]::ReadAllText('"+(Join-Path $root 'runtime-request.json').Replace("'","''")+"',[Text.Encoding]::UTF8)|ConvertFrom-Json;try{[void](Get-KmcValidatedOrchestrationArtifactManifestHash -Request `$q);'REEVALUATION-PASS'}catch{'REEVALUATION-FAIL '+`$_.Exception.Message}"
- $out=@(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand ([Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))) 2>$null|ForEach-Object{[string]$_})
- if(@($out|Where-Object{$_-ceq'REEVALUATION-PASS'}).Count-ne1){throw ("Predecessor $Pred corrected reader did not PASS its immutable evidence: "+($out-join' '))}
- return $true
-}
+# A runner FAIL settled by its reader-only re-evaluation (plan section 8): see final-reevaluation.ps1.
+. (Join-Path $PSScriptRoot 'final-reevaluation.ps1')
 function Derive([string]$T,[string]$DeriveMode,$RunMap){
  $s=$Spec[$T];if($null-eq$s){throw "No selection is derived for tag $T."}
  $template=Get-Run $s.tpl;$tplSel=$template.request.($s.key);if($null-eq$tplSel){throw "Template $($s.tpl) has no $($s.key) selection."}
@@ -248,8 +214,8 @@ function Derive([string]$T,[string]$DeriveMode,$RunMap){
    $run=Get-Run $id
    if($run.result.status-cne'PASS'){
     # Plan section 8, reader-only defect: a runner FAIL is a predecessor only in Final mode and only with its reviewed
-    # re-evaluation receipt (Test-ReaderReevaluation); the retained runner verdict is never rewritten.
-    if($DeriveMode-cne'Final'-or-not(Test-ReaderReevaluation $pred $entry $run)){throw "Predecessor $pred ($id) is not PASS."}
+    # re-evaluation receipt (Test-KmcFinalReaderReevaluation); the retained runner verdict is never rewritten.
+    if($DeriveMode-cne'Final'-or-not(Test-KmcFinalReaderReevaluation -Pred $pred -Entry $entry -Run $run -EvidenceRoot $ev -CacheRoot $cache -RepoRoot ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'+[IO.Path]::DirectorySeparatorChar+'..'))) -LabRoot $LabRoot)){throw "Predecessor $pred ($id) is not PASS."}
    }
    foreach($k in @(@('commit',$Commit),@('dllSha256',$DllSha256),@('dllMvid',$DllMvid))){if($run.request.($k[0])-cne$k[1]){throw "Predecessor $pred ($id) is not on the final candidate ($($k[0]))."}}
    $useRuns[$role]=$run}
