@@ -138,6 +138,21 @@ function Bad([string]$name,[scriptblock]$action){try{&$action;$script:fail++;Wri
 Good 'F09 synthetic seven-actor source and shared native mounted reader' { $f=New-F09Synthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Good 'F09 source decimal zero equals exact observed integer zero' { $f=New-F09Synthetic;$f.artifact.observations.source.fixtureManual.savedWorld.party[0].native.Initiative=[decimal]0.0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Good 'separate presentation case retains qualified F09 source selection' { $f=New-F09Synthetic;$f.request.smallCalibration.case='compiled-owner-seed-fixture-small-horse-presentation-rt';Assert-KmcChunk7SmallSelection $f.request }
+# b210 s1: mounted re-parenting reads the avatar local scale back within float32 rounding; only that field gets a per-axis 1e-5 bound.
+function Set-F09MountedScale($f,[scriptblock]$change){for($i=1;$i-le5;$i++){&$change $f.artifact.observations.poses[$i].observation.body.avatarLocalScale}}
+Good 'b210 s1 mounted avatar scale within float32 re-parenting rounding' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.x=1.1+0.00000024;$s.z=0.9+0.00000024};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Good 'mounted avatar scale at the 1e-5 bound' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.y=1.0+0.0000099};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale 1.001 times the field scale' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.x=1.1*1.001};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'one mounted phase avatar scale 1.001' { $f=New-F09Synthetic;$f.artifact.observations.poses[3].observation.body.avatarLocalScale.y=1.001;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale just beyond 1e-5' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.z=0.9+0.000011};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale nonfinite' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.x=[double]::NaN};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale text axis' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.x='1.1'};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale missing axis' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.PSObject.Properties.Remove('z')};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale extra axis' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s|Add-Member w 1.0};Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted avatar scale renamed key' { $f=New-F09Synthetic;$b=$f.artifact.observations.poses[2].observation.body;$v=$b.avatarLocalScale;$b.PSObject.Properties.Remove('avatarLocalScale');$b|Add-Member AvatarLocalScale $v;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted body other field changes beside a tolerated scale' { $f=New-F09Synthetic;Set-F09MountedScale $f {param($s)$s.x=1.1+0.00000024};$f.artifact.observations.poses[2].observation.body.avatarMirrored=$true;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+Bad 'mounted body equipment entity changes' { $f=New-F09Synthetic;$f.artifact.observations.poses[4].observation.body.dollEquipmentEntityIds=@('dddddddddddddddddddddddddddddddd');Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
+
 Good 'F09 presentation reader binds two native item spends and costs' { $f=New-F09PresentationSynthetic;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses scroll without native sticky-touch shell' { $f=New-F09PresentationSynthetic;$f.artifact.observations.presentation.inputs[0].nativeFollowupShell=0;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
 Bad 'presentation reader refuses paid sticky-touch delivery' { $f=New-F09PresentationSynthetic;$r=$f.artifact.observations.presentation.inputs[0];$r.nativeCosts[3].state.standard=9;$f.artifact.observations.allocationTrace.events[$r.costOffset+3].state.standard=9;Assert-KmcChunk7SmallEvidence $f.request $f.artifact }
