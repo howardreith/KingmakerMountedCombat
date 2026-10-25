@@ -1305,6 +1305,13 @@ $chunk7Passed = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\Kingmaker
 $chunk7Unregistered = @($chunk7Passed | Where-Object {
     $rows = if ($_ -clike 'C7-life-*') { $chunk7LifeRows } elseif ($_ -clike 'C7-rt-*') { $chunk7RealtimeRows } else { @($chunk7CombatRows) + @($chunk7LifeRows) + @($chunk7RealtimeRows) }
     $rows -cnotcontains $_ -or $chunk7MissionNames -cnotcontains $_ })
+# Native Json.NET settings serialize a dictionary as an array, so JObject.FromObject(dictionary) throws "Object
+# serialized to Array" inside a cleanup catch (b206 row 57). Cleanup failure-attempt records are built as explicit
+# JObjects; no Diagnostics file may hand a cleanup attempts dictionary to JObject.FromObject.
+$fromObjectAttempts = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics') -Filter '*.cs' -File |
+    Where-Object { (Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName) -match 'JObject\.FromObject\(\s*cleanup[A-Za-z]*Attempts\s*\)' } | ForEach-Object { $_.Name })
+Assert-Kmc ($fromObjectAttempts.Count -eq 0) ('cleanup failure-attempt records are explicit JObjects, never JObject.FromObject of a dictionary' +
+    $(if ($fromObjectAttempts.Count) { ' (' + ($fromObjectAttempts -join ', ') + ')' } else { '' }))
 Assert-Kmc ($chunk7CombatRows.Count -ge 10 -and $chunk7LifeRows.Count -ge 4 -and $chunk7RealtimeRows.Count -ge 4 -and $chunk7Mission.Success -and
     $chunk7Passed.Count -ge 30 -and $chunk7Unregistered.Count -eq 0) `
     ('every Chunk 7 combat, life and RT subscenario a scenario passes is in its reader row list and the compiled registry' +
