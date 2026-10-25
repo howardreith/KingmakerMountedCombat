@@ -11,6 +11,21 @@ Owner decisions of October 24, 2026 (the owner answered a direct question; recor
 - (d) Prepared-spell casting and a BAB ≥ 6 full attack: the owner chose to supply a new no-mods seed (Ranger
   level 6, a memorized rested level-1 Ranger spell); pending at the time of the decision.
 
+**C11 prone stand-up folded into row 57 (offline; product diagnostics changed; no launch).**
+`owner-seed-native-life-cleanup` keeps the incapacitation measurement unchanged; after the surviving mount's
+N+1 turn, from round N+2: a party actor outside both pairs that uses the scroll without Use Magic Device
+(`BlueprintItemEquipmentUsable.IsUnitNeedUMDForUse`, chosen out of combat and given one disposable four-unit
+Cure Light Wounds stack on its own quick slot; never the unconscious control, whose candidates now carry a
+`healer` flag) heals rider B by one native scroll click, at most two attempts on its own turns; on rider B's
+own turn one ordinary native ground order is its action attempt, the native stand-up spends its Move and the
+threatening target must make exactly one native AoO (1 → 0). Producer and the new reader
+`Assert-KmcChunk7ProneStandUp` also require one in-place spend per attempt, a native heal on the restoring
+attempt, no other attack, no refund, pair A and mount B never spending, rider B unpaired with no pair command
+authority, the stack released; a hit that incapacitates rider B again is admitted only with its damage. A
+missing healer, a rider not natively prone or a target not threatening it refuses as uncovered before the
+input that needs it (an owner decision). Owned reader 1150/0 (28 new), native life 85/0, components 877/0.
+The matrix C11 prone exclusion now says covered by row 57.
+
 **F04 defensive casting folded into row 69 (offline; product diagnostics changed; no launch).**
 `owner-seed-combat-reaction` (contract v2) keeps the round-N disengagement unchanged, then on rider A's next
 turn (N+1) brings pair A back inside the target's threatened area if needed (one ordinary native approach that

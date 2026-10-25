@@ -515,7 +515,62 @@ foreach($base in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check-SeedCombat ('owner-seed-derived combat refuses a non-derived copy '+$base) $base {$r=$args[0].request;$r.persistenceLoad.internalName='KMC_C7_WORLD';$r.persistenceLoad.fileName='Manual_303_KMC_C7_WORLD.zks'}
 }
 # 7E X1: the existing native life case on the same restored mounted start.
-Check 'owner-seed-derived native life evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
+# 7E row 57 fold: the healed rider's native prone stand-up (owner-seed incapacitation case only).
+$script:proneHealer='5dd7bd1d-ae4c-4df7-9687-50fceb027344'
+function Add-KmcSeedProne($v){$o=$v.artifact.observations;$l=$o.nativeLife;$ids=@($o.actorIds);$t=$o.targetId;$h=$script:proneHealer;$d=[long]$l.damageRound
+ foreach($row in @($l.unconsciousControl.candidates)){$row|Add-Member healer ($row.actorId-ceq$h) -Force}
+ $life={param([bool]$c,[long]$dmg)[pscustomobject][ordered]@{actorId=$ids[2];life=$(if($c){'Conscious'}else{'Unconscious'});conscious=$c;dead=$false;damage=$dmg;hp=97;constitution=16;temporaryHp=0;mainCharacter=$false;essential=$false;immortal=$false;allowDyingCondition=$true}}
+ $rider={param([string]$label,[long]$round,[bool]$c,[long]$dmg,[bool]$pr)[pscustomobject][ordered]@{label=$label;round=$round;frame=500;life=(&$life $c $dmg);prone=$pr;proneRequested=$pr;position=@(0.0,0.0,1.5);targetDistance=1.8;commandsEmpty=$true;engagedByTarget=$true;remembersTarget=$true;pairState='Unmounted';registryActive=$false;pairCommandA=$false;pairCommandB=$false}}
+ $tgt={param([string]$label,[long]$round,[long]$reactions)[pscustomobject][ordered]@{label=$label;id=$t;round=$round;frame=500;reactions=$reactions;reactionsPerRound=1;canAttackOfOpportunity=$true;canActInCombat=$true;waitingInitiative=$false;initiativeCooldown=0.0;surprised=$false;canAct=$true;threatHand=$true;riderRemembersTarget=$true;mountRemembersTarget=$true;standard=0.0;move=0.0;swift=0.0;prone=$false;proneRequested=$false;conscious=$true;commandsEmpty=$true;engagesRider=$false;engagesMount=$false;engagedUnits=@($ids[2]);position=@(0.0,0.0,3.3);mountDistance=4.0;corpulence=0.5;mountCorpulence=0.5;engagesSubject=$true;subjectRemembersTarget=$true}}
+ $w={param([string]$label,[long]$round,[long]$ticks,[double]$move)$x=Copy-Value $o.snapshots[0];$x.label=$label;$x.round=$round;$x.gameTicks=$ticks;foreach($a in $x.actors){$a.standard=0.0;$a.move=0.0;$a.swift=0.0;if($a.id-ceq$ids[2]){$a.move=$move}};$x}
+ $ability=[pscustomobject][ordered]@{identity=9202;blueprint='5590652e1c2225c4ca30c4a699ab3649';caster=$h;sourceItem=9201;sourceItemBlueprint='cd635d5720937b044a354dba17abad8d'}
+ $item=[pscustomobject][ordered]@{item=9201;blueprint='cd635d5720937b044a354dba17abad8d';count=4;charges=1;exactSlot=$true};$after=Copy-Value $item;$after.count=3
+ $attempt=[pscustomobject][ordered]@{round=($d+2);riderBefore=(&$rider 'heal-before' ($d+2) $false 99 $true);targetBefore=(&$tgt 'heal-before' ($d+2) 1);healerEngaged=$false;before=(&$w 'prone-heal-before' ($d+2) 2000000000 0.0);ruleCountBefore=0;traceSequenceBefore=900
+  itemsBefore=$item;castEventsBefore=0;ability=$ability;target=$ids[2];selected=$true;canTarget=$true;clicked=$true;admittedShellCount=1;shell=[pscustomobject]@{identity=9203};shellIdentity=9203
+  itemsAfter=$after;castEvents=@([pscustomobject]@{kind='item-spend-after';actor=$h;identity=9201;result=$true;count=3},[pscustomobject]@{kind='heal';actor=$h;identity=9204;target=$ids[2];value=6});terminal=[pscustomobject]@{identity=9203;finished=$true}
+  riderAfter=(&$rider 'heal-after' ($d+2) $true 93 $true);targetAfter=(&$tgt 'heal-after' ($d+2) 1);after=(&$w 'prone-heal-after' ($d+2) 2015000000 0.0);rules=@();traceSequenceAfter=910;riderConsciousAfter=$true}
+ $aoo=[pscustomobject][ordered]@{sequence=1;kind='attack';identity=4343;frame=600;round=($d+2);actor=$t;target=$ids[2];opportunity=$true;fullAttack=$false;weapon='35dfad6517f401145af54111be04d6cf';ranged=$false;natural=$true;actorPosition=@(0.0,0.0,3.3);targetPosition=@(0.0,0.0,1.5)}
+ $stand=[pscustomobject][ordered]@{round=($d+2);rider=(&$rider 'stand-precondition' ($d+2) $true 93 $true);gates=(&$tgt 'stand-precondition' ($d+2) 1);proposals=@();destination=@(0.0,0.0,-0.5)
+  before=(&$w 'prone-stand-before' ($d+2) 2100000000 0.0);ruleCountBefore=0;traceSequenceBefore=920;fiveFootStep=$false;singleActionMove=$false;clicked=$true;cursorCycles=0;command=777;commandCreated=$true
+  after=(&$w 'prone-stand-after' ($d+2) 2120000000 3.0);riderAfter=(&$rider 'stand-after' ($d+2) $true 95 $false);targetAfter=(&$tgt 'stand-after' ($d+2) 0);rules=@($aoo);traceSequenceAfter=930;displacement=0.0;commandResult='Interrupt';reIncapacitatedByAttack=$false}
+ $o|Add-Member proneStandUp ([pscustomobject][ordered]@{contract='owner-seed-prone-stand-up-v1';riderId=$ids[2];healAttemptsAllowed=2
+  healerCandidates=@([pscustomobject][ordered]@{actorId=$h;pet=$false;conscious=$true;inGame=$true;controllable=$true;needsUseMagicDevice=$false;eligible=$true})
+  healerId=$h;healerScroll=[pscustomobject][ordered]@{casterId=$h;scrollUnits=4;scrollBlueprint='cd635d5720937b044a354dba17abad8d';scrollAbility=$ability;scroll=[pscustomobject]@{ownedItemReleased=$true;disposed=$true};originalSlots=[pscustomobject]@{before=@()};castTrace=[pscustomobject]@{dropped=0;faults=0}}
+  healAttempts=@($attempt);firstRound=($d+2);stage=15;healedRound=($d+2);standUp=$stand;rules=[pscustomobject][ordered]@{dropped=0;errors=@();events=@($aoo)};complete=$true}) -Force;$v}
+$script:baseSeedDerived=${function:New-KmcOwnerSeedDerivedCombatFixture}
+function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){$v=& $script:baseSeedDerived $Base;if($Base-ceq'native-life-cleanup'){[void](Add-KmcSeedProne $v)};$v}
+function Get-Prone($v){$v.artifact.observations.proneStandUp}
+function Check-SeedProne([string]$Name,[scriptblock]$Mutation,[string]$Pattern){$v=New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup';&$Mutation $v;Check ('owner-seed prone stand-up refuses '+$Name) {Invoke-OwnedReader $v} $true $Pattern}
+Check 'owner-seed prone stand-up accepts a re-incapacitating attack of opportunity' {$v=New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup';$s=(Get-Prone $v).standUp;$s.reIncapacitatedByAttack=$true;$s.riderAfter.prone=$true;$s.riderAfter.life.conscious=$false;$s.riderAfter.life.damage=98;Invoke-OwnedReader $v}
+Check 'owner-seed prone stand-up accepts a second native heal attempt' {$v=New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup';$P=Get-Prone $v;$a1=Copy-Value $P.healAttempts[0];$a1.round=[long]$a1.round;$a1.riderConsciousAfter=$false;$a1.riderAfter.life.conscious=$false;$a1.riderAfter.life.damage=98;$a1.castEvents=@($a1.castEvents|Where-Object kind -CNE 'heal')
+ $a2=$P.healAttempts[0];$a2.round=[long]$a2.round+1;$a2.itemsBefore.count=3;$a2.itemsAfter.count=2;$P.healAttempts=@($a1,$a2);$P.healedRound=$a2.round;$P.standUp.round=$a2.round;$P.standUp.rules[0].round=$a2.round;$P.rules.events[0].round=$a2.round;Invoke-OwnedReader $v}
+Check-SeedProne 'a missing fold' {$args[0].artifact.observations.PSObject.Properties.Remove('proneStandUp')} 'lacks its prone stand-up'
+Check-SeedProne 'a healer not first eligible' {$P=Get-Prone $args[0];$P.healerCandidates=@([pscustomobject][ordered]@{actorId='7e5cf212-d860-45d5-ac9e-9dce3c5b0350';pet=$false;conscious=$true;inGame=$true;controllable=$true;needsUseMagicDevice=$false;eligible=$true})+@($P.healerCandidates)} 'first eligible'
+Check-SeedProne 'a healer needing Use Magic Device' {(Get-Prone $args[0]).healerCandidates[0].needsUseMagicDevice=$true} 'ineligible prone healer'
+Check-SeedProne 'the healer used as the unconscious control' {$c=$args[0].artifact.observations.nativeLife.unconsciousControl;$c.candidates[0].healer=$true} 'mark the prone healer|ineligible|differs'
+Check-SeedProne 'a heal in round N+1' {(Get-Prone $args[0]).healAttempts[0].round=[long]$args[0].artifact.observations.nativeLife.damageRound+1} 'before round N\+2'
+Check-SeedProne 'three heal attempts' {$P=Get-Prone $args[0];$P.healAttempts=@($P.healAttempts[0],$P.healAttempts[0],$P.healAttempts[0])} 'one or two native attempts'
+Check-SeedProne 'a heal on another unit' {(Get-Prone $args[0]).healAttempts[0].target=$args[0].request.ownedPairs.riderAId} 'one native scroll click by the healer on rider B'
+Check-SeedProne 'a heal with two spends' {$a=(Get-Prone $args[0]).healAttempts[0];$a.castEvents=@($a.castEvents)+@(Copy-Value $a.castEvents[0])} 'spend the exact stack exactly once'
+Check-SeedProne 'a restoring heal with no native heal' {$a=(Get-Prone $args[0]).healAttempts[0];$a.castEvents=@($a.castEvents|Where-Object kind -CNE 'heal')} 'no native heal'
+Check-SeedProne 'a heal attempt drawing a foreign attack' {$a=(Get-Prone $args[0]).healAttempts[0];$e=Copy-Value (Get-Prone $args[0]).standUp.rules[0];$a.rules=@($e)} 'attack other than'
+Check-SeedProne 'a non-prone rider before the stand-up' {(Get-Prone $args[0]).standUp.rider.prone=$false} 'conscious, prone, threatened'
+Check-SeedProne 'a re-paired rider before the stand-up' {(Get-Prone $args[0]).standUp.rider.pairState='Mounted'} 'conscious, prone, threatened'
+Check-SeedProne 'a target without its attack of opportunity' {(Get-Prone $args[0]).standUp.gates.reactions=0} 'one available native attack of opportunity'
+Check-SeedProne 'a target not threatening rider B' {(Get-Prone $args[0]).standUp.gates.engagesSubject=$false} 'one available native attack of opportunity'
+Check-SeedProne 'no attack of opportunity on the stand-up' {$P=Get-Prone $args[0];$P.standUp.rules=@();$P.rules.events=@()} 'exactly one attack of opportunity'
+Check-SeedProne 'two attacks on the stand-up' {$P=Get-Prone $args[0];$P.standUp.rules=@($P.standUp.rules[0],$P.standUp.rules[0])} 'exactly one attack of opportunity'
+Check-SeedProne 'an attack on another unit' {(Get-Prone $args[0]).standUp.rules[0].target=$args[0].request.ownedPairs.riderAId} 'exactly one attack of opportunity'
+Check-SeedProne 'a refunded target reaction' {(Get-Prone $args[0]).standUp.targetAfter.reactions=1} 'drop to zero'
+Check-SeedProne 'a rider still prone after a non-incapacitating attack' {(Get-Prone $args[0]).standUp.riderAfter.prone=$true} 'did not stand up natively'
+Check-SeedProne 'a rider healed by the attack' {(Get-Prone $args[0]).standUp.riderAfter.life.damage=80} 'did not stand up natively'
+Check-SeedProne 'a stand-up that spent no Move' {@((Get-Prone $args[0]).standUp.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderBId)[0].move=0.0} 'spend rider B''s Move'
+Check-SeedProne 'a stand-up that spent a Standard' {@((Get-Prone $args[0]).standUp.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderBId)[0].standard=6.0} 'another action'
+Check-SeedProne 'pair A spending in the stand-up window' {@((Get-Prone $args[0]).standUp.after.actors|Where-Object id -CEQ $args[0].request.ownedPairs.riderAId)[0].move=3.0} 'expenditure changed'
+Check-SeedProne 'pair command authority after the stand-up' {(Get-Prone $args[0]).standUp.riderAfter.pairCommandB=$true} 'pair command authority'
+Check-SeedProne 'attacks outside the prone windows' {$P=Get-Prone $args[0];$P.rules.events=@($P.rules.events)+@(Copy-Value $P.rules.events[0])} 'outside its windows'
+Check-SeedProne 'an unreleased healer stack' {(Get-Prone $args[0]).healerScroll.scroll.ownedItemReleased=$false} 'not released'
+Check 'prone fold refused outside the owner-seed incapacitation case' {$v=Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0];$v.artifact.observations|Add-Member proneStandUp ([pscustomobject]@{contract='owner-seed-prone-stand-up-v1'}) -Force;Invoke-OwnedReader $v} $true 'Only the owner-seed incapacitation case'Check 'owner-seed-derived native life evidence accepted' {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup')}
 Check-SeedCombat 'owner-seed-derived native life refuses a native Mount input' 'native-life-cleanup' {$o=$args[0].artifact.observations;$o.inputs=@($o.inputs)+@((Copy-Value @($fixtures|Where-Object name -CEQ 'native-life-cleanup')[0]).artifact.observations.inputs|Where-Object label -CEQ 'mount-a')} 'native Mount input is not admitted'
 Check-SeedCombat 'owner-seed-derived native life refuses a missing mounted start' 'native-life-cleanup' {$args[0].artifact.observations.PSObject.Properties.Remove('mountedStart')} 'mounted-start admission'
 Check-SeedCombat 'owner-seed-derived native life refuses a first-action Mount record' 'native-life-cleanup' {$args[0].artifact.observations|Add-Member firstActionMount ([pscustomobject]@{}) -Force} 'admits no relationship input'
@@ -532,6 +587,7 @@ Mutate 'acquired native life refuses a restored mounted-start claim' 'native-lif
 # event (an idempotent repeat from Unmounted). The dead rider and the dead control get no N+1 turn.
 function ConvertTo-KmcSeedNativeDeathFixture($v){
  $r=$v.request;$o=$v.artifact.observations;$l=$o.nativeLife;$ids=@($o.actorIds)
+ if($null-ne$o.PSObject.Properties['proneStandUp']){$o.PSObject.Properties.Remove('proneStandUp')};foreach($row in @($l.unconsciousControl.candidates)){if($null-ne$row.PSObject.Properties['healer']){$row.PSObject.Properties.Remove('healer')}}
  $r.ownedPairs.case='owner-seed-native-death-cleanup'
  $o.naturalUnconsciousStimulusProven=$false;$o|Add-Member naturalDeathStimulusProven $true -Force
  $l|Add-Member outcome 'death' -Force
