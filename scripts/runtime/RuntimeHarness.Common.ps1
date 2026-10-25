@@ -3429,7 +3429,7 @@ function Open-KmcRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-        [ValidateSet('fixture-requalification','fixture-recovery')][string]$Purpose
+        [ValidateSet('fixture-requalification','fixture-recovery','profile-recovery')][string]$Purpose
     )
     $fullState = [IO.Path]::GetFullPath($StateRoot)
     if (-not (Test-Path -LiteralPath $fullState)) { New-Item -ItemType Directory -Path $fullState -Force | Out-Null }
@@ -3470,7 +3470,7 @@ function Abandon-KmcRuntimeLock {
 function Adopt-KmcStaleRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
-        [ValidateSet('fixture-requalification','fixture-recovery')][string]$ExpectedPurpose
+        [ValidateSet('fixture-requalification','fixture-recovery','profile-recovery')][string]$ExpectedPurpose
     )
     Assert-KmcNoGameProcesses
     $fullStateRoot=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\')

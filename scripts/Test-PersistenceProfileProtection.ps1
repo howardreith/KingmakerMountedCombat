@@ -330,5 +330,124 @@ try{
         if((Get-KmcPersistenceProfileIdentityDigest $foreign $base)-ceq(Get-KmcPersistenceProfileIdentityDigest $base $foreign)){
             throw ('A path outside the analytics batch shape was admitted: '+$outside+'.')};$passes++
     }
+    # b210 c3: post-transaction profile recovery admits only a completed transaction recovery for the run's own token, with
+    # no lock held and no prior receipt; the restore then binds the snapshot to that token under a fresh profile-recovery lock.
+    $ptRun='post-transaction-test';$ptToken=('ab'*32);$ptState=Join-Path $root 'pt-state';$ptEvidence=Join-Path $root 'pt-evidence'
+    foreach($dir in @((Join-Path $ptState 'run-transactions'),(Join-Path $ptState 'transactions'),(Join-Path $ptState 'save-transactions'),(Join-Path $ptEvidence $ptRun))){[void][IO.Directory]::CreateDirectory($dir)}
+    $ptSnapshot=[pscustomobject]@{runId=$ptRun;token=$ptToken}
+    $writeState={param($combined,$mods,$save)
+        $utf8=[Text.UTF8Encoding]::new($false)
+        [IO.File]::WriteAllText((Join-Path $ptState ('run-transactions/'+$ptRun+'.json')),($combined|ConvertTo-Json -Depth 4),$utf8)
+        [IO.File]::WriteAllText((Join-Path $ptState ('transactions/'+$ptRun+'.json')),($mods|ConvertTo-Json -Depth 4),$utf8)
+        [IO.File]::WriteAllText((Join-Path $ptState ('save-transactions/'+$ptRun+'.json')),($save|ConvertTo-Json -Depth 4),$utf8)}
+    $newCombined={[ordered]@{schemaVersion=2;runId=$ptRun;token=$ptToken;mode='save-backed-v3-suite';phase='restored';preparedAtUtc='2026-10-25T21:51:00Z'
+        liveModsRoot='C:\Mods';saveRoot='C:\Saves';modsDigestBefore=('0'*64);saveInventoryDigestBefore=('1'*64);qualificationSuiteSnapshotPath='C:\suite.json'
+        qualificationSuiteId='suite-1';qualificationSuiteSnapshotSha256=('2'*64);restoreAttemptedAtUtc='2026-10-25T21:59:57Z';modsRestored=$true;saveProtectionPassed=$true
+        baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;restoredModsDigest=('0'*64);restoredSaveInventoryDigest=('1'*64);restorationErrors=@();restoredAtUtc='2026-10-25T21:59:57Z'}}
+    $newPart={[ordered]@{schemaVersion=4;runId=$ptRun;token=$ptToken;phase='restored'}}
+    & $writeState (& $newCombined) (& $newPart) (& $newPart)
+    $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
+    if([string]$admitted.token-cne$ptToken){throw 'The completed transaction recovery was not admitted for its own token.'};$passes++
+    $ptLockPath=Join-Path $ptState 'active-transaction.lock';$ptReceipt=Join-Path $ptEvidence ($ptRun+'/profile-recovery.json')
+    $ptCases=@(
+        @{name='lock held';setup={[IO.File]::WriteAllText($ptLockPath,'{}')};undo={[IO.File]::Delete($ptLockPath)}},
+        @{name='prior receipt';setup={[IO.File]::WriteAllText($ptReceipt,'{}')};undo={[IO.File]::Delete($ptReceipt)}},
+        @{name='combined prepared';combined={$c=& $newCombined;$c.phase='prepared';$c}},
+        @{name='combined restoration-attempted';combined={$c=& $newCombined;$c.phase='restoration-attempted';$c}},
+        @{name='other token';combined={$c=& $newCombined;$c.token=('cd'*32);$c}},
+        @{name='mods not restored';combined={$c=& $newCombined;$c.modsRestored=$false;$c}},
+        @{name='working not restored';combined={$c=& $newCombined;$c.workingRestored=$false;$c}},
+        @{name='save protection failed';combined={$c=& $newCombined;$c.saveProtectionPassed=$false;$c}},
+        @{name='baseline changed';combined={$c=& $newCombined;$c.baselineImmutable=$false;$c}},
+        @{name='allowlist failed';combined={$c=& $newCombined;$c.saveWriteAllowlistPassed=$false;$c}},
+        @{name='string proof';combined={$c=& $newCombined;$c.modsRestored='True';$c}},
+        @{name='restoration error';combined={$c=& $newCombined;$c.restorationErrors=@('x');$c}},
+        @{name='no restoredAtUtc';combined={$c=& $newCombined;$c.Remove('restoredAtUtc');$c}},
+        @{name='mods part staged';mods={$m=& $newPart;$m.phase='staged';$m}},
+        @{name='save part other token';save={$m=& $newPart;$m.token=('cd'*32);$m}})
+    foreach($case in $ptCases){
+        $combined=if($case.ContainsKey('combined')){& $case.combined}else{& $newCombined}
+        $mods=if($case.ContainsKey('mods')){& $case.mods}else{& $newPart}
+        $save=if($case.ContainsKey('save')){& $case.save}else{& $newPart}
+        & $writeState $combined $mods $save
+        if($case.ContainsKey('setup')){& $case.setup}
+        $rejected=$false
+        try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+        if($case.ContainsKey('undo')){& $case.undo}
+        if(!$rejected){throw ('Post-transaction profile recovery admitted: '+$case.name+'.')};$passes++
+    }
+    & $writeState (& $newCombined) (& $newPart) (& $newPart)
+    foreach($other in @([pscustomobject]@{runId='other-run';token=$ptToken},[pscustomobject]@{runId=$ptRun;token=('cd'*32)})){
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $other)}catch{$rejected=$true}
+        if(!$rejected){throw 'Post-transaction profile recovery admitted another run or token snapshot.'};$passes++
+    }
+    # An interrupted post-transaction recovery leaves only this run's own stale profile-recovery lock, which is admitted with
+    # -ProfileRecoveryLock (the tool adopts it and re-verifies under it); any other lock or a missing one refuses.
+    $writeLock={param($payload)[IO.File]::WriteAllText($ptLockPath,($payload|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))}
+    & $writeLock ([ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='profile-recovery'})
+    try{
+        $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock
+        if([string]$admitted.token-cne$ptToken){throw 'The own stale profile-recovery lock was not admitted.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held lock was admitted without the profile-recovery lock mode.'};$passes++
+        foreach($bad in @(
+            [ordered]@{schemaVersion=1;runId='other-run';token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='profile-recovery'},
+            [ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='fixture-recovery'},
+            [ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z'})){
+            & $writeLock $bad
+            $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock)}catch{$rejected=$true}
+            if(!$rejected){throw ('A foreign or purposeless lock was admitted as the profile-recovery lock: '+($bad|ConvertTo-Json -Compress))};$passes++
+        }
+    }finally{[IO.File]::Delete($ptLockPath)}
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock)}catch{$rejected=$true}
+    if(!$rejected){throw 'The profile-recovery lock mode was admitted without its lock.'};$passes++
+    $staleLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery';$staleLock.Stream.Dispose()
+    try{
+        $payload=Get-Content -Raw $ptLockPath|ConvertFrom-Json;$payload.ownerProcessId=999999;[IO.File]::WriteAllText($ptLockPath,($payload|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+        $adopted=Adopt-KmcStaleRuntimeLock $ptState -ExpectedPurpose 'profile-recovery'
+        try{
+            if($adopted.RunId-cne$ptRun-or$adopted.Purpose-cne'profile-recovery'){throw 'The stale profile-recovery lock was not adopted exactly.'};$passes++
+            # The under-lock re-check reads the adopted lock through its own handle.
+            $again=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $adopted
+            if([string]$again.token-cne$ptToken){throw 'The under-lock re-check failed under an adopted profile-recovery lock.'};$passes++
+        }finally{Close-KmcRuntimeLock $adopted}
+    }finally{if(Test-Path $ptLockPath){[IO.File]::Delete($ptLockPath)}}
+    # Under a freshly opened (held, FileShare None) profile-recovery lock the re-check reads through the held handle.
+    $heldLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery'
+    try{
+        $again=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldLock
+        if([string]$again.token-cne$ptToken){throw 'The under-lock re-check failed under a held profile-recovery lock.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldLock -ProfileRecoveryLock)}catch{$rejected=$true}
+        if(!$rejected){throw 'Held and stale lock modes were admitted together.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId 'other-run' -Snapshot ([pscustomobject]@{runId='other-run';token=$ptToken}) -HeldLock $heldLock)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held profile-recovery lock of another run was admitted.'};$passes++
+    }finally{Close-KmcRuntimeLock $heldLock}
+    $heldOrdinary=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun
+    try{
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldOrdinary)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held lock without the profile-recovery purpose was admitted.'};$passes++
+    }finally{Close-KmcRuntimeLock $heldOrdinary}
+    # Restore binding: every refusal happens before any intake read or mutation.
+    $ptLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery'
+    try{
+        foreach($bad in @('',('cd'*32),'not-a-token')){
+            $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $ptLock -Snapshot $ptSnapshot -RecoveredTransactionToken $bad -WhatIf}catch{$rejected=$true}
+            if(!$rejected){throw ('A profile-recovery lock restored with recovered token "'+$bad+'".')};$passes++
+        }
+    }finally{Close-KmcRuntimeLock $ptLock}
+    $ordinaryLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun
+    try{
+        $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $ordinaryLock -Snapshot ([pscustomobject]@{runId=$ptRun;token=$ordinaryLock.Token}) -RecoveredTransactionToken $ordinaryLock.Token -WhatIf}catch{$rejected=$true}
+        if(!$rejected){throw 'An ordinary run lock accepted a recovered transaction token.'};$passes++
+    }finally{Close-KmcRuntimeLock $ordinaryLock}
+    $fixtureLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'fixture-recovery'
+    try{
+        $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $fixtureLock -Snapshot ([pscustomobject]@{runId=$ptRun;token=$fixtureLock.Token}) -WhatIf}catch{$rejected=$true}
+        if(!$rejected){throw 'A fixture-recovery lock restored startup settings.'};$passes++
+    }finally{Close-KmcRuntimeLock $fixtureLock}
+    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery'}")-or
+        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery'}")-or
+        -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
+        -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}

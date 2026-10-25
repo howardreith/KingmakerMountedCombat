@@ -378,18 +378,88 @@ function Get-KmcRunStagedModIds([string]$RunId){
     if($ids-cnotcontains'KmcRemovalObserver'){throw 'Staged Mods record lacks the removal observer.'}
     return ,$ids
 }
+# b210 c3: a native crash left the transaction prepared/staged, so profile recovery (which needs an otherwise-restored
+# transaction under the stale lock) could not run first, and after transaction recovery the lock is closed. The completed
+# transaction is the receipt: the run's combined, Mods and save transaction states all restored under the snapshot's own
+# token with every restoration proof true and no error, no runtime lock held and no prior profile-recovery receipt.
+# -ProfileRecoveryLock: the only admitted lock is this run's own 'profile-recovery' lock (a stale one left by an interrupted
+# recovery, which the tool adopts, or the one it now holds, so every check is repeated under the lock).
+function Get-KmcProfileRecoveryLockPayload([string]$LockPath){
+    Assert-KmcRecoveryLeafNoLinks $LockPath 'profile-recovery lock'
+    $stream=New-Object IO.FileStream($LockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try{$reader=New-Object IO.StreamReader($stream,[Text.UTF8Encoding]::new($false));$text=$reader.ReadToEnd()}finally{$stream.Dispose()}
+    $payload=$text|ConvertFrom-Json
+    Assert-KmcExactProperties $payload @('schemaVersion','runId','token','ownerProcessId','createdAtUtc','purpose') 'profile-recovery lock'
+    return $payload
+}
+
+function Assert-KmcCompletedTransactionRecovery {
+    param([Parameter(Mandatory=$true)][string]$StateRoot,[Parameter(Mandatory=$true)][string]$EvidenceRoot,
+        [Parameter(Mandatory=$true)][string]$RunId,[Parameter(Mandatory=$true)]$Snapshot,[switch]$ProfileRecoveryLock,$HeldLock)
+    if($RunId-cnotmatch'^[A-Za-z0-9._-]{1,120}$'-or[string]$Snapshot.runId-cne$RunId-or[string]$Snapshot.token-cnotmatch'^[0-9a-f]{64}$'){
+        throw 'Post-transaction profile recovery has no exact run snapshot.'
+    }
+    $lockPath=Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'active-transaction.lock'
+    if($null-ne$HeldLock){
+        # The held lock is read through its own exclusive handle (a second open would be a sharing violation).
+        if($ProfileRecoveryLock){throw 'A held lock and a stale lock cannot both be admitted.'}
+        $payload=Assert-KmcRuntimeLockOwner $HeldLock
+        if([IO.Path]::GetFullPath([string]$HeldLock.Path)-cne[IO.Path]::GetFullPath($lockPath)-or$null-eq$payload.PSObject.Properties['purpose']-or
+            [string]$payload.runId-cne$RunId-or[string]$payload.purpose-cne'profile-recovery'){throw 'The held runtime lock is not this run''s profile-recovery lock.'}
+    }
+    elseif($ProfileRecoveryLock){
+        if(-not(Test-Path -LiteralPath $lockPath -PathType Leaf)){throw 'Post-transaction profile recovery lost its profile-recovery lock.'}
+        $payload=Get-KmcProfileRecoveryLockPayload $lockPath
+        if([string]$payload.runId-cne$RunId-or[string]$payload.purpose-cne'profile-recovery'){throw 'The runtime lock is not this run''s profile-recovery lock.'}
+    }
+    elseif(Test-Path -LiteralPath $lockPath){throw 'Post-transaction profile recovery requires that no runtime lock is held.'}
+    $combinedPath=Get-KmcRunTransactionStatePath $StateRoot $RunId
+    if(-not(Test-Path -LiteralPath $combinedPath -PathType Leaf)){throw 'Post-transaction profile recovery has no combined transaction receipt.'}
+    $combined=Read-KmcRunTransactionState -StatePath $combinedPath
+    $errors=@();if($null-ne$combined.PSObject.Properties['restorationErrors']){$errors=@($combined.restorationErrors|Where-Object{$null-ne$_})}
+    foreach($name in @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed','restoredModsDigest','restoredSaveInventoryDigest','restoredAtUtc')){
+        if($null-eq$combined.PSObject.Properties[$name]){throw ('Post-transaction profile recovery receipt lacks '+$name+'.')}
+    }
+    if([string]$combined.runId-cne$RunId-or[string]$combined.token-cne[string]$Snapshot.token-or[string]$combined.phase-cne'restored'-or
+        $combined.modsRestored-isnot[bool]-or-not$combined.modsRestored-or$combined.saveProtectionPassed-isnot[bool]-or-not$combined.saveProtectionPassed-or
+        $combined.baselineImmutable-isnot[bool]-or-not$combined.baselineImmutable-or$combined.workingRestored-isnot[bool]-or-not$combined.workingRestored-or
+        $combined.saveWriteAllowlistPassed-isnot[bool]-or-not$combined.saveWriteAllowlistPassed-or$errors.Count-ne0){
+        throw 'Post-transaction profile recovery has no completed transaction recovery for this run and token.'
+    }
+    foreach($part in @(@('Mods',(Get-KmcTransactionStatePath $StateRoot $RunId)),@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId)))){
+        if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt.')}
+        $value=Read-KmcJson $part[1]
+        if([string]$value.runId-cne$RunId-or[string]$value.token-cne[string]$Snapshot.token-or[string]$value.phase-cne'restored'){
+            throw ('Post-transaction profile recovery '+$part[0]+' transaction is not restored under this run and token.')
+        }
+    }
+    $receipt=Join-Path ([IO.Path]::GetFullPath($EvidenceRoot)) ($RunId+'/profile-recovery.json')
+    if(Test-Path -LiteralPath $receipt){throw 'Profile recovery already has a receipt for this run.'}
+    return $combined
+}
+
 function Restore-KmcPersistenceStartupSettings {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
-    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly)
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly,
+        [string]$RecoveredTransactionToken)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
-    if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
+    # A post-transaction profile recovery holds its own fresh 'profile-recovery' lock for the run; the snapshot then binds to the
+    # completed transaction's token (Assert-KmcCompletedTransactionRecovery) instead of the lock's.
+    $purpose=$Lock.PSObject.Properties['Purpose']
+    $postTransaction=$null-ne$purpose-and[string]$purpose.Value-ceq'profile-recovery'
+    if($postTransaction){
+        if($Lock.RunId-cne$Snapshot.runId-or$RecoveredTransactionToken-cnotmatch'^[0-9a-f]{64}$'-or$RecoveredTransactionToken-cne$Snapshot.token){throw 'Profile restoration has no matching completed transaction.'}
+    }
+    elseif(-not[string]::IsNullOrEmpty($RecoveredTransactionToken)-or$null-ne$purpose){throw 'A recovered transaction token needs the profile-recovery lock.'}
+    elseif($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
+    $tokenForState=if($postTransaction){$RecoveredTransactionToken}else{[string]$Lock.Token}
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
     $withObserver=$false
     if($BaseGameOnly){
         if($RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
         $baseStatePath=Get-KmcTransactionStatePath (Join-Path (Get-KmcLabRoot) 'runtime-state') ([string]$Lock.RunId)
         $baseState=Read-KmcJson $baseStatePath
-        Assert-KmcBaseGameSettingsAuthority -State $baseState -RunId ([string]$Lock.RunId) -Token ([string]$Lock.Token) -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
+        Assert-KmcBaseGameSettingsAuthority -State $baseState -RunId ([string]$Lock.RunId) -Token $tokenForState -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
         # The co-staged entry set comes from durable owned state, never a caller switch.
         $withObserver=[string]$baseState.stagingMode-ceq'base-game-only-kmc-observer'
     }
