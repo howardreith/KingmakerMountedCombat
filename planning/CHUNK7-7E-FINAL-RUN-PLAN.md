@@ -448,10 +448,9 @@ After B15, with every run restored and read:
   against the run's admission receipt, the owned-pairs post-game checks on the retained run profile), naming every check whose
   live inputs are gone and the retained evidence standing in for it, and refusing scenarios it does not replay. Otherwise a
   runner FAIL is still refused. The receipt also lists every `scripts/` change from the run commit to the corrected reader by
-  path and blob (checked against git), and nothing under `scripts/` may change after it. **Open (B4 r15/r16):** the runner's
-  own source gate (`Assert-KmcChunk7OwnedSourceCompletion`) still requires the source run's result PASS and its base-game
-  receipt flags true, so a re-evaluated r15 cannot yet feed a launched r16; a coordinator decision is needed (teach the gate the
-  receipt, a reviewed harness change and new package, or re-run r15/r16 on the successor package). The runner result stays FAIL.
+  path and blob (checked against git), and nothing under `scripts/` may change after it. **Decided (coordinator, October 25):** the runner's
+  own source gate (`Assert-KmcChunk7OwnedSourceCompletion`) is not changed; r15 and r16 are re-run on the successor F3
+  package. F2 is a discovery pass, and F3 re-runs every row on a new candidate; the re-evaluation machinery stays as committed. The runner result stays FAIL.
 - **Observer or fixture change:** re-run the affected native rows.
 - **Unrestored run:** stop; profile recovery before transaction recovery; never a PASS.
 
