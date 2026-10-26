@@ -141,8 +141,12 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
 - **Restoration checks after each run (PASS and FAIL alike):** outer result reports Mods restored, save
   protection passed, Working restored, Baseline unchanged and the write allowlist passed; restored save
   inventory digest equal to the batch's recorded value; `Params.xml` and PlayerPrefs (including
-  `KingdomDifficulty`) equal the run's own snapshot; `Assert-KmcPersistenceProfileUnchanged` passes with 0
-  admitted changes; no Kingmaker process and no lock remain (the b205 `-check.ps1` helper). A run that is
+  `KingdomDifficulty`) equal the run's own snapshot; `Assert-KmcPersistenceProfileUnchanged` passes. It
+  returns only the committed admissible native churn, each change with its exact hashes: a new or rewritten
+  native achievement-cache leaf at the settled native size (12288 bytes), appended native analytics batches, and
+  (with `-EmptyNewLeaf Admit`, 0ba94f3b) at most one settled-empty `created-empty` leaf; every other profile,
+  settings or cache change refuses. A non-empty list is recorded, not a failure (F3 r48 admitted one `created`
+  12288-byte `achievements.datson` under the settled-size rule). No Kingmaker process and no lock remain (the b205 `-check.ps1` helper). A run that is
   not restored is **not passed**; follow profile recovery before transaction recovery.
 - **Verdict:** the frozen external `scripts\runtime\Test-RuntimeResult.ps1 -ResultPath … -RequestPath …`
   on the run folder (it dispatches the family reader named per row), plus the row binders in §7. Game
@@ -271,6 +275,13 @@ Reader: owned + area family.
 | r10 | 10 | `owner-seed-combat-disable` | r01 / r02 | `…world52-ownerseed-b27s1-disable` | owned + cleanup |
 | r57 | 57 | `owner-seed-native-life-cleanup` (with the folded prone stand-up from round N+2; since b207 the target's own native turn after the heal approaches rider B if it does not yet threaten it) | r01 / r02 | `…b197-r57-ownerseed-life` (selection unchanged; the fold is producer behaviour) | `Assert-KmcChunk7NativeLifeEvidence` (incl. `Assert-KmcChunk7ProneStandUp`) + `Assert-KmcChunk7OwnerSeedDerivedCombatStart` |
 
+Rows 7 and 8 after F3 (selection unchanged; producer behaviour): F3's fixed 0.5 m click toward the target admitted a native
+`UnitMoveTo` whose consumed turn-based preview ended where Horse A stood (`shouldApproach=false`), so it succeeded with no
+movement on the F3 r01/r02 start. The independent Horse's ordinary ground click is now issued only for the first 0.5 m step
+destination (target bearing first, then 22.5° steps either side) whose own fresh, completed native preview ends within 0.3 m
+of it and at least 0.4 m from the Horse; the assertion that the Horse spends its own movement alone is unchanged, and no
+admissible step refuses as uncovered. The record is `firstActionMount.horseMove.destinationSearch`.
+
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
 | Tag | Row | Case | Source / checkpoint | T: | Reader |
@@ -359,6 +370,18 @@ T: `b200-x5-run.ps1` (u1–u3), `20261020-c7b-world81-b65s1-owner-stock-removal`
 | r42 | 42 | `chunk7-normal-player-control` (no rehearsal step; observer.6) | sixth-Horse Manual 308 `b1e817a6…` | `…world191-b191s2-normalplayer` | `Test-KmcNormalPlayerResult` + §7 row-42 binder |
 
 Six-pair stress takes 10–40 min of game time. Row 42 is last: it is the fresh-install control.
+
+Row 39 after F3 (selection and fixture unchanged; producer behaviour): the sixth-Horse Manual's hostile group `d6aa1e8c`
+(faction `b1525b4b`) random-roams natively around its saved `UnitPartRoaming.OriginalPoint` (12.80, 12.73); its members
+were seen 6.1–7.4 m from it, and b210, F2 and F3 failed when one roamed into the 8.5 m vision of an eastern pair after 30–47 s.
+Before any input the stress now chooses each cycle-1 ground goal: the declared +x 2 m route where it is clear, otherwise the
+nearest ring candidate (2–10 m, 22.5° steps) on the native navmesh with a straight native route, the declared spacing, and
+native vision plus the 3 m margin plus a 4 m dismount reach clear of every hostile's current position and native wander
+envelope (2.1.7b `UnitRoamingController`: `OriginalPoint` + `Settings.Radius` or the waypoint graph, plus the 1 m roaming
+approach). The pairs spend cycles 2–3 and every sampling window there. No hostile is moved, paused or altered. Residual risk:
+until the cycle-1 moves finish (about 24 s in F3) the eastern pairs stand at their saved placement, where only the
+before-stress current-position clearance holds; no failure has been observed in that window. If no clear goal exists the
+stress refuses as uncovered before input (recorded in `sixPairGroundGoals`), which is then an owner fixture decision.
 
 ### B16 — rows added on October 24 (X3 closure; folded combat measurements run inside B8/B9 rows)
 
