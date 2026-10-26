@@ -595,6 +595,7 @@ namespace KingmakerMountedCombat.Tests
             NavigationEndpointDistanceTrackerTests.Register(runner);
             NativeGroundStepDestinationPolicyTests.Register(runner);
             DoorReturnGoalPolicyTests.Register(runner);
+            GroundGoalFootprintPolicyTests.Register(runner);
             Chunk7SixPairGroundGoalPolicyTests.Register(runner);
             NativeLifecycleDeliveryLedgerTests.Register(runner);
             NativeMountedAbilityActivationLedgerTests.Register(runner);

@@ -438,6 +438,8 @@
     <Compile Include="Diagnostics\NativeOrdinaryAttackInput.cs" />
     <Compile Include="Diagnostics\NativeGroundStepDestinationPolicy.cs" />
     <Compile Include="Diagnostics\DoorReturnGoalPolicy.cs" />
+    <Compile Include="Diagnostics\GroundGoalFootprintPolicy.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.RouteGoal.cs" />
     <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />
