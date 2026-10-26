@@ -43,10 +43,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private int originalRestrictionCount = -1;
         private int stage, pairIndex, settledFrame = -1;
         private double stageStarted;
-        private Vector3 firstStart, interactionStart;
+        private Vector3 firstStart, interactionStart, returnGoal;
         private MountedDoorInteractionCommand command;
         private UnitMoveTo returnMove;
-        private JObject row;
+        private JObject row, returnRecord;
+        // v2 (F4 r30): the first pair returns to a goal clear of every other unit's native avoidance footprint
+        // (DoorReturnGoalPolicy), recorded with its search and outcome before any assertion on it.
+        internal const string Contract = "two-pair-native-door-click-selection-change-v2";
         private readonly JObject evidence = new JObject();
         internal bool Completed { get; private set; }
         internal JObject Evidence => evidence;
@@ -60,7 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             actors = new[] { firstRider, firstMount, secondRider, secondMount };
             owners = riders.Select(world.Registry.FindActive).ToArray();
             generations = owners.Select(x => x == null ? -1 : x.Generation).ToArray();
-            evidence["contract"] = "two-pair-native-door-click-selection-change";
+            evidence["contract"] = Contract;
             evidence["interactions"] = interactions;
             evidence["setupInteractions"] = 0;
             evidence["cutObservations"] = cutObservations;
@@ -231,12 +234,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     else { Next(4); }
                     break;
                 case 3:
+                    // The outcome is recorded every poll, so a timeout or refusal keeps the last native state.
+                    ObserveReturn();
                     RequireOtherIdle(0);
                     if (!returnMove.IsFinished || !actors.All(Chunk7NativeFixture.Idle)) return false;
-                    Require(returnMove.Result == UnitCommand.ResultType.Success && Distance(mounts[0].Position, firstStart) <= 1.25f,
-                        "First pair did not finish its native return movement before the second interaction.");
-                    evidence["firstPairReturn"] = new JObject { ["command"] = Id(returnMove), ["executorId"] = returnMove.Executor.UniqueId,
-                        ["terminal"] = true, ["result"] = returnMove.Result.ToString(), ["distanceToStart"] = Distance(mounts[0].Position, firstStart) };
+                    Require(returnMove.Result == UnitCommand.ResultType.Success && Distance(mounts[0].Position, returnGoal) <= 1.25f,
+                        "First pair did not finish its native return movement to its clear return goal before the second interaction: " +
+                        returnMove.Result + ", " + Distance(mounts[0].Position, returnGoal).ToString("F3") + " m from the goal.");
                     pairIndex = 1; CloseForInput(); Next(1); break;
                 case 4:
                     if (!Drain()) return false;
@@ -293,35 +297,106 @@ namespace KingmakerMountedCombat.Diagnostics
             var pair = world.ForActor(riders[pairIndex]);
             if (!command.IsFinished || pair.Combat.HasActiveDoorInteraction || !mounts[pairIndex].Commands.Empty) return false;
             var outcome = pair.Combat.LastDoorInteractionOutcome;
-            Require(outcome != null && outcome.Result == "Success" && outcome.RiderId == riders[pairIndex].UniqueId &&
-                outcome.MountId == mounts[pairIndex].UniqueId && outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1 &&
-                outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored && door.GetState() &&
-                Distance(interactionStart, mounts[pairIndex].Position) >= 0.5f,
-                "Captured native door input did not prove one approach, one interaction and restored mount movement.");
             // Explicit members: bare JObject.FromObject in the game uses the global JsonConvert.DefaultSettings
-            // and serialized this outcome as an empty {"$id":"1"} shell (batch192c).
-            row["outcome"] = new JObject { ["Result"] = outcome.Result, ["RiderId"] = outcome.RiderId, ["MountId"] = outcome.MountId,
+            // and serialized this outcome as an empty {"$id":"1"} shell (batch192c). Recorded before the
+            // assertion, so a refused interaction keeps its native outcome.
+            row["outcome"] = outcome == null ? null : new JObject { ["Result"] = outcome.Result, ["RiderId"] = outcome.RiderId, ["MountId"] = outcome.MountId,
                 ["InteractionCount"] = outcome.InteractionCount, ["DelegatedMoveStartCount"] = outcome.DelegatedMoveStartCount,
                 ["DelegatedMoveTickCount"] = outcome.DelegatedMoveTickCount, ["DoorStateChanged"] = outcome.DoorStateChanged,
                 ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
                 ["TerminalReason"] = outcome.TerminalReason };
             row["terminal"] = command.IsFinished;
-            row["ownerContinuity"] = true; row["unrelatedIdleAtCompletion"] = true;
             row["distanceMoved"] = Distance(interactionStart, mounts[pairIndex].Position);
+            Require(outcome != null && outcome.Result == "Success" && outcome.RiderId == riders[pairIndex].UniqueId &&
+                outcome.MountId == mounts[pairIndex].UniqueId && outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1 &&
+                outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored && door.GetState() &&
+                Distance(interactionStart, mounts[pairIndex].Position) >= 0.5f,
+                "Captured native door input did not prove one approach, one interaction and restored mount movement.");
+            row["ownerContinuity"] = true; row["unrelatedIdleAtCompletion"] = true;
             return true;
         }
 
         private void BeginReturn()
         {
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door return requires settled interaction commands.");
+            var search = SearchReturnGoal(out returnGoal, out var found);
+            returnRecord = new JObject { ["command"] = 0, ["executorId"] = null, ["terminal"] = false, ["result"] = null,
+                ["goal"] = found ? Point(returnGoal) : null, ["commandTarget"] = null, ["position"] = null,
+                ["distanceToGoal"] = null, ["distanceToStart"] = null, ["goalSearch"] = search };
+            evidence["firstPairReturn"] = returnRecord;
+            Require(found, "No walkable native return goal near the first pair's captured start lies clear of every other unit's " +
+                "native avoidance footprint and outside the door approach; the two-pair door return is uncovered on this fixture.");
             Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(riders[0]);
-            try { ClickGroundHandler.MoveSelectedUnitsToPoint(firstStart, false); }
+            try { ClickGroundHandler.MoveSelectedUnitsToPoint(returnGoal, false); }
             finally {
                 returnMove = mounts[0].Commands.Move;
                 if (returnMove != null && !commands.Contains(returnMove)) commands.Add(returnMove);
             }
+            returnRecord["command"] = Id(returnMove); returnRecord["executorId"] = returnMove?.Executor?.UniqueId;
+            if (returnMove != null) returnRecord["commandTarget"] = Point(returnMove.Target);
             Require(returnMove != null && ReferenceEquals(returnMove.Executor, mounts[0]), "First-pair return did not bind the actual mount.");
             RequireOtherIdle(0); Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
+        }
+
+        private void ObserveReturn()
+        {
+            var position = mounts[0].Position;
+            returnRecord["terminal"] = returnMove.IsFinished; returnRecord["result"] = returnMove.Result.ToString();
+            returnRecord["position"] = Point(position);
+            returnRecord["distanceToGoal"] = Distance(position, returnGoal); returnRecord["distanceToStart"] = Distance(position, firstStart);
+        }
+
+        // The bounded, read-only return goal search (DoorReturnGoalPolicy). Every evaluated candidate is recorded with
+        // the native values that decided it; the first admitted one is the goal. Nothing in the world is changed.
+        private JObject SearchReturnGoal(out Vector3 goal, out bool found)
+        {
+            goal = firstStart; found = false;
+            var mover = mounts[0];
+            var moverCorpulence = mover.View.AgentASP.Corpulence;
+            var doorPosition = door.transform.position; var radius = Radius(door);
+            var units = Game.Instance.State.Units.Where(u => u != null && !ReferenceEquals(u, mover) && !ReferenceEquals(u, riders[0]) &&
+                    u.IsInState && u.View != null && u.View.AgentASP != null &&
+                    (ReferenceEquals(u, riders[1]) || ReferenceEquals(u, mounts[1]) ||
+                     Distance(u.Position, firstStart) <= DoorReturnGoalPolicy.UnitConsiderationRadius))
+                .OrderBy(u => u.UniqueId, StringComparer.Ordinal).ToArray();
+            Require(units.Length <= DoorReturnGoalPolicy.MaximumUnits, "Door return goal unit scan exceeded its read-only bound.");
+            Require(units.Contains(riders[1]) && units.Contains(mounts[1]), "Door return goal search lost the other pair's native actors.");
+            var corpulences = units.Select(u => u.View.AgentASP.Corpulence).ToArray();
+            var candidates = new JArray();
+            for (var i = 0; i < DoorReturnGoalPolicy.CandidateCount && !found; i++)
+            {
+                DoorReturnGoalPolicy.Offset(i, out var ring, out var bearing, out var dx, out var dz);
+                var requested = new Vector3(firstStart.x + dx, firstStart.y, firstStart.z + dz);
+                var nearest = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(requested);
+                var walkable = nearest.node != null && nearest.node.Walkable;
+                var candidate = new JObject { ["index"] = i, ["ring"] = ring, ["bearing"] = bearing, ["requested"] = Point(requested), ["walkable"] = walkable };
+                var reason = "no-walkable-native-node";
+                if (walkable)
+                {
+                    var clamped = nearest.clampedPosition;
+                    var clampResidual = Distance(requested, clamped);
+                    var traceResidual = Distance(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(firstStart, clamped), clamped);
+                    var doorDistance = Distance(clamped, doorPosition);
+                    var slack = double.PositiveInfinity; string blocker = null;
+                    for (var u = 0; u < units.Length; u++)
+                    {
+                        var value = DoorReturnGoalPolicy.Slack(Distance(clamped, units[u].Position), moverCorpulence, corpulences[u]);
+                        if (value < slack) { slack = value; blocker = units[u].UniqueId; }
+                    }
+                    reason = DoorReturnGoalPolicy.Reason(true, clampResidual, traceResidual, doorDistance, radius, ScanRadius, slack);
+                    candidate["clamped"] = Point(clamped); candidate["clampResidual"] = clampResidual; candidate["traceResidual"] = traceResidual;
+                    candidate["doorDistance"] = doorDistance; candidate["minimumSlack"] = slack; candidate["nearestBlockerId"] = blocker;
+                    if (reason == "admitted") { goal = clamped; found = true; }
+                }
+                candidate["reason"] = reason; candidates.Add(candidate);
+            }
+            return new JObject { ["contract"] = DoorReturnGoalPolicy.Contract, ["start"] = Point(firstStart),
+                ["moverId"] = mover.UniqueId, ["moverCorpulence"] = moverCorpulence, ["moverPosition"] = Point(mover.Position),
+                ["margin"] = DoorReturnGoalPolicy.ClearanceMargin, ["doorPosition"] = Point(doorPosition), ["doorRadius"] = radius,
+                ["scanRadius"] = ScanRadius, ["unitRadius"] = DoorReturnGoalPolicy.UnitConsiderationRadius,
+                ["units"] = new JArray(units.Select((u, n) => new JObject { ["id"] = u.UniqueId, ["position"] = Point(u.Position),
+                    ["corpulence"] = corpulences[n] })),
+                ["candidates"] = candidates, ["selectedIndex"] = found ? candidates.Count - 1 : -1 };
         }
 
         // Cleanup needs the original world and exact door, not continued mounted

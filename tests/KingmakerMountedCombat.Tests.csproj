@@ -97,6 +97,7 @@
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="NativeGroundStepDestinationPolicyTests.cs" />
+    <Compile Include="DoorReturnGoalPolicyTests.cs" />
     <Compile Include="Chunk7SixPairGroundGoalPolicyTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="NativeMountedAbilityActivationLedgerTests.cs" />
@@ -231,6 +232,7 @@
       <Link>Shared\MovementRadialDistanceOrder.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeGroundStepDestinationPolicy.cs"><Link>Shared\NativeGroundStepDestinationPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs"><Link>Shared\DoorReturnGoalPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
       <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
