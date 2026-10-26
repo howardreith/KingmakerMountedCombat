@@ -82,18 +82,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (fieldMove == null || !fieldMove.IsFinished) return;
                     var delta = mount.Position - fieldMoveStart;
                     var distance = Math.Sqrt(delta.x * delta.x + delta.z * delta.z);
-                    Require(distance >= 0.5f && distance <= 5f &&
-                        fieldMove.Result == UnitCommand.ResultType.Success &&
-                        ReferenceEquals(fieldMove.Executor, mount) && fieldMove.CreatedByPlayer,
-                        "Native player ground click did not move the mounted Mammoth within the bounded path.");
+                    // Recorded before the assertion, so a refused move keeps its native result and distance.
                     evidence["fieldMovement"] = new JObject { ["commandFinished"] = true,
                         ["createdByPlayer"] = fieldMove.CreatedByPlayer,
                         ["result"] = fieldMove.Result.ToString(),
-                        ["executorId"] = fieldMove.Executor.UniqueId,
+                        ["executorId"] = fieldMove.Executor?.UniqueId,
                         ["ownerId"] = fieldMammothOwner.ToString("N"),
                         ["ownerGeneration"] = fieldMammothGeneration,
                         ["distance"] = distance, ["startFrame"] = (int?)fieldInput?["frame"],
                         ["endFrame"] = Time.frameCount };
+                    Require(distance >= 0.5f && distance <= 5f &&
+                        fieldMove.Result == UnitCommand.ResultType.Success &&
+                        ReferenceEquals(fieldMove.Executor, mount) && fieldMove.CreatedByPlayer,
+                        "Native player ground click did not move the mounted Mammoth within the bounded path.");
                     FieldNext(4); break;
                 case 4:
                     FieldDeadline(); RequireMammothFieldOwner();
