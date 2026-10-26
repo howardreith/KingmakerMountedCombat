@@ -263,6 +263,22 @@ namespace KingmakerMountedCombat.Tests
     TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(double.NaN,8.5f,false),"A nonnumeric distance was admitted.");
     TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(100,float.NaN,false)&&!Chunk7SixPairCombatEntry.ClearanceHolds(100,float.PositiveInfinity,false)&&!Chunk7SixPairCombatEntry.ClearanceHolds(100,0f,false),"A nonnumeric or empty vision range was admitted.");
     TestRunner.True(Math.Abs(Chunk7SixPairCombatEntry.Distance2D(0,0,3,4)-5)<1e-12,"The clearance distance is not the native 2D distance.");});
+   // F3 r39: hostile 86c73c36's random roaming origin (12.80, 12.73) from the sixth-Horse save; it reached (7.40, 8.63), 6.78 m
+   // from the origin, and saw d8c2f840 at (3.90, 1.32). The wander envelope (radius + 1 m approach) refuses that point, which the
+   // current-position check at 19.35 m admitted, and admits a goal whose dismount reach keeps the clearance.
+   t.Run("six-pair wander envelope refuses F3 r39's eastern point and admits a clear goal",()=>{
+    var envelope=Chunk7SixPairCombatEntry.RoamingDiskDistance2D(3.90,1.32,12.8022385,12.7261009,7);
+    TestRunner.True(Math.Abs(envelope-(Chunk7SixPairCombatEntry.Distance2D(3.90,1.32,12.8022385,12.7261009)-8))<1e-9,"The wander disk is not radius plus the native 1 m roaming approach.");
+    TestRunner.True(!Chunk7SixPairCombatEntry.ClearanceHolds(envelope,8.5f,false),"F3 r39's eastern actor was admitted inside the native wander envelope.");
+    TestRunner.True(Chunk7SixPairCombatEntry.Distance2D(7.40493,8.626385,12.8022385,12.7261009)<=7+Chunk7SixPairCombatEntry.RoamingApproachMeters,"The observed roaming position lies outside the modelled envelope.");
+    TestRunner.True(Chunk7SixPairCombatEntry.ClearanceHolds(Chunk7SixPairCombatEntry.RoamingDiskDistance2D(-4,-4,12.8022385,12.7261009,7)-4,8.5f,false),"A goal clear of the envelope with its dismount reach was refused.");
+    TestRunner.Equal(0d,Chunk7SixPairCombatEntry.RoamingDiskDistance2D(12,12,12.8022385,12.7261009,7),"A point inside the wander disk kept a clearance.");
+    TestRunner.True(double.IsNaN(Chunk7SixPairCombatEntry.RoamingDiskDistance2D(0,0,0,0,double.NaN))&&double.IsNaN(Chunk7SixPairCombatEntry.RoamingDiskDistance2D(0,0,0,0,-1)),"An unreadable roaming radius produced a clearance.");
+    TestRunner.True(Math.Abs(Chunk7SixPairCombatEntry.SegmentDistance2D(0,5,-3,0,3,0)-5)<1e-12&&Math.Abs(Chunk7SixPairCombatEntry.SegmentDistance2D(6,4,-3,0,3,0)-5)<1e-12&&Math.Abs(Chunk7SixPairCombatEntry.SegmentDistance2D(1,1,2,2,2,2)-Math.Sqrt(2))<1e-12,"The roaming leg distance is not the 2D segment distance.");
+    TestRunner.Equal(4d,Chunk7SixPairCombatEntry.RoamingLegDistance2D(0,5,-3,0,3,0),"A waypoint leg omitted the native 1 m roaming approach.");
+    var bearings=Chunk7SixPairCombatEntry.GroundGoalBearings();var distances=Chunk7SixPairCombatEntry.GroundGoalDistances();
+    TestRunner.True(bearings.Length==16&&bearings[0]==0f&&bearings.Select(b=>((b%360f)+360f)%360f).Distinct().Count()==16&&distances[0]==2f&&distances[distances.Length-1]==10f&&distances.Zip(distances.Skip(1),(a,b)=>b>a).All(x=>x),
+     "The ground goal search does not try the declared +x 2 m route first or is not a bounded nearest-first ring.");});
    foreach(var c in new[]{"no-hostile-only-party-pets-or-player-faction","kmc-commands-open","input-in-flight","both"})t.Run("six-pair combat entry stays an unclassified FAIL when "+c,()=>{
     var n=c=="no-hostile-only-party-pets-or-player-faction"?0:2;var free=c!="kmc-commands-open"&&c!="both";var flight=c=="input-in-flight"||c=="both";
     TestRunner.Equal(Chunk7SixPairCombatEntry.Unclassified,Chunk7SixPairCombatEntry.Classify(n,free,flight),"Combat entry was classified as uncovered: "+c);

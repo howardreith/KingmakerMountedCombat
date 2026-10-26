@@ -40,10 +40,13 @@ namespace KingmakerMountedCombat.Diagnostics {
   void Input(Actor a,Actor b,object ability,string label,Actor next){Require(shell==null,"native input replay before settlement");controls.NativeCastRequestCount++;inputs.Add(new JObject{{"label",label}});shell=new Shell{Pending=1};pendingRider=a;pendingMount=b;pendingMounting=ReferenceEquals(ability,controls.MountAbility);pendingFrames=3;}
   bool InputSettled()=>shell!=null&&pendingFrames<=0;
   void FinishInput(){Require(InputSettled(),"unfinished native shell");finishedInputs++;shell=null;}
-  void Move(Actor a,Actor b,Vector3 goal,Actor next,string label){Require(movementFrames==0,"native movement replay");groundInputs.Add(new JObject{{"label",label}});moves++;movementFrames=3;}
+  void Move(Actor a,Actor b,Vector3 goal,Actor next,string label){Require(movementFrames==0,"native movement replay");groundInputs.Add(new JObject{{"label",label}});movedGoals.Add(goal);moves++;movementFrames=3;}
   bool MovementSettled()=>movementFrames==0;
   // The read-only combat-entry capture partial needs the native census; its facade keeps the guard's throw and records the call.
-  int clearanceChecks;bool clearanceBreached;void RequireSixPairHostileClearance(){clearanceChecks++;Require(!clearanceBreached,"Six-pair stress is uncovered on this placement: 1 native unit(s) within vision clearance of the pairs or their waypoints; no input was issued.");}
+  int clearanceChecks;bool clearanceBreached;void RequireSixPairHostileClearance(){clearanceChecks++;Require(!clearanceBreached,"Six-pair stress is uncovered on this placement: 1 native unit(s) within vision clearance of the pairs or their waypoints; no input was issued.");
+   for(var i=0;i<6;i++)sixGroundGoals[i]=SixMount(i).Position+new Vector3(i,0,-i);}
+  // The read-only goal selection partial needs the native navmesh and roaming census; its facade records each goal the clearance chose.
+  readonly Vector3[] sixGroundGoals=new Vector3[6];Vector3 SixGroundGoal(int i)=>sixGroundGoals[i];readonly List<Vector3> movedGoals=new List<Vector3>();
   int combatEntryRefusals;void RefuseSixPairCombatEntry(){combatEntryRefusals++;throw new InvalidOperationException(Chunk7SixPairCombatEntry.Message(Chunk7SixPairCombatEntry.Unclassified));}
   void BeginCleanup(){cleanup=true;ReleaseSixSamplePins();}
   void Pass(string name){passed.Add(name);}
@@ -82,6 +85,8 @@ namespace KingmakerMountedCombat.Diagnostics {
    Refuse("wrong native capacity refuses before input",x=>Integration.GameMountedRelationshipService.NativePairCapacity=2);
    Refuse("eleven field roles refuse before input",x=>x.inherited.Actors=x.inherited.Actors.Take(11).ToArray());
    Check(e.clearanceChecks==1,"actual partial checks native vision clearance once, before the first input");
+   Check(e.movedGoals.Count==6&&Enumerable.Range(0,6).All(i=>e.movedGoals[i].x==e.sixGroundGoals[i].x&&e.movedGoals[i].z==e.sixGroundGoals[i].z&&e.movedGoals[i].x==e.SixMount(i).Position.x+i),
+    "actual partial routes each pair to the ground goal its clearance selected, not a fixed offset");
    var h=Create();h.clearanceBreached=true;bool uncovered=false;try{h.BeginSixPairStress();}catch(InvalidOperationException error){uncovered=error.Message.StartsWith("Six-pair stress is uncovered");}
    Check(uncovered&&h.inputs.Count==0&&h.sixObservation==null&&h.step==0,"a native unit inside vision clearance refuses as uncovered before any input or observation");
    Refuse("native combat refuses without issuing input",x=>Kingmaker.Game.Instance.Player.IsInCombat=true,true);

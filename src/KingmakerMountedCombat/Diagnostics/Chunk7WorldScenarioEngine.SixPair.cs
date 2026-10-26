@@ -96,7 +96,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 1010:
                     if (!Actors().All(Idle)) return;
                     RequireSixOwnership();
-                    Move(SixRider(sixIndex), SixMount(sixIndex), SixMount(sixIndex).Position + new Vector3(2, 0, 0),
+                    // F3 r39: the goal chosen before any input (SelectSixGroundGoals); the declared +x 2 m route wherever it keeps
+                    // the hostile wander-envelope clearance.
+                    Move(SixRider(sixIndex), SixMount(sixIndex), SixGroundGoal(sixIndex),
                         SixRider((sixIndex + 1) % 6), "six-ground-" + sixIndex);
                     Next(1011); break;
                 case 1011:

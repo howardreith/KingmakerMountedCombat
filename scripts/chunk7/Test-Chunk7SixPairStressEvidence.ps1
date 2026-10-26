@@ -135,6 +135,22 @@ foreach($fault in @('inside-vision','inside-margin','breach-listed','not-clear',
    'extra-field'{$c|Add-Member note 'x'};'text-distance'{$u.nearestDistance2D='19.4'};'repeated-unit'{$c.units=@($u,$u)};'missing-units'{$c.PSObject.Properties.Remove('units')}}
   Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
 }
+# F3 r39: each cycle-1 ground goal keeps native vision clearance from every hostile's native wander envelope.
+function New-GoalsArtifact{$v=New-ClearanceArtifact;$b=$v.observations
+ foreach($m in $b.movements){$m.requestedGoal=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};$m.end=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};$m.distance=3.61}
+ $b|Add-Member sixPairGroundGoals ([pscustomobject][ordered]@{contract='six-pair-wander-clear-ground-goals-v1';roamingApproachMeters=1.0;marginMeters=3.0;dismountReachMeters=4.0;spacingMeters=1.75
+  envelopes=@([pscustomobject]@{id='86c73c36-a58e-4045-a851-5ceb1016a5c1';groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';position=[pscustomobject]@{x=16.67;y=-0.2;z=12.62};kind='random';nextPoint=[pscustomobject]@{x=17.69;y=2.28;z=9.07};originalPoint=[pscustomobject]@{x=12.80;y=2.28;z=12.73};radius=7.0}
+   [pscustomobject]@{id='5122d52e-0000-0000-0000-000000000000';groupId='2b0e9966-ef7c-44c9-b050-4b27ffec39f9';position=[pscustomobject]@{x=-12.75;y=1.84;z=-112.89};kind='waypoints';nextPoint=$null;waypoints=@()})
+  pairs=@(for($i=0;$i-lt6;$i++){[pscustomobject][ordered]@{index=$i;mountId=$roles[$i*2+1];riderId=$roles[$i*2];chosen=[pscustomobject][ordered]@{distance=4.0;bearing=135.0;goal=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};start=[pscustomobject]@{x=0.0;y=0.0;z=0.0};candidatesTried=44;minimumEnvelopeClearanceMeters=12.4};firstRefusals=[pscustomobject]@{'hostile-wander-vision'=@(2.0,0.0)}}});clear=$true});$v}
+Check 'six-pair evidence with wander-clear ground goals bound to its routed moves' {Assert-KmcChunk7WorldEvidence $request (New-GoalsArtifact) 'PASS'}
+foreach($fault in @('move-off-goal','no-record-off-route','unreadable-envelope','unknown-envelope','random-without-radius','not-clear','no-chosen','inside-envelope-clearance','beyond-search','wrong-dismount-reach','wrong-approach','extra-field','five-pairs','wrong-rider','wrong-index')){
+ Check ('strict six-pair reader refuses ground goals '+$fault) {$v=New-GoalsArtifact;$b=$v.observations;$g=$b.sixPairGroundGoals;$p=$g.pairs[3]
+  switch($fault){'move-off-goal'{$b.movements[3].requestedGoal.z=-2.0};'no-record-off-route'{$b.PSObject.Properties.Remove('sixPairGroundGoals')};'unreadable-envelope'{$g.envelopes[1].kind='waypoints-unreadable'}
+   'unknown-envelope'{$g.envelopes[1].kind='patrol'};'random-without-radius'{$g.envelopes[0].radius=-1.0};'not-clear'{$g.clear=$false};'no-chosen'{$p.chosen=$null}
+   'inside-envelope-clearance'{$p.chosen.minimumEnvelopeClearanceMeters=2.9};'beyond-search'{$p.chosen.distance=12.0};'wrong-dismount-reach'{$g.dismountReachMeters=0.0};'wrong-approach'{$g.roamingApproachMeters=0.0}
+   'extra-field'{$g|Add-Member note 'x'};'five-pairs'{$g.pairs=@($g.pairs|Select-Object -First 5)};'wrong-rider'{$p.riderId=$roles[0]};'wrong-index'{$p.index=4}}
+  Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
 foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-profile','remote-XP','remote-descriptor','remote-field-alias','changed-source-class','wrong-producer',
  'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
  'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',

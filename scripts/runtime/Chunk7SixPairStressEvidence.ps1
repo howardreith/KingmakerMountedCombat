@@ -140,6 +140,34 @@ function Assert-KmcChunk7SixPairHostileClearance($C){
   if($u.nearestPoint-isnot[string]-or$u.nearestPoint-cnotmatch'^(actor|waypoint):.+'){throw 'Six-pair clearance nearest point differs.'}
  }
 }
+# F3 r39: a random roamer passed the before-stress clearance at 19.35 m and roamed natively into vision of an eastern actor.
+# Producers from then on choose each cycle-1 ground goal (the declared +x 2 m route first) so that native vision clearance
+# plus margin and the 4 m dismount reach holds from every hostile's current position and native wander envelope
+# (2.1.7b UnitRoamingController: OriginalPoint + Settings.Radius, or the waypoint graph, plus the 1 m roaming approach).
+# Each routed move must target its recorded goal. Without the record the move must be the declared +x 2 m route.
+function Assert-KmcChunk7SixPairGroundGoals($O,[string[]]$Roles){
+ $moves=@($O.movements)
+ if($null-eq$O.PSObject.Properties['sixPairGroundGoals']){
+  foreach($m in $moves){if([Math]::Abs([double]$m.requestedGoal.x-[double]$m.start.x-2)-gt0.001-or[Math]::Abs([double]$m.requestedGoal.y-[double]$m.start.y)-gt0.001-or[Math]::Abs([double]$m.requestedGoal.z-[double]$m.start.z)-gt0.001){throw 'Six-pair ground move left the declared route without its recorded wander-clear goal.'}}
+  return
+ }
+ $G=$O.sixPairGroundGoals
+ Assert-KmcExactProperties $G @('contract','roamingApproachMeters','marginMeters','dismountReachMeters','spacingMeters','envelopes','pairs','clear') 'six-pair wander-clear ground goals'
+ Assert-KmcBootstrapInventoryString $G.contract 'six-pair-wander-clear-ground-goals-v1';Assert-KmcChunk7Boolean $G.clear $true
+ foreach($pair in @(@('roamingApproachMeters',1.0),@('marginMeters',3.0),@('dismountReachMeters',4.0),@('spacingMeters',1.75))){
+  if(-not(Test-KmcChunk7FiniteNumber $G.($pair[0]))-or[Math]::Abs([double]$G.($pair[0])-$pair[1])-gt0.0001){throw 'Six-pair ground goal constants differ.'}}
+ if($G.envelopes-isnot[Array]-or$G.pairs-isnot[Array]){throw 'Six-pair ground goal record is malformed.'}
+ foreach($e in @($G.envelopes)){if($e.kind-isnot[string]-or$e.kind-cnotin@('stationary','roaming-disabled','random','waypoints')){throw 'Six-pair ground goals carry an unreadable or unknown native wander envelope.'}
+  if($e.kind-ceq'random'-and(-not(Test-KmcChunk7FiniteNumber $e.radius)-or[double]$e.radius-lt0)){throw 'Six-pair random wander envelope lacks its native radius.'}}
+ Assert-KmcAssistedArray $G.pairs 6 6 'six wander-clear ground goals'
+ for($i=0;$i-lt6;$i++){
+  $p=$G.pairs[$i];Assert-KmcOrdinaryInteger $p.index $i $i;Assert-KmcBootstrapInventoryString $p.riderId $Roles[$i*2];Assert-KmcBootstrapInventoryString $p.mountId $Roles[$i*2+1]
+  $c=$p.chosen;if($null-eq$c){throw 'Six-pair ground goals lack a chosen goal.'}
+  foreach($k in @('distance','bearing','minimumEnvelopeClearanceMeters')){if(-not(Test-KmcChunk7FiniteNumber $c.$k)){throw 'Six-pair ground goal values are not finite.'}}
+  if([double]$c.distance-lt2-or[double]$c.distance-gt10-or[double]$c.minimumEnvelopeClearanceMeters-lt3){throw 'Six-pair ground goal is outside its bounded search or its wander-envelope clearance.'}
+  foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $c.goal.$axis)-or[Math]::Abs([double]$c.goal.$axis-[double]$moves[$i].requestedGoal.$axis)-gt0.0001){throw 'Six-pair ground move did not target its recorded wander-clear goal.'}}
+ }
+}
 function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
  Assert-KmcChunk7InheritedEvidence $Request $O
@@ -223,6 +251,7 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
   if([Math]::Sqrt($distance)-lt.75-or[Math]::Sqrt($residual)-gt1.0){throw 'Six-pair ground movement missed its fixed endpoint bound.'}
   Assert-KmcChunk7QuietWindow $m.optionalCaptureWindow $m @($mounted[0].owners) $roles 6
  }
+ Assert-KmcChunk7SixPairGroundGoals $O $roles
  Assert-KmcAssistedArray $s.samples 15 15 'six-pair repeated native measurement windows'
  $pinVector=$null;$lastFrame=-1;$retainedOwners=@{}
  for($i=0;$i-lt15;$i++){
