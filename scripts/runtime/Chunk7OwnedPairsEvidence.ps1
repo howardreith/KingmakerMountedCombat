@@ -1492,6 +1492,24 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
 # turn, then rider A mounts as the first action of its next prepared turn while pair B stays owned. The
 # roster decides the adoption: mount-first retains the Horse's participation (no preparation, its spent
 # move stands); rider-first prepares it exactly once. Preparations are recounted from the trace.
+# F3 r07/r08: a fixed 0.5 m click admitted a native UnitMoveTo whose consumed turn-based preview ended where the Horse
+# stood (2.1.7b ClickGroundHandler.OnClick uses the PathVisualizer path end; UnitMoveTo(p, 0.3f) needs no approach inside
+# 0.3 m), so it succeeded without moving. The click is issued only for the first destination whose own fresh, completed
+# native preview ends within 0.3 m of it and at least 0.4 m from the Horse; every earlier candidate was refused.
+function Assert-KmcChunk7HorseStepDestination($Move){
+ $d=$Move.destinationSearch;Assert-KmcExactProperties $d @('contract','approachRadius','minimumNativeApproach','candidates') 'independent Horse step destination search'
+ Assert-KmcBootstrapInventoryString $d.contract 'native-tb-ground-step-destination-v1'
+ if(-not(Test-KmcChunk7FiniteNumber $d.approachRadius)-or[Math]::Abs([double]$d.approachRadius-0.3)-gt1e-6-or-not(Test-KmcChunk7FiniteNumber $d.minimumNativeApproach)-or[Math]::Abs([double]$d.minimumNativeApproach-0.1)-gt1e-6){throw 'The independent Horse step search constants differ.'}
+ if($d.candidates-isnot[Array]){throw 'The independent Horse step search is malformed.'};$c=@($d.candidates)
+ if($c.Count-lt1-or$c.Count-gt16){throw 'The independent Horse step search is empty or unbounded.'}
+ for($i=0;$i-lt$c.Count-1;$i++){if($c[$i].reason-ceq'admitted'){throw 'The independent Horse step search passed over an admitted destination.'}}
+ $x=$c[$c.Count-1];if($x.reason-cne'admitted'){throw 'The independent Horse step search chose no admitted destination.'}
+ Assert-KmcChunk7Boolean $x.freshPreview $true;Assert-KmcBootstrapInventoryString $x.previewState 'Complete'
+ foreach($k in @('endResidual','displacement','bearingOffset')){if(-not(Test-KmcChunk7FiniteNumber $x.$k)){throw 'The independent Horse step preview distances are not finite.'}}
+ if([double]$x.endResidual-gt0.3-or[double]$x.displacement-lt0.4){throw 'The independent Horse step preview did not reach outside the native approach radius.'}
+ if(-not(Test-KmcChunk7FiniteNumber $Move.bearingOffset)-or[double]$Move.bearingOffset-ne[double]$x.bearingOffset){throw 'The independent Horse move is not its admitted destination.'}
+ Assert-KmcAssistedSame $Move.destination $x.destination 'independent Horse admitted destination'
+}
 function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$ids=@($o.actorIds)
  if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
@@ -1499,6 +1517,8 @@ function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  Assert-KmcBootstrapInventoryString $f.riderId $s.riderAId;Assert-KmcBootstrapInventoryString $f.mountId $s.mountAId
  $m=$f.horseMove;foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $m.$key $true}
  if($m.round-ne$o.r1.independentRound-or-not(Test-KmcChunk7FiniteNumber $m.distance)-or[double]$m.distance-le0.02-or$m.command-eq0){throw 'The independent Horse did not take its own native move on its released turn.'}
+ # F3 r07/r08 producers record the native step destination search; earlier accepted evidence predates it.
+ if($null-ne$m.PSObject.Properties['destinationSearch']){Assert-KmcChunk7HorseStepDestination $m}
  $hb=Get-KmcChunk7CombatActor $m.before $s.mountAId;$ha=Get-KmcChunk7CombatActor $m.after $s.mountAId
  if([double]$ha.move-le[double]$hb.move){throw 'The independent Horse move spent no movement.'}
  Assert-KmcChunk7SameCombatBudget $m.before $m.after @($s.riderBId,$s.mountBId)

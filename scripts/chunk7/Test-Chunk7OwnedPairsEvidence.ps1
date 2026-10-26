@@ -489,6 +489,10 @@ function New-KmcOwnerSeedDerivedCombatFixture([string]$Base){
  }
  $v.name=$Base;$v
 }
+$horseStepSearch={param($m)$m|Add-Member destination @(-19.78,0.5,-12.01) -Force;$m|Add-Member bearingOffset 22.5 -Force
+ $m|Add-Member destinationSearch ([pscustomobject][ordered]@{contract='native-tb-ground-step-destination-v1';approachRadius=0.3;minimumNativeApproach=0.1;candidates=@(
+  [pscustomobject][ordered]@{bearingOffset=0.0;destination=@(-19.97,0.5,-11.97);freshPreview=$false;previewState='Complete';previewPoints=2;previewEnd=@(-19.97,0.5,-12.47);endResidual=0.5;displacement=0.0;reason='stale-native-preview'},
+  [pscustomobject][ordered]@{bearingOffset=22.5;destination=@(-19.78,0.5,-12.01);freshPreview=$true;previewState='Complete';previewPoints=2;previewEnd=@(-19.78,0.5,-12.01);endResidual=0.0;displacement=0.5;reason='admitted'})}) -Force}
 function Check-SeedCombat([string]$Name,[string]$Base,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedDerivedCombatFixture $Base;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
 foreach($base in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check ('owner-seed-derived combat evidence accepted '+$base) {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture $base)}
@@ -1547,6 +1551,15 @@ foreach($base in @('combat-rider-first','combat-mount-first')){
  Check-SeedCombat ('owner-seed-derived TB refuses the other adoption disposition '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;$t.adoptionObservation=$t.adoptionObservation.Replace('Retain','X').Replace('Prepare','Retain').Replace('X','Prepare')} 'adoption disposition'
  Check-SeedCombat ('owner-seed-derived TB refuses a duplicate partner preparation '+$base) $base {$o=$args[0].artifact.observations;$t=$o.firstActionMount.mountTurn;$n=@($o.allocationTrace.events).Count+1;$o.allocationTrace.events=@($o.allocationTrace.events)+@([pscustomobject][ordered]@{sequence=$n;boundary='prepare-after';frame=303;command=0;commandActor=$null;commandType=$null;state=[pscustomobject][ordered]@{actor=$args[0].request.ownedPairs.mountAId;standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0}})} 'wrong number of times'
  Check-SeedCombat ('owner-seed-derived TB refuses an independent Horse move that spent nothing '+$base) $base {$m=$args[0].artifact.observations.firstActionMount.horseMove;foreach($row in $m.after.actors){if($row.id-ceq$args[0].request.ownedPairs.mountAId){$row.move=0.0}}} 'spent no movement'
+ # F3 r07/r08: the step destination search (first candidate F3's stale preview at the Horse, second admitted).
+ $v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepSearch $v.artifact.observations.firstActionMount.horseMove
+ Check ('owner-seed-derived TB admits the independent Horse step destination search '+$base) {Invoke-OwnedReader $v}
+ foreach($fault in @('preview-at-horse','stale-preview','inside-approach','passed-over-admitted','other-destination','other-bearing','incomplete-preview','wrong-radius','extra-field','empty')){
+  Check-SeedCombat ('owner-seed-derived TB refuses an independent Horse step search with '+$fault+' '+$base) $base {$m=$args[0].artifact.observations.firstActionMount.horseMove;&$horseStepSearch $m;$d=$m.destinationSearch;$x=$d.candidates[1]
+   switch($fault){'preview-at-horse'{$x.previewEnd=@(-19.97,0.5,-12.47);$x.endResidual=0.5;$x.displacement=0.0};'stale-preview'{$x.freshPreview=$false};'inside-approach'{$x.displacement=0.39}
+    'passed-over-admitted'{$d.candidates[0].reason='admitted'};'other-destination'{$m.destination=@(-19.97,0.5,-11.97)};'other-bearing'{$m.bearingOffset=0.0};'incomplete-preview'{$x.previewState='Error'}
+    'wrong-radius'{$d.approachRadius=1.0};'extra-field'{$d|Add-Member note 'x'};'empty'{$d.candidates=@()}}}
+ }
  Check-SeedCombat ('owner-seed-derived TB refuses pair B ownership change during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;@($t.after.owners)[1].generation=99} 'ownership changed'
  Check-SeedCombat ('owner-seed-derived TB refuses pair B spending during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;foreach($row in $t.after.actors){if($row.id-ceq$args[0].request.ownedPairs.riderBId){$row.standard=6.0}}}
 }

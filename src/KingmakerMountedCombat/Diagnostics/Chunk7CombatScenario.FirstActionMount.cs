@@ -1,8 +1,12 @@
+using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.TurnBasedMode;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
+using Pathfinding;
 using TurnBased.Controllers;
 using UnityEngine;
 
@@ -29,18 +33,58 @@ namespace KingmakerMountedCombat.Diagnostics
             Chunk7NativeFixture.Select(am); horseMoveStart = am.Position;
             var delta = target.Position - horseMoveStart; delta.y = 0f;
             Require(delta.sqrMagnitude > .01f, "Native target direction is unavailable for the independent Horse.");
-            var destination = horseMoveStart + delta.normalized * .5f;
+            var toward = delta.normalized; var candidates = new JArray();
+            var move = new JObject { ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["before"] = WorldSnapshot("horse-independent-move-before"),
+                ["destinationSearch"] = new JObject { ["contract"] = "native-tb-ground-step-destination-v1",
+                    ["approachRadius"] = NativeGroundStepDestinationPolicy.NativeGroundApproachRadius,
+                    ["minimumNativeApproach"] = NativeGroundStepDestinationPolicy.MinimumNativeApproach, ["candidates"] = candidates } };
             firstActionMount = new JObject { ["contract"] = "owner-seed-tb-first-action-mount-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["neighbourOwnerId"] = b.Relationship.PairOwner?.Id.ToString(), ["neighbourGeneration"] = b.Relationship.MountedPairGeneration,
-                ["horseMove"] = new JObject { ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["before"] = WorldSnapshot("horse-independent-move-before"),
-                    ["requestedDistance"] = Vector3.Distance(horseMoveStart, destination) } };
+                ["horseMove"] = move };
             evidence["firstActionMount"] = firstActionMount;
-            using (var input = new NativeOrdinaryAttackInput(destination))
+            // F3 r07/r08: the fixed 0.5 m point toward the target admitted a native UnitMoveTo whose consumed preview ended
+            // where the Horse stood (shouldApproach=false), so it succeeded without moving. The same native ground click is
+            // issued only for a step destination whose own fresh native preview reaches it outside the click's approach
+            // radius (NativeGroundStepDestinationPolicy); the target bearing is tried first. None refuses as uncovered.
+            NativeOrdinaryAttackInput chosen = null;
+            try
             {
-                input.Predict(); var attempts = 0;
-                while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && attempts++ < 4) { input.Click(button: 1); input.Predict(); }
-                firstActionMount["horseMove"]["clicked"] = input.Click();
+                foreach (var offset in NativeGroundStepDestinationPolicy.BearingOffsets())
+                {
+                    var destination = horseMoveStart + Quaternion.Euler(0f, offset, 0f) * toward * NativeGroundStepDestinationPolicy.StepDistance;
+                    var row = new JObject { ["bearingOffset"] = offset, ["destination"] = Point(destination) }; candidates.Add(row);
+                    var held = PathVisualizer.Instance?.CurrentPathForUnit(am.View);
+                    NativeOrdinaryAttackInput input;
+                    try { input = new NativeOrdinaryAttackInput(destination); }
+                    catch (InvalidOperationException error) { row["reason"] = "native-handler-not-ground"; row["detail"] = error.Message; continue; }
+                    var admitted = false;
+                    try
+                    {
+                        input.Predict(); var attempts = 0;
+                        while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && attempts++ < 4) { input.Click(button: 1); input.Predict(); }
+                        var path = PathVisualizer.Instance?.CurrentPathForUnit(am.View); var points = path?.vectorPath;
+                        var fresh = path != null && !ReferenceEquals(path, held);
+                        var complete = path != null && path.CompleteState == PathCompleteState.Complete && points != null && points.Count > 0;
+                        var end = complete ? points[points.Count - 1] : horseMoveStart;
+                        var residual = complete ? (double)GeometryUtils.MechanicsDistance(end, destination) : double.NaN;
+                        var displacement = complete ? (double)GeometryUtils.MechanicsDistance(end, horseMoveStart) : double.NaN;
+                        admitted = NativeGroundStepDestinationPolicy.Admits(fresh, complete, residual, displacement);
+                        row["freshPreview"] = fresh; row["previewState"] = path?.CompleteState.ToString(); row["previewPoints"] = points?.Count;
+                        row["previewEnd"] = complete ? Point(end) : null; row["endResidual"] = complete ? new JValue(residual) : null;
+                        row["displacement"] = complete ? new JValue(displacement) : null;
+                        row["reason"] = NativeGroundStepDestinationPolicy.Reason(fresh, complete, residual, displacement);
+                    }
+                    finally { if (!admitted) input.Dispose(); }
+                    if (!admitted) continue;
+                    chosen = input; move["destination"] = Point(destination); move["bearingOffset"] = offset;
+                    move["requestedDistance"] = Vector3.Distance(horseMoveStart, destination);
+                    break;
+                }
+                Require(chosen != null, "No native ground step destination's own native preview leaves the independent Horse's approach radius; " +
+                    "the independent Horse move is uncovered on this fixture: " + candidates.ToString(Newtonsoft.Json.Formatting.None));
+                move["clicked"] = chosen.Click();
             }
+            finally { chosen?.Dispose(); }
             horseIndependentMove = am.Commands.Move as UnitMoveTo;
             Require((bool)firstActionMount["horseMove"]["clicked"] && horseIndependentMove?.Executor == am,
                 "The independent Horse's ordinary ground click did not admit its own native move.");
