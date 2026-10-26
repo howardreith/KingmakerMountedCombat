@@ -265,6 +265,19 @@ Reader: owned + area family.
 | r58 | 58 | `persistence-load` (`multi-exploration-capital-arrival-manual`; enter `fd225a93…`, target `ead426a6…`) | B1 c5 / x4s | b199-r58 | `Assert-KmcChunk7CapitalArrivalObservation` |
 | r59 | 59 | `persistence-load` (`multi-exploration-capital-arrival-cold-manual`; `sourceArea` = r58's recorded `capitalArrival.sourceArea`) | B1 c5 / r58 | b199-r59 | `Assert-KmcChunk7CapitalColdObservation` + `Assert-KmcChunk7CapitalColdSource` |
 
+Row 30 after F4 (selection unchanged; producer behaviour): F4 r30 (`20261027-c7e-final-B7-r30`, retained FAIL) failed the
+door probe's first-pair return: its goal was mount A's captured start, 0.86 m from pair B's Horse (F3 3.10 m, F1 2.52 m,
+both PASS), inside the native real-time avoidance disk (corpulence 0.5 + 0.5 out of combat), and the probe threw before
+recording the return. The measured door interaction passed. The probe now writes `two-pair-native-door-click-selection-change-v2`:
+the return goal is the first `DoorReturnGoalPolicy` candidate (captured start first, then 16 bearings on rings 0.5–5 m)
+that is walkable, within 0.1 m of its nearest node, navmesh-traceable from the start, outside the door interaction radius
+plus 0.5 m and within the 28 m scan radius, and at least corpulence sum + 0.5 m from every other unit (both pair-B actors
+always included); a clear start keeps the F1/F3 geometry. The search, native command target, end position and distances
+are recorded before any assertion (`door.firstPairReturn.goalSearch`), the arrival bound is unchanged (Success within
+1.25 m of the goal), and no admissible goal refuses as uncovered. The v2 reader recomputes every candidate (order, ring
+geometry, clamp residual, door distance, clearance slack and nearest blocker within 1e-3 m, reason) and the return
+distances; v1 evidence keeps its original verdict (F1/F3 r30 PASS, F4 r30 FAIL, re-read on the new reader).
+
 ### B8 — two-pair combat on the owner-seed start (~30 min)
 
 | Tag | Row | Case | Source / checkpoint | T: | Reader |
