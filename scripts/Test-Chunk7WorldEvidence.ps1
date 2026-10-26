@@ -263,6 +263,65 @@ foreach($mutation in $returnMutations){$copy=Copy-TestValue $returnF4;& $mutatio
 Check 'door probe writes the v2 contract the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v2"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v2 reader.'}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
     foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
+# v2 route moves (F5 hardening): each fixed 2 m move goes to the first route candidate (declared direction first, then
+# the bearing offsets) clear of every other scenario actor's native avoidance footprint (0.5 + 0.5 out of combat, plus the
+# 0.5 m margin); v1 evidence (the $good fixture) keeps its fixed-goal path. Candidates are built independently of the reader.
+function New-RouteV2Fixture($BlockerX,$BlockerZ){
+    $copy=Copy-TestValue $good;$o=$copy.observations
+    $offsets=@(0.0,22.5,-22.5,45.0,-45.0,67.5,-67.5,90.0,-90.0,112.5,-112.5,135.0,-135.0,157.5,-157.5,180.0)
+    $routes=@(@('mammoth',$first,$mammoth,1.0,0.0),@('horse',$second,$horse,0.0,1.0),@('unmounted-control',$first,$first,-1.0,0.0))
+    $far=@{$first=@(10.0,10.0);$mammoth=@(-10.0,10.0);$second=@(10.0,-10.0);$horse=@(-10.0,-10.0)}
+    $searches=@()
+    for($m=0;$m-lt3;$m++){$r=$routes[$m]
+        $units=@(foreach($id in @($ids|Sort-Object)){if($id-cne$r[1]-and$id-cne$r[2]){$p=$far[$id];if($m-eq1-and$id-ceq$first){$p=@($BlockerX,$BlockerZ)};[pscustomobject]@{id=$id;position=[pscustomobject]@{x=$p[0];y=0.0;z=$p[1]};corpulence=0.5}}})
+        $candidates=@();$selected=-1
+        for($i=0;$i-lt16-and$selected-lt0;$i++){$rad=$offsets[$i]*[Math]::PI/180;$x=2*($r[3]*[Math]::Cos($rad)+$r[4]*[Math]::Sin($rad));$z=2*(-$r[3]*[Math]::Sin($rad)+$r[4]*[Math]::Cos($rad))
+            $slack=[double]::PositiveInfinity;$blocker=$null
+            foreach($u in $units){$v=[Math]::Sqrt(($x-$u.position.x)*($x-$u.position.x)+($z-$u.position.z)*($z-$u.position.z))-1.5;if($v-lt$slack){$slack=$v;$blocker=$u.id}}
+            $reason=if($slack-lt0){'inside-unit-footprint'}else{'admitted'};$p=[pscustomobject]@{x=$x;y=0.0;z=$z}
+            $candidates+=[pscustomobject]@{index=$i;bearingOffset=$offsets[$i];requested=$p;walkable=$true;reason=$reason;clamped=(Copy-TestValue $p);clampResidual=0.0;traceResidual=0.0;minimumSlack=$slack;nearestBlockerId=$blocker}
+            if($reason-ceq'admitted'){$selected=$i}}
+        $searches+=[pscustomobject]@{contract='world-route-goal-clear-of-units/v1';label=$r[0];selectedId=$r[1];moverId=$r[2];start=[pscustomobject]@{x=0.0;y=0.0;z=0.0};direction=[pscustomobject]@{x=$r[3];y=0.0;z=$r[4]};
+            distance=2.0;margin=0.5;unitRadius=11.0;moverCorpulence=0.5;units=$units;candidates=$candidates;selectedIndex=$selected}
+        $goal=$candidates[$selected].requested;$move=$o.movements[$m];$move.requestedGoal=(Copy-TestValue $goal);$move.end=[pscustomobject]@{x=$goal.x+0.05;y=0.0;z=$goal.z}
+    }
+    $o|Add-Member routeGoalSearches $searches;return $copy
+}
+$routeClear=New-RouteV2Fixture 10.0 10.0;$routeF4=New-RouteV2Fixture 0.3 2.7
+Check 'v2 route keeps every declared fixed goal clear of the other actors' {foreach($s in $routeClear.observations.routeGoalSearches){if($s.selectedIndex-ne0){throw 'A clear declared goal was not kept.'}};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $routeClear) 'PASS'}
+Check 'v2 route searches clear of rider A beside the horse goal (F4 geometry)' {$s=$routeF4.observations.routeGoalSearches[1];if($s.selectedIndex-le0-or$s.candidates[0].reason-cne'inside-unit-footprint'){throw 'F4 horse goal was not refused.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $routeF4) 'PASS'}
+Check 'v1 movements keep their fixed-goal path' {if($null-ne$good.observations.PSObject.Properties['routeGoalSearches']){throw 'v1 fixture changed.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $good) 'PASS'}
+$routeMutations=@(
+ @('a movement without its route search',{param($v)$v.observations.routeGoalSearches=@($v.observations.routeGoalSearches[0],$v.observations.routeGoalSearches[1])}),
+ @('route searches out of movement order',{param($v)$s=$v.observations.routeGoalSearches;$v.observations.routeGoalSearches=@($s[1],$s[0],$s[2])}),
+ @('route search for another executor',{param($v)$v.observations.routeGoalSearches[1].moverId=$second}),
+ @('unknown route contract',{param($v)$v.observations.routeGoalSearches[1].contract='world-route-goal-clear-of-units/v2'}),
+ @('F4 horse goal claimed clear',{param($v)$s=$v.observations.routeGoalSearches[1];$c=$s.candidates[0];$c.reason='admitted';$s.candidates=@($c);$s.selectedIndex=0;$m=$v.observations.movements[1];$m.requestedGoal=(Copy-TestValue $c.requested);$m.end=[pscustomobject]@{x=$c.requested.x;y=0.0;z=$c.requested.z+0.05}}),
+ @('F4 horse clearance misrecorded as clear',{param($v)$v.observations.routeGoalSearches[1].candidates[0].minimumSlack=0.2}),
+ @('rider A omitted from the horse search',{param($v)$s=$v.observations.routeGoalSearches[1];$s.units=@($s.units|Where-Object id -CNE $first);foreach($c in $s.candidates){$c.nearestBlockerId=$mammoth}}),
+ @('moving Horse counted as an obstacle',{param($v)$v.observations.routeGoalSearches[1].units+=[pscustomobject]@{id=$horse;position=[pscustomobject]@{x=50.0;y=0.0;z=0.0};corpulence=0.5}}),
+ @('route candidate reason differs from its values',{param($v)$v.observations.routeGoalSearches[1].candidates[1].reason='off-navmesh'}),
+ @('route candidate out of policy order',{param($v)$v.observations.routeGoalSearches[1].candidates[1].bearingOffset=45.0}),
+ @('route requested point off its route',{param($v)$v.observations.routeGoalSearches[1].candidates[1].requested.x=0.3}),
+ @('route declared direction changed',{param($v)$v.observations.routeGoalSearches[1].direction.x=1.0;$v.observations.routeGoalSearches[1].direction.z=0.0}),
+ @('route clamp residual misrecorded',{param($v)$v.observations.routeGoalSearches[1].candidates[1].clampResidual=0.05}),
+ @('route navmesh trace beyond its bound',{param($v)$v.observations.routeGoalSearches[1].candidates[-1].traceResidual=0.06}),
+ @('route search continued past its admitted goal',{param($v)$s=$v.observations.routeGoalSearches[1];$s.candidates+=(Copy-TestValue $s.candidates[-1])}),
+ @('route search without an admitted goal',{param($v)$s=$v.observations.routeGoalSearches[1];$s.candidates=@($s.candidates|Select-Object -First 1);$s.selectedIndex=-1}),
+ @('movement aimed elsewhere than its route goal',{param($v)$m=$v.observations.movements[1];$m.requestedGoal.x+=0.5;$m.end.x+=0.5}),
+ @('movement started elsewhere than its search',{param($v)$v.observations.movements[1].start.x=-0.5}),
+ @('route margin weakened',{param($v)$v.observations.routeGoalSearches[1].margin=0.0}),
+ @('route length changed',{param($v)$v.observations.routeGoalSearches[1].distance=1.0}),
+ @('route unwalkable candidate with native clamp fields',{param($v)$c=$v.observations.routeGoalSearches[1].candidates[0];$c.walkable=$false;$c.reason='no-walkable-native-node'})
+)
+foreach($mutation in $routeMutations){$copy=Copy-TestValue $routeF4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'world engine writes the route search the reader requires' {
+    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.cs'))
+    foreach($pattern in @('MoveOnClearRoute(secondRider, secondMount, Vector3.forward, firstRider, "horse")','MoveOnClearRoute(firstRider, firstRider, Vector3.left, secondRider, "unmounted-control")','MoveOnClearRoute(firstRider, firstMount, Vector3.right, secondRider, "mammoth")')){if(-not$engine.Contains($pattern)){throw ('World engine route differs from the reader: '+$pattern)}}
+    $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\GroundGoalFootprintPolicy.cs'))
+    foreach($pattern in @('RouteContract = "world-route-goal-clear-of-units/v1"','RouteDistance = 2f','RouteBearingOffsets() => NativeGroundStepDestinationPolicy.BearingOffsets()','DoorReturnGoalPolicy.Slack(distance, moverCorpulence, otherCorpulence)')){if(-not$policy.Contains($pattern)){throw ('Route policy changed without the reader: '+$pattern)}}
+    $step=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\NativeGroundStepDestinationPolicy.cs'))
+    if(-not$step.Contains('offsets[i] = (i % 2 == 1 ? 1f : -1f) * 22.5f * ((i + 1) / 2);')-or-not$step.Contains('offsets[15] = 180f;')){throw 'Bearing offsets changed without the route reader.'}}
 # The reader's door predicate is the probe's: tie the term lists to DoorFacts by source text.
 function Get-DoorFactsTerms([string]$Property){
  $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))
