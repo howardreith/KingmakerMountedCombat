@@ -278,6 +278,22 @@ are recorded before any assertion (`door.firstPairReturn.goalSearch`), the arriv
 geometry, clamp residual, door distance, clearance slack and nearest blocker within 1e-3 m, reason) and the return
 distances; v1 evidence keeps its original verdict (F1/F3 r30 PASS, F4 r30 FAIL, re-read on the new reader).
 
+Rows 30, 40 and 41 before F5 (selection unchanged; producer behaviour, audit risk 1): the two-pair scenario's three ground
+moves (`mammoth` +x, `horse` +z, `unmounted-control` −x) went to a fixed point 2 m away with no footprint check. F4 r30's
+horse goal lay 0.83 m from rider A and 0.91 m from the Mammoth and F3 r30's mammoth goal 1.23 m from pair B; both arrived
+(residual 0.05 m), but a native stall there (7 s stuck, or completion outside the 0.3 m approach) would fail the row. Each
+move now goes to the first `GroundGoalFootprintPolicy` route candidate on the declared 2 m length (the declared direction
+first, clicked exactly as before; then `NativeGroundStepDestinationPolicy`'s bearing offsets) that is walkable, within 0.1 m
+of its nearest node, navmesh-traceable from the mover and at least corpulence sum + 0.5 m from every other unit within
+11 m (the moving pair excluded, every other scenario actor always considered). Each search is recorded in
+`observations.routeGoalSearches` before any assertion, the click, quiet window and endpoint bounds are unchanged, and no
+admissible goal refuses as uncovered. The world reader requires and recomputes the searches when present (order, rotated
+route geometry, clamp residual, slack and nearest blocker within 1e-3 m, reason, actor sets, movement start and goal);
+evidence without them keeps its v1 path. Re-read on 25ef6238 and on the new reader, unchanged: F2 (`20261025-…`) and F3
+(`20261026-…`) r30, r40 and r41 PASS, F4 r30 FAIL ("PASS world result requires PASS artifact"). On the retained geometry
+the declared goals of F2/F3 r40 and r41 are clear (the moved geometry is unchanged there unless a non-scenario unit stands
+within the footprint), while F3 r30's mammoth goal and F4 r30's mammoth and horse goals would move to the next clear bearing.
+
 ### B8 — two-pair combat on the owner-seed start (~30 min)
 
 | Tag | Row | Case | Source / checkpoint | T: | Reader |
@@ -298,6 +314,23 @@ hardening on, the producer writes `owner-seed-tb-first-action-mount-v2`, whose r
 every candidate (bearing order, 0.5 m step from the Horse's position in the before snapshot, preview residual and
 displacement by `MechanicsDistance` within 1e-4 of the recorded float32 values, reason consistency); v1 evidence (F2,
 b212 r07/r08 on 91437a41) keeps its original verdict, and the strict recompute agrees with b212 r07/r08.
+
+Row 57 before F5 (selection unchanged; producer behaviour, audit risk 2): the prone target's own-turn approach
+(`UnitMoveTo(destination, 0.1f)`) chose its destination by rider B's band and the engagers' reach only, ignoring pair B's
+Horse, pair A and other combatants; a blocked path would report as an uncovered non-Success approach. Kingmaker 2.1.7b
+(local metadata): a turn-based move plans on the grid graph through `SeekerWithClearance.StartPathWithClerance`
+(`ABPathWithClearance`, erosion tags of the mover's corpulence), skips the real-time `UpdateAvoidance`, and does not consume
+the `PathVisualizer` preview (only a ground click does); `CombatController.StartTurn` blocks an axis-aligned box of
+2 × Corpulence around every other turn-based unit and erodes it. Each evaluated destination now also needs a
+`GroundGoalFootprintPolicy` grid clearance: horizontal Chebyshev distance ≥ both corpulences + 0.5 m from every combat unit
+within 11 m plus pair A and pair B's Horse always (target and rider B excluded; rider B's band is the measured
+interaction). The existing terms keep their order and names; the inputs and every check are recorded in
+`proneStandUp.targetTurn.footprint` before any assertion, and the contract is `owner-seed-prone-stand-up-v2`, whose reader
+requires and recomputes the footprint (one check per proposal past the cheap terms, clearance and blocker within 1e-3 m,
+no footprint-refused proposal accepted). F2 (`20261025-c7e-final-B8-r57`), F3 (`20261026-…`) and b209 r57 cleared the Horse
+by 2.20–2.90 m and the Mammoth by 2.47–2.78 m on that measure (their first proposals stand) and read PASS on both the old and
+the new reader. Rider B's own grid box is not checked (unchanged band; on the retained geometry its Chebyshev distance
+was 1.31–1.45 m, beyond the 1.2 m corpulence sum that bounds the eroded box); a near-diagonal approach could still meet it.
 
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
