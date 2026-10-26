@@ -1510,15 +1510,69 @@ function Assert-KmcChunk7HorseStepDestination($Move){
  if(-not(Test-KmcChunk7FiniteNumber $Move.bearingOffset)-or[double]$Move.bearingOffset-ne[double]$x.bearingOffset){throw 'The independent Horse move is not its admitted destination.'}
  Assert-KmcAssistedSame $Move.destination $x.destination 'independent Horse admitted destination'
 }
+# 2.1.7b GeometryUtils.MechanicsDistance: the 2D distance, or half the height difference when that exceeds 1.5 m and is larger.
+function Get-KmcChunk7MechanicsDistance([double[]]$A,[double[]]$B){
+ $dy=[Math]::Abs($A[1]-$B[1]);$flat=[Math]::Sqrt(($A[0]-$B[0])*($A[0]-$B[0])+($A[2]-$B[2])*($A[2]-$B[2]))
+ if($dy-le1.5){$flat}else{[Math]::Max($flat,$dy/2.0)}
+}
+function ConvertTo-KmcChunk7HorseStepPoint($Value,[string]$Description){
+ if($Value-isnot[Array]-or@($Value).Count-ne3){throw ($Description+' is not a native point.')}
+ foreach($axis in @($Value)){if(-not(Test-KmcChunk7FiniteNumber $axis)){throw ($Description+' lacks finite coordinates.')}}
+ [double[]]@([double]$Value[0],[double]$Value[1],[double]$Value[2])
+}
+# NativeGroundStepDestinationPolicy.Reason over the producer's own float32-derived values.
+function Get-KmcChunk7HorseStepReason([bool]$Fresh,[bool]$Complete,[double]$Residual,[double]$Displacement){
+ if(-not$Complete){'no-completed-native-preview'}elseif(-not$Fresh){'stale-native-preview'}elseif($Residual-gt0.3+1e-6){'preview-ends-away-from-destination'}
+ elseif($Displacement-lt0.4-1e-6){'preview-ends-inside-approach-radius'}else{'admitted'}
+}
+# Contract v2 (F3 r07/r08 producers): the search is required and recomputed. Each candidate is the declared bearing offset in
+# order, 0.5 m from the Horse's position in the paused before snapshot at its height; each completed preview's residual and
+# displacement are recomputed from its end, the destination and that position (MechanicsDistance) and agree with the
+# recorded float32 values within 1e-4; each reason follows from its data; the admitted bounds hold for the recomputed values.
+function Assert-KmcChunk7HorseStepDestinationRecomputed($Move,[string]$MountId){
+ Assert-KmcChunk7HorseStepDestination $Move
+ $actor=Get-KmcChunk7CombatActor $Move.before $MountId
+ Assert-KmcAssistedObjectValue $actor.position @('x','y','z') 'independent Horse start'
+ $start=ConvertTo-KmcChunk7HorseStepPoint @($actor.position.x,$actor.position.y,$actor.position.z) 'The independent Horse start'
+ if(-not(Test-KmcChunk7FiniteNumber $Move.requestedDistance)-or[Math]::Abs([double]$Move.requestedDistance-0.5)-gt1e-4){throw 'The independent Horse step is not its declared 0.5 m step.'}
+ $offsets=@(0.0);for($i=1;$i-lt16;$i++){$offsets+=$(if($i%2-eq1){1.0}else{-1.0})*22.5*[Math]::Floor(($i+1)/2)};$offsets[15]=180.0
+ $c=@($Move.destinationSearch.candidates)
+ for($i=0;$i-lt$c.Count;$i++){
+  $x=$c[$i]
+  if(-not(Test-KmcChunk7FiniteNumber $x.bearingOffset)-or[double]$x.bearingOffset-ne$offsets[$i]){throw 'The independent Horse step search is not in its declared bearing order.'}
+  $destination=ConvertTo-KmcChunk7HorseStepPoint $x.destination 'The independent Horse step destination'
+  $flat=[Math]::Sqrt(($destination[0]-$start[0])*($destination[0]-$start[0])+($destination[2]-$start[2])*($destination[2]-$start[2]))
+  if([Math]::Abs($flat-0.5)-gt1e-4-or[Math]::Abs($destination[1]-$start[1])-gt1e-4){throw 'The independent Horse step destination is not 0.5 m from the Horse.'}
+  if($x.reason-ceq'native-handler-not-ground'){
+   Assert-KmcExactProperties $x @('bearingOffset','destination','reason','detail') 'independent Horse refused step';if($x.detail-isnot[string]){throw 'The independent Horse step refusal lacks its native detail.'};continue}
+  Assert-KmcExactProperties $x @('bearingOffset','destination','freshPreview','previewState','previewPoints','previewEnd','endResidual','displacement','reason') 'independent Horse step candidate'
+  if($x.freshPreview-isnot[bool]){throw 'The independent Horse step preview freshness is not boolean.'}
+  if($null-ne$x.previewState-and$x.previewState-isnot[string]){throw 'The independent Horse step preview state is malformed.'}
+  if($null-ne$x.previewPoints){Assert-KmcOrdinaryInteger $x.previewPoints 0 ([int]::MaxValue)}
+  $complete=$x.previewState-ceq'Complete'-and$null-ne$x.previewPoints-and[long]$x.previewPoints-gt0
+  if(-not$complete){
+   foreach($k in @('previewEnd','endResidual','displacement')){if($null-ne$x.$k){throw 'An incomplete independent Horse step preview carries an end.'}}
+   if($x.reason-cne'no-completed-native-preview'){throw 'The independent Horse step reason differs from its preview.'};continue}
+  $end=ConvertTo-KmcChunk7HorseStepPoint $x.previewEnd 'The independent Horse step preview end'
+  foreach($k in @('endResidual','displacement')){if(-not(Test-KmcChunk7FiniteNumber $x.$k)){throw 'The independent Horse step preview distances are not finite.'}}
+  $residual=Get-KmcChunk7MechanicsDistance $end $destination;$displacement=Get-KmcChunk7MechanicsDistance $end $start
+  if([Math]::Abs($residual-[double]$x.endResidual)-gt1e-4-or[Math]::Abs($displacement-[double]$x.displacement)-gt1e-4){throw 'The independent Horse step preview distances differ from its recorded end, destination and start.'}
+  if($x.reason-cne(Get-KmcChunk7HorseStepReason $x.freshPreview $true ([double]$x.endResidual) ([double]$x.displacement))){throw 'The independent Horse step reason differs from its preview.'}
+  if($x.reason-ceq'admitted'-and($residual-gt0.3+1e-6-or$displacement-lt0.4-1e-6)){throw 'The independent Horse step preview did not reach outside the native approach radius.'}
+ }
+}
 function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$ids=@($o.actorIds)
  if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
- $f=$o.firstActionMount;Assert-KmcBootstrapInventoryString $f.contract 'owner-seed-tb-first-action-mount-v1'
+ # v1 (F2 and earlier, and the 4e6cd034-91437a41 producers) keeps its original verdict; v2 requires the recomputed search.
+ $f=$o.firstActionMount;$v2=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v2'
+ Assert-KmcBootstrapInventoryString $f.contract $(if($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})
  Assert-KmcBootstrapInventoryString $f.riderId $s.riderAId;Assert-KmcBootstrapInventoryString $f.mountId $s.mountAId
  $m=$f.horseMove;foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $m.$key $true}
  if($m.round-ne$o.r1.independentRound-or-not(Test-KmcChunk7FiniteNumber $m.distance)-or[double]$m.distance-le0.02-or$m.command-eq0){throw 'The independent Horse did not take its own native move on its released turn.'}
- # F3 r07/r08 producers record the native step destination search; earlier accepted evidence predates it.
- if($null-ne$m.PSObject.Properties['destinationSearch']){Assert-KmcChunk7HorseStepDestination $m}
+ # F3 r07/r08 producers record the native step destination search; earlier accepted v1 evidence predates it.
+ if($v2){if($null-eq$m.PSObject.Properties['destinationSearch']){throw 'The v2 first-action Mount lacks its independent Horse step destination search.'};Assert-KmcChunk7HorseStepDestinationRecomputed $m $s.mountAId}
+ elseif($null-ne$m.PSObject.Properties['destinationSearch']){Assert-KmcChunk7HorseStepDestination $m}
  $hb=Get-KmcChunk7CombatActor $m.before $s.mountAId;$ha=Get-KmcChunk7CombatActor $m.after $s.mountAId
  if([double]$ha.move-le[double]$hb.move){throw 'The independent Horse move spent no movement.'}
  Assert-KmcChunk7SameCombatBudget $m.before $m.after @($s.riderBId,$s.mountBId)
