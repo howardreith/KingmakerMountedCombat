@@ -73,7 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics {
    Check(e.sixPins==null&&e.sixIdentities==null&&(bool)e.sixObservation["identityScopeReleased"],"actual partial releases exact native pin scope before cleanup");
    Check(e.passed.Count==4&&e.passed.Distinct().Count()==4,"actual partial emits four distinct selected result rows once");
    Check(e.siblingCaptures==1&&e.siblingChecks==3,"actual partial captures native sibling order once and requires it after each settled cycle");
-   Check(e.inherited.Calls>0&&e.inherited.DuringOpenWindow==0&&(string)e.sixObservation["contract"]=="cold-qualified-six-pair-lifecycle-v2"&&
+   Check(e.inherited.Calls>0&&e.inherited.DuringOpenWindow==0&&(string)e.sixObservation["contract"]=="cold-qualified-six-pair-lifecycle-v3"&&
     e.sixObservation["measuredFramesCarryFullCustody"].Value<bool>()==false,"actual partial verifies full inherited custody outside open windows only and declares it");
    var b=Create();b.BeginSixPairStress();for(int i=0;i<20000&&(MountedRuntimeMeasurement.Active==null||MountedRuntimeMeasurement.Active.Ready);i++){b.TickNative();b.UpdateSixPairStress();}
    for(int i=0;i<5;i++){b.TickNative();b.UpdateSixPairStress();}var openBefore=MountedRuntimeMeasurement.Active!=null&&!MountedRuntimeMeasurement.Active.Ready;b.inherited.Reject=true;

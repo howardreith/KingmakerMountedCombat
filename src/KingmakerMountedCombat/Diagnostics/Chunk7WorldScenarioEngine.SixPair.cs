@@ -32,8 +32,9 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireSixPairHostileClearance();
             // v2: full inherited custody (which hashes the staged source receipt and rebuilds the
             // roster and progression) runs at sampling-window boundaries; measured frames carry
-            // only the lightweight scope, ownership, settledness and identity-pin guard.
-            sixObservation = new JObject { ["contract"] = "cold-qualified-six-pair-lifecycle-v2",
+            // only the lightweight scope, ownership, settledness and identity-pin guard. v3 (F3 r39) also
+            // binds the before-stress clearance and the v2 wander-clear ground goals as required records.
+            sixObservation = new JObject { ["contract"] = "cold-qualified-six-pair-lifecycle-v3",
                 ["archiveProducerRunId"] = "20261022-c7b-world184-b184s1-sixthhorse-manual",
                 ["coldQualificationRunId"] = Chunk7OwnedPairsSelection.SixPairSourceRun,
                 ["fixtureSetupWrites"] = 0, ["nativeSaveRequests"] = 0, ["nativeLoadRequests"] = 1,

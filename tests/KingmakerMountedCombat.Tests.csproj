@@ -97,6 +97,7 @@
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
     <Compile Include="NativeGroundStepDestinationPolicyTests.cs" />
+    <Compile Include="Chunk7SixPairGroundGoalPolicyTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="NativeMountedAbilityActivationLedgerTests.cs" />
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
@@ -190,6 +191,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7CumulativeAcquisitionSelection.cs"><Link>Shared\Chunk7CumulativeAcquisitionSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs"><Link>Shared\Chunk7OwnedPairsSelection.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SixPairCombatEntry.cs"><Link>Shared\Chunk7SixPairCombatEntry.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SixPairGroundGoalPolicy.cs"><Link>Shared\Chunk7SixPairGroundGoalPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs"><Link>Shared\PersistenceSaveAuthorization.OwnedPairs.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.ProgressionManual.cs"><Link>Shared\PersistenceSaveAuthorization.ProgressionManual.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
