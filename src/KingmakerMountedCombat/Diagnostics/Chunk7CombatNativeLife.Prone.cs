@@ -29,6 +29,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private bool ProneFoldCase => request.OwnedPairs?.Case == Chunk7OwnedPairsSelection.OwnerSeedNativeLifeCase;
         internal const int ProneHealAttempts = 2;
+        // v2 (F5 hardening): an approaching target turn records its turn-based grid footprint search (targetTurn.footprint).
+        internal const string ProneContract = "owner-seed-prone-stand-up-v2";
         private UnitEntityData lifeHealer;
         private FoldedScrollFixture lifeScroll;
         private JObject prone, proneAttempt, proneStand;
@@ -44,7 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Out of combat, before the encounter: the healer and its one disposable scroll stack.
         private void PrepareLifeHealer()
         {
-            prone = new JObject { ["contract"] = "owner-seed-prone-stand-up-v1", ["riderId"] = br.UniqueId, ["healAttemptsAllowed"] = ProneHealAttempts };
+            prone = new JObject { ["contract"] = ProneContract, ["riderId"] = br.UniqueId, ["healAttemptsAllowed"] = ProneHealAttempts };
             evidence["proneStandUp"] = prone;
             var scroll = ResourcesLibrary.TryGetBlueprint<BlueprintItemEquipmentUsable>(NativeCastingItemLease.CureScroll);
             Require(scroll != null, "Native Cure Light Wounds scroll blueprint is unavailable.");
@@ -140,12 +142,24 @@ namespace KingmakerMountedCombat.Diagnostics
             proneTargetTurn["geometry"] = new JObject { ["corpulence"] = corpulence, ["weaponReachMeters"] = meters, ["reach"] = reach, ["near"] = near, ["far"] = far, ["gap"] = gap,
                 ["engagers"] = new JArray(engagers.Select(unit => unit.UniqueId)) };
             var proposals = new JArray(); proneTargetTurn["proposals"] = proposals; Vector3 destination;
+            // v2 (F5 hardening): the destination also keeps clear of every other combat unit's native turn-based grid footprint
+            // (GroundGoalFootprintPolicy: the eroded box CombatController.StartTurn blocks around pair B's Horse, pair A and any
+            // other combatant), so a destination the native grid path cannot reach is refused before the move instead of
+            // reported as an uncovered non-Success approach. Rider B keeps the measured band above. Each evaluated destination's
+            // footprint check is recorded, before any assertion; the first clear in-band proposal is unchanged.
+            var footprint = ProneTargetFootprint(); proneTargetTurn["footprint"] = footprint;
+            var checks = (JArray)footprint["checks"];
             var found = TryNavmeshDestination(target.Position, br.Position - target.Position, Math.Max(.6f, Flat(target.Position, br.Position) - gap),
-                point => Kingmaker.Utility.GeometryUtils.MechanicsDistance(point, br.Position) >= far ? "outside the predicted threat reach" :
-                    Flat(point, br.Position) < near ? "too close to rider B" :
-                    engagers.Any(unit => unit.GetThreatHand() == null || !unit.IsReach(target, unit.GetThreatHand(), point)) ? "leaves an engaging unit's reach" : null,
+                point =>
+                {
+                    var geometry = Kingmaker.Utility.GeometryUtils.MechanicsDistance(point, br.Position) >= far ? "outside the predicted threat reach" :
+                        Flat(point, br.Position) < near ? "too close to rider B" :
+                        engagers.Any(unit => unit.GetThreatHand() == null || !unit.IsReach(target, unit.GetThreatHand(), point)) ? "leaves an engaging unit's reach" : null;
+                    var clear = ProneFootprintCheck(footprint, point, proposals.Count, checks);
+                    return geometry ?? (clear ? null : GroundGoalFootprintPolicy.GridRefusal);
+                },
                 proposals, FullCircleFan, new[] { .8f, 1f }, out destination);
-            Require(found, "No walkable native destination puts the diagnostic target's threat on the healed prone rider without leaving an engaging unit's reach; the C11 prone stand-up is uncovered on this fixture.");
+            Require(found, "No walkable native destination puts the diagnostic target's threat on the healed prone rider without leaving an engaging unit's reach or entering another combat unit's native grid footprint; the C11 prone stand-up is uncovered on this fixture.");
             proneTargetTurn["destination"] = Point(destination);
             proneTargetTurn["before"] = WorldSnapshot("prone-target-before"); proneTargetTurn["ruleCountBefore"] = proneRules.EventCount;
             proneTargetTurn["traceSequenceBefore"] = trace.EventCount;
@@ -155,6 +169,39 @@ namespace KingmakerMountedCombat.Diagnostics
             target.Commands.Run(proneTargetMove); issuedCommands.Add(proneTargetMove);
             proneTargetTurn["command"] = trace.ObjectIdentity(proneTargetMove);
             proneFrames = 0; LifeStage(16);
+        }
+        // The target's turn-based grid footprint inputs, read once on its own turn (where CombatController.StartTurn placed the
+        // other units' blocks): every combat unit within the policy radius, plus pair A and pair B's Horse
+        // always; the target itself and rider B (the measured band) are not obstacles here. Read-only.
+        private JObject ProneTargetFootprint()
+        {
+            var always = new[] { ar, am, bm };
+            var units = Game.Instance.State.Units.Where(unit => unit != null && !ReferenceEquals(unit, target) && !ReferenceEquals(unit, br) &&
+                    unit.View != null && (always.Contains(unit) ||
+                    (unit.IsInCombat && unit.IsInGame && Flat(unit.Position, target.Position) <= DoorReturnGoalPolicy.UnitConsiderationRadius)))
+                .OrderBy(unit => unit.UniqueId, StringComparer.Ordinal).ToArray();
+            Require(units.Length <= DoorReturnGoalPolicy.MaximumUnits && always.All(units.Contains),
+                "The prone target's grid footprint scan lost pair A or pair B's Horse or exceeded its read-only bound.");
+            return new JObject { ["contract"] = GroundGoalFootprintPolicy.GridContract, ["moverId"] = target.UniqueId,
+                ["moverCorpulence"] = target.View.Corpulence, ["margin"] = DoorReturnGoalPolicy.ClearanceMargin,
+                ["unitRadius"] = DoorReturnGoalPolicy.UnitConsiderationRadius,
+                ["units"] = new JArray(units.Select(unit => new JObject { ["id"] = unit.UniqueId, ["position"] = Point(unit.Position),
+                    ["corpulence"] = unit.View.Corpulence })),
+                ["checks"] = new JArray() };
+        }
+        private static bool ProneFootprintCheck(JObject footprint, Vector3 point, int proposalIndex, JArray checks)
+        {
+            var mover = (double)footprint["moverCorpulence"]; var slack = double.PositiveInfinity; string blocker = null;
+            foreach (var unit in (JArray)footprint["units"])
+            {
+                var position = (JArray)unit["position"];
+                var value = GroundGoalFootprintPolicy.GridSlack(point.x - (float)position[0], point.z - (float)position[2], mover, (double)unit["corpulence"]);
+                if (value < slack) { slack = value; blocker = (string)unit["id"]; }
+            }
+            var clear = GroundGoalFootprintPolicy.GridAdmits(slack);
+            checks.Add(new JObject { ["proposalIndex"] = proposalIndex, ["goal"] = Point(point), ["minimumSlack"] = slack,
+                ["nearestBlockerId"] = blocker, ["clear"] = clear });
+            return clear;
         }
         private JObject ProneTargetTurnCost(TurnController turn) => new JObject { ["timeMoved"] = turn.TimeMoved,
             ["metersFiveFootStep"] = turn.MetersMovedByFiveFootStep, ["fiveFootStep"] = turn.EnabledFiveFootStep,
