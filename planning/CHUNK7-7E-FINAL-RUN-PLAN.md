@@ -293,6 +293,10 @@ evidence without them keeps its v1 path. Re-read on 25ef6238 and on the new read
 (`20261026-…`) r30, r40 and r41 PASS, F4 r30 FAIL ("PASS world result requires PASS artifact"). On the retained geometry
 the declared goals of F2/F3 r40 and r41 are clear (the moved geometry is unchanged there unless a non-scenario unit stands
 within the footprint), while F3 r30's mammoth goal and F4 r30's mammoth and horse goals would move to the next clear bearing.
+Review correction (11bd755b): the producer also writes `observations.routeGoalContract` (`world-route-goal-clear-of-units/v1`)
+at fixture setup for the two-pair flow, and the reader requires the marker and the searches together (either alone, or an
+unknown marker, is refused); only evidence with neither keeps the v1 path, so a new-DLL row 40/41 run on the door
+not-applicable path cannot pass without its searches. Retained F2/F3/F4 verdicts re-read unchanged.
 
 ### B8 — two-pair combat on the owner-seed start (~30 min)
 
@@ -331,6 +335,11 @@ no footprint-refused proposal accepted). F2 (`20261025-c7e-final-B8-r57`), F3 (`
 by 2.20–2.90 m and the Mammoth by 2.47–2.78 m on that measure (their first proposals stand) and read PASS on both the old and
 the new reader. Rider B's own grid box is not checked (unchanged band; on the retained geometry its Chebyshev distance
 was 1.31–1.45 m, beyond the 1.2 m corpulence sum that bounds the eroded box); a near-diagonal approach could still meet it.
+Review follow-up (0d17507d): rider B's own box is now kept too, with the band's smaller margin: Chebyshev distance ≥ target
++ rider B corpulence + 0.1 m (refused as "inside rider B's native grid footprint"), recorded as `footprint.riderB` and each
+check's `riderBandSlack`/`riderBandClear` and recomputed by the prone v2 reader (v2's shape extended in place; no retained
+run used it). The band itself is unchanged. Retained first proposals stand: F3 1.451 m, F2 1.350 m, b209 1.306 m against
+the 1.3 m bound (b209 by 6 mm).
 
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
