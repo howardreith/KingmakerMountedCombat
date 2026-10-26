@@ -64,6 +64,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool GridAdmits(double minimumSlack) => Finite(minimumSlack) && minimumSlack >= 0;
 
+        // Rider B, the subject of the measured band (Euclidean distance >= corpulence sum + 0.05 m): its own grid box is kept
+        // with a smaller margin so the band is unchanged. At 45 degrees the band's near edge lies at ~near / sqrt(2) on the
+        // box measure, inside the eroded box (whole-cell erosion quantization); such a proposal is refused before the move.
+        internal const float RiderBandGridMargin = 0.1f;
+        internal const string RiderBandRefusal = "inside rider B's native grid footprint";
+
+        internal static double RiderBandSlack(double dx, double dz, double corpulenceSum) =>
+            Math.Max(Math.Abs(dx), Math.Abs(dz)) - (corpulenceSum + RiderBandGridMargin);
+
         private static bool Finite(double value) => !double.IsNaN(value) && !double.IsInfinity(value);
     }
 }

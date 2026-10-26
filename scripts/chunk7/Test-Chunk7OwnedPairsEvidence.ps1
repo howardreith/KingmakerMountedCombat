@@ -628,10 +628,13 @@ Check 'owner-seed prone stand-up accepts the target''s native approach on its ow
 Check 'owner-seed prone stand-up accepts a target turn that already threatened rider B' {Invoke-OwnedReader (Add-KmcProneTargetApproach (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup') $false)}
 # v2 (F5 hardening): the approach records its turn-based grid footprint search. The fixture target (corpulence 0.5) moves to
 # (0, 0, 2.7); pair A stands 3 m east, pair B's Horse 3 m west (min clearance: the Mammoth, max(3, 2.5) - 1.9 = 1.1).
+# Rider B's box clearance at (X, 0, Z): Chebyshev distance - (0.5 + 0.5 + 0.1).
+function Get-KmcProneBandSlack($R,[double]$X,[double]$Z){$q=@($R.position);[Math]::Max([Math]::Abs($X-[double]$q[0]),[Math]::Abs($Z-[double]$q[2]))-1.1}
 function Add-KmcProneTargetApproachV2($v){$v=Add-KmcProneTargetApproach $v;$P=Get-Prone $v;$P.contract='owner-seed-prone-stand-up-v2';$op=$v.request.ownedPairs
  $units=@([pscustomobject][ordered]@{id=$op.riderAId;position=@(3.0,0.0,0.0);corpulence=0.5},[pscustomobject][ordered]@{id=$op.mountAId;position=@(3.0,0.0,0.2);corpulence=0.9},[pscustomobject][ordered]@{id=$op.mountBId;position=@(-3.0,0.0,0.0);corpulence=0.5})
- $check=[pscustomobject][ordered]@{proposalIndex=0;goal=@(0.0,0.0,2.7);minimumSlack=1.1;nearestBlockerId=$op.mountAId;clear=$true}
- $P.targetTurn|Add-Member footprint (Copy-Value ([pscustomobject][ordered]@{contract='tb-grid-unit-footprint/v1';moverId=$v.artifact.observations.targetId;moverCorpulence=0.5;margin=0.5;unitRadius=11.0;units=$units;checks=@($check)}));$v}
+ $rp=@(@($P.healAttempts)[-1].riderAfter.position);$riderB=[pscustomobject][ordered]@{id=$op.riderBId;position=@([double]$rp[0],[double]$rp[1],[double]$rp[2]);corpulence=0.5;margin=0.1}
+ $check=[pscustomobject][ordered]@{proposalIndex=0;goal=@(0.0,0.0,2.7);minimumSlack=1.1;nearestBlockerId=$op.mountAId;clear=$true;riderBandSlack=(Get-KmcProneBandSlack $riderB 0.0 2.7);riderBandClear=$true}
+ $P.targetTurn|Add-Member footprint (Copy-Value ([pscustomobject][ordered]@{contract='tb-grid-unit-footprint/v1';moverId=$v.artifact.observations.targetId;moverCorpulence=0.5;margin=0.5;unitRadius=11.0;riderB=$riderB;units=$units;checks=@($check)}));$v}
 # Pair B's Horse moved to (Dx, 0, Dz); the recorded clearance and blocker recomputed for the one proposal at (0, 0, 2.7).
 function Set-KmcProneHorse($v,[double]$Dx,[double]$Dz){$f=(Get-Prone $v).targetTurn.footprint;$h=@($f.units|Where-Object id -CEQ $v.request.ownedPairs.mountBId)[0];$h.position=@($Dx,0.0,$Dz)
  $slack=[Math]::Max([Math]::Abs($Dx),[Math]::Abs($Dz-2.7))-1.5;$c=$f.checks[0];if($slack-lt1.1){$c.minimumSlack=$slack;$c.nearestBlockerId=$h.id};$c.clear=$c.minimumSlack-ge0}
@@ -640,7 +643,7 @@ Check 'owner-seed prone v2 approach accepts its recorded grid footprint search' 
 Check 'owner-seed prone v2 approach accepts a first proposal refused for the Horse footprint' {$v=Add-KmcProneTargetApproachV2 (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');$t=(Get-Prone $v).targetTurn
  $refused=Copy-Value $t.proposals[0];$refused.goal=@(-0.5,0.0,2.7);$refused.requested=@(-0.5,0.0,2.7);$refused.geometryAccepted=$false;$refused.geometryRefusal='inside a combat unit''s native grid footprint';$refused.refusal=$refused.geometryRefusal;$refused.eligible=$false
  $t.proposals=@($refused,$t.proposals[0]);$h=@($t.footprint.units|Where-Object id -CEQ $v.request.ownedPairs.mountBId)[0];$h.position=@(-1.6,0.0,2.7)
- $first=[pscustomobject]@{proposalIndex=0;goal=@(-0.5,0.0,2.7);minimumSlack=-0.4;nearestBlockerId=$h.id;clear=$false};$second=Copy-Value $t.footprint.checks[0];$second.proposalIndex=1;$second.minimumSlack=0.1;$second.nearestBlockerId=$h.id
+ $first=[pscustomobject][ordered]@{proposalIndex=0;goal=@(-0.5,0.0,2.7);minimumSlack=-0.4;nearestBlockerId=$h.id;clear=$false;riderBandSlack=(Get-KmcProneBandSlack $t.footprint.riderB -0.5 2.7);riderBandClear=$true};$second=Copy-Value $t.footprint.checks[0];$second.proposalIndex=1;$second.minimumSlack=0.1;$second.nearestBlockerId=$h.id
  $t.footprint.checks=@((Copy-Value $first),$second);Invoke-OwnedReader $v}
 Check 'owner-seed prone v1 approach keeps its original shape' {Invoke-OwnedReader (Add-KmcProneTargetApproach (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup'))}
 Check-ProneFootprint 'a v2 approach without its footprint search' {(Get-Prone $args[0]).targetTurn.PSObject.Properties.Remove('footprint')} 'prone target approach'
@@ -660,9 +663,28 @@ Check-ProneFootprint 'an evaluated proposal without its check' {(Get-Prone $args
 Check-ProneFootprint 'a check for an unevaluated proposal' {$f=(Get-Prone $args[0]).targetTurn.footprint;$extra=Copy-Value $f.checks[0];$extra.proposalIndex=1;$f.checks=@($f.checks[0],$extra)} 'never reached'
 Check-ProneFootprint 'a check measuring another point' {(Get-Prone $args[0]).targetTurn.footprint.checks[0].goal=@(0.0,0.0,2.0)} 'another point'
 Check-ProneFootprint 'a clear proposal refused for a footprint' {$t=(Get-Prone $args[0]).targetTurn;$p=$t.proposals[0];$p.eligible=$false;$p.geometryAccepted=$false;$p.geometryRefusal='inside a combat unit''s native grid footprint';$p.refusal=$p.geometryRefusal} 'refused for a grid footprint|accepted native proposal'
+# A footprint check recomputed for a goal at (X, 0, Z): the other units' box clearance and rider B's band box.
+function New-KmcProneCheck($f,[int]$Index,[double]$X,[double]$Z){$min=[double]::PositiveInfinity;$blocker=$null
+ foreach($u in $f.units){$q=@($u.position);$s=[Math]::Max([Math]::Abs($X-[double]$q[0]),[Math]::Abs($Z-[double]$q[2]))-(0.5+[double]$u.corpulence+0.5);if($s-lt$min){$min=$s;$blocker=$u.id}}
+ $band=Get-KmcProneBandSlack $f.riderB $X $Z
+ [pscustomobject][ordered]@{proposalIndex=$Index;goal=@($X,0.0,$Z);minimumSlack=$min;nearestBlockerId=$blocker;clear=($min-ge0);riderBandSlack=$band;riderBandClear=($band-ge0)}}
+# The one accepted proposal moved to (X, 0, Z) on the 45-degree diagonal from rider B (0, 0, 1.5): inside its band box.
+function Set-KmcProneGoal($v,[double]$X,[double]$Z){$t=(Get-Prone $v).targetTurn;$p=$t.proposals[0];$p.goal=@($X,0.0,$Z);$p.requested=@($X,0.0,$Z);$t.destination=@($X,0.0,$Z)
+ $t.footprint.checks=@(Copy-Value (New-KmcProneCheck $t.footprint 0 $X $Z))}
+Check 'owner-seed prone v2 approach accepts a first proposal refused for rider B''s diagonal box' {$v=Add-KmcProneTargetApproachV2 (New-KmcOwnerSeedDerivedCombatFixture 'native-life-cleanup');$t=(Get-Prone $v).targetTurn
+ $refused=Copy-Value $t.proposals[0];$refused.goal=@(0.85,0.0,2.35);$refused.requested=@(0.85,0.0,2.35);$refused.geometryAccepted=$false;$refused.geometryRefusal='inside rider B''s native grid footprint';$refused.refusal=$refused.geometryRefusal;$refused.eligible=$false
+ $t.proposals=@($refused,$t.proposals[0]);$t.footprint.checks=@((Copy-Value (New-KmcProneCheck $t.footprint 0 0.85 2.35)),(Copy-Value (New-KmcProneCheck $t.footprint 1 0.0 2.7)));Invoke-OwnedReader $v}
+Check-ProneFootprint 'a destination inside rider B''s box on the diagonal' {Set-KmcProneGoal $args[0] 0.85 2.35} 'inside rider B''s native grid footprint was accepted'
+Check-ProneFootprint 'a rider B box misrecorded as clear' {Set-KmcProneGoal $args[0] 0.85 2.35;(Get-Prone $args[0]).targetTurn.footprint.checks[0].riderBandClear=$true} 'rider B box verdict differs'
+Check-ProneFootprint 'a misrecorded rider B box clearance' {(Get-Prone $args[0]).targetTurn.footprint.checks[0].riderBandSlack=2.0} 'rider B box clearance does not recompute'
+Check-ProneFootprint 'a rider B box away from the healed rider' {(Get-Prone $args[0]).targetTurn.footprint.riderB.position=@(0.0,0.0,3.0)} 'not where rider B lay'
+Check-ProneFootprint 'a weakened rider B box margin' {(Get-Prone $args[0]).targetTurn.footprint.riderB.margin=0.0} 'rider B box differs'
+Check-ProneFootprint 'a rider B box for another actor' {(Get-Prone $args[0]).targetTurn.footprint.riderB.id=$args[0].request.ownedPairs.riderAId} 'rider B box differs'
+Check-ProneFootprint 'a footprint without rider B''s box' {(Get-Prone $args[0]).targetTurn.footprint.PSObject.Properties.Remove('riderB')} 'prone target grid footprint'
+Check-ProneFootprint 'a clear proposal refused for rider B''s box' {$t=(Get-Prone $args[0]).targetTurn;$p=$t.proposals[0];$p.eligible=$false;$p.geometryAccepted=$false;$p.geometryRefusal='inside rider B''s native grid footprint';$p.refusal=$p.geometryRefusal} 'refused for it|accepted native proposal'
 Check 'owner-seed prone producer writes the v2 contract and grid refusal the reader requires' {$src=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk7CombatNativeLife.Prone.cs'));$pol=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/GroundGoalFootprintPolicy.cs'))
  foreach($pattern in @('ProneContract = "owner-seed-prone-stand-up-v2"','["contract"] = ProneContract','proneTargetTurn["footprint"] = footprint')){if(-not$src.Contains($pattern)){throw ('Prone producer differs from the v2 reader: '+$pattern)}}
- foreach($pattern in @('GridContract = "tb-grid-unit-footprint/v1"','GridRefusal = "inside a combat unit''s native grid footprint"','Math.Max(Math.Abs(dx), Math.Abs(dz)) - (moverCorpulence + otherCorpulence + DoorReturnGoalPolicy.ClearanceMargin)')){if(-not$pol.Contains($pattern)){throw ('Grid footprint policy changed without the reader: '+$pattern)}}}
+ foreach($pattern in @('RiderBandGridMargin = 0.1f','RiderBandRefusal = "inside rider B''s native grid footprint"','Math.Max(Math.Abs(dx), Math.Abs(dz)) - (corpulenceSum + RiderBandGridMargin)','GridContract = "tb-grid-unit-footprint/v1"','GridRefusal = "inside a combat unit''s native grid footprint"','Math.Max(Math.Abs(dx), Math.Abs(dz)) - (moverCorpulence + otherCorpulence + DoorReturnGoalPolicy.ClearanceMargin)')){if(-not$pol.Contains($pattern)){throw ('Grid footprint policy changed without the reader: '+$pattern)}}}
 Check-ProneTarget 'an approach that drew an attack' {$t=(Get-Prone $args[0]).targetTurn;$t.rules=@(Copy-Value (Get-Prone $args[0]).standUp.rules[0])} 'drew an attack'
 Check-ProneTarget 'an approach without native movement cost' {(Get-Prone $args[0]).targetTurn.turnAfter.timeMoved=0.0} 'natively costed'
 Check-ProneTarget 'an approach spending neither Move nor five-foot step' {(Get-Prone $args[0]).targetTurn.turnAfter.move=0.0} 'natively costed'
