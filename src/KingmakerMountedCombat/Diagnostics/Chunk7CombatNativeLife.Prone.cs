@@ -145,7 +145,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // v2 (F5 hardening): the destination also keeps clear of every other combat unit's native turn-based grid footprint
             // (GroundGoalFootprintPolicy: the eroded box CombatController.StartTurn blocks around pair B's Horse, pair A and any
             // other combatant), so a destination the native grid path cannot reach is refused before the move instead of
-            // reported as an uncovered non-Success approach. Rider B keeps the measured band above. Each evaluated destination's
+            // reported as an uncovered non-Success approach. Rider B keeps the measured band above and its own grid box with a
+            // 0.1 m margin (a near-diagonal band point lies inside it on the box measure). Each evaluated destination's
             // footprint check is recorded, before any assertion; the first clear in-band proposal is unchanged.
             var footprint = ProneTargetFootprint(); proneTargetTurn["footprint"] = footprint;
             var checks = (JArray)footprint["checks"];
@@ -155,11 +156,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     var geometry = Kingmaker.Utility.GeometryUtils.MechanicsDistance(point, br.Position) >= far ? "outside the predicted threat reach" :
                         Flat(point, br.Position) < near ? "too close to rider B" :
                         engagers.Any(unit => unit.GetThreatHand() == null || !unit.IsReach(target, unit.GetThreatHand(), point)) ? "leaves an engaging unit's reach" : null;
-                    var clear = ProneFootprintCheck(footprint, point, proposals.Count, checks);
-                    return geometry ?? (clear ? null : GroundGoalFootprintPolicy.GridRefusal);
+                    var footprintRefusal = ProneFootprintCheck(footprint, point, proposals.Count, checks);
+                    return geometry ?? footprintRefusal;
                 },
                 proposals, FullCircleFan, new[] { .8f, 1f }, out destination);
-            Require(found, "No walkable native destination puts the diagnostic target's threat on the healed prone rider without leaving an engaging unit's reach or entering another combat unit's native grid footprint; the C11 prone stand-up is uncovered on this fixture.");
+            Require(found, "No walkable native destination puts the diagnostic target's threat on the healed prone rider without leaving an engaging unit's reach or entering a native grid footprint (rider B's or another combat unit's); the C11 prone stand-up is uncovered on this fixture.");
             proneTargetTurn["destination"] = Point(destination);
             proneTargetTurn["before"] = WorldSnapshot("prone-target-before"); proneTargetTurn["ruleCountBefore"] = proneRules.EventCount;
             proneTargetTurn["traceSequenceBefore"] = trace.EventCount;
@@ -172,7 +173,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         // The target's turn-based grid footprint inputs, read once on its own turn (where CombatController.StartTurn placed the
         // other units' blocks): every combat unit within the policy radius, plus pair A and pair B's Horse
-        // always; the target itself and rider B (the measured band) are not obstacles here. Read-only.
+        // always; the target itself and rider B (the measured band) are not in the unit set; rider B's own box is checked
+        // separately (riderB) with the band's smaller margin. Read-only.
         private JObject ProneTargetFootprint()
         {
             var always = new[] { ar, am, bm };
@@ -185,11 +187,15 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["contract"] = GroundGoalFootprintPolicy.GridContract, ["moverId"] = target.UniqueId,
                 ["moverCorpulence"] = target.View.Corpulence, ["margin"] = DoorReturnGoalPolicy.ClearanceMargin,
                 ["unitRadius"] = DoorReturnGoalPolicy.UnitConsiderationRadius,
+                // Rider B's own grid box, with the band's smaller margin (GroundGoalFootprintPolicy.RiderBandSlack).
+                ["riderB"] = new JObject { ["id"] = br.UniqueId, ["position"] = Point(br.Position), ["corpulence"] = br.View.Corpulence,
+                    ["margin"] = GroundGoalFootprintPolicy.RiderBandGridMargin },
                 ["units"] = new JArray(units.Select(unit => new JObject { ["id"] = unit.UniqueId, ["position"] = Point(unit.Position),
                     ["corpulence"] = unit.View.Corpulence })),
                 ["checks"] = new JArray() };
         }
-        private static bool ProneFootprintCheck(JObject footprint, Vector3 point, int proposalIndex, JArray checks)
+        // Returns the footprint refusal (rider B's box first, then the other units'), or null when both are clear.
+        private static string ProneFootprintCheck(JObject footprint, Vector3 point, int proposalIndex, JArray checks)
         {
             var mover = (double)footprint["moverCorpulence"]; var slack = double.PositiveInfinity; string blocker = null;
             foreach (var unit in (JArray)footprint["units"])
@@ -199,9 +205,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (value < slack) { slack = value; blocker = (string)unit["id"]; }
             }
             var clear = GroundGoalFootprintPolicy.GridAdmits(slack);
+            var rider = (JObject)footprint["riderB"]; var riderPosition = (JArray)rider["position"];
+            var riderSlack = GroundGoalFootprintPolicy.RiderBandSlack(point.x - (float)riderPosition[0], point.z - (float)riderPosition[2],
+                mover + (double)rider["corpulence"]);
+            var riderClear = GroundGoalFootprintPolicy.GridAdmits(riderSlack);
             checks.Add(new JObject { ["proposalIndex"] = proposalIndex, ["goal"] = Point(point), ["minimumSlack"] = slack,
-                ["nearestBlockerId"] = blocker, ["clear"] = clear });
-            return clear;
+                ["nearestBlockerId"] = blocker, ["clear"] = clear, ["riderBandSlack"] = riderSlack, ["riderBandClear"] = riderClear });
+            return !riderClear ? GroundGoalFootprintPolicy.RiderBandRefusal : !clear ? GroundGoalFootprintPolicy.GridRefusal : null;
         }
         private JObject ProneTargetTurnCost(TurnController turn) => new JObject { ["timeMoved"] = turn.TimeMoved,
             ["metersFiveFootStep"] = turn.MetersMovedByFiveFootStep, ["fiveFootStep"] = turn.EnabledFiveFootStep,

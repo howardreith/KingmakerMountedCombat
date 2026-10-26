@@ -13,6 +13,21 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("world route goal keeps the navmesh terms of the door policy", RouteNavmeshTerms);
             runner.Run("world route goal tries the declared direction first and rotates as Unity", RouteOrder);
             runner.Run("prone grid footprint keeps the F2/F3 Horse geometry and refuses box corners", GridGeometry);
+            runner.Run("prone rider B box keeps the retained band destinations and refuses the diagonal", RiderBandGeometry);
+        }
+
+        private static void RiderBandGeometry()
+        {
+            // Retained r57 destinations against rider B (corpulence sum 1.2): F3 (1.451, 0.127), F2 (1.350, 0.542),
+            // b209 (1.306, 0.626): all clear, so the first proposals stand.
+            TestRunner.True(GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(1.451, 0.127, 1.2)), "F3's band destination was refused.");
+            TestRunner.True(GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(-1.350, -0.542, 1.2)), "F2's band destination was refused.");
+            TestRunner.True(GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(1.306, 0.626, 1.2)), "b209's band destination was refused.");
+            // The band's near edge (1.25 m) at 45 degrees lies 0.884 m away on the box measure: refused.
+            var diagonal = 1.25 / Math.Sqrt(2);
+            TestRunner.True(!GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(diagonal, diagonal, 1.2)), "A diagonal band point was admitted.");
+            TestRunner.True(GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(1.3001, 0.0, 1.2)), "Just beyond the rider B bound was refused.");
+            TestRunner.True(!GroundGoalFootprintPolicy.GridAdmits(GroundGoalFootprintPolicy.RiderBandSlack(1.29, 0.0, 1.2)), "The rider B margin was not kept.");
         }
 
         private static void RouteF4Geometry()

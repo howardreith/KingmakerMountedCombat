@@ -372,7 +372,7 @@ function Assert-KmcChunk7ProneTargetTurn($T,$P,$st,$ids,$TargetId){
  $approach=@('round','targetBefore','engagedBefore','approached','geometry','proposals','destination','before','ruleCountBefore','traceSequenceBefore','turnBefore','command','after','turnAfter','turnEndedNatively','riderAfter','rules','traceSequenceAfter','displacement','commandResult','targetAfter','engagedAfter')
  $proneV2=$P.contract-ceq'owner-seed-prone-stand-up-v2';if($proneV2){$approach+='footprint'}
  Assert-KmcExactProperties $T $approach 'prone target approach'
- if($proneV2){Assert-KmcChunk7ProneTargetFootprint $T $ids $TargetId}
+ if($proneV2){Assert-KmcChunk7ProneTargetFootprint $T $P $ids $TargetId}
  if($T.targetBefore.targetRemembersSubject-ne$true-or$T.targetBefore.threatHand-ne$true-or$T.targetBefore.canAct-ne$true-or$T.targetBefore.conscious-ne$true){throw 'The prone target approached without its native engagement prerequisites.'}
  # The recorded geometry is the native engagement terms the C# used: entity reach plus both corpulences, and a gap only a move can close.
  $tb=$T.targetBefore;$gm=$T.geometry;$num={param($v)$v-is[double]-or$v-is[decimal]-or$v-is[single]-or(Test-KmcExactJsonInteger $v)}
@@ -405,13 +405,21 @@ function Assert-KmcChunk7ProneTargetTurn($T,$P,$st,$ids,$TargetId){
 # corpulences and the 0.5 m margin, against every recorded unit) and nearest blocker recompute within 1e-3 m; a check
 # inside a footprint never admits its proposal and the footprint refusal is named only for such a check. The search
 # considers pair A and pair B's Horse and neither the target nor rider B (the measured band).
-function Assert-KmcChunk7ProneTargetFootprint($T,$ids,$TargetId){
+# Rider B's own grid box is checked with the band's 0.1 m margin (riderB, riderBandSlack): Chebyshev distance minus the
+# target's and rider B's corpulences and 0.1 m; a proposal inside it is never accepted and is refused under its own name
+# before the other units' footprint. Rider B is recorded where it lay after the restoring heal (it does not move).
+function Assert-KmcChunk7ProneTargetFootprint($T,$P,$ids,$TargetId){
  $eps=0.001;$f=$T.footprint
  if($null-eq$f){throw 'The v2 prone target approach lacks its grid footprint search.'}
- Assert-KmcExactProperties $f @('contract','moverId','moverCorpulence','margin','unitRadius','units','checks') 'prone target grid footprint'
+ Assert-KmcExactProperties $f @('contract','moverId','moverCorpulence','margin','unitRadius','riderB','units','checks') 'prone target grid footprint'
  if($f.contract-cne'tb-grid-unit-footprint/v1'-or$f.moverId-cne$TargetId-or$f.margin-ne0.5-or$f.unitRadius-ne11){throw 'The prone target grid footprint search differs from its policy or target.'}
  if(-not(Test-KmcChunk7FiniteNumber $f.moverCorpulence)-or[Math]::Abs([double]$f.moverCorpulence-[double]$T.targetBefore.corpulence)-gt$eps){throw 'The prone target grid footprint mover corpulence differs from the target''s.'}
  $pt={param($p,$label)$p=@($p);if($p.Count-ne3){throw ($label+' is malformed.')};foreach($x in $p){if(-not(Test-KmcChunk7FiniteNumber $x)){throw ($label+' is not finite.')}};$p}
+ $rb=$f.riderB;if($null-eq$rb){throw 'The prone target grid footprint lacks rider B''s box.'}
+ Assert-KmcExactProperties $rb @('id','position','corpulence','margin') 'prone target grid footprint rider B'
+ if($rb.id-cne$ids[2]-or$rb.margin-ne0.1-or-not(Test-KmcChunk7FiniteNumber $rb.corpulence)-or[Math]::Abs([double]$rb.corpulence-[double]$T.targetBefore.subjectCorpulence)-gt$eps){throw 'The prone target grid footprint''s rider B box differs from rider B or its policy.'}
+ $rbp=&$pt $rb.position 'Prone target grid footprint rider B position';$healed=@(@($P.healAttempts)[-1].riderAfter.position)
+ if($healed.Count-ne3-or[Math]::Sqrt([Math]::Pow([double]$rbp[0]-[double]$healed[0],2)+[Math]::Pow([double]$rbp[2]-[double]$healed[2],2))-gt0.05){throw 'The prone target grid footprint''s rider B box is not where rider B lay after the heal.'}
  if($f.units-isnot[Array]-or$f.units.Count-lt3-or$f.units.Count-gt256){throw 'The prone target grid footprint units are missing or unbounded.'}
  $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
  foreach($u in $f.units){
@@ -422,12 +430,13 @@ function Assert-KmcChunk7ProneTargetFootprint($T,$ids,$TargetId){
  }
  foreach($id in @($ids[0],$ids[1],$ids[3])){if(-not$seen.Contains([string]$id)){throw 'The prone target grid footprint did not consider pair A and pair B''s Horse.'}}
  $cheap=@('not-walkable','trace-inexact','too-short');$geometry=@('outside the predicted threat reach','too close to rider B','leaves an engaging unit''s reach')
- $grid='inside a combat unit''s native grid footprint';$checks=@($f.checks);$k=0;$pp=@($T.proposals)
+ $grid='inside a combat unit''s native grid footprint';$band='inside rider B''s native grid footprint';$checks=@($f.checks);$k=0;$pp=@($T.proposals)
  if($f.checks-isnot[Array]){throw 'The prone target grid footprint checks are missing.'}
  for($i=0;$i-lt$pp.Count;$i++){$p=$pp[$i]
   if($p.refusal-is[string]-and$p.refusal-cin$cheap){continue}
   if($k-ge$checks.Count){throw 'A prone target proposal that reached the declared geometry lacks its grid footprint check.'};$c=$checks[$k];$k++
-  Assert-KmcExactProperties $c @('proposalIndex','goal','minimumSlack','nearestBlockerId','clear') 'prone target grid footprint check'
+  Assert-KmcExactProperties $c @('proposalIndex','goal','minimumSlack','nearestBlockerId','clear','riderBandSlack','riderBandClear') 'prone target grid footprint check'
+  if($c.riderBandClear-isnot[bool]-or-not(Test-KmcChunk7FiniteNumber $c.riderBandSlack)){throw 'A prone target rider B box check is mistyped.'}
   if(-not(Test-KmcExactJsonInteger $c.proposalIndex)-or$c.proposalIndex-ne$i-or$c.clear-isnot[bool]-or-not(Test-KmcChunk7FiniteNumber $c.minimumSlack)){throw 'A prone target grid footprint check is not its proposal''s.'}
   $g=&$pt $c.goal 'Prone target grid footprint goal';$pg=&$pt $p.goal 'Prone target proposal goal'
   for($a=0;$a-lt3;$a++){if([Math]::Abs([double]$g[$a]-[double]$pg[$a])-gt$eps){throw 'A prone target grid footprint check measured another point than its proposal.'}}
@@ -438,9 +447,17 @@ function Assert-KmcChunk7ProneTargetFootprint($T,$ids,$TargetId){
   $q=@($named[0].position);if([Math]::Abs([Math]::Max([Math]::Abs([double]$g[0]-[double]$q[0]),[Math]::Abs([double]$g[2]-[double]$q[2]))-([double]$f.moverCorpulence+[double]$named[0].corpulence+[double]$f.margin)-$min)-gt$eps){throw 'A prone target grid footprint nearest blocker does not recompute.'}
   $clear=[double]$c.minimumSlack-ge0
   if($c.clear-ne$clear){throw 'A prone target grid footprint verdict differs from its clearance.'}
+  $rs=[Math]::Max([Math]::Abs([double]$g[0]-[double]$rbp[0]),[Math]::Abs([double]$g[2]-[double]$rbp[2]))-([double]$f.moverCorpulence+[double]$rb.corpulence+[double]$rb.margin)
+  if([Math]::Abs($rs-[double]$c.riderBandSlack)-gt$eps){throw 'A prone target rider B box clearance does not recompute.'}
+  $riderClear=[double]$c.riderBandSlack-ge0
+  if($c.riderBandClear-ne$riderClear){throw 'A prone target rider B box verdict differs from its clearance.'}
+  if(-not$riderClear-and$p.eligible-eq$true){throw 'A prone target destination inside rider B''s native grid footprint was accepted.'}
+  if($p.geometryRefusal-ceq$band-and$riderClear){throw 'A prone target proposal clear of rider B''s box was refused for it.'}
+  if($p.geometryRefusal-ceq$grid-and-not$riderClear){throw 'A prone target proposal inside rider B''s box was named for another footprint.'}
+  if(-not$riderClear-and($null-eq$p.geometryRefusal-or$p.geometryRefusal-cnotin(@($band)+$geometry))){throw 'A prone target proposal inside rider B''s box names another refusal.'}
   if(-not$clear-and$p.eligible-eq$true){throw 'A prone target destination inside a combat unit''s native grid footprint was accepted.'}
   if($p.geometryRefusal-ceq$grid-and$clear){throw 'A clear prone target proposal was refused for a grid footprint.'}
-  if(-not$clear-and$null-ne$p.geometryRefusal-and$p.geometryRefusal-cnotin(@($grid)+$geometry)){throw 'A prone target proposal inside a footprint names an unknown refusal.'}
+  if(-not$clear-and$null-ne$p.geometryRefusal-and$p.geometryRefusal-cnotin(@($grid,$band)+$geometry)){throw 'A prone target proposal inside a footprint names an unknown refusal.'}
   if(-not$clear-and$null-eq$p.geometryRefusal){throw 'A prone target proposal inside a footprint carries no refusal.'}
  }
  if($k-ne$checks.Count){throw 'The prone target grid footprint records checks for proposals that never reached the declared geometry.'}
