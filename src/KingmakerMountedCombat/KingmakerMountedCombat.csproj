@@ -435,6 +435,7 @@
     <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />
     <Compile Include="Diagnostics\Chunk4GroundArrivalScenario.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackInput.cs" />
+    <Compile Include="Diagnostics\NativeGroundStepDestinationPolicy.cs" />
     <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />

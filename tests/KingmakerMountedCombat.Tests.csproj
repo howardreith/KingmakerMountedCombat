@@ -96,6 +96,7 @@
     <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
+    <Compile Include="NativeGroundStepDestinationPolicyTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="NativeMountedAbilityActivationLedgerTests.cs" />
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
@@ -227,6 +228,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementRadialDistanceOrder.cs">
       <Link>Shared\MovementRadialDistanceOrder.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeGroundStepDestinationPolicy.cs"><Link>Shared\NativeGroundStepDestinationPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
       <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
