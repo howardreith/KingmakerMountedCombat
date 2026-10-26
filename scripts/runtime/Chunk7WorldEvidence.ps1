@@ -743,9 +743,15 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         if([double]::IsNaN($distance)-or[double]::IsInfinity($distance)-or[Math]::Sqrt($distance)-lt0.75-or
             [double]::IsNaN($residual)-or[double]::IsInfinity($residual)-or[Math]::Sqrt($residual)-gt1.0){throw 'Native movement did not meet bounded endpoint.'}
     }
-    # v2 route moves (F5 hardening): the producer records observations.routeGoalSearches, one per movement; evidence
-    # without it keeps its v1 fixed-goal path and verdict.
-    if($null-ne$o.PSObject.Properties['routeGoalSearches']){Assert-KmcChunk7WorldRouteGoals $o.routeGoalSearches @($o.movements) $moveSpecs $actors}
+    # v2 route moves (F5 hardening): the producer writes observations.routeGoalContract at fixture setup and records
+    # observations.routeGoalSearches, one per movement. The marker and the searches are required together; evidence with
+    # neither (written before the marker existed) keeps its v1 fixed-goal path and verdict.
+    $routeMarker=$null-ne$o.PSObject.Properties['routeGoalContract'];$routeSearches=$null-ne$o.PSObject.Properties['routeGoalSearches']
+    if($routeMarker-ne$routeSearches){throw 'World route goal marker and route goal searches must be recorded together.'}
+    if($routeMarker){
+        if($o.routeGoalContract-cne'world-route-goal-clear-of-units/v1'){throw 'World route goal contract differs.'}
+        Assert-KmcChunk7WorldRouteGoals $o.routeGoalSearches @($o.movements) $moveSpecs $actors
+    }
     Assert-KmcChunk7Measurements $o.measurements
     $cycleSpecs=@();for($n=1;$n-le3;$n++){foreach($spec in $inputSpecs){$cycleSpecs+=,@(('cycle-'+$n+'-'+$spec[0]),$spec[1],$spec[2],$spec[3])}}
     Assert-KmcChunk7InputSequence $o.cycleInputs $cycleSpecs $actors $commands $shells
