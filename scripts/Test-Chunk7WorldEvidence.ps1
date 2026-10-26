@@ -204,6 +204,65 @@ $staticCutMutations=@(
 foreach($mutation in $staticCutMutations){$copy=Copy-TestValue $good;Set-CurrentDoorShape $copy;Set-StaticDoorCut $copy;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Reject 'toggling door whose cut stayed static' {$copy=Copy-TestValue $good;foreach($o in $copy.observations.door.cutObservations){$o.cutEnabled=$false};Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 Reject 'static mode claimed for a toggling door' {$copy=Copy-TestValue $good;$copy.observations.door.fixture.cutMode='static';Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+# v2 door return (F4 r30): the first pair returns to the first ring candidate clear of every other unit's native
+# avoidance footprint (corpulence 0.5 + 0.5 out of combat, plus the 0.5 m margin); v1 evidence (the $good fixture)
+# keeps its original return path. Candidates are built independently of the reader: all walkable, clamp exact.
+function New-DoorReturnV2Fixture($HorseX,$HorseZ){
+    $copy=Copy-TestValue $good;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v2'
+    $units=@([pscustomobject]@{id=$horse;position=[pscustomobject]@{x=$HorseX;y=0.0;z=$HorseZ};corpulence=0.5},[pscustomobject]@{id=$second;position=[pscustomobject]@{x=$HorseX;y=0.0;z=$HorseZ};corpulence=0.5})
+    $rings=@(0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,5.0);$candidates=@();$selected=-1
+    for($i=0;$i-lt145-and$selected-lt0;$i++){
+        if($i-eq0){$ring=0.0;$bearing=0.0}else{$ring=$rings[[int][Math]::Floor(($i-1)/16)];$bearing=22.5*(($i-1)%16)}
+        $x=[Math]::Sin($bearing*[Math]::PI/180)*$ring;$z=[Math]::Cos($bearing*[Math]::PI/180)*$ring
+        $slack=[Math]::Sqrt(($x-$HorseX)*($x-$HorseX)+($z-$HorseZ)*($z-$HorseZ))-1.5
+        $doorDistance=[Math]::Sqrt((10-$x)*(10-$x)+$z*$z)
+        $reason=if($slack-lt0){'inside-unit-footprint'}elseif($doorDistance-le2.5){'inside-door-approach'}else{'admitted'}
+        $p=[pscustomobject]@{x=$x;y=0.0;z=$z}
+        $candidates+=[pscustomobject]@{index=$i;ring=$ring;bearing=$bearing;requested=$p;walkable=$true;reason=$reason;clamped=(Copy-TestValue $p);clampResidual=0.0;traceResidual=0.0;doorDistance=$doorDistance;minimumSlack=$slack;nearestBlockerId=$horse}
+        if($reason-ceq'admitted'){$selected=$i}
+    }
+    $goal=$candidates[$selected].clamped;$end=[pscustomobject]@{x=$goal.x+0.1;y=0.0;z=$goal.z}
+    $d.firstPairReturn=[pscustomobject]@{command=1802;executorId=$mammoth;terminal=$true;result='Success';goal=(Copy-TestValue $goal);commandTarget=(Copy-TestValue $goal);position=$end;
+        distanceToGoal=0.1;distanceToStart=[Math]::Sqrt($end.x*$end.x+$end.z*$end.z);
+        goalSearch=[pscustomobject]@{contract='door-return-goal-clear-of-units/v1';start=[pscustomobject]@{x=0.0;y=0.0;z=0.0};moverId=$mammoth;moverCorpulence=0.5;moverPosition=[pscustomobject]@{x=8.0;y=0.0;z=0.0};
+            margin=0.5;doorPosition=[pscustomobject]@{x=10.0;y=0.0;z=0.0};doorRadius=2.0;scanRadius=28;unitRadius=11;units=$units;candidates=$candidates;selectedIndex=$selected}}
+    return $copy
+}
+$returnF3=New-DoorReturnV2Fixture 0.0 3.10;$returnF4=New-DoorReturnV2Fixture (-0.36) 0.78
+Check 'v2 door return keeps a captured start 3.10 m from pair B (F3 geometry)' {if($returnF3.observations.door.firstPairReturn.goalSearch.selectedIndex-ne0){throw 'F3 start was not kept.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $returnF3) 'PASS'}
+Check 'v2 door return searches clear of pair B 0.86 m from the start (F4 geometry)' {$s=$returnF4.observations.door.firstPairReturn.goalSearch;if($s.selectedIndex-le0-or$s.candidates[0].reason-cne'inside-unit-footprint'){throw 'F4 start was not refused.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $returnF4) 'PASS'}
+Check 'v1 door return keeps its original path' {if($good.observations.door.contract-cne'two-pair-native-door-click-selection-change'){throw 'v1 fixture changed.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $good) 'PASS'}
+$returnMutations=@(
+ @('v2 contract with the v1 return shape',{param($v)$v.observations.door.firstPairReturn=(Copy-TestValue $good.observations.door.firstPairReturn)}),
+ @('v1 contract carrying the v2 return shape',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change'}),
+ @('v2 return without its goal search',{param($v)$v.observations.door.firstPairReturn.PSObject.Properties.Remove('goalSearch')}),
+ @('F4 start claimed clear of pair B',{param($v)$r=$v.observations.door.firstPairReturn;$s=$r.goalSearch;$c=$s.candidates[0];$c.reason='admitted';$s.candidates=@($c);$s.selectedIndex=0;$r.goal=(Copy-TestValue $c.clamped);$r.commandTarget=(Copy-TestValue $c.clamped);$r.position=[pscustomobject]@{x=0.1;y=0.0;z=0.0};$r.distanceToGoal=0.1;$r.distanceToStart=0.1}),
+ @('F4 start clearance misrecorded as clear',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[0].minimumSlack=0.2}),
+ @('other pair Horse omitted from the search',{param($v)$s=$v.observations.door.firstPairReturn.goalSearch;$s.units=@($s.units|Where-Object id -CNE $horse);foreach($c in $s.candidates){$c.nearestBlockerId=$second}}),
+ @('returning mount counted as an obstacle',{param($v)$v.observations.door.firstPairReturn.goalSearch.units+=[pscustomobject]@{id=$mammoth;position=[pscustomobject]@{x=50.0;y=0.0;z=0.0};corpulence=0.5}}),
+ @('search mover is not the first pair mount',{param($v)$v.observations.door.firstPairReturn.goalSearch.moverId=$horse}),
+ @('candidate reason differs from its values',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[1].reason='off-navmesh'}),
+ @('candidate bearing out of policy order',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[1].bearing=45.0}),
+ @('candidate requested point off its ring',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[1].requested.x=0.3}),
+ @('candidate clamp residual misrecorded',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[1].clampResidual=0.05}),
+ @('candidate navmesh trace beyond its bound',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[-1].traceResidual=0.06}),
+ @('candidate door distance misrecorded',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[-1].doorDistance=20.0}),
+ @('unwalkable candidate with native clamp fields',{param($v)$v.observations.door.firstPairReturn.goalSearch.candidates[0].walkable=$false;$v.observations.door.firstPairReturn.goalSearch.candidates[0].reason='no-walkable-native-node'}),
+ @('search continued past its admitted goal',{param($v)$s=$v.observations.door.firstPairReturn.goalSearch;$s.candidates+=(Copy-TestValue $s.candidates[-1])}),
+ @('goal is not the admitted candidate',{param($v)$v.observations.door.firstPairReturn.goal.x+=0.5}),
+ @('native command aimed elsewhere',{param($v)$v.observations.door.firstPairReturn.commandTarget.x+=0.5}),
+ @('return ended beyond 1.25 m of its goal',{param($v)$r=$v.observations.door.firstPairReturn;$r.position.x=$r.goal.x+1.3;$r.distanceToGoal=1.3;$r.distanceToStart=[Math]::Sqrt($r.position.x*$r.position.x+$r.position.z*$r.position.z)}),
+ @('return distance does not recompute',{param($v)$v.observations.door.firstPairReturn.distanceToGoal=0.0}),
+ @('return interrupted natively',{param($v)$v.observations.door.firstPairReturn.result='Interrupted'}),
+ @('return not terminal',{param($v)$v.observations.door.firstPairReturn.terminal=$false}),
+ @('search margin weakened',{param($v)$v.observations.door.firstPairReturn.goalSearch.margin=0.0}),
+ @('search door radius differs from the fixture',{param($v)$v.observations.door.firstPairReturn.goalSearch.doorRadius=1.0}),
+ @('unknown door contract',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change-v3'})
+)
+foreach($mutation in $returnMutations){$copy=Copy-TestValue $returnF4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'door probe writes the v2 contract the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v2"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v2 reader.'}
+    $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
+    foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
 # The reader's door predicate is the probe's: tie the term lists to DoorFacts by source text.
 function Get-DoorFactsTerms([string]$Property){
  $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Chunk7NativeDoorProbe.cs'))

@@ -282,7 +282,11 @@ function Assert-KmcChunk7Measurements($Rows) {
 }
 function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')) {
     Assert-KmcExactProperties $Door @('contract','interactions','setupInteractions','cutObservations','fixture','firstPairReturn','restoration','completed') 'Chunk 7 native door proof'
-    if($Door.contract-cne'two-pair-native-door-click-selection-change'-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
+    # v1 (through F4): the first pair returned to its captured start. v2 (F4 r30 correction): it returns to a goal
+    # clear of every other unit's native avoidance footprint, recorded with its search (Assert-KmcChunk7DoorReturnV2).
+    # Old evidence keeps its v1 path and verdict.
+    if($Door.contract-cnotin@('two-pair-native-door-click-selection-change','two-pair-native-door-click-selection-change-v2')-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
+    $doorV2=$Door.contract-ceq'two-pair-native-door-click-selection-change-v2'
     Assert-KmcChunk7Boolean $Door.completed $true
     Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
     $f=$Door.fixture
@@ -331,11 +335,18 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
         foreach($flag in @('DoorStateChanged','RiderPathSuppressed','MountMoveSlotRestored')){Assert-KmcChunk7Boolean $o.$flag $true}
     }
     $r=$Door.firstPairReturn
-    Assert-KmcExactProperties $r @('command','executorId','terminal','result','distanceToStart') 'native first-pair return'
-    Assert-KmcChunk7WorldInt32 $r.command;Assert-KmcChunk7Boolean $r.terminal $true
     $first=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $riders[0]})[0]
+    if($doorV2){
+        Assert-KmcExactProperties $r @('command','executorId','terminal','result','goal','commandTarget','position','distanceToGoal','distanceToStart','goalSearch') 'native first-pair return'
+        $second=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $riders[1]})[0]
+        Assert-KmcChunk7DoorReturnV2 $r $f $first $second
+    } else {
+        Assert-KmcExactProperties $r @('command','executorId','terminal','result','distanceToStart') 'native first-pair return'
+    }
+    Assert-KmcChunk7WorldInt32 $r.command;Assert-KmcChunk7Boolean $r.terminal $true
+    $returnDistance=if($doorV2){$r.distanceToGoal}else{$r.distanceToStart}
     if($r.command-eq0-or-not$commands.Add([long]$r.command)-or-not(Test-KmcChunk7OwnerActorMatch $first.mountId $r.executorId)-or$r.result-cne'Success'-or
-        -not(Test-KmcChunk7FiniteNumber $r.distanceToStart)-or$r.distanceToStart-lt0-or$r.distanceToStart-gt1.25){throw 'First pair did not return through its own native mount command.'}
+        -not(Test-KmcChunk7FiniteNumber $returnDistance)-or$returnDistance-lt0-or$returnDistance-gt1.25){throw 'First pair did not return through its own native mount command.'}
     $s=$Door.restoration
     Assert-KmcExactProperties $s @('exact','commandsSettled','open','enabled','cutEnabled','observedAlreadyUnlockedBeforeRestore','alreadyUnlocked') 'native door restoration'
     foreach($flag in @('exact','commandsSettled')){Assert-KmcChunk7Boolean $s.$flag $true}
@@ -346,6 +357,87 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     if($s.observedAlreadyUnlockedBeforeRestore-isnot[bool]-or
        -not($s.observedAlreadyUnlockedBeforeRestore-eq$f.originalAlreadyUnlocked-or
             ($s.observedAlreadyUnlockedBeforeRestore-and$f.restrictionCount-eq0-and-not$f.originalAlreadyUnlocked))){throw 'Observed unlock state before restoration is inconsistent with native interaction.'}
+}
+
+# DoorReturnGoalPolicy (src/KingmakerMountedCombat/Diagnostics/DoorReturnGoalPolicy.cs), mirrored for the reader.
+function Get-KmcChunk7DoorReturnOffset([int]$Index){
+    $rings=@(0.5,1.0,1.5,2.0,2.5,3.0,3.5,4.0,5.0)
+    if($Index-lt0-or$Index-ge(1+$rings.Count*16)){throw 'Door return candidate index is outside the policy.'}
+    if($Index-eq0){return @{ring=0.0;bearing=0.0;dx=0.0;dz=0.0}}
+    $ring=$rings[[int][Math]::Floor(($Index-1)/16)];$bearing=22.5*(($Index-1)%16);$rad=$bearing*[Math]::PI/180.0
+    @{ring=$ring;bearing=$bearing;dx=[Math]::Sin($rad)*$ring;dz=[Math]::Cos($rad)*$ring}
+}
+function Get-KmcChunk7DoorReturnReason([bool]$Walkable,[double]$Clamp,[double]$Trace,[double]$DoorDistance,[double]$DoorRadius,[double]$ScanRadius,[double]$Slack){
+    if(-not$Walkable){return 'no-walkable-native-node'}
+    if($Clamp-gt0.1){return 'off-navmesh'}
+    if($Trace-gt0.05){return 'navmesh-trace-blocked'}
+    if($DoorDistance-le($DoorRadius+0.5)){return 'inside-door-approach'}
+    if($DoorDistance-gt$ScanRadius){return 'outside-door-scan-radius'}
+    if($Slack-lt0){return 'inside-unit-footprint'}
+    'admitted'
+}
+function Get-KmcChunk7HorizontalDistance($A,$B){[Math]::Sqrt([Math]::Pow([double]$A.x-[double]$B.x,2)+[Math]::Pow([double]$A.z-[double]$B.z,2))}
+function Assert-KmcChunk7DoorPoint($Point,[string]$Label){
+    if($null-eq$Point){throw ($Label+' is missing.')}
+    Assert-KmcExactProperties $Point @('x','y','z') $Label
+    foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $Point.$axis)){throw ($Label+' is not finite.')}}
+}
+# v2 first-pair return: the recorded search is recomputed from its own recorded inputs (policy order, ring geometry,
+# clamp residual, door distance, per-unit clearance slack and nearest blocker within 1e-3 m of the float32 values, reason
+# from the recorded values); the trace residual is a native observation held to its policy bound through the reason. The
+# search must consider both actors of the other pair and neither actor of the returning pair, stop at its first
+# admissible candidate, and the native command must aim at, and the mount end its return near, that goal.
+function Assert-KmcChunk7DoorReturnV2($Return,$Fixture,$FirstOwner,$SecondOwner){
+    $eps=0.001;$s=$Return.goalSearch
+    if($null-eq$s){throw 'Door return goal search is missing.'}
+    Assert-KmcExactProperties $s @('contract','start','moverId','moverCorpulence','moverPosition','margin','doorPosition','doorRadius','scanRadius','unitRadius','units','candidates','selectedIndex') 'door return goal search'
+    if($s.contract-cne'door-return-goal-clear-of-units/v1'){throw 'Door return goal search contract differs.'}
+    if($s.margin-ne0.5-or$s.scanRadius-ne28-or$s.unitRadius-ne11-or$s.doorRadius-ne$Fixture.radius){throw 'Door return goal search constants differ from the policy or fixture.'}
+    foreach($pair in @(@($s.start,'return search start'),@($s.moverPosition,'return mover position'),@($s.doorPosition,'return door position'),@($Return.goal,'return goal'),@($Return.commandTarget,'return command target'),@($Return.position,'return end position'))){Assert-KmcChunk7DoorPoint $pair[0] $pair[1]}
+    if((Get-KmcChunk7HorizontalDistance $s.doorPosition $Fixture.position)-gt$eps){throw 'Door return search used another door position.'}
+    if($s.moverId-isnot[string]-or-not(Test-KmcChunk7OwnerActorMatch $FirstOwner.mountId $s.moverId)){throw 'Door return search mover is not the first pair mount.'}
+    if(-not(Test-KmcChunk7FiniteNumber $s.moverCorpulence)-or$s.moverCorpulence-le0){throw 'Door return mover corpulence is invalid.'}
+    if($s.units-isnot[Array]-or$s.units.Count-lt2-or$s.units.Count-gt256){throw 'Door return search units are missing or unbounded.'}
+    $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($u in $s.units){
+        Assert-KmcExactProperties $u @('id','position','corpulence') 'door return search unit'
+        [void](ConvertFrom-KmcChunk7ActorUniqueId $u.id);Assert-KmcChunk7DoorPoint $u.position 'door return search unit position'
+        if(-not$ids.Add($u.id)-or-not(Test-KmcChunk7FiniteNumber $u.corpulence)-or$u.corpulence-le0){throw 'Door return search unit is duplicated or has no native corpulence.'}
+        if((Test-KmcChunk7OwnerActorMatch $FirstOwner.mountId $u.id)-or(Test-KmcChunk7OwnerActorMatch $FirstOwner.riderId $u.id)){throw 'Door return search counted the returning pair as an obstacle.'}
+    }
+    foreach($key in @('riderId','mountId')){if(@($s.units|Where-Object{Test-KmcChunk7OwnerActorMatch $SecondOwner.$key $_.id}).Count-ne1){throw 'Door return search did not consider the other pair.'}}
+    if(-not(Test-KmcExactJsonInteger $s.selectedIndex)-or$s.selectedIndex-lt0-or$s.candidates-isnot[Array]-or$s.candidates.Count-ne($s.selectedIndex+1)){throw 'Door return search did not stop at its first admitted goal.'}
+    for($i=0;$i-lt$s.candidates.Count;$i++){
+        $c=$s.candidates[$i];$o=Get-KmcChunk7DoorReturnOffset $i
+        $walk=$c.walkable-is[bool]-and$c.walkable
+        $props=@('index','ring','bearing','requested','walkable','reason');if($walk){$props+=@('clamped','clampResidual','traceResidual','doorDistance','minimumSlack','nearestBlockerId')}
+        Assert-KmcExactProperties $c $props 'door return goal candidate'
+        if($c.walkable-isnot[bool]-or-not(Test-KmcExactJsonInteger $c.index)-or$c.index-ne$i-or-not(Test-KmcChunk7FiniteNumber $c.ring)-or-not(Test-KmcChunk7FiniteNumber $c.bearing)-or
+           [Math]::Abs([double]$c.ring-$o.ring)-gt$eps-or[Math]::Abs([double]$c.bearing-$o.bearing)-gt$eps){throw 'Door return candidate order differs from the policy.'}
+        Assert-KmcChunk7DoorPoint $c.requested 'door return requested point'
+        if([Math]::Abs([double]$c.requested.x-([double]$s.start.x+$o.dx))-gt$eps-or[Math]::Abs([double]$c.requested.z-([double]$s.start.z+$o.dz))-gt$eps-or
+           [Math]::Abs([double]$c.requested.y-[double]$s.start.y)-gt$eps){throw 'Door return requested point differs from the policy ring.'}
+        if($walk){
+            Assert-KmcChunk7DoorPoint $c.clamped 'door return clamped point'
+            foreach($field in @('clampResidual','traceResidual','doorDistance','minimumSlack')){if(-not(Test-KmcChunk7FiniteNumber $c.$field)){throw 'Door return candidate value is not finite.'}}
+            if($c.traceResidual-lt0-or[Math]::Abs((Get-KmcChunk7HorizontalDistance $c.requested $c.clamped)-$c.clampResidual)-gt$eps-or
+               [Math]::Abs((Get-KmcChunk7HorizontalDistance $c.clamped $s.doorPosition)-$c.doorDistance)-gt$eps){throw 'Door return candidate residual or door distance does not recompute.'}
+            $min=[double]::PositiveInfinity
+            foreach($u in $s.units){$v=(Get-KmcChunk7HorizontalDistance $c.clamped $u.position)-([double]$s.moverCorpulence+[double]$u.corpulence+[double]$s.margin);if($v-lt$min){$min=$v}}
+            if([Math]::Abs($min-[double]$c.minimumSlack)-gt$eps){throw 'Door return candidate clearance does not recompute.'}
+            $named=@($s.units|Where-Object id -CEQ $c.nearestBlockerId)
+            if($named.Count-ne1-or[Math]::Abs((Get-KmcChunk7HorizontalDistance $c.clamped $named[0].position)-([double]$s.moverCorpulence+[double]$named[0].corpulence+[double]$s.margin)-$min)-gt$eps){throw 'Door return candidate nearest blocker does not recompute.'}
+            $reason=Get-KmcChunk7DoorReturnReason $true $c.clampResidual $c.traceResidual $c.doorDistance $s.doorRadius $s.scanRadius $c.minimumSlack
+        } else {$reason='no-walkable-native-node'}
+        if($c.reason-cne$reason){throw 'Door return candidate reason differs from its recorded values.'}
+        if(($i-eq$s.selectedIndex)-ne($reason-ceq'admitted')){throw 'Door return search admitted a goal other than its first admissible candidate.'}
+    }
+    $chosen=$s.candidates[$s.selectedIndex]
+    foreach($axis in @('x','y','z')){if([Math]::Abs([double]$Return.goal.$axis-[double]$chosen.clamped.$axis)-gt$eps){throw 'Door return goal is not the admitted candidate.'}}
+    if((Get-KmcChunk7HorizontalDistance $Return.commandTarget $Return.goal)-gt0.3){throw 'Native return command did not aim at the admitted goal.'}
+    if(-not(Test-KmcChunk7FiniteNumber $Return.distanceToGoal)-or-not(Test-KmcChunk7FiniteNumber $Return.distanceToStart)-or
+       [Math]::Abs((Get-KmcChunk7HorizontalDistance $Return.position $Return.goal)-$Return.distanceToGoal)-gt$eps-or
+       [Math]::Abs((Get-KmcChunk7HorizontalDistance $Return.position $s.start)-$Return.distanceToStart)-gt$eps){throw 'Door return distances do not recompute from the recorded end position.'}
 }
 
 # The settled cut state at each lease boundary, in order, consistent with the fixture's cut mode.
