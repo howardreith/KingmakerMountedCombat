@@ -144,7 +144,8 @@ function Assert-KmcChunk7SixPairHostileClearance($C){
 # Producers from then on choose each cycle-1 ground goal (the declared +x 2 m route first) so that native vision clearance
 # plus margin and the 4 m dismount reach holds from every hostile's current position and native wander envelope
 # (2.1.7b UnitRoamingController: OriginalPoint + Settings.Radius, or the waypoint graph, plus the 1 m roaming approach).
-# Each routed move must target its recorded goal. Without the record the move must be the declared +x 2 m route.
+# Lifecycle v1/v2 evidence keeps its original verdict: a v1 record binds each routed move to its recorded goal and, without
+# the record, the move must be the declared +x 2 m route. Lifecycle v3 requires the v2 record and recomputes it below.
 function Assert-KmcChunk7SixPairGroundGoals($O,[string[]]$Roles){
  $moves=@($O.movements)
  if($null-eq$O.PSObject.Properties['sixPairGroundGoals']){
@@ -168,6 +169,118 @@ function Assert-KmcChunk7SixPairGroundGoals($O,[string[]]$Roles){
   foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $c.goal.$axis)-or[Math]::Abs([double]$c.goal.$axis-[double]$moves[$i].requestedGoal.$axis)-gt0.0001){throw 'Six-pair ground move did not target its recorded wander-clear goal.'}}
  }
 }
+function Get-KmcChunk7SixDistance2D([double]$Ax,[double]$Az,[double]$Bx,[double]$Bz){[Math]::Sqrt(($Ax-$Bx)*($Ax-$Bx)+($Az-$Bz)*($Az-$Bz))}
+# Chunk7SixPairCombatEntry.RoamingLegDistance2D: the 2D segment distance less the 1 m roaming approach, never negative.
+function Get-KmcChunk7SixLegDistance2D([double]$Px,[double]$Pz,[double]$Ax,[double]$Az,[double]$Bx,[double]$Bz){
+ $dx=$Bx-$Ax;$dz=$Bz-$Az;$length=$dx*$dx+$dz*$dz;$t=0.0
+ if($length-gt0){$t=[Math]::Max(0.0,[Math]::Min(1.0,(($Px-$Ax)*$dx+($Pz-$Az)*$dz)/$length))}
+ [Math]::Max(0.0,(Get-KmcChunk7SixDistance2D $Px $Pz ($Ax+$t*$dx) ($Az+$t*$dz))-1.0)
+}
+function Assert-KmcChunk7SixPoint($Point,[string]$Description){
+ Assert-KmcAssistedObjectValue $Point @('x','y','z') $Description
+ foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $Point.$axis)){throw ($Description+' lacks finite coordinates.')}}
+}
+# The recorded v2 native wander envelope, validated by kind (SixWanderEnvelope): its 2D distance from a point.
+function Assert-KmcChunk7SixWanderEnvelope($E){
+ $kind=$E.kind;if($kind-isnot[string]){throw 'Six-pair wander envelope kind is missing.'}
+ $fields=switch -CaseSensitive ($kind){
+  'stationary'{@('id','groupId','position','kind')};'roaming-disabled'{@('id','groupId','position','kind')}
+  'random'{@('id','groupId','position','nextPoint','kind','originalPoint','radius')}
+  'waypoints'{@('id','groupId','position','nextPoint','kind','waypoints','legs','randomFallback','originalPoint','radius')}
+  default{throw 'Six-pair ground goals carry an unreadable or unknown native wander envelope.'}}
+ Assert-KmcExactProperties $E $fields 'six-pair native wander envelope'
+ if($E.id-isnot[string]-or$E.id.Length-eq0){throw 'Six-pair wander envelope identity is missing.'}
+ Assert-KmcChunk7SixPoint $E.position 'six-pair wander envelope position'
+ if($kind-cin@('stationary','roaming-disabled')){return}
+ if($null-ne$E.nextPoint){Assert-KmcChunk7SixPoint $E.nextPoint 'six-pair wander envelope next point'}elseif($kind-ceq'waypoints'){throw 'Six-pair waypoint envelope lacks its native next waypoint.'}
+ Assert-KmcChunk7SixPoint $E.originalPoint 'six-pair wander envelope original point'
+ $disk=$kind-ceq'random'
+ if($kind-ceq'waypoints'){
+  if($E.randomFallback-isnot[bool]){throw 'Six-pair waypoint envelope fallback is not boolean.'};$disk=$E.randomFallback
+  if($E.waypoints-isnot[Array]-or@($E.waypoints).Count-lt1-or@($E.waypoints).Count-gt257-or$E.legs-isnot[Array]){throw 'Six-pair waypoint envelope graph is malformed.'}
+  foreach($w in @($E.waypoints)){Assert-KmcChunk7SixPoint $w 'six-pair waypoint'}
+  foreach($l in @($E.legs)){Assert-KmcExactProperties $l @('from','to') 'six-pair waypoint leg';Assert-KmcChunk7SixPoint $l.from 'six-pair waypoint leg';Assert-KmcChunk7SixPoint $l.to 'six-pair waypoint leg'}
+ }
+ if($disk){if(-not(Test-KmcChunk7FiniteNumber $E.radius)-or[double]$E.radius-lt0){throw 'Six-pair wander envelope lacks its native radius.'}}
+ elseif(-not(Test-KmcChunk7FiniteNumber $E.radius)){throw 'Six-pair wander envelope radius is not finite.'}
+}
+function Get-KmcChunk7SixWanderDistance2D($E,[double]$Px,[double]$Pz){
+ $hx=[double]$E.position.x;$hz=[double]$E.position.z
+ if($E.kind-cin@('stationary','roaming-disabled')){return Get-KmcChunk7SixDistance2D $Px $Pz $hx $hz}
+ $nx=$hx;$nz=$hz;if($null-ne$E.nextPoint){$nx=[double]$E.nextPoint.x;$nz=[double]$E.nextPoint.z}
+ $result=Get-KmcChunk7SixLegDistance2D $Px $Pz $hx $hz $nx $nz
+ if($E.kind-ceq'random'-or$E.randomFallback-eq$true){
+  $result=[Math]::Min($result,[Math]::Max(0.0,(Get-KmcChunk7SixDistance2D $Px $Pz ([double]$E.originalPoint.x) ([double]$E.originalPoint.z))-[double]$E.radius-1.0))}
+ if($E.kind-ceq'waypoints'){
+  foreach($w in @($E.waypoints)){$result=[Math]::Min($result,[Math]::Max(0.0,(Get-KmcChunk7SixDistance2D $Px $Pz ([double]$w.x) ([double]$w.z))-1.0))}
+  foreach($l in @($E.legs)){$result=[Math]::Min($result,(Get-KmcChunk7SixLegDistance2D $Px $Pz ([double]$l.from.x) ([double]$l.from.z) ([double]$l.to.x) ([double]$l.to.z)))}
+ }
+ $result
+}
+# Chunk7SixPairCombatEntry.GroundGoalDistances x GroundGoalBearings: the nearest-first bounded ring, the declared +x 2 m route first.
+function Get-KmcChunk7SixGoalBearings{$b=@(0.0);for($i=1;$i-lt16;$i++){$b+=$(if($i%2-eq1){1.0}else{-1.0})*22.5*[Math]::Floor(($i+1)/2)};$b[15]=180.0;$b}
+function Get-KmcChunk7SixGoalOrdinal($Distance,$Bearing){
+ if(-not(Test-KmcChunk7FiniteNumber $Distance)-or-not(Test-KmcChunk7FiniteNumber $Bearing)){throw 'Six-pair ground goal candidate is not finite.'}
+ $d=[double]$Distance;$bearings=@(Get-KmcChunk7SixGoalBearings);$di=-1;$bi=-1
+ for($k=0;$k-lt9;$k++){if($d-eq(2.0+$k)){$di=$k}};for($k=0;$k-lt16;$k++){if([double]$Bearing-eq$bearings[$k]){$bi=$k}}
+ if($di-lt0-or$bi-lt0){throw 'Six-pair ground goal candidate is outside the declared bounded ring.'}
+ $di*16+$bi+1
+}
+# v2 (lifecycle v3): every chosen goal is recomputed from the record. Its candidate is the first admitted in the declared
+# order after the recorded first refusals; it lies within the 0.1 m navmesh projection of its ring point from the recorded
+# start (Unity Quaternion.Euler(0, bearing, 0) * Vector3.right); it keeps the declared spacing from earlier goals and later
+# mounts; and every recorded hostile (exactly the before-stress clearance units, at the same positions) keeps native vision
+# plus the 3 m margin from the nearer of its current position and its recorded wander envelope less the 4 m dismount reach.
+function Assert-KmcChunk7SixPairWanderClearGoals($O,[string[]]$Roles){
+ if($null-eq$O.PSObject.Properties['sixPairGroundGoals']){throw 'Six-pair v3 evidence lacks its wander-clear ground goals.'}
+ if($null-eq$O.PSObject.Properties['sixPairHostileClearance']){throw 'Six-pair v3 evidence lacks its before-stress native vision clearance.'}
+ $G=$O.sixPairGroundGoals;$moves=@($O.movements);$tolerance=0.0001
+ Assert-KmcExactProperties $G @('contract','roamingApproachMeters','marginMeters','dismountReachMeters','spacingMeters','envelopes','pairs','clear') 'six-pair wander-clear ground goals'
+ Assert-KmcBootstrapInventoryString $G.contract 'six-pair-wander-clear-ground-goals-v2';Assert-KmcChunk7Boolean $G.clear $true
+ foreach($pair in @(@('roamingApproachMeters',1.0),@('marginMeters',3.0),@('dismountReachMeters',4.0),@('spacingMeters',1.75))){
+  if(-not(Test-KmcChunk7FiniteNumber $G.($pair[0]))-or[Math]::Abs([double]$G.($pair[0])-$pair[1])-gt$tolerance){throw 'Six-pair ground goal constants differ.'}}
+ if($G.envelopes-isnot[Array]-or$G.pairs-isnot[Array]){throw 'Six-pair ground goal record is malformed.'}
+ $units=@{};foreach($u in @($O.sixPairHostileClearance.units)){$units[$u.id]=$u}
+ $envelopes=@($G.envelopes);$ids=@{}
+ foreach($e in $envelopes){
+  Assert-KmcChunk7SixWanderEnvelope $e
+  if($ids.ContainsKey($e.id)){throw 'Six-pair wander envelopes repeat a unit.'};$ids[$e.id]=$true
+  if(-not$units.ContainsKey($e.id)){throw 'Six-pair wander envelope names a unit outside the before-stress clearance.'}
+  foreach($axis in @('x','y','z')){if([Math]::Abs([double]$e.position.$axis-[double]$units[$e.id].position.$axis)-gt$tolerance){throw 'Six-pair wander envelope position differs from the before-stress clearance.'}}
+ }
+ if($ids.Count-ne$units.Count){throw 'Six-pair wander envelopes omit a before-stress hostile.'}
+ Assert-KmcAssistedArray $G.pairs 6 6 'six wander-clear ground goals'
+ $reasons=@('not-walkable','navmesh-projection','route-not-straight-on-navmesh','pair-spacing','unit-footprint','hostile-wander-vision','hostile-extended-vision')
+ for($i=0;$i-lt6;$i++){
+  $p=$G.pairs[$i];Assert-KmcExactProperties $p @('index','mountId','riderId','chosen','firstRefusals') 'six-pair wander-clear ground goal'
+  Assert-KmcOrdinaryInteger $p.index $i $i;Assert-KmcBootstrapInventoryString $p.riderId $Roles[$i*2];Assert-KmcBootstrapInventoryString $p.mountId $Roles[$i*2+1]
+  $c=$p.chosen;if($null-eq$c){throw 'Six-pair ground goals lack a chosen goal.'}
+  Assert-KmcExactProperties $c @('distance','bearing','goal','start','candidatesTried','minimumEnvelopeClearanceMeters') 'six-pair chosen ground goal'
+  Assert-KmcChunk7SixPoint $c.goal 'six-pair chosen ground goal';Assert-KmcChunk7SixPoint $c.start 'six-pair chosen ground goal start'
+  $ordinal=Get-KmcChunk7SixGoalOrdinal $c.distance $c.bearing;Assert-KmcOrdinaryInteger $c.candidatesTried $ordinal $ordinal
+  if($null-eq$p.firstRefusals-or$p.firstRefusals.GetType().FullName-cne'System.Management.Automation.PSCustomObject'){throw 'Six-pair ground goal refusals are malformed.'}
+  $last=0;foreach($r in $p.firstRefusals.PSObject.Properties){
+   if($r.Name-cnotin$reasons-or$r.Value-isnot[Array]-or@($r.Value).Count-ne2){throw 'Six-pair ground goal refusal is unknown or malformed.'}
+   $n=Get-KmcChunk7SixGoalOrdinal $r.Value[0] $r.Value[1];if($n-le$last-or$n-ge$ordinal){throw 'Six-pair ground goal refusals are out of search order or follow the chosen goal.'};$last=$n}
+  if(($ordinal-gt1)-ne($last-gt0)-or($last-gt0-and(Get-KmcChunk7SixGoalOrdinal @($p.firstRefusals.PSObject.Properties)[0].Value[0] @($p.firstRefusals.PSObject.Properties)[0].Value[1])-ne1)){throw 'Six-pair ground goal search does not record the refusal of every earlier candidate.'}
+  $gx=[double]$c.goal.x;$gz=[double]$c.goal.z;$sx=[double]$c.start.x;$sz=[double]$c.start.z;$radians=[double]$c.bearing*[Math]::PI/180.0
+  if((Get-KmcChunk7SixDistance2D $gx $gz ($sx+[double]$c.distance*[Math]::Cos($radians)) ($sz-[double]$c.distance*[Math]::Sin($radians)))-gt0.1+$tolerance){throw 'Six-pair ground goal is not its ring candidate on the native navmesh.'}
+  # The move starts from the mount after the cycle-1 Mount; the mount stands, so its start stays within 0.5 m.
+  if((Get-KmcChunk7SixDistance2D $sx $sz ([double]$moves[$i].start.x) ([double]$moves[$i].start.z))-gt0.5){throw 'Six-pair ground goal start is not the routed move''s mount.'}
+  foreach($axis in @('x','y','z')){if([Math]::Abs([double]$c.goal.$axis-[double]$moves[$i].requestedGoal.$axis)-gt$tolerance){throw 'Six-pair ground move did not target its recorded wander-clear goal.'}}
+  for($j=0;$j-lt6;$j++){if($j-eq$i){continue};$other=if($j-lt$i){$G.pairs[$j].chosen.goal}else{$G.pairs[$j].chosen.start}
+   if($null-eq$other){throw 'Six-pair ground goal spacing lacks another pair.'}
+   if((Get-KmcChunk7SixDistance2D $gx $gz ([double]$other.x) ([double]$other.z))-lt1.75-$tolerance){throw 'Six-pair ground goal breaks the declared pair spacing.'}}
+  $minimum=[double]::MaxValue
+  foreach($e in $envelopes){
+   $vision=$units[$e.id].visionRangeMeters;if(-not(Test-KmcChunk7FiniteNumber $vision)-or[double]$vision-le0){throw 'Six-pair hostile vision range is not finite and positive.'}
+   $current=Get-KmcChunk7SixDistance2D $gx $gz ([double]$e.position.x) ([double]$e.position.z)
+   $reach=[Math]::Min((Get-KmcChunk7SixWanderDistance2D $e $gx $gz),$current)-4.0;$minimum=[Math]::Min($minimum,$reach)
+   if($reach-lt[double]$vision+3.0-$tolerance){throw 'Six-pair ground goal is inside a hostile''s native vision plus margin from its wander envelope and dismount reach.'}
+  }
+  if(-not(Test-KmcChunk7FiniteNumber $c.minimumEnvelopeClearanceMeters)-or[Math]::Abs([double]$c.minimumEnvelopeClearanceMeters-$minimum)-gt0.001){throw 'Six-pair ground goal recorded clearance differs from its recomputed wander-envelope clearance.'}
+ }
+}
 function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  Assert-KmcChunk7OwnedPairsDescriptor $Request
  Assert-KmcChunk7InheritedEvidence $Request $O
@@ -175,18 +288,22 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  $roles=@(Get-KmcChunk7SixPairRoles);$s=$O.sixPairStress
  # F2 r39: the guard records a combat entry only on its refused path; PASS evidence never carries one.
  foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){if($null-ne$O.PSObject.Properties[$key]){throw ('Six-pair evidence carries its refused-path record '+$key+'.')}}
- # Producers from b210 on record the before-stress clearance; earlier accepted evidence predates it.
- if($null-ne$O.PSObject.Properties['sixPairHostileClearance']){Assert-KmcChunk7SixPairHostileClearance $O.sixPairHostileClearance}
  # v1 (batch186-188) verified full inherited custody on every measured frame; v2 verifies it
  # at sampling-window boundaries and declares that its measured frames carry only the guard.
+ # v3 (F3 r39 producers) keeps v2's custody and requires the before-stress clearance and the
+ # v2 wander-clear ground goals, recomputed from the record.
+ $v3=$null-ne$s.PSObject.Properties['contract']-and$s.contract-is[string]-and$s.contract-ceq'cold-qualified-six-pair-lifecycle-v3'
+ # Producers from b210 on record the before-stress clearance; earlier accepted evidence predates it.
+ if($v3-and$null-eq$O.PSObject.Properties['sixPairHostileClearance']){throw 'Six-pair v3 evidence lacks its before-stress native vision clearance.'}
+ if($null-ne$O.PSObject.Properties['sixPairHostileClearance']){Assert-KmcChunk7SixPairHostileClearance $O.sixPairHostileClearance}
  $fields=@('contract','archiveProducerRunId','coldQualificationRunId','fixtureSetupWrites','nativeSaveRequests','nativeLoadRequests',
   'requiredCycles','requiredGroundInputs','requiredAbilityInputs','requiredWindows','windowsPerState','performanceAccepted','requestFreeControlsProven',
   'identityScopeReleased','cycles','samples','nativeCastRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores',
   'riderParents','riderParentChildren','siblingOrderVerifiedCycles')
- $v2=$null-ne$s.PSObject.Properties['contract']-and$s.contract-is[string]-and$s.contract-ceq'cold-qualified-six-pair-lifecycle-v2'
+ $v2=$v3-or($null-ne$s.PSObject.Properties['contract']-and$s.contract-is[string]-and$s.contract-ceq'cold-qualified-six-pair-lifecycle-v2')
  if($v2){$fields+='measuredFramesCarryFullCustody'}
  Assert-KmcExactProperties $s $fields 'six-pair native lifecycle observation'
- foreach($pair in @(@('contract',$(if($v2){'cold-qualified-six-pair-lifecycle-v2'}else{'cold-qualified-six-pair-lifecycle-v1'})),@('archiveProducerRunId','20261022-c7b-world184-b184s1-sixthhorse-manual'),@('coldQualificationRunId',$Request.ownedPairs.sourceRunId))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
+ foreach($pair in @(@('contract',$(if($v3){'cold-qualified-six-pair-lifecycle-v3'}elseif($v2){'cold-qualified-six-pair-lifecycle-v2'}else{'cold-qualified-six-pair-lifecycle-v1'})),@('archiveProducerRunId','20261022-c7b-world184-b184s1-sixthhorse-manual'),@('coldQualificationRunId',$Request.ownedPairs.sourceRunId))){Assert-KmcBootstrapInventoryString $s.($pair[0]) $pair[1]}
  if($v2){Assert-KmcChunk7Boolean $s.measuredFramesCarryFullCustody $false}
  foreach($key in @('fixtureSetupWrites','nativeSaveRequests','nativeRefusals','saveSnapshots','semanticRestores','presentationRestores')){Assert-KmcOrdinaryInteger $s.$key 0 0}
  foreach($pair in @(@('nativeLoadRequests',1),@('requiredCycles',3),@('requiredGroundInputs',6),@('requiredAbilityInputs',36),@('requiredWindows',15),@('windowsPerState',3),@('nativeCastRequests',36))){Assert-KmcOrdinaryInteger $s.($pair[0]) $pair[1] $pair[1]}
@@ -251,7 +368,7 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
   if([Math]::Sqrt($distance)-lt.75-or[Math]::Sqrt($residual)-gt1.0){throw 'Six-pair ground movement missed its fixed endpoint bound.'}
   Assert-KmcChunk7QuietWindow $m.optionalCaptureWindow $m @($mounted[0].owners) $roles 6
  }
- Assert-KmcChunk7SixPairGroundGoals $O $roles
+ if($v3){Assert-KmcChunk7SixPairWanderClearGoals $O $roles}else{Assert-KmcChunk7SixPairGroundGoals $O $roles}
  Assert-KmcAssistedArray $s.samples 15 15 'six-pair repeated native measurement windows'
  $pinVector=$null;$lastFrame=-1;$retainedOwners=@{}
  for($i=0;$i-lt15;$i++){
