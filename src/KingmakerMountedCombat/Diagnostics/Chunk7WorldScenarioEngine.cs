@@ -254,7 +254,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         UpdateOwnerSeedManual(); break;
                     case 6:
                         AssertBoth(); if (!MovementSettled()) return;
-                        Move(secondRider, secondMount, secondMount.Position + Vector3.forward * 2f, firstRider, "horse"); Next(7); break;
+                        MoveOnClearRoute(secondRider, secondMount, Vector3.forward, firstRider, "horse"); Next(7); break;
                     case 7:
                         AssertBoth(); if (!MovementSettled()) return;
                         Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("movement-complete"));
@@ -276,7 +276,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Require(Mounted(secondRider, secondMount) && world.Registry.FindActive(secondRider).Id == secondOwner,
                             "First native Dismount altered the second pair owner.");
                         FinishInput(); snapshots.Add(CaptureWorld("first-dismounted-second-retained"));
-                        Move(firstRider, firstRider, firstRider.Position + Vector3.left * 2f, secondRider, "unmounted-control"); Next(9); break;
+                        MoveOnClearRoute(firstRider, firstRider, Vector3.left, secondRider, "unmounted-control"); Next(9); break;
                     case 9:
                         Require(Mounted(secondRider, secondMount) && world.Registry.FindActive(secondRider).Id == secondOwner,
                             "Unmounted control altered the remaining mounted owner.");
@@ -294,7 +294,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Input(secondRider, secondMount, controls.MountAbility, "mount-horse", firstRider); Next(4); break;
                     case 22:
                         AssertBoth(); if (!CompleteMeasurement()) return;
-                        Move(firstRider, firstMount, firstMount.Position + Vector3.right * 2f, secondRider, "mammoth"); Next(6); break;
+                        MoveOnClearRoute(firstRider, firstMount, Vector3.right, secondRider, "mammoth"); Next(6); break;
                     case 30:
                         if (!Mounted(firstRider, firstMount) || !InputSettled()) return;
                         firstOwner = world.Registry.FindActive(firstRider).Id; FinishInput();
