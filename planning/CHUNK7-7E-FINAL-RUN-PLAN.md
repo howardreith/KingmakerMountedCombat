@@ -280,7 +280,11 @@ Rows 7 and 8 after F3 (selection unchanged; producer behaviour): F3's fixed 0.5 
 movement on the F3 r01/r02 start. The independent Horse's ordinary ground click is now issued only for the first 0.5 m step
 destination (target bearing first, then 22.5° steps either side) whose own fresh, completed native preview ends within 0.3 m
 of it and at least 0.4 m from the Horse; the assertion that the Horse spends its own movement alone is unchanged, and no
-admissible step refuses as uncovered. The record is `firstActionMount.horseMove.destinationSearch`.
+admissible step refuses as uncovered. The record is `firstActionMount.horseMove.destinationSearch`. From the review
+hardening on, the producer writes `owner-seed-tb-first-action-mount-v2`, whose reader requires the search and recomputes
+every candidate (bearing order, 0.5 m step from the Horse's position in the before snapshot, preview residual and
+displacement by `MechanicsDistance` within 1e-4 of the recorded float32 values, reason consistency); v1 evidence (F2,
+b212 r07/r08 on 91437a41) keeps its original verdict, and the strict recompute agrees with b212 r07/r08.
 
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
@@ -382,6 +386,14 @@ approach). The pairs spend cycles 2–3 and every sampling window there. No host
 until the cycle-1 moves finish (about 24 s in F3) the eastern pairs stand at their saved placement, where only the
 before-stress current-position clearance holds; no failure has been observed in that window. If no clear goal exists the
 stress refuses as uncovered before input (recorded in `sixPairGroundGoals`), which is then an owner fixture decision.
+From the review hardening on, the producer writes lifecycle `cold-qualified-six-pair-lifecycle-v3` with
+`six-pair-wander-clear-ground-goals-v2`: waypoint envelopes record their legs and, where a reached waypoint can yield no
+next point in either direction (2.1.7b `UnitRoamingController.AdvancePoint`), the `OriginalPoint` + `Settings.Radius`
+disk the roamer then falls back to. The v3 reader requires both records and recomputes every goal (ring candidate,
+search order, spacing, start against the routed move within 0.5 m, every before-stress hostile's envelope and vision
+plus margin plus dismount reach, and the recorded minimum). Lifecycle v1/v2 evidence keeps its original verdict;
+b212 r39 (91437a41) passes, and its pair-1 start near (0, 0) is the Horse's actual saved position (every ground input's
+before snapshot records it there until its own move), not a producer error.
 
 ### B16 — rows added on October 24 (X3 closure; folded combat measurements run inside B8/B9 rows)
 
