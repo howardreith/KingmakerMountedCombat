@@ -440,6 +440,78 @@ function Assert-KmcChunk7DoorReturnV2($Return,$Fixture,$FirstOwner,$SecondOwner)
        [Math]::Abs((Get-KmcChunk7HorizontalDistance $Return.position $s.start)-$Return.distanceToStart)-gt$eps){throw 'Door return distances do not recompute from the recorded end position.'}
 }
 
+# GroundGoalFootprintPolicy route moves (src/KingmakerMountedCombat/Diagnostics/GroundGoalFootprintPolicy.cs and
+# Chunk7WorldScenarioEngine.RouteGoal.cs), mirrored for the reader: the declared 2 m route first, then the
+# NativeGroundStepDestinationPolicy bearing offsets (Unity Quaternion.Euler(0, offset, 0), clockwise seen from +y).
+function Get-KmcChunk7RouteReason([bool]$Walkable,[double]$Clamp,[double]$Trace,[double]$Slack){
+    if(-not$Walkable){return 'no-walkable-native-node'}
+    if($Clamp-gt0.1){return 'off-navmesh'}
+    if($Trace-gt0.05){return 'navmesh-trace-blocked'}
+    if($Slack-lt0){return 'inside-unit-footprint'}
+    'admitted'
+}
+# Every search is recomputed from its own recorded inputs (policy order and route geometry, clamp residual, per-unit
+# clearance slack and nearest blocker within 1e-3 m of the float32 values, reason); the trace residual is a native
+# observation held to its bound through the reason. Each search must exclude exactly the moving pair, consider every
+# other scenario actor, stop at its first admissible candidate, and its movement must start where it did and aim at it.
+function Assert-KmcChunk7WorldRouteGoals($Searches,$Movements,$Specs,$Actors){
+    $eps=0.001;$offsets=@(0.0,22.5,-22.5,45.0,-45.0,67.5,-67.5,90.0,-90.0,112.5,-112.5,135.0,-135.0,157.5,-157.5,180.0)
+    $directions=@{"mammoth"=@(1.0,0.0);"horse"=@(0.0,1.0);"unmounted-control"=@(-1.0,0.0)}
+    if($Searches-isnot[Array]-or$Searches.Count-ne$Specs.Count-or$Movements.Count-ne$Specs.Count){throw 'Route goal searches do not cover exactly the native movements.'}
+    for($m=0;$m-lt$Specs.Count;$m++){
+        $s=$Searches[$m];$spec=$Specs[$m];$v=$Movements[$m]
+        Assert-KmcExactProperties $s @('contract','label','selectedId','moverId','start','direction','distance','margin','unitRadius','moverCorpulence','units','candidates','selectedIndex') 'route goal search'
+        if($s.contract-cne'world-route-goal-clear-of-units/v1'){throw 'Route goal search contract differs.'}
+        if($s.label-cne$spec[0]-or$s.selectedId-cne$spec[1]-or$s.moverId-cne$spec[2]){throw 'Route goal search is not its movement''s exact route.'}
+        if($s.distance-ne2-or$s.margin-ne0.5-or$s.unitRadius-ne11){throw 'Route goal search constants differ from the policy.'}
+        if(-not(Test-KmcChunk7FiniteNumber $s.moverCorpulence)-or$s.moverCorpulence-le0){throw 'Route goal mover corpulence is invalid.'}
+        foreach($pair in @(@($s.start,'route search start'),@($s.direction,'route direction'))){Assert-KmcChunk7DoorPoint $pair[0] $pair[1]}
+        $d=$directions[[string]$s.label]
+        if([Math]::Abs([double]$s.direction.x-$d[0])-gt1e-6-or[Math]::Abs([double]$s.direction.z-$d[1])-gt1e-6-or[double]$s.direction.y-ne0){throw 'Route goal search does not start from its declared direction.'}
+        if($s.units-isnot[Array]-or$s.units.Count-gt256){throw 'Route goal search units are missing or unbounded.'}
+        $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach($u in $s.units){
+            Assert-KmcExactProperties $u @('id','position','corpulence') 'route goal search unit'
+            if($u.id-isnot[string]){throw 'Route goal search unit identity is invalid.'}
+            Assert-KmcChunk7DoorPoint $u.position 'route goal search unit position'
+            if(-not$ids.Add($u.id)-or-not(Test-KmcChunk7FiniteNumber $u.corpulence)-or$u.corpulence-le0){throw 'Route goal search unit is duplicated or has no native corpulence.'}
+            if($u.id-ceq$spec[1]-or$u.id-ceq$spec[2]){throw 'Route goal search counted the moving pair as an obstacle.'}
+        }
+        foreach($a in @($Actors|Where-Object{$_-cne$spec[1]-and$_-cne$spec[2]})){if(-not$ids.Contains([string]$a)){throw 'Route goal search did not consider every other scenario actor.'}}
+        if(-not(Test-KmcExactJsonInteger $s.selectedIndex)-or$s.selectedIndex-lt0-or$s.candidates-isnot[Array]-or$s.candidates.Count-ne($s.selectedIndex+1)-or$s.candidates.Count-gt$offsets.Count){throw 'Route goal search did not stop at its first admitted goal.'}
+        for($i=0;$i-lt$s.candidates.Count;$i++){
+            $c=$s.candidates[$i];$offset=$offsets[$i]
+            $walk=$c.walkable-is[bool]-and$c.walkable
+            $props=@('index','bearingOffset','requested','walkable','reason');if($walk){$props+=@('clamped','clampResidual','traceResidual','minimumSlack','nearestBlockerId')}
+            Assert-KmcExactProperties $c $props 'route goal candidate'
+            if($c.walkable-isnot[bool]-or-not(Test-KmcExactJsonInteger $c.index)-or$c.index-ne$i-or-not(Test-KmcChunk7FiniteNumber $c.bearingOffset)-or[Math]::Abs([double]$c.bearingOffset-$offset)-gt$eps){throw 'Route goal candidate order differs from the policy.'}
+            Assert-KmcChunk7DoorPoint $c.requested 'route requested point'
+            $rad=$offset*[Math]::PI/180.0;$hx=$d[0]*[Math]::Cos($rad)+$d[1]*[Math]::Sin($rad);$hz=-$d[0]*[Math]::Sin($rad)+$d[1]*[Math]::Cos($rad)
+            if([Math]::Abs([double]$c.requested.x-([double]$s.start.x+2.0*$hx))-gt$eps-or[Math]::Abs([double]$c.requested.z-([double]$s.start.z+2.0*$hz))-gt$eps-or
+               [Math]::Abs([double]$c.requested.y-[double]$s.start.y)-gt$eps){throw 'Route requested point differs from the policy route.'}
+            if($walk){
+                Assert-KmcChunk7DoorPoint $c.clamped 'route clamped point'
+                foreach($field in @('clampResidual','traceResidual','minimumSlack')){if(-not(Test-KmcChunk7FiniteNumber $c.$field)){throw 'Route goal candidate value is not finite.'}}
+                if($c.traceResidual-lt0-or[Math]::Abs((Get-KmcChunk7HorizontalDistance $c.requested $c.clamped)-$c.clampResidual)-gt$eps){throw 'Route goal candidate clamp residual does not recompute.'}
+                if($s.units.Count-eq0){throw 'Route goal candidate clearance has no recorded unit.'}
+                $min=[double]::PositiveInfinity
+                foreach($u in $s.units){$x=(Get-KmcChunk7HorizontalDistance $c.clamped $u.position)-([double]$s.moverCorpulence+[double]$u.corpulence+[double]$s.margin);if($x-lt$min){$min=$x}}
+                if([Math]::Abs($min-[double]$c.minimumSlack)-gt$eps){throw 'Route goal candidate clearance does not recompute.'}
+                $named=@($s.units|Where-Object id -CEQ $c.nearestBlockerId)
+                if($named.Count-ne1-or[Math]::Abs((Get-KmcChunk7HorizontalDistance $c.clamped $named[0].position)-([double]$s.moverCorpulence+[double]$named[0].corpulence+[double]$s.margin)-$min)-gt$eps){throw 'Route goal candidate nearest blocker does not recompute.'}
+                $reason=Get-KmcChunk7RouteReason $true $c.clampResidual $c.traceResidual $c.minimumSlack
+            } else {$reason='no-walkable-native-node'}
+            if($c.reason-cne$reason){throw 'Route goal candidate reason differs from its recorded values.'}
+            if(($i-eq$s.selectedIndex)-ne($reason-ceq'admitted')){throw 'Route goal search admitted a goal other than its first admissible candidate.'}
+        }
+        $chosen=$s.candidates[$s.selectedIndex]
+        foreach($axis in @('x','y','z')){
+            if([Math]::Abs([double]$v.requestedGoal.$axis-[double]$chosen.requested.$axis)-gt$eps){throw 'Native movement did not aim at its admitted route goal.'}
+            if([Math]::Abs([double]$v.start.$axis-[double]$s.start.$axis)-gt$eps){throw 'Native movement did not start where its route goal search did.'}
+        }
+    }
+}
+
 # The settled cut state at each lease boundary, in order, consistent with the fixture's cut mode.
 function Assert-KmcChunk7DoorCutObservations($Observations,$Fixture){
     $expected=@(@('captured',$Fixture.originalOpen),@('input-ready-0',$false),@('after-click-0',$true),@('input-ready-1',$false),@('after-click-1',$true),@('restored',$Fixture.originalOpen))
@@ -671,6 +743,9 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         if([double]::IsNaN($distance)-or[double]::IsInfinity($distance)-or[Math]::Sqrt($distance)-lt0.75-or
             [double]::IsNaN($residual)-or[double]::IsInfinity($residual)-or[Math]::Sqrt($residual)-gt1.0){throw 'Native movement did not meet bounded endpoint.'}
     }
+    # v2 route moves (F5 hardening): the producer records observations.routeGoalSearches, one per movement; evidence
+    # without it keeps its v1 fixed-goal path and verdict.
+    if($null-ne$o.PSObject.Properties['routeGoalSearches']){Assert-KmcChunk7WorldRouteGoals $o.routeGoalSearches @($o.movements) $moveSpecs $actors}
     Assert-KmcChunk7Measurements $o.measurements
     $cycleSpecs=@();for($n=1;$n-le3;$n++){foreach($spec in $inputSpecs){$cycleSpecs+=,@(('cycle-'+$n+'-'+$spec[0]),$spec[1],$spec[2],$spec[3])}}
     Assert-KmcChunk7InputSequence $o.cycleInputs $cycleSpecs $actors $commands $shells
