@@ -285,13 +285,16 @@ function New-RouteV2Fixture($BlockerX,$BlockerZ){
             distance=2.0;margin=0.5;unitRadius=11.0;moverCorpulence=0.5;units=$units;candidates=$candidates;selectedIndex=$selected}
         $goal=$candidates[$selected].requested;$move=$o.movements[$m];$move.requestedGoal=(Copy-TestValue $goal);$move.end=[pscustomobject]@{x=$goal.x+0.05;y=0.0;z=$goal.z}
     }
-    $o|Add-Member routeGoalSearches $searches;return $copy
+    $o|Add-Member routeGoalContract 'world-route-goal-clear-of-units/v1';$o|Add-Member routeGoalSearches $searches;return $copy
 }
 $routeClear=New-RouteV2Fixture 10.0 10.0;$routeF4=New-RouteV2Fixture 0.3 2.7
 Check 'v2 route keeps every declared fixed goal clear of the other actors' {foreach($s in $routeClear.observations.routeGoalSearches){if($s.selectedIndex-ne0){throw 'A clear declared goal was not kept.'}};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $routeClear) 'PASS'}
 Check 'v2 route searches clear of rider A beside the horse goal (F4 geometry)' {$s=$routeF4.observations.routeGoalSearches[1];if($s.selectedIndex-le0-or$s.candidates[0].reason-cne'inside-unit-footprint'){throw 'F4 horse goal was not refused.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $routeF4) 'PASS'}
 Check 'v1 movements keep their fixed-goal path' {if($null-ne$good.observations.PSObject.Properties['routeGoalSearches']){throw 'v1 fixture changed.'};Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $good) 'PASS'}
 $routeMutations=@(
+ @('route marker without its searches',{param($v)$v.observations.PSObject.Properties.Remove('routeGoalSearches')}),
+ @('route searches without their marker',{param($v)$v.observations.PSObject.Properties.Remove('routeGoalContract')}),
+ @('unknown route marker',{param($v)$v.observations.routeGoalContract='world-route-goal-clear-of-units/v2'}),
  @('a movement without its route search',{param($v)$v.observations.routeGoalSearches=@($v.observations.routeGoalSearches[0],$v.observations.routeGoalSearches[1])}),
  @('route searches out of movement order',{param($v)$s=$v.observations.routeGoalSearches;$v.observations.routeGoalSearches=@($s[1],$s[0],$s[2])}),
  @('route search for another executor',{param($v)$v.observations.routeGoalSearches[1].moverId=$second}),
@@ -317,7 +320,7 @@ $routeMutations=@(
 foreach($mutation in $routeMutations){$copy=Copy-TestValue $routeF4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Check 'world engine writes the route search the reader requires' {
     $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.cs'))
-    foreach($pattern in @('MoveOnClearRoute(secondRider, secondMount, Vector3.forward, firstRider, "horse")','MoveOnClearRoute(firstRider, firstRider, Vector3.left, secondRider, "unmounted-control")','MoveOnClearRoute(firstRider, firstMount, Vector3.right, secondRider, "mammoth")')){if(-not$engine.Contains($pattern)){throw ('World engine route differs from the reader: '+$pattern)}}
+    foreach($pattern in @('evidence["routeGoalContract"] = GroundGoalFootprintPolicy.RouteContract','MoveOnClearRoute(secondRider, secondMount, Vector3.forward, firstRider, "horse")','MoveOnClearRoute(firstRider, firstRider, Vector3.left, secondRider, "unmounted-control")','MoveOnClearRoute(firstRider, firstMount, Vector3.right, secondRider, "mammoth")')){if(-not$engine.Contains($pattern)){throw ('World engine route differs from the reader: '+$pattern)}}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\GroundGoalFootprintPolicy.cs'))
     foreach($pattern in @('RouteContract = "world-route-goal-clear-of-units/v1"','RouteDistance = 2f','RouteBearingOffsets() => NativeGroundStepDestinationPolicy.BearingOffsets()','DoorReturnGoalPolicy.Slack(distance, moverCorpulence, otherCorpulence)')){if(-not$policy.Contains($pattern)){throw ('Route policy changed without the reader: '+$pattern)}}
     $step=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\NativeGroundStepDestinationPolicy.cs'))

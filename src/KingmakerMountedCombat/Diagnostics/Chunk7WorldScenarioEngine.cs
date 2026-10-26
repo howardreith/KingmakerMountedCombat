@@ -172,6 +172,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (OwnerSeed) ((JObject)evidence["capability"])["ownerSeedSha256"] = request.OwnedPairs.SeedSha256;
                 evidence["snapshots"] = snapshots; evidence["inputs"] = inputs; evidence["movements"] = movements;
                 evidence["groundInputs"] = groundInputs;
+                // The two-pair flow's route-goal marker (F5 review): its reader requires the searches exactly when this is present,
+                // so new-DLL evidence cannot fall back to the fixed-goal v1 path.
+                if (!SixPairStress && !ThirdHorseSetup && !OwnerSeedManual) evidence["routeGoalContract"] = GroundGoalFootprintPolicy.RouteContract;
                 evidence["measurements"] = measurements; evidence["cycleInputs"] = cycleInputs; evidence["cycles"] = cycles;
                 evidence["nativeProfileInventory"] = Chunk7NativeProfileInventory.Capture(originalParty);
                 Pass("C7-world-fixture");
