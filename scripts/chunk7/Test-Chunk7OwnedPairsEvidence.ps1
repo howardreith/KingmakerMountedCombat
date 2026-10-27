@@ -1467,6 +1467,13 @@ function ConvertTo-KmcSeedStagedV2($v){$s=$v.artifact.observations.staged;$s.con
  $step|Add-Member nativeRangeAtStop ([pscustomobject][ordered]@{contract='owner-seed-staged-approach-range-v1';riderPosition=$r;mountPosition=$m;targetPosition=@(0.0,0.0,0.0);mountTargetFlat=$d;riderTargetFlat=$dr
   mountTargetMechanics=$d;riderTargetMechanics=$dr;riderCorpulence=0.5;mountCorpulence=0.9;targetCorpulence=0.7;weaponRangeMeters=15.24;commandApproachRadius=16.84}) -Force;$v}
 Check 'owner-seed staged v2 accepted (revision 2 plan, native range at the approach stop)' {Invoke-OwnedReader (ConvertTo-KmcSeedStagedV2 (New-KmcSeedStagedFixture))}
+# owner-seed-staged-v3 (F6 review): the revision 3 plan (spare recorded, only preferred) from the committed C# planner record.
+function ConvertTo-KmcSeedStagedV3($v){$v=ConvertTo-KmcSeedStagedV2 $v;$s=$v.artifact.observations.staged;$s.contract='owner-seed-staged-v3'
+ $sp3=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV3.json') -Raw|ConvertFrom-Json;$s.geometryPlan=$sp3.plan;$s.geometryConfirmation=$sp3.confirmation;$v}
+Check 'owner-seed staged v3 accepted (revision 3 plan, native range at the approach stop)' {Invoke-OwnedReader (ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture))}
+Check 'owner-seed staged v3 refuses a revision 2 plan' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV2.json') -Raw|ConvertFrom-Json;$v.artifact.observations.staged.geometryPlan=$sp.plan;Invoke-OwnedReader $v} $true 'plan revision differ'
+Check 'owner-seed staged v3 refuses a forged candidate spare' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$p=$v.artifact.observations.staged.geometryPlan;$p.candidates[[int]$p.selected].spare=$false;Invoke-OwnedReader $v} $true 'recorded spare differs'
+Check 'owner-seed staged v3 refuses a missing range record' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$v.artifact.observations.staged.steps[9].PSObject.Properties.Remove('nativeRangeAtStop');Invoke-OwnedReader $v} $true 'range record does not match'
 foreach($m in @(
  @('v2 with a revision 1 plan',{$s=$args[0].artifact.observations.staged;$sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json') -Raw|ConvertFrom-Json;$s.geometryPlan=$sp.plan;$s.geometryConfirmation=$sp.confirmation},'plan revision differ'),
  @('v1 contract carrying a range record',{$args[0].artifact.observations.staged.contract='owner-seed-staged-v1'},'plan revision differ|range record does not match'),

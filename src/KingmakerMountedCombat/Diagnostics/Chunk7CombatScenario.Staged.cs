@@ -94,7 +94,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (selection.Chosen == null)
             {
                 evidence["staged"] = new JObject { ["contract"] = StagedContract, ["geometryPlan"] = stagedPlanRecord, ["complete"] = false };
-                throw new InvalidOperationException("Staged geometry refused before any input: no target placement admits the whole declared leg plan (" +
+                throw new InvalidOperationException("Staged geometry refused before any input (uncovered): no target placement admits the whole declared leg plan " +
+                    "(a placement keeping a spare beyond-range proposal is only preferred, never required; no-spare-proposal does not refuse) (" +
                     selection.Candidates.Count + " candidates recorded); owner-seed-staged is uncovered on this fixture.");
             }
             stagedSelection = selection;
@@ -391,8 +392,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         // F6 (staged v2): the up-front plan uses geometry revision 2 (beyond-range goal aimed at its band centre, a spare
         // planned proposal) and the approach shot records the native range quantities at its stop before any assertion.
-        internal const string StagedContract = "owner-seed-staged-v2";
-        private const int StagedPlanRevision = 2;
+        // v3 (F6 review): plan revision 3 prefers a placement whose planned beyond-range leg keeps a spare and never refuses for
+        // its absence (the in-combat confirmation requires only the chosen proposal, as v1, and records the spare).
+        internal const string StagedContract = "owner-seed-staged-v3";
+        private const int StagedPlanRevision = 3;
         private JObject StagedNativeRange()
         {
             var weapon = ar.GetFirstWeapon();
