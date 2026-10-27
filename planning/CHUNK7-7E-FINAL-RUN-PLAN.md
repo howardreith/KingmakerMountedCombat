@@ -378,7 +378,7 @@ input unit (the product's paired path-unit seam) ends within 0.3 m of it and at 
 recorded (`native-tb-paired-step-destination-v1`) before the click and none refuses as uncovered before input. The first-action
 Mount contract is `owner-seed-tb-first-action-mount-v3`; its reader requires both searches and recomputes order, step, preview
 distances, preview unit, reasons and the chosen destination; v1/v2 keep their path and refuse a search. Retained r07/r08 (F2,
-F3 FAIL, F5, b212, b213) re-read unchanged. r10, native life and the checkpoint sources keep the fixed click.
+F3 FAIL, F5, b212, b213) re-read unchanged. r10, native life and the checkpoint sources keep the fixed click. Review follow-up (`db51def2`): contract `owner-seed-tb-first-action-mount-v4` also records, beside each admitted paired step, what the mount travelled (`travelled`: MechanicsDistance, bearing from the recorded target direction, residual to the clicked destination) before the assertion; the reader requires and recomputes it; v3 (b215 pilot on `ab3bbce2`) keeps its path.
 
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
@@ -403,7 +403,7 @@ must keep a spare eligible proposal, otherwise the placement refuses before inpu
 margin, the reader floor and the native execution search are unchanged. The approach shot records `nativeRangeAtStop`
 (`owner-seed-staged-approach-range-v1`: positions, flat and MechanicsDistance, footprints, weapon range, command approach radius)
 before any assertion; the reader replays revision 2 plans and recomputes the record, the 0.1 m tolerance unchanged. v1 evidence
-keeps its path; retained st (b205, F2, F3, F5) re-read PASS.
+keeps its path; retained st (b205, F2, F3, F5) re-read PASS. Review follow-up (`c01f0373`): requiring the spare could fail the in-combat confirmation after combat start (F2's 10.52 m start likely had none) although the execution search never uses it. Geometry revision 3 (`owner-seed-staged-geometry-plan-v3`, staged `owner-seed-staged-v3`) keeps the centre aim and the range record; a planned beyond-range leg records its spare or null and never refuses for its absence (the confirmation requires only the chosen proposal, as v1); the placement selection takes the first feasible placement with a spare, else after all 64 the first feasible one (the v1 choice), each candidate recording its spare; the reader replays the preference exactly. Revision 2 / staged v2 keep their paths.
 
 ### B10 — RT Charge lineage and Small items (~30 min)
 
