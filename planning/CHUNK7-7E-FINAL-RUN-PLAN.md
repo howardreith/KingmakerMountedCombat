@@ -219,6 +219,22 @@ Reader: owned family (`Chunk7OwnedPairsEvidence`) through `Test-RuntimeResult`.
 
 Reader: owned family.
 
+Row 11 before F6 (selection unchanged; producer behaviour): F5 r11 (`20261028-c7e-final-B3-r11`, retained FAIL) issued both RT
+primaries in one update while every actor was still in its native RT initiative wait (0.22–5.22 s, d20-driven); Horse B
+waited 5.22 s and walked 5.2 m, settling 6.75 s after input, so rider A's 6 s debt (charged at +0.2 s) had expired when the
+checkpoint was checked. F2 passed only because rider A's own wait (3.54 s) was long too (A's debt 3.21 at the check); F3/F4
+3.37/3.16. The row must save one RT checkpoint where rider A's and Horse B's native standard debts are both outstanding
+(> 0.1) and rider B's and the Mammoth's are 0; the archive reader already requires exactly that. The producer now waits until
+no actor is in its native initiative wait, issues pair B's mount primary first and pair A's rider primary only after pair
+B's attack settled, and records `realtimeCheckpoint` (`rt-debt-checkpoint-sequenced-v2`: order, the four measured debts, the
+checkpoint snapshot, the predicate) before asserting; neither the approach length nor the initiative roll bounds it any
+more (expected: A ≈ 4 s, B ≈ 3.8 s at the check). No cooldown is written, granted or refunded. The reader recomputes the
+order, the frame and native-clock ordering (A issued at or after B's settle frame, checkpoint at or after A's settle), the
+elapsed initiative waits in both inputs' before-snapshots, the debts against their own snapshot and against the saved
+`native-checkpoint-ready` snapshot, and the predicate; producer-labelled evidence without the record must be the v1
+one-update shape (A then B, same input frame), synthetic `native-primary-fixture` fixtures keep their path. F2/F3/F4 r11
+and r12 re-read PASS, F5 r11 FAIL, unchanged.
+
 ### B4 — rows 15–19 (~30 min)
 
 | Tag | Row | Case (PersistenceCase) | Source | T: |
@@ -254,6 +270,19 @@ Reader: owned + schema-1 family; 23–24 must refuse without overwrite.
 | r29 | 29 | `owner-seed-checkpoint-load` (`multi-area-autosave`) | r28 | `…world77-b61s1-manticore-spider-auto-cold` |
 
 Reader: owned + area family.
+
+Row 27 before F6 (selection unchanged; producer behaviour): F5 r27 (`20261028-c7e-final-B6-r27`, retained FAIL) refused the
+third native load because one of its two Horse subscribers had the identity 566499584 of world 2's, with exact counts and
+shape. The identity was `RuntimeHelpers.GetHashCode`; Kingmaker 2.1.7b runs Unity 2018.4.10 with `mono-2.0-bdwgc.dll`
+(non-moving Boehm GC, checked read-only), where the hash is derived from the address, so a new subscriber allocated in a
+collected one's slot repeats it (every recorded value has its low 8 bits zero). Subscriber inventories in the repeated-world
+flow now also carry a `serial` from `WeakObjectSerials` (`weak-reference-serial-v1`: one serial per live reference, never
+reused by a later object, weak references only, bounded 256); the producer compares serials for every role and records
+`subscriberIdentity` and `subscriberSerials` (capacity, assigned, faults) under contract `chunk7-repeated-worlds-v2`. The
+reader requires serials in every inventory of v2 evidence (worlds, dispatch snapshots, retention callbacks, settled), one
+serial per identity throughout the run, the registry bound and no fault, and compares serials in the boundary checks; v1
+evidence keeps its hash path. Rows 27 and 64 (x4c, which requires the same Horse subscriber) both use it. F2/F3/F4 r27 and
+F3/F4/F5 x4c re-read PASS, F5 r27 FAIL, unchanged.
 
 ### B7 — door, X4, capital (~35 min)
 
@@ -516,6 +545,14 @@ After B15, with every run restored and read:
    result SHA-256, reader and binder verdicts, uncovered halves, restoration digest. Completion means all
    76 rows PASS; any NOT RUN, BLOCKED, FAIL or newly uncovered row means no completion claim (the
    uncovered halves already in the matrix exclusions are recorded inside passing rows).
+
+**Margin audit after F5 (October 26, offline):** `analysis-cache/chunk7-continuation/final5-margin-audit.md` measures every
+timing/geometry/AI/GC-dependent check against its bound over F2–F5 and pilots b206–b214. Fixed: rows 11 (`8e8b9dec`) and
+27/64 (`1d079c1e`). Open HIGH items for owner/coordinator decision before F6, none changed here because each would move a bound,
+a §6 criterion or a fixture choice, or needs a new producer search: r12 reader readiness tolerance (10 ms absolute, worst
+slack 5.6 ms), r39 F11 two-pair budget (0.464 of 0.5 ms in b211) and scaling noise term, r39 cycle-1 exposure at the saved
+start, r07/r08 step search (0.289 of 0.3 m) and fixed full-activation clicks, r09 companion window engagement, st band-floor
+goal and ranged approach end (0.053 m of 0.1 m).
 
 ## 8. Failure handling
 
