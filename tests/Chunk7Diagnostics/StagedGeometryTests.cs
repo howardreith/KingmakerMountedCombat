@@ -326,6 +326,20 @@ namespace KingmakerMountedCombat.Tests
             var wide = new WorldNavmesh((x, z) => Math.Abs(x) <= 3 && z <= -12);
             var spared = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 3), wide, cursor.Copy(), null);
             Check(spared.Chosen == 0 && spared.Spare == 1 && spared.Proposals.Count == 2, "revision 3 records the next eligible proposal as the spare");
+            // Isolate the corrected entry condition: every feasible placement has exactly one usable beyond-range proposal.
+            // Selection must exhaust the bounded search and return its first feasible primary path, without requiring a spare.
+            var beyondOnly = new[] { new StagedPlanStep("move-beyond-range", 0) };
+            var narrow = new WorldNavmesh((x, z) => Math.Abs(x) <= .05 && z >= -25 && z <= 25);
+            var noSpare = Chunk7StagedGeometry.Select(t0, new StagedPoint(.5, 0, 0), PlanEnvelope, Speed, beyondOnly, narrow, 3);
+            Check(noSpare.Candidates.Count == 64 && noSpare.Selected == 0 && noSpare.Chosen != null &&
+                noSpare.Chosen.Simulation.Feasible && !Chunk7StagedGeometry.HasSpare(noSpare.Chosen.Simulation) &&
+                noSpare.Candidates.Where(c => c.Refusal == null).All(c => !Chunk7StagedGeometry.HasSpare(c.Simulation)),
+                "revision 3 searches all 64 placements and falls back to the first feasible primary path without a spare");
+            var blockedPrimary = new WorldNavmesh((x, z) => Math.Abs(x) <= .05 && z >= -1 && z <= 10);
+            var noPath = Chunk7StagedGeometry.Select(t0, new StagedPoint(.5, 0, 0), PlanEnvelope, Speed, beyondOnly, blockedPrimary, 3);
+            Check(noPath.Candidates.Count == 64 && noPath.Selected == -1 && noPath.Chosen == null &&
+                noPath.Candidates.Any(c => c.Walkable && c.Refusal == Chunk7StagedGeometry.PlanInfeasible),
+                "revision 3 still refuses when placements exist but no primary beyond-range path is feasible");
             foreach (var floor in new[] { new { name = "open", nav = open }, new { name = "disc", nav = disc }, new { name = "b203", nav = b203 } })
             {
                 var s = Chunk7StagedGeometry.Select(MountStart, RiderStart, PlanEnvelope, Speed, Steps, floor.nav, 3);

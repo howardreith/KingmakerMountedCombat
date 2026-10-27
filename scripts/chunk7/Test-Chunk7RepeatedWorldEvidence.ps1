@@ -162,6 +162,25 @@ function Get-HorseRows($Subscriptions){@($Subscriptions.entries|Where-Object typ
 $serialLoads=ConvertTo-SerialReplay $threeLoad;$serialAreas=ConvertTo-SerialReplay $threeAreas
 Check 'v2 serial subscribers: three native loads' {Assert-KmcChunk7PersistenceObservation $loadRequest $serialLoads 'PASS'}
 Check 'v2 serial subscribers: three area transfers' {Assert-KmcChunk7PersistenceObservation $areaRequest $serialAreas 'PASS'}
+foreach($version in @('0.1.0-chunk7b-preview.95','0.1.0-chunk7b-preview.96')){
+    foreach($areas in @($false,$true)){
+        $q=Copy-Test $(if($areas){$areaRequest}else{$loadRequest});$q.productVersion=$version
+        $a=Copy-Test $(if($areas){$serialAreas}else{$serialLoads});$a.productVersion=$version
+        Check ("$version serial evidence accepted, areas=$areas") {Assert-KmcChunk7PersistenceObservation $q $a 'PASS'}
+        Reject ("$version refuses complete legacy schema downgrade, areas=$areas") {
+            $v=Copy-Test $a;$r=$v.observations.repeatedWorlds;$r.contract='chunk7-repeated-worlds-v1'
+            $r.PSObject.Properties.Remove('subscriberIdentity');$r.PSObject.Properties.Remove('subscriberSerials')
+            foreach($inv in Get-SerialInventories $r){foreach($row in $inv.entries){$row.PSObject.Properties.Remove('serial')}}
+            $r.finalRetention=Copy-Test $r.retention
+            Assert-KmcChunk7PersistenceObservation $q $v 'PASS'
+        }
+    }
+}
+Check 'preview.94 hash-only evidence keeps its original path' {
+    $q=Copy-Test $loadRequest;$q.productVersion='0.1.0-chunk7b-preview.94'
+    $a=Copy-Test $threeLoad;$a.productVersion=$q.productVersion
+    Assert-KmcChunk7PersistenceObservation $q $a 'PASS'
+}
 Check 'v2: a new Horse subscriber that repeats a collected one''s hash (F5 r27) is not stale' {
     $a=Copy-Test $serialLoads;$r=$a.observations.repeatedWorlds;$old=(Get-HorseRows $r.worlds[1].subscriptions)[0].identity
     foreach($inv in @($r.worlds[2].subscriptions,$r.settled.subscriptions)){(Get-HorseRows $inv)[0].identity=$old}

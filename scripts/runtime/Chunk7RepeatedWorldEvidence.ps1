@@ -63,8 +63,8 @@ function Test-KmcChunk7ReplaySerialInventory($Value){
     return ($with-gt0)
 }
 function Assert-KmcChunk7ReplaySerial($Value){if(-not(Test-KmcExactJsonInteger $Value)-or$Value-lt1-or$Value-gt256){throw 'Subscriber serial must be an exact integer within its bounded registry.'}}
-# Contract v2 (F5 r27): RuntimeHelpers.GetHashCode is address-derived on Kingmaker's Boehm Mono, so a new subscriber in a
-# collected one's slot can repeat its hash. v2 compares weak-reference serials (one per live reference, never reused);
+# Contract v2 (F5 r27): RuntimeHelpers.GetHashCode repeated across native loads; the retained hash alone cannot prove
+# whether its cause was address reuse. v2 compares weak-reference serials (one per live reference, never reused);
 # every inventory carries them and one serial maps to one identity throughout the run. v1 evidence keeps its hash path.
 function Assert-KmcChunk7ReplaySubscriberSerials($Repeated,[bool]$V2){
     $inventories=@(@($Repeated.worlds|ForEach-Object{$_.subscriptions})+@($Repeated.requests|ForEach-Object{$_.before.subscriptions})+@($Repeated.retention.events|ForEach-Object{$_.state.subscriptions})+@($Repeated.settled.subscriptions))
@@ -243,6 +243,9 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     foreach($f in @('performanceProof','diagnosticsOffProof','allocationRateProof')){Assert-KmcChunk7Boolean $r.$f $false}
     Assert-KmcChunk7Boolean $r.inputUnchanged $true;Assert-KmcChunk7Boolean $r.observersReleased $true
     $serialContract=$r.contract-ceq'chunk7-repeated-worlds-v2'
+    # The runner binds productVersion to the delivered DLL. Preview.95 and later cannot opt out of
+    # collision-free subscriber observations by relabelling their evidence as the historical v1 contract.
+    if((Get-KmcChunk7CheckpointProducerPreview $Request)-ge95-and-not$serialContract){throw 'This producer revision requires repeated-world v2 subscriber serial evidence.'}
     if($r.contract-cnotin@('chunk7-repeated-worlds-v1','chunk7-repeated-worlds-v2')-or$r.kind-cne$(if($areas){'area-transfer'}else{'native-load'})-or$r.requiredNativeLoads-ne$loads-or$r.requiredAreaTransfers-ne$transfers-or
        $r.nativeLoadRequests-ne$loads-or$r.nativeWriteRequests-ne0-or$r.inputSha256-cne$Request.persistenceLoad.sha256-or$r.worlds-isnot[Array]-or$r.worlds.Count-ne($loads+$transfers)-or
        $r.requests-isnot[Array]-or$r.requests.Count-ne$(if($areas){3}else{2})){throw 'Repeated native admissions/counts differ from the finite selected campaign.'}
