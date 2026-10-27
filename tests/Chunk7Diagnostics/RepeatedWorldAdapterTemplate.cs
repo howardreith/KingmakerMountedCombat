@@ -38,9 +38,9 @@ class NativeModeTransitionProbe:IDisposable{internal int Dispatches;internal Nat
 class HarmonyInstance{internal static HarmonyInstance Create(string id){return new HarmonyInstance();}internal void UnpatchAll(string id){Chunk7WorldRetentionProbe.UnpatchCalls++;if(Chunk7WorldRetentionProbe.ThrowDispose)throw new Exception("unpatch retained");Chunk7WorldRetentionProbe.LiveHooks=0;}}
 class Chunk7WorldRetentionProbe:IDisposable{
  internal static bool ThrowInstall,ThrowDispose;internal static int UnpatchCalls,LiveHooks;private const string HarmonyId="probe";private static Chunk7WorldRetentionProbe active;
- private object persistence,world,controls,identities;private UnitEntityData[] actors=new UnitEntityData[0];private HarmonyInstance harmony;private bool attempted,installed,disposed;
+ private object persistence,world,controls,identities,subscriptionSerials;private UnitEntityData[] actors=new UnitEntityData[0];private HarmonyInstance harmony;private bool attempted,installed,disposed;
  internal bool Installed=>installed;internal bool Disposed=>disposed;internal static bool HasActive=>active!=null;
- internal Chunk7WorldRetentionProbe(object p,object w,object c,object ids){persistence=p;world=w;controls=c;identities=ids;}
+ internal Chunk7WorldRetentionProbe(object p,object w,object c,object ids,object serials=null){persistence=p;world=w;controls=c;identities=ids;subscriptionSerials=serials;}
  private void Patch(string name,string before,string after){LiveHooks++;if(ThrowInstall)throw new Exception("partial retention hook");}
  internal JObject Capture(){return new JObject{["complete"]=installed};}
  internal int ActorBindings;internal bool ThrowBindActors;internal void BindActors(UnitEntityData[] value){if(ThrowBindActors)throw new Exception("observer actor binding refused");actors=value;ActorBindings++;}
@@ -55,7 +55,7 @@ class ReplayAdapter{
     internal Settings settings=new Settings();internal bool originalPaired,originalMovement;
     internal RuntimeSaveAuthorization replayAuthorization=new RuntimeSaveAuthorization();internal PersistenceSaveAuthorization replaySaveAuthority=new PersistenceSaveAuthorization();
     internal string replaySelectedCase;internal Chunk7OwnedPairsSelection replayOwnedSelection;internal Chunk7OwnedPairFixture inherited,replayIncomingInherited;internal JArray replayInheritedRetirements=new JArray();internal int BindOwnedCalls;
-    internal int replayAuthorityGeneration;internal object replaySaveManager,replayPriorPlayer,replayPriorState,replayPriorAreaState,replayPriorMainState;internal RetainedObjectIdentity replayIdentities;
+    internal int replayAuthorityGeneration;internal object replaySaveManager,replayPriorPlayer,replayPriorState,replayPriorAreaState,replayPriorMainState;internal RetainedObjectIdentity replayIdentities;internal WeakObjectSerials replaySubscriptionSerials;
     internal NativeArchiveRestorationProbe restoration;internal Chunk7WorldRetentionProbe retention;internal NativeModeTransitionProbe mode;
     internal bool replayBegun,replayPending,replayCallback,Idle=true,ForeignWorld,ThrowSnapshot,ThrowInput,ThrowAdoption,CleanupStarted;
     internal int replayCompletedLoads=1,replayPublishedLoadOrdinal=1,replayCompletedAreas,replayOrdinal,replayReadyFrames,SnapshotCalls,NativeScopeChecks,Adoptions;

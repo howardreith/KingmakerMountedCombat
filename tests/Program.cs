@@ -656,6 +656,7 @@ namespace KingmakerMountedCombat.Tests
             HorseCompanionScenarioDeadlinePolicyTests.Register(runner);
             DiagnosticTurnTraversalPolicyTests.Register(runner);
             MountedAreaControlRuleTests.Register(runner);
+            WeakObjectSerialsTests.Register(runner);
             return runner.Complete();
         }
 

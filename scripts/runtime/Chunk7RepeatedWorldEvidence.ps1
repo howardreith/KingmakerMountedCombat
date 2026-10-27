@@ -43,13 +43,44 @@ function Assert-KmcChunk7ReplaySubscriptions($Value,[bool]$InNativeCallback=$fal
     if($Value.assemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or$Value.entries-isnot[Array]-or$Value.ownedInterfaceEntries-ne$Value.entries.Count-or$Value.entries.Count-gt256){throw 'Native subscription inventory is incomplete or unbounded.'}
     $rows=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $identities=[Collections.Generic.HashSet[int]]::new()
+    # v2 (chunk7-repeated-worlds-v2) rows add a collision-free weak-reference serial; one inventory never mixes shapes.
+    $serial=Test-KmcChunk7ReplaySerialInventory $Value
+    $serials=[Collections.Generic.Dictionary[long,int]]::new()
     foreach($row in $Value.entries){
-        Assert-KmcExactProperties $row @('interface','type','identity') 'Native subscription row'
+        Assert-KmcExactProperties $row $(if($serial){@('interface','type','identity','serial')}else{@('interface','type','identity')}) 'Native subscription row'
         Assert-KmcChunk7ReplayObject $row.identity
-        if($row.interface-isnot[string]-or$row.type-isnot[string]-or$row.interface.Length-eq0-or$row.interface.Length-gt256-or$row.type-cnotmatch'^KingmakerMountedCombat\.'-or$row.type.Length-gt256-or-not$rows.Add($row.interface+'|'+$row.type+'|'+$row.identity)){throw 'Subscription row is invalid or duplicated.'}
+        $key=if($serial){Assert-KmcChunk7ReplaySerial $row.serial;[string]$row.serial}else{[string]$row.identity}
+        if($row.interface-isnot[string]-or$row.type-isnot[string]-or$row.interface.Length-eq0-or$row.interface.Length-gt256-or$row.type-cnotmatch'^KingmakerMountedCombat\.'-or$row.type.Length-gt256-or-not$rows.Add($row.interface+'|'+$row.type+'|'+$key)){throw 'Subscription row is invalid or duplicated.'}
         $null=$identities.Add($row.identity)
+        if($serial){if($serials.ContainsKey([long]$row.serial)){if($serials[[long]$row.serial]-ne$row.identity){throw 'One subscriber serial carries two native identities.'}}else{$serials.Add([long]$row.serial,[int]$row.identity)}}
     }
-    if($identities.Count-ne$Value.uniqueOwnedSubscribers){throw 'Subscription unique-owner count differs from raw identities.'}
+    $unique=if($serial){$serials.Count}else{$identities.Count}
+    if($unique-ne$Value.uniqueOwnedSubscribers){throw 'Subscription unique-owner count differs from raw identities.'}
+}
+function Test-KmcChunk7ReplaySerialInventory($Value){
+    $with=@(@($Value.entries)|Where-Object{$null-ne$_-and$null-ne$_.PSObject.Properties['serial']}).Count
+    if($with-ne0-and$with-ne@($Value.entries).Count){throw 'Subscription inventory mixes serial and hash-only rows.'}
+    return ($with-gt0)
+}
+function Assert-KmcChunk7ReplaySerial($Value){if(-not(Test-KmcExactJsonInteger $Value)-or$Value-lt1-or$Value-gt256){throw 'Subscriber serial must be an exact integer within its bounded registry.'}}
+# Contract v2 (F5 r27): RuntimeHelpers.GetHashCode is address-derived on Kingmaker's Boehm Mono, so a new subscriber in a
+# collected one's slot can repeat its hash. v2 compares weak-reference serials (one per live reference, never reused);
+# every inventory carries them and one serial maps to one identity throughout the run. v1 evidence keeps its hash path.
+function Assert-KmcChunk7ReplaySubscriberSerials($Repeated,[bool]$V2){
+    $inventories=@(@($Repeated.worlds|ForEach-Object{$_.subscriptions})+@($Repeated.requests|ForEach-Object{$_.before.subscriptions})+@($Repeated.retention.events|ForEach-Object{$_.state.subscriptions})+@($Repeated.settled.subscriptions))
+    $map=[Collections.Generic.Dictionary[long,int]]::new()
+    foreach($inventory in $inventories){
+        if((Test-KmcChunk7ReplaySerialInventory $inventory)-ne$V2){throw 'Subscription inventory shape differs from its repeated-world contract.'}
+        if($V2){foreach($row in $inventory.entries){$s=[long]$row.serial;if($map.ContainsKey($s)){if($map[$s]-ne$row.identity){throw 'One subscriber serial carries two native identities across worlds.'}}else{$map.Add($s,[int]$row.identity)}}}
+    }
+    $names=@($Repeated.PSObject.Properties.Name)
+    if(-not$V2){if($names-ccontains'subscriberIdentity'-or$names-ccontains'subscriberSerials'){throw 'Hash-only repeated-world evidence claims a serial registry.'};return}
+    Assert-KmcBootstrapInventoryString $Repeated.subscriberIdentity 'weak-reference-serial-v1'
+    if($names-cnotcontains'subscriberSerials'){throw 'Serial repeated-world evidence omitted its subscriber serial registry.'}
+    $reg=$Repeated.subscriberSerials;Assert-KmcExactProperties $reg @('contract','capacity','assigned','faults') 'Subscriber serial registry'
+    Assert-KmcChunk7NativeCounters $reg @('capacity','assigned','faults')
+    if($reg.contract-cne'weak-reference-serial-v1'-or$reg.capacity-ne256-or$reg.faults-ne0-or$reg.assigned-lt1-or$reg.assigned-gt256-or$reg.assigned-lt$map.Count-or
+       @($map.Keys|Where-Object{$_-gt$reg.assigned}).Count-ne0){throw 'Subscriber serial registry is unbounded, faulted or differs from the recorded serials.'}
 }
 # One native HorseCompanionAddPet subscriber per KMC Horse owner, matching the product's
 # Chunk7ReplayHorseOwners: every profile that mounts the KMC Horse blueprint (Medium Horse and the
@@ -67,24 +98,27 @@ function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$
     $h=@($entries|Where-Object type -CEQ $horse)
     $l=@($entries|Where-Object type -CEQ $lifecycle)
     $c=@($entries|Where-Object type -CEQ $controls)
+    $label=if(Test-KmcChunk7ReplaySerialInventory $Current){'serial'}else{'identity'}
     if($HorseFacts-lt1-or$HorseFacts-gt2-or$Current.uniqueOwnedSubscribers-ne(2+$HorseFacts)-or
        $Current.ownedInterfaceEntries-ne(15+$HorseFacts)-or$entries.Count-ne(15+$HorseFacts)-or
        $h.Count-ne$HorseFacts-or$l.Count-ne13-or$c.Count-ne2-or
        @($h|Where-Object interface -CNE 'Kingmaker.PubSubSystem.ISceneHandler').Count-ne0-or
-       @($h.identity|Select-Object -Unique).Count-ne$HorseFacts-or
-       @($l.identity|Select-Object -Unique).Count-ne1-or
-       @($c.identity|Select-Object -Unique).Count-ne1-or
-       $l[0].identity-eq$c[0].identity-or$h.identity-ccontains$l[0].identity-or$h.identity-ccontains$c[0].identity){
+       @($h.$label|Select-Object -Unique).Count-ne$HorseFacts-or
+       @($l.$label|Select-Object -Unique).Count-ne1-or
+       @($c.$label|Select-Object -Unique).Count-ne1-or
+       $l[0].$label-eq$c[0].$label-or$h.$label-ccontains$l[0].$label-or$h.$label-ccontains$c[0].$label){
         throw 'Repeated world subscriber roles/cardinality are not the exact two fact and two process-owned instances.'
     }
     if($null-eq$Previous){return}
     $prior=@($Previous.entries)
     $shape=@($entries|ForEach-Object{$_.interface+'|'+$_.type}|Sort-Object -CaseSensitive)
     $oldShape=@($prior|ForEach-Object{$_.interface+'|'+$_.type}|Sort-Object -CaseSensitive)
-    $stable=@($entries|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.identity}|Sort-Object -CaseSensitive)
-    $oldStable=@($prior|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.identity}|Sort-Object -CaseSensitive)
-    $oldHorse=@($prior|Where-Object type -CEQ $horse|ForEach-Object{$_.identity}|Sort-Object)
-    $newHorse=@($h|ForEach-Object{$_.identity}|Sort-Object)
+    # v2 compares collision-free serials (a new object never repeats one); v1 keeps its identity-hash comparison.
+    if((Test-KmcChunk7ReplaySerialInventory $Previous)-ne($label-ceq'serial')){throw 'Repeated subscriber inventories mix serial and hash-only labels.'}
+    $stable=@($entries|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
+    $oldStable=@($prior|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
+    $oldHorse=@($prior|Where-Object type -CEQ $horse|ForEach-Object{$_.$label}|Sort-Object)
+    $newHorse=@($h|ForEach-Object{$_.$label}|Sort-Object)
     if($Current.assemblyMvid-cne$Previous.assemblyMvid-or
        (ConvertTo-KmcChunk7Canonical $shape)-cne(ConvertTo-KmcChunk7Canonical $oldShape)-or
        (ConvertTo-KmcChunk7Canonical $stable)-cne(ConvertTo-KmcChunk7Canonical $oldStable)-or
@@ -208,7 +242,8 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     foreach($f in @('requiredNativeLoads','requiredAreaTransfers','nativeLoadRequests','nativeWriteRequests')){Assert-KmcChunk7NativeCounters $r @($f)}
     foreach($f in @('performanceProof','diagnosticsOffProof','allocationRateProof')){Assert-KmcChunk7Boolean $r.$f $false}
     Assert-KmcChunk7Boolean $r.inputUnchanged $true;Assert-KmcChunk7Boolean $r.observersReleased $true
-    if($r.contract-cne'chunk7-repeated-worlds-v1'-or$r.kind-cne$(if($areas){'area-transfer'}else{'native-load'})-or$r.requiredNativeLoads-ne$loads-or$r.requiredAreaTransfers-ne$transfers-or
+    $serialContract=$r.contract-ceq'chunk7-repeated-worlds-v2'
+    if($r.contract-cnotin@('chunk7-repeated-worlds-v1','chunk7-repeated-worlds-v2')-or$r.kind-cne$(if($areas){'area-transfer'}else{'native-load'})-or$r.requiredNativeLoads-ne$loads-or$r.requiredAreaTransfers-ne$transfers-or
        $r.nativeLoadRequests-ne$loads-or$r.nativeWriteRequests-ne0-or$r.inputSha256-cne$Request.persistenceLoad.sha256-or$r.worlds-isnot[Array]-or$r.worlds.Count-ne($loads+$transfers)-or
        $r.requests-isnot[Array]-or$r.requests.Count-ne$(if($areas){3}else{2})){throw 'Repeated native admissions/counts differ from the finite selected campaign.'}
     $identity=$r.identityRetention
@@ -220,6 +255,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         foreach($field in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if(-not$nativeIds.Contains($state.$field)){throw 'Native world label lacks retained exact-reference registration.'}}
         foreach($actor in $state.actors){foreach($field in @('object','descriptor','viewObject')){if(-not$nativeIds.Contains($actor.$field)){throw 'Native actor label lacks retained exact-reference registration.'}}}
     }
+    Assert-KmcChunk7ReplaySubscriberSerials $r $serialContract
     $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs
     $initial=$r.worlds[0];$previous=$null
     for($index=0;$index-lt$r.worlds.Count;$index++){

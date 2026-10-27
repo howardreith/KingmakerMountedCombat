@@ -150,6 +150,50 @@ Reject 'ordered-dictionary-save-family' {$r=New-RepeatedRunnerRequest;$r['scenar
        'replaced-area-horse-subscriber' {@($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')[0].identity=76123}
     };Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
 }
+# F5 r27 (chunk7-repeated-worlds-v2): weak-reference subscriber serials replace address-derived hash identities.
+function Get-SerialInventories($R){@(@($R.worlds|ForEach-Object{$_.subscriptions})+@($R.requests|ForEach-Object{$_.before.subscriptions})+@($R.retention.events|ForEach-Object{$_.state.subscriptions})+@($R.settled.subscriptions))}
+function ConvertTo-SerialReplay($Artifact){
+    $a=Copy-Test $Artifact;$r=$a.observations.repeatedWorlds;$map=[ordered]@{}
+    foreach($inv in Get-SerialInventories $r){foreach($row in $inv.entries){$k=[string]$row.identity;if(-not$map.Contains($k)){$map[$k]=$map.Count+1};$row|Add-Member NoteProperty serial ([long]$map[$k])}}
+    $r.contract='chunk7-repeated-worlds-v2';$r|Add-Member NoteProperty subscriberIdentity 'weak-reference-serial-v1'
+    $r|Add-Member NoteProperty subscriberSerials ([pscustomobject]@{contract='weak-reference-serial-v1';capacity=256;assigned=$map.Count;faults=0});$r.finalRetention=Copy-Test $r.retention;$a
+}
+function Get-HorseRows($Subscriptions){@($Subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.HorseCompanionAddPet')}
+$serialLoads=ConvertTo-SerialReplay $threeLoad;$serialAreas=ConvertTo-SerialReplay $threeAreas
+Check 'v2 serial subscribers: three native loads' {Assert-KmcChunk7PersistenceObservation $loadRequest $serialLoads 'PASS'}
+Check 'v2 serial subscribers: three area transfers' {Assert-KmcChunk7PersistenceObservation $areaRequest $serialAreas 'PASS'}
+Check 'v2: a new Horse subscriber that repeats a collected one''s hash (F5 r27) is not stale' {
+    $a=Copy-Test $serialLoads;$r=$a.observations.repeatedWorlds;$old=(Get-HorseRows $r.worlds[1].subscriptions)[0].identity
+    foreach($inv in @($r.worlds[2].subscriptions,$r.settled.subscriptions)){(Get-HorseRows $inv)[0].identity=$old}
+    Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'
+}
+Reject 'v1: the same hash repeat stays refused on its original hash path' {$a=Copy-Test $threeLoad;$r=$a.observations.repeatedWorlds;$old=(Get-HorseRows $r.worlds[1].subscriptions)[0].identity;foreach($inv in @($r.worlds[2].subscriptions,$r.settled.subscriptions)){(Get-HorseRows $inv)[0].identity=$old};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+foreach($mutation in @('stale-serial','stale-serial-and-identity','process-serial-changed','mixed-inventory','serial-two-identities','serial-two-identities-across-worlds','serial-zero','serial-text','serial-beyond-bound','registry-fault','registry-missing','registry-assigned-short','registry-extra-field','identity-marker','v1-contract-with-serials','v2-contract-without-serials','duplicate-serial-row','unique-count')){
+    Reject ('v2 '+$mutation) {$a=Copy-Test $serialLoads;$r=$a.observations.repeatedWorlds;$h1=(Get-HorseRows $r.worlds[1].subscriptions)[0];$h0=(Get-HorseRows $r.worlds[0].subscriptions)[0]
+        switch($mutation){
+          'stale-serial' {$h1.serial=$h0.serial;$h1.identity=$h0.identity}
+          'stale-serial-and-identity' {foreach($inv in @($r.worlds[1].subscriptions)+@($r.requests[1].before.subscriptions)){(Get-HorseRows $inv)[0].serial=$h0.serial;(Get-HorseRows $inv)[0].identity=$h0.identity}}
+          'process-serial-changed' {foreach($row in @($r.worlds[1].subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber')){$row.serial=99;$row.identity=-997};$r.subscriberSerials.assigned=99}
+          'mixed-inventory' {$r.worlds[1].subscriptions.entries[0].PSObject.Properties.Remove('serial')}
+          'serial-two-identities' {$h1.identity=12345}
+          'serial-two-identities-across-worlds' {foreach($row in @($r.settled.subscriptions.entries|Where-Object type -CEQ 'KingmakerMountedCombat.Integration.NativeMountedControlService')){$row.identity=-996}}
+          'serial-zero' {$h1.serial=0}
+          'serial-text' {$h1.serial='5'}
+          'serial-beyond-bound' {$h1.serial=257}
+          'registry-fault' {$r.subscriberSerials.faults=1}
+          'registry-missing' {$r.PSObject.Properties.Remove('subscriberSerials')}
+          'registry-assigned-short' {$r.subscriberSerials.assigned=2}
+          'registry-extra-field' {$r.subscriberSerials|Add-Member NoteProperty retained 1}
+          'identity-marker' {$r.subscriberIdentity='runtime-hash-v1'}
+          'v1-contract-with-serials' {$r.contract='chunk7-repeated-worlds-v1'}
+          'v2-contract-without-serials' {foreach($inv in Get-SerialInventories $r){foreach($row in $inv.entries){$row.PSObject.Properties.Remove('serial')}}}
+          'duplicate-serial-row' {$r.worlds[1].subscriptions.entries+=Copy-Test $h1;$r.worlds[1].subscriptions.ownedInterfaceEntries++}
+          'unique-count' {$r.worlds[1].subscriptions.uniqueOwnedSubscribers=5}
+        };$r.finalRetention=Copy-Test $r.retention;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+}
+Reject 'v2 area transfer replaced the Horse subscriber serial' {$a=Copy-Test $serialAreas;$r=$a.observations.repeatedWorlds;(Get-HorseRows $r.worlds[1].subscriptions)[0].serial=200;$r.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
+Check 'v2 area transfer keeps the Horse serial even if its hash label changed' {$a=Copy-Test $serialAreas;$r=$a.observations.repeatedWorlds;$s=(Get-HorseRows $r.worlds[0].subscriptions)[0].serial
+    foreach($inv in Get-SerialInventories $r){foreach($row in @(Get-HorseRows $inv|Where-Object serial -EQ $s)){$row.identity=4242}};$r.finalRetention=Copy-Test $r.retention;Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
 # b195 x4c: the reviewed capital pins are refused before launch and by the request reader.
 Check 'route refusal names the reviewed capital evidence' {$c=@(Get-KmcChunk7KnownCapitalAreaPins);if($c.Count-ne1-or$c[0].area-cne'ead426a6c23d39548a670ee515d77df4'-or$c[0].enterPoint-cne'fd225a93828d26449803a4847947f8c1'-or$c[0].evidenceRunId-cne'20261019-c7b-world48-ownerseed-b23s3-areaauto'){throw 'Capital pin list differs.'}}
 foreach($leg in 0..2){

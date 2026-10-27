@@ -22,14 +22,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedWorldService world;
         private readonly NativeMountedControlService controls;
         private readonly RetainedObjectIdentity identities;
+        private readonly WeakObjectSerials subscriptionSerials;
         private readonly JArray events = new JArray(), hooks = new JArray();
         private UnitEntityData[] actors = new UnitEntityData[0];
         private HarmonyInstance harmony;
         private bool attempted, installed, disposed;
         private int errors, dropped;
         internal bool Complete => installed && errors == 0 && dropped == 0;
-        internal Chunk7WorldRetentionProbe(MountedPersistenceService persistence, MountedWorldService world, NativeMountedControlService controls, RetainedObjectIdentity identities)
-        { this.persistence = persistence; this.world = world; this.controls = controls; this.identities = identities; }
+        internal Chunk7WorldRetentionProbe(MountedPersistenceService persistence, MountedWorldService world, NativeMountedControlService controls, RetainedObjectIdentity identities,
+            WeakObjectSerials subscriptionSerials = null)
+        { this.persistence = persistence; this.world = world; this.controls = controls; this.identities = identities; this.subscriptionSerials = subscriptionSerials; }
         internal void Install()
         {
             if (attempted || disposed || active != null || persistence == null || world == null || controls == null || identities == null || Game.Instance?.CurrentlyLoadedArea != null)
@@ -61,7 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (events.Count >= MaximumEvents) { dropped++; return; }
                 events.Add(new JObject { ["kind"] = kind, ["before"] = before, ["after"] = after,
-                    ["state"] = CaptureWorld(world, controls, persistence, actors, identities) });
+                    ["state"] = CaptureWorld(world, controls, persistence, actors, identities, subscriptionSerials) });
             }
             catch { errors++; }
         }
@@ -69,7 +71,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["installedBeforeWorldLoad"] = installed, ["maximumEvents"] = MaximumEvents, ["errors"] = errors,
             ["dropped"] = dropped, ["hooks"] = hooks.DeepClone(), ["events"] = events.DeepClone() };
         internal static JObject CaptureWorld(MountedWorldService world, NativeMountedControlService controls,
-            MountedPersistenceService persistence, UnitEntityData[] actors, RetainedObjectIdentity identities)
+            MountedPersistenceService persistence, UnitEntityData[] actors, RetainedObjectIdentity identities,
+            WeakObjectSerials subscriptionSerials = null)
         {
             var game = Game.Instance;
             return new JObject {
@@ -101,7 +104,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["native"] = JObject.FromObject(MountedPersistenceService.CaptureActor(a), MountedSaveCodec.CreateSerializer()),
                     ["overrides"] = new JArray(a.View == null ? new int[0] : a.View.GetComponents<RiderMovementAgent>().Select(m => m.GetInstanceID()).ToArray()),
                     ["agentOverride"] = a.View?.AgentOverride == null ? 0 : a.View.AgentOverride.GetInstanceID() })),
-                ["subscriptions"] = Chunk4SubscriptionSnapshot.Capture()
+                ["subscriptions"] = Chunk4SubscriptionSnapshot.Capture(subscriptionSerials)
             };
         }
         public void Dispose()

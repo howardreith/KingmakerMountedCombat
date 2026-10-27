@@ -25,7 +25,7 @@ $adapter=[IO.File]::ReadAllText($TestSource).Replace('__METHODS__',$methods).Rep
 $vs=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio/Installer/vswhere.exe'
 $compiler=@(& $vs -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/Roslyn/csc.exe')|Select-Object -First 1
 $exe=Join-Path $probe 'RepeatedWorldAdapter.exe'
-& $compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 /reference:Microsoft.CSharp.dll "/out:$exe" (Join-Path $probe 'RepeatedWorldAdapter.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs')
+& $compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 /reference:Microsoft.CSharp.dll "/out:$exe" (Join-Path $probe 'RepeatedWorldAdapter.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/WeakObjectSerials.cs')
 if($LASTEXITCODE-ne0){throw 'Actual repeated-world adapter compilation failed.'}
 & $exe
 if($LASTEXITCODE-ne0){throw 'Actual repeated-world boundary regression failed.'}

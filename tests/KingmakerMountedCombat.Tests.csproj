@@ -49,6 +49,8 @@
     <Compile Include="CastingFixtureSlotSnapshotTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\CastingFixtureSlotSnapshot.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RetainedObjectIdentity.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\WeakObjectSerials.cs" />
+    <Compile Include="WeakObjectSerialsTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ObservedViewAttachmentCall.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
       <Link>Shared\BuildIdentity.cs</Link>
