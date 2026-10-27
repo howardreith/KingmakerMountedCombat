@@ -74,7 +74,7 @@ search-time target direction.
 Focused checks: repeated-world reader 166/0; RT persistence reader 90/0; staged
 geometry actual-policy 482/0 and reader 42/0, including the full 64-candidate
 spareless fallback and refusal when the primary path is invalid. The owned-pairs
-reader check remains in progress at this source checkpoint. Review receipts are
+reader passed 1462/0, exit 0, in 612.853 seconds. Review receipts are
 `takeover-f6-prior-review.md` and `takeover-f6-delta-review-20261026.md` under
 `analysis-cache/chunk7-continuation`; they separate authored corrections from
 independent rereview. Full old-result replay with the .95 reader was refused by
@@ -96,7 +96,17 @@ are `final5-ledger.json`, `final5-f11.json`, `final5-full-classification.json` a
 
 No F6 final freeze exists at intake. The unbuilt b216 worktree at `dbd58bb2` was
 created before the schema-review findings and is retained unused. Finish the
-in-progress focused check, then commit and create b217 from the corrected source. Run
+pilot successor below. Run
 only required changed paths with valid existing fixture lineage; finish the pilot
 gate before publication and the single final freeze. The existing final matrix
 and run plan govern all final rows, exclusions, performance and raw offline outcomes.
+
+## b217 preflight correction
+
+The reviewed changes were committed as `9f8ebc69eaa1d855dbbd963faa89897e1797d49c`.
+b217's isolated package attempt stopped before compilation with source validation
+148/1: `BuildIdentity.ProductVersion` still read .94 after the Info/version bump.
+Its worktree and `b217-package-01-exit.json` (exit 1) remain intact; there was no
+native launch or package. The compiled constant is now .95 too. The existing
+source identity regression passes 149/0 (`takeover-version-source-check-01.log`),
+and a focused independent identity rereview is requested. The next pilot is b218.
