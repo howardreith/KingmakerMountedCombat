@@ -69,10 +69,10 @@
       {
         "role": "umm",
         "name": "UnityModManager.dll",
-        "identity": "UnityModManager, Version=0.28.2.0, Culture=neutral, PublicKeyToken=null",
-        "mvid": "edf4be29-0c88-4482-876d-e946a0f9e363",
-        "length": 184320,
-        "sha256": "75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39"
+        "identity": "UnityModManager, Version=0.33.2.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "914c93ba-b0bd-409f-9d38-84e575289dc2",
+        "length": 204800,
+        "sha256": "f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9"
       },
       {
         "role": "harmony",
@@ -157,6 +157,7 @@
     "kmcAutomationFixturesProven": false
   },
   "observedExpectationDifferences": [
-    "Installed UMM is 0.28.2.0, not the mission's expected 0.32.x baseline; the exact installed assembly remains the build authority."
+    "Installed UMM is 0.28.2.0, not the mission's expected 0.32.x baseline; the exact installed assembly remains the build authority.",
+    "2026-10-16: the owner reinstalled Unity Mod Manager (loader files written 2026-10-16T23:42:58Z). The umm role is re-pinned to the installed UnityModManager 0.33.2.0 (MVID 914c93ba-b0bd-409f-9d38-84e575289dc2, 204800 bytes, SHA256 f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9). The co-installed 0Harmony.dll is now 2.3.6.0 (MVID 4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc, SHA256 df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80); 0Harmony12.dll is byte-identical, so the harmony role is unchanged. KMC was verified API-compatible offline: every UMM and Harmony12 member the KMC DLL binds exists with the same signature. Evidence produced on UMM 0.28.2.0 stays bound to its original environment and is not transferred to this one."
   ]
 }

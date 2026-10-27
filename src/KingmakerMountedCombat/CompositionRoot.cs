@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Runtime.ExceptionServices;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -14,6 +16,7 @@ namespace KingmakerMountedCombat
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly DiagnosticSettings settings;
         private readonly HorseCompanionBlueprintService horseCompanion;
+        private readonly MountedWorldService world;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
         private readonly NativeLifecycleDeliveryLedger lifecycleLedger;
@@ -41,38 +44,23 @@ namespace KingmakerMountedCombat
             {
                 settings = new DiagnosticSettings();
                 horseCompanion = new HorseCompanionBlueprintService(logger);
-                relationship = new GameMountedRelationshipService(logger, settings);
+                world = new MountedWorldService(logger, settings);
+                relationship = world.Primary.Relationship;
+                combat = world.Primary.Combat;
+                playerAction = world.Primary.PlayerActions;
+                pairedCommandScheduler = world.Primary.Scheduler;
+                horsePrimaryAttackAnimation = world.Primary.HorseAnimation;
+                animation = world.Primary.Animation;
+                dollRoomIk = world.Primary.DollRoomIk;
+                unifiedTurn = world.UnifiedTurn;
                 lifecycleLedger = new NativeLifecycleDeliveryLedger();
-                horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter(relationship, logger);
-                pairedCommandScheduler = new MountedPairCommandScheduler(relationship, settings, logger);
-                unifiedTurn = new UnifiedMountedTurnCoordinator(
-                    relationship,
-                    settings,
-                    pairedCommandScheduler,
-                    logger);
-                combat = new MountedCombatController(
-                    relationship,
-                    settings,
-                    horsePrimaryAttackAnimation,
-                    unifiedTurn,
-                    pairedCommandScheduler,
-                    logger);
-                unifiedTurn.BindCombat(combat);
-                animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
-                dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
-
                 saveAuthorization = new RuntimeSaveAuthorization();
-                playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
-                nativeControls = new NativeMountedControlService(
-                    relationship,
-                    playerAction,
-                    combat,
-                    horseCompanion,
-                    settings,
-                    lifecycleLedger,
-                    logger);
-                persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger, combat);
-                combat.ChargeArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
+                nativeControls = new NativeMountedControlService(relationship, playerAction, combat,
+                    horseCompanion, settings, lifecycleLedger, logger);
+                world.BindControls(nativeControls);
+                persistence = new MountedPersistenceService(world, settings, logger);
+                world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
+                world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
@@ -96,7 +84,8 @@ namespace KingmakerMountedCombat
                     Main.InvokeRegisteredToggleForAutomation,
                     DetachIntegrationForAutomation,
                     () => unifiedTurn.ActivationIdentity != null,
-                    () => unifiedTurn.PartnerContext != null);
+                    () => unifiedTurn.PartnerContext != null,
+                    () => movementTelemetry);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -113,13 +102,9 @@ namespace KingmakerMountedCombat
                 try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { playerAction?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { world?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { nativeControls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { combat?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { unifiedTurn?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { pairedCommandScheduler?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
-                try { relationship?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { horseCompanion?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 if (rollbackException != null)
                 {
@@ -191,7 +176,7 @@ namespace KingmakerMountedCombat
             // disable instead of mutating the write in flight; the save always
             // settles, and its drain keeps running because persistence.Update
             // is deliberately not gated on IsEnabled.
-            if (persistence.SaveSuspended || combat.ChargeAdmissionFenced)
+            if (persistence.SaveSuspended || world.AnyChargeFenced || !relationship.AllTeardownOwnersReady)
             {
                 logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
                     "retry once it finishes.");
@@ -223,6 +208,7 @@ namespace KingmakerMountedCombat
             }
             IsEnabled = false;
             persistence.Enabled = false;
+            persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
             logger.Info("Private-alpha services disabled; native control facts and transient UI removed with no mounted state retained.");
@@ -272,23 +258,44 @@ namespace KingmakerMountedCombat
 
         private void PerformFailureCleanup()
         {
-            combat.Cancel("update failure");
-            settings.EnableUnsafeMovementExperiment = false;
-            var cleanup = relationship.Dismount(CleanupTrigger.Exception);
-            if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+            var errors = world.Visit(pair =>
             {
-                throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
-            }
+                pair.Combat.Cancel("world update failure");
+                var cleanup = pair.Relationship.Dismount(CleanupTrigger.Exception);
+                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                    throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+            });
+            if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
+            persistence.ReleaseRetainedPendingReentry();
             IsEnabled = false;
         }
 
+        internal void ObserveStartupCallbackEntry() => runtimeAutomation?.ObserveStartupCallbackEntry();
+        internal void ObserveStartupCallbackExit() => runtimeAutomation?.ObserveStartupCallbackExit();
+
         public void Update(float deltaTime)
         {
+            var measurement = MountedRuntimeMeasurement.Current;
+            if (measurement == null) { UpdateCore(deltaTime); return; }
+            var started = measurement.BeginFrame();
+            Exception failure = null;
+            try { UpdateCore(deltaTime); }
+            catch (Exception ex) { failure = ex; }
+            try { measurement.EndNativeAllocationWindow(); }
+            catch (Exception ex) { if (failure == null) failure = ex; }
+            try { measurement.EndFrame(started); }
+            catch (Exception ex) { if (failure == null) failure = ex; }
+            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        private void UpdateCore(float deltaTime)
+        {
+            runtimeAutomation?.ObserveStartupPreHostStart();
             ThrowIfDisposed();
             horseCompanion.Update();
             persistence.Update();
             // Debt retries precede the ordinary disabled/save/area/restore update gates.
-            if (!persistence.ActiveSaveWorkerRunning) combat.UpdateChargeCleanup();
+            if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Combat.UpdateChargeCleanup());
             removal.Update();
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled.
@@ -298,6 +305,7 @@ namespace KingmakerMountedCombat
                 PerformFailureCleanup();
             }
             nativeControls.Update();
+            runtimeAutomation?.ObserveStartupPreHostEnd();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
             {
@@ -313,76 +321,46 @@ namespace KingmakerMountedCombat
             }
 
             if (persistence.SaveSuspended || persistence.AreaTransitionPending || persistence.CombatRestorationPending) return;
-            combat.Update();
-            unifiedTurn.Update();
-            relationship.ValidateActivePair();
+            var phaseMeasurement = MountedRuntimeMeasurement.Current;
+            var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
+            try { world.UpdatePairs(); }
+            finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
+            var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
+            try { unifiedTurn.Update(); }
+            finally { phaseMeasurement?.EndTurnUpdate(turnStarted); }
         }
 
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Chunk 5 development: mounted saves restore the eligible pair and its saved state. Cold-load qualification is in progress.");
+            GUILayout.Label("Kingmaker Mounted Combat — private engineering candidate");
+            GUILayout.Label("CRPG transport: the mount moves the pair; rider and mount retain their own actions, health and effects.");
+            GUILayout.Label("Select the rider, open their ability drawer, and use Mount Companion on their own eligible companion.");
+            GUILayout.Label("Use Dismount on the rider to separate them. You can drag a control to an empty action-bar slot.");
+            GUILayout.Label("Use ordinary movement, attacks and spells. Rider Primary and Mount Primary select the corresponding actor's attack.");
+            GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
+                " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
+            var selected = world.Selected;
+            if (selected != null && !string.IsNullOrEmpty(selected.PlayerActions.LastFeedback))
+                GUILayout.Label(selected.PlayerActions.LastFeedback);
+            if (selected != null && !string.IsNullOrEmpty(selected.Combat.LastFeedback))
+                GUILayout.Label(selected.Combat.LastFeedback);
             GUILayout.Label(persistence.Feedback);
-            settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
-            var configurationEnabled = GUI.enabled;
-            GUI.enabled = configurationEnabled && unifiedTurn.CanConfigurePairedActivation;
-            var pairedActivation = GUILayout.Toggle(settings.EnablePairedActivation, "Enable paired activation prototype (before mounting)");
-            if (pairedActivation != settings.EnablePairedActivation) unifiedTurn.TryConfigurePairedActivation(pairedActivation);
-            GUI.enabled = configurationEnabled;
-            if (!unifiedTurn.CanConfigurePairedActivation)
-                GUILayout.Label("Configure paired activation outside combat while dismounted.");
-            if (!string.IsNullOrEmpty(unifiedTurn.PairedConfigurationFeedback))
-                GUILayout.Label(unifiedTurn.PairedConfigurationFeedback);
-            GUI.enabled = configurationEnabled && !settings.EnablePairedActivation;
-            settings.EnableUnifiedMountedTurn = GUILayout.Toggle(settings.EnableUnifiedMountedTurn, "Enable Phase 3D unified mounted turn (fallback: Phase 3C separate turns)");
-            settings.EnablePairedCommandScheduler = GUILayout.Toggle(
-                settings.EnablePairedCommandScheduler,
-                "Enable experimental Phase 3E paired-command scheduler");
-            GUI.enabled = configurationEnabled;
-            var diagnosticOverlay = GUILayout.Toggle(settings.EnableDiagnosticOverlay, "Show diagnostic mounted-control overlay");
-            if (diagnosticOverlay != settings.EnableDiagnosticOverlay)
-            {
-                settings.EnableDiagnosticOverlay = diagnosticOverlay;
-                playerAction.SetOverlayEnabled(diagnosticOverlay || runtimeAutomation != null);
-            }
-            GUILayout.Label("Candidate: selected supported Medium rider + exact active, currently larger Mammoth or KMC Horse companion.");
-            GUILayout.BeginHorizontal();
-            var availability = playerAction.GetAvailability();
             var priorEnabled = GUI.enabled;
-            GUI.enabled = availability.IsEnabled && availability.Action == MountedPlayerActionKind.Mount;
-            if (GUILayout.Button("Mount selected rider"))
-            {
-                playerAction.Activate();
-            }
-            GUI.enabled = relationship.State == RelationshipState.Mounted || relationship.State == RelationshipState.Faulted;
-            if (GUILayout.Button("Dismount / clear"))
-            {
-                playerAction.Activate();
-            }
+            GUI.enabled = priorEnabled && unifiedTurn.CanConfigurePairedActivation &&
+                !nativeControls.HasUnsettledRelationshipTransition && !world.AnyChargeFenced &&
+                !persistence.HasSaveAdmissionFence && !persistence.LoadInFlight &&
+                world.Pairs.All(pair => !nativeControls.HasUnsettledShellFor(pair.Relationship));
+            settings.EnableMountedCharge = GUILayout.Toggle(settings.EnableMountedCharge,
+                "Enable optional real-time Mounted Charge");
             GUI.enabled = priorEnabled;
-            GUILayout.EndHorizontal();
-            GUILayout.Label("Relationship: " + relationship.State);
-            GUILayout.Label("Horse companion blueprints: " + horseCompanion.State +
-                (string.IsNullOrEmpty(horseCompanion.Failure) ? string.Empty : " — " + horseCompanion.Failure));
-            // Before disabling or deleting KMC: dismount and write a NEW clean
-            // save through the engine, or be told exactly why removal is unsafe.
+            GUILayout.Label("Change Charge outside combat with every pair dismounted. Turn-based Charge is unavailable and refuses without spending actions.");
+            GUILayout.Label("Mounts: your supported Mammoth or the Horse chosen through Ranger companion progression. Unsupported sizes, forms and rigs refuse admission.");
+            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign containing a KMC Horse still requires the mod.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
-            if (GUILayout.Button("Prepare to disable / remove KMC (dismount, then write a clean save)"))
-            {
-                removal.Begin();
-            }
+            if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();
             GUI.enabled = priorEnabled;
             GUILayout.Label(removal.Status);
-            GUILayout.Label(relationship.LastResult);
-            if (combat.CanShowCombatActions)
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Arm Rider Primary")) { combat.ArmRiderPrimary(); }
-                if (GUILayout.Button("Arm " + playerAction.MountPrimaryLabel)) { combat.Arm(MountedCombatActionKind.MountPrimaryNatural); }
-                GUILayout.EndHorizontal();
-                GUILayout.Label(combat.LastFeedback);
-            }
-            if (!availability.IsEnabled) { GUILayout.Label(availability.Feedback); }
         }
 
         public void Dispose()
@@ -420,12 +398,8 @@ namespace KingmakerMountedCombat
             runtimeAutomation?.Dispose();
             patches.Dispose();
             nativeControls.Dispose();
-            playerAction.Dispose();
-            combat.Dispose();
-            unifiedTurn.Dispose();
-            pairedCommandScheduler.Dispose();
             lifecycle.Dispose();
-            relationship.Dispose();
+            world.Dispose();
             horseCompanion.Dispose();
             IsEnabled = false;
             disposed = true;

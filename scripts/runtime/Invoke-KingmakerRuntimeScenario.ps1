@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
     [ValidateSet(
+        'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
@@ -34,8 +35,30 @@ param(
         'manual-visual-review'
     )][string]$Scenario='mod-load-smoke',
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-    [ValidateRange(360,900)][int]$TimeoutSeconds=360,
+    [ValidateRange(360,1200)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
+    # Explicit private compatibility selection. Other modes keep the actual live
+    # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
+    [switch]$BaseGameOnly,
+    [switch]$DevelopmentScopedAudit,
+    [switch]$ObserveWorkingDeserialization,
+    [switch]$F11NativeAllocationProbe,
+    [switch]$OwnerStockRemoval,
+    [ValidateSet('authored-main-campaign')][string]$NativeBootstrapCase,
+    [string]$OrdinarySelectionPath,
+    [string]$OrdinaryFieldSelectionPath,
+    [string]$BootstrapInventorySelectionPath,
+    [string]$AssistedColdInventorySelectionPath,
+    [string]$ManualSeedSelectionPath,
+    [string]$AcquiredManualSelectionPath,
+    [string]$AssistedFixtureSelectionPath,
+    [string]$OwnedPairsSelectionPath,
+    [string]$ManualDerivedSelectionPath,
+    [string]$CumulativeAcquisitionSelectionPath,
+    [string]$SmallCalibrationSelectionPath,
+    [string]$SmallFixtureSelectionPath,
+    [string]$StockMammothFixtureSelectionPath,
+    [string]$ProgressionSelectionPath,
     [string]$PackagePath,
     [string]$FrozenSourceRoot,
     [string]$FrozenSourceFreezePath,
@@ -49,9 +72,20 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    # Row 32 under run plan gate G7 (a): the executor's settled run map naming this
+    # candidate's own final-campaign r31 (owner stock prepare-removal) as the no-DLL source.
+    [string]$OwnerStockCleanupRunMapPath,
+    # F12 upgrade/rollback rehearsal: a step of the request-free normal-player control
+    # (planning/CHUNK7-7E-QUALIFICATION-MATRIX.md, X5). u2/u3 name the passed u1 run.
+    [ValidateSet('u1-previous-install','u2-upgrade','u3-rollback')][string]$UpgradeRehearsalStep,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
+    # Shared by the three steps of one rehearsal; u2 and u3 require a passed u1 of the same id.
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$UpgradeRehearsalId,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
+    [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaEnterPoints,
+    [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaAreas,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -80,11 +114,223 @@ param(
 
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+# Keep WhatIf for the one guarded ShouldProcess boundary. Selection intake is
+# read-only, but PowerShell otherwise forwards WhatIf to Get-Item/Get-FileHash
+# before the boundary and prevents those reads from returning their contracts.
+$requestedWhatIf=[bool]$WhatIfPreference
+$WhatIfPreference=$false
+if($PSBoundParameters.ContainsKey('ObserveWorkingDeserialization') -and
+    (-not$ObserveWorkingDeserialization -or $Scenario -cne 'export-mounted-contracts' -or -not$BaseGameOnly -or -not$SaveAccessAllowed)) {
+    throw 'Working deserialization observation requires its exact true opt-in, export-mounted-contracts, qualified save access and explicit base-only staging.'
+}
+if($F11NativeAllocationProbe -and ($Scenario -cne 'chunk7-owned-two-pair-campaign' -or
+    -not$BaseGameOnly -or -not$SaveAccessAllowed -or [string]::IsNullOrWhiteSpace($OwnedPairsSelectionPath))) {
+    throw 'F11 native allocation observation requires the inherited two-pair exploration, an explicit owned selection, qualified save access and base-only staging.'
+}
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceProfileAreasIsolation.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryAcquisitionFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OrdinaryFieldFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7BootstrapInventoryFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedColdInventoryFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ManualSeedFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ManualDerivedFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7CumulativeAcquisitionFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AcquiredManualFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7AssistedPreparationInput.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnedPairsFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnedSchema1Fixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7LoadRefusalFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallCalibrationFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7StockMammothFixtureFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7OwnerStockRemovalFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
+# Stale level-up autosave families are refused here, before any selection intake, lock,
+# transaction, Mods swap or launch (docs/CHUNK7-STALE-LEVELUP-AUTOSAVE-FAMILIES.md).
+Assert-KmcChunk7FamilyReady $Scenario $null
+# Retired persistence cases are refused at the same point (docs/CHUNK7-RETIRED-SCHEMA3-CONTROL-2026-10-23.md).
+Assert-KmcChunk7PersistenceCaseSelected $PersistenceCase
+# The F12 upgrade rehearsal (7E X5) is admitted only as a step of the normal-player control,
+# and refused here, before any selection intake, approval, lock, transaction or launch.
+if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)-or-not[string]::IsNullOrEmpty($UpgradeCarrySourceRunId)-or-not[string]::IsNullOrEmpty($UpgradeRehearsalId)){
+    if(-not(Test-KmcChunk7NormalPlayerScenario $Scenario)){throw 'The F12 upgrade rehearsal is a step of the request-free normal-player control only.'}
+    if([string]::IsNullOrEmpty($UpgradeRehearsalStep)-or(($UpgradeRehearsalStep-ceq'u1-previous-install')-ne[string]::IsNullOrEmpty($UpgradeCarrySourceRunId))){
+        throw 'The first install takes no carry source; the upgrade and rollback steps require the passed first-install run.'
+    }
+    if([string]::IsNullOrEmpty($UpgradeRehearsalId)){throw 'Every upgrade rehearsal step names its shared rehearsal id.'}
+}
+if(Test-KmcChunk7NativeBootstrapScenario $Scenario){
+    if(-not$BaseGameOnly-or-not$PSBoundParameters.ContainsKey('NativeBootstrapCase')-or$NativeBootstrapCase-cne'authored-main-campaign'){
+        throw 'Native main bootstrap requires explicit authored-main-campaign selection and base-only staging.'
+    }
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Native bootstrap cannot select a saved-game load, persistence case or area route.'}
+    }
+}elseif($PSBoundParameters.ContainsKey('NativeBootstrapCase')){throw 'Native bootstrap selection is forbidden under another scenario.'}
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
-if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p07-save','persistence-p07-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
+$assistedFixtureInput=$null
+if(Test-KmcChunk7AssistedFixtureScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($AssistedFixtureSelectionPath)){throw 'Assisted setup requires explicit base-only staging and the exact owner-authorized closed selection.'}
+    foreach($name in @('NativeBootstrapCase','PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Assisted setup permits only its authored new campaign, initial native Auto and final native Manual.'}
+    }
+    $assistedFixtureInput=Read-KmcChunk7AssistedPreparationSelectionFile $AssistedFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-assisted-fixture'})
+}elseif($PSBoundParameters.ContainsKey('AssistedFixtureSelectionPath')){throw 'Assisted fixture selection is forbidden under another scenario.'}
+$ownedPairsInput=$null;$ownedPairsSource=$null
+if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OwnedPairsSelectionPath)){throw 'Inherited two-pair campaign requires explicit base-only staging and a qualified two-owner native Manual selection.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Inherited pairs select only their closed source and checkpoint cases.'}
+    }
+    if(($PSBoundParameters.ContainsKey('PersistenceAreaEnterPoint')-or$PSBoundParameters.ContainsKey('PersistenceAreaTargetArea'))-and$PersistenceCase-cne'multi-area-autosave'-and-not(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){throw 'Only the exact owned area autosave or the scoped capital arrival may carry its original/destination pins.'}
+    if(($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas'))-and$PersistenceCase-cne'multi-exploration-three-area-transfers-manual'){throw 'Only the exact owned repeated-area cold case may carry route pins.'}
+    $ownedPairsInput=Read-KmcChunk7OwnedPairsSelectionFile $OwnedPairsSelectionPath $(if($RunId){$RunId}else{'unassigned-owned-pairs'}) $PersistenceCase
+}elseif($PSBoundParameters.ContainsKey('OwnedPairsSelectionPath')){throw 'Inherited pair selection is forbidden under another scenario.'}
+$smallFixtureInput=$null;$smallFixtureSource=$null
+Assert-KmcChunk7SmallFixtureLaunchArguments $PSBoundParameters $Scenario ([bool]$BaseGameOnly) $TimeoutSeconds $SmallFixtureSelectionPath
+if(Test-KmcChunk7SmallFixtureScenario $Scenario){
+    $smallFixtureInput=Read-KmcChunk7SmallFixtureSelectionFile $SmallFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-f09-fixture'})
+}
+$stockMammothFixtureInput=$null;$stockMammothFixtureSource=$null
+Assert-KmcChunk7StockMammothFixtureLaunchArguments $PSBoundParameters $Scenario ([bool]$BaseGameOnly) $TimeoutSeconds $StockMammothFixtureSelectionPath
+if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+    $stockMammothFixtureInput=Read-KmcChunk7StockMammothFixtureSelectionFile $StockMammothFixtureSelectionPath $(if($RunId){$RunId}else{'unassigned-stock-mammoth-fixture'})
+}
+if($PSBoundParameters.ContainsKey('OwnerStockRemoval')){
+    $ownerProducer=$Scenario-ceq'persistence-p07-save'-and$PersistenceCase-ceq'prepare-removal'-and$BaseGameOnly-and
+        -not$PSBoundParameters.ContainsKey('PersistenceSourceRunId')-and-not$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-and
+        -not$PSBoundParameters.ContainsKey('ObserverPackagePath')
+    # The no-DLL consumer reads batch65's cleanup Manual (history) or, under run plan gate G7 (a), the same
+    # candidate's settled final-campaign r31 named by the executor's run map (source gate re-proves every pin).
+    $ownerColdBatch65=$PersistenceSourceRunId-ceq'20261020-c7b-world81-b65s1-owner-stock-removal'-and
+        $ExpectedPersistenceSourceSha256-ceq'2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2'-and
+        -not$PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath')
+    $ownerColdFinal=(Test-KmcOwnerStockFinalCleanupRunId $PersistenceSourceRunId)-and
+        $PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')-and-not[string]::IsNullOrEmpty($OwnerStockCleanupRunMapPath)
+    $ownerCold=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-ceq'removal-no-dll'-and-not$BaseGameOnly-and
+        ($ownerColdBatch65-or$ownerColdFinal)-and-not[string]::IsNullOrEmpty($ObserverPackagePath)
+    if(-not$OwnerStockRemoval-or-not($ownerProducer-or$ownerCold)-or$PSBoundParameters.ContainsKey('ObserveWorkingDeserialization')-or
+        ($ownerProducer-and$PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath'))){
+        throw 'Owner stock removal selects only the closed batch64 P07 producer or its no-DLL cleanup consumer of the exact batch65 Manual or a same-candidate final-campaign r31 named by its settled run map.'
+    }
+}elseif($PSBoundParameters.ContainsKey('OwnerStockCleanupRunMapPath')){throw 'The owner stock cleanup run map is admitted only for the owner stock no-DLL consumer.'}
+$acquiredManualInput=$null;$acquiredManualSource=$null
+if(Test-KmcChunk7AcquiredManualScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($AcquiredManualSelectionPath)){throw 'Acquired Manual acquisition requires explicit base-only staging and exact successful Manual lineage plus observed readiness pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Acquired Manual acquisition selects only its closed one-load one-terminal-write source file.'}
+    }
+    $acquiredManualInput=Read-KmcChunk7AcquiredManualSelectionFile $AcquiredManualSelectionPath $(if($RunId){$RunId}else{'unassigned-manual-derived'})
+}elseif($PSBoundParameters.ContainsKey('AcquiredManualSelectionPath')){throw 'Acquired Manual selection is forbidden under another scenario.'}
+$manualDerivedInput=$null;$manualDerivedSource=$null
+if(Test-KmcChunk7ManualDerivedScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($ManualDerivedSelectionPath)){throw 'Manual-derived acquisition requires explicit base-only staging and exact successful Manual lineage plus observed readiness pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Manual-derived acquisition selects only its closed one-load one-terminal-write source file.'}
+    }
+    $manualDerivedInput=Read-KmcChunk7ManualDerivedSelectionFile $ManualDerivedSelectionPath $(if($RunId){$RunId}else{'unassigned-manual-derived'})
+}elseif($PSBoundParameters.ContainsKey('ManualDerivedSelectionPath')){throw 'Manual-derived selection is forbidden under another scenario.'}
+$cumulativeAcquisitionInput=$null;$cumulativeAcquisitionSource=$null
+if(Test-KmcChunk7CumulativeScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($CumulativeAcquisitionSelectionPath)){throw 'Manual-derived acquisition requires explicit base-only staging and exact successful Manual lineage plus observed readiness pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Manual-derived acquisition selects only its closed one-load one-terminal-write source file.'}
+    }
+    $cumulativeAcquisitionInput=Read-KmcChunk7CumulativeSelectionFile $CumulativeAcquisitionSelectionPath $(if($RunId){$RunId}else{'unassigned-cumulative'})
+    Assert-KmcChunk7FamilyReady $Scenario $(if(Test-KmcAssistedCumulativeMode $cumulativeAcquisitionInput.selection){'assisted-manual'}elseif(Test-KmcOwnerSeedCumulativeMode $cumulativeAcquisitionInput.selection){'owner-seed-manual'}else{'legacy-manual'})
+}elseif($PSBoundParameters.ContainsKey('CumulativeAcquisitionSelectionPath')){throw 'Manual-derived selection is forbidden under another scenario.'}
+$manualSeedInput=$null;$manualSeedSource=$null
+if(Test-KmcChunk7ManualSeedScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($ManualSeedSelectionPath)){throw 'Manual seed requires explicit base-only staging and exact completed bootstrap plus cold-inventory source pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Manual seed selects only its closed one-load one-write source file.'}
+    }
+    $manualSeedInput=Read-KmcChunk7ManualSeedSelectionFile $ManualSeedSelectionPath $(if($RunId){$RunId}else{'unassigned-manual-seed'})
+}elseif($PSBoundParameters.ContainsKey('ManualSeedSelectionPath')){throw 'Manual seed selection is forbidden under another scenario.'}
+$assistedColdInput=$null;$assistedColdSource=$null
+if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($AssistedColdInventorySelectionPath)){throw 'Assisted cold inventory requires base-only staging and exact completed assisted final Manual source pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Assisted cold inventory selects only its closed one-load zero-write Manual source file.'}
+    }
+    $assistedColdInput=Read-KmcChunk7AssistedColdInventorySelectionFile $AssistedColdInventorySelectionPath $(if($RunId){$RunId}else{'unassigned-assisted-cold'})
+}elseif($PSBoundParameters.ContainsKey('AssistedColdInventorySelectionPath')){throw 'Assisted cold selection is forbidden under another scenario.'}
+$bootstrapInventoryInput=$null;$bootstrapInventorySource=$null
+if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($BootstrapInventorySelectionPath)){throw 'Bootstrap cold inventory requires explicit base-only staging and exact completed bootstrap source pins.'}
+    foreach($name in @('PersistenceSourceRunId','ExpectedPersistenceSourceSha256','ExpectedPersistenceAlternateSha256','PersistenceForeignSourceRunId','PersistenceCase','PersistenceAreaEnterPoint','PersistenceAreaTargetArea','PersistenceReplayAreaEnterPoints','PersistenceReplayAreaAreas')){
+        if($PSBoundParameters.ContainsKey($name)){throw 'Bootstrap cold inventory selects only its closed one-load source file.'}
+    }
+    $bootstrapInventoryInput=Read-KmcChunk7BootstrapInventorySelectionFile $BootstrapInventorySelectionPath $(if($RunId){$RunId}else{'unassigned-cold-inventory'})
+}elseif($PSBoundParameters.ContainsKey('BootstrapInventorySelectionPath')){throw 'Bootstrap inventory selection is forbidden under another scenario.'}
+$smallSelectionInput=$null;$smallSource=$null
+if(Test-KmcChunk7SmallScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($SmallCalibrationSelectionPath)){throw 'Small calibration requires explicit base-only staging and exact compiled declaration/source pins.'}
+    if($PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')){throw 'Small calibration source is selected only by its closed selection file.'}
+    $smallSelectionInput=Read-KmcChunk7SmallSelectionFile $SmallCalibrationSelectionPath $(if($RunId){$RunId}else{'unassigned-small-run'})
+}elseif($PSBoundParameters.ContainsKey('SmallCalibrationSelectionPath')){throw 'Small calibration selection is forbidden under another scenario.'}
+$progressionSelectionInput=$null;$progressionSource=$null
+if(Test-KmcChunk7ProgressionScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($ProgressionSelectionPath)){throw 'Native progression requires exact source/inventory pins and explicit base-only staging.'}
+    if($PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')){throw 'Progression source is selected only through its closed selection file.'}
+    $progressionSelectionInput=Read-KmcChunk7ProgressionSelectionFile $ProgressionSelectionPath $(if($RunId){$RunId}else{'unassigned-progression-run'})
+    # Progression readiness depends on the selected case; still before any lock or launch.
+    Assert-KmcChunk7FamilyReady $Scenario ([string]$progressionSelectionInput.selection.case)
+}elseif($PSBoundParameters.ContainsKey('ProgressionSelectionPath')){throw 'Progression selection is forbidden under another scenario.'}
+$fieldSelectionInput=$null;$fieldSource=$null
+if(Test-KmcChunk7FieldScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OrdinaryFieldSelectionPath)){throw 'Field admission requires explicit base-only staging and exact paid acquisition source pins.'}
+    if($PSBoundParameters.ContainsKey('PersistenceSourceRunId')-or$PSBoundParameters.ContainsKey('ExpectedPersistenceSourceSha256')){throw 'Field source is selected only by its closed selection file.'}
+    $fieldSelectionInput=Read-KmcChunk7FieldSelectionFile $OrdinaryFieldSelectionPath $(if($RunId){$RunId}else{'unassigned-field-run'})
+}elseif($PSBoundParameters.ContainsKey('OrdinaryFieldSelectionPath')){throw 'Field selection is forbidden under another scenario.'}
+$ordinarySelectionInput=$null;$ordinaryInventorySource=$null
+if(Test-KmcChunk7OrdinaryScenario $Scenario){
+    if(-not$BaseGameOnly-or[string]::IsNullOrEmpty($OrdinarySelectionPath)){throw 'Ordinary acquisition requires explicit base-only isolation and a caller-pinned native inventory selection file.'}
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-ne900){throw 'Ordinary acquisition requires its declared 900-second outer native choice/worker/cleanup budget.'}
+    $ordinarySelectionInput=Read-KmcChunk7OrdinarySelectionFile $OrdinarySelectionPath $(if($RunId){$RunId}else{'unassigned-run'})
+}elseif($PSBoundParameters.ContainsKey('OrdinarySelectionPath')){throw 'Ordinary selection cannot be supplied to another native scenario.'}
+if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('chunk7-owned-two-pair-campaign','chunk7-persistence-save','chunk7-persistence-load','persistence-p07-save','persistence-p07-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
+if(((Test-KmcChunk7CombatScenario $Scenario)-or(Test-KmcChunk7RealtimeScenario $Scenario)-or(Test-KmcChunk7NativeLifeScenario $Scenario))-and-not$BaseGameOnly){throw 'Chunk 7 combat requires explicit base-only staging.'}
+if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScenario $Scenario)-or(Test-KmcChunk7CombatScenario $Scenario)-or(Test-KmcChunk7RealtimeScenario $Scenario)-or(Test-KmcChunk7NativeLifeScenario $Scenario)){
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=600}
+    elseif($TimeoutSeconds-lt600){throw 'Selected Chunk 7 native scenarios require the declared 600-second outer worker/cleanup budget.'}
+}
+# The owner-seed kinds (exploration and the owner-seed-derived Manual producer) add their bounded
+# native SETUP phase (ordinary level-ups) before the measured steps.
+if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsFourthHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-ne900){throw 'Selected ordinary native setup requires its declared 900-second outer setup/worker/cleanup budget.'}
+}
+if(Test-KmcChunk7RepeatedWorldCase $PersistenceCase){
+    if($Scenario-cne'chunk7-persistence-load'-and-not((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$ownedPairsInput.selection.case-cin@('persistence-load','owner-seed-persistence-load'))){throw 'Repeated world cases are cold-load only.'}
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-ne900){throw 'Repeated worlds require exactly the declared 900-second outer admission/cleanup budget.'}
+}
+if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
+    if(@($PersistenceReplayAreaEnterPoints).Count-ne3-or@($PersistenceReplayAreaAreas).Count-ne3){throw 'Repeated area transfer requires exactly three caller-pinned enter points and destination areas.'}
+    Assert-KmcChunk7RouteAvoidsKnownCapitals $PersistenceReplayAreaEnterPoints $PersistenceReplayAreaAreas
+}elseif($PSBoundParameters.ContainsKey('PersistenceReplayAreaEnterPoints')-or$PSBoundParameters.ContainsKey('PersistenceReplayAreaAreas')){throw 'Only the repeated-area case accepts native route pins.'}
+# Matrix rows 58-59: the one scoped capital admission. Only the owned cold persistence-load selection may
+# name it, and row 58 must pin exactly the reviewed capital entry and area; every other case still refuses capitals.
+if(Test-KmcChunk7CapitalCase $PersistenceCase){
+    if(-not(Test-KmcChunk7OwnedPairsScenario $Scenario)-or$ownedPairsInput.selection.case-cne'persistence-load'){throw 'Capital arrival belongs only to the owned cold persistence-load selection.'}
+    if(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){Assert-KmcChunk7CapitalArrivalRoute $PersistenceAreaEnterPoint $PersistenceAreaTargetArea}
+}
+if($PersistenceCase-ceq'legacy-schema1-resave-manual'-and$Scenario-cne'chunk7-persistence-load'){throw 'Schema-1 native resave is load-only.'}
+if((Test-KmcOwnedSchema1Case $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Owned schema-1 cases belong only to the closed inherited family.'}
+if($PersistenceCase-cin@('owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Area fixture preparation belongs only to its source-only inherited checkpoint.'}
+if((Test-KmcChunk7OwnerSeedCurrentCheckpoint $PersistenceCase)-and$Scenario-cne'chunk7-owned-two-pair-campaign'){throw 'Current-format migration consumers belong only to the owner-seed checkpoint family.'}
+if(Test-KmcChunk7PersistenceScenario $Scenario){
+    if(-not$BaseGameOnly-or$PersistenceCase-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Chunk 7 persistence requires explicit base-only staging and one declared native case.'}
+    if($Scenario-ceq'chunk7-persistence-load'-and([string]::IsNullOrEmpty($PersistenceSourceRunId)-or[string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256))){throw 'Chunk 7 cold load requires its exact completed source run and archive hash.'}
+}elseif($PersistenceCase-cin(Get-KmcChunk7PersistenceCases)-and-not(Test-KmcChunk7OwnedPairsScenario $Scenario)){throw 'Chunk 7 persistence cases cannot run under a historical scenario.'}
 if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
     $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
     if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
@@ -107,11 +353,13 @@ if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
     if($PersistenceCase-ceq'absent-kmc'-and$Scenario-cne'persistence-p07-load'){throw 'The integration-absent case is cold-load only.'}
     if($PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')-and$Scenario-cne'persistence-p07-load'){throw 'The no-DLL removal case is cold-load only.'}
 }elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'Recovery faults require the exact P07 scenario.'}
-if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
+if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
     if($PersistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')-and$Scenario-cne'persistence-p07-load'){throw 'A transition autosave case is cold-load only.'}
     if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){
         throw 'A cross-area transfer requires its declared native enter point and destination area.'
     }
+}elseif(Test-KmcChunk7CapitalArrivalCase $PersistenceCase){
+    if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){throw 'Capital arrival requires its exact declared native enter point and destination area.'}
 }elseif(-not[string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or-not[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){
     throw 'Only an exact cross-area transfer may declare a native destination.'
 }
@@ -120,9 +368,14 @@ if($Scenario-ceq'persistence-p06-load'){
 }elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load','foreign-header-campaign')){throw 'Validation variants require the exact P06 scenario.'}
 $isObserver=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')
 if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The no-DLL removal case requires the removal-observer package.'}
-if(-not$isObserver-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case takes the removal-observer package.'}
-$requestedWhatIf=[bool]$WhatIfPreference
-$WhatIfPreference=$false
+$isNormalPlayer=Test-KmcChunk7NormalPlayerScenario $Scenario
+if(-not$isObserver-and-not$isNormalPlayer-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case and the normal-player control take an observer package.'}
+if($isNormalPlayer-and(-not$BaseGameOnly-or-not$SaveAccessAllowed-or[string]::IsNullOrWhiteSpace($ObserverPackagePath)-or-not[string]::IsNullOrEmpty($PersistenceCase)-or
+    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization-or$TimeoutSeconds-ne900)){
+    # 900 s outlasts the observer's own 600 s timeout plus boot and load, so a stalled
+    # observer always writes its FAIL and quits before the runner deadline.
+    throw 'The request-free normal-player control requires isolated base-game staging, save access, its observer package and a 900 s budget, and selects nothing else.'
+}
 $KmcFrozenProductContext=$null
 $frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
 $boundFrozen=@($frozenParameters | Where-Object {$PSBoundParameters.ContainsKey($_)})
@@ -139,12 +392,34 @@ $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
 $runtimeEvidence=Join-Path $labRoot 'runtime-evidence'
+$f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
+$f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
+$f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
+$f11MonoSha='9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534'
+if($F11NativeAllocationProbe){
+    if(-not(Test-Path -LiteralPath $f11SourcePath -PathType Leaf)-or-not(Test-Path -LiteralPath $f11MonoPath -PathType Leaf)){
+        throw 'The reviewed F11 helper or exact installed Mono is absent.'
+    }
+    Assert-KmcNotReparsePoint $f11SourcePath 'F11 helper source'; Assert-KmcNotHardLink $f11SourcePath 'F11 helper source'
+    if((Get-KmcSha256 $f11SourcePath)-cne$f11HelperSha-or(Get-KmcSha256 $f11MonoPath)-cne$f11MonoSha){
+        throw 'The reviewed F11 helper or installed Mono bytes differ.'
+    }
+}
 $liveMods=[string]$intake.requestedLayout.kingmakerModsRoot
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
 $isManualReview=[string]$Scenario -ceq 'manual-visual-review'
+# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
+if($DevelopmentScopedAudit){
+    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
+    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
+    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
+}
+if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
+$baseGameDependencies=$null
+if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
 if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
     throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
 }
@@ -192,6 +467,11 @@ $packageManifestPath=$PackagePath+'.manifest.json'
 & (Join-Path $repoRoot 'scripts\Validate-Package.ps1') -PackagePath $PackagePath
 $manifest=Assert-KmcPackageManifest $PackagePath $packageManifestPath
 $observerManifest=$null
+if($isNormalPlayer){
+    $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
+    & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
+    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath
+}
 if($isObserver){
     # The observer is built from the exact candidate commit; the candidate DLL
     # itself is what this run keeps out of the process.
@@ -226,6 +506,34 @@ if($isSaveBacked){
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
+if(Test-KmcChunk7OrdinaryScenario $Scenario){
+    $ordinaryInventorySource=Get-KmcChunk7OrdinaryInventorySource $ordinarySelectionInput.selection $fixturePayload $manifest
+}
+if(Test-KmcChunk7SmallScenario $Scenario){$smallSource=if(Test-KmcChunk7SmallF09Case $smallSelectionInput.selection){Get-KmcChunk7SmallF09CalibrationSource $smallSelectionInput.selection.fixtureSource $fixturePayload $manifest}elseif(Test-KmcChunk7SmallManualCase $smallSelectionInput.selection){Get-KmcChunk7SmallManualSource $smallSelectionInput.selection.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $smallSelectionInput.selection)}else{Get-KmcChunk7FieldSource $smallSelectionInput.selection.source $fixturePayload $manifest}}
+if(Test-KmcChunk7ProgressionScenario $Scenario){$progressionSource=Get-KmcChunk7ProgressionSource $progressionSelectionInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7FieldScenario $Scenario){$fieldSource=Get-KmcChunk7FieldSource $fieldSelectionInput.selection $fixturePayload $manifest}
+$ownedAreaTarget=if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$PersistenceCase-ceq'multi-area-autosave'){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='AfterEntry'}}elseif((Test-KmcChunk7OwnedPairsScenario $Scenario)-and(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){[pscustomobject]@{enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea;autoSaveMode='None'}}else{$null}
+# F12 upgrade rehearsal: the exact previous package, the carried first-install folder
+# state, and the reference-free seed for the previous-package loads.
+$upgradePrevious=$null;$upgradeCarry=@();$upgradeCarrySource=$null;$upgradeSection=$null
+if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
+    $upgradePrevious=Get-KmcChunk7PreviousPackage
+    if($UpgradeRehearsalStep-cne'u1-previous-install'){$upgradeCarrySource=Get-KmcChunk7UpgradeCarrySource $UpgradeCarrySourceRunId $UpgradeRehearsalId;$upgradeCarry=Get-KmcChunk7UpgradeCarry $UpgradeCarrySourceRunId $UpgradeRehearsalId}
+    $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $upgradeCarrySource $upgradeCarry
+}
+$upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
+function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
+$normalPlayerSource=if($isNormalPlayer){Get-KmcRunNormalPlayerSource}else{$null}
+if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
+if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$stockMammothFixtureSource=Get-KmcChunk7StockMammothFixtureSource $stockMammothFixtureInput.selection $fixturePayload $manifest}
+$ownerStockRemovalSource=if($OwnerStockRemoval-and$Scenario-ceq'persistence-p07-save'){Get-KmcOwnerStockRemovalSource $fixturePayload}else{$null}
+if(Test-KmcChunk7AcquiredManualScenario $Scenario){$acquiredManualSource=Get-KmcChunk7AcquiredManualSource $acquiredManualInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7ManualDerivedScenario $Scenario){$manualDerivedSource=Get-KmcChunk7ManualDerivedSource $manualDerivedInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7CumulativeScenario $Scenario){$cumulativeAcquisitionSource=Get-KmcChunk7CumulativeSource $cumulativeAcquisitionInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7ManualSeedScenario $Scenario){$manualSeedSource=Get-KmcChunk7ManualSeedSource $manualSeedInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){$bootstrapInventorySource=Get-KmcChunk7BootstrapInventorySource $bootstrapInventoryInput.selection $fixturePayload $manifest}
+if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){$assistedColdSource=Get-KmcChunk7AssistedColdInventorySource $assistedColdInput.selection $fixturePayload $manifest}
 $beforeMods=Get-KmcDirectoryManifest $liveMods
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
 if($isSaveBacked){
@@ -240,11 +548,19 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     $WhatIfPreference=$false
     # Historical archives are compared only by this purity check. Live runs
     # still snapshot every current Mods byte and retain all save/restore guards.
+    $scopedArchiveBefore=$null
+    if($DevelopmentScopedAudit){
+        # Exposed surfaces keep whole-tree content identity; archives are run-scoped.
+        Write-Host 'WhatIf audit scope: development-run-scoped (runtime-state and live Mods content identity; archive roots run-owned paths and top-level names only).'
+        $beforeRoots=@((Get-KmcDirectoryManifest $runtimeState),$beforeMods)
+        $scopedArchiveBefore=Get-KmcWhatIfRunScopedArchiveState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -EvidenceRoot $runtimeEvidence -RunId $RunId
+    }else{
     $beforeRoots=@(
         (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         $beforeMods
     )
+    }
     if($isSaveBacked){
         $whatIfContinuity=Assert-KmcQualificationSuiteContinuity `
             -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
@@ -259,39 +575,27 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
             -After $whatIfContinuity.saveMetadata `
             -Description 'runtime WhatIf fixture-continuity save metadata'
     }
+    if($DevelopmentScopedAudit){
+        $afterRoots=@((Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $liveMods))
+        Assert-KmcWhatIfRunScopedArchiveUnchanged $scopedArchiveBefore (Get-KmcWhatIfRunScopedArchiveState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -EvidenceRoot $runtimeEvidence -RunId $RunId)
+    }else{
     $afterRoots=@(
         (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         (Get-KmcDirectoryManifest $liveMods)
     )
-    # A purity failure must name the tree and the exact entries that differ. The
-    # comparison itself is unchanged: every byte of every root is still rehashed
-    # and any difference still fails closed.
-    for($index=0;$index-lt$afterRoots.Count;$index++){
-        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
-            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
-            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
-            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
-            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
-            foreach($key in $purityBeforeEntries.Keys){
-                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
-                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
-                if($purityDetails.Count-ge20){break}
-            }
-            foreach($key in $purityAfterEntries.Keys){
-                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
-                if($purityDetails.Count-ge40){break}
-            }
-            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
-                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
-                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
-                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
-                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
-        }
     }
+    # Unchanged whole-tree comparison and failure detail (shared so it is testable).
+    Assert-KmcWhatIfRootsUnchanged -Before $beforeRoots -After $afterRoots
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
     if($BootstrapOfflineCloudEvidence){[void](Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState)}
+    if($BaseGameOnly){Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;Write-Host ('Base-game-only KMC staging selected; unchanged installed loader dependency digest: '+$baseGameDependencies.dependencyDigest)}
+    if($DevelopmentScopedAudit){
+        # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
+        Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
+        return
+    }
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     return
 }
@@ -316,6 +620,12 @@ $lock=$null
 $request=$null
 $combinedStatePath=$null
 $profileSnapshot=$null
+$areasIsolationSelected=Test-KmcPersistenceAreasIsolationSelection -Scenario $Scenario -PersistenceCase $PersistenceCase -ObserveWorkingDeserialization ([bool]$ObserveWorkingDeserialization) -OwnerStockRemoval ([bool]$OwnerStockRemoval)
+$modsTransactionStatePath=$null
+$baseGameStaged=$false
+$baseGameDependenciesUnchanged=$false
+$baseGameNativeInventoryObserved=$false
+$baseGameNativeInventorySha256=$null
 $profileCacheChanges=@()
 $process=$null
 $launchIssued=$false
@@ -329,6 +639,7 @@ $restoredSaveInventoryDigest='0'*64
 $gamePassed=$false
 $validatedGameResult=$null
 $gameResultHash=$null
+$requestHash=$null
 $final=$null
 $lockedWorkingPath=$null
 $manualReady=$null
@@ -339,9 +650,6 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
-    if($Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
-        $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
-    }
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
         runId=$actualRunId
@@ -354,11 +662,38 @@ try{
         transactionToken=[string]$lock.Token
         evidenceRoot=$evidenceRoot
     }
+    if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
+    if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
+        contract='f11-native-allocation-v1';baseGameOnly=$true
+        path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
+        sha256=$f11HelperSha;loadedMonoPath=$f11MonoPath;loadedMonoSha256=$f11MonoSha
+    }}
+    if($OwnerStockRemoval){$request['ownerStockRemoval']=$true}
+    if(Test-KmcChunk7OrdinaryScenario $Scenario){$request['ordinaryAcquisition']=$ordinarySelectionInput.selection}
+    if(Test-KmcChunk7SmallScenario $Scenario){$request['smallCalibration']=$smallSelectionInput.selection}
+    if(Test-KmcChunk7SmallFixtureScenario $Scenario){$request['smallFixture']=$smallFixtureInput.selection}
+    if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$request['stockMammothFixture']=$stockMammothFixtureInput.selection}
+    if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
+    if(Test-KmcChunk7OwnedPairsScenario $Scenario){$request['ownedPairs']=$ownedPairsInput.selection}
+    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest $upgradeSection}
+    if(Test-KmcChunk7AssistedFixtureScenario $Scenario){$request['assistedFixture']=$assistedFixtureInput.selection}
+    if(Test-KmcChunk7AcquiredManualScenario $Scenario){$request['acquiredManual']=$acquiredManualInput.selection}
+    if(Test-KmcChunk7ManualDerivedScenario $Scenario){$request['manualDerived']=$manualDerivedInput.selection}
+    if(Test-KmcChunk7CumulativeScenario $Scenario){$request['cumulativeAcquisition']=$cumulativeAcquisitionInput.selection}
+    if(Test-KmcChunk7ManualSeedScenario $Scenario){$request['manualSeed']=$manualSeedInput.selection}
+    if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){$request['bootstrapInventory']=$bootstrapInventoryInput.selection}
+    if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){$request['assistedColdInventory']=$assistedColdInput.selection}
+    if(Test-KmcChunk7ProgressionScenario $Scenario){$request['progression']=$progressionSelectionInput.selection}
+    if(Test-KmcChunk7NativeBootstrapScenario $Scenario){$request['nativeBootstrap']=[ordered]@{case=$NativeBootstrapCase;baseGameOnly=[bool]$BaseGameOnly;expectedNativeLoadCount=0;expectedNativeWriteCount=1;nativeWriteLeaf='Auto_1.zks'}}
     if($PSBoundParameters.ContainsKey('PersistenceCase')) { $request['persistenceCase']=$PersistenceCase }
-    if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
-        $request['persistenceAreaTarget']=[ordered]@{
+    if($PersistenceCase-ceq'multi-exploration-three-area-transfers-manual'){
+        $request['persistenceReplayTargets']=@(for($leg=0;$leg-lt3;$leg++){[ordered]@{enterPoint=$PersistenceReplayAreaEnterPoints[$leg];area=$PersistenceReplayAreaAreas[$leg];autoSaveMode='None'}})
+    }
+    # Row 58's scoped capital transfer requests no native autosave.
+    if($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','multi-exploration-capital-arrival-manual')){
+        $request['persistenceAreaTarget']=[pscustomobject][ordered]@{
             enterPoint=$PersistenceAreaEnterPoint;area=$PersistenceAreaTargetArea
-            autoSaveMode=if($PersistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
+            autoSaveMode=if($PersistenceCase-ceq'multi-exploration-capital-arrival-manual'){'None'}elseif($PersistenceCase-ceq'multi-area-autosave'-or$PersistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
         }
     }
     if($isSaveBacked){
@@ -387,6 +722,109 @@ try{
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
     }
+    if(Test-KmcChunk7OrdinaryScenario $Scenario){
+        $currentSelection=Read-KmcChunk7OrdinarySelectionFile $ordinarySelectionInput.path $actualRunId
+        if($currentSelection.sha256-cne$ordinarySelectionInput.sha256){throw 'Explicit ordinary native selection changed before locked admission.'}
+        $currentInventory=Get-KmcChunk7OrdinaryInventorySource $request.ordinaryAcquisition $fixturePayload $manifest
+        if($currentInventory.sha256-cne$ordinaryInventorySource.sha256-or$currentInventory.path-cne$ordinaryInventorySource.path){throw 'Ordinary native source changed before locked admission.'}
+        $ordinaryInventorySource=$currentInventory
+    }
+    if(Test-KmcChunk7SmallScenario $Scenario){
+        $currentSmallSelection=Read-KmcChunk7SmallSelectionFile $smallSelectionInput.path $actualRunId
+        if($currentSmallSelection.sha256-cne$smallSelectionInput.sha256){throw 'Small calibration selection changed before locked admission.'}
+        $currentSmallSource=if(Test-KmcChunk7SmallF09Case $request.smallCalibration){Get-KmcChunk7SmallF09CalibrationSource $request.smallCalibration.fixtureSource $fixturePayload $manifest}elseif(Test-KmcChunk7SmallManualCase $request.smallCalibration){Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $request.smallCalibration)}else{Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest}
+        if((ConvertTo-KmcChunk7Canonical $currentSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)){throw 'Small calibration source changed before locked admission.'}
+        $smallSource=$currentSmallSource
+    }
+    if(Test-KmcChunk7AssistedFixtureScenario $Scenario){
+        $currentAssistedInput=Read-KmcChunk7AssistedPreparationSelectionFile $assistedFixtureInput.path $actualRunId
+        if($currentAssistedInput.sha256-cne$assistedFixtureInput.sha256){throw 'Assisted fixture selection changed before locked admission.'}
+        Assert-KmcChunk7AssistedFixtureSelection $request
+    }
+    if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+        $currentOwnedInput=Read-KmcChunk7OwnedPairsSelectionFile $ownedPairsInput.path $actualRunId $PersistenceCase
+        if($currentOwnedInput.sha256-cne$ownedPairsInput.sha256){throw 'Inherited two-owner selection changed before locked admission.'}
+        $currentOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){$request.persistenceAreaTarget}else{$null})
+        if((ConvertTo-KmcChunk7Canonical $currentOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited source lineage changed before locked admission.'}
+        $ownedPairsSource=$currentOwnedSource
+    }
+    if(Test-KmcChunk7SmallFixtureScenario $Scenario){
+        $currentSmallFixtureInput=Read-KmcChunk7SmallFixtureSelectionFile $smallFixtureInput.path $actualRunId
+        if($currentSmallFixtureInput.sha256-cne$smallFixtureInput.sha256){throw 'F09 exact selection changed before locked admission.'}
+        $currentSmallFixtureSource=Get-KmcChunk7SmallFixtureSource $request.smallFixture $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentSmallFixtureSource)-cne(ConvertTo-KmcChunk7Canonical $smallFixtureSource)){throw 'F09 seed or historical provenance changed before locked admission.'}
+        $smallFixtureSource=$currentSmallFixtureSource
+    }
+    if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+        $currentStockInput=Read-KmcChunk7StockMammothFixtureSelectionFile $stockMammothFixtureInput.path $actualRunId
+        if($currentStockInput.sha256-cne$stockMammothFixtureInput.sha256){throw 'Stock Mammoth exact selection changed before locked admission.'}
+        $currentStockSource=Get-KmcChunk7StockMammothFixtureSource $request.stockMammothFixture $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentStockSource)-cne(ConvertTo-KmcChunk7Canonical $stockMammothFixtureSource)){throw 'Stock Mammoth seed or provenance changed before locked admission.'}
+        $stockMammothFixtureSource=$currentStockSource
+    }
+    if(Test-KmcChunk7AcquiredManualScenario $Scenario){
+        $currentAcquiredInput=Read-KmcChunk7AcquiredManualSelectionFile $acquiredManualInput.path $actualRunId
+        if($currentAcquiredInput.sha256-cne$acquiredManualInput.sha256){throw 'Acquired Manual selection changed before locked admission.'}
+        $currentAcquiredSource=Get-KmcChunk7AcquiredManualSource $request.acquiredManual $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentAcquiredSource)-cne(ConvertTo-KmcChunk7Canonical $acquiredManualSource)){throw 'Acquired Manual source changed before locked admission.'}
+        $acquiredManualSource=$currentAcquiredSource
+    }
+    if(Test-KmcChunk7ManualDerivedScenario $Scenario){
+        $currentDerivedInput=Read-KmcChunk7ManualDerivedSelectionFile $manualDerivedInput.path $actualRunId
+        if($currentDerivedInput.sha256-cne$manualDerivedInput.sha256){throw 'Manual-derived selection changed before locked admission.'}
+        $currentDerivedSource=Get-KmcChunk7ManualDerivedSource $request.manualDerived $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentDerivedSource)-cne(ConvertTo-KmcChunk7Canonical $manualDerivedSource)){throw 'Manual-derived source changed before locked admission.'}
+        $manualDerivedSource=$currentDerivedSource
+    }
+    if(Test-KmcChunk7CumulativeScenario $Scenario){
+        $currentCumulativeInput=Read-KmcChunk7CumulativeSelectionFile $cumulativeAcquisitionInput.path $actualRunId
+        if($currentCumulativeInput.sha256-cne$cumulativeAcquisitionInput.sha256){throw 'Manual-derived selection changed before locked admission.'}
+        $currentCumulativeSource=Get-KmcChunk7CumulativeSource $request.cumulativeAcquisition $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentCumulativeSource)-cne(ConvertTo-KmcChunk7Canonical $cumulativeAcquisitionSource)){throw 'Manual-derived source changed before locked admission.'}
+        $cumulativeAcquisitionSource=$currentCumulativeSource
+    }
+    if(Test-KmcChunk7ManualSeedScenario $Scenario){
+        $currentManualInput=Read-KmcChunk7ManualSeedSelectionFile $manualSeedInput.path $actualRunId
+        if($currentManualInput.sha256-cne$manualSeedInput.sha256){throw 'Manual seed selection changed before locked admission.'}
+        $currentManualSource=Get-KmcChunk7ManualSeedSource $request.manualSeed $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentManualSource)-cne(ConvertTo-KmcChunk7Canonical $manualSeedSource)){throw 'Manual seed source changed before locked admission.'}
+        $manualSeedSource=$currentManualSource
+    }
+    if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){
+        $currentAssistedColdInput=Read-KmcChunk7AssistedColdInventorySelectionFile $assistedColdInput.path $actualRunId
+        if($currentAssistedColdInput.sha256-cne$assistedColdInput.sha256){throw 'Assisted cold selection changed before locked admission.'}
+        $currentAssistedColdSource=Get-KmcChunk7AssistedColdInventorySource $request.assistedColdInventory $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentAssistedColdSource)-cne(ConvertTo-KmcChunk7Canonical $assistedColdSource)){throw 'Assisted cold source changed before locked admission.'}
+        $assistedColdSource=$currentAssistedColdSource
+    }
+    if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
+        $currentBootstrapInput=Read-KmcChunk7BootstrapInventorySelectionFile $bootstrapInventoryInput.path $actualRunId
+        if($currentBootstrapInput.sha256-cne$bootstrapInventoryInput.sha256){throw 'Bootstrap inventory selection changed before locked admission.'}
+        $currentBootstrapSource=Get-KmcChunk7BootstrapInventorySource $request.bootstrapInventory $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentBootstrapSource)-cne(ConvertTo-KmcChunk7Canonical $bootstrapInventorySource)){throw 'Bootstrap inventory source changed before locked admission.'}
+        $bootstrapInventorySource=$currentBootstrapSource
+    }
+    if(Test-KmcChunk7FieldScenario $Scenario){
+        $currentFieldSelection=Read-KmcChunk7FieldSelectionFile $fieldSelectionInput.path $actualRunId
+        if($currentFieldSelection.sha256-cne$fieldSelectionInput.sha256){throw 'Field selection changed before locked admission.'}
+        $currentFieldSource=Get-KmcChunk7FieldSource $request.ordinaryField $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentFieldSource)-cne(ConvertTo-KmcChunk7Canonical $fieldSource)){throw 'Field source changed before locked admission.'}
+        $fieldSource=$currentFieldSource
+    }
+    if(Test-KmcChunk7ProgressionScenario $Scenario){
+        $currentProgressionSelection=Read-KmcChunk7ProgressionSelectionFile $progressionSelectionInput.path $actualRunId
+        if($currentProgressionSelection.sha256-cne$progressionSelectionInput.sha256){throw 'Progression selection changed before locked admission.'}
+        $currentProgressionSource=Get-KmcChunk7ProgressionSource $request.progression $fixturePayload $manifest
+        if((ConvertTo-KmcChunk7Canonical $currentProgressionSource)-cne(ConvertTo-KmcChunk7Canonical $progressionSource)){throw 'Progression source/inventory changed before locked admission.'}
+        $progressionSource=$currentProgressionSource
+    }
+    # Snapshot only after the under-lock fixture and save-metadata proof.
+    if($BaseGameOnly-or$Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
+        if($areasIsolationSelected){
+            [void](Enter-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups)
+        }
+    }
     # The no-save mode must bind NO suite argument, not an empty one: the
     # receiving parameters are ValidatePattern-guarded, so an explicitly passed
     # empty string is rejected before the function's own completeness check
@@ -409,7 +847,7 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -cin @('persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
+        if($isNormalPlayer-or$Scenario -cin @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-persistence-save','chunk7-persistence-load','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
@@ -418,9 +856,75 @@ try{
             [void][IO.Directory]::CreateDirectory((Join-Path $profileRoot 'Areas'))
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
-            if($Scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
+            if($OwnerStockRemoval-and$Scenario-ceq'persistence-p07-save'){
+                $currentStockRemovalSource=Get-KmcOwnerStockRemovalSource $fixturePayload
+                if((ConvertTo-KmcChunk7Canonical $currentStockRemovalSource)-cne(ConvertTo-KmcChunk7Canonical $ownerStockRemovalSource)){throw 'Stock Mammoth producer changed before locked staging.'}
+                $copySource=$currentStockRemovalSource.path;$copyDescriptor=$currentStockRemovalSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif($isNormalPlayer){
+                $currentNormalPlayerSource=Get-KmcRunNormalPlayerSource
+                if((ConvertTo-KmcChunk7Canonical $currentNormalPlayerSource)-cne(ConvertTo-KmcChunk7Canonical $normalPlayerSource)){throw 'Normal-player fixture source changed before locked staging.'}
+                $copySource=$currentNormalPlayerSource.path;$copyDescriptor=$currentNormalPlayerSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7OwnedPairsScenario $Scenario){
+                $copySource=$ownedPairsSource.path;$copyDescriptor=$ownedPairsSource.descriptor
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){
+                    # Mutation is confined to a fresh project-owned derivative,
+                    # only after ShouldProcess and current lock qualification.
+                    $ownedSchema1Derivative=New-KmcOwnedSchema1Input $ownedPairsSource $request.ownedPairs $fixturePayload $manifest $lock
+                    $copySource=$ownedSchema1Derivative.path;$copyDescriptor=$ownedSchema1Derivative.descriptor
+                    $request['schema1DerivationSha256']=$ownedSchema1Derivative.receiptSha256
+                }elseif(Test-KmcOwnedSchema2ColdRequest ([pscustomobject]$request)){
+                    $ownedSchema2Derivative=New-KmcOwnedSchema2Input $ownedPairsSource $request.ownedPairs $fixturePayload $manifest $lock
+                    $copySource=$ownedSchema2Derivative.path;$copyDescriptor=$ownedSchema2Derivative.descriptor
+                    $request['schema2DerivationSha256']=$ownedSchema2Derivative.receiptSha256
+                }
+                $request['persistenceLoad']=$copyDescriptor
+                if(Test-KmcChunk7LoadRefusal ([pscustomobject]$request)){
+                    $ownedLoadRefusalDerivative=New-KmcChunk7LoadRefusalInput $ownedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $lock
+                    $request['persistenceAlternate']=$ownedLoadRefusalDerivative.descriptor
+                    $request['loadRefusalDerivationSha256']=$ownedLoadRefusalDerivative.receiptSha256
+                }
+            }elseif(Test-KmcChunk7SmallScenario $Scenario){
+                $copySource=$smallSource.path;$copyDescriptor=$smallSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7ProgressionScenario $Scenario){
+                $copySource=$progressionSource.path;$copyDescriptor=$progressionSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7SmallFixtureScenario $Scenario){
+                $copySource=$smallFixtureSource.path;$copyDescriptor=$smallFixtureSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7StockMammothFixtureScenario $Scenario){
+                $copySource=$stockMammothFixtureSource.path;$copyDescriptor=$stockMammothFixtureSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7AcquiredManualScenario $Scenario){
+                $copySource=$acquiredManualSource.path;$copyDescriptor=$acquiredManualSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7ManualDerivedScenario $Scenario){
+                $copySource=$manualDerivedSource.path;$copyDescriptor=$manualDerivedSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7CumulativeScenario $Scenario){
+                $copySource=$cumulativeAcquisitionSource.path;$copyDescriptor=$cumulativeAcquisitionSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7ManualSeedScenario $Scenario){
+                $copySource=$manualSeedSource.path;$copyDescriptor=$manualSeedSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){
+                $copySource=$assistedColdSource.path;$copyDescriptor=$assistedColdSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7BootstrapInventoryScenario $Scenario){
+                $copySource=$bootstrapInventorySource.path;$copyDescriptor=$bootstrapInventorySource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(Test-KmcChunk7FieldScenario $Scenario){
+                $copySource=$fieldSource.path;$copyDescriptor=$fieldSource.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif($Scenario -cin @('chunk7-persistence-load','persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
                 $sourceCase=if($Scenario-ceq'persistence-p07-load'){$PersistenceCase}elseif($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing','suspended'))){$PersistenceCase}else{$null}
-                $source=if($Scenario-ceq'persistence-p06-load'){
+                $source=if($Scenario-ceq'chunk7-persistence-load'-and$PersistenceCase-ceq'legacy-schema1-resave-manual'){
+                    New-KmcChunk7Schema1Input $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload
+                }elseif($Scenario-ceq'chunk7-persistence-load'){
+                    Get-KmcChunk7PersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -Case $PersistenceCase -ExpectedDllSha256 $request.dllSha256 -ExpectedCommit $request.commit -AreaTarget $(if($PersistenceCase-ceq'multi-area-autosave'){$request.persistenceAreaTarget}else{$null})
+                }elseif($Scenario-ceq'persistence-p06-load'){
                     Get-KmcPersistenceValidationSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload -Case $PersistenceCase
                 }elseif($null-eq$sourceCase){Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload}
                 elseif($sourceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){
@@ -438,7 +942,8 @@ try{
                 elseif($sourceCase-cin @('absent-kmc','removal-no-dll')){
                     # The cleanup archive a prepare-removal run wrote, under its
                     # own name, is what the integration-absent process opens.
-                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase prepare-removal -ArtifactRole cleanup-manual
+                    if($OwnerStockRemoval){Get-KmcOwnerStockCleanupSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload $manifest $ExpectedQualificationSuiteId $OwnerStockCleanupRunMapPath}
+                    else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase prepare-removal -ArtifactRole cleanup-manual}
                 }
                 elseif($sourceCase-ceq'rider-size-change'){
                     # The no-pair archive an eligibility run wrote, under its own name.
@@ -461,6 +966,12 @@ try{
                 }
                 if($Scenario-ceq'persistence-p06-load'){$copyDescriptor.fileName='Manual_300_KMC_P01.zks'}
                 $request['persistenceLoad']=$copyDescriptor
+                if($Scenario-ceq'chunk7-persistence-load'-and$PersistenceCase-ceq'legacy-schema1-resave-manual'){
+                    $receiptPath=Join-Path $profileRoot 'validation-copy.json'
+                    Copy-Item -LiteralPath $source.receiptPath -Destination $receiptPath
+                    if((Get-KmcSha256 $receiptPath)-cne$source.receiptSha256){throw 'Schema-1 derivative provenance changed during staging.'}
+                    $request['schema1DerivationSha256']=$source.receiptSha256
+                }
                 if($Scenario-ceq'persistence-p06-load'){
                     # Only the post-disposal failure case derives from the native
                     # area member; every other variant stays metadata-only.
@@ -491,6 +1002,12 @@ try{
             Assert-KmcNotReparsePoint $copySource 'persistence fixture source'
             Assert-KmcNotHardLink $copySource 'persistence fixture source'
             Copy-Item -LiteralPath $copySource -Destination $copiedFixture
+            # Copy-Item carries a read-only source attribute (the owner-seed master is
+            # read-only) and SetLastWriteTimeUtc is then denied; the fresh run-owned copy
+            # is an ordinary file. Only the copy's attribute changes; its bytes are
+            # hash-verified below and the source is never modified.
+            $copiedInfo=Get-Item -LiteralPath $copiedFixture
+            if($copiedInfo.IsReadOnly){$copiedInfo.IsReadOnly=$false}
             [IO.File]::SetLastWriteTimeUtc($copiedFixture,([IO.File]::GetLastWriteTimeUtc($copySource)))
             if((Get-KmcSha256 $copiedFixture)-cne[string]$copyDescriptor.sha256){
                 throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
@@ -499,12 +1016,74 @@ try{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             })
+            if(Test-KmcChunk7SmallScenario $Scenario){if(Test-KmcChunk7SmallF09Case $request.smallCalibration){Copy-KmcChunk7SmallF09SourceArtifact $smallSource $profileRoot $lock}elseif(Test-KmcChunk7SmallManualCase $request.smallCalibration){Copy-KmcChunk7SmallManualSourceArtifact $smallSource $profileRoot $lock}else{Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}}
+            if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
+            if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}
+            if(Test-KmcChunk7OwnedPairsScenario $Scenario){
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){Copy-KmcOwnedSchema1Inputs $ownedPairsSource $ownedSchema1Derivative $profileRoot $lock $request}
+                elseif(Test-KmcOwnedSchema2ColdRequest ([pscustomobject]$request)){Copy-KmcOwnedSchema2Inputs $ownedPairsSource $ownedSchema2Derivative $profileRoot $lock $request}
+                else{Copy-KmcChunk7OwnedPairsSourceArtifact $ownedPairsSource $profileRoot $lock}
+                if(Test-KmcChunk7OwnerSeedCurrentCheckpoint $PersistenceCase){Copy-KmcChunk7OwnerSeedCurrentParent $ownedPairsSource $profileRoot $lock ([pscustomobject]$request)}
+                if(Test-KmcChunk7LoadRefusal ([pscustomobject]$request)){Copy-KmcChunk7LoadRefusalInputs $ownedLoadRefusalDerivative $profileRoot $lock $request}
+            }
+            if(Test-KmcChunk7SmallFixtureScenario $Scenario){[void](Copy-KmcChunk7SmallFixtureSource $smallFixtureSource $profileRoot $lock $request.smallFixture $fixturePayload $manifest)}
+            if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){[void](Copy-KmcChunk7StockMammothFixtureSource $stockMammothFixtureSource $profileRoot $lock $request.stockMammothFixture $fixturePayload $manifest)}
+            if(Test-KmcChunk7AcquiredManualScenario $Scenario){Copy-KmcChunk7AcquiredManualSourceArtifact $acquiredManualSource $profileRoot $lock}
+            if(Test-KmcChunk7ManualDerivedScenario $Scenario){Copy-KmcChunk7ManualDerivedSourceArtifact $manualDerivedSource $profileRoot $lock}
+            if(Test-KmcChunk7CumulativeScenario $Scenario){if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){Copy-KmcAssistedCumulativeSourceArtifacts $cumulativeAcquisitionSource $profileRoot $lock $request.cumulativeAcquisition $fixturePayload $manifest}else{Copy-KmcChunk7CumulativeSourceArtifact $cumulativeAcquisitionSource $profileRoot $lock}}
+            if(Test-KmcChunk7ManualSeedScenario $Scenario){Copy-KmcChunk7ManualSeedSourceArtifacts $manualSeedSource $profileRoot $lock}
+            if(Test-KmcChunk7BootstrapInventoryScenario $Scenario){Copy-KmcChunk7BootstrapInventorySourceArtifact $bootstrapInventorySource $profileRoot $lock}
+            if(Test-KmcChunk7AssistedColdInventoryScenario $Scenario){[void](Copy-KmcChunk7AssistedColdInventorySourceArtifact $assistedColdSource $profileRoot $lock $request.assistedColdInventory $fixturePayload $manifest)}
+            if(Test-KmcChunk7OrdinaryScenario $Scenario){
+                [void](Copy-KmcChunk7OrdinaryInventory $ordinaryInventorySource $profileRoot $lock)
+            }
         }
 
     }
-    [void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}))
+    $stageArguments=@{}
+    if($BaseGameOnly){
+        Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles
+        $stageArguments['BaseGameDependencies']=$baseGameDependencies
+    }
+    # Exactly two packages: KMC and the external normal-player observer.
+    if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
+    # u2/u3 lay the first install's exact KMC-folder runtime files under the staged package.
+    if($upgradeCarry.Count-ne0){$stageArguments['KmcCarryFiles']=$upgradeCarry}
+    $modsTransactionStatePath=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveMods -PackagePath $(if($isObserver){$ObserverPackagePath}elseif($upgradeLoad){$upgradePrevious.path}else{$PackagePath}) -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -StagingMode $(if($isNormalPlayer){'base-game-only-kmc-observer'}elseif($BaseGameOnly){'base-game-only-kmc'}elseif($isObserver){'live-clone-minus-kmc-plus-observer'}else{'live-clone-plus-kmc-overlay'}) @stageArguments
+    if($isNormalPlayer){
+        $coStagedState=Read-KmcJson $modsTransactionStatePath
+        if([string]$coStagedState.observerPackageSha256-cne[string]$request.normalPlayer.observer.packageSha256-or[string]$coStagedState.observerPackageSha256-cne[string]$observerManifest.packageSha256){
+            throw 'The staged observer package is not the declared observer package.'
+        }
+        if($null-ne$upgradeSection-and[string]$coStagedState.packageSha256-cne[string]$upgradeSection.stagedKmc.packageSha256){throw 'The staged KMC package is not the rehearsal step''s declared package.'}
+    }
+    if($F11NativeAllocationProbe){
+        $f11RunRoot=Assert-KmcChildPath (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') $runtimeStaging 'F11 run-owned staging'
+        if(Test-Path -LiteralPath $f11RunRoot){throw 'F11 run-owned staging already exists.'}
+        New-Item -ItemType Directory -Path $f11RunRoot | Out-Null
+        $f11Staged=Join-Path $f11RunRoot 'KmcF11AllocationProbe.dll'
+        Copy-Item -LiteralPath $f11SourcePath -Destination $f11Staged
+        Assert-KmcNotReparsePoint $f11Staged 'F11 staged helper'; Assert-KmcNotHardLink $f11Staged 'F11 staged helper'
+        if((Get-KmcSha256 $f11SourcePath)-cne$f11HelperSha-or(Get-KmcSha256 $f11Staged)-cne$f11HelperSha){
+            throw 'The F11 helper changed during its guarded run-owned copy.'
+        }
+    }
+    if($BaseGameOnly){
+        $baseGameStaged=$true
+        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;
+            transactionToken=[string]$lock.Token;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencies=$baseGameDependencies;
+            transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
+            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false})
+    }
     Write-KmcJsonAtomic $requestPath $request
     & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
+    # The serialized file is the validated request shape; re-read it so every later reader receives the
+    # same object tree the validators checked instead of the ordered dictionary used to build it.
+    $request=Read-KmcJson $requestPath
+    if($isNormalPlayer){
+        # KMC receives no request at all; only the external observer is bound.
+        Write-KmcJsonAtomic $observerRequestPath (New-KmcChunk7NormalPlayerObserverRequest $request ([string]$lock.Token) $evidenceRoot $profileRoot $liveMods $manifest)
+    }
     if($isObserver){
         # What the observer process is bound to: the owned profile, the live Mods
         # root to prove empty of KMC, the prepared cleanup archive, and KMC's own
@@ -534,7 +1113,7 @@ try{
     Write-KmcJsonAtomic $orchestrationPath $orchestration
     Assert-KmcNoGameProcesses
     $requestHash=Get-KmcSha256 $requestPath
-    $arguments=if($isObserver){
+    $arguments=if($isObserver-or$isNormalPlayer){
         # No KMC arguments at all: even a stray KMC assembly would stay inert.
         @('-applaunch','640820','-kmcObserverRequest',('"'+$observerRequestPath+'"'),'-kmcObserverToken',[string]$lock.Token,'-kmcObserverRequestSha256',(Get-KmcSha256 $observerRequestPath))
     }else{@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)}
@@ -638,7 +1217,7 @@ try{
         }
     }
     else{
-        $awaitedResultPath=if($isObserver){$observerResultPath}else{$gameResultPath}
+        $awaitedResultPath=if($isObserver-or$isNormalPlayer){$observerResultPath}else{$gameResultPath}
         while(-not(Test-Path -LiteralPath $awaitedResultPath -PathType Leaf)){
             $process.Refresh()
             if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
@@ -648,7 +1227,10 @@ try{
             if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
             Start-Sleep -Milliseconds 250
         }
-        if($isObserver){
+        if($isNormalPlayer){
+            & (Join-Path $repoRoot 'scripts\runtime\Test-KmcNormalPlayerResult.ps1') -ObserverResultPath $observerResultPath -RequestPath $requestPath -ObserverRequestPath $observerRequestPath -GameResultPath $gameResultPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
+            $gameResultHash=Get-KmcSha256 $gameResultPath
+        }elseif($isObserver){
             # The observer's own result is validated against the request, the
             # observer binding and the archive bytes on disk, then composed into
             # the run's game-result record; KMC wrote nothing in this process.
@@ -661,6 +1243,210 @@ try{
         }
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
+        if($isNormalPlayer){
+            # KMC writes no loader inventory without a request. The observer proves exactly
+            # two active UMM entries and both assembly identities, not the complete loaded-
+            # assembly inventory, so no native inventory is claimed for this mode.
+            $baseGameNativeInventoryObserved=$false
+            $baseGameNativeInventorySha256=$null
+        }elseif($BaseGameOnly){
+            $inventoryManifestPath=Join-Path $evidenceRoot 'runtime-artifacts.json'
+            if($isSaveBacked-and(Get-KmcSha256 $inventoryManifestPath)-cne$validatedGameResult.evidenceManifestSha256){throw 'Base-game inventory manifest is not the native result manifest.'}
+            $inventoryManifest=Read-KmcJson $inventoryManifestPath
+            $inventory=Read-KmcChunk7ManifestArtifact $request $inventoryManifest 'runtime-loader-inventory.json' 'runtime-loader-inventory'
+            if($inventory.observations.processId-ne$process.Id){throw 'Loader inventory came from a different native process.'}
+            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies
+            $baseGameNativeInventoryObserved=$true
+            $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
+        }
+        if($gamePassed-and(Test-KmcChunk7SmallScenario $Scenario)){
+            if(Test-KmcChunk7SmallF09Case $request.smallCalibration){
+                $verifiedSmallSource=Get-KmcChunk7SmallF09CalibrationSource $request.smallCalibration.fixtureSource $fixturePayload $manifest
+                if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
+                   (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.smallCalibration.fixtureSource.sourceArchiveSha256){throw 'Read-only F09 Small fixture source changed during the native process.'}
+            }elseif(Test-KmcChunk7SmallManualCase $request.smallCalibration){
+                $verifiedSmallSource=Get-KmcChunk7SmallManualSource $request.smallCalibration.manualSource $fixturePayload $manifest -Assisted:(Test-KmcChunk7SmallAssistedCase $request.smallCalibration)
+                if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
+                   (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.smallCalibration.manualSource.sourceArchiveSha256){throw 'Read-only Small Manual source changed during the native process.'}
+            }else{
+                $verifiedSmallSource=Get-KmcChunk7FieldSource $request.smallCalibration.source $fixturePayload $manifest
+                if((ConvertTo-KmcChunk7Canonical $verifiedSmallSource)-cne(ConvertTo-KmcChunk7Canonical $smallSource)-or
+                   (Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$request.smallCalibration.source.sourceArchiveSha256){throw 'Read-only Small calibration source changed during the native process.'}
+            }
+            $sourceArtifact=Read-KmcJson $smallSource.artifactPath
+            $smallArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-small-calibration-evidence.json')
+            if($sourceArtifact.observations.processId-eq$smallArtifact.observations.processId){throw 'Small calibration reused the acquisition process rather than cold loading.'}
+            if((Test-KmcChunk7SmallManualCase $request.smallCalibration)-and(ConvertTo-KmcChunk7Canonical $sourceArtifact.observations)-cne(ConvertTo-KmcChunk7Canonical $smallArtifact.observations.source.acquiredManual)){throw 'Small Manual runtime source witness differs from the completely qualified artifact.'}
+            if((Test-KmcChunk7SmallF09Case $request.smallCalibration)-and(ConvertTo-KmcChunk7Canonical $sourceArtifact.observations)-cne(ConvertTo-KmcChunk7Canonical $smallArtifact.observations.source.fixtureManual)){throw 'F09 Small runtime source witness differs from the qualified owner-seed producer.'}
+        }
+        if(Test-KmcChunk7AssistedFixtureScenario $Scenario){
+            $verifiedAssistedInput=Read-KmcChunk7AssistedPreparationSelectionFile $assistedFixtureInput.path $actualRunId
+            if($verifiedAssistedInput.sha256-cne$assistedFixtureInput.sha256){throw 'Assisted fixture selection changed during the native process.'}
+            if($gamePassed){
+                $assistedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-assisted-fixture-evidence.json')
+                Assert-KmcChunk7AssistedFixtureOutput $request $assistedArtifact
+                Assert-KmcChunk7AssistedFixtureArchive $request $assistedArtifact
+            }
+        }
+        if($gamePassed-and(Test-KmcChunk7NativeBootstrapScenario $Scenario)){
+            $bootstrapArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-native-bootstrap-evidence.json')
+            Assert-KmcChunk7NativeBootstrapOutput $request $bootstrapArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7ProgressionScenario $Scenario)){
+            $verifiedProgressionSource=Get-KmcChunk7ProgressionSource $request.progression $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedProgressionSource)-cne(ConvertTo-KmcChunk7Canonical $progressionSource)-or
+               (Get-KmcSha256 (Join-Path $isolatedSaves (Get-KmcChunk7ProgressionInputLeaf $request)))-cne$request.progression.sourceArchiveSha256){throw 'Native progression source/inventory changed during its cold process.'}
+            $progressionArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-progression-evidence.json')
+            if($progressionArtifact.observations.processId-eq$progressionSource.sourceProcessId){throw 'Progression did not cold-load its declared native source.'}
+            Assert-KmcChunk7ProgressionNativeArchive $request $progressionArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7OwnedPairsScenario $Scenario)){
+            $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){$request.persistenceAreaTarget}else{$null})
+            if((ConvertTo-KmcChunk7Canonical $verifiedOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited two-owner source lineage changed during native execution.'}
+            $seedManualRun=Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]$request)
+            if((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))-or$seedManualRun){
+                # Owner seed (exploration or Manual producer): the placed record is the honest seed-source record and the seed copy is never written.
+                $seedRecord=Read-KmcJson (Join-Path $profileRoot 'owned-two-pair-source.json')
+                if($seedRecord.kind-cne'kmc-owner-seed-source'-or$seedRecord.seedId-cne$request.ownedPairs.seedId-or$seedRecord.registrySha256-cne$verifiedOwnedSource.registrySha256-or
+                    $seedRecord.producerAncestry-ne$false-or$seedRecord.nativeAuthorityGranted-ne$false-or
+                    (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.ownedPairs.seedSha256){throw 'Owner-seed source record or immutable native copy changed during execution.'}
+            }elseif((Get-KmcSha256 (Join-Path $profileRoot 'owned-two-pair-source.json'))-cne$request.ownedPairs.sourceArtifactSha256-or
+                (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$request.persistenceLoad.sha256){throw 'Inherited source receipt or immutable native input changed during execution.'}
+            if($request.ownedPairs.case-cin@('persistence-load','owner-seed-checkpoint-load')-and$PersistenceCase-ceq'multi-area-autosave'){
+                $ownedColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                Assert-KmcChunk7OwnedAreaColdSource $verifiedOwnedSource $request $ownedColdArtifact
+            }
+            if(Test-KmcChunk7OwnedPairsSeedDerivedLoad ([pscustomobject]$request)){
+                # Separate-process cold proof against the exact pinned producer receipt.
+                $derivedColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.artifactPath)-cne$request.ownedPairs.sourceArtifactSha256){throw 'Owner-seed-derived producer receipt changed during the cold process.'}
+                if(Test-KmcChunk7ManticoreManualCold ([pscustomobject]$request)){
+                    Assert-KmcChunk7ManticoreManualColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.artifactPath) $derivedColdArtifact
+                }else{
+                    Assert-KmcChunk7OwnerSeedDerivedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.artifactPath) $derivedColdArtifact
+                }
+            }
+            if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad ([pscustomobject]$request)){
+                # Separate-process cold proof against the checkpoint producer's own recorded read-back.
+                $checkpointColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Owner-seed checkpoint producer receipt changed during the cold process.'}
+                Assert-KmcChunk7OwnerSeedCheckpointColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $checkpointColdArtifact
+            }
+            if((Test-KmcChunk7OwnedPairsSmallLoad ([pscustomobject]$request))-or(Test-KmcChunk7OwnedPairsMediumLoad ([pscustomobject]$request))){
+                $paidColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Paid mounted checkpoint producer receipt changed during cold execution.'}
+                Assert-KmcChunk7PaidMountedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $paidColdArtifact
+            }
+            if(Test-KmcChunk7CapitalColdCase $PersistenceCase){
+                # Row 59: separate-process proof against row 58's own read-back of the capital Manual.
+                $capitalColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Capital-arrival producer receipt changed during the cold process.'}
+                Assert-KmcChunk7CapitalColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $capitalColdArtifact
+            }
+            if(Test-KmcChunk7SixPairLoad ([pscustomobject]$request)){
+                $sixColdArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-persistence-evidence.json')
+                if((Get-KmcSha256 $verifiedOwnedSource.checkpointArtifactPath)-cne$request.ownedPairs.checkpointSourceArtifactSha256){throw 'Six-mounted Manual producer receipt changed during cold execution.'}
+                Assert-KmcChunk7SixPairMountedColdSource ([pscustomobject]$request) (Read-KmcJson $verifiedOwnedSource.checkpointArtifactPath) $sixColdArtifact
+            }
+            $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
+            $writes=Get-KmcChunk7OwnedWriteCount $request
+            if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){
+                # Owner seed: zero writes (the native game has no level-up autosave), so only the seed copy remains: no Auto_1 or any other entry.
+                $allLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name)
+                Assert-KmcChunk7OwnerSeedFinalSaveRoot ([pscustomobject]$request) $allLeaves
+            }elseif($writes-eq0){Assert-KmcChunk7OwnedFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $null}
+            if($writes-gt0-and-not(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))){
+                # Exact exploration Manual producers publish their receipt in world evidence.
+                $ownedArtifact=Read-KmcJson (Join-Path $evidenceRoot (Get-KmcChunk7OwnedWriteArtifactLeaf ([pscustomobject]$request)))
+                if($PersistenceCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $verifiedOwnedSource $ownedArtifact}
+                if(Test-KmcOwnedSchema2ColdRequest ([pscustomobject]$request)){Assert-KmcOwnedSchema2ColdSource $request $verifiedOwnedSource $ownedArtifact}
+                Assert-KmcChunk7OwnedOutputEvidence ([pscustomobject]$request) $ownedArtifact.observations
+                Assert-KmcChunk7OwnedFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $ownedArtifact.observations
+                $outputLeaf=Get-KmcChunk7OwnedOutputLeaf ([pscustomobject]$request) $ownedArtifact.observations
+                if($outputLeaf-cnotin$nativeLeaves-or(Get-KmcSha256 (Join-Path $isolatedSaves $outputLeaf))-cne$ownedArtifact.observations.nativeWrite.sha256){throw 'Inherited fresh native output differs from its observed descriptor/hash.'}
+                if($seedManualRun){Assert-KmcChunk7OwnerSeedManualFinalSaveRoot ([pscustomobject]$request) @(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name) $outputLeaf}
+            }
+        }
+        if($gamePassed-and(Test-KmcChunk7SmallFixtureScenario $Scenario)){
+            $verifiedSmallFixtureSource=Get-KmcChunk7SmallFixtureSource $request.smallFixture $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedSmallFixtureSource)-cne(ConvertTo-KmcChunk7Canonical $smallFixtureSource)){throw 'F09 immutable seed/provenance changed during the native process.'}
+            $smallFixtureArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-small-fixture-evidence.json')
+            Assert-KmcChunk7SmallFixtureOutput $request $smallFixtureArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7StockMammothFixtureScenario $Scenario)){
+            $verifiedStockSource=Get-KmcChunk7StockMammothFixtureSource $request.stockMammothFixture $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedStockSource)-cne(ConvertTo-KmcChunk7Canonical $stockMammothFixtureSource)){throw 'Stock Mammoth immutable seed/provenance changed during the native process.'}
+            $stockArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-stock-mammoth-fixture-evidence.json')
+            Assert-KmcChunk7StockMammothFixtureOutput $request $stockArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7AcquiredManualScenario $Scenario)){
+            $verifiedAcquiredSource=Get-KmcChunk7AcquiredManualSource $request.acquiredManual $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedAcquiredSource)-cne(ConvertTo-KmcChunk7Canonical $acquiredManualSource)){throw 'Acquired Manual source lineage changed during the native process.'}
+            $sourceArtifact=Read-KmcJson $verifiedAcquiredSource.artifactPath
+            $acquiredArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-acquired-manual-evidence.json')
+            Assert-KmcChunk7AcquiredManualEvidence $request $acquiredArtifact $sourceArtifact 'PASS'
+            Assert-KmcChunk7AcquiredManualOutput $request $acquiredArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7ManualDerivedScenario $Scenario)){
+            $verifiedDerivedSource=Get-KmcChunk7ManualDerivedSource $request.manualDerived $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedDerivedSource)-cne(ConvertTo-KmcChunk7Canonical $manualDerivedSource)){throw 'Manual-derived source lineage changed during the native process.'}
+            $sourceArtifact=Read-KmcJson $verifiedDerivedSource.artifactPath
+            $derivedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-manual-derived-evidence.json')
+            Assert-KmcChunk7ManualDerivedEvidence $request $derivedArtifact $sourceArtifact 'PASS'
+            Assert-KmcChunk7ManualDerivedOutput $request $derivedArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7CumulativeScenario $Scenario)){
+            $verifiedCumulativeSource=Get-KmcChunk7CumulativeSource $request.cumulativeAcquisition $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedCumulativeSource)-cne(ConvertTo-KmcChunk7Canonical $cumulativeAcquisitionSource)){throw 'Manual-derived source lineage changed during the native process.'}
+            $sourceArtifact=Read-KmcJson $verifiedCumulativeSource.artifactPath
+            $cumulativeArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-cumulative-acquisition-evidence.json')
+            $assistedColdArtifact=$null;if(Test-KmcAssistedCumulativeMode $request.cumulativeAcquisition){$assistedColdArtifact=(Read-KmcAssistedConnectionJson $verifiedCumulativeSource.coldArtifactPath $verifiedCumulativeSource.coldArtifactSha256).value}
+            Assert-KmcChunk7CumulativeEvidence $request $cumulativeArtifact $sourceArtifact 'PASS' $assistedColdArtifact
+            Assert-KmcChunk7CumulativeOutput $request $cumulativeArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7ManualSeedScenario $Scenario)){
+            $verifiedManualSource=Get-KmcChunk7ManualSeedSource $request.manualSeed $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedManualSource)-cne(ConvertTo-KmcChunk7Canonical $manualSeedSource)){throw 'Manual seed bootstrap/cold source changed during the native process.'}
+            $sourceArtifact=Read-KmcJson $manualSeedSource.artifactPath;$coldArtifact=Read-KmcJson $manualSeedSource.inventoryPath
+            $seedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-manual-seed-evidence.json')
+            Assert-KmcChunk7ManualSeedEvidence $request $seedArtifact $sourceArtifact $coldArtifact 'PASS'
+            Assert-KmcChunk7ManualSeedOutput $request $seedArtifact
+        }
+        if($gamePassed-and(Test-KmcChunk7AssistedColdInventoryScenario $Scenario)){
+            $verifiedAssistedColdSource=Get-KmcChunk7AssistedColdInventorySource $request.assistedColdInventory $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedAssistedColdSource)-cne(ConvertTo-KmcChunk7Canonical $assistedColdSource)-or
+               (Get-KmcSha256 (Join-Path $isolatedSaves $request.persistenceLoad.fileName))-cne$(if(Test-KmcChunk7OwnerSeedSelection $request.assistedColdInventory){$request.assistedColdInventory.seedSha256}else{$request.assistedColdInventory.sourceArchiveSha256})){throw 'Read-only assisted source changed during the cold process.'}
+            $sourceArtifact=Read-KmcAssistedColdSourceArtifact $request
+            $coldArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-assisted-cold-inventory-evidence.json')
+            # World producers place their PID in the pinned game result, not the world artifact.
+            Assert-KmcAssistedColdSeparateProcess $request.assistedColdInventory $sourceArtifact $coldArtifact $verifiedAssistedColdSource
+            Assert-KmcChunk7AssistedColdInventoryEvidence $request $coldArtifact $sourceArtifact 'PASS'
+        }
+        if($gamePassed-and(Test-KmcChunk7BootstrapInventoryScenario $Scenario)){
+            $verifiedBootstrapSource=Get-KmcChunk7BootstrapInventorySource $request.bootstrapInventory $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedBootstrapSource)-cne(ConvertTo-KmcChunk7Canonical $bootstrapInventorySource)-or
+               (Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$request.bootstrapInventory.sourceArchiveSha256){throw 'Read-only bootstrap source changed during the cold process.'}
+            $sourceArtifact=Read-KmcJson $bootstrapInventorySource.artifactPath
+            $coldArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-bootstrap-inventory-evidence.json')
+            if($sourceArtifact.observations.processId-eq$coldArtifact.observations.processId){throw 'Bootstrap inventory reused the authored creation process rather than cold loading.'}
+            Assert-KmcChunk7BootstrapInventoryEvidence $request $coldArtifact $sourceArtifact 'PASS'
+        }
+        if($gamePassed-and(Test-KmcChunk7FieldScenario $Scenario)){
+            $verifiedFieldSource=Get-KmcChunk7FieldSource $request.ordinaryField $fixturePayload $manifest
+            if((ConvertTo-KmcChunk7Canonical $verifiedFieldSource)-cne(ConvertTo-KmcChunk7Canonical $fieldSource)-or
+               (Get-KmcSha256 (Join-Path $isolatedSaves 'Auto_1.zks'))-cne$request.ordinaryField.sourceArchiveSha256){throw 'Read-only field source changed during the cold process.'}
+            $sourceArtifact=Read-KmcJson $fieldSource.artifactPath
+            $fieldArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-ordinary-field-evidence.json')
+            if($sourceArtifact.observations.processId-eq$fieldArtifact.observations.processId){throw 'Field bridge reused the acquisition process rather than cold loading.'}
+        }
+        if($gamePassed-and(Test-KmcChunk7OrdinaryScenario $Scenario)){
+            $ordinaryArtifact=Read-KmcChunk7ManifestArtifact $request (Read-KmcJson (Join-Path $evidenceRoot 'runtime-artifacts.json')) 'chunk7-ordinary-acquisition-evidence.json' 'chunk7-ordinary-acquisition-evidence'
+            Assert-KmcChunk7OrdinaryNativeArchive $request $ordinaryArtifact
+        }
+        if($gamePassed-and$Scenario-ceq'chunk7-persistence-load'){
+            $coldArtifact=Read-KmcChunk7ManifestArtifact $request (Read-KmcJson (Join-Path $evidenceRoot 'runtime-artifacts.json')) 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+            Assert-KmcChunk7PersistenceColdSource -SourceRunId $PersistenceSourceRunId -Request $request -ColdArtifact $coldArtifact
+        }
         $compareRealtime=$Scenario-ceq'persistence-p04-load'-and(
             (Test-KmcChargePersistenceCase $PersistenceCase)-or
             $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or
@@ -747,11 +1533,25 @@ finally{
     }else{$errors.Add('Kingmaker process state is ambiguous; external-state restoration was intentionally not attempted.')}
     if($processExited-and$null-ne$profileSnapshot){
         try{
-            Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -RemovalObserver:$isObserver -Confirm:$false
+            if($areasIsolationSelected){
+                $areasRestoration=Restore-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups
+                if($null-ne$areasRestoration){
+                    try{
+                        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'profile-areas-isolation.json') ([ordered]@{
+                            schemaVersion=1;runId=$actualRunId;profileRoot=[string]$areasRestoration.profile
+                            originalDigest=[string]$areasRestoration.originalDigest
+                            generatedDigest=[string]$areasRestoration.generatedDigest
+                            generatedQuarantine=$areasRestoration.generatedQuarantine
+                            originalAreasRestoredExactly=[bool]$areasRestoration.restored
+                        })
+                    }catch{$errors.Add('Areas restoration receipt failed: '+$_.Exception.Message);$saveProtection=$false}
+                }
+            }
+            Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -RemovalObserver:$isObserver -BaseGameOnly:$baseGameStaged -Confirm:$false
             # Admitted native achievement-cache churn is an expected external
             # change, not restored bytes, so it is recorded rather than implied
             # away by a bare "profile unchanged" result.
-            $profileCacheChanges=@(Assert-KmcPersistenceProfileUnchanged $profileSnapshot)
+            $profileCacheChanges=@(Wait-KmcPersistenceProfileUnchanged $profileSnapshot)
         }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
         try{
@@ -768,10 +1568,46 @@ finally{
         }catch{$errors.Add('Profile cache change receipt failed: '+$_.Exception.Message)}
     }
     try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}catch{$errors.Add('Steam postflight safety failed: '+$_.Exception.Message)}
+    if($BaseGameOnly-and$processExited){
+        try{Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;$baseGameDependenciesUnchanged=$true}
+        catch{$errors.Add('Base-game loader dependency verification failed: '+$_.Exception.Message)}
+    }
+    $ummReceiptSha256=$null
+    if($isNormalPlayer-and$processExited){
+        # KMC's own one-session UMM log: ordinary load, quiet overlay, no accepted request, no error.
+        # Only u1/u3 of the exact pinned preview.211 admit that release's known base-game defect line.
+        # The receipt's SHA-256 is recorded in the outer result, which the reader verifies.
+        try{
+            $ummLog=Get-KmcChunk7NormalPlayerUmmLogSummary ([string]$intake.requestedLayout.kingmakerInstallDir) $startedAt $(if($upgradeLoad){[string]$upgradePrevious.version}else{[string]$manifest.version}) @(Get-KmcChunk7UpgradeAdmittedLogDefects $upgradeSection) $actualRunId
+            Write-KmcJsonAtomic (Join-Path $evidenceRoot 'normal-player-umm-log.json') $ummLog
+            $ummReceiptSha256=Get-KmcSha256 (Join-Path $evidenceRoot 'normal-player-umm-log.json')
+            if(-not$ummLog.passed){$errors.Add('KMC UMM session log is not an ordinary quiet no-request start: '+(($ummLog|ConvertTo-Json -Depth 3 -Compress)))}
+        }catch{$errors.Add('KMC UMM session log check failed: '+$_.Exception.Message)}
+    }
     if($null-ne$lock){
         try{
             if($modsRestored-and$saveProtection-and$processExited){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
+    }
+    if($BaseGameOnly){
+        try{Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') ([ordered]@{
+            schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
+            stageVerified=$baseGameStaged;dependenciesUnchanged=$baseGameDependenciesUnchanged;processExited=$processExited;
+            modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;gameReportedPass=$gamePassed;
+            transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});
+            nativeInventoryObserved=$baseGameNativeInventoryObserved;runtimeLoaderInventorySha256=$baseGameNativeInventorySha256;
+            nativeCompatibilityQualified=($gamePassed-and$baseGameNativeInventoryObserved-and$baseGameDependenciesUnchanged-and$modsRestored-and$saveProtection-and$processExited-and$errors.Count-eq0);
+            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})})}
+        catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
+    }
+    # The normal-player outer result binds its request (and so any u2/u3 carry source) by SHA-256;
+    # a request changed after launch is refused.
+    $normalPlayerRequestSha256=$null
+    if($isNormalPlayer-and(Test-Path -LiteralPath $requestPath -PathType Leaf)){
+        try{
+            $normalPlayerRequestSha256=Get-KmcSha256 $requestPath
+            if($null-ne$requestHash-and$normalPlayerRequestSha256-cne$requestHash){$errors.Add('Runtime request changed after launch.')}
+        }catch{$errors.Add('Normal-player request hash failed: '+$_.Exception.Message)}
     }
     $errorArray=@($errors|ForEach-Object{[string]$_})
     if($null-ne$request){
@@ -793,6 +1629,7 @@ finally{
         }
         elseif($isSaveBacked){
             $final=New-KmcRuntimeResultV2 -Request $request -ValidatedGameResult $validatedGameResult -StartedAtUtc $startedAt -ModsRestored $modsRestored -BaselineImmutable $baselineImmutable -WorkingRestored $workingRestored -SaveWriteAllowlistPassed $saveWriteAllowlistPassed -RestoredSaveInventoryDigest $restoredSaveInventoryDigest -GameResultSha256 $gameResultHash -Errors $errorArray
+            if($isNormalPlayer){$final['normalPlayerUmmReceiptSha256']=$ummReceiptSha256;$final['normalPlayerRequestSha256']=$normalPlayerRequestSha256}
         }
         else{
             $status=if($gamePassed-and$modsRestored-and$saveProtection-and$errorArray.Count-eq0){'PASS'}else{'FAIL'}

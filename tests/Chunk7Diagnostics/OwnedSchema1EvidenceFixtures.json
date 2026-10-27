@@ -1,0 +1,2186 @@
+{
+  "schemaVersion": 1,
+  "provenance": "Generated from the existing OwnedPairsEvidenceFixtures.json source shape; fabricated native event/zero-debt/single-owner boundaries, never runtime evidence. No reader or native execution has occurred.",
+  "fixtures": [
+    {
+      "name": "owned-schema1-source",
+      "request": {
+        "schemaVersion": 2,
+        "scenario": "chunk7-owned-two-pair-campaign",
+        "persistenceCase": "owned-schema1-manual",
+        "runId": "synthetic-c7-persistence",
+        "branch": "codex/mounted-combat-chunk7-foundation",
+        "commit": "1111111111111111111111111111111111111111",
+        "productVersion": "synthetic",
+        "dllSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "dllMvid": "33333333-3333-4333-8333-333333333333",
+        "fixture": {
+          "working": {
+            "sha256": "5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6",
+            "gameId": "abababab-abab-4bab-8bab-abababababab",
+            "gameName": "owned",
+            "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "baseline": {
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        },
+        "evidenceRoot": "C:\\KmcSynthetic\\runtime-evidence\\synthetic-c7-persistence",
+        "ownedPairs": {
+          "case": "persistence-save",
+          "sourceRunId": "synthetic-two-owner-manual",
+          "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+          "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "checkpointSourceRunId": null,
+          "checkpointSourceArtifactSha256": null,
+          "riderAId": "10101010-1010-4010-8010-101010101010",
+          "mountAId": "20202020-2020-4020-8020-202020202020",
+          "riderBId": "30303030-3030-4030-8030-303030303030",
+          "mountBId": "40404040-4040-4040-8040-404040404040",
+          "partyIds": [
+            "10101010-1010-4010-8010-101010101010",
+            "20202020-2020-4020-8020-202020202020",
+            "30303030-3030-4030-8030-303030303030",
+            "40404040-4040-4040-8040-404040404040"
+          ],
+          "baseGameOnly": true,
+          "expectedNativeLoadCount": 1,
+          "expectedNativeWriteCount": 1
+        },
+        "persistenceLoad": {
+          "internalName": "KMC_C7_ACQUIRED_FIELD",
+          "fileName": "Manual_42_KMC_C7_ACQUIRED_FIELD.zks",
+          "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "length": 1234,
+          "lastWriteTimeUtcTicks": 1,
+          "gameId": "11111111-1111-4111-8111-111111111111",
+          "gameName": "owned",
+          "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      },
+      "artifact": {
+        "schemaVersion": 1,
+        "evidenceKind": "chunk7-persistence-evidence",
+        "createdAtUtc": "2026-10-12T00:00:00Z",
+        "status": "PASS",
+        "errors": [],
+        "observations": {
+          "checkpoint": "owned-schema1-manual",
+          "cold": false,
+          "sourceWorkingSha256": null,
+          "nativeSchema": 3,
+          "nativeCapacity": 2,
+          "processId": 123,
+          "nativeProgressionRequiresExternalWorkingRestoration": false,
+          "ordinaryRespecProven": false,
+          "combatDebtProof": false,
+          "snapshots": [
+            {
+              "label": "native-write-complete",
+              "owners": [
+                {
+                  "ownerId": "11111111111141118111111111111111",
+                  "generation": 1,
+                  "riderId": "10101010-1010-4010-8010-101010101010",
+                  "mountId": "20202020-2020-4020-8020-202020202020",
+                  "state": "Active"
+                }
+              ],
+              "actors": [
+                {
+                  "native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "30303030-3030-4030-8030-303030303030",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "40404040-4040-4040-8040-404040404040",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                }
+              ],
+              "gameTicks": 10000000,
+              "controls": {
+                "DuplicateFactCount": 0,
+                "SerializationSuspended": false,
+                "ManagedHotbarSlotCount": 3
+              },
+              "semanticRestores": 0,
+              "presentationRestores": 0,
+              "nativePostLoads": 0,
+              "snapshots": 1,
+              "nativeCastRequests": 1,
+              "archivePhase": "not-selected"
+            }
+          ],
+          "inputs": [
+            {
+              "label": "mount-mammoth",
+              "casterId": "10101010-1010-4010-8010-101010101010",
+              "targetId": "20202020-2020-4020-8020-202020202020",
+              "abilityGuid": "f053faad986631688defa003cd7bda0e",
+              "nativeCastDelta": 1,
+              "nativeRefusalDelta": 0,
+              "generationAtInit": 0,
+              "control": "shell-0",
+              "selectionAfterInput": "30303030-3030-4030-8030-303030303030",
+              "clicked": true,
+              "terminal": true
+            }
+          ],
+          "movements": [],
+          "nativeWrite": {
+            "archive": {
+              "SchemaVersion": 3,
+              "CampaignId": "11111111-1111-4111-8111-111111111111",
+              "AreaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "GameTimeTicks": 10000000,
+              "Policy": "rider-principal-distinct-native-v1",
+              "RulesId": "crpg-transport-v1",
+              "Pairs": [
+                {
+                  "PairId": "11111111111141118111111111111111",
+                  "Generation": 1,
+                  "ProfileId": "medium-humanoid-horse-v1",
+                  "Rider": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "Mount": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  }
+                }
+              ],
+              "Participations": [],
+              "Slots": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ],
+              "Combat": null
+            },
+            "nativeType": "Manual",
+            "operation": "None",
+            "snapshotCount": 1,
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "length": 1234,
+            "nativeCallback": true,
+            "path": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-c7-persistence\\Saved Games\\Manual_43_KMC_C7_WORLD.zks",
+            "nativeName": "KMC_C7_WORLD"
+          },
+          "saveRequested": {
+            "nativeType": "Manual",
+            "snapshotCount": 0,
+            "nativeSaveAllowed": true,
+            "newSlot": true,
+            "nativeName": "KMC_C7_WORLD"
+          },
+          "cleanup": {
+            "pairsClear": true,
+            "sourceHorseRemoved": false,
+            "controlsSettled": true,
+            "saveCustodyClear": true,
+            "selectionRestored": true,
+            "nativeProgressionRequiresExternalWorkingRestoration": false,
+            "ordinaryRespecProven": false,
+            "world": {
+              "owners": []
+            },
+            "inheritedPetsPreserved": true
+          },
+          "inheritedFixture": {
+            "contract": "inherited-two-horse-native-field-v1",
+            "phase": "admitted",
+            "sourceRunId": "synthetic-two-owner-manual",
+            "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sourceCase": "preserve-two-acquired-field",
+            "nativeLoadVerifiedByHost": true,
+            "decodedReceiptAuthorizesRestoration": false,
+            "inheritedPetsPreserved": true,
+            "ownedFactRemovalCount": 0,
+            "partyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentPartyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentCharacterIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "30303030-3030-4030-8030-303030303030"
+            ],
+            "remoteCapturedIds": [],
+            "arrangement": {
+              "money": 2500,
+              "experienceRatePercent": 100,
+              "actors": [
+                {
+                  "actorId": "10101010-1010-4010-8010-101010101010",
+                  "blueprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "20202020-2020-4020-8020-202020202020",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "30303030-3030-4030-8030-303030303030",
+                  "blueprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "40404040-4040-4040-8040-404040404040",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            "pairs": [
+              {
+                "riderId": "10101010-1010-4010-8010-101010101010",
+                "mountId": "20202020-2020-4020-8020-202020202020",
+                "rider": 1001,
+                "mount": 1002,
+                "feature": 1003,
+                "rankFact": 1004,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              },
+              {
+                "riderId": "30303030-3030-4030-8030-303030303030",
+                "mountId": "40404040-4040-4040-8040-404040404040",
+                "rider": 1005,
+                "mount": 1006,
+                "feature": 1007,
+                "rankFact": 1008,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              }
+            ],
+            "identities": {
+              "capacity": 128,
+              "ids": [
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008
+              ],
+              "faults": 0
+            }
+          },
+          "inheritedCleanup": {
+            "contract": "inherited-two-horse-native-field-v1",
+            "phase": "cleanup",
+            "sourceRunId": "synthetic-two-owner-manual",
+            "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sourceCase": "preserve-two-acquired-field",
+            "nativeLoadVerifiedByHost": true,
+            "decodedReceiptAuthorizesRestoration": false,
+            "inheritedPetsPreserved": true,
+            "ownedFactRemovalCount": 0,
+            "partyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentPartyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentCharacterIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "30303030-3030-4030-8030-303030303030"
+            ],
+            "remoteCapturedIds": [],
+            "arrangement": {
+              "money": 2500,
+              "experienceRatePercent": 100,
+              "actors": [
+                {
+                  "actorId": "10101010-1010-4010-8010-101010101010",
+                  "blueprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "20202020-2020-4020-8020-202020202020",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "30303030-3030-4030-8030-303030303030",
+                  "blueprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "40404040-4040-4040-8040-404040404040",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            "pairs": [
+              {
+                "riderId": "10101010-1010-4010-8010-101010101010",
+                "mountId": "20202020-2020-4020-8020-202020202020",
+                "rider": 1001,
+                "mount": 1002,
+                "feature": 1003,
+                "rankFact": 1004,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              },
+              {
+                "riderId": "30303030-3030-4030-8030-303030303030",
+                "mountId": "40404040-4040-4040-8040-404040404040",
+                "rider": 1005,
+                "mount": 1006,
+                "feature": 1007,
+                "rankFact": 1008,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              }
+            ],
+            "identities": {
+              "capacity": 128,
+              "ids": [
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008
+              ],
+              "faults": 0
+            }
+          },
+          "inheritedManualSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "ownedOutputAdmission": {
+            "method": "FindUnusedSaveNumber",
+            "token": "06008024",
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+            "number": 43,
+            "leaf": "Manual_43_KMC_C7_WORLD.zks",
+            "nativeInventory": [
+              {
+                "fileName": "Manual_42_KMC_C7_ACQUIRED_FIELD.zks",
+                "nativeName": "KMC_C7_ACQUIRED_FIELD",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              }
+            ],
+            "authority": {
+              "root": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-c7-persistence\\Saved Games",
+              "loadCap": 1,
+              "writeCap": 1,
+              "nativeLoads": 1,
+              "nativeWrites": 0,
+              "authorizedLoads": 1,
+              "authorizedWrites": 0,
+              "reservationCount": 1,
+              "number": 43,
+              "leaf": "Manual_43_KMC_C7_WORLD.zks",
+              "nativeName": "KMC_C7_WORLD",
+              "nativeType": "Manual"
+            }
+          },
+          "ownedOutputCompletion": {
+            "completionSequence": 1,
+            "callbackCount": 1,
+            "nativeWorkerSettled": true,
+            "nativeInventory": [
+              {
+                "fileName": "Manual_42_KMC_C7_ACQUIRED_FIELD.zks",
+                "nativeName": "KMC_C7_ACQUIRED_FIELD",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              },
+              {
+                "fileName": "Manual_43_KMC_C7_WORLD.zks",
+                "nativeName": "KMC_C7_WORLD",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              }
+            ],
+            "authority": {
+              "root": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-c7-persistence\\Saved Games",
+              "loadCap": 1,
+              "writeCap": 1,
+              "nativeLoads": 1,
+              "nativeWrites": 1,
+              "authorizedLoads": 1,
+              "authorizedWrites": 1,
+              "reservationCount": 1,
+              "number": 43,
+              "leaf": "Manual_43_KMC_C7_WORLD.zks",
+              "nativeName": "KMC_C7_WORLD",
+              "nativeType": "Manual"
+            }
+          },
+          "ownedSchema1": {
+            "contract": "owned-schema1-fixture-v1",
+            "syntheticMetadata": false,
+            "sourceArchiveSchema": 3,
+            "fields": [
+              {
+                "phase": "source-before-save",
+                "gameTicks": 10000000,
+                "actors": [
+                  {
+                    "native": {
+                      "Id": "10101010-1010-4010-8010-101010101010",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "20202020-2020-4020-8020-202020202020",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "30303030-3030-4030-8030-303030303030",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "40404040-4040-4040-8040-404040404040",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  }
+                ]
+              },
+              {
+                "phase": "source-settled",
+                "gameTicks": 10000000,
+                "actors": [
+                  {
+                    "native": {
+                      "Id": "10101010-1010-4010-8010-101010101010",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "20202020-2020-4020-8020-202020202020",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "30303030-3030-4030-8030-303030303030",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "40404040-4040-4040-8040-404040404040",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "runId": "synthetic-c7-persistence",
+        "scenario": "chunk7-owned-two-pair-campaign",
+        "branch": "codex/mounted-combat-chunk7-foundation",
+        "commit": "1111111111111111111111111111111111111111",
+        "productVersion": "synthetic",
+        "dllSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "dllMvid": "33333333-3333-4333-8333-333333333333"
+      }
+    },
+    {
+      "name": "owned-schema1-cold",
+      "request": {
+        "schemaVersion": 2,
+        "scenario": "chunk7-owned-two-pair-campaign",
+        "persistenceCase": "owned-schema1-resave-manual",
+        "runId": "synthetic-owned-schema1-cold",
+        "branch": "codex/mounted-combat-chunk7-foundation",
+        "commit": "1111111111111111111111111111111111111111",
+        "productVersion": "synthetic",
+        "dllSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "dllMvid": "33333333-3333-4333-8333-333333333333",
+        "fixture": {
+          "working": {
+            "sha256": "5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6",
+            "gameId": "abababab-abab-4bab-8bab-abababababab",
+            "gameName": "owned",
+            "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "baseline": {
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        },
+        "evidenceRoot": "C:\\KmcSynthetic\\runtime-evidence\\synthetic-owned-schema1-cold",
+        "ownedPairs": {
+          "case": "persistence-load",
+          "sourceRunId": "synthetic-two-owner-manual",
+          "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+          "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "checkpointSourceRunId": "synthetic-c7-persistence",
+          "checkpointSourceArtifactSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+          "riderAId": "10101010-1010-4010-8010-101010101010",
+          "mountAId": "20202020-2020-4020-8020-202020202020",
+          "riderBId": "30303030-3030-4030-8030-303030303030",
+          "mountBId": "40404040-4040-4040-8040-404040404040",
+          "partyIds": [
+            "10101010-1010-4010-8010-101010101010",
+            "20202020-2020-4020-8020-202020202020",
+            "30303030-3030-4030-8030-303030303030",
+            "40404040-4040-4040-8040-404040404040"
+          ],
+          "baseGameOnly": true,
+          "expectedNativeLoadCount": 1,
+          "expectedNativeWriteCount": 1
+        },
+        "persistenceLoad": {
+          "internalName": "KMC_C7_WORLD",
+          "fileName": "Manual_43_KMC_C7_WORLD.zks",
+          "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+          "length": 1234,
+          "lastWriteTimeUtcTicks": 1,
+          "gameId": "11111111-1111-4111-8111-111111111111",
+          "gameName": "owned",
+          "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "schema1DerivationSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "artifact": {
+        "schemaVersion": 1,
+        "evidenceKind": "chunk7-persistence-evidence",
+        "createdAtUtc": "2026-10-12T00:00:00Z",
+        "status": "PASS",
+        "errors": [],
+        "observations": {
+          "checkpoint": "owned-schema1-resave-manual",
+          "cold": true,
+          "sourceWorkingSha256": null,
+          "nativeSchema": 3,
+          "nativeCapacity": 2,
+          "processId": 123,
+          "nativeProgressionRequiresExternalWorkingRestoration": false,
+          "ordinaryRespecProven": false,
+          "combatDebtProof": false,
+          "snapshots": [
+            {
+              "label": "schema1-native-restored-before-resave",
+              "owners": [
+                {
+                  "ownerId": "43f90a0e503d3730da9f89f25412c081",
+                  "generation": 1,
+                  "riderId": "10101010-1010-4010-8010-101010101010",
+                  "mountId": "20202020-2020-4020-8020-202020202020",
+                  "state": "Active"
+                }
+              ],
+              "actors": [
+                {
+                  "native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "30303030-3030-4030-8030-303030303030",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "40404040-4040-4040-8040-404040404040",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                }
+              ],
+              "gameTicks": 10001000,
+              "controls": {
+                "DuplicateFactCount": 0,
+                "SerializationSuspended": false,
+                "ManagedHotbarSlotCount": 3
+              },
+              "semanticRestores": 2,
+              "presentationRestores": 1,
+              "nativePostLoads": 2,
+              "snapshots": 0,
+              "nativeCastRequests": 0,
+              "archivePhase": "all-pair-presentation-restored"
+            },
+            {
+              "label": "schema1-native-resave-complete",
+              "owners": [
+                {
+                  "ownerId": "43f90a0e503d3730da9f89f25412c081",
+                  "generation": 1,
+                  "riderId": "10101010-1010-4010-8010-101010101010",
+                  "mountId": "20202020-2020-4020-8020-202020202020",
+                  "state": "Active"
+                }
+              ],
+              "actors": [
+                {
+                  "native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "30303030-3030-4030-8030-303030303030",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                },
+                {
+                  "native": {
+                    "Id": "40404040-4040-4040-8040-404040404040",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false
+                }
+              ],
+              "gameTicks": 10003000,
+              "controls": {
+                "DuplicateFactCount": 0,
+                "SerializationSuspended": false,
+                "ManagedHotbarSlotCount": 3
+              },
+              "semanticRestores": 2,
+              "presentationRestores": 1,
+              "nativePostLoads": 2,
+              "snapshots": 1,
+              "nativeCastRequests": 0,
+              "archivePhase": "all-pair-presentation-restored"
+            }
+          ],
+          "inputs": [],
+          "movements": [],
+          "nativeWrite": {
+            "archive": {
+              "SchemaVersion": 3,
+              "CampaignId": "11111111-1111-4111-8111-111111111111",
+              "AreaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "GameTimeTicks": 10003000,
+              "Policy": "rider-principal-distinct-native-v1",
+              "RulesId": "crpg-transport-v1",
+              "Pairs": [
+                {
+                  "PairId": "43f90a0e503d3730da9f89f25412c081",
+                  "Generation": 1,
+                  "ProfileId": "medium-humanoid-horse-v1",
+                  "Rider": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "Mount": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  }
+                }
+              ],
+              "Participations": [],
+              "Slots": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ],
+              "Combat": null
+            },
+            "nativeType": "Manual",
+            "operation": "None",
+            "snapshotCount": 1,
+            "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "length": 1234,
+            "nativeCallback": true,
+            "path": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-owned-schema1-cold\\Saved Games\\Manual_44_KMC_C7_SCHEMA1.zks",
+            "nativeName": "KMC_C7_SCHEMA1",
+            "sourceSchema": 3
+          },
+          "saveRequested": {
+            "nativeType": "Manual",
+            "snapshotCount": 0,
+            "nativeSaveAllowed": true,
+            "newSlot": true,
+            "nativeName": "KMC_C7_SCHEMA1"
+          },
+          "cleanup": {
+            "pairsClear": true,
+            "sourceHorseRemoved": false,
+            "controlsSettled": true,
+            "saveCustodyClear": true,
+            "selectionRestored": true,
+            "nativeProgressionRequiresExternalWorkingRestoration": false,
+            "ordinaryRespecProven": false,
+            "world": {
+              "owners": []
+            },
+            "inheritedPetsPreserved": true
+          },
+          "inheritedFixture": {
+            "contract": "inherited-two-horse-native-field-v1",
+            "phase": "admitted",
+            "sourceRunId": "synthetic-two-owner-manual",
+            "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sourceCase": "preserve-two-acquired-field",
+            "nativeLoadVerifiedByHost": true,
+            "decodedReceiptAuthorizesRestoration": false,
+            "inheritedPetsPreserved": true,
+            "ownedFactRemovalCount": 0,
+            "partyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentPartyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentCharacterIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "30303030-3030-4030-8030-303030303030"
+            ],
+            "remoteCapturedIds": [],
+            "arrangement": {
+              "money": 2500,
+              "experienceRatePercent": 100,
+              "actors": [
+                {
+                  "actorId": "10101010-1010-4010-8010-101010101010",
+                  "blueprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "20202020-2020-4020-8020-202020202020",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "30303030-3030-4030-8030-303030303030",
+                  "blueprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "40404040-4040-4040-8040-404040404040",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            "pairs": [
+              {
+                "riderId": "10101010-1010-4010-8010-101010101010",
+                "mountId": "20202020-2020-4020-8020-202020202020",
+                "rider": 1001,
+                "mount": 1002,
+                "feature": 1003,
+                "rankFact": 1004,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              },
+              {
+                "riderId": "30303030-3030-4030-8030-303030303030",
+                "mountId": "40404040-4040-4040-8040-404040404040",
+                "rider": 1005,
+                "mount": 1006,
+                "feature": 1007,
+                "rankFact": 1008,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              }
+            ],
+            "identities": {
+              "capacity": 128,
+              "ids": [
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008
+              ],
+              "faults": 0
+            }
+          },
+          "inheritedCleanup": {
+            "contract": "inherited-two-horse-native-field-v1",
+            "phase": "cleanup",
+            "sourceRunId": "synthetic-two-owner-manual",
+            "sourceArtifactSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+            "sourceArchiveSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+            "sourceCase": "preserve-two-acquired-field",
+            "nativeLoadVerifiedByHost": true,
+            "decodedReceiptAuthorizesRestoration": false,
+            "inheritedPetsPreserved": true,
+            "ownedFactRemovalCount": 0,
+            "partyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentPartyIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "20202020-2020-4020-8020-202020202020",
+              "30303030-3030-4030-8030-303030303030",
+              "40404040-4040-4040-8040-404040404040"
+            ],
+            "currentCharacterIds": [
+              "10101010-1010-4010-8010-101010101010",
+              "30303030-3030-4030-8030-303030303030"
+            ],
+            "remoteCapturedIds": [],
+            "arrangement": {
+              "money": 2500,
+              "experienceRatePercent": 100,
+              "actors": [
+                {
+                  "actorId": "10101010-1010-4010-8010-101010101010",
+                  "blueprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "20202020-2020-4020-8020-202020202020",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "30303030-3030-4030-8030-303030303030",
+                  "blueprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "cccccccccccccccccccccccccccccccc",
+                      "level": 4
+                    }
+                  ]
+                },
+                {
+                  "actorId": "40404040-4040-4040-8040-404040404040",
+                  "blueprint": "4016c7db400ab721ff125aef9e65e202",
+                  "experience": 6000,
+                  "characterLevel": 4,
+                  "classes": [
+                    {
+                      "classGuid": "dddddddddddddddddddddddddddddddd",
+                      "level": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            "pairs": [
+              {
+                "riderId": "10101010-1010-4010-8010-101010101010",
+                "mountId": "20202020-2020-4020-8020-202020202020",
+                "rider": 1001,
+                "mount": 1002,
+                "feature": 1003,
+                "rankFact": 1004,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              },
+              {
+                "riderId": "30303030-3030-4030-8030-303030303030",
+                "mountId": "40404040-4040-4040-8040-404040404040",
+                "rider": 1005,
+                "mount": 1006,
+                "feature": 1007,
+                "rankFact": 1008,
+                "sourceGuid": "99999999999999999999999999999999",
+                "rank": 1,
+                "profileId": "medium-humanoid-horse-v1"
+              }
+            ],
+            "identities": {
+              "capacity": 128,
+              "ids": [
+                1001,
+                1002,
+                1003,
+                1004,
+                1005,
+                1006,
+                1007,
+                1008
+              ],
+              "faults": 0
+            }
+          },
+          "inheritedManualSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+          "ownedOutputAdmission": {
+            "method": "FindUnusedSaveNumber",
+            "token": "06008024",
+            "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
+            "number": 44,
+            "leaf": "Manual_44_KMC_C7_SCHEMA1.zks",
+            "nativeInventory": [
+              {
+                "fileName": "Manual_43_KMC_C7_WORLD.zks",
+                "nativeName": "KMC_C7_WORLD",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              }
+            ],
+            "authority": {
+              "root": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-owned-schema1-cold\\Saved Games",
+              "loadCap": 1,
+              "writeCap": 1,
+              "nativeLoads": 1,
+              "nativeWrites": 0,
+              "authorizedLoads": 1,
+              "authorizedWrites": 0,
+              "reservationCount": 1,
+              "number": 44,
+              "leaf": "Manual_44_KMC_C7_SCHEMA1.zks",
+              "nativeName": "KMC_C7_SCHEMA1",
+              "nativeType": "Manual"
+            }
+          },
+          "ownedOutputCompletion": {
+            "completionSequence": 1,
+            "callbackCount": 1,
+            "nativeWorkerSettled": true,
+            "nativeInventory": [
+              {
+                "fileName": "Manual_43_KMC_C7_WORLD.zks",
+                "nativeName": "KMC_C7_WORLD",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              },
+              {
+                "fileName": "Manual_44_KMC_C7_SCHEMA1.zks",
+                "nativeName": "KMC_C7_SCHEMA1",
+                "nativeType": "Manual",
+                "gameId": "11111111-1111-4111-8111-111111111111",
+                "gameName": "owned",
+                "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "hasFileOnDisk": true,
+                "isActuallySaved": true,
+                "operation": "None",
+                "autoLevelup": false
+              }
+            ],
+            "authority": {
+              "root": "C:\\KmcSynthetic\\runtime-staging\\persistence-synthetic-owned-schema1-cold\\Saved Games",
+              "loadCap": 1,
+              "writeCap": 1,
+              "nativeLoads": 1,
+              "nativeWrites": 1,
+              "authorizedLoads": 1,
+              "authorizedWrites": 1,
+              "reservationCount": 1,
+              "number": 44,
+              "leaf": "Manual_44_KMC_C7_SCHEMA1.zks",
+              "nativeName": "KMC_C7_SCHEMA1",
+              "nativeType": "Manual"
+            }
+          },
+          "ownedSchema1": {
+            "contract": "owned-schema1-fixture-v1",
+            "syntheticMetadata": true,
+            "sourceArchiveSchema": 1,
+            "sourceCheckpointRunId": "synthetic-c7-persistence",
+            "sourceCheckpointArtifactSha256": "9999999999999999999999999999999999999999999999999999999999999999",
+            "originalNativeArchiveSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+            "sourceField": {
+              "phase": "source-settled",
+              "gameTicks": 10000000,
+              "actors": [
+                {
+                  "native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false,
+                  "commandsEmpty": true,
+                  "queuedCommands": 0
+                },
+                {
+                  "native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false,
+                  "commandsEmpty": true,
+                  "queuedCommands": 0
+                },
+                {
+                  "native": {
+                    "Id": "30303030-3030-4030-8030-303030303030",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false,
+                  "commandsEmpty": true,
+                  "queuedCommands": 0
+                },
+                {
+                  "native": {
+                    "Id": "40404040-4040-4040-8040-404040404040",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "prepared": false,
+                  "inCombat": false,
+                  "commandsEmpty": true,
+                  "queuedCommands": 0
+                }
+              ]
+            },
+            "fields": [
+              {
+                "phase": "cold-restored",
+                "gameTicks": 10001000,
+                "actors": [
+                  {
+                    "native": {
+                      "Id": "10101010-1010-4010-8010-101010101010",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "20202020-2020-4020-8020-202020202020",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "30303030-3030-4030-8030-303030303030",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "40404040-4040-4040-8040-404040404040",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  }
+                ]
+              },
+              {
+                "phase": "before-resave",
+                "gameTicks": 10002000,
+                "actors": [
+                  {
+                    "native": {
+                      "Id": "10101010-1010-4010-8010-101010101010",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "20202020-2020-4020-8020-202020202020",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "30303030-3030-4030-8030-303030303030",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "40404040-4040-4040-8040-404040404040",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  }
+                ]
+              },
+              {
+                "phase": "resave-settled",
+                "gameTicks": 10003000,
+                "actors": [
+                  {
+                    "native": {
+                      "Id": "10101010-1010-4010-8010-101010101010",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "20202020-2020-4020-8020-202020202020",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "30303030-3030-4030-8030-303030303030",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  },
+                  {
+                    "native": {
+                      "Id": "40404040-4040-4040-8040-404040404040",
+                      "Standard": 0,
+                      "Move": 0,
+                      "Swift": 0,
+                      "Initiative": 0,
+                      "Reaction": 0,
+                      "ReactionsRemaining": 1,
+                      "LastSurpriseTicks": 0
+                    },
+                    "prepared": false,
+                    "inCombat": false,
+                    "commandsEmpty": true,
+                    "queuedCommands": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "loadedArchive": {
+            "SchemaVersion": 3,
+            "CampaignId": "11111111-1111-4111-8111-111111111111",
+            "AreaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "GameTimeTicks": 10000000,
+            "Policy": "rider-principal-distinct-native-v1",
+            "RulesId": "crpg-transport-v1",
+            "Pairs": [
+              {
+                "PairId": "43f90a0e503d3730da9f89f25412c081",
+                "Generation": 1,
+                "ProfileId": "medium-humanoid-horse-v1",
+                "Rider": {
+                  "Id": "10101010-1010-4010-8010-101010101010",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                },
+                "Mount": {
+                  "Id": "20202020-2020-4020-8020-202020202020",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                }
+              }
+            ],
+            "Participations": [],
+            "Slots": [
+              {
+                "ActorId": "10101010-1010-4010-8010-101010101010",
+                "Index": 12,
+                "Kind": 2
+              },
+              {
+                "ActorId": "10101010-1010-4010-8010-101010101010",
+                "Index": 13,
+                "Kind": 3
+              },
+              {
+                "ActorId": "30303030-3030-4030-8030-303030303030",
+                "Index": 10,
+                "Kind": 1
+              }
+            ],
+            "Combat": null
+          },
+          "loadedDescriptor": {
+            "internalName": "KMC_C7_WORLD",
+            "fileName": "Manual_43_KMC_C7_WORLD.zks",
+            "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "length": 1234,
+            "lastWriteTimeUtcTicks": 1,
+            "gameId": "11111111-1111-4111-8111-111111111111",
+            "gameName": "owned",
+            "area": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "schema1Migration": {
+            "inputSchema": 1,
+            "derivationReceiptSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "nativeInputMetadata": {
+              "SchemaVersion": 1,
+              "CampaignId": "11111111-1111-4111-8111-111111111111",
+              "AreaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "GameTimeTicks": 10000000,
+              "Policy": "rider-principal-distinct-native-v1",
+              "RulesId": "crpg-transport-v1",
+              "Mounted": true,
+              "ProfileId": "medium-humanoid-horse-v1",
+              "Rider": {
+                "Id": "10101010-1010-4010-8010-101010101010",
+                "Standard": 0,
+                "Move": 0,
+                "Swift": 0,
+                "Initiative": 0,
+                "Reaction": 0,
+                "ReactionsRemaining": 1,
+                "LastSurpriseTicks": 0
+              },
+              "Mount": {
+                "Id": "20202020-2020-4020-8020-202020202020",
+                "Standard": 0,
+                "Move": 0,
+                "Swift": 0,
+                "Initiative": 0,
+                "Reaction": 0,
+                "ReactionsRemaining": 1,
+                "LastSurpriseTicks": 0
+              },
+              "Slots": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ]
+            },
+            "migratedArchive": {
+              "SchemaVersion": 3,
+              "CampaignId": "11111111-1111-4111-8111-111111111111",
+              "AreaId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "GameTimeTicks": 10000000,
+              "Policy": "rider-principal-distinct-native-v1",
+              "RulesId": "crpg-transport-v1",
+              "Pairs": [
+                {
+                  "PairId": "43f90a0e503d3730da9f89f25412c081",
+                  "Generation": 1,
+                  "ProfileId": "medium-humanoid-horse-v1",
+                  "Rider": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "Mount": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  }
+                }
+              ],
+              "Participations": [],
+              "Slots": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ],
+              "Combat": null
+            },
+            "restoredWorld": {
+              "gameTicks": 10001000,
+              "turnBased": false,
+              "playerInCombat": false,
+              "actors": [
+                {
+                  "Native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "InCombat": false,
+                  "Prepared": false
+                },
+                {
+                  "Native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "InCombat": false,
+                  "Prepared": false
+                }
+              ],
+              "combat": null,
+              "participations": [],
+              "owners": [
+                {
+                  "ownerId": "43f90a0e503d3730da9f89f25412c081",
+                  "generation": 1,
+                  "riderId": "10101010-1010-4010-8010-101010101010",
+                  "mountId": "20202020-2020-4020-8020-202020202020",
+                  "state": "Active"
+                }
+              ],
+              "nativeControls": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ]
+            },
+            "inputSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+            "inputLength": 1234,
+            "resavedWorld": {
+              "gameTicks": 10003000,
+              "turnBased": false,
+              "playerInCombat": false,
+              "actors": [
+                {
+                  "Native": {
+                    "Id": "10101010-1010-4010-8010-101010101010",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "InCombat": false,
+                  "Prepared": false
+                },
+                {
+                  "Native": {
+                    "Id": "20202020-2020-4020-8020-202020202020",
+                    "Standard": 0,
+                    "Move": 0,
+                    "Swift": 0,
+                    "Initiative": 0,
+                    "Reaction": 0,
+                    "ReactionsRemaining": 1,
+                    "LastSurpriseTicks": 0
+                  },
+                  "InCombat": false,
+                  "Prepared": false
+                }
+              ],
+              "combat": null,
+              "participations": [],
+              "owners": [
+                {
+                  "ownerId": "43f90a0e503d3730da9f89f25412c081",
+                  "generation": 1,
+                  "riderId": "10101010-1010-4010-8010-101010101010",
+                  "mountId": "20202020-2020-4020-8020-202020202020",
+                  "state": "Active"
+                }
+              ],
+              "nativeControls": [
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 12,
+                  "Kind": 2
+                },
+                {
+                  "ActorId": "10101010-1010-4010-8010-101010101010",
+                  "Index": 13,
+                  "Kind": 3
+                },
+                {
+                  "ActorId": "30303030-3030-4030-8030-303030303030",
+                  "Index": 10,
+                  "Kind": 1
+                }
+              ]
+            }
+          },
+          "coldRestoration": {
+            "complete": true,
+            "installedBeforeWorldLoad": true,
+            "contract": "chunk7-native-restoration-entry-observer-v1",
+            "maximumEvents": 2048,
+            "dropped": 0,
+            "errors": 0,
+            "prepareMetric": "native-method-entries-including-production-refused-attempts",
+            "hooks": [
+              {
+                "declaringType": "TurnBased.Controllers.TurnController",
+                "method": "Prepare",
+                "token": "06000C3C",
+                "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+              },
+              {
+                "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+                "method": "OnNewRound",
+                "token": "0600939D",
+                "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+              },
+              {
+                "declaringType": "KingmakerMountedCombat.Integration.NativeCombatActorPersistence",
+                "method": "RestoreActor",
+                "token": "06001000",
+                "moduleMvid": "33333333-3333-4333-8333-333333333333"
+              },
+              {
+                "declaringType": "KingmakerMountedCombat.Integration.NativeCombatActorPersistence",
+                "method": "RestoreDebt",
+                "token": "06001000",
+                "moduleMvid": "33333333-3333-4333-8333-333333333333"
+              },
+              {
+                "declaringType": "KingmakerMountedCombat.Integration.MountedPersistenceService",
+                "method": "TryRestoreArchiveCombat",
+                "token": "06001000",
+                "moduleMvid": "33333333-3333-4333-8333-333333333333"
+              },
+              {
+                "declaringType": "KingmakerMountedCombat.Integration.MountedPersistenceService",
+                "method": "RestoreArchivePresentation",
+                "token": "06001000",
+                "moduleMvid": "33333333-3333-4333-8333-333333333333"
+              }
+            ],
+            "events": [
+              {
+                "kind": "restore-debt-before",
+                "actorId": "10101010-1010-4010-8010-101010101010",
+                "frame": 1,
+                "gameTicks": 10000000,
+                "restorePhase": "validated-before-native-mutation",
+                "restorationPending": false,
+                "debt": {
+                  "Id": "10101010-1010-4010-8010-101010101010",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                },
+                "prepared": false,
+                "inCombat": false
+              },
+              {
+                "kind": "restore-debt-after",
+                "actorId": "10101010-1010-4010-8010-101010101010",
+                "frame": 1,
+                "gameTicks": 10000000,
+                "restorePhase": "validated-before-native-mutation",
+                "restorationPending": false,
+                "debt": {
+                  "Id": "10101010-1010-4010-8010-101010101010",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                },
+                "prepared": false,
+                "inCombat": false
+              },
+              {
+                "kind": "restore-debt-before",
+                "actorId": "20202020-2020-4020-8020-202020202020",
+                "frame": 1,
+                "gameTicks": 10000000,
+                "restorePhase": "validated-before-native-mutation",
+                "restorationPending": false,
+                "debt": {
+                  "Id": "20202020-2020-4020-8020-202020202020",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                },
+                "prepared": false,
+                "inCombat": false
+              },
+              {
+                "kind": "restore-debt-after",
+                "actorId": "20202020-2020-4020-8020-202020202020",
+                "frame": 1,
+                "gameTicks": 10000000,
+                "restorePhase": "validated-before-native-mutation",
+                "restorationPending": false,
+                "debt": {
+                  "Id": "20202020-2020-4020-8020-202020202020",
+                  "Standard": 0,
+                  "Move": 0,
+                  "Swift": 0,
+                  "Initiative": 0,
+                  "Reaction": 0,
+                  "ReactionsRemaining": 1,
+                  "LastSurpriseTicks": 0
+                },
+                "prepared": false,
+                "inCombat": false
+              },
+              {
+                "kind": "all-owner-presentation-restored",
+                "frame": 2,
+                "gameTicks": 10001000,
+                "restorePhase": "all-pair-presentation-restored",
+                "snapshot": {
+                  "gameTicks": 10001000,
+                  "turnBased": false,
+                  "playerInCombat": false,
+                  "actors": [
+                    {
+                      "Native": {
+                        "Id": "10101010-1010-4010-8010-101010101010",
+                        "Standard": 0,
+                        "Move": 0,
+                        "Swift": 0,
+                        "Initiative": 0,
+                        "Reaction": 0,
+                        "ReactionsRemaining": 1,
+                        "LastSurpriseTicks": 0
+                      },
+                      "InCombat": false,
+                      "Prepared": false
+                    },
+                    {
+                      "Native": {
+                        "Id": "20202020-2020-4020-8020-202020202020",
+                        "Standard": 0,
+                        "Move": 0,
+                        "Swift": 0,
+                        "Initiative": 0,
+                        "Reaction": 0,
+                        "ReactionsRemaining": 1,
+                        "LastSurpriseTicks": 0
+                      },
+                      "InCombat": false,
+                      "Prepared": false
+                    }
+                  ],
+                  "combat": null,
+                  "participations": [],
+                  "owners": [
+                    {
+                      "ownerId": "43f90a0e503d3730da9f89f25412c081",
+                      "generation": 1,
+                      "riderId": "10101010-1010-4010-8010-101010101010",
+                      "mountId": "20202020-2020-4020-8020-202020202020",
+                      "state": "Active"
+                    }
+                  ],
+                  "nativeControls": [
+                    {
+                      "ActorId": "10101010-1010-4010-8010-101010101010",
+                      "Index": 12,
+                      "Kind": 2
+                    },
+                    {
+                      "ActorId": "10101010-1010-4010-8010-101010101010",
+                      "Index": 13,
+                      "Kind": 3
+                    },
+                    {
+                      "ActorId": "30303030-3030-4030-8030-303030303030",
+                      "Index": 10,
+                      "Kind": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "runId": "synthetic-owned-schema1-cold",
+        "scenario": "chunk7-owned-two-pair-campaign",
+        "branch": "codex/mounted-combat-chunk7-foundation",
+        "commit": "1111111111111111111111111111111111111111",
+        "productVersion": "synthetic",
+        "dllSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "dllMvid": "33333333-3333-4333-8333-333333333333"
+      }
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -15,6 +17,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "chunk7-small-fixture-preparation", "chunk7-stock-mammoth-fixture-preparation", "chunk7-owned-two-pair-campaign", "chunk7-cumulative-acquisition", "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-assisted-fixture-preparation", "chunk7-assisted-cold-inventory", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
+            "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
+            "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
+            "chunk7-two-pair-native-life-cleanup",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
@@ -136,9 +142,56 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public RuntimeFixtureIdentity Fixture { get; set; }
 
+        public bool? ObserveWorkingDeserialization { get; set; }
+        public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
+
+        // Private, guarded F11 measurement only. The native observer is not a
+        // package member and ordinary requests cannot name or load native code.
+        public F11NativeAllocationSelection F11AllocationProbe { get; set; }
+        public bool ShouldSerializeF11AllocationProbe() => F11AllocationProbe != null;
+
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+        // Closed owner-seed stock Mammoth source for positive P07 removal. Its
+        // producer is qualified independently; this flag cannot relabel Working.
+        public bool? OwnerStockRemoval { get; set; }
+        public bool ShouldSerializeOwnerStockRemoval() => OwnerStockRemoval.HasValue;
+        internal static string P07OpeningLeaf(RuntimeRequest request) =>
+            request?.OwnerStockRemoval == true && request.Scenario == "persistence-p07-save" &&
+            request.PersistenceCase == "prepare-removal" ? "Manual_305_KMC_P01.zks" : "Manual_300_KMC_P01.zks";
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
+        public string Schema1DerivationSha256 { get; set; }
+        public string Schema2DerivationSha256 { get; set; }
+        public string LoadRefusalDerivationSha256 { get; set; }
+        public bool ShouldSerializeLoadRefusalDerivationSha256() => LoadRefusalDerivationSha256 != null;
         public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
+        public RuntimeAreaTransitionTarget[] PersistenceReplayTargets { get; set; }
+        public Chunk7OrdinaryAcquisitionSelection OrdinaryAcquisition { get; set; }
+        public Chunk7OrdinaryFieldSelection OrdinaryField { get; set; }
+        public Chunk7SmallCalibrationSelection SmallCalibration { get; set; }
+        public Chunk7SmallFixtureSelection SmallFixture { get; set; }
+        public bool ShouldSerializeSmallFixture() => SmallFixture != null;
+        public Chunk7StockMammothFixtureSelection StockMammothFixture { get; set; }
+        public bool ShouldSerializeStockMammothFixture() => StockMammothFixture != null;
+        public Chunk7AssistedFixtureSelection AssistedFixture { get; set; }
+        public bool ShouldSerializeAssistedFixture() => AssistedFixture != null;
+        public Chunk7AssistedColdInventorySelection AssistedColdInventory { get; set; }
+        public bool ShouldSerializeAssistedColdInventory() => AssistedColdInventory != null;
+        public Chunk7NativeBootstrapSelection NativeBootstrap { get; set; }
+        public Chunk7BootstrapInventorySelection BootstrapInventory { get; set; }
+        public Chunk7ManualSeedSelection ManualSeed { get; set; }
+        public Chunk7ManualDerivedSelection ManualDerived { get; set; }
+        public Chunk7CumulativeAcquisitionSelection CumulativeAcquisition { get; set; }
+        public Chunk7AcquiredManualSelection AcquiredManual { get; set; }
+        public Chunk7OwnedPairsSelection OwnedPairs { get; set; }
+        internal string SelectedChunk7Scenario => OwnedPairs == null ? Scenario : OwnedPairs.RuntimeScenario;
+        internal RuntimeSaveDescriptor SelectedChunk7Fixture => OwnedPairs != null
+            || Scenario == Chunk7AssistedColdInventorySelection.Scenario
+            || Scenario == Chunk7SmallFixtureSelection.Scenario
+            || Scenario == Chunk7StockMammothFixtureSelection.Scenario
+            || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField == true
+            || Scenario == Chunk7ProgressionSelection.Scenario && (Progression?.IsOwned == true || Progression?.IsColdOnly == true)
+            ? PersistenceLoad : Fixture?.Working;
+        public Chunk7ProgressionSelection Progression { get; set; }
 
         // Cross-area cases declare their destination up front so the isolated
         // save authority can pin post-transition writes to that exact area.
@@ -183,7 +236,29 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // A transition autosave is a native Auto save, so the loader must expect
         // that exact type rather than the destination manual leaf.
-        internal string ExpectedNativeLoadType => IsTransitionAutoCase(PersistenceCase) ? "Auto" :
+        internal static bool IsChunk7CombatScenario(string scenario) => scenario == "chunk7-two-pair-combat-rider-first" || scenario == "chunk7-two-pair-combat-mount-first" || IsChunk7RealtimeScenario(scenario) || IsChunk7NativeLifeScenario(scenario);
+        internal static bool IsChunk7RealtimeScenario(string scenario) => scenario == "chunk7-two-pair-realtime-core" || scenario == "chunk7-two-pair-realtime-casting" || scenario == "chunk7-two-pair-realtime-charge";
+        internal static bool IsChunk7NativeLifeScenario(string scenario) => scenario == "chunk7-two-pair-native-life-cleanup";
+        internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
+        internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
+            "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
+            "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
+            Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint, Chunk7OwnedPairsSelection.CapitalArrivalColdCheckpoint,
+            "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
+            Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
+            Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint,
+            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
+
+        internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
+            PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea :
+            PersistenceCase == "multi-area-autosave" ? PersistenceAreaTarget?.Area :
+            // Row 58 writes in the capital it entered; row 59 cold-loads that Manual there.
+            Chunk7OwnedPairsSelection.CapitalCheckpoint(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalArea :
+            (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
+                Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
+        internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
+            (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
+            IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
         public string PersistenceCase { get; set; }
@@ -193,11 +268,136 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Validate()
         {
             var errors = new List<string>();
+            if (F11AllocationProbe != null)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion ||
+                    Scenario != Chunk7OwnedPairsSelection.Scenario ||
+                    SelectedChunk7Scenario != "chunk7-two-pair-exploration" ||
+                    OwnedPairs == null || OwnedPairs.IsSixPairStress)
+                    errors.Add("F11 native allocation observation is exclusive to the owned two-pair exploration request.");
+                errors.AddRange(F11AllocationProbe.Validate(RunId, EvidenceRoot));
+            }
+            if (ObserveWorkingDeserialization.HasValue && (ObserveWorkingDeserialization != true ||
+                SchemaVersion != SaveBackedSchemaVersion || Scenario != "export-mounted-contracts" ||
+                Fixture?.Working?.InternalName != WorkingSaveName || PersistenceLoad != null || PersistenceAlternate != null ||
+                PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
+                SmallFixture != null || StockMammothFixture != null || OwnedPairs != null || AcquiredManual != null || ManualDerived != null || CumulativeAcquisition != null ||
+                ManualSeed != null || BootstrapInventory != null || NativeBootstrap != null || AssistedFixture != null || AssistedColdInventory != null || SmallCalibration != null ||
+                OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
+                errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
             }
 
+            if (Scenario == Chunk7OwnedPairsSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || OwnedPairs == null) errors.Add("Owned pairs require their exact schema-2 inherited selection.");
+                else
+                {
+                    if (!OwnedPairs.PaidFixtureLineage && !OwnedPairs.IsFourthHorse && OwnedPairs.ColdReceiptSha256 != null)
+                        errors.Add("Only paid fixture persistence or the exact fourth-Horse source carries an accepted cold receipt.");
+                    errors.AddRange(OwnedPairs.Validate(Scenario, RunId, PersistenceCase));
+                }
+            }
+            else if (OwnedPairs != null) errors.Add("Inherited pair selection is forbidden under historical or foreign families.");
+            if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || CumulativeAcquisition == null) errors.Add("Cumulative acquisition requires its exact separate schema-2 selection.");
+                else errors.AddRange(CumulativeAcquisition.Validate(Scenario, RunId));
+            }
+            else if (CumulativeAcquisition != null) errors.Add("Cumulative acquisition selection is forbidden under another scenario.");
+            if (Scenario == Chunk7AcquiredManualSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || AcquiredManual == null) errors.Add("Acquired Manual requires its exact schema-2 field-preserving selection.");
+                else errors.AddRange(AcquiredManual.Validate(Scenario, RunId));
+            }
+            else if (AcquiredManual != null) errors.Add("Acquired Manual selection is forbidden under another scenario.");
+            if (Scenario == Chunk7ManualDerivedSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || ManualDerived == null) errors.Add("Manual-derived acquisition requires its exact schema-2 selection.");
+                else errors.AddRange(ManualDerived.Validate(Scenario, RunId));
+            }
+            else if (ManualDerived != null) errors.Add("Manual-derived selection is forbidden under another scenario.");
+            if (Scenario == Chunk7ManualSeedSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || ManualSeed == null) errors.Add("Manual seed requires its exact schema-2 selection.");
+                else errors.AddRange(ManualSeed.Validate(Scenario, RunId));
+            }
+            else if (ManualSeed != null) errors.Add("Manual seed selection is forbidden under another scenario.");
+            if (Scenario == Chunk7BootstrapInventorySelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || BootstrapInventory == null) errors.Add("Bootstrap cold inventory requires its exact schema-2 selection.");
+                else errors.AddRange(BootstrapInventory.Validate(Scenario, RunId));
+            }
+            else if (BootstrapInventory != null) errors.Add("Bootstrap inventory selection is forbidden under another scenario.");
+            if (Scenario == Chunk7AssistedColdInventorySelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || AssistedColdInventory == null) errors.Add("Assisted cold inventory requires its exact separate schema-2 selection.");
+                else errors.AddRange(AssistedColdInventory.Validate(Scenario, RunId));
+                if (PersistenceAlternate != null || PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null)
+                    errors.Add("Assisted cold inventory permits only its one qualified immutable Manual source.");
+            }
+            else if (AssistedColdInventory != null) errors.Add("Assisted cold selection is forbidden under every historical or foreign family.");
+            if (Scenario == Chunk7AssistedFixtureSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || AssistedFixture == null) errors.Add("Assisted fixture requires its exact separate schema-2 selection.");
+                else errors.AddRange(AssistedFixture.Validate(Scenario));
+                if (PersistenceLoad != null || PersistenceAlternate != null || PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null)
+                    errors.Add("Assisted fixture cannot consume or relabel any existing native campaign.");
+            }
+            else if (AssistedFixture != null) errors.Add("Assisted setup is forbidden under every historical or foreign family.");
+            if (Scenario == Chunk7NativeBootstrapSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || NativeBootstrap == null) errors.Add("Native main bootstrap requires its explicit schema-2 selection.");
+                else errors.AddRange(NativeBootstrap.Validate(Scenario));
+            }
+            else if (NativeBootstrap != null) errors.Add("Native bootstrap selection is forbidden under another scenario.");
+            if (Scenario == Chunk7SmallCalibrationSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || SmallCalibration == null) errors.Add("Compiled Small calibration requires its exact schema-2 selection.");
+                else errors.AddRange(SmallCalibration.Validate(Scenario, RunId));
+            }
+            else if (SmallCalibration != null) errors.Add("Small calibration selection is forbidden under another scenario.");
+            if (Scenario == Chunk7SmallFixtureSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || SmallFixture == null)
+                    errors.Add("F09 unmounted fixture requires its exact closed schema-2 selection.");
+                else errors.AddRange(SmallFixture.Validate(Scenario, RunId));
+                if (PersistenceAlternate != null || PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
+                    Schema1DerivationSha256 != null || Schema2DerivationSha256 != null || LoadRefusalDerivationSha256 != null)
+                    errors.Add("F09 unmounted fixture permits only its exact clean owner-seed Manual and one native output.");
+            }
+            else if (SmallFixture != null) errors.Add("F09 fixture selection is forbidden under historical and foreign scenarios.");
+            if (Scenario == Chunk7StockMammothFixtureSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || StockMammothFixture == null)
+                    errors.Add("Stock Mammoth fixture requires its exact closed schema-2 selection.");
+                else errors.AddRange(StockMammothFixture.Validate(Scenario, RunId));
+                if (PersistenceAlternate != null || PersistenceCase != null || PersistenceAreaTarget != null || PersistenceReplayTargets != null ||
+                    Schema1DerivationSha256 != null || Schema2DerivationSha256 != null || LoadRefusalDerivationSha256 != null)
+                    errors.Add("Stock Mammoth fixture permits only its exact clean owner-seed Manual and one native output.");
+            }
+            else if (StockMammothFixture != null) errors.Add("Stock Mammoth fixture selection is forbidden under another scenario.");
+            if (Scenario == Chunk7OrdinaryFieldSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryField == null) errors.Add("Read-only field admission requires its schema-2 selection.");
+                else errors.AddRange(OrdinaryField.Validate(Scenario, RunId));
+            }
+            else if (OrdinaryField != null) errors.Add("Field admission selection is forbidden under another scenario.");
+            if (Scenario == Chunk7ProgressionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || Progression == null) errors.Add("Native progression requires its schema-2 exact selection.");
+                else errors.AddRange(Progression.Validate(Scenario, RunId));
+            }
+            else if (Progression != null) errors.Add("Native progression selection is forbidden under another scenario.");
+            if (Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario)
+            {
+                if (SchemaVersion != SaveBackedSchemaVersion || OrdinaryAcquisition == null)
+                    errors.Add("Ordinary acquisition requires its explicit schema-2 selection.");
+                else errors.AddRange(OrdinaryAcquisition.Validate(Scenario, RunId));
+            }
+            else if (OrdinaryAcquisition != null) errors.Add("Ordinary acquisition selection is forbidden under another scenario.");
             Require(errors, RunId, "runId");
             Require(errors, Scenario, "scenario");
             Require(errors, Branch, "branch");
@@ -303,6 +503,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (PersistenceLoad != null || PersistenceAlternate != null) errors.Add("No-save requests cannot select an archive.");
             if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
+            if (PersistenceReplayTargets != null) errors.Add("No-save requests cannot declare repeated native area targets.");
+            if (Schema1DerivationSha256 != null) errors.Add("No-save requests cannot select schema-1 derivative provenance.");
+            if (Schema2DerivationSha256 != null) errors.Add("No-save requests cannot select schema-2 derivative provenance.");
+            if (LoadRefusalDerivationSha256 != null) errors.Add("No-save requests cannot select load-refusal derivative provenance.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -331,12 +535,101 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateSaveBackedRequest(List<string> errors)
         {
+            var chunk7 = IsChunk7PersistenceScenario(Scenario) || Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Persistence == true;
+            var replay = PersistenceCase == "multi-exploration-three-loads-manual" || PersistenceCase == "multi-exploration-three-area-transfers-manual";
+            var replayAreas = PersistenceCase == "multi-exploration-three-area-transfers-manual";
+            if (replay && Scenario != "chunk7-persistence-load" &&
+                !(Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Cold == true))
+                errors.Add("Repeated worlds are cold-load only.");
+            if (!replayAreas && PersistenceReplayTargets != null) errors.Add("Only repeated-area requests may carry route targets.");
+            if (replayAreas)
+            {
+                if (PersistenceReplayTargets == null || PersistenceReplayTargets.Length != 3) errors.Add("Repeated areas require three exact targets.");
+                else
+                {
+                    var prior = OwnedPairs != null ? PersistenceLoad?.Area : Fixture?.Working?.Area;
+                    foreach (var target in PersistenceReplayTargets)
+                    {
+                        if (target == null || !IsLowerHex(target.EnterPoint, 32) || !IsLowerHex(target.Area, 32) || target.EnterPoint == new string('0', 32) ||
+                            target.Area == new string('0', 32) || target.EnterPoint == target.Area || target.Area == prior || target.AutoSaveMode != "None")
+                            errors.Add("Repeated area target must be exact, differ from the prior area, and forbid autosaving.");
+                        prior = target?.Area;
+                    }
+                }
+            }
+            var ownedSchema1 = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.Cold == true && Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase);
+            if (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Manticore fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Tomb fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointSave != true))
+                errors.Add("Thorn River fixture preparation requires its exact source-only owner-seed checkpoint selection.");
+            if (Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedDerivedLoad != true))
+                errors.Add("Manticore Manual cold load requires its exact one-load owner-seed-derived selection.");
+            if (Chunk7OwnedPairsSelection.CapitalCheckpoint(PersistenceCase) && (Scenario != Chunk7OwnedPairsSelection.Scenario ||
+                OwnedPairs == null || !OwnedPairs.IsCapitalArrivalProducer(PersistenceCase) && !OwnedPairs.IsCapitalArrivalCold(PersistenceCase)))
+                errors.Add("Capital arrival belongs only to its exact owned cold persistence-load selection.");
+            if ((Chunk7OwnedPairsSelection.OwnedSchema1Source(PersistenceCase) || Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase)) &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs == null ||
+                (Chunk7OwnedPairsSelection.OwnedSchema1Cold(PersistenceCase) ?
+                    OwnedPairs.Case != "persistence-load" && !OwnedPairs.IsOwnerSeedCheckpointLoad :
+                    OwnedPairs.Case != "persistence-save" && !OwnedPairs.IsOwnerSeedCheckpointSave)))
+                errors.Add("Owned schema-1 fixture cases require their exact directional inherited source/cold family.");
+            if (Chunk7OwnedPairsSelection.CurrentMigrationCheckpoint(PersistenceCase) &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointLoad != true))
+                errors.Add("Current-format migration continuation requires its exact owner-seed checkpoint cold consumer.");
+            if (PersistenceCase == "pending-schema3-control-manual" &&
+                (Scenario != Chunk7OwnedPairsSelection.Scenario || OwnedPairs?.IsOwnerSeedCheckpointLoad != true ||
+                 OwnedPairs.ExpectedNativeLoadCount != 1 || OwnedPairs.ExpectedNativeWriteCount != 0))
+                errors.Add("Pending schema-3 control requires its exact one-load, zero-write owner-seed checkpoint consumer.");
+            var loadRefusal = Scenario == Chunk7OwnedPairsSelection.Scenario && OwnedPairs?.IsOwnerSeedLoadRefusal == true;
+            if (Chunk7OwnedPairsSelection.LoadRefusalCheckpoint(PersistenceCase) && !loadRefusal)
+                errors.Add("Load-refusal checkpoints require their exact owner-seed load-refusal selection.");
+            if (loadRefusal ? LoadRefusalDerivationSha256 == null || !Regex.IsMatch(LoadRefusalDerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : LoadRefusalDerivationSha256 != null)
+                errors.Add("Load-refusal derivative provenance is exact and exclusive to its selected diagnostic.");
+            var schema1 = Scenario == "chunk7-persistence-load" && PersistenceCase == "legacy-schema1-resave-manual" || ownedSchema1;
+            if (PersistenceCase == "legacy-schema1-resave-manual" && !schema1)
+                errors.Add("Schema-1 resave is a cold-load-only case.");
+            if (schema1 ? Schema1DerivationSha256 == null || !Regex.IsMatch(Schema1DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema1DerivationSha256 != null)
+                errors.Add("Schema-1 derivative provenance must be exact and is exclusive to its cold-load case.");
+            var ownedSchema2 = OwnedPairs?.IsOwnerSeedCheckpointLoad == true && PersistenceCase == "legacy-mounted-pending-tb-manual";
+            if (ownedSchema2 ? Schema2DerivationSha256 == null || !Regex.IsMatch(Schema2DerivationSha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) : Schema2DerivationSha256 != null)
+                errors.Add("Schema-2 derivative provenance must be exact and exclusive to its owner-seed cold load.");
             var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
+            if (OwnerStockRemoval.HasValue)
+            {
+                var ownerProducer = Scenario == "persistence-p07-save" && PersistenceCase == "prepare-removal";
+                var ownerCold = Scenario == "persistence-p07-load" && PersistenceCase == "removal-no-dll";
+                if (OwnerStockRemoval != true || !(ownerProducer || ownerCold))
+                    errors.Add("Owner stock Mammoth removal is exclusive to its P07 producer or no-DLL cold consumer.");
+                if (PersistenceLoad == null) errors.Add("Owner stock Mammoth removal requires its qualified native Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", ownerCold ? "KMC_CLEANUP" : "KMC_C7_STOCK_MAMMOTH",
+                        ownerCold ? "^Manual_306_KMC_CLEANUP\\.zks$" : "^Manual_304_KMC_C7_STOCK_MAMMOTH\\.zks$"));
+                    // The no-DLL consumer opens batch65's exact cleanup Manual or (7E run plan gate G7 (a)) the same
+                    // candidate's settled final r31 cleanup, whose provenance the harness source gate proves.
+                    var batch65Cleanup = ownerCold && PersistenceLoad.Sha256 == "2c46c2700f117b3f0d50f688d2c89bd879de79d4b0b40eaf3b2502c1015bdfc2";
+                    if ((ownerCold ? PersistenceLoad.Sha256 == null || !Regex.IsMatch(PersistenceLoad.Sha256, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant) ||
+                            PersistenceLoad.Sha256 == "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa" :
+                            PersistenceLoad.Sha256 != "e475d49c3590927c7f216d301aa8535f6dbbdc7af2066f4c01f58fff335866fa") ||
+                        (batch65Cleanup ? PersistenceLoad.Length != 1263594 : ownerCold ? PersistenceLoad.Length < 1 || PersistenceLoad.Length > 256L * 1024 * 1024 :
+                            PersistenceLoad.Length != 1257468) ||
+                        PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                        PersistenceLoad.GameName != "Testy the Modless" || PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" ||
+                        PersistenceLoad.GameId == Fixture?.Working?.GameId || PersistenceLoad.Sha256 == Fixture?.Working?.Sha256)
+                        errors.Add("Owner stock Mammoth Manual differs from its accepted native output.");
+                }
+            }
             var p06 = Scenario == "persistence-p06-load";
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+            if (chunk7 ? !IsChunk7PersistenceCase(PersistenceCase) : p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -350,7 +643,381 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("A removal or disable-during-load case is save-only.");
             if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
-            if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
+            if (Scenario == Chunk7OwnedPairsSelection.Scenario)
+            {
+                if (PersistenceLoad == null || OwnedPairs == null) errors.Add("Inherited pairs require their exact qualified native input descriptor.");
+                else if (OwnedPairs.OwnerSeedSetup)
+                {
+                    // Registry-supplied exact owner-seed names, admitted generically as in the
+                    // cold owner-seed kind; never the producer fixture identity and never an
+                    // owner-seed-derived Manual relabelled as an owner seed.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$"));
+                    if (!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(PersistenceLoad.InternalName) ||
+                        !Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(PersistenceLoad.FileName) ||
+                        PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName ||
+                        PersistenceLoad.FileName.EndsWith("_" + Chunk7OwnedPairsSelection.OwnerSeedManualName + ".zks", StringComparison.Ordinal) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var ownerSeedGameId) || ownerSeedGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SeedSha256)
+                        errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
+                else if (OwnedPairs.IsSixPairStress || OwnedPairs.IsSixPairSave)
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", "KMC_C7_SIX_HORSE_WORLD", "^Manual_308_KMC_C7_SIX_HORSE_WORLD\\.zks$"));
+                    if (PersistenceLoad.Sha256 != Chunk7OwnedPairsSelection.SixPairSourceArchive ||
+                        PersistenceLoad.Length != 1332308 || PersistenceLoad.LastWriteTimeUtcTicks != 639282712706531806L ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
+                        errors.Add("Six-pair stress and its mounted Manual producer require the exact separately cold-qualified native Manual308.");
+                }
+                else if (OwnedPairs.IsSixPairLoad)
+                {
+                    // Exactly the producer's reserved mounted Manual in the same native campaign;
+                    // its bytes are pinned by the runner to the producer's recorded write.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7OwnedPairsSelection.SixPairManualName,
+                        "^Manual_309_" + Chunk7OwnedPairsSelection.SixPairManualName + "\\.zks$"));
+                    if (PersistenceLoad.FileName != Chunk7OwnedPairsSelection.SixPairManualLeaf ||
+                        PersistenceLoad.Sha256 == Chunk7OwnedPairsSelection.SixPairSourceArchive ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SourceArtifactSha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.CheckpointSourceArtifactSha256 ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
+                        errors.Add("Six-pair cold input must be the producer's distinct mounted Manual309 in the same native campaign.");
+                }
+                else if (OwnedPairs.IsFourthHorse)
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
+                        Chunk7OwnedPairsSelection.SmallFixtureManualName,
+                        "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                    if (PersistenceLoad.FileName != "Manual_305_KMC_C7_SMALL_WORLD.zks" ||
+                        PersistenceLoad.Sha256 != Chunk7OwnedPairsSelection.FourthHorseSourceArchive ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        Fixture?.Working == null || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        errors.Add("Fourth-Horse setup requires the exact separately qualified eight-actor native Manual.");
+                }
+                else if (OwnedPairs.PaidFixtureLineage)
+                {
+                    var medium = OwnedPairs.MediumFixtureLineage;
+                    var source = OwnedPairs.IsSmallFixtureSave || OwnedPairs.SmallThirdHorseSetup || OwnedPairs.IsMediumFixtureSave;
+                    var sourceName = medium ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName;
+                    var mountedName = medium ? Chunk7OwnedPairsSelection.MediumFixtureManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var nativeName = source ? sourceName : mountedName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", nativeName,
+                        "^Manual_[1-9][0-9]*_" + nativeName + "\\.zks$"));
+                    if (!(source ? (medium ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(PersistenceLoad.FileName) :
+                                Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName)) :
+                            (medium ? Chunk7OwnedPairsSelection.IsMediumFixtureManualLeaf(PersistenceLoad.FileName) :
+                                Chunk7OwnedPairsSelection.IsSmallFixtureManualLeaf(PersistenceLoad.FileName))) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        (source ? PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 :
+                            PersistenceLoad.Sha256 == OwnedPairs.SourceArchiveSha256) ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256)
+                        errors.Add("Paid fixture persistence input must be its exact qualified Manual or a distinct genuine mounted checkpoint in its native campaign.");
+                }
+                else if (OwnedPairs.OwnerSeedDerivedInput)
+                {
+                    // Exactly the producer's written owner-seed-derived Manual: its own native
+                    // name, the pinned bytes, never the immutable seed or protected fixtures.
+                    var manticoreManualInput = OwnedPairs.IsOwnerSeedDerivedLoad &&
+                        Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase) ||
+                        OwnedPairs.IsOwnerSeedCheckpointSave && OwnedPairs.IsManticoreReturnArea;
+                    var manualName = manticoreManualInput ? Chunk7OwnedPairsSelection.ManticoreFixtureManualName :
+                        Chunk7OwnedPairsSelection.OwnerSeedManualName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", manualName,
+                        "^Manual_[1-9][0-9]*_" + manualName + "\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var derivedGameId) || derivedGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256 ||
+                        PersistenceLoad.Sha256 == OwnedPairs.SeedSha256 ||
+                        (manticoreManualInput && PersistenceLoad.Area != Chunk7OwnedPairsSelection.ManticoreFixtureArea))
+                        errors.Add("Owner-seed-derived cold input must be exactly the producer's written Manual, distinct from the immutable seed and protected Working/Baseline.");
+                }
+                else
+                {
+                    // A cold Manual is the generic acquired-ancestry KMC_C7_WORLD, or the owner-seed checkpoint producer's distinct Manual.
+                    var coldManual = PersistenceCase == "owned-schema1-current-manual" ? "KMC_C7_SCHEMA1" :
+                        PersistenceCase == "owned-schema2-pending-current-manual" ? "KMC_C7_SCHEMA2" :
+                        OwnedPairs.IsCapitalArrivalCold(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalManualName :
+                        OwnedPairs.IsOwnerSeedCheckpointLoad ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : "KMC_C7_WORLD";
+                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
+                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", inputName, inputPattern));
+                    if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
+                        (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
+                        errors.Add("Owned area input differs from the selected original Manual or completed destination Auto.");
+                    // Row 58 loads its Manual outside the capital; row 59 loads row 58's Manual inside it.
+                    if (OwnedPairs.IsCapitalArrivalProducer(PersistenceCase) && PersistenceLoad.Area == Chunk7OwnedPairsSelection.CapitalArrivalArea ||
+                        OwnedPairs.IsCapitalArrivalCold(PersistenceCase) && PersistenceLoad.Area != Chunk7OwnedPairsSelection.CapitalArrivalArea)
+                        errors.Add("Capital arrival input must start outside the capital; its cold consumer must load the Manual written there.");
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var inheritedGameId) || inheritedGameId == Guid.Empty ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        !OwnedPairs.Cold && PersistenceLoad.Sha256 != OwnedPairs.SourceArchiveSha256)
+                        errors.Add("Inherited pairs cannot borrow Working, Baseline, a foreign native world or unqualified source bytes.");
+                    // The owner-seed checkpoint consumer loads the producer's fresh slot, never the derived Manual or the seed.
+                    if (OwnedPairs.IsOwnerSeedCheckpointLoad && (PersistenceLoad.Sha256 == OwnedPairs.SourceArchiveSha256 || PersistenceLoad.Sha256 == OwnedPairs.SeedSha256))
+                        errors.Add("The owner-seed checkpoint consumer input aliases its derived Manual or the immutable seed.");
+                }
+            }
+            else if (Scenario == Chunk7CumulativeAcquisitionSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Cumulative acquisition requires its exact acquired-field Manual source.");
+                else
+                {
+                    var cumulativeName = CumulativeAcquisition?.SelectedManualName ?? Chunk7AcquiredManualSelection.OutputName;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", cumulativeName, "^Manual_[1-9][0-9]*_" + cumulativeName + "\\.zks$"));
+                    if (CumulativeAcquisition == null || !CumulativeAcquisition.IsSelectedManualLeaf(PersistenceLoad.FileName) || Fixture?.Working == null ||
+                        PersistenceLoad.GameId == Fixture.Working.GameId || !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var cumulativeGameId) || cumulativeGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != CumulativeAcquisition?.SourceArchiveSha256)
+                        errors.Add("Cumulative source lacks its exact separately minted first-owner Manual identity.");
+                }
+            }
+            else if (Scenario == Chunk7ManualDerivedSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Manual-derived acquisition requires its exact native Manual seed source.");
+                else
+                {
+                    var ownerSeed = ManualDerived?.UsesOwnerSeedCold == true;
+                    var sixth = ManualDerived?.UsesF09FiveHorseCold == true;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
+                        sixth ? Chunk7ManualDerivedSelection.ManualOutputName : ManualDerived?.UsesF09FourHorseCold == true ? "KMC_C7_FOUR_HORSE_WORLD" : ownerSeed ? Chunk7ManualDerivedSelection.OwnerSeedInputName : Chunk7ManualSeedSelection.OutputName,
+                        sixth ? "^Manual_307_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : ManualDerived?.UsesF09FourHorseCold == true ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : ownerSeed ? "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$" : "^Manual_1_KMC_C7_NATIVE_SEED\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedDerivedId) || mintedDerivedId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != ManualDerived?.SourceArchiveSha256)
+                        errors.Add("Manual-derived source lacks its exact separately minted same-candidate identity.");
+                }
+            }
+            else if (Scenario == Chunk7AcquiredManualSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Acquired Manual requires its exact native acquisition source.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native bootstrap autosave name is missing or invalid.");
+                    var sourcePattern = AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null ?
+                        "^Auto_1\\.zks$" : AcquiredManual?.UsesPostFieldManual == true ?
+                        "^Manual_(301|303|306)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : "^Manual_(2|304)_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$";
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, sourcePattern));
+                    if ((AcquiredManual?.Case == Chunk7AcquiredManualSelection.CaseName || AcquiredManual?.UsesPostFieldManual == true) &&
+                        PersistenceLoad.InternalName != Chunk7ManualDerivedSelection.ManualOutputName)
+                        errors.Add("Field Manual acquired source requires its exact native name.");
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedAcquiredId) || mintedAcquiredId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AcquiredManual?.SourceArchiveSha256)
+                        errors.Add("Acquired Manual source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7ManualSeedSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Manual seed requires its exact native Auto_1 source.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native bootstrap autosave name is missing or invalid.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedSeedId) || mintedSeedId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != ManualSeed?.SourceArchiveSha256)
+                        errors.Add("Manual seed source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7AssistedColdInventorySelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Assisted cold inventory requires its exact qualified final Manual.");
+                else if (AssistedColdInventory?.IsOwnerSeed == true)
+                {
+                    // Registry-supplied exact names, admitted generically; never the producer fixture identity.
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\\.zks$"));
+                    if (!Chunk7AssistedColdInventorySelection.IsOwnerSeedName(PersistenceLoad.InternalName) ||
+                        !Chunk7AssistedColdInventorySelection.IsOwnerSeedLeaf(PersistenceLoad.FileName) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var ownerSeedId) || ownerSeedId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SeedSha256)
+                        errors.Add("Owner seed lacks its exact registered non-aliasing identity.");
+                }
+                else if (AssistedColdInventory?.IsHorseWorld == true)
+                {
+                    var fourth = AssistedColdInventory.IsFourthHorseSource;
+                    var fifth = AssistedColdInventory.IsFifthHorseSource;
+                    var sixth = AssistedColdInventory.IsSixthHorse;
+                    var name = sixth ? Chunk7ManualDerivedSelection.F09SixthOutputName : fifth ? Chunk7ManualDerivedSelection.ManualOutputName : fourth ? Chunk7OwnedPairsSelection.FourthHorseManualName : Chunk7OwnedPairsSelection.SmallFixtureManualName;
+                    var leaf = sixth ? Chunk7ManualDerivedSelection.F09SixthOutputLeaf : fifth ? Chunk7ManualDerivedSelection.F09FifthOutputLeaf : fourth ? "Manual_306_KMC_C7_FOUR_HORSE_WORLD.zks" : "Manual_305_KMC_C7_SMALL_WORLD.zks";
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", name,
+                        sixth ? "^Manual_308_KMC_C7_SIX_HORSE_WORLD\\.zks$" : fifth ? "^Manual_307_KMC_C7_MANUAL_DERIVED_FIELD\\.zks$" : fourth ? "^Manual_306_KMC_C7_FOUR_HORSE_WORLD\\.zks$" : "^Manual_305_KMC_C7_SMALL_WORLD\\.zks$"));
+                    if (PersistenceLoad.FileName != leaf ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId ||
+                        PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 != AssistedColdInventory.SourceArchiveSha256)
+                        errors.Add("Horse-world cold source lacks its exact distinct native Manual identity.");
+                }
+                else if (AssistedColdInventory?.IsPaidFixture == true)
+                {
+                    var mediumFixture = AssistedColdInventory.IsMediumFixture;
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", mediumFixture ? Chunk7SmallFixtureSelection.MediumOutputName : Chunk7SmallFixtureSelection.OutputName,
+                        mediumFixture ? "^Manual_[1-9][0-9]*_KMC_C7_MEDIUM_FIXTURE\\.zks$" : "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
+                    if (!(mediumFixture ? Chunk7SmallFixtureSelection.IsMediumManualLeaf(PersistenceLoad.FileName) : Chunk7SmallFixtureSelection.IsManualLeaf(PersistenceLoad.FileName)) ||
+                        Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId || PersistenceLoad.GameId == Fixture.Baseline?.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var smallColdId) || smallColdId == Guid.Empty ||
+                        PersistenceLoad.GameId != Chunk7SmallFixtureSelection.CampaignId || PersistenceLoad.GameName != Chunk7SmallFixtureSelection.CampaignName ||
+                        PersistenceLoad.Area != Chunk7SmallFixtureSelection.AreaId || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory.SourceArchiveSha256)
+                        errors.Add("F09 cold source lacks its exact owner-seed-derived native Manual identity.");
+                }
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AssistedColdInventorySelection.ManualName, "^Manual_[1-9][0-9]*_KMC_C7_ASSISTED_FIXTURE\\.zks$"));
+                    if (Fixture?.Working == null || !Chunk7AssistedColdInventorySelection.IsManualLeaf(PersistenceLoad.FileName) || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var assistedColdId) || assistedColdId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != AssistedColdInventory?.SourceArchiveSha256)
+                        errors.Add("Assisted cold source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7BootstrapInventorySelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Bootstrap cold inventory requires its exact native Auto_1 source.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native bootstrap autosave name is missing or invalid.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var mintedBootstrapId) || mintedBootstrapId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != BootstrapInventory?.SourceArchiveSha256)
+                        errors.Add("Bootstrap inventory source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7SmallFixtureSelection.Scenario)
+            {
+                if (!Chunk7SmallFixtureSelection.IsSource(PersistenceLoad))
+                    errors.Add("F09 input is not its exact qualified clean owner seed descriptor.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureSelection.SeedInternalName,
+                        "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$"));
+                    foreach (var anchor in new[] { Fixture?.Working, Fixture?.Baseline })
+                        if (anchor == null || anchor.GameId == PersistenceLoad.GameId || anchor.Sha256 == PersistenceLoad.Sha256 ||
+                            anchor.FileName == PersistenceLoad.FileName || anchor.InternalName == PersistenceLoad.InternalName)
+                            errors.Add("F09 owner seed must remain distinct from protected Working and Baseline.");
+                }
+            }
+            else if (Scenario == Chunk7StockMammothFixtureSelection.Scenario)
+            {
+                if (!Chunk7StockMammothFixtureSelection.IsSource(PersistenceLoad))
+                    errors.Add("Stock Mammoth fixture input is not its exact qualified clean owner seed descriptor.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureSelection.SeedInternalName,
+                        "^Manual_303_KMC_C7_NO_MODS_OWNER_SEED\\.zks$"));
+                    foreach (var anchor in new[] { Fixture?.Working, Fixture?.Baseline })
+                        if (anchor == null || anchor.GameId == PersistenceLoad.GameId || anchor.Sha256 == PersistenceLoad.Sha256 ||
+                            anchor.FileName == PersistenceLoad.FileName || anchor.InternalName == PersistenceLoad.InternalName)
+                            errors.Add("Stock Mammoth owner seed must remain distinct from protected Working and Baseline.");
+                }
+            }
+            else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesFixtureManualField == true)
+            {
+                if (PersistenceLoad == null) errors.Add("F09 Small calibration requires its exact qualified fixture Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7SmallFixtureManualSourceSelection.NativeName,
+                        "^Manual_[1-9][0-9]*_KMC_C7_SMALL_FIXTURE\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Chunk7SmallFixtureManualSourceSelection.IsNativeManualLeaf(PersistenceLoad.FileName) ||
+                        !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var fixtureGameId) || fixtureGameId == Guid.Empty ||
+                        PersistenceLoad.Sha256 == Fixture.Working.Sha256 || PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 ||
+                        PersistenceLoad.Sha256 != SmallCalibration.FixtureSource?.SourceArchiveSha256)
+                        errors.Add("F09 Small Manual lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesManualField == true)
+            {
+                if (PersistenceLoad == null) errors.Add("Small Manual calibration requires its exact qualified field Manual.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7AcquiredManualSelection.OutputName, "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                        !Chunk7SmallManualSourceSelection.IsNativeManualLeaf(PersistenceLoad.FileName) || !Guid.TryParseExact(PersistenceLoad.GameId, "D", out var smallManualGameId) || smallManualGameId == Guid.Empty ||
+                        string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != SmallCalibration.ManualSource?.SourceArchiveSha256)
+                        errors.Add("Small Manual source lacks its exact separately minted disposable identity.");
+                }
+            }
+            else if (Scenario == Chunk7OrdinaryFieldSelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario)
+            {
+                if (PersistenceLoad == null) errors.Add("Read-only field admission requires its exact paid Auto_1 archive.");
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) || PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl))
+                        errors.Add("Native paid autosave name is missing or invalid.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", PersistenceLoad.InternalName, "^Auto_1\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId || PersistenceLoad.GameName != Fixture.Working.GameName ||
+                        PersistenceLoad.Area != Fixture.Working.Area || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != (Scenario == Chunk7SmallCalibrationSelection.Scenario ? SmallCalibration?.Source?.SourceArchiveSha256 : OrdinaryField?.SourceArchiveSha256))
+                        errors.Add("Field admission archive differs from its exact disposable acquisition identity.");
+                }
+            }
+            else if (Scenario == Chunk7ProgressionSelection.Scenario)
+            {
+                if (Progression?.IsOwned == true || Progression?.IsColdOnly == true)
+                    errors.AddRange(Progression.ValidateOwnedDescriptor(PersistenceLoad, Fixture));
+                else if (PersistenceLoad == null) errors.Add("Native progression requires its exact same-candidate Manual300 source.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", Chunk7ProgressionSelection.SourceName, "^Manual_300_KMC_C7_WORLD\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId || PersistenceLoad.GameName != Fixture.Working.GameName ||
+                        PersistenceLoad.Area != Fixture.Working.Area || PersistenceLoad.Sha256 == Fixture.Working.Sha256 ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256 || PersistenceLoad.Sha256 != Progression?.SourceArchiveSha256)
+                        errors.Add("Native progression source differs from its declared disposable archive.");
+                }
+            }
+            else if (Scenario == "chunk7-persistence-load")
+            {
+                if (PersistenceLoad == null) errors.Add("Chunk 7 cold loading requires its exact completed source archive.");
+                else
+                {
+                    var type = ExpectedNativeLoadType;
+                    var nativeSlot = type != "Manual";
+                    var leaf = schema1 ? "^Manual_812_KMC_P06\\.zks$" : nativeSlot ? "^" + type + "_1\\.zks$" : "^Manual_300_KMC_C7_WORLD\\.zks$";
+                    if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
+                        PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
+                        errors.Add("Chunk 7 native slot name is missing or oversized.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", schema1 ? "KMC_P01" : nativeSlot ? PersistenceLoad.InternalName : "KMC_C7_WORLD", leaf));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != ExpectedChunk7ArchiveArea ||
+                        PersistenceLoad.Sha256 == Fixture.Baseline?.Sha256)
+                        errors.Add("Chunk 7 source must remain in its exact disposable campaign/area and must not alias Baseline.");
+                }
+            }
+            else if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
                 else
@@ -368,7 +1035,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     // engine-minted identity, which is exactly NOT the fixture's.
                     var campaignB = Scenario == "persistence-p07-load" && PersistenceCase == "campaign-b";
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
-                        cleanup ? "^Manual_301_KMC_CLEANUP\\.zks$" :
+                        cleanup ? (OwnerStockRemoval == true && PersistenceCase == "removal-no-dll" ?
+                            "^Manual_306_KMC_CLEANUP\\.zks$" : "^Manual_301_KMC_CLEANUP\\.zks$") :
                         death ? "^Manual_301_KMC_DEATH\\.zks$" :
                         eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
                         campaignB ? "^Manual_302_KMC_B\\.zks$" :
@@ -395,13 +1063,34 @@ namespace KingmakerMountedCombat.Diagnostics
                             string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Area == Fixture.Working.Area)
                             errors.Add("A campaign-B cold archive must carry B's own minted identity and area, never the fixture's.");
                     }
-                    else if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
-                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
+                    else if (Fixture?.Working == null || (OwnerStockRemoval == true && PersistenceCase == "removal-no-dll" ?
+                        PersistenceLoad.GameId != "3f7381f7-aba6-43bf-bae6-39c6a66a7180" ||
+                        PersistenceLoad.GameName != "Testy the Modless" ||
+                        PersistenceLoad.Area != "b10e86516b6437d45a629931c30936fe" :
+                        PersistenceLoad.GameId != Fixture.Working.GameId ||
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea))
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
             }
-            else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
-            if (IsCrossAreaFamilyCase(PersistenceCase))
+            else if (PersistenceLoad != null && OwnerStockRemoval != true) errors.Add("This scenario cannot select a persistence archive.");
+            if (chunk7 && PersistenceCase == "multi-area-autosave")
+            {
+                if (OwnedPairs?.IsOwnerSeedCheckpointSave == true && PersistenceLoad?.Area != OwnedPairs.SourceArea)
+                    errors.Add("Owner-seed controlled area entry must load its exact original Manual before transfer.");
+                if (PersistenceAreaTarget == null) errors.Add("Chunk 7 area autosave requires its exact native destination.");
+                else
+                {
+                    errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", OwnedPairs != null ? OwnedPairs.SourceArea : Fixture?.Working?.Area));
+                    if (PersistenceAreaTarget.AutoSaveMode != "AfterEntry") errors.Add("Chunk 7 area autosave requires AfterEntry.");
+                    if ((OwnedPairs?.IsOwnerSeedCheckpointSave == true || OwnedPairs?.IsOwnerSeedCheckpointLoad == true) &&
+                        (PersistenceAreaTarget.EnterPoint != (OwnedPairs.IsManticoreReturnArea ?
+                             Chunk7OwnedPairsSelection.ManticoreReturnEntry : "fd225a93828d26449803a4847947f8c1") ||
+                         PersistenceAreaTarget.Area != (OwnedPairs.IsManticoreReturnArea ?
+                             Chunk7OwnedPairsSelection.ManticoreReturnArea : "ead426a6c23d39548a670ee515d77df4")))
+                        errors.Add("Owner-seed area continuity selects only its disclosed visited stock destination.");
+                }
+            }
+            else if (IsCrossAreaFamilyCase(PersistenceCase))
             {
                 if (!p07) errors.Add("A cross-area transfer requires the exact P07 scenario.");
                 if (PersistenceAreaTarget == null) errors.Add("A cross-area transfer requires its declared native destination.");
@@ -414,9 +1103,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
                     errors.Add("A transition autosave case must declare the mode that produced it.");
             }
+            else if (chunk7 && PersistenceCase == Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint)
+            {
+                // The one scoped capital admission: exactly the reviewed Oleg's pin, no native autosave.
+                if (PersistenceAreaTarget == null || PersistenceAreaTarget.EnterPoint != Chunk7OwnedPairsSelection.CapitalArrivalEntry ||
+                    PersistenceAreaTarget.Area != Chunk7OwnedPairsSelection.CapitalArrivalArea || PersistenceAreaTarget.AutoSaveMode != "None" ||
+                    PersistenceLoad == null || PersistenceLoad.Area == PersistenceAreaTarget.Area)
+                    errors.Add("Capital arrival requires exactly the reviewed capital entry and area with autoSaveMode None, from a non-capital input.");
+            }
             else if (PersistenceAreaTarget != null)
                 errors.Add("Only an exact cross-area transfer may declare a native destination.");
-            if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
+            if (loadRefusal)
+            {
+                if (PersistenceAlternate == null) errors.Add("Load-refusal requires its one immutable metadata-only alternate.");
+                else
+                {
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", Chunk7OwnedPairsSelection.OwnerSeedManualName,
+                        "^Manual_812_KMC_C7_SEED_REFUSAL\\.zks$"));
+                    if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                        PersistenceAlternate.FileName == PersistenceLoad.FileName || PersistenceAlternate.GameId != PersistenceLoad.GameId ||
+                        PersistenceAlternate.GameName != PersistenceLoad.GameName || PersistenceAlternate.Area != PersistenceLoad.Area ||
+                        PersistenceAlternate.Sha256 == OwnedPairs.SeedSha256 || Schema1DerivationSha256 != null)
+                        errors.Add("Load-refusal alternate must preserve the native campaign/header and differ only in pinned disposable bytes.");
+                }
+            }
+            else if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
             {
                 if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
                 else
@@ -479,6 +1190,49 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("fixture.writeAuthorization.mode does not match the selected runtime scenario.");
                 }
             }
+        }
+    }
+
+    public sealed class F11NativeAllocationSelection
+    {
+        internal const string ContractId = "f11-native-allocation-v1";
+        internal const string HelperSha256 = "fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d";
+        internal const string MonoSha256 = "9dde653c0eda16e02441437e64faa058cda6c5c8c82a193b17895249b2099534";
+        internal const string HelperLeaf = "KmcF11AllocationProbe.dll";
+
+        public string Contract { get; set; }
+        public bool BaseGameOnly { get; set; }
+        public string Path { get; set; }
+        public string Sha256 { get; set; }
+        public string LoadedMonoPath { get; set; }
+        public string LoadedMonoSha256 { get; set; }
+
+        internal static string ExpectedPath(string runId, string evidenceRoot)
+        {
+            var evidence = System.IO.Path.GetFullPath(evidenceRoot);
+            if (!string.Equals(System.IO.Path.GetFileName(evidence), runId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(evidence)), "runtime-evidence", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("F11 evidence root is not the run-owned lab path.");
+            var lab = System.IO.Path.GetDirectoryName(System.IO.Path.GetDirectoryName(evidence));
+            return System.IO.Path.Combine(lab, "runtime-staging", runId, "f11-native-probe", HelperLeaf);
+        }
+
+        internal static string ExpectedMonoPath()
+        {
+            var executable = Process.GetCurrentProcess().MainModule.FileName;
+            return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(executable), "MonoBleedingEdge", "EmbedRuntime", "mono-2.0-bdwgc.dll");
+        }
+
+        internal IEnumerable<string> Validate(string runId, string evidenceRoot)
+        {
+            if (Contract != ContractId || !BaseGameOnly ||
+                Sha256 != HelperSha256 || LoadedMonoSha256 != MonoSha256 ||
+                !string.Equals(LoadedMonoPath, ExpectedMonoPath(), StringComparison.OrdinalIgnoreCase))
+                yield return "F11 native observer contract, staging mode or reviewed binary identity differs.";
+            if (string.IsNullOrEmpty(runId) || !Regex.IsMatch(runId, "^[A-Za-z0-9._-]{1,120}$") || string.IsNullOrEmpty(evidenceRoot) ||
+                string.IsNullOrEmpty(Path) || !System.IO.Path.IsPathRooted(Path) ||
+                !string.Equals(System.IO.Path.GetFullPath(Path), ExpectedPath(runId, evidenceRoot), StringComparison.OrdinalIgnoreCase))
+                yield return "F11 native observer must use the exact run-owned staging path.";
         }
     }
 
@@ -685,6 +1439,42 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
+            "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
+            "chunk7-two-pair-native-life-cleanup",
+            "C7-combat-fixture", "C7-combat-native-mounts", "C7-combat-restored-mounts", "C7-combat-native-orders", "C7-combat-pair-a-full-activation",
+            "C7-combat-pair-b-full-activation", "C7-combat-tb-charge-refusal", "C7-combat-refresh", "C7-combat-r1-round-release",
+            "C7-combat-native-pending-survivor", "C7-combat-local-cleanup-failure", "C7-combat-permanent-horse-removal-refusal", "C7-combat-registered-disable-local-failure", "C7-combat-attack-modes-mounted-off", "C7-combat-attack-modes-mounted-on", "C7-combat-attack-modes-unmounted-control", "C7-combat-reaction-disengage-opportunity", "C7-combat-reaction-defensive-cast", "C7-combat-staged-move-cast-move", "C7-combat-staged-double-move-ranged", "C7-combat-staged-ranged-approach", "C7-combat-cleanup", "C7-combat-runtime", "C7-combat-interrupted",
+            "C7-life-safe-native-damage", "C7-life-native-callback", "C7-life-healthy-neighbour", "C7-life-independent-survivor", "C7-life-prone-native-heal", "C7-life-prone-stand-up-opportunity",
+            "C7-rt-charge-default-off", "C7-rt-concurrent-primary", "C7-rt-companion-native-action", "C7-rt-player-click-integrity", "C7-combat-first-action-mount", "C7-rt-local-cancel", "C7-rt-unmounted-native-control",
+            "C7-rt-native-casting", "C7-rt-casting-neighbour", "C7-rt-charge-native-success", "C7-rt-charge-neighbour-movement", "C7-rt-charge-native-cancel",
+            "chunk7-owned-two-pair-campaign", "C7-owned-pairs-inherited-custody", "chunk7-acquired-manual-derivative", "C7-acquired-manual-source", "C7-acquired-manual-native-load", "C7-acquired-manual-restored-owner", "C7-acquired-manual-native-field", "C7-acquired-manual-numbering", "C7-acquired-manual-native-save", "C7-acquired-manual-no-arrangement", "C7-acquired-manual-cleanup", "C7-acquired-manual-runtime", "C7-acquired-manual-interrupted",
+            "chunk7-manual-derived-acquisition", "C7-manual-derived-source", "C7-manual-derived-native-load", "C7-manual-derived-eligibility", "C7-manual-derived-native-choices", "C7-manual-derived-native-field", "C7-manual-derived-native-manual-save", "C7-manual-derived-cleanup", "C7-manual-derived-runtime", "C7-manual-derived-interrupted",
+            "chunk7-cumulative-acquisition", "C7-cumulative-source", "C7-cumulative-native-load", "C7-cumulative-eligibility", "C7-cumulative-native-choices", "C7-cumulative-native-field", "C7-cumulative-native-manual-save", "C7-cumulative-cleanup", "C7-cumulative-runtime", "C7-cumulative-interrupted",
+            "chunk7-bootstrap-manual-seed", "C7-manual-seed-source", "C7-manual-seed-native-load", "C7-manual-seed-native-save", "C7-manual-seed-no-arrangement", "C7-manual-seed-cleanup", "C7-manual-seed-runtime", "C7-manual-seed-interrupted",
+            "chunk7-small-fixture-preparation", "C7-small-fixture-source", "C7-small-fixture-native-load", "C7-small-fixture-native-choices", "C7-small-fixture-unmounted-field", "C7-small-fixture-native-manual", "C7-small-fixture-cleanup", "C7-small-fixture-runtime", "C7-small-fixture-interrupted",
+            "chunk7-stock-mammoth-fixture-preparation", "C7-stock-mammoth-source", "C7-stock-mammoth-native-load", "C7-stock-mammoth-native-choices", "C7-stock-mammoth-native-manual", "C7-stock-mammoth-cleanup", "C7-stock-mammoth-runtime", "C7-stock-mammoth-interrupted",
+            "chunk7-assisted-cold-inventory", "C7-assisted-cold-source", "C7-assisted-cold-native-load", "C7-assisted-cold-readonly", "C7-assisted-cold-selector", "C7-assisted-cold-cleanup", "C7-assisted-cold-runtime", "C7-assisted-cold-interrupted",
+            "chunk7-bootstrap-cold-inventory", "C7-bootstrap-inventory-source", "C7-bootstrap-inventory-native-load", "C7-bootstrap-inventory-readonly", "C7-bootstrap-inventory-cleanup", "C7-bootstrap-inventory-runtime", "C7-bootstrap-inventory-interrupted",
+            "chunk7-assisted-fixture-preparation", "C7-assisted-preflight", "C7-assisted-native-start", "C7-assisted-story", "C7-assisted-setup", "C7-assisted-native-choices", "C7-assisted-manual", "C7-assisted-cleanup", "C7-assisted-runtime", "C7-assisted-interrupted",
+            "chunk7-native-main-bootstrap", "C7-bootstrap-preflight", "C7-bootstrap-native-start", "C7-bootstrap-native-world", "C7-bootstrap-autosave", "C7-bootstrap-cleanup", "C7-bootstrap-runtime", "C7-bootstrap-interrupted",
+            "chunk7-small-profile-calibration", "C7-small-readonly-source", "C7-small-native-party-placement", "C7-small-production-mount", "C7-small-native-ground", "C7-small-rider-primary", "C7-small-mount-primary", "C7-small-scroll-presentation", "C7-small-potion-presentation", "C7-small-native-dismount", "C7-small-native-pose-observation", "C7-small-cleanup", "C7-small-runtime", "C7-small-interrupted",
+            "chunk7-native-progression", "C7-progression-cold-source", "C7-progression-native-operation", "C7-progression-cold-continuation", "C7-progression-mammoth-field", "C7-progression-cleanup", "C7-progression-runtime", "C7-progression-interrupted",
+            "chunk7-ordinary-field-admission", "C7-field-readonly-source", "C7-field-native-party-placement", "C7-field-cleanup", "C7-field-runtime", "C7-field-interrupted",
+            "chunk7-ordinary-acquisition", "C7-ordinary-fixture", "C7-ordinary-native-choices", "C7-ordinary-native-autosave",
+            "C7-ordinary-native-field-inventory", "C7-ordinary-cleanup", "C7-ordinary-runtime", "C7-ordinary-interrupted",
+            "chunk7-persistence-save", "chunk7-persistence-load", "C7-persistence-two-native-mounts", "C7-persistence-one-native-mount-legacy-source",
+            "C7-persistence-native-category-all-pair-archive", "C7-persistence-cold-all-pair-identity-and-no-prepare",
+            "C7-persistence-owned-schema1-source", "C7-persistence-owner-seed-restored-start", "C7-persistence-schema1-native-restoration", "C7-persistence-schema1-native-resave", "C7-persistence-schema2-native-resave", "C7-persistence-current-migration-native-load", "C7-persistence-current-migration-continuation",
+            "C7-persistence-three-native-loads", "C7-persistence-three-native-area-transfers",
+            "C7-persistence-capital-arrival-retirement", "C7-persistence-capital-arrival-native-manual", "C7-persistence-capital-arrival-cold",
+            "C7-persistence-nonselected-mount-save-deferral", "C7-persistence-owned-worker-cancel-drain",
+            "C7-persistence-native-continuation", "C7-persistence-all-pair-area-before-autosave", "C7-persistence-native-combat-continuation", "C7-persistence-cleanup", "C7-persistence-runtime", "C7-persistence-interrupted",
+            "C7-persistence-six-native-mounts", "C7-persistence-six-mounted-archive", "C7-persistence-six-native-continuation",
+            "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-owner-seed-setup", "C7-world-two-native-mounts",
+            "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
+            "C7-world-owner-seed-manual", "C7-small-third-horse-native-setup", "C7-small-third-horse-native-manual", "C7-f09-fourth-horse-native-setup", "C7-f09-fourth-horse-native-manual",
+            "C7-six-native-mounts", "C7-six-selection-routing", "C7-six-cycles", "C7-six-sampling",
             "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
@@ -1156,10 +1946,40 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("subscenario and assertion totals do not match the named results.");
             }
 
-            if (RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
+            if (scenario != "chunk7-stock-mammoth-fixture-preparation" && scenario != "chunk7-small-fixture-preparation" && scenario != "chunk7-owned-two-pair-campaign" && scenario != "chunk7-cumulative-acquisition" && scenario != "chunk7-acquired-manual-derivative" && scenario != "chunk7-manual-derived-acquisition" && scenario != "chunk7-bootstrap-manual-seed" && scenario != "chunk7-bootstrap-cold-inventory" && scenario != "chunk7-native-progression" && scenario != "chunk7-native-main-bootstrap" && scenario != "chunk7-assisted-fixture-preparation" && scenario != "chunk7-assisted-cold-inventory" && scenario != "chunk7-small-profile-calibration" && scenario != "chunk7-ordinary-field-admission" && scenario != "chunk7-ordinary-acquisition" && scenario != "chunk7-two-pair-exploration" && !RuntimeRequest.IsChunk7PersistenceScenario(scenario) && !RuntimeRequest.IsChunk7CombatScenario(scenario) && RuntimeSubscenarioResult.IsMissionScenario(scenario) && !names.Contains(scenario))
             {
                 errors.Add("An individual mission scenario must report its own named subscenario result.");
             }
+        }
+    }
+
+    // The diagnostic-target authorization for the two-pair combat family, derived from the
+    // admitted fixture instead of a literal. The Working rule and the prior owned route are
+    // unchanged; the owner-seed-derived basis is the owner's 2026-10-17 approval, scoped to a
+    // disposable copy whose admitted input is exactly the pinned derived Manual (never the seed).
+    internal static class Chunk7CombatTargetAuthorization
+    {
+        internal const string WorkingBasis = "exact-working-fixture";
+        internal const string AcquiredOwnedBasis = "owned-acquired-field-copy";
+        internal const string OwnerSeedDerivedBasis = "owner-seed-derived-disposable-copy";
+        internal const string OwnerApproval = "docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md, Owner decisions on the combat slice (October 17, 2026): combat target approved";
+        // Null forbids the target; any other value is the exact admitted basis.
+        internal static string Basis(RuntimeRequest request, string workingSha256, bool fixtureAdmitted)
+        {
+            if (request == null || !fixtureAdmitted || request.Validate().Count != 0) return null;
+            var selection = request.OwnedPairs;
+            if (selection == null) return request.Fixture?.Working?.Sha256 != null && request.Fixture.Working.Sha256 == workingSha256 ? WorkingBasis : null;
+            // Owner-seed-derived combat and the owner-seed checkpoint producer's combat checkpoints share one
+            // contract: the admitted input is exactly the pinned derived Manual (never the seed).
+            if (selection.IsOwnerSeedDerivedCombat ||
+                selection.IsOwnerSeedCheckpointSave && Chunk7OwnedPairsSelection.IsOwnerSeedCombatCheckpoint(request.PersistenceCase))
+                return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256 &&
+                    request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
+                    ? OwnerSeedDerivedBasis : null;
+            // The owner-seed setup and cold-consumer kinds never spawn a combat target; the checkpoint
+            // consumer binds its producer's saved target read-only, and exploration checkpoints have none.
+            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad || selection.IsOwnerSeedLoadRefusal) return null;
+            return AcquiredOwnedBasis;
         }
     }
 }

@@ -1,0 +1,373 @@
+# Chunk 7 known product debt
+
+## October 21 — current disposition after later engineering batches
+
+The pending-only schema-2 resave and separate cold consumer have development
+PASS evidence from batches 41–42; the consumer's original outer FAIL and its
+separate corrected-reader PASS remain distinct. Batches 65 and 67 later passed
+positive mounted cleanup and a genuine independent KMC-DLL-absent cold load.
+Batches 60–61 passed the selected area Auto/cold route. The historical
+statements below describe the evidence available at their own checkpoints.
+Current open work includes an ordinary-door fixture, F09 breadth, F10 remaining
+acquisition/progression scope, F11 measurement/usability, and final-package 7E.
+
+## October 19 — pending-debt migration engineering result
+
+The historical preview.45 and matched preview.53 schema-3/schema-2 failures
+remain original FAILs. The shared native re-entry ownership correction has
+since passed the selected retained-allocation checks. Preview.59 batch41
+produced a genuine schema-3 Manual from a metadata-only schema-2 derivative
+(original game/runtime PASS 4/0). Preview.60 batch42 separately cold-loaded
+that exact Manual and returned original **game PASS 3/0** for restoration,
+continuation and cleanup. Its original outer runtime result remains FAIL on
+an external reader's exact-clock comparison of a later same-round snapshot.
+The immediate restoration probes are exact; a bounded elapsed-clock reader
+correction passed independent review and a distinct immutable-artifact
+reader-only reevaluation. See the [batch41–42 record](CHUNK7-DIRECTIVE4-REENTRY-CORRECTION-2026-10-19.md)
+and [current requirement map](../planning/CHUNK7-COMPLETION-MISSION.md).
+These later results narrow the earlier schema-2 debt statement below; they
+do not rewrite any historical verdict or credit an outer native rerun.
+
+Positive mounted cleanup with permanent-reference removal and a genuinely
+absent KMC DLL remains unaccepted. The clean owner seed has no pet, but
+[batch64](CHUNK7-BATCH64-STOCK-MAMMOTH-FIXTURE-2026-10-20.md) now supplies a
+qualified reference-free stock Mammoth Manual with rank-seven Large eligibility.
+It is still never-mounted; the owner-source positive cleanup and separate
+DLL-absent consumer must run. The legacy Working archive is not a qualified
+shortcut. Area Auto/cold passed in batches 60–61; an ordinary door remains
+unqualified in the inspected Spider Cave and Manticore Lair scenes.
+
+## October 19 - Working prerequisite remains unresolved
+
+Batch34's base-only load-only diagnostic under the owner-authorized Howie
+account reached one request for the immutable legacy Working archive, then
+failed at native `Player.PostLoad`'s main-character cross-scene lookup before
+the callback. The distinct owner-seed control loaded in the same account and
+base-only configuration. The historical base-only Working FAIL and older
+installed-mods Working world PASS make archive dependency/configuration the
+focused lead, without proving a particular missing mod. An observer path in
+batch34 slot2 separately failed patch signature validation before any load;
+it cannot be counted as a Working result. Both original FAILs remain. The
+slot3 exact recovery restored all external surfaces and released the lock;
+that safety PASS does not qualify positive P07 cleanup, cleanup save, or
+genuine DLL-absent cold load. These require a newly admitted positive fixture
+or compatible Working dependency set. Schema-2 and area fixture debt remain
+independent.
+
+## October 19 - narrowed Directive 4 contracts
+
+[The focused execution and fixture diagnosis](CHUNK7-DIRECTIVE4-EXECUTION-DIAGNOSIS-2026-10-19.md)
+separates the batch32 staging denial, the Working native post-load failure,
+the schema-2 debt loss and the area fixture prerequisite. The same Working
+archive failed under the October 12 base-only configuration, loaded under its
+installed-mods comparison, and failed in batch32 with a changed mod set and
+runner account. Neither the absent mods nor the account change is a proven
+cause. Schema-2 native members were unchanged except the KMC metadata member;
+native JoinCombat/Prepare.Tick cleared restored debt during the same saved
+round-1 allocation. Whether that re-entry is a lawful fresh native entitlement
+or a repairable KMC ownership error remains unresolved. No gameplay patch or
+weaker assertion was made. Oleg's exact visited entrance was capital at batch23
+preflight, so area transfer and Auto were not attempted.
+
+## P07 positive cleanup native prerequisite — FAIL; restoration settled
+
+Preview.52 at pushed `7348dace` has a current-schema3 P07 Mammoth readback and
+reference scan, and the historically qualified Working fixture is a candidate
+for reference-free positive cleanup. Batch32's first slot failed before launch
+on a sandbox-denied Mods move; the guarded recovery restored the pre-run tree.
+The second slot made one Working load request but native
+`SaveManager.LoadRoutine` raised `Sequence contains no matching element` before
+the exact callback. It wrote no save and reached no removal assertions. Both
+original results remain FAIL; positive cleanup, its archive scan and genuine
+DLL-absent cold remain unaccepted. Do not reuse this failed load as proof that
+the Mammoth fixture is unsafe, or retry identical inputs without a distinguishing
+diagnosis. The existing permanent-Horse removal refusal remains PASS.
+The preserved native stack identifies `Player.PostLoad` as the throw site. A
+bounded read of the exact installed assembly (MVID
+`07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`) shows its first lookup requires
+one cross-scene entity matching `MainCharacter.UniqueId`; none was present
+in this process. Why that entity was absent is unresolved. Slot2's runner
+used a different Windows account from the sandboxed earlier runs; the exited
+game process SID was not retained. Earlier owner-seed PASSes also used a
+different archive and do not establish this Working load.
+
+Slot2 restored Mods, protected saves and Working. UMM's new KMC entry and
+update-check timestamp plus three native PlayerPrefs changes were outside the
+old settings guard, which retained the lock. A one-run recovery with exact
+backup/current hashes, a two-field XML equivalence check, three-key preference
+check, live Mods/save identity and under-lock revalidation passed WhatIf and
+independent review, then restored original settings and released the lock.
+Recovery receipt is under the private slot2 evidence root; no game or
+transaction is active. This is a safety recovery, not P07 acceptance.
+
+## Preview.52 native disable and zero-mounted breadth — PASS; refusal reader repair
+
+Batch27's registered UMM disable/re-enable and permanent Horse refusal passed
+in-game and in the external reader (9/0); this closes the preview.51 missing
+world-facts diagnostic gap without changing batch26's original FAIL. Batches
+28/30 passed a native zero-mounted TB retained-owner Manual and its exact
+separate-process cold load. Their schema-3 graph has zero active pairs and two
+retained participations with native combat debt. All transactions restored
+Mods, protected saves, Baseline and Working; batch27 recorded four accepted
+native profile-cache changes, so exact profile-byte restoration is false there.
+
+Batch31 malformed and future-schema probes each passed all five game
+subscenarios, but their original external results failed because the reader
+limited retained object hash labels to 1..128. Product
+`RetainedObjectIdentity` retains at most 128 objects but emits signed nonzero
+Int32 `RuntimeHelpers.GetHashCode` labels. The reader now admits that exact
+value domain while rejecting zero, nonintegers, out-of-range values and
+collisions and preserving complete state conservation. Focused tests 53/0;
+independent review 34/0 and both immutable complete artifact re-reads PASS.
+Review receipt SHA-256
+`9c9e2829e1f1eceff73dd7c889b9c5cc2ed67170109cff6c57ed9b55101a7a91`.
+The original terminal FAILs are preserved; corrected-reader PASS is separately
+recorded in private batch31.
+
+Schema2 TB migration remains a distinct unresolved product/native boundary:
+the accepted pending-only source saves A outside combat and unprepared with
+6/3/6 debt, then installed `UnitCombatPrepareController.Tick` clears that
+debt when A rejoins. Whether that native preparation represents a lawful new
+allocation within the selected save contract is not established. No synthetic
+Prepared flag or resource rewrite is accepted. Area Auto/cold needs a suitable
+visited non-capital destination;
+positive reference-free removal, genuine DLL-absent cold and doors also remain
+unaccepted.
+
+## Preview.51 disable game PASS, external evidence FAIL
+
+Batch26 completed the real registered callback, native transition, re-enable
+and cleanup in the game. Its external reader failed because
+`removalRefusal.assessment.world` serialized as only `{"$id":"1"}` under
+Kingmaker's global Newtonsoft defaults, omitting the exact world safety facts.
+Original game artifact SHA-256
+`192360ad10285979af16317283c5eb107d2c6f7cd296aa609719c2c9193a7967`
+and external runtime FAIL remain unchanged. Preview.52 uses the project's
+explicit non-reference serializer. The reader now expects the measured eight
+two-Horse control facts and one TB Charge refusal; earlier six/zero fixture
+assumptions were false for this selected native case. A synthetic world-facts
+counterfactual helped check later reader clauses but is not accepted evidence.
+Independent review PASS receipt SHA-256
+`cd996fa4ed2c423de81a57d55c8da50d70e485aabcccb8ad1b7c01ddee77e443`.
+Fresh native execution is required.
+
+## Preview.50 registered disable event-frame diagnostic — FAIL
+
+Batch25 observed the complete native B rejoin/Tick/Clear sequence and its
+correct 6/3/6 → 0 debt transition. The six events used Unity frame 4761 after
+game time advanced 170000 ticks; the diagnostic polled in frame 4762 and
+incorrectly required the events there. Original evidence SHA-256
+`d09b82ea4fa2376316c4cc98756b97317a843bebf8aa50196249b86fe193b41c`
+remains FAIL. Preview.51 corrects the diagnostic/reader frame window while
+retaining a single causal frame and strictly advancing bounded game clock.
+Independent review PASS SHA-256
+`fd9e6d2ebeee8ba038b1472bb346cb8c631a6238e29aaed35f6e19608fd03a2a`;
+fresh native acceptance remains required.
+
+## Preview.49 registered disable later-frame diagnostic — FAIL; preview.50 review PASS
+
+The preview.49 batch24 native callback, selected B failure and same-frame retry
+passed exact debt/custody checks. The next TB frame advanced about 24 ms and
+native B rider JoinCombat/Prepare.Tick/Cooldowns.Clear cleared its 6/3/6 debt.
+The diagnostic lacked that observation and failed; original evidence SHA-256
+`3388e1ee17eb4fc87dc5d260d773315df439fe866f98071c923555b6340d309d`
+remains FAIL. Reviewed preview.50 adds read-only exact native event tracing and
+requires bounded cumulative decay, preserved grants/reactions and the observed
+native Clear nested in Tick. Review04 PASS SHA-256
+`2526f755edad4bc1ed393eb56bdccd612c243cf1e32c9bd92d0131d5d621a78e`;
+fresh native acceptance is still required. This does not resolve schema2 cold
+debt loss, which must retain its own failing verdict and lawful-boundary work.
+
+## Preview.48 native batch23 - one lifecycle PASS, two bounded FAILs
+
+Three native world loads and next-frame settled cleanup passed on preview.48
+(`20261019-c7b-world48-ownerseed-b23s2-threeloads`, original terminal PASS).
+The registered-disable case failed before its UMM toggle solely because
+`Game.IsPaused` reported false. Kingmaker refuses Pause mode in active TB combat;
+an initial preview.49 wait-for-Pause draft failed independent review. Corrected
+preview.49 diagnostic source uses exact TB admission while preserving native
+debt, clock, round and custody checks. Corrected independent review PASS;
+fresh native execution remains. The two original FAILs
+are preserved. The area Auto case proved the selected visited Oleg destination
+is currently capital; it refused before native transfer or save. A suitable
+visited non-capital destination is not yet identified from this seed, so area
+Auto/cold is not accepted. The batch ledger holds exact evidence and restoration.
+
+## Preview.46 area AfterEntry Auto — FAIL/TIMEOUT; native boundary unresolved
+
+`20261019-c7b-world46-ownerseed-b21s3-areaauto` reached a mounted two-owner
+source area and selected the actual visited Oleg's Trading Post entrance.
+No Auto write occurred. The pending artifact contains `areaTransfer.before` but
+no native-ready observation; it records failed destination adoption during
+retained cleanup, without proving whether `Game.LoadArea` returned or which
+native stage stalled. The game closed gracefully and guarded transaction plus
+separate profile recovery restored all exposed state. Its original timeout
+result remains FAIL. Preview.47 adds dispatch-return and read-only interruption
+counters for a distinguishing observation; no new native acceptance exists.
+
+## Preview.46 registered disable and repeated loads — FAIL; diagnostic repairs pending
+
+Disable reached and passed the permanent Horse refusal and real pending B
+survivor, then failed a composite diagnostic prelude before the actual UMM
+toggle. Preview.47 records each prelude clause if it fails. The second native
+load in the repeated-world scenario replaced Player, area, scene and actors
+after disposal with 8/4/4/1 native counts, but its diagnostic required the two
+per-fact Horse subscribers to retain their object identities across that load.
+Preview.47 checks fresh fact instances, exact cardinality and stable process
+subscribers. Both original native runs remain FAIL; fresh changed-byte runs are
+required before either case can be accepted.
+
+## Preview.45 schema2 TB cold debt loss — FAIL; resource-safe repair unresolved
+
+Matched preview.53 batch35 controls now isolate the cause: the unchanged
+schema-3 pending-only source and its metadata-only schema-2 derivative both
+restore rider A's 6/3/6 native debt, then native `JoinCombat` followed by
+`UnitCombatPrepareController.Tick` clears it after the restoration fence drops.
+Both fresh game/runtime verdicts are FAIL under one candidate, observer,
+Howie account and base-only configuration. The original preview.45 FAIL remains
+separate. The saved round-1 grant is already prepared in the mounted allocation
+ledger, while A's native state is outside combat/unprepared. The re-entry occurs
+within 0.011 seconds of saved time, with six seconds left to the next round.
+This rules out schema-2 conversion as the differentiating cause on this input;
+the post-fence join owner and per-actor native preparation contract remain to
+be established before a repair. See the
+[matched discriminator](CHUNK7-DIRECTIVE4-MATCHED-DEBT-DISCRIMINATOR-2026-10-19.md).
+
+`20261019-c7b-world45-ownerseed-b19s2-schema2cold` loaded the selected
+metadata-only schema2 derivative but lost rider A's saved Standard/Move/Swift
+6/3/6 after restoration. The actor was saved outside native combat with
+`Prepared=false` after its finished turn, while its spent debt remained in
+the native archive. The cold loader restored that exact debt. Later in the
+same frame, native `UnitEntityData.JoinCombat` rejoined A and native
+`UnitCombatPrepareController.Tick` cleared the 6/3/6 and set `Prepared=true`.
+The unchanged native debt assertion correctly failed. Installed assembly
+MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7` confirms Prepare.Tick calls
+`Cooldowns.Clear` for unprepared in-combat actors and that LeaveCombat calls
+`UnitCombatState.Clear`. An unreviewed synthetic Prepared flag or post-tick
+resource rewrite would cross the native-preparation/action authority boundary.
+The selected schema2 cold/current resave/third load is not accepted. Keep the
+original FAIL and diagnose a lawful save/turn boundary or a separately
+qualified representable schema2 input; do not weaken the cold debt assertion.
+
+Preview.45 area Auto and repeated-load timeouts and the diagnostic registered
+disable failure are recorded in the active checkpoint. Their source repairs
+and native acceptance are still IN PROGRESS.
+
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
+native PASS yet. Focused C#775/0 plus actual505-source compile PASS; merged
+PS501/0; required applied assisted236/0. Earlier FAILs are preserved. Exact
+scope, private review/check receipts, substitutions and next native dependencies
+are in [the active checkpoint](CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+No game/transaction is live. Finish the clean source/package review checkpoint,
+guarded-push, one proper candidate build/Candidate and suite, then selected
+migration/area/disable/refusal/removal batches. Do not stop at this source commit.
+No merge/release/tag/permanent installation, full7E or HUMAN PLAY is selected.
+
+## October 19 - preview.43 closure and next source group IN PROGRESS
+
+Preview.43 worker cancel/drain and nonselected-owner global save barrier now
+PASS natively. Pending-schema2 and schema1 producers remain preserved FAIL;
+their dependent cold loads were not launched. All four runs restored all three
+transactions and profile bytes exactly; no game or lock remains. The schema2
+test must preserve the correct future-data guard and derive historical metadata
+from a genuine current pending save. The schema1 observer must preserve null
+hotbar collection custody without allocating native state.
+
+Exact source/package/DLL/run hashes, durations and remaining scope are in
+[the active Directive 4 checkpoint](CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+The source freeze is closed. Compose and review the private group44 drafts,
+run focused affected checks, commit/guarded-push, then build the next candidate
+once and declare bounded native retries. Directive 4 remains IN PROGRESS.
+
+## Native driver selection and incomplete control-fact evidence — IN PROGRESS
+
+Preview.42 b13s1 worker and b13s2 barrier remain FAIL despite game PASS.
+The worker's restored-start path omitted normal Select(A); strict selection
+validation stays intact. Barrier preparation exposed a distinction between stale
+hotbar AbilityData templates and live fact-bound controls. Four raw templates
+and aggregate facts6→4 cannot prove exact actor ownership. Independent review
+requires native per-actor/per-kind fact observations, including active state,
+fact/Data blueprints, caster and native lookup, with compensated-leak negatives.
+No threshold-only repair or deletion of native hotbar templates is accepted.
+Preview.43 will require new observations and fresh native attempts. All failed
+raw evidence is immutable, not reused as an accepted producer. Batch13 is fully
+restored; its read-only route inventory passed but proves no area transfer.
+
+Bounded known issues found by native runs, with their current disposition. Resolved entries are kept so the history of each finding stays readable.
+
+## Completed native boundary movement lost during cold restoration — PASS (October 18)
+
+Batch 11 slot 2 found a real product defect: `RestoreParticipation` restored an
+ended, non-current boundary and then overwrote its saved `MetresStepped=2.286`
+with its actor allocation's zero. A resave would drift. Claude's `f1e54002` limits
+that allocation copy to the current boundary and preserves the live partner copy.
+Codex independently reviewed the fix, then accepted the native regression
+`20261018-c7b-world41-ownerseed-b12s1-tbload` on source `6652c7fe`: the unchanged
+accepted batch-11 archive restored 2.286 at both shared-world and presentation
+boundaries, with native continuation, no extra preparation and verified restoration.
+The original preview.40 failure stays FAIL. Focused current reader tests also reject
+a reset of this value at either phase.
+
+## Zero-mounted checkpoint reader conflates save and attack phases — PASS
+
+`20261018-c7b-world41-ownerseed-b12s2-zerosave` remains FAIL (game PASS, reader FAIL).
+The measured attacks happen while each pair is mounted; its native Dismount follows.
+Rider B's own Horse legitimately paid approach move 0.0990104 to 0.7453083. The reader
+used the final zero-mounted case name to prohibit that earlier paired approach.
+The current correction requires scalar before/after owner/turn observations bound
+to the retained owner identity/generation and exact actor roles, refuses duplicate
+owner/cross-role claims, and retains native timeMoved/displacement/budget checks.
+Three retained FAIL reviews found malformed-input and conflicting-role holes, now
+repaired with focused negatives. Final independent review PASS and 126/0 focused
+checks bind the current reader. Fresh native producer b12s4 and separate-process
+cold load b12s5 both PASS on the unchanged preview.41 product and source 2b3d6702
+reader, with exact restoration. Their zero-pair/two-retained-owner graph and native
+continuation are accepted. The original failed producer was never reused.
+A diagnostic re-evaluation never promotes the original failed run.
+
+## RT party-brain attack proposals after a mounted pair attack (2026-10-18) — RESOLVED in preview.35
+
+**Found by** run `20261018-c7b-world29-ownerseed-b4s2d-rt` (preview.29); the diagnosis is in lab file `analysis-cache/chunk7-continuation/owner-seed-batch04/rt-companion-diagnosis01.json`.
+
+**What happens.** After a real-time mounted attack, the attacking pair actors keep `CombatState.ManualTarget` set to the target. Two things set it: the native click handler sets it after `Run`, and KMC's acceptance path sets it too. The native party brain then proposes a `UnitAttack` on that target about every 0.35 s.
+
+**Two effects were recorded:**
+- **Warning spam:** hidden-mount proposals raised "Select the rider to attack, or use the mount on its own turn."
+- **Click integrity.** The review (Directive 4 R1) described this as a refused proposal erasing a pending click. The observed flaw was in the observation itself: it was keyed only on actor, target and frame (±1) and cleared by any routed command. A refused proposal could erase it, and a click whose own `Run` carried something else could leave it for a brain `UnitAttack` on the same target to borrow. Examples of "something else": an auto-use cast, a `CanNotAttack` move, or an earlier refusal such as a running save worker.
+
+**Fix** (`4da0bec4`, reviewed `d4-controls-review01`):
+- `ObservedPlayerAttackRequest` binds the native `OnAttackRequested` observation to the exact command its own synchronous `Run` carries. The `Run` prefix binds first, before any refusal.
+- Only that command is player input, and only it consumes the observation.
+- Brain proposals are refused silently.
+- Real hidden-mount and inexact clicks keep one bounded warning each.
+
+**Native acceptance:** `20261018-c7b-world35-ownerseed-b8s1-rt` (preview.35). With retained ManualTargets on rider A and Horse B and 5 proposals refused in the window:
+- one real click started exactly one pair-A intent;
+- it caused exactly one rider-A native attack on its target;
+- no warning appeared;
+- the player's Stop ended the intent.
+
+**Remaining, by design:**
+- **ManualTarget is left as native player intent.** Dismount cancels KMC's stock intent and active command, so any later attack on the retained target is a native command, never a stale KMC one.
+- **A harmless residue.** A bound observation whose `Run` was refused before routing stays inert until the next click (review note N3).
+
+## Chunk 6A rule R3 superseded; current probe versioned (2026-10-18) — RESOLVED for current entrypoints
+
+**Decision.** The owner's October 18 decision admits a voluntary turn-based Mount/Dismount in the rider's prepared (Preparing) turn (`06ec7180`).
+
+**What changed in `7930313e`:**
+- The current 6A probe emits `CM01-combat-mount-preparing-admitted`.
+- It also records `CM01-combat-mount-foreign-turn-refused` when the native order puts another actor's turn first.
+- Current readers and registrations use the new row.
+
+**History is kept.** The released preview.211 ledgers keep `CM01-combat-mount-preparing-refused` under their own inputs. `scripts/Test-Chunk6aLedger.ps1` is labelled a historical contract: it pins the 6A reader revision and already exits 1 on the successor because many Chunk 7 readers have changed. It is not a current development prerequisite.
+
+**Native first-action evidence:**
+- **First-action Dismount** (preview.34): batch 6 slots 4–5 and batch 7.
+- **First-action combat Mount** (preview.35) with both adoption dispositions: `PreparePartnerThisRound` in `…b8s2-tbrider` and `RetainPartnerParticipation` in `…b8s3-tbmount`.
+
+## Recorded combat fixtures predate the native rider-removal forfeit (2026-10-18) — RESOLVED
+
+The `tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json` combat fixtures now carry the observed native paired-removal forfeit directly (`641bc0da`). They were generated, not natively recorded; the file is labelled synthetic. The hidden load-time shaping is removed. Only the code-built TB fixture keeps the labelled generator `scripts/chunk7/Chunk7NativeForfeitFixture.ps1`.

@@ -7,6 +7,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'Chunk7SmallFixtureColdSource.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
@@ -68,6 +69,27 @@ function Assert-SubscenarioResults {
         'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
     $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7NormalPlayerRows)
+    $missionScenarios += @(Get-KmcChunk7NativeBootstrapRows)
+    $missionScenarios += @(Get-KmcChunk7BootstrapInventoryRows)
+    $missionScenarios += @(Get-KmcChunk7AssistedColdInventoryRows)
+    $missionScenarios += @(Get-KmcChunk7AssistedFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7AcquiredManualRows)
+    $missionScenarios += @(Get-KmcChunk7SmallFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7StockMammothFixtureRows)
+    $missionScenarios += @(Get-KmcChunk7ManualDerivedRows)
+    $missionScenarios += @(Get-KmcChunk7CumulativeRows)
+    $missionScenarios += @('chunk7-owned-two-pair-campaign','C7-owned-pairs-inherited-custody')
+    $missionScenarios += @(Get-KmcChunk7ManualSeedRows)
+    $missionScenarios += @(Get-KmcChunk7SmallRows)
+    $missionScenarios += @(Get-KmcChunk7ProgressionRows)
+    $missionScenarios += @(Get-KmcChunk7FieldRows)
+    $missionScenarios += @(Get-KmcChunk7OrdinaryRows)
+    $missionScenarios += @(Get-KmcChunk7WorldRows)
+    $missionScenarios += @(Get-KmcChunk7PersistenceRows)
+    $missionScenarios += @(Get-KmcChunk7CombatRuntimeRows)
+    $missionScenarios += @(Get-KmcChunk7RealtimeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
+    $missionScenarios += @(Get-KmcChunk7NativeLifeRuntimeRows | Where-Object { $missionScenarios -cnotcontains $_ })
     if ($null -eq $Result.subscenarioResults -or $Result.subscenarioResults -is [string]) { throw 'Runtime result subscenarioResults must be an array.' }
     $items = @($Result.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime result contains no named subscenarios.' }
@@ -96,6 +118,7 @@ function Assert-SubscenarioResults {
         [int]$Result.assertionPassCount -ne $assertionPass -or [int]$Result.assertionFailCount -ne $assertionFail) {
         throw 'Runtime result subscenario totals do not match the named results.'
     }
+    Assert-KmcStockMammothSubscenarioSet $Result
     # A compound scenario (Get-KmcCompoundRuntimeScenarios) reports child case rows only; its dedicated validator owns the required case set.
     if (-not (Test-KmcCompoundRuntimeScenario ([string]$Result.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Result.scenario }).Count -eq 1 -and -not $names.Contains([string]$Result.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
@@ -111,6 +134,10 @@ if ($schemaVersion -eq 1) {
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','baselineImmutable','workingRestored','saveWriteAllowlistPassed','restoredSaveInventoryDigest','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    # A normal-player result also records its UMM session receipt hash (absent on historical results).
+    if ((Test-KmcChunk7NormalPlayerScenario $request.scenario) -and $null -ne $result.PSObject.Properties['normalPlayerUmmReceiptSha256']) { $v2Fields += 'normalPlayerUmmReceiptSha256' }
+    # And the SHA-256 of its request (absent on results written before the field existed).
+    if ((Test-KmcChunk7NormalPlayerScenario $request.scenario) -and $null -ne $result.PSObject.Properties['normalPlayerRequestSha256']) { $v2Fields += 'normalPlayerRequestSha256' }
     Assert-KmcExactProperties $result @($commonRequired + $v2Fields) 'runtime result v2'
 }
 else { throw 'Runtime result request schema is unsupported.' }
@@ -119,6 +146,11 @@ foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSh
     if ([string]$result.$name -cne [string]$request.$name) { throw "Runtime result identity mismatch: $name" }
 }
 if ([string]$result.status -cnotin @('PASS','FAIL')) { throw 'Runtime result status must be PASS or FAIL.' }
+if ($null -ne $result.PSObject.Properties['normalPlayerRequestSha256'] -and
+    -not ($null -eq $result.normalPlayerRequestSha256 -and [string]$result.status -ceq 'FAIL') -and
+    ([string]$result.normalPlayerRequestSha256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-KmcSha256 $RequestPath) -cne [string]$result.normalPlayerRequestSha256)) {
+    throw 'Runtime result normalPlayerRequestSha256 does not match its request bytes.'
+}
 $started = [DateTimeOffset]::MinValue; $completed = [DateTimeOffset]::MinValue
 if (-not [DateTimeOffset]::TryParse([string]$result.startedAtUtc,[ref]$started) -or
     -not [DateTimeOffset]::TryParse([string]$result.completedAtUtc,[ref]$completed) -or $completed -lt $started) { throw 'Runtime result timestamps are invalid or reversed.' }
@@ -155,6 +187,7 @@ if ($result.baselineImmutable -ne $true -or $result.workingRestored -ne $true -o
 if ($result.saveProtectionPassed -ne ($result.baselineImmutable -and $result.workingRestored -and $result.saveWriteAllowlistPassed)) { throw 'Runtime result saveProtectionPassed does not equal its three fixture safety proofs.' }
 if ([string]$result.restoredSaveInventoryDigest -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime result lacks the restored save inventory digest.' }
 Assert-SubscenarioResults $result
+Assert-KmcChunk7NormalPlayerRuntimeBinding $request $gameEvidence ([string]$result.status) $result
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
@@ -165,6 +198,26 @@ Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifes
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -GameResult $gameEvidence
 Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7NativeBootstrapArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7BootstrapInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7AssistedColdInventoryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7AssistedFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7SmallFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7StockMammothFixtureArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7AcquiredManualArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7ManualDerivedArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7CumulativeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7ManualSeedArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7SmallArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7ProgressionArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7FieldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7OrdinaryArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7WorldArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7PersistenceArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7CombatArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7RealtimeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7NativeLifeArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
+Assert-KmcChunk7CleanupArtifacts -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$result.status) -SubscenarioResults $result.subscenarioResults
 if ([string]$result.status -ceq 'PASS' -and ([int]$result.subscenarioFailCount -ne 0 -or [int]$result.assertionFailCount -ne 0)) { throw 'PASS runtime result contains subscenario failures.' }
 Write-Host 'TOTAL PASS=29 FAIL=0'

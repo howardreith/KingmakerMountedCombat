@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Integration
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            relationship.PlayerActions = this;
             relationship.Dismounting += ObserveRelationshipDetach;
         }
 
@@ -71,7 +72,7 @@ namespace KingmakerMountedCombat.Integration
         private MountedPlayerActionAvailability GetAvailability(bool nativeMoveActionShellAdmitted, UnitEntityData executionCaster = null)
         {
             ThrowIfDisposed();
-            var context = CaptureContext(executionCaster);
+            var context = CaptureContext(executionCaster, nativeMoveActionShellAdmitted);
             context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;
             var availability = MountedPlayerActionEvaluator.Evaluate(context);
             if (IsMountTargetArmed &&
@@ -165,7 +166,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             var rider = selection != null && selection.Count == 1 ? selection[0] : null;
             var mount = rider?.Descriptor?.Pet;
-            var profile = SupportedMountedProfiles.Resolve(mount);
+            var profile = SupportedMountedProfiles.Resolve(rider, mount);
             if (rider == null || mount == null || profile == null)
             {
                 feedbackState.SetOperationFeedback("Mount targeting failed closed: the selected rider's supported active companion changed.");
@@ -186,10 +187,9 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, caster);
             var selection = SelectionManager.Instance?.SelectedUnits;
-            var exactCasterSelected = caster != null && (nativeMoveActionShellAdmitted ||
-                selection != null && selection.Count == 1 && selection[0] == caster);
+            var exactCasterSelected = caster != null;
             if (!availability.IsVisible || availability.Action != MountedPlayerActionKind.Mount)
             {
                 return new NativeMountedControlAvailability(false, false, "Mount Companion is available only while unmounted.");
@@ -210,7 +210,7 @@ namespace KingmakerMountedCombat.Integration
             bool nativeMoveActionShellAdmitted = false)
         {
             ThrowIfDisposed();
-            var availability = GetAvailability(nativeMoveActionShellAdmitted, nativeMoveActionShellAdmitted ? caster : null);
+            var availability = GetAvailability(nativeMoveActionShellAdmitted, caster);
             var exactRider = caster != null && caster == relationship.Rider;
             var game = Game.Instance;
             if (game == null || game.CurrentlyLoadedArea == null ||
@@ -235,7 +235,7 @@ namespace KingmakerMountedCombat.Integration
             var mount = caster?.Descriptor?.Pet;
             return target != null && target == mount &&
                 mount.Descriptor?.Master.Value == caster &&
-                SupportedMountedProfiles.IsSupported(mount);
+                SupportedMountedProfiles.IsSupportedPair(caster, mount);
         }
 
         internal string DescribeNativeMountTargetRejection(
@@ -282,7 +282,7 @@ namespace KingmakerMountedCombat.Integration
             var availability = GetNativeMountAvailability(caster, true);
             var mount = caster?.Descriptor?.Pet;
             var exactTarget = target != null && target == mount &&
-                mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupported(mount);
+                mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupportedPair(caster, mount);
             // DELIVERY-TIME admission. Approach admission deliberately let this command
             // exist outside adjacency so Kingmaker's own Move could close the distance;
             // the transition itself requires the envelope, measured from live state here.
@@ -452,7 +452,7 @@ namespace KingmakerMountedCombat.Integration
             var exactRiderStillSelected = selection != null && selection.Count == 1 && selection[0] == armedRider;
             if (target != armedMount || targetView == null || !exactRiderStillSelected ||
                 armedRider.Descriptor?.Pet != armedMount || armedMount.Descriptor?.Master.Value != armedRider ||
-                !SupportedMountedProfiles.IsSupported(armedMount))
+                !SupportedMountedProfiles.IsSupportedPair(armedRider, armedMount))
             {
                 feedbackState.SetOperationFeedback(
                     "Mount target rejected: click the selected rider's exact active supported companion.");
@@ -649,7 +649,7 @@ namespace KingmakerMountedCombat.Integration
             disposed = true;
         }
 
-        private MountedPlayerActionContext CaptureContext(UnitEntityData executionCaster = null)
+        private MountedPlayerActionContext CaptureContext(UnitEntityData executionCaster = null, bool nativeMoveActionShellAdmitted = false)
         {
             var state = relationship.State;
             var game = Game.Instance;
@@ -663,7 +663,7 @@ namespace KingmakerMountedCombat.Integration
                     state != RelationshipState.Mounted &&
                     state != RelationshipState.Faulted,
                 // The execution pass is the in-flight transition's own delivery.
-                RelationshipTransitionInFlight = executionCaster == null &&
+                RelationshipTransitionInFlight = !nativeMoveActionShellAdmitted &&
                     transitionLedger.HasVoluntaryTransitionInFlight
             };
 
@@ -677,10 +677,12 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData mount;
             if (state == RelationshipState.Mounted || state == RelationshipState.Faulted)
             {
-                rider = relationship.Rider;
-                mount = relationship.Mount;
-                context.ExactlyOneRiderSelected = executionCaster != null ? executionCaster == rider :
-                    selection != null && selection.Count == 1 && selection[0] == rider;
+                var principal = executionCaster ?? (selection != null && selection.Count == 1 ? selection[0] : null);
+                var owner = relationship.Ownership.FindOwner(principal);
+                rider = owner?.Rider;
+                mount = owner?.Mount;
+                context.ExactlyOneRiderSelected = rider != null && (executionCaster != null ? executionCaster == rider :
+                    selection != null && selection.Count == 1 && selection[0] == rider);
             }
             else
             {
@@ -694,13 +696,16 @@ namespace KingmakerMountedCombat.Integration
                 return context;
             }
 
+            if (state == RelationshipState.Unmounted && relationship.NativeAdmissionRefusal(rider, mount) != null)
+                context.ConflictingMountedRelationship = true;
             var riderState = rider.Descriptor?.State;
             var mountState = mount?.Descriptor?.State;
-            var profile = SupportedMountedProfiles.Resolve(mount);
+            var profile = SupportedMountedProfiles.Resolve(rider, mount);
             var exactOwnership = profile != null && rider.Descriptor.Pet == mount &&
                 mount.Descriptor?.Master.Value == rider && mount.Descriptor.IsPet;
 
-            context.RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4;
+            context.RiderIsExactlyMedium = riderState != null && (int)riderState.Size == 4 && (int)rider.Descriptor.OriginalSize == 4;
+            context.SmallRiderBodyMatch = SupportedMountedProfiles.MatchSmall(rider, mount, profile);
             context.RiderBodyProfileSupported = IsSupportedRiderBodySurface(rider, profile);
             context.ExactActiveOwnedSupportedMount = exactOwnership;
             context.MountDisplayName = profile?.DisplayName;
@@ -711,7 +716,7 @@ namespace KingmakerMountedCombat.Integration
             context.RiderIsDirectlyControllableAndInGame = rider.IsInGame && rider.IsDirectlyControllable;
             context.MountIsDirectlyControllableAndInGame = mount != null && mount.IsInGame && mount.IsDirectlyControllable;
             context.UnsupportedPolymorphOrSizeState = rider.GetActivePolymorph() != null ||
-                (mount != null && mount.GetActivePolymorph() != null) || !context.RiderIsExactlyMedium;
+                (mount != null && mount.GetActivePolymorph() != null) || !MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch);
             context.LoadingTransitionOrCutscene = IsLoadingOrCutscene(game, rider, mount);
             context.InCombat = rider.IsInCombat || (mount?.IsInCombat ?? false) || game.Player.IsInCombat;
             var turnBased = CombatController.IsInTurnBasedCombat();
@@ -720,7 +725,7 @@ namespace KingmakerMountedCombat.Integration
             var turnPreparing = turn != null && turn.Status == TurnController.TurnStatus.Preparing;
             var turnActing = turn != null && turn.IsActing;
             context.CombatTurnEligible = CombatMountDismountPolicy.IsTurnEligible(
-                turnBased, currentTurnIsExactRider, turnActing);
+                turnBased, currentTurnIsExactRider, turnPreparing, turnActing);
             context.CombatTurnIneligibilityReason = CombatMountDismountPolicy.DescribeTurnIneligibility(
                 state == RelationshipState.Mounted || state == RelationshipState.Faulted
                     ? "Dismount" : "Mount Companion",
@@ -753,7 +758,7 @@ namespace KingmakerMountedCombat.Integration
                     rider.DistanceTo(mount),
                     rider.View.Corpulence,
                     mount.View.Corpulence);
-            context.SafeGameMode = executionCaster != null
+            context.SafeGameMode = nativeMoveActionShellAdmitted
                 ? MountedGameModePolicy.CanAdmitMountedAction(game.CurrentMode.ToString())
                 : MountedGameModePolicy.CanQueueMountedAction(game.CurrentMode.ToString());
             context.ViewsAndStockAgentsAvailable = rider.View != null && rider.View.AgentASP != null &&
@@ -805,7 +810,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var selection = SelectionManager.Instance?.SelectedUnits;
             var rider = selection != null && selection.Count == 1 ? selection[0] : null;
-            return SupportedMountedProfiles.Resolve(rider?.Descriptor?.Pet);
+            return SupportedMountedProfiles.Resolve(rider, rider?.Descriptor?.Pet);
         }
 
         private void ClearMountTargetSelection()
@@ -840,6 +845,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private void DestroyOverlay()
+        {
+            // Construction rollback has no Unity objects. Keep that path outside
+            // the native destruction body, including its Unity internal calls.
+            if (ReferenceEquals(overlay, null) && ReferenceEquals(overlayObject, null)) return;
+            DestroyNativeOverlay();
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void DestroyNativeOverlay()
         {
             if (overlay != null)
             {

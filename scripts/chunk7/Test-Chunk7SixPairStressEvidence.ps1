@@ -1,0 +1,254 @@
+[CmdletBinding()]
+param([string]$OutputDirectory)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Initialize-Chunk7Tests.ps1')
+if(-not$OutputDirectory){$OutputDirectory=Join-Path $chunk7AnalysisRoot ('six-reader-'+[Guid]::NewGuid().ToString('N'))}
+$OutputDirectory=Assert-KmcChildPath $OutputDirectory $chunk7AnalysisRoot 'six-pair generated reader checks'
+if(Test-Path -LiteralPath $OutputDirectory){throw 'Preserve prior six-pair reader checks.'};[void][IO.Directory]::CreateDirectory($OutputDirectory)
+function Clone($Value){
+ $decoded=$Value|ConvertTo-Json -Depth 90|ConvertFrom-Json
+ # PS5 adds extended Count/value properties when a returned array is wrapped.
+ # Enumerate the decoded members so generated wire arrays stay JSON arrays.
+ if($decoded-is[Array]){foreach($item in $decoded){$item}}else{$decoded}
+}
+$sourceRequest=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261022-c7b-world185-b185s1-sixthhorse-cold/runtime-request.json')
+$roles=@(Get-KmcChunk7SixPairRoles);$request=Clone $sourceRequest;$request.scenario='chunk7-owned-two-pair-campaign';$request.runId='generated-six-reader'
+$request.PSObject.Properties.Remove('assistedColdInventory');$request|Add-Member persistenceCase $null
+$selection=[pscustomobject][ordered]@{case='six-horse-cold-fixture-lifecycle-stress';sourceRunId=$sourceRequest.runId;
+ sourceArtifactSha256='012d1caff175d34614fcd255f0b6ad897e0ef1a9650791cb3c0d55ce13b47241';sourceArchiveSha256=$sourceRequest.persistenceLoad.sha256;
+ checkpointSourceRunId=$null;checkpointSourceArtifactSha256=$null;riderAId=$roles[0];mountAId=$roles[1];riderBId=$roles[2];mountBId=$roles[3];
+ partyIds=$roles;baseGameOnly=$true;expectedNativeLoadCount=1;expectedNativeWriteCount=0}
+$request|Add-Member ownedPairs $selection
+Assert-KmcChunk7OwnedPairsDescriptor $request
+$qualified=Get-KmcChunk7OwnedPairsSource $selection $null $request.fixture $request
+if($qualified.archiveProducerRunId-cne'20261022-c7b-world184-b184s1-sixthhorse-manual'-or$qualified.qualificationRunId-cne$sourceRequest.runId-or
+ $qualified.receiptPins.Count-ne16-or$qualified.nativeAuthorityGranted-ne$false-or$qualified.sixPairCheckpoint-ne$true){throw 'Actual six-pair source routing lost its exact checkpoint or granted authority.'}
+$cold=(Read-KmcJson $qualified.artifactPath).observations.settledWorld
+# After the actual complete routed gate succeeds, only that external qualification
+# boundary is substituted for generated reader mutations. Exact reader methods
+# and retained cold observation decoding below remain unmodified.
+function Get-KmcChunk7SixPairCheckpointSource($Fixture){Assert-KmcAssistedSame $Fixture $sourceRequest.fixture 'six-reader source fixture delegation';$qualified}
+$arrangement=[pscustomobject]@{money=$cold.nativeMoney;experienceRatePercent=100;actors=@($cold.party|Sort-Object id -CaseSensitive|ForEach-Object{
+ [pscustomobject]@{actorId=$_.id;blueprint=$_.blueprint;experience=$_.experience;characterLevel=$_.characterLevel;
+ classes=@($_.classes|Sort-Object guid -CaseSensitive|ForEach-Object{[pscustomobject]@{classGuid=$_.guid;level=$_.level}})}})}
+$subs=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=1;ownedInterfaceEntries=1;
+ entries=@([pscustomobject]@{interface='native-interface';type='KmcSubscriber';identity=-77})}
+function Resources([long]$Ticks){[pscustomobject]@{gameTicks=$Ticks;actors=@($roles|ForEach-Object{[pscustomobject]@{id=$_;move=0.0;standard=0.0;swift=0.0;prepared=$false;reactionAllowance=1;initiative=0}})}}
+function Owners([int]$Count,[int]$Cycle=1){for($i=0;$i-lt$Count;$i++){
+ [pscustomobject]@{ownerId=('00000000-0000-0000-0000-'+($Cycle*100+$i+1).ToString('000000000000'));riderId=([Guid]$roles[$i*2]).ToString('N');mountId=([Guid]$roles[$i*2+1]).ToString('N');
+ generation=$Cycle;state='Active';relationshipState='Mounted';retainsObligations=$true;saveReady=$true;teardownReady=$false}
+}}
+function World([string]$Label,[int]$Active,[int]$Frame=100,[int]$Cycle=1){[pscustomobject]@{label=$Label;frame=$Frame;boundaryCount=6;participantCount=6;
+ selection=@($roles[0]);resources=(Resources ([long]$Frame*100000));subscriptions=(Clone $subs);owners=@(Owners $Active $Cycle)}}
+$pairs=@(for($i=0;$i-lt6;$i++){[pscustomobject]@{riderId=$roles[$i*2];mountId=$roles[$i*2+1];rider=$i*4+1;mount=$i*4+2;feature=$i*4+3;rankFact=$i*4+4;
+ sourceGuid='97261d609529d834eba4fd4da1bc44dc';rank=1;profileId=$(if($i-cin@(1,4,5)){'small-default-halfling-horse-v1'}else{'medium-humanoid-horse-v1'})}})
+$remote=[pscustomobject]@{actorId='8265f8cf-0969-4ec7-a266-2448de91c8c4';object=25;descriptor=26;petId=$null;masterId=$null;
+ arrangement=[pscustomobject]@{money=357290;experienceRatePercent=100;actors=@([pscustomobject]@{actorId='8265f8cf-0969-4ec7-a266-2448de91c8c4';blueprint='77c11edb92ce0fd408ad96b40fd27121';experience=9000;characterLevel=4;classes=@([pscustomobject]@{classGuid='772c83a25e2268e448e841dcd548235f';level=4})})}}
+function Inherited([string]$Phase){[pscustomobject]@{contract='cold-qualified-six-horse-native-field-v1';phase=$Phase;sourceRunId=$selection.sourceRunId;sourceArtifactSha256=$selection.sourceArtifactSha256;
+ sourceArchiveSha256=$selection.sourceArchiveSha256;sourceCase='sixth-horse-manual-readonly-inventory';nativeLoadVerifiedByHost=$true;decodedReceiptAuthorizesRestoration=$false;inheritedPetsPreserved=$true;ownedFactRemovalCount=0;
+ partyIds=$roles;currentPartyIds=$roles;currentCharacterIds=@(for($i=0;$i-lt6;$i++){$roles[$i*2]});remoteCapturedIds=@();arrangement=(Clone $arrangement);pairs=(Clone $pairs);
+ identities=[pscustomobject]@{capacity=128;ids=@(1..26);faults=0};remote=(Clone $remote)}}
+$inputs=@();$n=0
+for($cycle=1;$cycle-le3;$cycle++){foreach($mount in @($true,$false)){for($i=0;$i-lt6;$i++){
+ $n++;$verb=if($mount){'mount'}else{'dismount'}
+ $inputs+=[pscustomobject]@{label=('six-cycle-'+$cycle+'-'+$verb+'-'+$i);casterId=$roles[$i*2];targetId=$(if($mount){$roles[$i*2+1]}else{$roles[$i*2]});
+ abilityGuid=$(if($mount){'f053faad986631688defa003cd7bda0e'}else{'3af2b81f4d72bbb30501fa730fcdf36e'});clicked=$true;nativeCastDelta=1;nativeRefusalDelta=0;commandObject=10000+$n;
+ shellControl=('shell-'+$n);generationAtInit=$cycle;resourcesBefore=(Resources 100000000L);resourcesAfter=(Resources 110000000L);selectionAfterInput=$roles[(($i+1)%6)*2];
+ shellTerminal=$true;processTerminal=$true;observedExactProcess=$true;explorationResourcesConserved=$true}
+}}}
+function Point([double]$X){[pscustomobject]@{x=$X;y=0.0;z=0.0}}
+function GroundSnapshot([int]$Index,[int]$Command=0){
+ [pscustomobject]@{frame=100;gameTicks=10000000L;paused=$true;turnBased=$false;gamepad=$false;simulatingClick=$false;
+ serializationBusy=$false;saveWorkerRunning=$false;restorationPending=$false;selectionTruncated=$false;commandsComplete=$true;
+ selectionCount=1;selection=@([pscustomobject]@{id=$roles[$Index*2];object=100+$Index*2});actors=@(for($j=0;$j-lt12;$j++){
+  $move=$(if($j-eq$Index*2+1){$Command}else{0})
+  $raw=@([pscustomobject]@{object=0});if($move-ne0){$raw=@([pscustomobject]@{object=$move;executorId=$roles[$j];executorObject=100+$j;createdByPlayer=$true})}
+  [pscustomobject]@{id=$roles[$j];object=100+$j;commandsObject=200+$j;rawCount=1;queueCount=0;rawTruncated=$false;queueTruncated=$false;
+   raw=$raw;queue=@();previous=[pscustomobject]@{object=0};publicMoveObject=$move;rawMoveObject=$move}
+ })}
+}
+$moves=@();$ground=@()
+for($i=0;$i-lt6;$i++){
+ $label='six-ground-'+$i;$command=20000+$i;$selected=$roles[(($i+1)%6)*2]
+ $before=World ('quiet-before-'+$label) 6 100;$after=World ('quiet-after-'+$label) 6 130;$before.selection=@($selected);$after.selection=@($selected)
+ $t=[pscustomobject]@{lastSampleSeconds=0.0;sampleSequence=0;fileCreated=$false;samplingIntervalSeconds=.1;clockSeconds=10.0};$end=Clone $t;$end.clockSeconds=11.0
+ $quiet=[pscustomobject]@{contract='chunk7-optional-capture-quiet-window-v1';label=$label;startFrame=100;endFrame=130;startSeconds=10.0;endSeconds=11.0;
+ minimumFrames=12;maximumFrames=1800;minimumSeconds=.25;maximumSeconds=15.0;telemetryBefore=$t;telemetryAfter=$end;measurementBeforePresent=$false;measurementAfterPresent=$false;
+ fullyInert=$false;performanceProof=$false;allocationRateProof=$false;remainingObservers=@('guarded-host-heartbeat','exact-native-world-guard','production-lifecycle-records','native-command-settlement-polling','entry-exit-snapshots');gateReleased=$true;before=$before;after=$after}
+ $cmdBefore=@($roles|ForEach-Object{[pscustomobject]@{id=$_;moveObject=0}});$cmdAfter=Clone $cmdBefore;($cmdAfter|Where-Object id -CEQ $roles[$i*2+1]).moveObject=$command
+ $moves+=[pscustomobject]@{label=$label;selectedId=$roles[$i*2];executorId=$roles[$i*2+1];commandObject=$command;selectionAfterInput=$selected;otherCommandsUnchangedAtInput=$true;
+ start=(Point 0);requestedGoal=(Point 2);end=(Point 2);distance=2.0;goalResidual=0.0;commandTerminal=$true;ownerContinuity=$true;commandsBefore=$cmdBefore;commandsAfter=$cmdAfter;optionalCaptureWindow=$quiet}
+ $ground+=[pscustomobject]@{contract='chunk7-world-ground-input/v1';label=$label;selectedId=$roles[$i*2];executorId=$roles[$i*2+1];nativeCallEntered=$true;nativeCallReturned=$true;commandValidationPassed=$true;
+ before=(GroundSnapshot $i);after=(GroundSnapshot $i $command)}
+}
+$samples=@()
+for($i=0;$i-lt15;$i++){
+ $group=[int][Math]::Floor($i/3);$window=$i%3;$active=@(0,1,2,6,0)[$group];$start=1000+$i*200;$finish=$start+120
+ $before=World 'six-matched-boundary' $active ($start-30) 3;$after=World 'six-matched-boundary' $active $finish 3
+ foreach($w in @($before,$after)){foreach($actor in $w.resources.actors){$actor|Add-Member reactions 1}}
+ $ownership=[pscustomobject]@{boundaries=6;failedConstructions=0;owners=$active;active=$active;allocationActors=0;participants=6;preparedOrViewResidue=$active;liveControlBoundaries=0}
+ $sample=[pscustomobject]@{label=('six-state-'+$group+'-window-'+$window);warmupFrames=30;sampleFrames=120;startFrame=$start;endFrame=$finish;stopwatchFrequency=1000000L;
+ serviceTicks=@(1..120|ForEach-Object{10L});frameSeconds=@(1..120|ForEach-Object{.016});phaseContract='chunk7-update-phases-v1';pairUpdateTicks=@(1..120|ForEach-Object{3L});turnUpdateTicks=@(1..120|ForEach-Object{2L});
+ serviceMeanMs=.01;serviceP50Ms=.01;serviceP95Ms=.01;frameP50Ms=16.0;frameP95Ms=16.0;managedHeapBefore=1000L;managedHeapAfter=1000L;managedHeapDelta=0L;forcedCollection=$false;
+ collectionsBefore=@(0,0,0);collectionsAfter=@(0,0,0);kmcLogMessages=0L;kmcLogCharacters=0L;ownersBefore=(Clone $ownership);ownersAfter=(Clone $ownership);
+ subscriptionsBefore=(Clone $subs);subscriptionsAfter=(Clone $subs);limits='Generated external sampler boundary; no native or performance qualification.'}
+ $samples+=[pscustomobject]@{group=$group;window=$window;activePairs=$active;
+ before=[pscustomobject]@{world=$before;identityPins=@(1000..1053);activePairs=$active;allocationActors=0};
+ after=[pscustomobject]@{world=$after;identityPins=@(1000..1053);activePairs=$active;allocationActors=0};sample=$sample}
+}
+$stress=[pscustomobject]@{contract='cold-qualified-six-pair-lifecycle-v1';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual';coldQualificationRunId=$selection.sourceRunId;
+ fixtureSetupWrites=0;nativeSaveRequests=0;nativeLoadRequests=1;requiredCycles=3;requiredGroundInputs=6;requiredAbilityInputs=36;requiredWindows=15;windowsPerState=3;
+ performanceAccepted=$false;requestFreeControlsProven=$false;identityScopeReleased=$true;cycles=@(for($i=1;$i-le3;$i++){World ('six-cycle-'+$i+'-settled') 0 (100*$i)});samples=$samples;
+ nativeCastRequests=36;nativeRefusals=0;saveSnapshots=0;semanticRestores=0;presentationRestores=0;riderParents=1;riderParentChildren=16;siblingOrderVerifiedCycles=3}
+$o=[pscustomobject]@{inheritedFixture=(Inherited 'admitted');inheritedCleanup=(Inherited 'cleanup');sixPairStress=$stress;
+ capability=[pscustomobject]@{archiveNativeEnabled=$true;nativeWriterSchema=3;nativePairCapacity=6;workingSha256=$null;inheritedManualSha256=$selection.sourceArchiveSha256};
+ inputs=$inputs;cycleInputs=@();cycles=@();measurements=@();snapshots=@((World 'six-first-native-mounts' 6));movements=$moves;groundInputs=$ground;
+ cleanup=[pscustomobject]@{pairResidueAbsent=$true;horseRemoved=$false;inheritedPetsPreserved=$true;controlsSettled=$true;settingsAndSelectionRestored=$true;nativeProcessesSettled=$true;cleanupCustodySettled=$true;
+ nativeProgressionRequiresExternalWorkingRestoration=$false;ordinaryRespecProven=$false;nativeSaveWritten=$false;world=(World 'cleanup' 0);selectionBefore=@();selectionAfter=@()}}
+$a=[ordered]@{schemaVersion=1;evidenceKind='chunk7-world-evidence';createdAtUtc='2026-10-22T00:00:00Z';status='PASS';errors=@();observations=$o}
+foreach($key in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')){$a[$key]=$request.$key};$artifact=[pscustomobject]$a
+$checks=[Collections.Generic.List[object]]::new()
+function Check([string]$Name,[scriptblock]$Body,[bool]$Reject=$false){
+ $accepted=$true;$message=$null;try{&$Body|Out-Null}catch{$accepted=$false;$message=$_.Exception.Message}
+ $ok=$accepted-ne$Reject;$checks.Add([pscustomobject]@{name=$Name;pass=$ok;expectedRefusal=$Reject;error=$message})
+ Write-Output ($(if($ok){'PASS '}else{'FAIL '})+$Name+$(if(-not$ok){': '+$message}else{''}))
+}
+Check 'complete six-pair generated raw evidence under actual reader dispatch' {Assert-KmcChunk7WorldEvidence $request $artifact 'PASS'}
+# v2 declares that full inherited custody ran only at sampling-window boundaries.
+function New-V2Artifact{$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v2';$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;$v}
+Check 'v2 six-pair evidence with boundary-only full custody under actual reader dispatch' {Assert-KmcChunk7WorldEvidence $request (New-V2Artifact) 'PASS'}
+Check 'strict six-pair reader refuses v2 claiming full custody on measured frames' {$v=New-V2Artifact;$v.observations.sixPairStress.measuredFramesCarryFullCustody=$true;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses v2 without its custody declaration' {$v=New-V2Artifact;$v.observations.sixPairStress.PSObject.Properties.Remove('measuredFramesCarryFullCustody');Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses a mistyped v2 custody declaration' {$v=New-V2Artifact;$v.observations.sixPairStress.measuredFramesCarryFullCustody='false';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses v1 carrying the v2 declaration' {$v=Clone $artifact;$v.observations.sixPairStress|Add-Member measuredFramesCarryFullCustody $false;Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict six-pair reader refuses an unknown contract version' {$v=Clone $artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v4';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+foreach($key in @('sixPairCombatEntry','sixPairCombatEntryError')){Check ('strict six-pair reader refuses PASS evidence carrying '+$key) {$v=New-V2Artifact;$v.observations|Add-Member $key ([pscustomobject]@{classification='unclassified-six-pair-combat-entry'});Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true}
+function New-ClearanceArtifact{$v=New-V2Artifact;$v.observations|Add-Member sixPairHostileClearance ([pscustomobject]@{contract='six-pair-native-vision-clearance-v1';phase='before-stress';frame=120;gameTicks=2245000000000;combatVisionMeters=11.7;marginMeters=3;points=18
+ units=@([pscustomobject]@{id='4fb0d949-ec60-495c-bde8-812d08872323';blueprint='23df787f0da21d44093f4822a6cc0628';faction='b1525b4b33efe0241b4cbf28486cd2cc';peacefulFaction=$false;groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';awake=$true;inFog=$false
+  position=[pscustomobject]@{x=24.0;y=0.0;z=5.6};visionRangeMeters=8.5;requiredClearanceMeters=11.5;nearestPoint='waypoint:d8c2f840-9d59-4b5e-9250-c628a36c5589';nearestDistance2D=19.4;extendedVisionCoversPoint=$false;clear=$true});breaches=@();clear=$true});$v}
+Check 'six-pair evidence with a clear before-stress native vision clearance' {Assert-KmcChunk7WorldEvidence $request (New-ClearanceArtifact) 'PASS'}
+Check 'six-pair evidence with no units near the placement' {$v=New-ClearanceArtifact;$v.observations.sixPairHostileClearance.units=@();Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+foreach($fault in @('inside-vision','inside-margin','breach-listed','not-clear','unit-not-clear','extended-vision','wrong-required','wrong-margin','wrong-points','wrong-phase','extra-field','text-distance','repeated-unit','missing-units')){
+ Check ('strict six-pair reader refuses clearance '+$fault) {$v=New-ClearanceArtifact;$c=$v.observations.sixPairHostileClearance;$u=$c.units[0]
+  switch($fault){'inside-vision'{$u.nearestDistance2D=8.304787};'inside-margin'{$u.nearestDistance2D=11.49};'breach-listed'{$c.breaches=@($u.id)};'not-clear'{$c.clear=$false};'unit-not-clear'{$u.clear=$false}
+   'extended-vision'{$u.extendedVisionCoversPoint=$true};'wrong-required'{$u.requiredClearanceMeters=8.5;$u.nearestDistance2D=9.0};'wrong-margin'{$c.marginMeters=0};'wrong-points'{$c.points=12};'wrong-phase'{$c.phase='during-stress'}
+   'extra-field'{$c|Add-Member note 'x'};'text-distance'{$u.nearestDistance2D='19.4'};'repeated-unit'{$c.units=@($u,$u)};'missing-units'{$c.PSObject.Properties.Remove('units')}}
+  Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
+# F3 r39: each cycle-1 ground goal keeps native vision clearance from every hostile's native wander envelope.
+function New-GoalsArtifact{$v=New-ClearanceArtifact;$b=$v.observations
+ foreach($m in $b.movements){$m.requestedGoal=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};$m.end=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};$m.distance=3.61}
+ $b|Add-Member sixPairGroundGoals ([pscustomobject][ordered]@{contract='six-pair-wander-clear-ground-goals-v1';roamingApproachMeters=1.0;marginMeters=3.0;dismountReachMeters=4.0;spacingMeters=1.75
+  envelopes=@([pscustomobject]@{id='86c73c36-a58e-4045-a851-5ceb1016a5c1';groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';position=[pscustomobject]@{x=16.67;y=-0.2;z=12.62};kind='random';nextPoint=[pscustomobject]@{x=17.69;y=2.28;z=9.07};originalPoint=[pscustomobject]@{x=12.80;y=2.28;z=12.73};radius=7.0}
+   [pscustomobject]@{id='5122d52e-0000-0000-0000-000000000000';groupId='2b0e9966-ef7c-44c9-b050-4b27ffec39f9';position=[pscustomobject]@{x=-12.75;y=1.84;z=-112.89};kind='waypoints';nextPoint=$null;waypoints=@()})
+  pairs=@(for($i=0;$i-lt6;$i++){[pscustomobject][ordered]@{index=$i;mountId=$roles[$i*2+1];riderId=$roles[$i*2];chosen=[pscustomobject][ordered]@{distance=4.0;bearing=135.0;goal=[pscustomobject]@{x=-2.0;y=0.0;z=-3.0};start=[pscustomobject]@{x=0.0;y=0.0;z=0.0};candidatesTried=44;minimumEnvelopeClearanceMeters=12.4};firstRefusals=[pscustomobject]@{'hostile-wander-vision'=@(2.0,0.0)}}});clear=$true});$v}
+Check 'six-pair evidence with wander-clear ground goals bound to its routed moves' {Assert-KmcChunk7WorldEvidence $request (New-GoalsArtifact) 'PASS'}
+foreach($fault in @('move-off-goal','no-record-off-route','unreadable-envelope','unknown-envelope','random-without-radius','not-clear','no-chosen','inside-envelope-clearance','beyond-search','wrong-dismount-reach','wrong-approach','extra-field','five-pairs','wrong-rider','wrong-index')){
+ Check ('strict six-pair reader refuses ground goals '+$fault) {$v=New-GoalsArtifact;$b=$v.observations;$g=$b.sixPairGroundGoals;$p=$g.pairs[3]
+  switch($fault){'move-off-goal'{$b.movements[3].requestedGoal.z=-2.0};'no-record-off-route'{$b.PSObject.Properties.Remove('sixPairGroundGoals')};'unreadable-envelope'{$g.envelopes[1].kind='waypoints-unreadable'}
+   'unknown-envelope'{$g.envelopes[1].kind='patrol'};'random-without-radius'{$g.envelopes[0].radius=-1.0};'not-clear'{$g.clear=$false};'no-chosen'{$p.chosen=$null}
+   'inside-envelope-clearance'{$p.chosen.minimumEnvelopeClearanceMeters=2.9};'beyond-search'{$p.chosen.distance=12.0};'wrong-dismount-reach'{$g.dismountReachMeters=0.0};'wrong-approach'{$g.roamingApproachMeters=0.0}
+   'extra-field'{$g|Add-Member note 'x'};'five-pairs'{$g.pairs=@($g.pairs|Select-Object -First 5)};'wrong-rider'{$p.riderId=$roles[0]};'wrong-index'{$p.index=4}}
+  Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
+# Lifecycle v3 (F3 r39 producers) requires the v2 wander-clear ground goals and recomputes them from the record.
+function P3([double]$X,[double]$Y,[double]$Z){[pscustomobject][ordered]@{x=$X;y=$Y;z=$Z}}
+function Get-TestDistance([double]$Ax,[double]$Az,[double]$Bx,[double]$Bz){[Math]::Sqrt(($Ax-$Bx)*($Ax-$Bx)+($Az-$Bz)*($Az-$Bz))}
+function Get-TestLeg([double]$Px,[double]$Pz,$A,$B){$dx=[double]$B.x-$A.x;$dz=[double]$B.z-$A.z;$l=$dx*$dx+$dz*$dz;$t=if($l-gt0){[Math]::Max(0.0,[Math]::Min(1.0,(($Px-$A.x)*$dx+($Pz-$A.z)*$dz)/$l))}else{0.0}
+ [Math]::Max(0.0,(Get-TestDistance $Px $Pz ($A.x+$t*$dx) ($A.z+$t*$dz))-1.0)}
+# An independent recomputation of the producer's minimum hostile reach for the generated record.
+function Get-TestClearance($G,$Goal){$min=[double]::MaxValue
+ foreach($e in $G.envelopes){$next=if($null-ne$e.PSObject.Properties["nextPoint"]-and$null-ne$e.nextPoint){$e.nextPoint}else{$e.position};$d=Get-TestLeg $Goal.x $Goal.z $e.position $next
+  if($e.kind-ceq'random'-or($e.kind-ceq'waypoints'-and$e.randomFallback)){$d=[Math]::Min($d,[Math]::Max(0.0,(Get-TestDistance $Goal.x $Goal.z $e.originalPoint.x $e.originalPoint.z)-$e.radius-1.0))}
+  if($e.kind-ceq'waypoints'){foreach($w in $e.waypoints){$d=[Math]::Min($d,[Math]::Max(0.0,(Get-TestDistance $Goal.x $Goal.z $w.x $w.z)-1.0))};foreach($l in $e.legs){$d=[Math]::Min($d,(Get-TestLeg $Goal.x $Goal.z $l.from $l.to))}}
+  $min=[Math]::Min($min,[Math]::Min($d,(Get-TestDistance $Goal.x $Goal.z $e.position.x $e.position.z))-4)}
+ $min}
+function Set-TestClearances($V){$g=$V.observations.sixPairGroundGoals;foreach($p in $g.pairs){$p.chosen.minimumEnvelopeClearanceMeters=Get-TestClearance $g $p.chosen.goal}}
+function New-V3Artifact{$v=New-ClearanceArtifact;$b=$v.observations;$b.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v3'
+ $roamer='86c73c36-a58e-4045-a851-5ceb1016a5c1';$walker='5122d52e-0000-0000-0000-000000000000'
+ $b.sixPairHostileClearance.units=@(
+  [pscustomobject]@{id=$roamer;blueprint='23df787f0da21d44093f4822a6cc0628';faction='b1525b4b33efe0241b4cbf28486cd2cc';peacefulFaction=$false;groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';awake=$true;inFog=$false
+   position=(P3 16.67 -0.2 12.62);visionRangeMeters=8.5;requiredClearanceMeters=11.5;nearestPoint='waypoint:d8c2f840-9d59-4b5e-9250-c628a36c5589';nearestDistance2D=40.0;extendedVisionCoversPoint=$false;clear=$true}
+  [pscustomobject]@{id=$walker;blueprint='23df787f0da21d44093f4822a6cc0628';faction='b1525b4b33efe0241b4cbf28486cd2cc';peacefulFaction=$false;groupId='2b0e9966-ef7c-44c9-b050-4b27ffec39f9';awake=$true;inFog=$false
+   position=(P3 -12.75 1.84 -112.89);visionRangeMeters=8.5;requiredClearanceMeters=11.5;nearestPoint='actor:d8c2f840-9d59-4b5e-9250-c628a36c5589';nearestDistance2D=80.0;extendedVisionCoversPoint=$false;clear=$true})
+ $pairsOut=@();for($i=0;$i-lt6;$i++){
+  $start=P3 (-40+4*$i) 0 -20;$goal=P3 (-38+4*$i) 0 -20;$chosen=[pscustomobject][ordered]@{distance=2.0;bearing=0.0;goal=$goal;start=$start;candidatesTried=1;minimumEnvelopeClearanceMeters=0.0};$refusals=[pscustomobject]@{}
+  # Pair 3 keeps the 4 m / 90 degree ring point after two recorded first refusals.
+  if($i-eq3){$chosen.distance=4.0;$chosen.bearing=90.0;$chosen.goal=P3 -28 0 -24;$chosen.candidatesTried=40;$refusals=[pscustomobject][ordered]@{'hostile-wander-vision'=@(2.0,0.0);'pair-spacing'=@(3.0,45.0)}}
+  $m=$b.movements[$i];$m.start=Clone $chosen.start;$m.requestedGoal=Clone $chosen.goal;$m.end=Clone $chosen.goal;$m.distance=[double]$chosen.distance
+  $pairsOut+=[pscustomobject][ordered]@{index=$i;mountId=$roles[$i*2+1];riderId=$roles[$i*2];chosen=$chosen;firstRefusals=$refusals}}
+ $b|Add-Member sixPairGroundGoals ([pscustomobject][ordered]@{contract='six-pair-wander-clear-ground-goals-v2';roamingApproachMeters=1.0;marginMeters=3.0;dismountReachMeters=4.0;spacingMeters=1.75
+  envelopes=@([pscustomobject][ordered]@{id=$roamer;groupId='d6aa1e8c-e3d2-47af-a4f8-ba41e3252eb5';position=(P3 16.67 -0.2 12.62);nextPoint=(P3 17.69 2.28 9.07);kind='random';originalPoint=(P3 12.80 2.28 12.73);radius=7.0}
+   [pscustomobject][ordered]@{id=$walker;groupId='2b0e9966-ef7c-44c9-b050-4b27ffec39f9';position=(P3 -12.75 1.84 -112.89);nextPoint=(P3 -10.0 1.84 -110.0);kind='waypoints'
+    waypoints=@((P3 -10.0 1.84 -110.0),(P3 -20.0 1.84 -100.0));legs=@([pscustomobject]@{from=(P3 -10.0 1.84 -110.0);to=(P3 -20.0 1.84 -100.0)},[pscustomobject]@{from=(P3 -20.0 1.84 -100.0);to=(P3 -10.0 1.84 -110.0)})
+    randomFallback=$true;originalPoint=(P3 -12.0 1.84 -100.0);radius=5.0})
+  pairs=$pairsOut;clear=$true});Set-TestClearances $v;$v}
+Check 'v3 six-pair evidence with recomputed wander-clear ground goals' {Assert-KmcChunk7WorldEvidence $request (New-V3Artifact) 'PASS'}
+Check 'v3 six-pair evidence admits a waypoint roamer whose unused fallback disk lies at a goal' {$v=New-V3Artifact;$e=$v.observations.sixPairGroundGoals.envelopes[1];$e.randomFallback=$false;$e.originalPoint=P3 -38 1.84 -20;Set-TestClearances $v;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+Check 'v3 six-pair evidence admits a stationary hostile far from every goal' {$v=New-V3Artifact;$g=$v.observations.sixPairGroundGoals;$e=$g.envelopes[1];$g.envelopes[1]=[pscustomobject][ordered]@{id=$e.id;groupId=$e.groupId;position=$e.position;kind='stationary'};Set-TestClearances $v;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+foreach($fault in @('missing-goals','missing-clearance','v1-goals','missing-envelope','extra-envelope','envelope-moved','roamer-disk-at-goal','fallback-disk-at-goal','leg-through-goal','next-leg-to-goal',
+ 'forged-clearance','wider-vision','start-off-move','bearing-off-ring','distance-off-ring','wrong-tried','refusal-after-chosen','refusals-out-of-order','missing-first-refusal','unknown-refusal',
+ 'goal-off-ring','spacing','waypoints-missing-legs','fallback-not-boolean','random-without-radius','fallback-without-radius','waypoints-without-next','unreadable-envelope','extra-chosen-field','extra-pair-field')){
+ Check ('strict v3 six-pair reader refuses ground goals '+$fault) {$v=New-V3Artifact;$b=$v.observations;$g=$b.sixPairGroundGoals;$r=$g.envelopes[0];$w=$g.envelopes[1];$p=$g.pairs[3];$c=$p.chosen
+  switch($fault){'missing-goals'{$b.PSObject.Properties.Remove('sixPairGroundGoals')};'missing-clearance'{$b.PSObject.Properties.Remove('sixPairHostileClearance')}
+   'v1-goals'{$g.contract='six-pair-wander-clear-ground-goals-v1'};'missing-envelope'{$g.envelopes=@($r)};'extra-envelope'{$b.sixPairHostileClearance.units=@($b.sixPairHostileClearance.units[0])}
+   'envelope-moved'{$r.position.x=16.0};'roamer-disk-at-goal'{$r.originalPoint=P3 -20 2.28 -30;Set-TestClearances $v};'fallback-disk-at-goal'{$w.originalPoint=P3 -38 1.84 -20;Set-TestClearances $v}
+   'leg-through-goal'{$w.legs=@($w.legs)+@([pscustomobject]@{from=(P3 -10.0 1.84 -110.0);to=(P3 -28.0 1.84 -30.0)});Set-TestClearances $v}
+   'next-leg-to-goal'{$r.nextPoint=P3 -30 0 -22;Set-TestClearances $v};'forged-clearance'{$c.minimumEnvelopeClearanceMeters+=1.0}
+   'wider-vision'{$u=$b.sixPairHostileClearance.units[0];$u.visionRangeMeters=60.0;$u.requiredClearanceMeters=63.0;$u.nearestDistance2D=70.0}
+   'start-off-move'{$b.movements[3].start.x+=0.6;$b.movements[3].end.x+=0.6};'bearing-off-ring'{$c.bearing=80.0};'distance-off-ring'{$c.distance=4.5};'wrong-tried'{$c.candidatesTried=39}
+   'refusal-after-chosen'{$p.firstRefusals.'pair-spacing'=@(5.0,0.0)};'refusals-out-of-order'{$p.firstRefusals=[pscustomobject][ordered]@{'pair-spacing'=@(3.0,45.0);'hostile-wander-vision'=@(2.0,0.0)}}
+   'missing-first-refusal'{$p.firstRefusals=[pscustomobject][ordered]@{'pair-spacing'=@(3.0,45.0)}};'unknown-refusal'{$p.firstRefusals|Add-Member 'too-dark' @(3.0,0.0)}
+   'goal-off-ring'{$c.goal.x+=0.5;$b.movements[3].requestedGoal.x+=0.5;$b.movements[3].end.x+=0.5;Set-TestClearances $v}
+   'spacing'{$q=$g.pairs[1].chosen;$q.start.x=-38.5;$q.goal.x=-36.5;$m=$b.movements[1];$m.start.x=-38.5;$m.requestedGoal.x=-36.5;$m.end.x=-36.5;Set-TestClearances $v}
+   'waypoints-missing-legs'{$w.PSObject.Properties.Remove('legs')};'fallback-not-boolean'{$w.randomFallback='true'};'random-without-radius'{$r.radius=-1.0};'fallback-without-radius'{$w.radius=-1.0}
+   'waypoints-without-next'{$w.nextPoint=$null};'unreadable-envelope'{$w.kind='waypoints-unreadable'};'extra-chosen-field'{$c|Add-Member note 'x'};'extra-pair-field'{$p|Add-Member note 'x'}}
+  Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
+# Lifecycle v2 (F2/F3 retained evidence and the 91437a41 producer) keeps its original verdicts.
+Check 'strict v2 six-pair reader refuses the v3 ground goal record' {$v=New-V3Artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v2';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+Check 'strict v1 six-pair reader refuses the v3 contract fields' {$v=New-V3Artifact;$v.observations.sixPairStress.contract='cold-qualified-six-pair-lifecycle-v1';Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+foreach($fault in @('missing-sixth-owner','duplicate-mounted-role','wrong-sixth-profile','remote-XP','remote-descriptor','remote-field-alias','changed-source-class','wrong-producer',
+ 'load2','write1','missing-input','duplicated-shell','foreign-caster','wrong-selected-neighbor','debt-refund','prepared-change','missing-move','neighbor-command','wrong-ground-call',
+ 'raw-missing-twelfth','raw-missing-command','raw-neighbor-command','raw-truncated','raw-read-failure',
+ 'missing-window','wrong-resident-count','wrong-active-count','replayed-frame','changed-pin','aliased-pin','missing-twelfth-resource','lost-neighbor-owner','increased-subscriptions',
+ 'wrong-summary','native-log','fake-allocation-rate','false-performance-PASS','unreleased-pins','cleanup-owner','extra-save-proof',
+ 'unverified-sibling-order','missing-sibling-order','unparented-riders')){
+ $v=Clone $artifact;$b=$v.observations
+ switch($fault){
+  'missing-sixth-owner'{$b.snapshots[0].owners=@($b.snapshots[0].owners|Select-Object -Skip 1)}
+  'duplicate-mounted-role'{$b.snapshots[0].owners[5].riderId=$b.snapshots[0].owners[0].riderId;$b.snapshots[0].owners[5].mountId=$b.snapshots[0].owners[0].mountId}
+  'wrong-sixth-profile'{$b.inheritedFixture.pairs[5].profileId='medium-humanoid-horse-v1'}
+  'remote-XP'{$b.inheritedFixture.remote.arrangement.actors[0].experience++;$b.inheritedCleanup.remote.arrangement.actors[0].experience++}
+  'remote-descriptor'{$b.inheritedCleanup.remote.descriptor=25};'remote-field-alias'{$b.inheritedFixture.remote.object=1}
+  'changed-source-class'{$b.inheritedFixture.arrangement.actors[0].classes[0].level++}
+  'wrong-producer'{$b.sixPairStress.archiveProducerRunId=$selection.sourceRunId};'load2'{$b.sixPairStress.nativeLoadRequests=2};'write1'{$b.sixPairStress.nativeSaveRequests=1}
+  'missing-input'{$b.inputs=@($b.inputs|Select-Object -Skip 1)};'duplicated-shell'{$b.inputs[35].shellControl=$b.inputs[0].shellControl};'foreign-caster'{$b.inputs[35].casterId=$roles[0]}
+  'wrong-selected-neighbor'{$b.inputs[35].selectionAfterInput=$roles[2]}
+  'debt-refund'{$b.inputs[35].resourcesAfter.actors[11].move=1.0};'prepared-change'{$b.inputs[35].resourcesAfter.actors[11].prepared=$true}
+  'missing-move'{$b.movements=@($b.movements|Select-Object -Skip 1)};'neighbor-command'{$b.movements[5].commandsAfter[0].moveObject=9999}
+  'wrong-ground-call'{$b.groundInputs[5].nativeCallReturned=$false};'missing-window'{$b.sixPairStress.samples=@($b.sixPairStress.samples|Select-Object -Skip 1)}
+  'raw-missing-twelfth'{$b.groundInputs[5].after.actors=@($b.groundInputs[5].after.actors|Select-Object -First 11)}
+  'raw-missing-command'{$b.groundInputs[5].after.actors[11].raw[0].object=0}
+  'raw-neighbor-command'{$b.groundInputs[5].after.actors[8].publicMoveObject=9999}
+  'raw-truncated'{$b.groundInputs[5].after.actors[11].rawTruncated=$true}
+  'raw-read-failure'{$b.groundInputs[5].after.actors[11]|Add-Member readError 'native read failed'}
+  'wrong-resident-count'{$b.sixPairStress.samples[9].sample.ownersBefore.boundaries=2};'wrong-active-count'{$b.sixPairStress.samples[9].activePairs=2}
+  'replayed-frame'{$b.sixPairStress.samples[14].sample.startFrame=1000};'changed-pin'{$b.sixPairStress.samples[14].after.identityPins[53]=2000}
+  'aliased-pin'{$b.sixPairStress.samples[9].before.identityPins[53]=$b.sixPairStress.samples[9].before.identityPins[0]}
+  'missing-twelfth-resource'{$b.sixPairStress.samples[9].after.world.resources.actors=@($b.sixPairStress.samples[9].after.world.resources.actors|Select-Object -Skip 1)}
+  'lost-neighbor-owner'{$b.sixPairStress.samples[9].before.world.owners[0].ownerId='00000000-0000-0000-0000-000000009999'}
+  'increased-subscriptions'{$b.sixPairStress.samples[14].after.world.subscriptions.entries[0].type='OtherSubscriber'}
+  'wrong-summary'{$b.sixPairStress.samples[9].sample.serviceMeanMs=100.0};'native-log'{$b.sixPairStress.samples[9].sample.kmcLogMessages=1}
+  'fake-allocation-rate'{$b.sixPairStress.samples[9].sample|Add-Member nativeAllocation ([pscustomobject]@{fake=$true})}
+  'false-performance-PASS'{$b.sixPairStress.performanceAccepted=$true};'unreleased-pins'{$b.sixPairStress.identityScopeReleased=$false}
+  'cleanup-owner'{$b.cleanup.world.owners=@($b.snapshots[0].owners[0])};'extra-save-proof'{$b|Add-Member nativeWrite ([pscustomobject]@{fake=$true})}
+  'unverified-sibling-order'{$b.sixPairStress.siblingOrderVerifiedCycles=2};'missing-sibling-order'{$b.sixPairStress.PSObject.Properties.Remove('siblingOrderVerifiedCycles')}
+  'unparented-riders'{$b.sixPairStress.riderParents=0}
+ }
+ Check ('strict six-pair reader refuses '+$fault) {Assert-KmcChunk7WorldEvidence $request $v 'PASS'} $true
+}
+$failed=@($checks|Where-Object {-not$_.pass}).Count
+[ordered]@{nativeInvoked=$false;status=$(if($failed){'FAIL'}else{'PASS'});sourceQualificationPerformed=$true;archiveRead=$false;results=$checks.ToArray();limits='Generated native/sampler/input boundary evidence. Actual pinned source gate ran once; subsequent source qualification is substituted, and the actual retained cold observation remains read-only. No game launch or native behavior qualification.'}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
+Write-Output ('SIX-PAIR READER PASS='+($checks.Count-$failed)+' FAIL='+$failed)
+if($failed){exit 1}

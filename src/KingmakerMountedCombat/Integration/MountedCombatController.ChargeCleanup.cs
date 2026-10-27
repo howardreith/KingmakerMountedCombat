@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Integration
             internal UnitEntityData Rider, Mount, Target;
             internal UnitCommands RiderCommands, MountCommands;
             internal long Generation;
+            internal MountedPairOwner<UnitEntityData, GameMountedRelationshipService> PairOwner;
             internal UnitUseAbility Shell;
             internal object Process;
             internal AbilityExecutionContext Context;
@@ -130,13 +131,14 @@ namespace KingmakerMountedCombat.Integration
             var shell = (UnitUseAbility)command;
             if (chargeOwner != null)
                 return ReferenceEquals(chargeOwner.Shell, shell) && ReferenceEquals(container, chargeOwner.RiderCommands) &&
-                    chargeOwner.Generation == relationship.MountedPairGeneration &&
+                    chargeOwner.Generation == relationship.MountedPairGeneration && IsCurrentChargePair(chargeOwner) &&
                     ReferenceEquals(chargeOwner.Rider, relationship.Rider) && ReferenceEquals(chargeOwner.Mount, relationship.Mount) &&
                     (shell.Executor == null || ReferenceEquals(shell.Executor, chargeOwner.Rider)) &&
                     ReferenceEquals(shell.Spell.Caster?.Unit, chargeOwner.Rider) && ReferenceEquals(shell.Target?.Unit, chargeOwner.Target) &&
                     !chargeOwner.Ownership.CleanupRequested;
             var rider = relationship.Rider;
-            if (rider == null || relationship.Mount == null || container != rider.Commands || shell.Spell.Caster?.Unit != rider)
+            if (rider == null || !relationship.IsExactActivePairUnit(rider) || relationship.Mount == null ||
+                container != rider.Commands || shell.Spell.Caster?.Unit != rider)
                 return false;
             // Native admission still evaluates targeting/action availability; this observer only
             // takes custody of the exact shell, without starting it or spending anything.
@@ -151,6 +153,7 @@ namespace KingmakerMountedCombat.Integration
         {
             chargeOwner = CreateChargeOwner(rider, relationship.Mount, shell.Target?.Unit, container,
                 relationship.Mount.Commands, shell, relationship.MountedPairGeneration, Time.frameCount);
+            chargeOwner.PairOwner = relationship.Ownership.FindActive(rider);
         }
 
         internal Action<bool> BeginChargeNativeAction(UnitUseAbility shell)
@@ -243,8 +246,13 @@ namespace KingmakerMountedCombat.Integration
             return !disposed && !ChargeAdmissionFenced && settings.EnableMountedCharge &&
                 !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() && !ChargeNativeWorldLoading &&
                 chargeOwner != null && ReferenceEquals(chargeOwner.Shell, command) &&
-                !chargeOwner.Ownership.CleanupRequested && chargeOwner.Generation == relationship.MountedPairGeneration;
+                !chargeOwner.Ownership.CleanupRequested && chargeOwner.Generation == relationship.MountedPairGeneration && IsCurrentChargePair(chargeOwner);
         }
+
+        private bool IsCurrentChargePair(ChargeOwner owner) => owner?.PairOwner != null &&
+            relationship.Ownership.Owns(owner.PairOwner) && owner.PairOwner.State == MountedPairOwnershipState.Active &&
+            ReferenceEquals(relationship.Ownership.FindActive(owner.Rider), owner.PairOwner) &&
+            ReferenceEquals(relationship.Ownership.FindActive(owner.Mount), owner.PairOwner);
 
         private bool OwnsChargeDelivery(AbilityExecutionContext context)
         {
@@ -254,7 +262,7 @@ namespace KingmakerMountedCombat.Integration
                 !owner.Ownership.CleanupRequested && !ChargeAdmissionFenced && !ChargeNativeWorldLoading &&
                 !owner.ProcessObservationPending && !owner.NativeActionFailed &&
                 (owner.Shell == null || owner.Shell.Result != UnitCommand.ResultType.Interrupt) &&
-                owner.Command == null && owner.Generation == relationship.MountedPairGeneration &&
+                owner.Command == null && owner.Generation == relationship.MountedPairGeneration && IsCurrentChargePair(owner) &&
                 ReferenceEquals(owner.Rider, relationship.Rider) && ReferenceEquals(owner.Mount, relationship.Mount);
         }
 

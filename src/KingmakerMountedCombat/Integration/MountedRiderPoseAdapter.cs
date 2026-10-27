@@ -401,7 +401,7 @@ namespace KingmakerMountedCombat.Integration
             exactRightLeg = ResolveLeg(searchRoot, exactPelvis, exactProfile.RightLeg);
             if (exactPelvis == null || exactLeftLeg == null || exactRightLeg == null)
             {
-                error = "The exact rider does not expose one unambiguous supported Medium humanoid pelvis/leg rig.";
+                error = "The exact rider does not expose one unambiguous supported humanoid pelvis/leg rig.";
                 return false;
             }
             return true;

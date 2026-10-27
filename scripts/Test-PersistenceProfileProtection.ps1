@@ -59,6 +59,42 @@ try{
         try{Assert-KmcNativeUmmStartupDelta $kmcBefore $bad -RemovalObserver:($bad-cne$observerAfter)}catch{$rejected=$true}
         if(!$rejected){throw 'A UMM delta outside the removal-observer replacement was accepted.'};$passes++
     }
+    # The settled owner profile in batch66 had no KMC parameter entry. The
+    # observer is an exact UMM default append, not a replacement in that case.
+    $ownerBefore='<Params><ModParamsList><Mod Id="Other" Enabled="true"/></ModParamsList></Params>'
+    $observerEntry='<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'
+    $ownerAfter=$ownerBefore.Replace('</ModParamsList>',$observerEntry+'</ModParamsList>')
+    Assert-KmcNativeUmmStartupDelta $ownerBefore $ownerAfter -RemovalObserver;$passes++
+    foreach($bad in @(
+        $ownerAfter.Replace('Id="Other" Enabled="true"','Id="Other" Enabled="false"'),
+        $ownerAfter.Replace('Id="KmcRemovalObserver" Enabled="true"','Id="KmcRemovalObserver" Enabled="false"'),
+        $ownerAfter.Replace('<keyCode>None</keyCode>','<keyCode>F10</keyCode>'),
+        $ownerAfter.Replace($observerEntry,'<Mod Id="Unexpected" Enabled="true"/>'+$observerEntry),
+        $ownerBefore.Replace('<Mod Id="Other" Enabled="true"/>',$observerEntry+'<Mod Id="Other" Enabled="true"/>')
+    )){
+        $rejected=$false
+        try{Assert-KmcNativeUmmStartupDelta $ownerBefore $bad -RemovalObserver}catch{$rejected=$true}
+        if(!$rejected){throw 'A UMM delta outside the exact removal-observer append was accepted.'};$passes++
+    }
+    # F2 r32: with the owner's stale CheatMenu entry and no CheatMenu folder, UMM's removal-observer startup also prunes that
+    # entry and moves LastUpdateCheck forward. Admitted only for entries absent from the run's own staged Mods ids.
+    $hot='<Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey>'
+    $r32Before='<Param><LastUpdateCheck>2026-10-24T08:32:00.0000000-04:00</LastUpdateCheck><ModParams><Mod Id="CheatMenu" Enabled="true">'+$hot+'</Mod><Mod Id="KingmakerMountedCombat" Enabled="true">'+$hot+'</Mod></ModParams></Param>'
+    $r32After='<Param><LastUpdateCheck>2026-10-25T16:08:00.0000000-04:00</LastUpdateCheck><ModParams><Mod Id="KmcRemovalObserver" Enabled="true">'+$hot+'</Mod></ModParams></Param>'
+    Assert-KmcNativeUmmStartupDelta $r32Before $r32After -RemovalObserver -StagedModIds @('KmcRemovalObserver');$passes++
+    Assert-KmcNativeUmmStartupDelta $r32Before $r32Before.Replace('Id="KingmakerMountedCombat"','Id="KmcRemovalObserver"') -RemovalObserver -StagedModIds @('KmcRemovalObserver');$passes++
+    foreach($case in @(
+        @{name='a prune of a mod whose folder was staged';after=$r32After;ids=@('KmcRemovalObserver','CheatMenu')},
+        @{name='a prune of a mod staged under a differently cased folder';after=$r32After;ids=@('KmcRemovalObserver','cheatmenu')},
+        @{name='a prune without the run''s staged ids';after=$r32After;ids=$null},
+        @{name='a LastUpdateCheck moved backwards';after=$r32After.Replace('2026-10-25T16:08','2026-10-23T16:08');ids=@('KmcRemovalObserver')},
+        @{name='a prune beside a changed observer attribute';after=$r32After.Replace('Id="KmcRemovalObserver" Enabled="true"','Id="KmcRemovalObserver" Enabled="false"');ids=@('KmcRemovalObserver')},
+        @{name='a prune beside an added foreign entry';after=$r32After.Replace('</ModParams>','<Mod Id="Unexpected" Enabled="true"/></ModParams>');ids=@('KmcRemovalObserver','Unexpected')},
+        @{name='a kept stale entry with a changed attribute';after=$r32Before.Replace('Id="KingmakerMountedCombat"','Id="KmcRemovalObserver"').Replace('Id="CheatMenu" Enabled="true"','Id="CheatMenu" Enabled="false"');ids=@('KmcRemovalObserver')})){
+        $rejected=$false
+        try{if($null-eq$case.ids){Assert-KmcNativeUmmStartupDelta $r32Before $case.after -RemovalObserver}else{Assert-KmcNativeUmmStartupDelta $r32Before $case.after -RemovalObserver -StagedModIds $case.ids}}catch{$rejected=$true}
+        if(!$rejected){throw ('Removal-observer startup delta accepted '+$case.name+'.')};$passes++
+    }
     $known='20260921-chunk5-P03-condition-preparing-save-A'
     $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
     $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}
@@ -95,6 +131,77 @@ try{
     # keep its exact length, and nothing may shrink, grow or disappear.
     $native=12288
     $ach=Join-Path $profile 'achievements.dat$'
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 0))
+    $rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 0)}catch{$rejected=$true}
+    if(-not$rejected){throw 'An unsettled native cache was accepted without waiting.'};$passes++
+    $lookalike='achievements.dat'+[char]0xd800+'@'
+    $sameDisplay='achievements.dat'+[char]0xfffd+'@'
+    $prior=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path=$sameDisplay;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $later=[pscustomobject]@{entries=@($prior.entries+[pscustomobject]@{kind='file';path=$lookalike;length=0;sha256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'})}
+    $detail='';try{[void](Get-KmcPersistenceProfileCacheDelta $prior $later)}catch{$detail=$_.Exception.Message}
+    if($detail-notmatch'utf16=.*d800,0040; beforeExact=0; afterExact=1 0$'){
+        throw 'A distinct native cache name with a lossy display did not retain its exact UTF-16/membership diagnosis.'
+    };$passes++
+    $secondAch=Join-Path $profile 'achievements.dat~'
+    try{
+        [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 4096))
+        $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+        try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+        if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'An invalid second cache leaf hid behind an unsettled first leaf.'};$passes++
+    }finally{Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    foreach($foreign in @($cache,$params)){
+        $prior=[IO.File]::ReadAllBytes($foreign)
+        try{
+            [IO.File]::WriteAllText($foreign,'changed')
+            $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+            try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+            if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'Unrelated profile/settings drift hid behind an unsettled cache.'}
+            $passes++
+        }finally{[IO.File]::WriteAllBytes($foreign,$prior)}
+    }
+    $job=Start-Job -ArgumentList $ach,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 300
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 5000 -PollMilliseconds 100)
+        if($settled.Count-ne1-or$settled[0].change-cne'created'-or$settled[0].length-ne$native){
+            throw 'A genuinely settled native cache was not admitted with its exact bytes.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch,$native -ScriptBlock {
+        param($path,$size)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne2-or@($settled|Where-Object {$_.change-cne'created'-or$_.length-ne$native}).Count-ne0){
+            throw 'A native cache settling after the former ten-second window was not admitted exactly.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    [IO.File]::WriteAllBytes($secondAch,(New-Object byte[] 0))
+    $job=Start-Job -ArgumentList $secondAch -ScriptBlock {
+        param($path)
+        Start-Sleep -Milliseconds 11000
+        [IO.File]::Delete($path)
+    }
+    try{
+        $settled=@(Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 15000)
+        if($settled.Count-ne1-or$settled[0].path-cne'achievements.dat$'-or$settled[0].length-ne$native){
+            throw 'A zero-length native cache disappearing after the former ten-second window was not checked against the exact snapshot.'
+        }
+        $passes++
+    }finally{[void](Wait-Job $job);Receive-Job $job -ErrorAction Stop | Out-Null;Remove-Job $job;Remove-Item -LiteralPath $secondAch -Force -ErrorAction SilentlyContinue}
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
+    $clock=[Diagnostics.Stopwatch]::StartNew();$rejected=$false
+    try{[void](Wait-KmcPersistenceProfileUnchanged -Snapshot $snapshot -MaximumWaitMilliseconds 2000)}catch{$rejected=$true}
+    if(-not$rejected-or$clock.ElapsedMilliseconds-ge1000){throw 'A nonzero invalid native cache size was waited on or accepted.'};$passes++
     [IO.File]::WriteAllBytes($ach,(New-Object byte[] $native))
     $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot)
     if($accepted.Count-ne1-or$accepted[0].change-cne'created'-or$accepted[0].path-cne'achievements.dat$'){
@@ -130,6 +237,44 @@ try{
     if($delta.Count-ne1-or$delta[0].change-cne'rewritten'-or$delta[0].beforeSha256-cne('a'*64)-or$delta[0].afterSha256-cne('b'*64)){
         throw 'Legitimate rewrite churn was not reported with before and after hashes.'};$passes++
     if(@(Get-KmcPersistenceProfileCacheDelta $before $before).Count-ne0){throw 'Unchanged cache reported churn.'};$passes++
+    # Final 7E B1 c4: the settled-empty admission. A NEW zero-length leaf of the native family, with the exact empty
+    # bytes, written after every intake leaf and untouched for the 60 s settlement window, is admitted as 'created-empty'
+    # only under -EmptyNewLeaf Admit. Refuse stays the default; Defer neither admits nor refuses a zero-length new leaf.
+    $now=[DateTime]::UtcNow.Ticks;$intakeTicks=$now-3000000000L
+    $empty='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    $intakeRow=[pscustomobject]@{kind='file';path='achievements.dat7';length=$native;sha256=('a'*64);lastWriteTimeUtcTicks=$intakeTicks}
+    $snapRows=[pscustomobject]@{entries=@($intakeRow)}
+    $c4Name='achievements.dat#3'+([string][char]0xfffd)*5+'O'
+    $leaf={param($path,$length,$sha,$ticks)[pscustomobject]@{kind='file';path=$path;length=$length;sha256=$sha;lastWriteTimeUtcTicks=$ticks}}
+    $ok=@(Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)))}) -EmptyNewLeaf Admit -NowUtcTicks $now)
+    if($ok.Count-ne1-or$ok[0].change-cne'created-empty'-or$ok[0].path-cne$c4Name-or$ok[0].length-ne0-or$ok[0].afterSha256-cne$empty){throw 'The c4 settled empty native cache leaf was not admitted as created-empty.'};$passes++
+    foreach($case in @(
+        @{name='default policy';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)));mode='Refuse'},
+        @{name='non-empty bytes at length zero';after=@($intakeRow,(&$leaf $c4Name 0 ('b'*64) ($now-900000000L)));mode='Admit'},
+        @{name='written before the intake';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($intakeTicks-10000000L)));mode='Admit'},
+        @{name='written inside the settlement window';after=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-300000000L)));mode='Admit'},
+        @{name='no write time';after=@($intakeRow,[pscustomobject]@{kind='file';path=$c4Name;length=0;sha256=$empty});mode='Admit'},
+        @{name='a non-zero unsettled size';after=@($intakeRow,(&$leaf $c4Name 4096 ('b'*64) ($now-900000000L)));mode='Admit'},
+        @{name='an existing leaf truncated to zero';after=@((&$leaf 'achievements.dat7' 0 $empty ($now-900000000L)));mode='Admit'},
+        @{name='an existing leaf deleted';after=@();mode='Admit'})){
+        $rejected=$false
+        try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($case.after)}) -EmptyNewLeaf $case.mode -NowUtcTicks $now)}catch{$rejected=$true}
+        if(!$rejected){throw ('Settled-empty admission accepted: '+$case.name+'.')};$passes++
+    }
+    foreach($outside in @('achievements.dat.bak','Areas/achievements.dat$','settings.dat')){
+        if($null-ne(Get-KmcNativeEmptyCacheAdmission $snapRows (&$leaf $outside 0 $empty ($now-900000000L)) $now)){throw ('Settled-empty admission accepted a leaf outside the native family: '+$outside)};$passes++
+    }
+    $rejected=$false;try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-900000000L)),(&$leaf 'achievements.datQ' 0 $empty ($now-900000000L)))}) -EmptyNewLeaf Admit -NowUtcTicks $now)}catch{$rejected=$true}
+    if(!$rejected){throw 'More than one settled empty native cache leaf was admitted in one comparison.'};$passes++
+    $deferred=@(Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 0 $empty ($now-10000000L)))}) -EmptyNewLeaf Defer -NowUtcTicks $now)
+    if($deferred.Count-ne0){throw 'A deferred young empty leaf was recorded or admitted.'};$passes++
+    $rejected=$false;try{[void](Get-KmcPersistenceProfileCacheDelta $snapRows ([pscustomobject]@{entries=@($intakeRow,(&$leaf $c4Name 4096 ('b'*64) ($now-10000000L)))}) -EmptyNewLeaf Defer -NowUtcTicks $now)}catch{$rejected=$true}
+    if(!$rejected){throw 'Defer admitted a non-zero unsettled new leaf.'};$passes++
+    # Recovery -WhatIf (final B1 c4): hashing is read-only and must not inherit a caller's WhatIf preference.
+    $hashProbe=Join-Path $profile 'whatif-probe.bin';[IO.File]::WriteAllBytes($hashProbe,[byte[]]@(1,2,3))
+    try{$h=& {$WhatIfPreference=$true;Get-KmcSha256 $hashProbe};if($h-cne'039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81'){throw 'Get-KmcSha256 failed under a WhatIf preference.'};$passes++}finally{[IO.File]::Delete($hashProbe)}
+    $recoverText=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'runtime\Recover-KmcPersistenceProfile.ps1'),[Text.Encoding]::UTF8)
+    if($recoverText-notmatch'\$dryRun=\[bool\]\$WhatIfPreference;\$WhatIfPreference=\$false'-or$recoverText-notmatch'if\(\$dryRun-or-not\$PSCmdlet\.ShouldProcess'){throw 'The profile recovery tool no longer isolates its -WhatIf dry run from read-only checks.'};$passes++
     # A nested or unrelated leaf is outside the exception at either size, and a
     # dotted lookalike is not the demonstrated native naming rule.
     foreach($leaf in @('Areas/achievements.dat$','settings.dat','achievements.dat.bak')){
@@ -185,5 +330,124 @@ try{
         if((Get-KmcPersistenceProfileIdentityDigest $foreign $base)-ceq(Get-KmcPersistenceProfileIdentityDigest $base $foreign)){
             throw ('A path outside the analytics batch shape was admitted: '+$outside+'.')};$passes++
     }
+    # b210 c3: post-transaction profile recovery admits only a completed transaction recovery for the run's own token, with
+    # no lock held and no prior receipt; the restore then binds the snapshot to that token under a fresh profile-recovery lock.
+    $ptRun='post-transaction-test';$ptToken=('ab'*32);$ptState=Join-Path $root 'pt-state';$ptEvidence=Join-Path $root 'pt-evidence'
+    foreach($dir in @((Join-Path $ptState 'run-transactions'),(Join-Path $ptState 'transactions'),(Join-Path $ptState 'save-transactions'),(Join-Path $ptEvidence $ptRun))){[void][IO.Directory]::CreateDirectory($dir)}
+    $ptSnapshot=[pscustomobject]@{runId=$ptRun;token=$ptToken}
+    $writeState={param($combined,$mods,$save)
+        $utf8=[Text.UTF8Encoding]::new($false)
+        [IO.File]::WriteAllText((Join-Path $ptState ('run-transactions/'+$ptRun+'.json')),($combined|ConvertTo-Json -Depth 4),$utf8)
+        [IO.File]::WriteAllText((Join-Path $ptState ('transactions/'+$ptRun+'.json')),($mods|ConvertTo-Json -Depth 4),$utf8)
+        [IO.File]::WriteAllText((Join-Path $ptState ('save-transactions/'+$ptRun+'.json')),($save|ConvertTo-Json -Depth 4),$utf8)}
+    $newCombined={[ordered]@{schemaVersion=2;runId=$ptRun;token=$ptToken;mode='save-backed-v3-suite';phase='restored';preparedAtUtc='2026-10-25T21:51:00Z'
+        liveModsRoot='C:\Mods';saveRoot='C:\Saves';modsDigestBefore=('0'*64);saveInventoryDigestBefore=('1'*64);qualificationSuiteSnapshotPath='C:\suite.json'
+        qualificationSuiteId='suite-1';qualificationSuiteSnapshotSha256=('2'*64);restoreAttemptedAtUtc='2026-10-25T21:59:57Z';modsRestored=$true;saveProtectionPassed=$true
+        baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;restoredModsDigest=('0'*64);restoredSaveInventoryDigest=('1'*64);restorationErrors=@();restoredAtUtc='2026-10-25T21:59:57Z'}}
+    $newPart={[ordered]@{schemaVersion=4;runId=$ptRun;token=$ptToken;phase='restored'}}
+    & $writeState (& $newCombined) (& $newPart) (& $newPart)
+    $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
+    if([string]$admitted.token-cne$ptToken){throw 'The completed transaction recovery was not admitted for its own token.'};$passes++
+    $ptLockPath=Join-Path $ptState 'active-transaction.lock';$ptReceipt=Join-Path $ptEvidence ($ptRun+'/profile-recovery.json')
+    $ptCases=@(
+        @{name='lock held';setup={[IO.File]::WriteAllText($ptLockPath,'{}')};undo={[IO.File]::Delete($ptLockPath)}},
+        @{name='prior receipt';setup={[IO.File]::WriteAllText($ptReceipt,'{}')};undo={[IO.File]::Delete($ptReceipt)}},
+        @{name='combined prepared';combined={$c=& $newCombined;$c.phase='prepared';$c}},
+        @{name='combined restoration-attempted';combined={$c=& $newCombined;$c.phase='restoration-attempted';$c}},
+        @{name='other token';combined={$c=& $newCombined;$c.token=('cd'*32);$c}},
+        @{name='mods not restored';combined={$c=& $newCombined;$c.modsRestored=$false;$c}},
+        @{name='working not restored';combined={$c=& $newCombined;$c.workingRestored=$false;$c}},
+        @{name='save protection failed';combined={$c=& $newCombined;$c.saveProtectionPassed=$false;$c}},
+        @{name='baseline changed';combined={$c=& $newCombined;$c.baselineImmutable=$false;$c}},
+        @{name='allowlist failed';combined={$c=& $newCombined;$c.saveWriteAllowlistPassed=$false;$c}},
+        @{name='string proof';combined={$c=& $newCombined;$c.modsRestored='True';$c}},
+        @{name='restoration error';combined={$c=& $newCombined;$c.restorationErrors=@('x');$c}},
+        @{name='no restoredAtUtc';combined={$c=& $newCombined;$c.Remove('restoredAtUtc');$c}},
+        @{name='mods part staged';mods={$m=& $newPart;$m.phase='staged';$m}},
+        @{name='save part other token';save={$m=& $newPart;$m.token=('cd'*32);$m}})
+    foreach($case in $ptCases){
+        $combined=if($case.ContainsKey('combined')){& $case.combined}else{& $newCombined}
+        $mods=if($case.ContainsKey('mods')){& $case.mods}else{& $newPart}
+        $save=if($case.ContainsKey('save')){& $case.save}else{& $newPart}
+        & $writeState $combined $mods $save
+        if($case.ContainsKey('setup')){& $case.setup}
+        $rejected=$false
+        try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+        if($case.ContainsKey('undo')){& $case.undo}
+        if(!$rejected){throw ('Post-transaction profile recovery admitted: '+$case.name+'.')};$passes++
+    }
+    & $writeState (& $newCombined) (& $newPart) (& $newPart)
+    foreach($other in @([pscustomobject]@{runId='other-run';token=$ptToken},[pscustomobject]@{runId=$ptRun;token=('cd'*32)})){
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $other)}catch{$rejected=$true}
+        if(!$rejected){throw 'Post-transaction profile recovery admitted another run or token snapshot.'};$passes++
+    }
+    # An interrupted post-transaction recovery leaves only this run's own stale profile-recovery lock, which is admitted with
+    # -ProfileRecoveryLock (the tool adopts it and re-verifies under it); any other lock or a missing one refuses.
+    $writeLock={param($payload)[IO.File]::WriteAllText($ptLockPath,($payload|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))}
+    & $writeLock ([ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='profile-recovery'})
+    try{
+        $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock
+        if([string]$admitted.token-cne$ptToken){throw 'The own stale profile-recovery lock was not admitted.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held lock was admitted without the profile-recovery lock mode.'};$passes++
+        foreach($bad in @(
+            [ordered]@{schemaVersion=1;runId='other-run';token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='profile-recovery'},
+            [ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z';purpose='fixture-recovery'},
+            [ordered]@{schemaVersion=1;runId=$ptRun;token=('ef'*32);ownerProcessId=999999;createdAtUtc='2026-10-26T00:00:00Z'})){
+            & $writeLock $bad
+            $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock)}catch{$rejected=$true}
+            if(!$rejected){throw ('A foreign or purposeless lock was admitted as the profile-recovery lock: '+($bad|ConvertTo-Json -Compress))};$passes++
+        }
+    }finally{[IO.File]::Delete($ptLockPath)}
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -ProfileRecoveryLock)}catch{$rejected=$true}
+    if(!$rejected){throw 'The profile-recovery lock mode was admitted without its lock.'};$passes++
+    $staleLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery';$staleLock.Stream.Dispose()
+    try{
+        $payload=Get-Content -Raw $ptLockPath|ConvertFrom-Json;$payload.ownerProcessId=999999;[IO.File]::WriteAllText($ptLockPath,($payload|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+        $adopted=Adopt-KmcStaleRuntimeLock $ptState -ExpectedPurpose 'profile-recovery'
+        try{
+            if($adopted.RunId-cne$ptRun-or$adopted.Purpose-cne'profile-recovery'){throw 'The stale profile-recovery lock was not adopted exactly.'};$passes++
+            # The under-lock re-check reads the adopted lock through its own handle.
+            $again=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $adopted
+            if([string]$again.token-cne$ptToken){throw 'The under-lock re-check failed under an adopted profile-recovery lock.'};$passes++
+        }finally{Close-KmcRuntimeLock $adopted}
+    }finally{if(Test-Path $ptLockPath){[IO.File]::Delete($ptLockPath)}}
+    # Under a freshly opened (held, FileShare None) profile-recovery lock the re-check reads through the held handle.
+    $heldLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery'
+    try{
+        $again=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldLock
+        if([string]$again.token-cne$ptToken){throw 'The under-lock re-check failed under a held profile-recovery lock.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldLock -ProfileRecoveryLock)}catch{$rejected=$true}
+        if(!$rejected){throw 'Held and stale lock modes were admitted together.'};$passes++
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId 'other-run' -Snapshot ([pscustomobject]@{runId='other-run';token=$ptToken}) -HeldLock $heldLock)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held profile-recovery lock of another run was admitted.'};$passes++
+    }finally{Close-KmcRuntimeLock $heldLock}
+    $heldOrdinary=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun
+    try{
+        $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot -HeldLock $heldOrdinary)}catch{$rejected=$true}
+        if(!$rejected){throw 'A held lock without the profile-recovery purpose was admitted.'};$passes++
+    }finally{Close-KmcRuntimeLock $heldOrdinary}
+    # Restore binding: every refusal happens before any intake read or mutation.
+    $ptLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery'
+    try{
+        foreach($bad in @('',('cd'*32),'not-a-token')){
+            $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $ptLock -Snapshot $ptSnapshot -RecoveredTransactionToken $bad -WhatIf}catch{$rejected=$true}
+            if(!$rejected){throw ('A profile-recovery lock restored with recovered token "'+$bad+'".')};$passes++
+        }
+    }finally{Close-KmcRuntimeLock $ptLock}
+    $ordinaryLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun
+    try{
+        $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $ordinaryLock -Snapshot ([pscustomobject]@{runId=$ptRun;token=$ordinaryLock.Token}) -RecoveredTransactionToken $ordinaryLock.Token -WhatIf}catch{$rejected=$true}
+        if(!$rejected){throw 'An ordinary run lock accepted a recovered transaction token.'};$passes++
+    }finally{Close-KmcRuntimeLock $ordinaryLock}
+    $fixtureLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'fixture-recovery'
+    try{
+        $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $fixtureLock -Snapshot ([pscustomobject]@{runId=$ptRun;token=$fixtureLock.Token}) -WhatIf}catch{$rejected=$true}
+        if(!$rejected){throw 'A fixture-recovery lock restored startup settings.'};$passes++
+    }finally{Close-KmcRuntimeLock $fixtureLock}
+    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery'}")-or
+        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery'}")-or
+        -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
+        -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}

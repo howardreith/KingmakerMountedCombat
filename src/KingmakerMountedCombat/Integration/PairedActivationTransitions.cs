@@ -8,7 +8,7 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed partial class UnifiedMountedTurnCoordinator
+    internal sealed partial class MountedPairTurnParticipant
     {
         private static readonly System.Reflection.FieldInfo NativeCanGetUp =
             ResolveField(typeof(TurnController), "UnitCanGetUpOnCommand", 0x04000670);

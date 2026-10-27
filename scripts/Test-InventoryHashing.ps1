@@ -14,6 +14,22 @@ function Assert-HashThrows([scriptblock]$Body,[string]$Name) {
     $threw=$false;try{& $Body | Out-Null}catch{$threw=$true}
     Assert-HashTest $threw $Name
 }
+function Assert-ManifestTypes($Manifest,[string]$Name) {
+    Assert-HashTest ($Manifest.GetType() -eq [System.Management.Automation.PSCustomObject]) "$Name returns PSCustomObject"
+    Assert-HashTest ($Manifest.schemaVersion.GetType() -eq [int]) "$Name schema is Int32"
+    Assert-HashTest ($Manifest.directoryCount.GetType() -eq [int]) "$Name directory count is Int32"
+    Assert-HashTest ($Manifest.fileCount.GetType() -eq [int]) "$Name file count is Int32"
+    Assert-HashTest ($Manifest.totalBytes.GetType() -eq [long]) "$Name total bytes is Int64"
+    Assert-HashTest ($Manifest.root.GetType() -eq [string] -and $Manifest.digest.GetType() -eq [string]) "$Name root and digest remain strings"
+    Assert-HashTest ($Manifest.entries.GetType() -eq [object[]]) "$Name entries remain object array"
+    $lengthTypes=$true
+    foreach($entry in $Manifest.entries){
+        if($entry.kind -ceq 'directory'){$lengthTypes=$lengthTypes -and $entry.length.GetType() -eq [int]}
+        elseif($entry.kind -ceq 'file'){$lengthTypes=$lengthTypes -and $entry.length.GetType() -eq [long]}
+        else{$lengthTypes=$false}
+    }
+    Assert-HashTest $lengthTypes "$Name preserves each directory Int32 and file Int64 length"
+}
 function ReferenceManifest([string]$Root) {
     # Original serial implementation retained only as an independent test oracle.
     $fullRoot=[IO.Path]::GetFullPath($Root).TrimEnd('\')
@@ -60,6 +76,47 @@ try {
     try{Assert-HashThrows {[KingmakerMountedCombat.RuntimeTooling.InventoryHasher]::HashFiles(@($large))} 'exclusive writer prevents an unverified partial inventory'}finally{$locked.Dispose()}
     $afterFailure=Get-KmcDirectoryManifest $root
     Assert-HashTest ($afterFailure.digest -ceq $changed.digest) 'failed hashing releases handles and subsequent complete scan remains exact'
+    Assert-ManifestTypes $emptyDirectory 'empty manifest'
+    # A root with exactly one entry catches accidental scalar unwrapping.
+    $oneRoot=Join-Path $root 'one-entry'
+    [void][IO.Directory]::CreateDirectory($oneRoot)
+    [IO.File]::WriteAllBytes((Join-Path $oneRoot 'one.bin'),[byte[]]@(7))
+    $one=Get-KmcDirectoryManifest $oneRoot
+    Assert-HashTest ($one.entries.Count -eq 1 -and $one.fileCount -eq 1 -and $one.directoryCount -eq 0) 'single-entry fixture is exact'
+    Assert-ManifestTypes $one 'single-entry manifest'
+    Assert-ManifestTypes $actual 'many-entry manifest with both kinds'
+
+    # File content size does not exercise canonical UTF-8 buffering. These
+    # bounded Unicode names make the manifest text span several writer buffers.
+    $bufferRoot=Join-Path $root 'buffers'
+    [void][IO.Directory]::CreateDirectory($bufferRoot)
+    $unicode=[string][char]0xE9+[char]0xD83D+[char]0xDE80
+    for($index=0;$index -lt 192;$index++){
+        $leaf='r{0:D3}-{1}.bin' -f $index,$unicode
+        [IO.File]::WriteAllBytes((Join-Path $bufferRoot $leaf),[byte[]]@($index))
+    }
+    $bufferBefore=Get-KmcDirectoryManifest $bufferRoot
+    $bufferReference=ReferenceManifest $bufferRoot
+    $bufferRows=@($bufferReference.entries | ForEach-Object {'{0}|{1}|{2}|{3}' -f $_.kind,$_.path,$_.length,$_.sha256})
+    $bufferCanonical=$bufferRows -join [char]10
+    Assert-HashTest ($bufferBefore.fileCount -eq 192 -and $bufferCanonical.Length -gt (3*4096)) 'generated Unicode manifest spans more than three canonical buffers'
+    Assert-HashTest ($bufferBefore.digest -ceq $bufferReference.digest) 'multi-buffer canonical digest matches independent serial oracle'
+    Assert-HashTest (($bufferBefore.entries | ConvertTo-Json -Depth 5 -Compress) -ceq ($bufferReference.entries | ConvertTo-Json -Depth 5 -Compress)) 'multi-buffer Unicode entries and order match independent serial oracle'
+    $tailIndex=$bufferRows.Count-1
+    $prefix=($bufferRows[0..($tailIndex-1)] -join [char]10)+[char]10
+    Assert-HashTest ($prefix.Length -gt (3*4096)) 'mutated final record begins after three canonical buffers'
+    $tailPath=Join-Path $bufferRoot $bufferReference.entries[$tailIndex].path
+    $tailTime=[IO.File]::GetLastWriteTimeUtc($tailPath)
+    $tailBytes=[IO.File]::ReadAllBytes($tailPath)
+    $tailBytes[0]=$tailBytes[0] -bxor 255
+    [IO.File]::WriteAllBytes($tailPath,$tailBytes)
+    [IO.File]::SetLastWriteTimeUtc($tailPath,$tailTime)
+    $bufferAfter=Get-KmcDirectoryManifest $bufferRoot
+    $tailReference=ReferenceManifest $bufferRoot
+    Assert-HashTest ($bufferAfter.digest -cne $bufferBefore.digest -and $bufferAfter.digest -ceq $tailReference.digest) 'same-size tail mutation participates beyond the first canonical buffers'
+    Assert-HashTest (($bufferAfter.entries | ConvertTo-Json -Depth 5 -Compress) -ceq ($tailReference.entries | ConvertTo-Json -Depth 5 -Compress)) 'tail-mutated complete entries still match serial oracle'
+    $afterRows=@($tailReference.entries | ForEach-Object {'{0}|{1}|{2}|{3}' -f $_.kind,$_.path,$_.length,$_.sha256})
+    Assert-HashTest ((($afterRows[0..($tailIndex-1)] -join [char]10)+[char]10) -ceq $prefix) 'all records preceding the changed tail remain exact'
     Write-Host "TOTAL PASS=$passes FAIL=0"
 }
 finally {

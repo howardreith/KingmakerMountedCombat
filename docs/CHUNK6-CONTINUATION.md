@@ -273,7 +273,10 @@ suite20261009-chunk6de-staged-o, freeze5797aa99..., plan64c0f80a...) is closed
   turn-end-after) and the native action controller charges the force-finished shell its Standard at
   the finish frame (cost-before/after with the command end); then the remount after the life row was
   refused one frame after the rider's new turn prepared (combat Mount needs an Acting rider turn),
-  leaf deadline at case index13, cleanup deadline, outer FAIL.
+  leaf deadline at case index13, cleanup deadline, outer FAIL. Correction (2026-10-18,
+  batch6-product-review01): the retained artifact (frame 6676) shows the rider's turn already Acting,
+  the Mount click admitted (refusal delta 0) and the shell held unstarted by an active WaitingForUI
+  guard until the leaf deadline; it was neither refused by the Acting rule nor interrupted.
 - Stage4 unmountedTB: the artifact-less300-second in-process deadline; no tranche artifact and the
   game log was not retained (every later stage copies output_log.txt into the lab).
 - Stages5-8 persistence pairs: PASS.

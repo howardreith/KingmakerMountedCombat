@@ -7,6 +7,7 @@ namespace KingmakerMountedCombat.Diagnostics
             EnableUnsafeMovementExperiment = true;
             EnableUnifiedMountedTurn = false;
             EnablePairedCommandScheduler = false;
+            EnablePairedActivation = true;
             EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;
             TelemetryIntervalSeconds = 0.10d;
@@ -22,8 +23,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool EnablePairedCommandScheduler { get; set; }
 
-        // Developer-only coherent lifecycle. The two retired experimental paths
-        // are bypassed whenever this path is selected; all defaults remain false.
+        // The supported CRPG transport preset uses paired activation. Retired
+        // authorities remain available only to explicit historical diagnostics.
         public bool EnablePairedActivation { get; set; }
 
         internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;

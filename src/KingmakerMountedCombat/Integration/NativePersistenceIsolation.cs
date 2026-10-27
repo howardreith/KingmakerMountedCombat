@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Integration
     {
         private static PersistenceSaveAuthorization authority;
         private static bool nativeSlotRotation;
+        internal static bool NativeSlotRotationEnabled => nativeSlotRotation;
         internal static void EnableNativeSlotRotation()
         {
             if (authority == null) throw new InvalidOperationException("Native test slots require active isolated authority.");
@@ -44,6 +45,8 @@ namespace KingmakerMountedCombat.Integration
         // True only inside a run that bound its isolated save authority, so a
         // diagnostic seam can refuse to arm during ordinary play.
         internal static bool IsIsolated => authority != null;
+        internal static bool IsExactAuthority(PersistenceSaveAuthorization expected) =>
+            expected != null && ReferenceEquals(authority, expected);
 
         internal static void RequireOwnedWrite(SaveInfo save)
         {

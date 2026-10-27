@@ -35,12 +35,187 @@ public static class ChargeOwnershipProbe {
   internal LoggerProxy(Type t):base(t){}
   public override IMessage Invoke(IMessage m){return new ReturnMessage(null,null,0,null,(IMethodCallMessage)m);}
  }
+  static readonly System.Collections.Generic.Dictionary<object,string> actorIds = new System.Collections.Generic.Dictionary<object,string>();
+  static string ActorId<T>(T actor) { return actorIds[actor]; }
+  sealed class Callback {
+   internal Action Action;
+   internal void Invoke<T>(T value) { Action(); }
+  }
+  static void ProbePairOwnership(Assembly mod, Assembly native) {
+   var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+   var serviceType=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+   var registryType=mod.GetType("KingmakerMountedCombat.Domain.MountedPairRegistry`2",true).MakeGenericType(unitType,serviceType);
+   var idDelegate=Delegate.CreateDelegate(typeof(Func<,>).MakeGenericType(unitType,typeof(string)),
+    typeof(ChargeOwnershipProbe).GetMethod("ActorId",F).MakeGenericMethod(unitType));
+   var registry=Activator.CreateInstance(registryType,F,null,new object[]{idDelegate},null);
+   var loggerType=mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+   var settingsType=mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings");
+   Func<object> service=()=>Activator.CreateInstance(serviceType,F,null,new[]{
+    new LoggerProxy(loggerType).GetTransparentProxy(),Activator.CreateInstance(settingsType),registry},null);
+   var a=service();var b=service();var world=new object();var campaign=Guid.NewGuid().ToString("N");
+   Func<object> actor=()=>{var value=Blank(unitType);actorIds.Add(value,Guid.NewGuid().ToString("N"));return value;};
+   var ar=actor();var am=actor();var br=actor();var bm=actor();var readyB=false;var retainedB=true;
+   Func<object,object,object,Func<bool>,Func<bool>,object> mount=(boundary,rider,mountActor,retained,ready)=>{
+    var args=new object[]{world,campaign,rider,mountActor,1L,boundary,retained,ready,ready,null,null,6,null};
+    Check((bool)Call(registry,"TryReserve",args),"compiled registry reserves both actor roles before external attachment");
+    var owner=args[9];Call(registry,"Commit",owner);Set(boundary,"<PairOwner>k__BackingField",owner);
+    Set(boundary,"mountedPairGeneration",1L);
+    var runtime=Get(boundary,"runtime");Set(runtime,"rider",rider);Set(runtime,"mount",mountActor);
+    return owner;
+   };
+   // Native actor containers are detached; no Prepare, view attachment, world or save exists.
+   var first=mount(a,ar,am,()=>false,()=>true);
+   var second=mount(b,br,bm,()=>retainedB||(bool)Get(b,"cleanupRetryRequired"),()=>readyB);
+   Check(ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a)&&ReferenceEquals(Call(a,"ResolveActorOwner",am,true),a)&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",br,true),b)&&ReferenceEquals(Call(a,"ResolveActorOwner",bm,true),b),
+    "compiled relationship service routes both actor roles to their independent boundary");
+   Check((bool)Call(a,"IsCurrentPairOwner",first)&&!(bool)Call(a,"IsCurrentPairOwner",second),
+    "compiled command owner check accepts only its captured registration");
+   Check(!(bool)Call(a,"get_AllSaveOwnersReady")&&!(bool)Call(a,"get_AllTeardownOwnersReady"),
+    "compiled service readiness observes the other owner without a second native save operation");
+   var nativeCapacity=(int)serviceType.GetField("NativePairCapacity",F).GetRawConstantValue();
+   var denied=new object[]{world,campaign,actor(),actor(),1L,b, new Func<bool>(()=>false),new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,nativeCapacity,null};
+   Check(nativeCapacity==2&&!(bool)Call(registry,"TryReserve",denied)&&denied[9]==null,
+    "compiled two-pair native adapter refuses a third reservation without native mutation");
+   var cleanupEvent=serviceType.GetEvent("Dismounting",F);var trigger=cleanupEvent.EventHandlerType.GetGenericArguments()[0];
+   var visited=0;var fail=true;
+   var failing=new Callback{Action=()=>{if(fail)throw new InvalidOperationException("external subscriber failed");}};
+   var later=new Callback{Action=()=>visited++};
+   foreach(var target in new[]{failing,later}) cleanupEvent.GetAddMethod(true).Invoke(b,new object[]{
+    Delegate.CreateDelegate(cleanupEvent.EventHandlerType,target,typeof(Callback).GetMethod("Invoke",F).MakeGenericMethod(trigger))});
+   var failed=Call(b,"Dismount",Enum.Parse(trigger,"Exception"));
+   Check(!(bool)Call(failed,"get_Succeeded")&&visited==1&&ReferenceEquals(Call(a,"ResolveActorOwner",br,false),b)&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a),
+    "compiled dismount attempts independent subscribers and retains failed B cleanup without disturbing A");
+   readyB=true;
+   Check((bool)Call(a,"get_AllSaveOwnersReady")&&(bool)Call(a,"get_AllTeardownOwnersReady"),
+    "compiled settled readiness permits retained participation rather than blanket refusal");
+   retainedB=false;fail=false;var settled=Call(b,"Dismount",Enum.Parse(trigger,"Exception"));
+   Check((bool)Call(settled,"get_Succeeded")&&visited==2&&Call(a,"ResolveActorOwner",br,false)==null&&
+    ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a),"compiled cleanup retry retires only B after its postconditions settle");
+   Set(a,"mountedPairGeneration",2L);
+   Check(!(bool)Call(a,"IsCurrentPairOwner",first),"compiled delayed command refuses the replacement generation");
+  }
+   static void ProbeWorldTurnDispatch(Assembly mod, Assembly native) {
+    var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+    var turnType=native.GetType("TurnBased.Controllers.TurnController",true);
+    var serviceType=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+    var registryType=mod.GetType("KingmakerMountedCombat.Domain.MountedPairRegistry"+(char)96+"2",true).MakeGenericType(unitType,serviceType);
+    var idDelegate=Delegate.CreateDelegate(typeof(Func<,>).MakeGenericType(unitType,typeof(string)),
+     typeof(ChargeOwnershipProbe).GetMethod("ActorId",F).MakeGenericMethod(unitType));
+    var registry=Activator.CreateInstance(registryType,F,null,new object[]{idDelegate},null);
+    var settings=Activator.CreateInstance(mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings"));
+    settings.GetType().GetProperty("EnablePairedActivation",F).SetValue(settings,true,null);
+    var logger=new LoggerProxy(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true)).GetTransparentProxy();
+    Func<object> service=()=>Activator.CreateInstance(serviceType,F,null,new[]{logger,settings,registry},null);
+    var a=service();var b=service();
+    var schedulerType=mod.GetType("KingmakerMountedCombat.Integration.MountedPairCommandScheduler",true);
+    Func<object,object> scheduler=boundary=>Activator.CreateInstance(schedulerType,F,null,new[]{boundary,settings,logger},null);
+    var worldType=mod.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+    var world=Activator.CreateInstance(worldType,F,null,new[]{a,settings,scheduler(a),logger},null);
+    var pa=Call(world,"get_Primary");var pb=Call(world,"AddParticipant",b,scheduler(b));
+    var ledger=Get(world,"movementState");
+    Check(ReferenceEquals(Get(pa,"movementState"),ledger)&&ReferenceEquals(Get(pb,"movementState"),ledger),
+     "two native turn participants share exactly one world allocation ledger");
+    Func<object> actor=()=>{var value=Blank(unitType);actorIds.Add(value,Guid.NewGuid().ToString("N"));return value;};
+    var ar=actor();var am=actor();var br=actor();var bm=actor();var unrelated=actor();
+    var activationType=mod.GetType("KingmakerMountedCombat.Domain.PairedActivation"+(char)96+"2",true).MakeGenericType(unitType,turnType);
+    Set(pa,"activation",Activator.CreateInstance(activationType,new[]{ar,am}));
+    Set(pb,"activation",Activator.CreateInstance(activationType,new[]{br,bm}));
+    var findActor=worldType.GetMethod("Find",F,null,new[]{unitType},null);
+    var findContext=worldType.GetMethod("Find",F,null,new[]{turnType,turnType},null);
+    Check(ReferenceEquals(findActor.Invoke(world,new[]{ar}),pa)&&ReferenceEquals(findActor.Invoke(world,new[]{am}),pa)&&
+     ReferenceEquals(findActor.Invoke(world,new[]{br}),pb)&&ReferenceEquals(findActor.Invoke(world,new[]{bm}),pb),
+     "world dispatch resolves both exact actor roles independently of a primary projection");
+    Check(findActor.Invoke(world,new[]{unrelated})==null,"unrelated actor has no pair execution fallback");
+    var turnA=Blank(turnType);var turnB=Blank(turnType);
+    Set(pa,"preparedRiderTurn",turnA);Set(pb,"preparedRiderTurn",turnB);
+    Check(ReferenceEquals(findContext.Invoke(world,new[]{turnA,null}),pa)&&ReferenceEquals(findContext.Invoke(world,new[]{turnB,null}),pb),
+     "world dispatch keeps native context bindings separate across participants");
+    var foreignTurn=Blank(turnType);Set(foreignTurn,"Unit",ar);
+    Check(findContext.Invoke(world,new[]{foreignTurn,null})==null,
+     "foreign context cannot borrow an existing actor participation binding");
+    Check(ReferenceEquals(findContext.Invoke(world,new[]{foreignTurn,foreignTurn}),pa),
+     "actual native current context binds the exact principal without selecting a pair");
+    var partnerTurn=Blank(turnType);Set(partnerTurn,"Unit",bm);Set(pb,"partnerContext",partnerTurn);
+    Check(ReferenceEquals(findContext.Invoke(world,new[]{partnerTurn,turnA}),pb),
+     "registered private partner context remains exact during another observed principal callback");
+    Set(pb,"partnerContext",null);
+    Check(!(bool)Call(world,"HandleTurnPreparingAtCurrent",foreignTurn,null),
+     "foreign owned-actor context cannot trigger native preparation or a new grant");
+    Set(pa,"preparedRiderTurn",null);Set(turnA,"Unit",ar);
+    Check(findContext.Invoke(world,new[]{turnA,null})==null,
+     "retired context cannot rebind through its formerly owned actor");
+    Check(!(bool)Call(world,"HandleTurnPreparingAtCurrent",turnA,null),
+     "retired owned-actor context cannot refresh an existing allocation");
+    Set(foreignTurn,"Unit",unrelated);
+    Check((bool)Call(world,"HandleTurnPreparingAtCurrent",foreignTurn,null),
+     "unrelated native actor preparation remains pass-through");
+    Set(ledger,"preparingTurn",turnA);
+    Check((bool)Call(world,"get_HasUnsettledPreparation"),
+     "world save readiness retains the exact native preparation callback scope");
+    Set(ledger,"preparingTurn",null);Set(pb,"nativeConditionForfeitContext",turnB);
+    Check((bool)Call(world,"get_HasUnsettledPreparation")&&(bool)Call(pb,"get_HasUnsettledPreparation"),
+     "world save readiness retains one pair native condition forfeiture scope");
+    Set(pb,"nativeConditionForfeitContext",null);
+    Check(!(bool)Call(world,"get_HasUnsettledPreparation"),
+     "only completed native scopes release world preparation readiness");
+    var combatType=mod.GetType("KingmakerMountedCombat.Integration.SavedCombatData",true);
+    var snapshot=Activator.CreateInstance(combatType);
+    var refused=false;
+    try {Call(world,"CapturePersistence",snapshot);}catch(TargetInvocationException e){refused=e.InnerException is InvalidOperationException;}
+    Check(refused,"legacy capture refuses multiple participation records instead of choosing the primary");
+    var allocations=(System.Collections.IDictionary)Get(ledger,"allocations");
+    var allocationType=ledger.GetType().GetNestedType("Allocation",BindingFlags.NonPublic);
+    allocations.Add(ar,Activator.CreateInstance(allocationType,true));
+    var original=allocations[ar];var aState=Get(pa,"activation");
+    Set(foreignTurn,"Unit",ar);
+    Check(!(bool)Call(world,"HandleTurnPreparingAtCurrent",foreignTurn,null)&&ReferenceEquals(allocations[ar],original),
+     "foreign preparation cannot replace the exact shared expenditure record");
+    Call(pb,"DiscardParticipation");
+    Check(allocations.Count==1&&ReferenceEquals(allocations[ar],original)&&ReferenceEquals(Get(pa,"activation"),aState),
+     "discarding pair B participation preserves pair A and the same actor expenditure record");
+    Call(pb,"Dispose");
+    Check(allocations.Count==1&&ReferenceEquals(allocations[ar],original),
+     "disposing pair B does not clear the world expenditure ledger");
+    Call(world,"DiscardPersistenceWorld");
+    Check(allocations.Count==0&&Get(pa,"activation")==null,
+     "explicit world discard clears all participation and the allocation ledger once");
+   }
+  static void ProbeRetainedSplit(Assembly mod, Assembly native) {
+   var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+   var turnType=native.GetType("TurnBased.Controllers.TurnController",true);
+   var coordinatorType=mod.GetType("KingmakerMountedCombat.Integration.MountedPairTurnParticipant",true);
+   var activationType=mod.GetType("KingmakerMountedCombat.Domain.PairedActivation"+(char)96+"2",true).MakeGenericType(unitType,turnType);
+   var settings=Activator.CreateInstance(mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings"));
+   settings.GetType().GetProperty("EnablePairedActivation",F).SetValue(settings,true,null);
+   var logger=new LoggerProxy(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true)).GetTransparentProxy();
+   Func<object> coordinator=()=>{var value=Blank(coordinatorType);Set(value,"settings",settings);Set(value,"logger",logger);
+    Set(value,"activation",Activator.CreateInstance(activationType,new[]{Blank(unitType),Blank(unitType)}));return value;};
+   var a=coordinator();var b=coordinator();
+   var trigger=mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Manual"),7);
+   Check((int)Get(a,"splitReleaseRound")==7&&(bool)Call(Get(a,"activation"),"get_Split"),
+    "R1 first dismount retains participation through its observed native round");
+   // External engine boundary: round N+1 is observed before expiry refresh,
+   // then the retained actor's incapacity cleanup reaches the same split owner.
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Incapacitated"),8);
+   Check((int)Get(a,"splitReleaseRound")==7,
+    "R1 repeated detached cleanup must not restart the split-release round after native advance");
+   Check(!(bool)Call(Get(b,"activation"),"get_Split"),"R1 cleanup preserves unrelated pair participation");
+   Check(8>(int)Get(a,"splitReleaseRound"),"R1 former mount has passed its independent-turn exclusion boundary");
+   Call(a,"SplitPairedActivationAtRound",Enum.Parse(trigger,"Exception"),8);
+   Check((int)Get(a,"splitReleaseRound")==7,"R1 cleanup retry also preserves the original release boundary");
+  }
  public static void Run(string managed,string dll){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{
    var leaf=new AssemblyName(a.Name).Name+".dll";
    foreach(var root in new[]{managed,Path.Combine(managed,"UnityModManager")}){var path=Path.Combine(root,leaf);if(File.Exists(path))return Assembly.LoadFrom(path);}return null;
   };
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));var mod=Assembly.LoadFrom(dll);
+  ProbeRetainedSplit(mod,native);
+  ProbeWorldTurnDispatch(mod,native);
+  ProbePairOwnership(mod,native);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","pinned native MVID");
   var controlsType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
   var controlKind=mod.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true);
@@ -106,6 +281,22 @@ public static class ChargeOwnershipProbe {
   var actionMethods=actionPatches.GetNestedType("PatchMethods",F);
   var actionCombat=actionBridge.GetField("Combat",F);var actionControls=actionBridge.GetField("NativeControls",F);
   var actionOldCombat=actionCombat.GetValue(null);var actionOldControls=actionControls.GetValue(null);
+  var actionService=actionBridge.GetField("Service",F);var actionOldService=actionService.GetValue(null);
+  var actionUnitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+  var actionRider=Blank(actionUnitType);var actionMount=Blank(actionUnitType);
+  actorIds.Add(actionRider,Guid.NewGuid().ToString("N"));actorIds.Add(actionMount,Guid.NewGuid().ToString("N"));
+  var actionServiceType=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+  var actionRegistryType=mod.GetType("KingmakerMountedCombat.Domain.MountedPairRegistry"+(char)96+"2",true).MakeGenericType(actionUnitType,actionServiceType);
+  var actionIds=Delegate.CreateDelegate(typeof(Func<,>).MakeGenericType(actionUnitType,typeof(string)),
+   typeof(ChargeOwnershipProbe).GetMethod("ActorId",F).MakeGenericMethod(actionUnitType));
+  var actionRegistry=Activator.CreateInstance(actionRegistryType,F,null,new object[]{actionIds},null);
+  var actionBoundaryService=Activator.CreateInstance(actionServiceType,F,null,new[]{Get(controller,"logger"),
+   Activator.CreateInstance(mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings")),actionRegistry},null);
+  actionServiceType.GetProperty("CombatOwner",F).SetValue(actionBoundaryService,controller,null);
+  var actionReservation=new object[]{new object(),Guid.NewGuid().ToString("N"),actionRider,actionMount,1L,actionBoundaryService,
+   new Func<bool>(()=>true),new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,6,null};
+  Check((bool)Call(actionRegistry,"TryReserve",actionReservation),"native action callback fixture reserves exact actor owner");
+  Call(actionRegistry,"Commit",actionReservation[9]);
   var actionBoundary=mod.GetType("KingmakerMountedCombat.Integration.NativeChargeActionBoundary",true);
   var codeInstruction=actionBoundary.GetMethod("Wrap",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
   var harmonyAssembly=codeInstruction.Assembly;
@@ -122,7 +313,8 @@ public static class ChargeOwnershipProbe {
   harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{native.ManifestModule.ResolveMethod(0x06002733),noFxPrefix,null,null});
   harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{nativeAction,null,actionPostfix,actionTranspiler});
   try {
-   actionCombat.SetValue(null,controller);actionControls.SetValue(null,null);
+   actionCombat.SetValue(null,controller);actionControls.SetValue(null,null);actionService.SetValue(null,actionBoundaryService);
+   commandType.GetProperty("Executor",F).SetValue(shell,actionRider,null);
    var throwingOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,19L,0);
    Set(controller,"chargeOwner",throwingOwner);
    Exception nativeActionError=null;
@@ -144,7 +336,8 @@ public static class ChargeOwnershipProbe {
    try{nativeAction.Invoke(independentShell,null);}catch(TargetInvocationException error){nativeActionError=error.InnerException;}
    Check(nativeActionError is NullReferenceException&&Get(controller,"chargeOwner")==null,
     "unowned native action preserves the original exception without acquiring charge state");
-  }finally{actionCombat.SetValue(null,actionOldCombat);actionControls.SetValue(null,actionOldControls);}
+  }finally{actionCombat.SetValue(null,actionOldCombat);actionControls.SetValue(null,actionOldControls);actionService.SetValue(null,actionOldService);
+    commandType.GetProperty("Executor",F).SetValue(shell,null,null);}
   // Real native Execute registers before either returned-field assignment. No
   // native process is ticked in this detached probe; its end is an external input.
   var executionType=native.GetType("Kingmaker.Controllers.AbilityExecutionController",true);
@@ -439,7 +632,7 @@ public static class ChargeOwnershipProbe {
   var allocations=(System.Collections.IDictionary)Get(movement,"allocations");
   allocations.Add(destroyedOne,Activator.CreateInstance(allocationType,true));allocations.Add(destroyedTwo,Activator.CreateInstance(allocationType,true));
   var unified=Blank(mod.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true));
-  Set(unified,"settings",Activator.CreateInstance(Field(unified.GetType(),"settings").FieldType,true));Set(unified,"movementState",movement);
+  Set(unified,"participants",Activator.CreateInstance(Field(unified.GetType(),"participants").FieldType));Set(unified,"movementState",movement);
   writing=true;
   Call(controller,"RetainDestroyedActorBoundary",destroyedOne,new Action(()=>Call(unified,"RetireDestroyedActor",destroyedOne)));
   Check(allocations.Contains(destroyedOne)&&allocations.Contains(destroyedTwo),"archive holds actual native allocation records until retirement may execute");

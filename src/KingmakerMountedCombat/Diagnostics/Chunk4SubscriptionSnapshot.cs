@@ -14,7 +14,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal static class Chunk4SubscriptionSnapshot
     {
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
-        internal static JObject Capture()
+        // With serials, each row also carries a collision-free label (WeakObjectSerials); the identity hash stays.
+        internal static JObject Capture(WeakObjectSerials serials = null)
         {
             var global = Exact(typeof(EventBus), "GlobalSubscribers", 0x04004C2F).GetValue(null);
             var pooled = Exact(global.GetType(), "m_Listeners", 0x04004C39).GetValue(global);
@@ -33,8 +34,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (subscriber == null || subscriber.GetType().Assembly != typeof(Chunk4SubscriptionSnapshot).Assembly) continue;
                     seen.Add(subscriber);
-                    rows.Add(new JObject { ["interface"] = ((Type)entry.Key).FullName,
-                        ["type"] = subscriber.GetType().FullName, ["identity"] = RuntimeHelpers.GetHashCode(subscriber) });
+                    var row = new JObject { ["interface"] = ((Type)entry.Key).FullName,
+                        ["type"] = subscriber.GetType().FullName, ["identity"] = RuntimeHelpers.GetHashCode(subscriber) };
+                    if (serials != null) row["serial"] = serials.Get(subscriber);
+                    rows.Add(row);
                 }
             }
             return new JObject { ["assemblyMvid"] = typeof(EventBus).Assembly.ManifestModule.ModuleVersionId.ToString(),

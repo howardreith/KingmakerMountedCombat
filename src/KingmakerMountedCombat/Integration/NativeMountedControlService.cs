@@ -166,8 +166,14 @@ namespace KingmakerMountedCombat.Integration
         // repeated delivery of the same shell is recognized as the same control.
         private sealed class NativeRelationshipShell
         {
+            // The live native context may outlast its command slot. Its CWT value
+            // retains the exact command until context custody itself is released.
+            internal readonly UnitUseAbility Command;
+            internal NativeRelationshipShell(UnitUseAbility command)
+            { Command = command ?? throw new ArgumentNullException(nameof(command)); }
             public NativeMountedControlKind Kind;
             public long GenerationAtInit;
+            public MountedPairRequest<UnitEntityData, GameMountedRelationshipService> PairRequest;
             public string CasterId;
             public string TargetId;
             public string ControlIdentity;
@@ -452,8 +458,23 @@ namespace KingmakerMountedCombat.Integration
             NativeRelationshipShell existing;
             if (!relationshipShells.TryGetValue(command, out existing))
             {
-                var shell = new NativeRelationshipShell
+                if (this.relationship.World?.AdmissionFenced() == true)
                 {
+                    RecordShellLifecycle(NativeShellStage.InitRefused, null, "world-admission-fenced", DescribeInitPredicates(command));
+                    return;
+                }
+                var requestOwner = isMount ? ResolveControlBoundary(caster, true) : ResolveControlBoundary(caster, false);
+                var request = requestOwner?.CaptureNativeRequest(caster, isMount ? target : requestOwner.Mount, isDismount);
+                if (request == null)
+                {
+                    RecordShellLifecycle(NativeShellStage.InitRefused, null, "pair-ownership", DescribeInitPredicates(command));
+                    return;
+                }
+                // The local relationship is the captured owner, never the shared bridge projection.
+                var relationship = request.Boundary;
+                var shell = new NativeRelationshipShell(command)
+                {
+                    PairRequest = request,
                     Kind = isMount ? NativeMountedControlKind.MountCompanion : NativeMountedControlKind.Dismount,
                     GenerationAtInit = relationship.MountedPairGeneration,
                     CasterId = caster.UniqueId,
@@ -462,6 +483,7 @@ namespace KingmakerMountedCombat.Integration
                         ":" + (isMount ? "mount" : "dismount") + ":" + caster.UniqueId
                 };
                 relationshipShells.Add(command, shell);
+                admittedControlCommands.Add(new WeakReference<UnitUseAbility>(command));
                 NativeRelationshipShellCount++;
                 LastNativeRelationshipShellObservation = "control=" + shell.ControlIdentity +
                     ";generationAtInit=" + shell.GenerationAtInit +
@@ -499,6 +521,7 @@ namespace KingmakerMountedCombat.Integration
         internal void BindNativeRelationshipProcess(UnitUseAbility command)
         {
             if (disposed || !enabled || !registered || serializationSuspended || command == null) { return; }
+            BindNativeIntentProcess(command);
             NativeRelationshipShell shell;
             if (!relationshipShells.TryGetValue(command, out shell) || shell == null) { return; }
             var context = command.ExecutionProcess?.Context;
@@ -560,7 +583,8 @@ namespace KingmakerMountedCombat.Integration
         // it. The window is entirely inside one synchronous game-thread call, so this
         // term is a guard that fails closed rather than one a frame boundary is
         // expected to observe; it is queried instead of argued away.
-        internal bool HasUnsettledRelationshipTransition => playerAction.HasVoluntaryTransitionInFlight;
+        internal bool HasUnsettledRelationshipTransition => relationship.World == null ? playerAction.HasVoluntaryTransitionInFlight :
+            relationship.World.Pairs.Any(pair => pair.PlayerActions.HasVoluntaryTransitionInFlight);
 
         // Read-only counters of the voluntary transition ledger, for persistence observations.
         internal MountedTransitionLedger RelationshipTransitionLedger => playerAction.TransitionLedger;
@@ -637,6 +661,13 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var shell = outcome == NativeShellBindingOutcome.ExecutionContext ? contextShell : slotShell;
+            var relationship = shell.PairRequest?.Boundary;
+            if (relationship == null)
+            {
+                refusal = "The native command has no captured pair owner.";
+                RetireShell(shell, "missing-pair-owner");
+                return null;
+            }
             // A shell that has already been refused for a permanent reason can never
             // become valid again, whichever binding later presents it.
             if (shell.Retired)
@@ -683,7 +714,7 @@ namespace KingmakerMountedCombat.Integration
                 // exact rider of the live relationship. The decision itself lives in
                 // DismountTargetIdentityPolicy so each rejected condition — missing,
                 // foreign, changed, changed-rider and stale-generation — is testable.
-                var liveRider = relationship.Rider;
+                var liveRider = shell.PairRequest?.Owner?.Rider;
                 refusal = DismountTargetIdentityPolicy.Refuse(
                     target != null,
                     target != null && ReferenceEquals(target, caster),
@@ -711,7 +742,11 @@ namespace KingmakerMountedCombat.Integration
                 RecordShellLifecycle(NativeShellStage.Registered, shell.ControlIdentity, "diagnostic-generation-invalidation",
                     diagnosticInvalidation);
             }
-            if (shell.GenerationAtInit != relationship.MountedPairGeneration)
+            GameMountedRelationshipService boundOwner;
+            if (shell.GenerationAtInit != relationship.MountedPairGeneration ||
+                !relationship.ResolveNativeRequest(shell.PairRequest, out boundOwner) ||
+                !ReferenceEquals(shell.PairRequest.Rider, caster) ||
+                kind == NativeMountedControlKind.MountCompanion && !ReferenceEquals(shell.PairRequest.Mount, target))
             {
                 refusal = "The mounted relationship changed after this transition was requested.";
                 LastRelationshipShellRefusal = refusal;
@@ -742,6 +777,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var blueprint = command?.Spell?.Blueprint;
             var kind = ResolveKind(blueprint);
+            var relationship = ResolveControlBoundary(command?.Executor, false);
+            if (relationship == null || !CaptureNativeIntent(command, kind, relationship)) return false;
             var rider = relationship.Rider;
             var exactManagedAbility = ReferenceEquals(blueprint, riderPrimaryAbility) ||
                 ReferenceEquals(blueprint, mountPrimaryAbility);
@@ -835,6 +872,10 @@ namespace KingmakerMountedCombat.Integration
                 return new NativeMountedControlAvailability(false, false, "Mounted control services are not active.");
             }
 
+            var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion);
+            if (relationship == null) return new NativeMountedControlAvailability(false, false, "No exact mounted control owner is available.");
+            var playerAction = relationship.PlayerActions;
+            var combat = relationship.CombatOwner;
             // The escape hatch precedes the feature gate, through the same typed policy
             // that leasing uses. Without this a mounted rider keeps a VISIBLE but
             // DISABLED Dismount the moment the movement feature is switched off, which
@@ -924,7 +965,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 return false;
             }
-
+            var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion);
+            if (relationship == null) return false;
+            var playerAction = relationship.PlayerActions;
+            var combat = relationship.CombatOwner;
             switch (kind)
             {
                 case NativeMountedControlKind.MountCompanion:
@@ -973,6 +1017,15 @@ namespace KingmakerMountedCombat.Integration
             // state is set in a finally, so a business refusal or an exception cannot
             // leave a reusable shell behind. Native cost already committed by the command
             // stands; nothing is refunded here.
+            NativeIntentShell intent = null;
+            var relationship = deliveringShell?.PairRequest.Boundary;
+            if (kind != NativeMountedControlKind.MountCompanion && kind != NativeMountedControlKind.Dismount)
+            {
+                intent = ResolveNativeIntent(kind, caster, target, context);
+                relationship = intent?.Request.Boundary;
+            }
+            var playerAction = relationship?.PlayerActions;
+            var combat = relationship?.CombatOwner;
             var deliveryOutcome = "not-attempted";
             try
             {
@@ -989,17 +1042,17 @@ namespace KingmakerMountedCombat.Integration
                         deliveryOutcome = accepted ? "consumed-success" : "consumed-refused";
                         break;
                     case NativeMountedControlKind.RiderPrimary:
-                        accepted = combat.TryExecuteNativeAbility(
+                        accepted = combat != null && combat.TryExecuteNativeAbility(
                             combat.ResolveRiderPrimaryAction(), caster, target) ==
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     case NativeMountedControlKind.MountPrimary:
-                        accepted = combat.TryExecuteNativeAbility(
+                        accepted = combat != null && combat.TryExecuteNativeAbility(
                             MountedCombatActionKind.MountPrimaryNatural, caster, target) ==
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     case NativeMountedControlKind.MountedCharge:
-                        accepted = combat.TryExecuteMountedCharge(caster, target, context) ==
+                        accepted = combat != null && combat.TryExecuteMountedCharge(caster, target, context) ==
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     default:
@@ -1022,6 +1075,7 @@ namespace KingmakerMountedCombat.Integration
             }
             finally
             {
+                if (intent != null) intent.Consumed = true;
                 // One terminal delivery attempt per resolved shell, on every path out of
                 // the business dispatch: success, refusal, or exception.
                 if (deliveringShell != null && !deliveringShell.Consumed)
@@ -1047,7 +1101,7 @@ namespace KingmakerMountedCombat.Integration
                 if (string.IsNullOrWhiteSpace(refusal))
                 {
                     refusal = kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount
-                        ? playerAction.LastFeedback : combat.LastFeedback;
+                        ? playerAction?.LastFeedback : combat?.LastFeedback;
                 }
                 if (string.IsNullOrWhiteSpace(refusal)) refusal = DescribeRefusal(kind, caster, target);
                 RaiseWarning(refusal);
@@ -1065,8 +1119,9 @@ namespace KingmakerMountedCombat.Integration
                 accepted,
                 accepted ? "accepted" : "rejected");
             if (kind == NativeMountedControlKind.RiderPrimary && accepted &&
-                relationship.State == RelationshipState.Mounted)
+                relationship?.State == RelationshipState.Mounted)
             {
+                if (!awaitingActivations.Contains(activation)) awaitingActivations.Add(activation);
                 activation.AwaitingCommandTerminal = true;
                 activation.ActiveCommandObserved = combat.HasActiveCommand;
                 activation.TerminalDeadline = Time.realtimeSinceStartup + 90.0f;
@@ -1254,23 +1309,28 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnMoveRequested(Vector3 target)
         {
-            if (combat.HasStockAttackIntent)
+            // Native ground input raises this event after publishing its new move.
+            // Pre-admission already cancels the replaced pair action; only a live
+            // stock targeting intent authorizes additional post-input cleanup.
+            VisitInputOwners(owner =>
             {
-                combat.CancelSelectedInput("native move request replaced stock attack intent");
-            }
+                if (owner.HasStockAttackIntent)
+                    owner.CancelSelectedInput("native move request replaced stock attack intent");
+            });
         }
 
         public void OnItemUseRequested(Kingmaker.Items.ItemEntity item, TargetWrapper target)
         {
-            if (combat.HasStockAttackIntent)
+            VisitInputOwners(owner =>
             {
-                combat.CancelSelectedInput("native item-use request replaced stock attack intent");
-            }
+                if (owner.HasStockAttackIntent)
+                    owner.CancelSelectedInput("native item-use request replaced stock attack intent");
+            });
         }
 
         public void OnAttackRequested(UnitEntityData unit, Kingmaker.View.UnitEntityView target)
         {
-            combat.ObserveStockAttackRequested(unit, target?.EntityData);
+            ResolveControlBoundary(unit, false)?.CombatOwner.ObserveStockAttackRequested(unit, target?.EntityData);
         }
 
         public void Dispose()
@@ -1396,7 +1456,7 @@ namespace KingmakerMountedCombat.Integration
                 return 0f;
             }
 
-            return combat.GetMountedChargeMinimumRange(caster);
+            return ResolveControlBoundary(caster, false)?.CombatOwner.GetMountedChargeMinimumRange(caster) ?? 0f;
         }
 
         // The fifth original KMC ability: the rider's native full-round Standard charge shell. It differs from
@@ -1529,8 +1589,9 @@ namespace KingmakerMountedCombat.Integration
 
         private bool ShouldLease(UnitEntityData unit, NativeMountedControlKind kind)
         {
-            var mounted = relationship.State == RelationshipState.Mounted;
-            var faulted = relationship.State == RelationshipState.Faulted;
+            var relationship = ResolveControlBoundary(unit, false);
+            var mounted = relationship?.State == RelationshipState.Mounted;
+            var faulted = relationship?.State == RelationshipState.Faulted;
             var ownerHasSupportedMount = unit?.Descriptor?.Pet != null &&
                 SupportedMountedProfiles.IsSupported(unit.Descriptor.Pet) &&
                 unit.Descriptor.Pet.Descriptor?.Master.Value == unit;
@@ -1541,8 +1602,8 @@ namespace KingmakerMountedCombat.Integration
                 ownerHasSupportedMount,
                 mounted,
                 faulted,
-                unit == relationship.Rider,
-                unit == relationship.Mount,
+                relationship != null && unit == relationship.Rider,
+                relationship != null && unit == relationship.Mount,
                 settings.EnableMountedCharge);
         }
 
@@ -1559,8 +1620,10 @@ namespace KingmakerMountedCombat.Integration
                     AddUnique(result, unit?.Descriptor?.Pet);
                 }
             }
-            AddUnique(result, relationship.Rider);
-            AddUnique(result, relationship.Mount);
+            foreach (var owner in relationship.Ownership.Owners)
+            {
+                AddUnique(result, owner.Rider); AddUnique(result, owner.Mount);
+            }
             return result;
         }
 
@@ -1587,9 +1650,12 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void CancelPendingNativeControls(CleanupTrigger trigger)
+        private void CancelPendingNativeControls(CleanupTrigger trigger) => CancelPairControls(null, trigger);
+
+        private void CancelPairControls(GameMountedRelationshipService owner, CleanupTrigger trigger)
         {
-            foreach (var unit in CollectCandidateUnits())
+            foreach (var unit in CollectCandidateUnits().Where(unit => owner == null ||
+                ReferenceEquals(owner.Rider, unit) || ReferenceEquals(owner.Mount, unit) || owner.PairOwner?.Contains(unit) == true))
             {
                 if (unit?.Commands == null) { continue; }
                 var commands = unit.Commands.Raw.Concat(unit.Commands.Queue).OfType<UnitUseAbility>().Distinct().ToArray();
@@ -1763,11 +1829,14 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlKind kind,
             UnitEntityData caster)
         {
+            var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion) ?? this.relationship;
             var deliveries = lifecycleLedger.Snapshot();
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             return new PendingNativeActivation
             {
+                Boundary = relationship,
+                Generation = relationship.MountedPairGeneration,
                 Id = activationLedger.BeginActivation(),
                 Kind = kind,
                 StateAtStart = relationship.State,
@@ -1785,16 +1854,26 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlKind kind,
             UnitEntityData caster)
         {
-            if (pendingActivation == null || pendingActivation.Kind != kind)
+            if (pendingActivation == null || pendingActivation.Kind != kind || pendingActivation.CasterId != caster?.UniqueId ||
+                !ReferenceEquals(pendingActivation.Boundary, ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion)) ||
+                pendingActivation.Generation != pendingActivation.Boundary.MountedPairGeneration)
             {
                 pendingActivation = StartActivation(kind, caster);
             }
             return pendingActivation;
         }
 
+        private readonly List<PendingNativeActivation> awaitingActivations = new List<PendingNativeActivation>();
+
         private void ObservePendingRiderPrimaryOutcome()
         {
-            var activation = pendingActivation;
+            foreach (var activation in awaitingActivations.ToArray()) ObserveRiderPrimaryOutcome(activation);
+        }
+
+        private void ObserveRiderPrimaryOutcome(PendingNativeActivation activation)
+        {
+            var relationship = activation.Boundary;
+            var combat = relationship.CombatOwner;
             if (disposed || activation == null ||
                 activation.Kind != NativeMountedControlKind.RiderPrimary ||
                 !activation.AwaitingCommandTerminal)
@@ -1811,7 +1890,8 @@ namespace KingmakerMountedCombat.Integration
                     null,
                     true,
                     "relationship-ended-before-primary-terminal");
-                pendingActivation = null;
+                awaitingActivations.Remove(activation);
+                if (ReferenceEquals(pendingActivation, activation)) pendingActivation = null;
                 return;
             }
 
@@ -1837,7 +1917,8 @@ namespace KingmakerMountedCombat.Integration
                 null,
                 true,
                 terminal);
-            pendingActivation = null;
+            awaitingActivations.Remove(activation);
+            if (ReferenceEquals(pendingActivation, activation)) pendingActivation = null;
         }
 
         private void RecordActivation(
@@ -1853,6 +1934,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            var relationship = activation.Boundary;
             var deliveries = lifecycleLedger.Snapshot();
             var newDeliveries = deliveries.Where(delivery =>
                 delivery.Sequence > activation.LifecycleSequenceAtStart).ToArray();
@@ -1967,6 +2049,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 return availability.Reason;
             }
+            var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion);
+            var playerAction = relationship?.PlayerActions;
+            var combat = relationship?.CombatOwner;
+            if (relationship == null) return "The exact mounted owner is no longer available.";
             if (kind == NativeMountedControlKind.MountCompanion)
             {
                 return playerAction.DescribeNativeMountTargetRejection(caster, target);
@@ -2109,7 +2195,8 @@ namespace KingmakerMountedCombat.Integration
             if (!subscribed)
             {
                 EventBus.Subscribe(this);
-                relationship.Dismounting += CancelPendingNativeControls;
+                if (relationship.World != null) relationship.World.PairDismounting += CancelPairControls;
+                else relationship.Dismounting += CancelPendingNativeControls;
                 subscribed = true;
             }
         }
@@ -2119,7 +2206,8 @@ namespace KingmakerMountedCombat.Integration
             if (subscribed)
             {
                 EventBus.Unsubscribe(this);
-                relationship.Dismounting -= CancelPendingNativeControls;
+                if (relationship.World != null) relationship.World.PairDismounting -= CancelPairControls;
+                else relationship.Dismounting -= CancelPendingNativeControls;
                 subscribed = false;
             }
         }
@@ -2180,6 +2268,8 @@ namespace KingmakerMountedCombat.Integration
 
         private sealed class PendingNativeActivation
         {
+            public GameMountedRelationshipService Boundary;
+            public long Generation;
             public long Id { get; set; }
             public NativeMountedControlKind Kind { get; set; }
             public RelationshipState StateAtStart { get; set; }
