@@ -55,5 +55,22 @@ foreach($m in $mutations){$p=(Read-Plan 'fixture-plan.json').plan;&$m[1] $p;Reje
 Reject 'a refused plan missing a declared candidate' {$p=(Read-Plan 'b203-plan.json').plan;$p.candidates=@($p.candidates|Select-Object -First 63);[void](Get-KmcChunk7StagedPlanSelection $p)} 'every declared candidate'
 Reject 'a refused plan claiming a selection' {$p=(Read-Plan 'b203-plan.json').plan;$p.selected=0;[void](Get-KmcChunk7StagedPlanSelection $p)} 'every declared candidate'
 Reject 'a b203 beyond-range proposal recorded eligible' {$p=(Read-Plan 'b203-plan.json').plan;$l=@($p.candidates[0].simulation.legs|Where-Object kind -CEQ 'move-beyond-range')[0];$l.proposals[2][12]=$null;[void](Get-KmcChunk7StagedPlanSelection $p)} 'recomputes below-band'
+# Geometry revision 2 (owner-seed-staged-geometry-plan-v2, F6): centre-aimed beyond-range leg with a recorded spare.
+$committed2=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV2.json'
+Check 'the committed revision 2 reader fixture equals the plan the C# planner regenerates' {
+ if(-not[IO.File]::Exists($committed2)-or(Get-KmcSha256 $committed2)-cne(Get-KmcSha256 (Join-Path $OutputDirectory 'fixture-plan-v2.json'))){throw 'The committed revision 2 staged plan fixture differs from the regenerated plan.'}}
+Check 'the reader replays the revision 2 fixture and selects the ninth placement' {$c=Get-KmcChunk7StagedPlanSelection (Read-Plan 'fixture-plan-v2.json').plan;if($null-eq$c-or[double]$c.angle-ne-90.0-or[double]$c.distance-ne8.0){throw 'Wrong selection.'}}
+Check 'the reader replays a revision 2 plan and its confirmation' {$f=Read-Plan 'open-plan-v2.json';$c=Get-KmcChunk7StagedPlanSelection $f.plan;if($null-eq$c){throw 'No selection.'}
+ if(-not(Test-KmcChunk7StagedSimulation $f.confirmation.simulation @($f.confirmation.mountStart|ForEach-Object{[double]$_}) @($f.confirmation.target|ForEach-Object{[double]$_}) ([double]$f.confirmation.envelope) ([double]$f.confirmation.speed) 'v2 confirmation' 2)){throw 'Infeasible.'}}
+function Get-V2BeyondLeg($p){@($p.candidates[$p.selected].simulation.legs|Where-Object kind -CEQ 'move-beyond-range')[0]}
+$v2mutations=@(
+ @('a revision 2 plan replayed under the v1 contract',{param($p)$p.contract='owner-seed-staged-geometry-plan-v1'},'spare field does not match'),
+ @('a revision 2 leg without its spare field',{param($p)$l=Get-V2BeyondLeg $p;$l.PSObject.Properties.Remove('spare')},'spare field does not match'),
+ @('a moved spare',{param($p)$l=Get-V2BeyondLeg $p;$l.spare=[int]$l.spare+1},'spare is not the next eligible'),
+ @('a dropped spare proposal',{param($p)$l=Get-V2BeyondLeg $p;$l.proposals=@($l.proposals|Select-Object -First ([int]$l.spare));$l.spare=$null},'stopped before its first eligible|spare'),
+ @('a floor-aimed request under revision 2',{param($p)$l=Get-V2BeyondLeg $p;$l.proposals[0][1]=[double]$l.proposals[0][1]-0.75},'order differs'),
+ @('an unknown plan contract',{param($p)$p.contract='owner-seed-staged-geometry-plan-v3'},'lack their up-front geometry plan')
+)
+foreach($m in $v2mutations){$p=(Read-Plan 'open-plan-v2.json').plan;&$m[1] $p;Reject $m[0] {[void](Get-KmcChunk7StagedPlanSelection $p)} $m[2]}
 Write-Output ('Staged geometry reader: '+$passed+' PASS / '+$failed+' FAIL')
 if($failed-ne0){throw 'Staged geometry reader regression failed.'}

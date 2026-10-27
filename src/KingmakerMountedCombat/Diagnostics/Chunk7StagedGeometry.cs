@@ -26,6 +26,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class StagedPlanInputs
     {
         internal StagedPoint Target; internal double Envelope, Speed; internal StagedPlanStep[] Steps;
+        // 1: the retained geometry-plan-v1 rules; 2 (F6): the beyond-range leg aims at its band centre and the plan keeps a spare.
+        internal int Revision = 1;
     }
     // Where a simulation (or a native execution) stands: the plan step, the leg inside it, the mount's
     // native movement time in the current round, the tangent side of the next leg and the mount position.
@@ -41,13 +43,13 @@ namespace KingmakerMountedCombat.Diagnostics
     }
     internal sealed class StagedLeg
     {
-        internal int Step, Leg, Side, Chosen = -1; internal string Kind, Check; internal double Time, TimeAfter;
+        internal int Step, Leg, Side, Chosen = -1, Spare = -1; internal string Kind, Check; internal double Time, TimeAfter;
         internal StagedPoint Start, End; internal readonly List<StagedProposal> Proposals = new List<StagedProposal>();
     }
     internal sealed class StagedSimulation
     {
         internal readonly List<StagedLeg> Legs = new List<StagedLeg>();
-        internal int RefusalStep = -1, RefusalLeg = -1; internal string RefusalKind, RefusalTerm;
+        internal int RefusalStep = -1, RefusalLeg = -1, Revision = 1; internal string RefusalKind, RefusalTerm;
         internal bool Feasible => RefusalTerm == null;
         internal string Describe() => Feasible ? null : "step " + RefusalStep + " " + RefusalKind + " leg " + RefusalLeg + ": " + RefusalTerm;
     }
@@ -58,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
     }
     internal sealed class StagedPlanSelection
     {
-        internal StagedPoint MountStart, RiderStart; internal double Envelope, Speed;
+        internal StagedPoint MountStart, RiderStart; internal double Envelope, Speed; internal int Revision = 1;
         internal readonly List<StagedCandidate> Candidates = new List<StagedCandidate>();
         internal int Selected = -1;
         internal StagedCandidate Chosen => Selected < 0 ? null : Candidates[Selected];
@@ -107,7 +109,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // after the plan, so the plan uses this and the scenario refuses before input if the spawned
         // target's envelope differs.
         internal const double PlannedTargetCorpulence = .7;
-        internal const string PlanContract = "owner-seed-staged-geometry-plan-v1";
+        internal const string PlanContract = "owner-seed-staged-geometry-plan-v1", PlanContractV2 = "owner-seed-staged-geometry-plan-v2";
+        internal static string Contract(int revision) => revision >= 2 ? PlanContractV2 : PlanContract;
 
         internal const string NotWalkable = "not-walkable", TraceInexact = "trace-inexact", TooShort = "too-short",
             BelowBand = "below-band", AboveBand = "above-band", ExhaustTail = "exhaust-tail",
@@ -115,7 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
             LegLimit = "leg-limit", NoDirection = "no-direction", ShotOutOfRange = "shot-out-of-range",
             ApproachStartInRange = "approach-start-in-range", ApproachOutsideRange = "approach-outside-range",
             PlacementOffset = "placement-offset", PlacementRise = "placement-rise", PlacementSpawnRange = "placement-spawn-range",
-            PlanInfeasible = "plan-infeasible";
+            PlanInfeasible = "plan-infeasible", NoSpareProposal = "no-spare-proposal";
 
         internal static string Band(double distance, double floor, double ceiling) =>
             distance < floor ? BelowBand : distance > ceiling ? AboveBand : null;
@@ -137,7 +140,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         internal static bool Moves(string kind) => kind.StartsWith("move-", StringComparison.Ordinal);
         internal static bool Tangential(string kind) => kind == "move-short" || kind == "move-two-moves";
-        internal static double[] Lengths(string kind, double startDistance, double envelope)
+        internal static double[] Lengths(string kind, double startDistance, double envelope) => Lengths(kind, startDistance, envelope, 1);
+        // Revision 2 (F6 st audit: F5 chose a goal exactly on the band floor, F2/F3 the 20th proposal): the beyond-range leg aims
+        // at the band centre, envelope + 3.75 m. The band, the stop-short margin and the reader floor are unchanged.
+        internal static double[] Lengths(string kind, double startDistance, double envelope, int revision)
         {
             switch (kind)
             {
@@ -145,7 +151,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "move-two-moves": return new[] { LongLeg };
                 case "move-exhaust": return ExhaustLengths;
                 case "move-beyond-range":
-                    var length = Math.Max(.6, envelope + BeyondMargin - startDistance);
+                    var length = Math.Max(.6, envelope + BeyondMargin + (revision >= 2 ? BeyondBandAbove / 2 : 0) - startDistance);
                     return new[] { length, length + 2, length + 4 };
                 default: throw new InvalidOperationException("Unknown staged movement kind " + kind + ".");
             }
@@ -197,7 +203,10 @@ namespace KingmakerMountedCombat.Diagnostics
             double dx = rx, dz = rz;
             if (kind != "move-beyond-range") Rotate(rx, rz, 90.0 * cursor.Side, out dx, out dz);
             var norm = Math.Sqrt(dx * dx + dz * dz); dx /= norm; dz /= norm;
-            foreach (var length in Lengths(kind, Flat(start, plan.Target), plan.Envelope))
+            // Revision 2: a planned beyond-range leg (no continuation term: the up-front plan and its in-combat confirmation)
+            // searches on after its first eligible proposal for a spare one; without a spare the leg refuses.
+            var requireSpare = plan.Revision >= 2 && kind == "move-beyond-range" && continuation == null; var first = -1;
+            foreach (var length in Lengths(kind, Flat(start, plan.Target), plan.Envelope, plan.Revision))
                 foreach (var angle in Fan)
                 {
                     double ux, uz; Rotate(dx, dz, angle, out ux, out uz);
@@ -211,8 +220,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (p.Refusal == null && kind == "move-exhaust") p.Refusal = ExhaustTailTerm(plan, cursor, p.Goal);
                     if (p.Refusal == null && continuation != null) { p.Continuation = continuation(cursor, p); if (p.Continuation != null) p.Refusal = NoPlanContinuation; }
                     leg.Proposals.Add(p);
-                    if (p.Refusal == null) { leg.Chosen = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg; }
+                    if (p.Refusal != null) continue;
+                    if (!requireSpare) { leg.Chosen = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg; }
+                    if (first < 0) { first = leg.Proposals.Count - 1; continue; }
+                    leg.Chosen = first; leg.Spare = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg;
                 }
+            if (first >= 0) leg.Check = NoSpareProposal;
             return leg;
         }
         // The cursor after a leg's chosen proposal: movement time grows by the leg at the mount's native speed,
@@ -257,7 +270,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // refuses with its term. Casts move nothing; shots check their range; the approach checks its trace.
         internal static StagedSimulation Simulate(StagedPlanInputs plan, IStagedNavmesh nav, StagedCursor from)
         {
-            var sim = new StagedSimulation(); var cursor = from.Copy();
+            var sim = new StagedSimulation { Revision = plan.Revision }; var cursor = from.Copy();
             while (cursor.Step < plan.Steps.Length)
             {
                 var kind = plan.Steps[cursor.Step].Kind;
@@ -307,16 +320,16 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             leg.Check = NoDestination; return leg;
         }
-        internal static StagedPlanInputs Inputs(StagedPoint target, double envelope, double speed, StagedPlanStep[] steps) =>
-            new StagedPlanInputs { Target = target, Envelope = envelope, Speed = speed, Steps = steps };
+        internal static StagedPlanInputs Inputs(StagedPoint target, double envelope, double speed, StagedPlanStep[] steps, int revision = 1) =>
+            new StagedPlanInputs { Target = target, Envelope = envelope, Speed = speed, Steps = steps, Revision = revision };
         internal static StagedCursor Start(StagedPoint mountStart) => new StagedCursor { Step = 0, Leg = 0, Time = 0, Side = 1, Position = mountStart };
         // The up-front selection: every placement candidate in the fixed order, each admitted only when the whole
         // declared plan simulates from mount A's start with every leg eligible. The first such candidate is
         // selected; the record keeps every candidate tried and the first refusing leg and term of each.
         internal static StagedPlanSelection Select(StagedPoint mountStart, StagedPoint riderStart, double envelope, double speed,
-            StagedPlanStep[] steps, IStagedNavmesh nav)
+            StagedPlanStep[] steps, IStagedNavmesh nav, int revision = 1)
         {
-            var selection = new StagedPlanSelection { MountStart = mountStart, RiderStart = riderStart, Envelope = envelope, Speed = speed };
+            var selection = new StagedPlanSelection { MountStart = mountStart, RiderStart = riderStart, Envelope = envelope, Speed = speed, Revision = revision };
             foreach (var distance in PlacementDistances)
                 foreach (var angle in Fan)
                 {
@@ -329,7 +342,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         rider < SpawnMinimum || rider > SpawnMaximum ? PlacementSpawnRange : null;
                     if (candidate.Refusal == null)
                     {
-                        candidate.Simulation = Simulate(Inputs(candidate.Goal, envelope, speed, steps), nav, Start(mountStart));
+                        candidate.Simulation = Simulate(Inputs(candidate.Goal, envelope, speed, steps, revision), nav, Start(mountStart));
                         if (!candidate.Simulation.Feasible) candidate.Refusal = PlanInfeasible;
                     }
                     selection.Candidates.Add(candidate);
@@ -351,19 +364,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Append(N(p.Requested.Z)).Append(',').Append(p.Walkable ? "true" : "false").Append(',').Append(N(p.Goal.X)).Append(',').Append(N(p.Goal.Y)).Append(',')
                 .Append(N(p.Goal.Z)).Append(',').Append(N(p.Trace.X)).Append(',').Append(N(p.Trace.Y)).Append(',').Append(N(p.Trace.Z)).Append(',').Append(S(p.Refusal)).Append(']');
         }
-        internal static void Leg(StringBuilder b, StagedLeg leg)
+        internal static void Leg(StringBuilder b, StagedLeg leg, int revision = 1)
         {
             b.Append("{\"step\":").Append(I(leg.Step)).Append(",\"kind\":").Append(S(leg.Kind)).Append(",\"leg\":").Append(I(leg.Leg)).Append(",\"side\":").Append(I(leg.Side))
                 .Append(",\"time\":").Append(N(leg.Time)).Append(",\"start\":"); P(b, leg.Start);
             b.Append(",\"proposals\":[");
             for (var i = 0; i < leg.Proposals.Count; i++) { if (i > 0) b.Append(','); Proposal(b, leg.Proposals[i]); }
             b.Append("],\"chosen\":").Append(leg.Chosen < 0 ? "null" : leg.Chosen.ToString(CultureInfo.InvariantCulture)).Append(",\"check\":").Append(S(leg.Check))
-                .Append(",\"end\":"); P(b, leg.End); b.Append(",\"timeAfter\":").Append(N(leg.TimeAfter)).Append('}');
+                .Append(",\"end\":"); P(b, leg.End); b.Append(",\"timeAfter\":").Append(N(leg.TimeAfter));
+            if (revision >= 2) b.Append(",\"spare\":").Append(leg.Spare < 0 ? "null" : leg.Spare.ToString(CultureInfo.InvariantCulture));
+            b.Append('}');
         }
         internal static void Simulation(StringBuilder b, StagedSimulation sim, StagedPoint target)
         {
             b.Append("{\"target\":"); P(b, target); b.Append(",\"legs\":[");
-            for (var i = 0; i < sim.Legs.Count; i++) { if (i > 0) b.Append(','); Leg(b, sim.Legs[i]); }
+            for (var i = 0; i < sim.Legs.Count; i++) { if (i > 0) b.Append(','); Leg(b, sim.Legs[i], sim.Revision); }
             b.Append("],\"refusal\":");
             if (sim.Feasible) b.Append("null");
             else b.Append("{\"step\":").Append(I(sim.RefusalStep)).Append(",\"kind\":").Append(S(sim.RefusalKind)).Append(",\"leg\":").Append(I(sim.RefusalLeg))
@@ -373,7 +388,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static string PlanJson(StagedPlanSelection selection, double weaponRange, double mountCorpulence)
         {
             var b = new StringBuilder();
-            b.Append("{\"contract\":").Append(S(PlanContract)).Append(",\"mountStart\":"); P(b, selection.MountStart);
+            b.Append("{\"contract\":").Append(S(Contract(selection.Revision))).Append(",\"mountStart\":"); P(b, selection.MountStart);
             b.Append(",\"riderStart\":"); P(b, selection.RiderStart);
             b.Append(",\"weaponRange\":").Append(N(weaponRange)).Append(",\"mountCorpulence\":").Append(N(mountCorpulence))
                 .Append(",\"plannedTargetCorpulence\":").Append(N(PlannedTargetCorpulence)).Append(",\"envelope\":").Append(N(selection.Envelope))

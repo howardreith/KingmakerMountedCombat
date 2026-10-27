@@ -1459,6 +1459,27 @@ function Get-StStep($v,[int]$i){$v.artifact.observations.staged.steps[$i]}
 function Get-StActor($w,[string]$id){@($w.actors|Where-Object id -CEQ $id)[0]}
 function Get-StEvent($v,[long]$command,[string]$boundary){@($v.artifact.observations.allocationTrace.events|Where-Object{$_.command-eq$command-and$_.boundary-ceq$boundary})[0]}
 Check 'owner-seed staged evidence accepted (move-cast-move, double-move-ranged, ranged approach)' {Invoke-OwnedReader (New-KmcSeedStagedFixture)}
+# owner-seed-staged-v2 (F6): the revision 2 plan (centre-aimed beyond-range leg, spare) from the committed C# planner record and
+# the approach shot's native range at its stop (synthetic stop at 16.64 m on the x axis, target at the origin).
+function ConvertTo-KmcSeedStagedV2($v){$s=$v.artifact.observations.staged;$s.contract='owner-seed-staged-v2'
+ $sp2=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV2.json') -Raw|ConvertFrom-Json;$s.geometryPlan=$sp2.plan;$s.geometryConfirmation=$sp2.confirmation
+ $step=$s.steps[9];$m=@($step.after.mountPosition|ForEach-Object{[double]$_});$r=@($step.after.riderPosition|ForEach-Object{[double]$_});$d=[Math]::Sqrt($m[0]*$m[0]+$m[2]*$m[2]);$dr=[Math]::Sqrt($r[0]*$r[0]+$r[2]*$r[2])
+ $step|Add-Member nativeRangeAtStop ([pscustomobject][ordered]@{contract='owner-seed-staged-approach-range-v1';riderPosition=$r;mountPosition=$m;targetPosition=@(0.0,0.0,0.0);mountTargetFlat=$d;riderTargetFlat=$dr
+  mountTargetMechanics=$d;riderTargetMechanics=$dr;riderCorpulence=0.5;mountCorpulence=0.9;targetCorpulence=0.7;weaponRangeMeters=15.24;commandApproachRadius=16.84}) -Force;$v}
+Check 'owner-seed staged v2 accepted (revision 2 plan, native range at the approach stop)' {Invoke-OwnedReader (ConvertTo-KmcSeedStagedV2 (New-KmcSeedStagedFixture))}
+foreach($m in @(
+ @('v2 with a revision 1 plan',{$s=$args[0].artifact.observations.staged;$sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json') -Raw|ConvertFrom-Json;$s.geometryPlan=$sp.plan;$s.geometryConfirmation=$sp.confirmation},'plan revision differ'),
+ @('v1 contract carrying a range record',{$args[0].artifact.observations.staged.contract='owner-seed-staged-v1'},'plan revision differ|range record does not match'),
+ @('v2 without its range record',{$args[0].artifact.observations.staged.steps[9].PSObject.Properties.Remove('nativeRangeAtStop')},'range record does not match'),
+ @('a range record on another step',{$s=$args[0].artifact.observations.staged;$s.steps[4]|Add-Member nativeRangeAtStop $s.steps[9].nativeRangeAtStop -Force},'range record does not match'),
+ @('a forged flat distance',{$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop.mountTargetFlat=16.0},'flat distances differ'),
+ @('a forged MechanicsDistance',{$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop.riderTargetMechanics=15.0},'MechanicsDistance values differ'),
+ @('a record off the stop',{$n=$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop;$n.mountPosition=@(16.0,0.0,0.0);$n.mountTargetFlat=16.0;$n.mountTargetMechanics=16.0},'not the stop'),
+ @('a foreign weapon range',{$n=$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop;$n.weaponRangeMeters=18.0},'differ from the staged envelope'),
+ @('a missing approach radius',{$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop.commandApproachRadius=$null},'missing or not finite'),
+ @('an extra range field',{$args[0].artifact.observations.staged.steps[9].nativeRangeAtStop|Add-Member note 'x'},'property set is not exact'),
+ @('a v2 plan with a floor-aimed beyond leg',{$p=$args[0].artifact.observations.staged.geometryPlan;$l=@($p.candidates[[int]$p.selected].simulation.legs|Where-Object kind -CEQ 'move-beyond-range')[0];$l.proposals[0][1]=[double]$l.proposals[0][1]-0.75},'order differs'))){
+ $fault=$m[1];Check ('owner-seed staged v2 refuses '+$m[0]) {$v=ConvertTo-KmcSeedStagedV2 (New-KmcSeedStagedFixture);&$fault $v;Invoke-OwnedReader $v} $true $m[2]}
 Check 'combat evidence refuses a staged record outside its case' {$v=New-KmcOwnerSeedDerivedCombatFixture 'combat-rider-first';$v.artifact.observations|Add-Member staged ([pscustomobject]@{}) -Force;Invoke-OwnedReader $v} $true 'belongs only to its closed owner-seed selection'
 Check 'owner-seed staged accepts the authorization''s native float point for the planned double point' {$v=New-KmcSeedStagedFixture;$t=$v.artifact.observations.targetAuthorization;$t.position=@($t.position|ForEach-Object{[double]$_+0.000004});Invoke-OwnedReader $v}
 Check-SeedStaged 'a missing geometry plan' {$args[0].artifact.observations.staged.geometryPlan=$null} 'up-front geometry plan'

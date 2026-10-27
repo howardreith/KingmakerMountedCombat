@@ -183,7 +183,10 @@ namespace KingmakerMountedCombat.Tests
             Check(sim.Feasible, name + ": the selected plan is feasible");
             foreach (var leg in sim.Legs.Where(l => Chunk7StagedGeometry.Moves(l.Kind)))
             {
-                Check(leg.Chosen == leg.Proposals.Count - 1 && leg.Proposals.Take(leg.Chosen).All(q => q.Refusal != null), name + ": every leg takes its first eligible proposal");
+                var last = leg.Spare >= 0 ? leg.Spare : leg.Chosen;
+                Check(last == leg.Proposals.Count - 1 && leg.Proposals.Take(leg.Chosen).All(q => q.Refusal != null) &&
+                    (leg.Spare < 0 || leg.Spare > leg.Chosen && leg.Proposals.Skip(leg.Chosen + 1).Take(leg.Spare - leg.Chosen - 1).All(q => q.Refusal != null) && leg.Proposals[leg.Spare].Refusal == null),
+                    name + ": every leg takes its first eligible proposal (and a revision 2 spare is the next one)");
                 var p = leg.Proposals[leg.Chosen]; var d = Chunk7StagedGeometry.Flat(p.Goal, target);
                 Check(Chunk7StagedGeometry.Flat(p.Trace, p.Goal) <= Chunk7StagedGeometry.MaximumTraceResidual && p.Walkable, name + ": every chosen goal is walkable with an exact trace");
                 if (leg.Kind == "move-beyond-range") Check(d >= envelope + 3 && d <= envelope + 4.5, name + ": the beyond-range goal is in its band");
@@ -291,6 +294,50 @@ namespace KingmakerMountedCombat.Tests
             CheckFeasiblePlan(confirmation, fixture.Chosen.Goal, PlanEnvelope, "reader fixture");
             File.WriteAllText(Path.Combine(output, "fixture-plan.json"), "{\"plan\":" + Chunk7StagedGeometry.PlanJson(fixture, 15.24f, .9f) + ",\"confirmation\":" +
                 Chunk7StagedGeometry.ConfirmationJson(fixtureStart, confirmed, confirmation) + "}", new UTF8Encoding(false));
+            // The revision 2 reader fixture on the same floor (committed as StagedGeometryPlanFixtureV2.json).
+            var fixture2 = Chunk7StagedGeometry.Select(fixtureStart, fixtureRider, PlanEnvelope, Speed, Steps, fixtureNav, 2);
+            Check(fixture2.Selected == 8 && Math.Abs(fixture2.Chosen.Goal.X) < 1e-9 && Math.Abs(fixture2.Chosen.Goal.Z) < 1e-9, "revision 2 reader fixture: the ninth placement (the origin) is selected");
+            var confirmed2 = Chunk7StagedGeometry.Inputs(fixture2.Chosen.Goal, PlanEnvelope, Speed, Steps, 2);
+            var confirmation2 = Chunk7StagedGeometry.Simulate(confirmed2, fixtureNav, Chunk7StagedGeometry.Start(fixtureStart));
+            CheckFeasiblePlan(confirmation2, fixture2.Chosen.Goal, PlanEnvelope, "revision 2 reader fixture");
+            File.WriteAllText(Path.Combine(output, "fixture-plan-v2.json"), "{\"plan\":" + Chunk7StagedGeometry.PlanJson(fixture2, 15.24f, .9f) + ",\"confirmation\":" +
+                Chunk7StagedGeometry.ConfirmationJson(fixtureStart, confirmed2, confirmation2) + "}", new UTF8Encoding(false));
+            GeometryRevision2(output, open, t0);
+        }
+        // Revision 2 (F6 st audit): the beyond-range leg aims at its band centre and a planned beyond-range leg keeps a spare.
+        private static void GeometryRevision2(string output, IStagedNavmesh open, StagedPoint t0)
+        {
+            Check(Math.Abs(Chunk7StagedGeometry.Lengths("move-beyond-range", 13.36, PlanEnvelope, 2)[0] - (PlanEnvelope + 3.75 - 13.36)) < 1e-9 &&
+                Math.Abs(Chunk7StagedGeometry.Lengths("move-beyond-range", 13.36, PlanEnvelope)[0] - (PlanEnvelope + 3 - 13.36)) < 1e-9,
+                "revision 2 aims the beyond-range leg at its band centre; revision 1 keeps the floor aim");
+            var beyondStep = Array.FindIndex(Steps, s => s.Kind == "move-beyond-range");
+            var cursor = new StagedCursor { Step = beyondStep, Leg = 0, Time = 0, Side = 1, Position = new StagedPoint(0, 0, -13) };
+            var corridor = new WorldNavmesh((x, z) => Math.Abs(x) <= .05 && z <= -12);
+            var single1 = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 1), corridor, cursor.Copy(), null);
+            var single2 = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 2), corridor, cursor.Copy(), null);
+            Check(single1.Chosen == 0 && single1.Spare == -1, "revision 1 takes a lone eligible beyond-range proposal");
+            Check(single2.Chosen == -1 && single2.Check == Chunk7StagedGeometry.NoSpareProposal && single2.Proposals.Count == 48 && single2.Proposals.Count(p => p.Refusal == null) == 1,
+                "revision 2 refuses a planned beyond-range leg with no spare eligible proposal");
+            var wide = new WorldNavmesh((x, z) => Math.Abs(x) <= 3 && z <= -12);
+            var spared = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 2), wide, cursor.Copy(), null);
+            var goal = spared.Proposals[spared.Chosen].Goal;
+            Check(spared.Chosen == 0 && spared.Spare == 1 && spared.Proposals.Count == 2 && Math.Abs(Chunk7StagedGeometry.Flat(goal, t0) - (PlanEnvelope + 3.75)) < 1e-6,
+                "revision 2 chooses the centre-aimed goal and records the next eligible proposal as its spare");
+            var executed = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 2), corridor, cursor.Copy(), (c, p) => null);
+            Check(executed.Chosen == 0 && executed.Spare == -1, "the native execution search (continuation term) does not require a spare");
+            var free = Chunk7StagedGeometry.Select(MountStart, RiderStart, PlanEnvelope, Speed, Steps, open, 2);
+            Check(free.Selected == 0, "revision 2 open floor: the first placement holds");
+            CheckFeasiblePlan(free.Chosen.Simulation, free.Chosen.Goal, PlanEnvelope, "revision 2 open floor");
+            var beyond = free.Chosen.Simulation.Legs.Single(l => l.Kind == "move-beyond-range");
+            Check(beyond.Spare > beyond.Chosen && beyond.Proposals[beyond.Spare].Refusal == null &&
+                Chunk7StagedGeometry.Flat(beyond.Proposals[beyond.Chosen].Goal, free.Chosen.Goal) >= PlanEnvelope + 3.5, "revision 2 open floor: the planned beyond-range goal is near the band centre with a spare");
+            var confirmed = Chunk7StagedGeometry.Inputs(free.Chosen.Goal, PlanEnvelope, Speed, Steps, 2);
+            var confirmation = Chunk7StagedGeometry.Simulate(confirmed, open, Chunk7StagedGeometry.Start(MountStart));
+            CheckFeasiblePlan(confirmation, free.Chosen.Goal, PlanEnvelope, "revision 2 confirmation");
+            var json = Chunk7StagedGeometry.PlanJson(free, 15.24f, .9f);
+            Check(json.Contains("\"contract\":\"owner-seed-staged-geometry-plan-v2\"") && json.Contains("\"spare\":"), "revision 2 records its contract and every leg's spare");
+            File.WriteAllText(Path.Combine(output, "open-plan-v2.json"), "{\"plan\":" + json + ",\"confirmation\":" +
+                Chunk7StagedGeometry.ConfirmationJson(MountStart, confirmed, confirmation) + "}", new UTF8Encoding(false));
         }
         private static int failures, passes;
         private static void Check(bool condition, string name) { if (condition) passes++; else { failures++; Console.WriteLine("FAIL " + name); } }

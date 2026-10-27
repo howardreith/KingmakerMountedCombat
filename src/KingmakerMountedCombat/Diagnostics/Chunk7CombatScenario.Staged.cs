@@ -6,6 +6,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -88,11 +89,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Rider A has no equipped native ranged weapon; the F04 ranged rows are uncovered on this fixture.");
             var range = weapon.Blueprint.AttackRange.Meters;
             var envelope = am.View.Corpulence + Chunk7StagedGeometry.PlannedTargetCorpulence + range;
-            var selection = Chunk7StagedGeometry.Select(Sp(am.Position), Sp(ar.Position), envelope, am.CurrentSpeedMps, StagedPlanSteps, stagedNav);
+            var selection = Chunk7StagedGeometry.Select(Sp(am.Position), Sp(ar.Position), envelope, am.CurrentSpeedMps, StagedPlanSteps, stagedNav, StagedPlanRevision);
             stagedPlanRecord = JObject.Parse(Chunk7StagedGeometry.PlanJson(selection, range, am.View.Corpulence));
             if (selection.Chosen == null)
             {
-                evidence["staged"] = new JObject { ["contract"] = "owner-seed-staged-v1", ["geometryPlan"] = stagedPlanRecord, ["complete"] = false };
+                evidence["staged"] = new JObject { ["contract"] = StagedContract, ["geometryPlan"] = stagedPlanRecord, ["complete"] = false };
                 throw new InvalidOperationException("Staged geometry refused before any input: no target placement admits the whole declared leg plan (" +
                     selection.Candidates.Count + " candidates recorded); owner-seed-staged is uncovered on this fixture.");
             }
@@ -105,7 +106,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void PrepareStaged()
         {
             var weapon = ar.GetFirstWeapon();
-            staged = new JObject { ["contract"] = "owner-seed-staged-v1", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
+            staged = new JObject { ["contract"] = StagedContract, ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["weapon"] = weapon?.Blueprint.AssetGuid, ["weaponRanged"] = weapon?.Blueprint.IsRanged == true,
                 ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters, ["scrollUnits"] = StagedScrollUnits, ["geometryPlan"] = stagedPlanRecord,
                 ["plan"] = new JArray(StagedSteps.Select(s => new JObject { ["row"] = s.Row, ["kind"] = s.Kind, ["round"] = s.Round })),
@@ -140,7 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Mount A moved between the geometry plan and combat start (refused before input).");
             Require(Flat(target.Position, stagedTarget) <= Chunk7StagedGeometry.PlacementMaxOffset,
                 "The diagnostic target did not spawn at its planned placement (refused before input).");
-            stagedPlan = Chunk7StagedGeometry.Inputs(Sp(target.Position), stagedEnvelope, am.CurrentSpeedMps, StagedPlanSteps);
+            stagedPlan = Chunk7StagedGeometry.Inputs(Sp(target.Position), stagedEnvelope, am.CurrentSpeedMps, StagedPlanSteps, StagedPlanRevision);
             stagedSide = 1;
             stagedConfirmation = Chunk7StagedGeometry.Simulate(stagedPlan, stagedNav, Chunk7StagedGeometry.Start(Sp(am.Position)));
             staged["geometryConfirmation"] = JObject.Parse(Chunk7StagedGeometry.ConfirmationJson(Sp(am.Position), stagedPlan, stagedConfirmation));
@@ -379,12 +380,29 @@ namespace KingmakerMountedCombat.Diagnostics
             stagedStep["after"] = StagedState(label); stagedStep["traceSequenceAfter"] = trace.EventCount;
             stagedStep["castEvents"] = stagedCasts.EventsSince((int)stagedStep["castEventsBefore"]);
             stagedStep["rules"] = stagedRules.Since((int)stagedStep["ruleCountBefore"]);
+            // Recorded at the stop, before the terminal command is released (its native approach radius is part of the record).
+            if (spec.Kind == "attack-ranged-approach") stagedStep["nativeRangeAtStop"] = StagedNativeRange();
             if (stagedStep["legs"] == null) { stagedStep["terminal"] = StagedCommand(trace, stagedCommand); stagedCommand = null; }
             stagedStep["endDistance"] = Flat(am.Position, target.Position);
             var before = (JObject)stagedStep["before"]; var after = (JObject)stagedStep["after"];
             // Pair B never spends inside the window (a finished turn's cooldowns may only decay natively).
             Require((string)after["relationship"] == "Mounted" && new[] { br, bm }.All(actor => NeverSpentNatively(before, after, actor)),
                 "Staged step " + spec.Kind + " dismounted pair A or changed pair B's native budget.");
+        }
+        // F6 (staged v2): the up-front plan uses geometry revision 2 (beyond-range goal aimed at its band centre, a spare
+        // planned proposal) and the approach shot records the native range quantities at its stop before any assertion.
+        internal const string StagedContract = "owner-seed-staged-v2";
+        private const int StagedPlanRevision = 2;
+        private JObject StagedNativeRange()
+        {
+            var weapon = ar.GetFirstWeapon();
+            return new JObject { ["contract"] = "owner-seed-staged-approach-range-v1",
+                ["riderPosition"] = Point(ar.Position), ["mountPosition"] = Point(am.Position), ["targetPosition"] = Point(target.Position),
+                ["mountTargetFlat"] = Flat(am.Position, target.Position), ["riderTargetFlat"] = Flat(ar.Position, target.Position),
+                ["mountTargetMechanics"] = GeometryUtils.MechanicsDistance(am.Position, target.Position),
+                ["riderTargetMechanics"] = GeometryUtils.MechanicsDistance(ar.Position, target.Position),
+                ["riderCorpulence"] = ar.View.Corpulence, ["mountCorpulence"] = am.View.Corpulence, ["targetCorpulence"] = target.View.Corpulence,
+                ["weaponRangeMeters"] = weapon?.Blueprint.AttackRange.Meters, ["commandApproachRadius"] = stagedCommand?.ApproachRadius };
         }
         private void FinishStaged()
         {
