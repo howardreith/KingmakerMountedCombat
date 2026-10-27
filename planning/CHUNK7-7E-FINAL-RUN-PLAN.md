@@ -370,6 +370,16 @@ check's `riderBandSlack`/`riderBandClear` and recomputed by the prone v2 reader 
 run used it). The band itself is unchanged. Retained first proposals stand: F3 1.451 m, F2 1.350 m, b209 1.306 m against
 the 1.3 m bound (b209 by 6 mm).
 
+Rows 7 and 8 before F6 (selection unchanged; producer behaviour, audit item 8): the full-activation paired moves still clicked a
+fixed point (0.75 m pair A, 0.5 m pair B) with no preview check; pair B travelled 0.265–0.507 m for 0.5 m (b213, F3), the F3
+mechanism. On these rows (`d81c8e85`) each move is clicked only at the first step destination (declared distance unchanged,
+target bearing first, `NativeGroundStepDestinationPolicy` offsets) whose own fresh, completed native preview of the paired
+input unit (the product's paired path-unit seam) ends within 0.3 m of it and at least 0.4 m from the mount; every candidate is
+recorded (`native-tb-paired-step-destination-v1`) before the click and none refuses as uncovered before input. The first-action
+Mount contract is `owner-seed-tb-first-action-mount-v3`; its reader requires both searches and recomputes order, step, preview
+distances, preview unit, reasons and the chosen destination; v1/v2 keep their path and refuse a search. Retained r07/r08 (F2,
+F3 FAIL, F5, b212, b213) re-read unchanged. r10, native life and the checkpoint sources keep the fixed click.
+
 ### B9 — native life on the acquired field and the X1 cases (~30 min)
 
 | Tag | Row | Case | Source / checkpoint | T: | Reader |
@@ -384,6 +394,16 @@ The pilots used the earlier world26 row-1 lineage as a fixture input; here the s
 A different start can change the recorded geometry or preconditions (Rapid Shot toggle, placement
 plans). A resulting pre-input "uncovered" refusal follows the single rule in §5 (recorded, not completion,
 stop and diagnose); never fall back to the older lineage silently.
+
+Row 70 before F6 (selection unchanged; producer behaviour, audit items 10–11, `be9a6ee3`): F5's beyond-range goal sat exactly on
+the band floor (19.840 m) and F2/F3 admitted only the 20th proposal; the approach shot ended 0.053 m inside its 0.1 m range
+tolerance. The staged contract is `owner-seed-staged-v2` with geometry plan `owner-seed-staged-geometry-plan-v2`: the beyond-range
+leg aims at its band centre (envelope + 3.75 m) and a planned beyond-range leg (the up-front plan and its in-combat confirmation)
+must keep a spare eligible proposal, otherwise the placement refuses before input (`no-spare-proposal`); bands, the stop-short
+margin, the reader floor and the native execution search are unchanged. The approach shot records `nativeRangeAtStop`
+(`owner-seed-staged-approach-range-v1`: positions, flat and MechanicsDistance, footprints, weapon range, command approach radius)
+before any assertion; the reader replays revision 2 plans and recomputes the record, the 0.1 m tolerance unchanged. v1 evidence
+keeps its path; retained st (b205, F2, F3, F5) re-read PASS.
 
 ### B10 — RT Charge lineage and Small items (~30 min)
 
@@ -548,11 +568,12 @@ After B15, with every run restored and read:
 
 **Margin audit after F5 (October 26, offline):** `analysis-cache/chunk7-continuation/final5-margin-audit.md` measures every
 timing/geometry/AI/GC-dependent check against its bound over F2–F5 and pilots b206–b214. Fixed: rows 11 (`8e8b9dec`) and
-27/64 (`1d079c1e`). Open HIGH items for owner/coordinator decision before F6, none changed here because each would move a bound,
-a §6 criterion or a fixture choice, or needs a new producer search: r12 reader readiness tolerance (10 ms absolute, worst
-slack 5.6 ms), r39 F11 two-pair budget (0.464 of 0.5 ms in b211) and scaling noise term, r39 cycle-1 exposure at the saved
-start, r07/r08 step search (0.289 of 0.3 m) and fixed full-activation clicks, r09 companion window engagement, st band-floor
-goal and ranged approach end (0.053 m of 0.1 m).
+27/64 (`1d079c1e`); after the coordinator's decisions of October 26 also rows 7/8 full-activation steps (`d81c8e85`) and row 70
+geometry and range record (`be9a6ee3`). Accepted residuals (bounds and §6 criteria unchanged): r12 readiness tolerance (10 ms,
+worst slack 5.6 ms), r39 F11 two-pair budget (0.464 of 0.5 ms in b211) and scaling noise (an investigate criterion), r39 cycle-1
+exposure at the saved start (no per-frame record added: it would add KMC work inside the measured stress), the independent Horse
+step residual (inside its 0.3 m bound, refuses as uncovered otherwise); r09 was fixed earlier (`5dfdc897`) and passed F3–F5; the
+steam_api64 pre-result exits are environment.
 
 ## 8. Failure handling
 
