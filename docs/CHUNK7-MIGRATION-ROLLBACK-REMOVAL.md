@@ -1,7 +1,8 @@
 # Kingmaker Mounted Combat: install, upgrade, rollback and removal (Chunk 7)
 
 Status: DRAFT for a private engineering candidate. It is not a public release, and it does not
-authorize installing into a human campaign. Package identity: [TBD after 7E freeze].
+authorize installing into a human campaign. F6 preview.95 qualification is IN PROGRESS;
+see the [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact package identity.
 
 **Before anything: back up your saves.** Copy the whole Saved Games folder,
 `%USERPROFILE%\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games`, and keep the
@@ -47,11 +48,13 @@ What changes:
   producer exists for this lab. Mounted-state upgrade is qualified on **migrated derivatives** of every
   supported historical schema (7E rows 17–22, development lineage), not on an archive written by
   preview.211.
-- **X3 residual gap:** no cold load of a pending-only archive written by the live producer, with genuine
-  PairId and generation. Rows 13–14 cover the live-producer cold load only in the turn-based action-debt
-  shape. Row 19 loads a schema-2 resave at generation 1.
 - u2 loaded a save written by a Chunk 7 build, not one written by preview.211.
-- This is a development pilot. Exact-package 7E qualification of rows 55–56 has not run.
+- The table above is development evidence. F6 rows 55–56 remain pending.
+
+The live producer's pending-only schema-3 cold load is a required final row (75,
+consuming row17), with genuine PairId and generation and no migration. It has development
+evidence and awaits F6 credit; it is not a scope exclusion. It does not close the
+preview.211-written-save limitation.
 
 ## Rollback to preview.211
 

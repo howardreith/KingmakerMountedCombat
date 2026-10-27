@@ -1,7 +1,8 @@
 # Kingmaker Mounted Combat: support and configuration (Chunk 7)
 
 Status: DRAFT for a private engineering candidate. It is not a public release, and it does not
-authorize installing into a human campaign.
+authorize installing into a human campaign. F6 preview.95 qualification is IN PROGRESS;
+see the [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact identities and status.
 
 ## What is supported
 
@@ -80,19 +81,16 @@ selection change do not grant actions.
 - A save written by Chunk 7 is not certified under preview.211.
 - Other mod combinations are not tested. The Call of the Wild Ranger list is recognized for Horse
   registration only.
-- Combat behaviours recorded as **uncovered** by automated evidence:
-  - **C11 prone stand-up.** Disengagement is implemented, but the game offers no deterministic prone
-    source on the test saves.
-  - **F04 defensive casting check.** Moving casts are implemented, but no cast runs while threatened
-    past the game's one-second window on the test geometry.
-  - **C03 base attack bonus and haste variation.** Rapid Shot is implemented, but there is no native
-    source on the test saves, and synthetic stat edits are not accepted.
-  - **Prepared-spell casting while mounted.** The test Ranger's spell slot is empty. Filling it needs a
-    spellbook choice and a native camp rest, and that rest rolls an uncontrolled random encounter.
-- Implemented and awaiting their first in-game pilot: death of a mounted rider, Rapid Shot full
-  attacks, disengagement attacks of opportunity, staged moving actions, and real-time Charge with a
-  melee weapon (on the owner's charge save).
-- Performance acceptance is pending. Owner/HUMAN PLAY acceptance is pending.
+- Haste variation and six-pair combat are excluded by the owner's scope decision.
+- Prone stand-up provocation, defensive scroll casting while threatened, prepared Cure Light Wounds
+  while mounted, and a BAB6 mounted ranged full attack with Rapid Shot off have development evidence.
+  Their required F6 rows (57, 69, 80 and 81) remain pending; they are not scope exclusions.
+- Death cleanup, Rapid Shot, disengagement attacks of opportunity, staged moving actions and optional
+  melee real-time Charge also have development evidence. Final candidate coverage and performance
+  acceptance remain pending in the engineering closeout.
+- A mounted archive actually written by preview.211 has not undergone an automated upgrade.
+  Schema migration derivatives and installation rehearsals do not prove that path.
+- Owner/HUMAN PLAY acceptance remains pending.
 
 ## How to report a problem
 

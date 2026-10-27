@@ -2,8 +2,10 @@
 
 Status: DRAFT for a private engineering candidate. It is not a public release.
 Baseline: released `v0.1.0-chunk6-preview.211` (package version `0.1.0-chunk6d-preview.211`).
-Current development build: `0.1.0-chunk7b-preview.94` at `bd3f9012`. The final 7E candidate is not frozen
-yet; its package identity is [TBD after 7E freeze].
+Retained F6 candidate: `0.1.0-chunk7b-preview.95` at `ebeaf8f6`, partial FAIL.
+The reviewed preview.96 diagnostic correction awaits native qualification. Final qualification is
+IN PROGRESS; exact identities and current gates are in the
+[engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
 
 Note on history: the Chunk 7 branch does not descend from the preview.211 release merge (`7fa667b2`).
 This list compares product source with `7fa667b2` and cites the Chunk 7 commits that made each change.
@@ -95,4 +97,7 @@ This list compares product source with `7fa667b2` and cites the Chunk 7 commits 
   (batch200) and capital rows 58 and 59 PASS (batch199). Incapacitation row 57 PASS was on an earlier
   candidate (batch197, DLL `c0fa0ebe…`). Death proper, Rapid Shot attack modes, the disengagement
   attack of opportunity, staged moving actions and real-time Charge with a melee weapon PASS on DLL
-  `feca06e9…` (batch205). **Exact-package 7E qualification has not run.**
+  `feca06e9…` (batch205). **F6 exact-package qualification is IN PROGRESS.**
+- Final diagnostic corrections preserve native debt, use reference-stable subscriber serials,
+  search valid native movement geometry, and require candidate-version-bound observations.
+  The affected preview.95 pilot passed; final matrix credit remains pending.

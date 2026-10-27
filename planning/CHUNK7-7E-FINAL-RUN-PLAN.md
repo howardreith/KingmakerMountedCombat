@@ -1,6 +1,6 @@
 # Chunk 7 — 7E final exact-package qualification: executable run plan
 
-Status: **IN PROGRESS.** F5 is retained incomplete; F6 is planned after the corrected pilot gate.
+Status: **IN PROGRESS.** F6 at `ebeaf8f6` is retained as partial FAIL after52 launches:49 PASS, r09 native FAIL and two signature-matched startup failures with successful permitted retries.32 unlaunched slots remain TODO. The reviewed preview.96 correction needs its native pilot and the same full successor matrix; no scope or limit changed.
 The [October 26 takeover checkpoint](../docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md) records current authority,
 source and custody. The original plan was written at `c2c451d3`. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md)
 (rows 1–81; row 55 is two launches). Governing rules: [AGENTS.md](../AGENTS.md),
