@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private int replayAuthorityGeneration;
         private Chunk7WorldRetentionProbe retention;
         private RetainedObjectIdentity replayIdentities;
+        // Subscriber labels across worlds: RuntimeHelpers.GetHashCode is address-derived on Kingmaker's
+        // Boehm Mono, so a new Horse subscriber in a collected one's slot repeated its hash (F5 r27).
+        private WeakObjectSerials replaySubscriptionSerials;
+        private const string ReplayContract = "chunk7-repeated-worlds-v2";
         private readonly JArray replayWorlds = new JArray(), replayRequests = new JArray();
         private JObject replayArchive, replayLastWorld;
         private SaveInfo replayInput;
@@ -52,13 +56,14 @@ namespace KingmakerMountedCombat.Diagnostics
             replayAuthorityGeneration = replayAuthorization.AuthorityGeneration;
             replaySaveManager = Game.Instance?.SaveManager;
             replayIdentities = new RetainedObjectIdentity(256);
+            replaySubscriptionSerials = new WeakObjectSerials(256);
             RequireReplayAuthority();
         }
         private void InstallReplayObservation()
         {
             if (!RepeatedWorldCase) return;
             RequireReplayAuthority();
-            retention = new Chunk7WorldRetentionProbe(persistence, world, controls, replayIdentities);
+            retention = new Chunk7WorldRetentionProbe(persistence, world, controls, replayIdentities, replaySubscriptionSerials);
             retention.Install();
         }
         private void RequireReplayAuthority(bool cleanupOnly = false)
@@ -87,7 +92,8 @@ namespace KingmakerMountedCombat.Diagnostics
             replaySelectionIds = originalSelection.Select(a => a.UniqueId).ToArray();
             BindRepeatedLoadedWorld(1, false);
             replayBegun = true;
-            evidence["repeatedWorlds"] = new JObject { ["contract"] = "chunk7-repeated-worlds-v1", ["kind"] = RepeatedAreaCase ? "area-transfer" : "native-load",
+            evidence["repeatedWorlds"] = new JObject { ["contract"] = ReplayContract, ["subscriberIdentity"] = WeakObjectSerials.Contract,
+                ["kind"] = RepeatedAreaCase ? "area-transfer" : "native-load",
                 ["requiredNativeLoads"] = RepeatedAreaCase ? 1 : 3, ["requiredAreaTransfers"] = RepeatedAreaCase ? 3 : 0,
                 ["worlds"] = replayWorlds, ["requests"] = replayRequests, ["performanceProof"] = false, ["diagnosticsOffProof"] = false,
                 ["allocationRateProof"] = false, ["inputSha256"] = request.PersistenceLoad.Sha256 };
@@ -399,7 +405,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private JObject ReplaySnapshot()
         {
-            var value = Chunk7WorldRetentionProbe.CaptureWorld(world, controls, persistence, actors, replayIdentities);
+            var value = Chunk7WorldRetentionProbe.CaptureWorld(world, controls, persistence, actors, replayIdentities, replaySubscriptionSerials);
             if (request.OwnedPairs != null)
             {
                 Require(inherited != null && inherited.Bound && replayIncomingInherited == null, "Owned replay has no fully published native field epoch.");
@@ -420,14 +426,15 @@ namespace KingmakerMountedCombat.Diagnostics
             var controlsType = "KingmakerMountedCombat.Integration.NativeMountedControlService";
             var shape = string.Join(";", entries.Select(e => (string)e["interface"] + "|" + (string)e["type"])
                 .OrderBy(s => s, StringComparer.Ordinal));
-            var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
-            var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (int)e["identity"]).Distinct().ToArray();
-            var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (int)e["identity"]).Distinct().ToArray();
+            // Every role compares collision-free subscriber serials; the recorded identity hash is context only.
+            var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (long)e["serial"]).ToArray();
+            var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (long)e["serial"]).Distinct().ToArray();
+            var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (long)e["serial"]).Distinct().ToArray();
             // One native HorseCompanionAddPet subscriber per KMC Horse owner (b194 x4c); see Chunk7ReplayHorseOwners.
             var expectedHorses = Chunk7ReplayHorseOwners.Count(((JArray)replayArchive["Pairs"]).Select(p => (string)p["ProfileId"]),
                 id => SupportedMountedProfiles.ResolveProfileId(id)?.BlueprintGuid, SupportedMountedProfiles.HorseBlueprintGuid);
             var persistent = entries.Where(e => (string)e["type"] != horse)
-                .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
+                .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (long)e["serial"])
                 .OrderBy(s => s, StringComparer.Ordinal).ToArray();
             Require(expectedHorses >= 1 && expectedHorses <= 2 &&
                 (int)subscriptions["uniqueOwnedSubscribers"] == 2 + expectedHorses &&
@@ -450,9 +457,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var previous = (JArray)replayLastWorld["subscriptions"]["entries"];
                 var previousPersistent = previous.Where(e => (string)e["type"] != horse)
-                    .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (int)e["identity"])
+                    .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (long)e["serial"])
                     .OrderBy(s => s, StringComparer.Ordinal).ToArray();
-                var previousHorses = previous.Where(e => (string)e["type"] == horse).Select(e => (int)e["identity"]).ToArray();
+                var previousHorses = previous.Where(e => (string)e["type"] == horse).Select(e => (long)e["serial"]).ToArray();
                 Require(persistent.SequenceEqual(previousPersistent) && previousHorses.Length == expectedHorses &&
                     (RepeatedAreaCase ? horses.OrderBy(id => id).SequenceEqual(previousHorses.OrderBy(id => id)) :
                         horses.All(id => !previousHorses.Contains(id))),
@@ -505,6 +512,9 @@ namespace KingmakerMountedCombat.Diagnostics
             row["identityRetention"] = new JObject { ["capacity"] = replayIdentities.Capacity, ["faults"] = replayIdentities.FaultCount,
                 ["retainedAfterRelease"] = replayIdentities.RetainedCount, ["released"] = replayIdentities.Released, ["ids"] = new JArray(replayIdentities.Ids) };
             Require(replayIdentities.FaultCount == 0 && replayIdentities.Released && replayIdentities.RetainedCount == 0, "Repeated native identity registry failed to release exactly.");
+            row["subscriberSerials"] = new JObject { ["contract"] = WeakObjectSerials.Contract, ["capacity"] = replaySubscriptionSerials.Capacity,
+                ["assigned"] = replaySubscriptionSerials.Assigned, ["faults"] = replaySubscriptionSerials.FaultCount };
+            Require(replaySubscriptionSerials.FaultCount == 0, "Repeated subscriber serial registry faulted.");
         }
         private void EndReplayObservation()
         {
