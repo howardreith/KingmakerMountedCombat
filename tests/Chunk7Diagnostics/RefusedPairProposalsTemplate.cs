@@ -46,7 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!ok) failures++;
         }
 
-        private static int Main()
+        private static int Main(string[] args)
         {
             var nullExecutor = Row("admission-before", RiderA, 1, null)["commandActor"];
             Console.WriteLine((nullExecutor.Type == JTokenType.String ? "PASS " : "FAIL ") + "trace null executor is a String-typed JValue: " + nullExecutor.Type);
@@ -136,12 +136,60 @@ namespace KingmakerMountedCombat.Diagnostics
             var before = new JObject { ["reactions"] = 1, ["reactionCooldown"] = 0.0 };
             Func<int, double, JObject> after = (r, c) => new JObject { ["reactions"] = r, ["reactionCooldown"] = c };
             var last = new JObject { ["costGameTicks"] = 1000000000L, ["costReactionCooldown"] = 5.4 };
-            check("one attack of opportunity spends exactly one reaction", ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 1, 1049000000L, last, false));
-            check("a reaction natively restored after its full cooldown elapsed is admitted", ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1054000000L, last, false));
-            check("a reaction restored before its cooldown elapsed is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1030000000L, last, false));
-            check("a reaction restored next to a prepare or clear of the actor is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1054000000L, last, true));
-            check("a reaction spent without an attack of opportunity is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 0, 1049000000L, null, false));
-            check("an unchanged reaction count with cooldown left is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 3.0), 1, 1054000000L, last, false));
+            check("one attack of opportunity spends exactly one reaction", ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 1, 1000000000L, 1049000000L, last, false));
+            check("a reaction natively restored after its full cooldown elapsed is admitted", ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1000000000L, 1054000000L, last, false));
+            check("a reaction restored before its cooldown elapsed is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1000000000L, 1030000000L, last, false));
+            check("a reaction restored next to a prepare or clear of the actor is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 0.0), 1, 1000000000L, 1054000000L, last, true));
+            check("a reaction spent without an attack of opportunity is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(0, 0.49), 0, 1000000000L, 1049000000L, null, false));
+            check("an unchanged reaction count with cooldown left is refused", !ActualRefusedPairProposals.ReactionsAccounted(before, after(1, 3.0), 1, 1000000000L, 1054000000L, last, false));
+
+            // F6 r09: exact numeric shape of the pre-window AoO cooldown crossing zero during the player click.
+            // Feed the same cases to the compiled observer predicate and the external reader predicate.
+            var renewalCases = new JArray();
+            Func<int, double, JObject> snapshot = (count, cooldown) => new JObject {
+                ["reactions"] = count, ["reactionCooldown"] = cooldown,
+                ["native"] = new JObject { ["reactions"] = count, ["reactionCooldown"] = cooldown,
+                    ["reactionsPerRound"] = 1, ["grantSequence"] = 0L } };
+            Action<string, bool, Action<JObject>> renewal = (name, expected, mutate) => {
+                var test = new JObject { ["name"] = name, ["expected"] = expected,
+                    ["before"] = snapshot(0, .82590276), ["after"] = snapshot(1, 0),
+                    ["beforeTicks"] = 2245250220000L, ["afterTicks"] = 2245266430000L, ["resetSeen"] = false };
+                mutate?.Invoke(test); renewalCases.Add(test);
+                check(name, ActualRefusedPairProposals.ReactionsAccounted((JObject)test["before"], (JObject)test["after"], 0,
+                    (long)test["beforeTicks"], (long)test["afterTicks"], null, (bool)test["resetSeen"]) == expected);
+            };
+            renewal("carried native cooldown expires during F6 r09 click", true, null);
+            renewal("unchanged positive capacity greater than one", true, t => {
+                t["before"]["reactions"] = t["before"]["native"]["reactions"] = 1;
+                t["after"]["reactions"] = t["after"]["native"]["reactions"] = 2;
+                t["before"]["native"]["reactionsPerRound"] = t["after"]["native"]["reactionsPerRound"] = 2; });
+            renewal("carried reaction renews too early", false, t => t["afterTicks"] = 2245255220000L);
+            renewal("existing tenth-second timing slack remains bounded", true, t => t["afterTicks"] = 2245257720000L);
+            renewal("backward native game time", false, t => t["afterTicks"] = 2245250219999L);
+            renewal("negative native game time", false, t => t["beforeTicks"] = -1L);
+            renewal("capacity changes during renewal", false, t => t["after"]["native"]["reactionsPerRound"] = 2);
+            renewal("zero native reaction capacity", false, t => t["before"]["native"]["reactionsPerRound"] = 0);
+            renewal("out-of-range native reaction capacity", false, t => t["before"]["native"]["reactionsPerRound"] = 2147483648L);
+            renewal("renewal exceeds native capacity", false, t => t["after"]["reactions"] = t["after"]["native"]["reactions"] = 2);
+            renewal("negative starting reaction count", false, t => t["before"]["reactions"] = t["before"]["native"]["reactions"] = -1);
+            renewal("native count disagrees before renewal", false, t => t["before"]["native"]["reactions"] = 1);
+            renewal("native count disagrees after renewal", false, t => t["after"]["native"]["reactions"] = 0);
+            renewal("a grant intervenes", false, t => t["after"]["native"]["grantSequence"] = 1L);
+            renewal("negative grant sequence", false, t => t["before"]["native"]["grantSequence"] = t["after"]["native"]["grantSequence"] = -1L);
+            renewal("missing native snapshot", false, t => ((JObject)t["before"]).Remove("native"));
+            renewal("missing grant observation", false, t => ((JObject)t["after"]["native"]).Remove("grantSequence"));
+            renewal("capacity is not an integer observation", false, t => t["before"]["native"]["reactionsPerRound"] = "1");
+            renewal("no positive carried cooldown", false, t => t["before"]["reactionCooldown"] = t["before"]["native"]["reactionCooldown"] = 0.0);
+            renewal("cooldown remains after renewal", false, t => t["after"]["reactionCooldown"] = t["after"]["native"]["reactionCooldown"] = .1);
+            renewal("native cooldown disagrees before renewal", false, t => t["before"]["native"]["reactionCooldown"] = .5);
+            renewal("native cooldown disagrees after renewal", false, t => t["after"]["native"]["reactionCooldown"] = .0005);
+            renewal("negative cooldown", false, t => t["after"]["reactionCooldown"] = t["after"]["native"]["reactionCooldown"] = -.1);
+            renewal("nonfinite cooldown", false, t => t["before"]["reactionCooldown"] = double.NaN);
+            renewal("infinite cooldown", false, t => t["before"]["native"]["reactionCooldown"] = double.PositiveInfinity);
+            foreach (var boundary in ActualRefusedPairProposals.ReactionResetBoundaries)
+                renewal("carried renewal next to " + boundary, false, t => t["resetSeen"] = ActualRefusedPairProposals.ReactionResetSeen(
+                    new[] { new JObject { ["boundary"] = boundary, ["state"] = new JObject { ["actor"] = HorseA } } }, HorseA));
+            if (args.Length == 1) System.IO.File.WriteAllText(args[0], renewalCases.ToString());
             Console.WriteLine("TOTAL failures=" + failures);
             return failures == 0 ? 0 : 1;
         }

@@ -25,5 +25,17 @@ $compileArgs+=@('mscorlib.dll','System.dll','System.Core.dll')|ForEach-Object{'/
 [IO.File]::WriteAllLines($rsp,@($compileArgs|ForEach-Object{'"'+$_+'"'}),[Text.UTF8Encoding]::new($false))
 &$compiler ('@'+$rsp);if($LASTEXITCODE-ne0){throw 'RefusedPairProposals actual-method compile failed'}
 Copy-Item -LiteralPath $json -Destination (Join-Path $OutputDirectory 'Newtonsoft.Json.dll')
-&$exe;if($LASTEXITCODE-ne0){throw 'RefusedPairProposals actual-method regression failed'}
-@{sourceSha256=(Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant();templateSha256=(Get-FileHash -LiteralPath $templatePath -Algorithm SHA256).Hash.ToLowerInvariant()}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'refused-pair-proposals-source.json')
+# The installed Newtonsoft serializer initializes its Unity converters when exporting shared cases.
+foreach($leaf in @('UnityEngine.dll','UnityEngine.CoreModule.dll')){Copy-Item -LiteralPath (Join-Path (Split-Path $json) $leaf) -Destination (Join-Path $OutputDirectory $leaf)}
+$renewalCases=Join-Path $OutputDirectory 'reaction-renewal-cases.json'
+&$exe $renewalCases;if($LASTEXITCODE-ne0){throw 'RefusedPairProposals actual-method regression failed'}
+. (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
+$readerCases=Get-Content -LiteralPath $renewalCases -Raw|ConvertFrom-Json;$readerFailures=0
+foreach($case in $readerCases){
+ $actual=Test-KmcChunk7ReactionsAccounted $case.before $case.after 0 ([long]$case.beforeTicks) ([long]$case.afterTicks) $null ([bool]$case.resetSeen)
+ $ok=$actual-eq[bool]$case.expected;if(-not$ok){$readerFailures++}
+ Write-Output ('{0} reader: {1}' -f $(if($ok){'PASS'}else{'FAIL'}),$case.name)
+}
+Write-Output "Reader renewal cases=$($readerCases.Count) failures=$readerFailures"
+if($readerCases.Count-eq0-or$readerFailures-ne0){throw 'Reaction renewal reader regression failed'}
+@{sourceSha256=(Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant();templateSha256=(Get-FileHash -LiteralPath $templatePath -Algorithm SHA256).Hash.ToLowerInvariant();readerSha256=(Get-FileHash -LiteralPath (Join-Path $RepositoryRoot 'scripts/runtime/Chunk7OwnedPairsEvidence.ps1') -Algorithm SHA256).Hash.ToLowerInvariant();renewalCasesSha256=(Get-FileHash -LiteralPath $renewalCases -Algorithm SHA256).Hash.ToLowerInvariant()}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'refused-pair-proposals-source.json')

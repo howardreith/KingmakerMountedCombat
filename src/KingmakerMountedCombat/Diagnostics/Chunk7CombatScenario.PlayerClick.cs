@@ -116,7 +116,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var before = Actor((JObject)playerClick["before"], actor); var after = Actor((JObject)playerClick["after"], actor);
                 var mine = opportunity.Where(x => (string)x["actorId"] == actor.UniqueId).ToArray(); var aoo = mine.Length;
                 Require(aoo <= (int)before["reactions"] && new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) &&
-                    ReactionsAccounted(before, after, aoo, (long)playerClick["after"]["gameTicks"], (JObject)mine.LastOrDefault(),
+                    ReactionsAccounted(before, after, aoo, (long)playerClick["before"]["gameTicks"], (long)playerClick["after"]["gameTicks"], (JObject)mine.LastOrDefault(),
                         ReactionResetSeen(events.Cast<JObject>(), actor.UniqueId)),
                     "Pair B's native expenditure rose during the player click.");
             }
