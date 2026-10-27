@@ -117,4 +117,56 @@ foreach($mutation in @('working-basis','acquired-basis','no-approval','working-p
         switch($mutation){'working-basis'{$t.basis='exact-working-fixture'}'acquired-basis'{$t.basis='owned-acquired-field-copy'}'no-approval'{$t.ownerApproval=$null}'working-pin'{$t.workingSha256='5'*64}'seed-pin'{$t.seedSha256='e'*64}'manual-pin'{$t.derivedManualSha256=$seedPins.seedSha256}'consumer-pin'{$t.consumerRunId='synthetic-other'}'area'{$t.area='b'*32}'placement'{$t.placementValidated=$false}'missing'{$t=$null}}
         Assert-KmcChunk7OwnerSeedTargetAuthorization $seedTargetRequest $t}
 }
+# RT debt checkpoint order (rt-debt-checkpoint-sequenced-v2, F5 r11): pair B first, pair A after pair B settled, the
+# four measured debts recorded with their snapshot. v1 producer evidence (one update, A then B) keeps its path.
+function RtSnap([string]$Label,[long]$Frame,[long]$Ticks,[double[]]$Std){[pscustomobject]@{label=$Label;frame=$Frame;gameTicks=$Ticks;actors=@(for($i=0;$i-lt4;$i++){[pscustomobject]@{id=$ids[$i];standard=$Std[$i];native=[pscustomobject]@{waitingInitiative=$false}}})}}
+function RtInput([string]$Label,$Before,$After){[pscustomobject]@{label=$Label;before=$Before;after=$After}}
+function New-RtSequenced{
+    $std=@(4.1,0.0,0.0,3.8)
+    $b=RtInput 'rt-pair-b-mount-primary' (RtSnap 'attack-before' 100 1000000 @(0,0,0,0)) (RtSnap 'rt-attack-settled' 180 68000000 @(0,0,0,5.9))
+    $a=RtInput 'rt-pair-a-rider-primary' (RtSnap 'attack-before' 181 68100000 @(0,0,0,5.89)) (RtSnap 'rt-attack-settled' 240 89000000 $std)
+    $record=[pscustomobject]@{contract='rt-debt-checkpoint-sequenced-v2';order=@('rt-pair-b-mount-primary','rt-pair-a-rider-primary');minimumDebt=0.1
+        debts=@(for($i=0;$i-lt4;$i++){[pscustomobject]@{actorId=$ids[$i];standard=$std[$i]}});snapshot=(RtSnap 'rt-debt-checkpoint' 240 89000000 $std);holds=$true}
+    [pscustomobject]@{source=[pscustomobject]@{inputs=@($b,$a);realtimeCheckpoint=$record};checkpoint=(RtSnap 'native-checkpoint-ready' 240 89000000 $std)}
+}
+function New-RtOneUpdate{
+    $c=New-RtSequenced;$c.source.PSObject.Properties.Remove('realtimeCheckpoint')
+    $c.source.inputs=@((RtInput 'rt-pair-a-rider-primary' (RtSnap 'attack-before' 100 1000000 @(0,0,0,0)) (RtSnap 'rt-attack-settled' 150 22000000 @(4,0,0,0))),
+        (RtInput 'rt-pair-b-mount-primary' (RtSnap 'attack-before' 100 1000000 @(0,0,0,0)) (RtSnap 'rt-attack-settled' 170 30000000 @(3,0,0,5.9))));$c
+}
+Check 'RT checkpoint sequenced v2: B first, A after B settled, recorded debts recomputed' {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtSequenced) $ids}
+Check 'RT checkpoint v1 producer evidence (one update, A then B) keeps its path' {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtOneUpdate) $ids}
+Check 'RT checkpoint synthetic primaries without a record keep their path' {$c=New-RtOneUpdate;foreach($i in $c.source.inputs){$i.label='native-primary-fixture'};Assert-KmcChunk7RealtimeCheckpointSequence $c $ids}
+foreach($mutation in @('v1-different-frames','v1-reversed-without-record','v2-reversed-order','v2-order-field','a-issued-before-b-settled','a-issued-before-b-clock','checkpoint-before-a-settled','a-debt-expired','a-debt-expired-claimed','b-debt-expired','rider-b-spent','mammoth-spent','debt-differs-from-snapshot','debt-actor-order','saved-frame-differs','saved-debt-differs','contract','minimum','missing-debt','extra-property','third-input','missing-frame','b-during-initiative-wait','a-during-initiative-wait','initiative-unrecorded')) {
+    Reject ('RT checkpoint '+$mutation) {
+        $c=New-RtSequenced;$r=$c.source.realtimeCheckpoint
+        switch($mutation){
+          'v1-different-frames' {$c=New-RtOneUpdate;$c.source.inputs[1].before.frame=101}
+          'v1-reversed-without-record' {$c.source.PSObject.Properties.Remove('realtimeCheckpoint')}
+          'v2-reversed-order' {$c.source.inputs=@($c.source.inputs[1],$c.source.inputs[0])}
+          'v2-order-field' {$r.order=@('rt-pair-a-rider-primary','rt-pair-b-mount-primary')}
+          'a-issued-before-b-settled' {$c.source.inputs[1].before.frame=170}
+          'a-issued-before-b-clock' {$c.source.inputs[1].before.gameTicks=60000000}
+          'checkpoint-before-a-settled' {$r.snapshot.frame=239;$c.checkpoint.frame=239}
+          'a-debt-expired' {$r.debts[0].standard=0.05;$r.snapshot.actors[0].standard=0.05;$c.checkpoint.actors[0].standard=0.05;$r.holds=$false}
+          'a-debt-expired-claimed' {$r.debts[0].standard=0.0;$r.snapshot.actors[0].standard=0.0;$c.checkpoint.actors[0].standard=0.0}
+          'b-debt-expired' {$r.debts[3].standard=0.1;$r.snapshot.actors[3].standard=0.1;$c.checkpoint.actors[3].standard=0.1}
+          'rider-b-spent' {$r.debts[2].standard=2.0;$r.snapshot.actors[2].standard=2.0;$c.checkpoint.actors[2].standard=2.0}
+          'mammoth-spent' {$r.debts[1].standard=1.0;$r.snapshot.actors[1].standard=1.0;$c.checkpoint.actors[1].standard=1.0}
+          'debt-differs-from-snapshot' {$r.debts[3].standard=5.0}
+          'debt-actor-order' {$r.debts=@($r.debts[1],$r.debts[0],$r.debts[2],$r.debts[3])}
+          'saved-frame-differs' {$c.checkpoint.frame=241}
+          'saved-debt-differs' {$c.checkpoint.actors[0].standard=4.0}
+          'contract' {$r.contract='rt-debt-checkpoint-sequenced-v1'}
+          'minimum' {$r.minimumDebt=0.0}
+          'missing-debt' {$r.debts=@($r.debts|Select-Object -First 3)}
+          'extra-property' {$r|Add-Member grantedDebt $true}
+          'third-input' {$c.source.inputs=@($c.source.inputs)+@($c.source.inputs[1])}
+          'missing-frame' {$c.source.inputs[0].after.frame=$null}
+          'b-during-initiative-wait' {$c.source.inputs[0].before.actors[3].native.waitingInitiative=$true}
+          'a-during-initiative-wait' {$c.source.inputs[1].before.actors[1].native.waitingInitiative=$true}
+          'initiative-unrecorded' {$c.source.inputs[0].before.actors[2].native=$null}
+        };Assert-KmcChunk7RealtimeCheckpointSequence $c $ids
+    }
+}
 Write-Host ('CHUNK7 COMBAT PERSISTENCE READER PASS='+$passed+' FAIL=0; synthetic validator contracts only, no native gameplay claim.')

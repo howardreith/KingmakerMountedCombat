@@ -198,6 +198,51 @@ function Test-KmcChunk7CheckpointMountedAtAttack($Attack,$Archive,[string]$Rider
     }
     return $Attack.before.round-eq$Attack.after.round
 }
+# RT debt checkpoint order. v1 (F2-F5 producers, no record) issued both primaries in one update, pair A first; the
+# checkpoint then depended on pair B's approach length (F5 r11 failed when Horse B walked 5.2 m). v2
+# (`rt-debt-checkpoint-sequenced-v2`) issues pair B first and pair A only after pair B's attack settled, and records the
+# four measured RT standard debts with their snapshot before asserting. The reader requires the record whenever the
+# inputs are not the v1 one-update shape and recomputes the order, the frame/clock ordering and the debt predicate.
+function Assert-KmcChunk7RealtimeCheckpointSequence($Checkpoint,$Ids) {
+    $source=$Checkpoint.source;$inputs=@($source.inputs)
+    $record=if($null-ne$source.PSObject.Properties['realtimeCheckpoint']){$source.realtimeCheckpoint}else{$null}
+    if($null-eq$record){
+        # Synthetic reader fixtures label their primaries 'native-primary-fixture' and keep their earlier path; a
+        # producer-labelled run without the record must be exactly the v1 one-update shape.
+        if(@($inputs|Where-Object{[string]$_.label-clike'rt-pair-*'}).Count-eq0){return}
+        if($inputs.Count-ne2){throw 'RT checkpoint must carry exactly its two native primaries.'}
+        if($inputs[0].label-cne'rt-pair-a-rider-primary'-or$inputs[1].label-cne'rt-pair-b-mount-primary'-or
+           -not(Test-KmcExactJsonInteger $inputs[0].before.frame)-or$inputs[0].before.frame-ne$inputs[1].before.frame){throw 'RT checkpoint without its sequenced record is not the one-update v1 shape.'}
+        return
+    }
+    if($inputs.Count-ne2){throw 'RT checkpoint must carry exactly its two native primaries.'}
+    Assert-KmcExactProperties $record @('contract','order','minimumDebt','debts','snapshot','holds') 'RT debt checkpoint'
+    $order=@('rt-pair-b-mount-primary','rt-pair-a-rider-primary')
+    if($record.contract-cne'rt-debt-checkpoint-sequenced-v2'-or(ConvertTo-KmcChunk7Canonical @($record.order))-cne(ConvertTo-KmcChunk7Canonical $order)-or
+       $inputs[0].label-cne$order[0]-or$inputs[1].label-cne$order[1]-or-not(Test-KmcChunk7FiniteNumber $record.minimumDebt)-or[Math]::Abs([double]$record.minimumDebt-0.1)-gt1e-6){throw 'RT debt checkpoint contract or input order differs.'}
+    $first=$inputs[0];$second=$inputs[1];$snap=$record.snapshot
+    foreach($s in @($first.before,$first.after,$second.before,$second.after,$snap)){if($null-eq$s-or-not(Test-KmcExactJsonInteger $s.frame)-or-not(Test-KmcExactJsonInteger $s.gameTicks)){throw 'RT debt checkpoint lacks an exact frame or native clock.'}}
+    if($second.before.frame-lt$first.after.frame-or$second.before.gameTicks-lt$first.after.gameTicks-or
+       $snap.frame-lt$second.after.frame-or$snap.gameTicks-lt$second.after.gameTicks-or$snap.label-cne'rt-debt-checkpoint'){throw 'Pair A was not issued after pair B settled, or the checkpoint preceded pair A settling.'}
+    # Each input waited for every actor's native RT initiative wait to elapse (F5 r11: Horse B waited 5.22 s).
+    foreach($s in @($first.before,$second.before)){foreach($id in $Ids){$row=@($s.actors|Where-Object id -CEQ $id)
+        if($row.Count-ne1-or$null-eq$row[0].PSObject.Properties['native']-or$null-eq$row[0].native-or$row[0].native.waitingInitiative-isnot[bool]-or$row[0].native.waitingInitiative){throw 'An RT checkpoint primary was issued before every native initiative wait elapsed.'}}}
+    $debts=@($record.debts)
+    if($debts.Count-ne4){throw 'RT debt checkpoint must record all four actors.'}
+    $values=@()
+    for($i=0;$i-lt4;$i++){
+        $d=$debts[$i];Assert-KmcExactProperties $d @('actorId','standard') 'RT checkpoint debt'
+        $row=@($snap.actors|Where-Object id -CEQ $Ids[$i])
+        if($d.actorId-cne$Ids[$i]-or$row.Count-ne1-or-not(Test-KmcChunk7FiniteNumber $d.standard)-or$d.standard-lt0-or[Math]::Abs([double]$d.standard-[double]$row[0].standard)-gt1e-6){throw 'RT checkpoint debt differs from its own snapshot or actor order.'}
+        $values+=[double]$d.standard
+    }
+    $holds=$values[0]-gt0.1-and$values[3]-gt0.1-and$values[2]-eq0-and$values[1]-eq0
+    Assert-KmcChunk7Boolean $record.holds $holds
+    if(-not$holds){throw 'Recorded RT debts do not form the declared distinct checkpoint.'}
+    $ready=$Checkpoint.checkpoint
+    if($ready.frame-ne$snap.frame-or$ready.gameTicks-ne$snap.gameTicks){throw 'The saved checkpoint is not the recorded RT debt frame.'}
+    for($i=0;$i-lt4;$i++){$row=@($ready.actors|Where-Object id -CEQ $Ids[$i]);if($row.Count-ne1-or[Math]::Abs([double]$row[0].standard-$values[$i])-gt1e-6){throw 'The saved checkpoint debts differ from the recorded RT debts.'}}
+}
 function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
     Assert-KmcChunk7Boolean $Checkpoint.ready $true
     if($Checkpoint.provenance-cne'source-native-setup'-or@($Checkpoint.errors).Count-ne0-or$null-eq$Checkpoint.checkpoint-or
@@ -247,6 +292,7 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
                     if($moved-le0-or[double]$b[0].move-gt6.001-or-not([Math]::Abs($moved-$timed)-le0.001)-or$shift-lt0.05){throw 'Paired approach is not its own mount observed native movement within the move budget.'};continue}
                 if($a[0].$field-ne$b[0].$field){throw 'Native primary transferred expenditure to another actor.'}}}}
     }
+    if($rt){Assert-KmcChunk7RealtimeCheckpointSequence $Checkpoint $ids}
     if($legacy){$pending=$Checkpoint.source.pendingSurvivor;if($pending.stimulus-cne'UnitEntityData.LeaveCombat then native RemoveUnit if still registered'-or
        (ConvertTo-KmcChunk7Canonical $pending.participation)-cne(ConvertTo-KmcChunk7Canonical $Archive.Participations[0].State)){throw 'Legacy pending source lacks the actual native rider-removal stimulus and preserved participation.'}}
     if(-not$rt-and-not$zero-and-not$legacy){

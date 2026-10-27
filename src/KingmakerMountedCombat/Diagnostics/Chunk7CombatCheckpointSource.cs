@@ -88,27 +88,48 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["completedAttacks"] = outcome.NativeCompletedAttackCount, ["singleAttack"] = outcome.SingleAttackMode };
             attack.Observation["after"] = WorldSnapshot("rt-attack-settled"); return true;
         }
+        // The checkpoint needs both native 6 s RT debts outstanding at once. Pair A's target is
+        // placed 3.5 m from its Mammoth, but pair B's Horse may need an unbounded native approach
+        // from the saved start (F5 r11: 5.2 m, settled 6.75 s after input), during which a debt
+        // created first would decay to zero. Pair B therefore attacks first and pair A only after
+        // pair B's attack settled, and only once every actor's native initiative wait has elapsed,
+        // so neither the approach length nor the initiative roll bounds the checkpoint; the
+        // measured debts are recorded before the assertion. Nothing writes or refunds a cooldown.
+        internal const string RealtimeCheckpointContract = "rt-debt-checkpoint-sequenced-v2";
+        private const float RealtimeDebtMinimum = .1f;
+        private static bool RealtimeIdle(UnitEntityData x) => x.Commands.Empty && !x.AreHandsBusyWithAnimation &&
+            x.View?.MovementAgent != null && !x.View.MovementAgent.IsReallyMoving && !x.View.MovementAgent.WantsToMove;
         private void TickRealtimeCheckpoint()
         {
             Require(!CombatController.IsInTurnBasedCombat(), "RT checkpoint unexpectedly changed mode.");
             if (!Game.Instance.Player.IsInCombat || actors.Any(x => !x.IsInCombat)) return;
-            if (realtimeA == null)
+            if (realtimeB == null)
             {
-                if (actors.Any(x => !x.Commands.Empty || x.AreHandsBusyWithAnimation || x.View?.MovementAgent == null ||
-                    x.View.MovementAgent.IsReallyMoving || x.View.MovementAgent.WantsToMove) ||
+                // The native RT initiative wait (0.2-5.2 s observed) must have elapsed for every actor:
+                // F5 r11's Horse B waited 5.22 s before its approach even began.
+                if (!actors.All(RealtimeIdle) || actors.Any(x => x.CombatState.IsWaitingInitiative) ||
                     world.Pairs.Any(p => p.Combat.HasActiveCommand || p.Combat.HasActiveGroundMovement) ||
                     !ar.HasStandardAction() || !bm.HasStandardAction()) return;
-                // Both selected-ability requests occur in one game update. Native
-                // command/action controllers execute them after this callback.
-                actingPair = a; actingIndex = 0; BeginAttack(false, "rt-pair-a-rider-primary"); realtimeA = CaptureRealtimeAttack(ar);
                 actingPair = b; actingIndex = 1; BeginAttack(true, "rt-pair-b-mount-primary"); realtimeB = CaptureRealtimeAttack(bm);
+                return;
+            }
+            if (realtimeA == null)
+            {
+                if (!RealtimeAttackFinished(realtimeB) || !RealtimeIdle(ar) || !RealtimeIdle(am) ||
+                    ar.CombatState.IsWaitingInitiative || am.CombatState.IsWaitingInitiative ||
+                    a.Combat.HasActiveCommand || a.Combat.HasActiveGroundMovement || !ar.HasStandardAction()) return;
+                actingPair = a; actingIndex = 0; BeginAttack(false, "rt-pair-a-rider-primary"); realtimeA = CaptureRealtimeAttack(ar);
                 return;
             }
             var aFinished = RealtimeAttackFinished(realtimeA); var bFinished = RealtimeAttackFinished(realtimeB);
             if (!aFinished || !bFinished) return;
-            Require(ar.CombatState.Cooldown.StandardAction > .1f && bm.CombatState.Cooldown.StandardAction > .1f &&
-                br.CombatState.Cooldown.StandardAction == 0f && am.CombatState.Cooldown.StandardAction == 0f,
-                "Real native attack timings did not leave the declared distinct RT debt checkpoint.");
+            var holds = ar.CombatState.Cooldown.StandardAction > RealtimeDebtMinimum && bm.CombatState.Cooldown.StandardAction > RealtimeDebtMinimum &&
+                br.CombatState.Cooldown.StandardAction == 0f && am.CombatState.Cooldown.StandardAction == 0f;
+            evidence["realtimeCheckpoint"] = new JObject { ["contract"] = RealtimeCheckpointContract,
+                ["order"] = new JArray("rt-pair-b-mount-primary", "rt-pair-a-rider-primary"), ["minimumDebt"] = RealtimeDebtMinimum,
+                ["debts"] = new JArray(actors.Select(x => new JObject { ["actorId"] = x.UniqueId, ["standard"] = x.CombatState.Cooldown.StandardAction })),
+                ["snapshot"] = WorldSnapshot("rt-debt-checkpoint"), ["holds"] = holds };
+            Require(holds, "Real native attack timings did not leave the declared distinct RT debt checkpoint.");
             MarkCheckpointReady();
         }
         private void MarkCheckpointReady()
