@@ -1,8 +1,8 @@
 # Chunk 7 owner HUMAN PLAY checklist
 
 Use a **copy** of a save, never your only one. Write down:
-- Package: preview.95 F6 candidate; [exact package identity and qualification status](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
-- DLL SHA-256: `7f48118c7b16025447ff68c2f6138e2d33ee7aa81231578611b59a24569cc576`
+- Package: preview.96 F7 candidate; [exact package identity and qualification status](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
+- DLL SHA-256: `9d090645a570e27777dc6fca92ee2e35a7b31e8696b580212923511933134a07`
 - Save copy: ______
 - Date: ______
 

@@ -1,10 +1,10 @@
 # Kingmaker Mounted Combat: Chunk 7 release notes (DRAFT)
 
 **This is not a public release.** It is a private engineering candidate. Owner/HUMAN PLAY acceptance is
-pending, corrected-candidate qualification is IN PROGRESS, and nothing here authorizes installing into a human
+pending, F7 engineering qualification is PASS, and nothing here authorizes installing into a human
 campaign.
 
-- Retained F6 candidate: `0.1.0-chunk7b-preview.95`, source `ebeaf8f6`, partial FAIL. Reviewed preview.96 awaits native qualification.
+- Current F7 candidate: `0.1.0-chunk7b-preview.96`, source `650dd8a3`; final qualification passed. F6 preview.95 at `ebeaf8f6` remains a retained partial FAIL.
 - Exact package, DLL and MVID: [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
 - Previous release: `v0.1.0-chunk6-preview.211` (package version `0.1.0-chunk6d-preview.211`)
 
@@ -63,9 +63,9 @@ movement) and real-time Charge with a melee weapon have development evidence (ba
 Exact-package 7E qualification re-runs each of them on the final candidate.
 
 Prone stand-up provocation and defensive scroll casting while threatened have development evidence
-and remain required F6 rows 57 and 69. Prepared Cure Light Wounds while mounted and a BAB6 mounted
+and remain required F7 rows 57 and 69. Prepared Cure Light Wounds while mounted and a BAB6 mounted
 ranged full attack with Rapid Shot off are required rows 80 and 81, using the owner's KMC Horse seed.
-All four await final F6 credit; none is an exclusion. The ordinary level-6 Smilodon seed supplies only
+All four remain in the F7 matrix; none is an exclusion. The ordinary level-6 Smilodon seed supplies only
 a read-only census, not the mounted casting or attack proof.
 
 **Uncovered by automation:** upgrade of a mounted archive actually written by preview.211 (above).
@@ -99,5 +99,5 @@ Recorded verbatim; the owner answered a direct question:
 - Six-pair combat is not qualified (owner decision, October 24: six pairs are qualified for performance
   and save/load only).
 - Other mod combinations are not tested.
-- Performance acceptance (F11) is pending on the final candidate.
+- Performance acceptance (F11) passed its fixed GC-inclusive protocol; see the closeout for all measurements and the investigated allocation-rate trend.
 - Visuals, physical input and feel need owner/HUMAN PLAY acceptance, which is **pending**.

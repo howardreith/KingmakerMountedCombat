@@ -1,6 +1,6 @@
 # Chunk 7 — 7E final exact-package qualification: executable run plan
 
-Status: **IN PROGRESS.** F6 at `ebeaf8f6` is retained as partial FAIL after52 launches:49 PASS, r09 native FAIL and two signature-matched startup failures with successful permitted retries.32 unlaunched slots remain TODO. The reviewed preview.96 correction needs its native pilot and the same full successor matrix; no scope or limit changed.
+Status: **PASS** on F7, source `650dd8a3`, exact preview.96 package. All 81 rows / 82 planned launches passed; the 83 actual attempts include one retained startup FAIL and its sole permitted successful retry. Final re-read has zero verdict/hash changes. See the [closeout](../docs/CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) and [row record](../docs/CHUNK7-FINAL-QUALIFICATION-2026-10-27.md). No F6/pilot native credit transferred; scope and limits stayed fixed. F6's partial FAIL and32 unlaunched slots remain preserved in its own disposition.
 The [October 26 takeover checkpoint](../docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md) records current authority,
 source and custody. The original plan was written at `c2c451d3`. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md)
 (rows 1–81; row 55 is two launches). Governing rules: [AGENTS.md](../AGENTS.md),
@@ -184,7 +184,7 @@ the package, DLL, MVID and commit; a new product candidate needs a new SuiteId.
   candidate's output used unchanged as an input, provenance kept, never as behaviour evidence): row 28
   (Manticore producer `20261020-c7b-world71-b54s1-manticore` with accepted cold
   `…world73-b56s1-manticore-cold`, itself derived from the world26 row-1 lineage; its
-  `Get-KmcChunk7ManticoreReturnSource` path records no `candidates` field), rows 33, 35 and 66 (Small and
+  historical identities produce a truthful `candidates.sameCandidate=false` fixture-input observation), rows 33, 35 and 66 (Small and
   Medium fixture Manuals), rows 37, 39 and 42 (sixth-Horse Manual), row 31 (stock Mammoth fixture), row 30
   and rows 55–56 (owner seeds and the preview.211 package).
 - **Expected pins in every run:** package `<F.pkg>`, manifest `<F.manifest>`, DLL `<F.dll>`, MVID
