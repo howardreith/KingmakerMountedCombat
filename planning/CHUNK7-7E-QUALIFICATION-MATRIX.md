@@ -1,8 +1,9 @@
 # Chunk 7 — 7E final private qualification matrix
 
-Status: **DECLARED, NOT RUN.** This is the finite matrix for the final private candidate.
-It was written offline on October 23, 2026 at HEAD `174f5b2b`. No final candidate exists yet,
-and nothing here is a PASS. Sources:
+Status: **IN PROGRESS.** This is the finite matrix for the final private candidate.
+F5 is retained incomplete; the corrected F6 candidate has not been frozen.
+See [the active takeover checkpoint](../docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md).
+The original declaration was written October 23, 2026 at `174f5b2b`. Sources:
 - the [requirement table](CHUNK7-COMPLETION-MISSION.md) and its §8–9;
 - the [original matrices](CHUNK7-ORIGINAL-SCOPE-AND-MATRICES.md);
 - [VALIDATION-POLICY](../docs/VALIDATION-POLICY.md);

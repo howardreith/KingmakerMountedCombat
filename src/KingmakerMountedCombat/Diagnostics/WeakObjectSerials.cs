@@ -3,10 +3,10 @@ using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    // Collision-free object labels for objects whose lifetimes may not overlap. Kingmaker's
-    // Mono runtime (mono-2.0-bdwgc, non-moving Boehm GC) derives RuntimeHelpers.GetHashCode
-    // from the object address, so a new object allocated in a collected object's slot can
-    // repeat its hash (F5 r27). Each first-seen reference receives the next serial; a live
+    // Collision-free object labels for objects whose lifetimes may not overlap. The exact
+    // observed API is RuntimeHelpers.GetHashCode; its hash is not a unique object identity.
+    // F5 r27 observed a repeated hash across native loads. Address reuse is one possible
+    // explanation, but correctness here does not depend on it. Each first-seen reference receives the next serial; a live
     // reference keeps its serial, and a new object never receives an earlier one. Only weak
     // references are held, so labelling never extends a native object's lifetime.
     internal sealed class WeakObjectSerials

@@ -1607,7 +1607,8 @@ function Assert-KmcChunk7PairedStepDestinationRecomputed($Move,[string]$MountId,
 }
 # Contract v4 (F6 review): each searched paired move records what the mount travelled beside its admitted destination; the
 # reader recomputes the MechanicsDistance from the move's before/after mount positions, the residual to the clicked destination
-# and the bearing from the recorded target direction (Quaternion.Euler(0, b, 0) convention), all within 1e-3.
+# and the bearing relative to the target position observed when the move finished (Quaternion.Euler(0, b, 0)
+# convention). This is not an independent observation of the target direction at search time.
 function Assert-KmcChunk7PairedStepTravelled($Move,[string]$MountId){
  $x=if($null-ne$Move.PSObject.Properties['travelled']){$Move.travelled}else{$null};if($null-eq$x){throw 'The v4 paired move lacks its travelled record.'}
  Assert-KmcExactProperties $x @('targetPosition','distance','bearingOffset','residualToDestination') 'paired step travelled'
@@ -1627,6 +1628,9 @@ function Assert-KmcChunk7PairedStepTravelled($Move,[string]$MountId){
  if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
  # v1 (F2 and earlier, and the 4e6cd034-91437a41 producers) keeps its original verdict; v2 requires the recomputed search.
  $f=$o.firstActionMount;$v4=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v4'
+ # Preview .95 is the first final candidate that binds these diagnostics to its DLL-bound product version.
+ # Earlier .94 producers legitimately emitted v1-v4; their immutable evidence keeps its own contract path.
+ if((Get-KmcChunk7CheckpointProducerPreview $Request)-ge95-and-not$v4){throw 'Preview .95 or later requires first-action Mount v4; legacy evidence cannot omit the travelled record.'}
  $v3=$v4-or($f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v3')
  $v2=$v3-or($f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v2')
  Assert-KmcBootstrapInventoryString $f.contract $(if($v4){'owner-seed-tb-first-action-mount-v4'}elseif($v3){'owner-seed-tb-first-action-mount-v3'}elseif($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})

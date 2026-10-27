@@ -1,7 +1,8 @@
 # Chunk 7 — 7E final exact-package qualification: executable run plan
 
-Status: **PLAN, NOT RUN.** Written offline on October 24, 2026 at HEAD `c2c451d3`; gates G3, G6 and G7 updated
-the same day. No final candidate F exists. Nothing here is a PASS. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md)
+Status: **IN PROGRESS.** F5 is retained incomplete; F6 is planned after the corrected pilot gate.
+The [October 26 takeover checkpoint](../docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md) records current authority,
+source and custody. The original plan was written at `c2c451d3`. Rows refer to the [7E matrix](CHUNK7-7E-QUALIFICATION-MATRIX.md)
 (rows 1–81; row 55 is two launches). Governing rules: [AGENTS.md](../AGENTS.md),
 [VALIDATION-POLICY](../docs/VALIDATION-POLICY.md), the [F11 protocol](../docs/CHUNK7-F11-ACCEPTANCE-PROTOCOL-2026-10-23.md)
 and the [X6 inventory](../docs/CHUNK7-7E-X6-OFFLINE-INVENTORY-2026-10-23.md).
@@ -41,6 +42,13 @@ worktree, profile recovery before any transaction recovery; no pinned incident s
 §1–§5 from the start on its own commit, package and suite; no F1 run is a predecessor of an F2 run.
 
 ## 0. Pre-freeze gates (all must hold before step 1)
+
+Preview.95 binds the F6 observations to the request's DLL-bound product revision:
+first-action Mount v4, staged v3, repeated-world v2 and the sequenced RT producer
+record are mandatory. Relabelling new evidence as legacy cannot omit these fields.
+Older preview.94 evidence retains its original schema path and original verdict;
+the cold checkpoint source is judged by its own producer request. Native thresholds,
+performance protocol, row coverage and approved exclusions are unchanged.
 
 | Gate | Requirement |
 | --- | --- |
@@ -274,8 +282,8 @@ Reader: owned + area family.
 Row 27 before F6 (selection unchanged; producer behaviour): F5 r27 (`20261028-c7e-final-B6-r27`, retained FAIL) refused the
 third native load because one of its two Horse subscribers had the identity 566499584 of world 2's, with exact counts and
 shape. The identity was `RuntimeHelpers.GetHashCode`; Kingmaker 2.1.7b runs Unity 2018.4.10 with `mono-2.0-bdwgc.dll`
-(non-moving Boehm GC, checked read-only), where the hash is derived from the address, so a new subscriber allocated in a
-collected one's slot repeats it (every recorded value has its low 8 bits zero). Subscriber inventories in the repeated-world
+(non-moving Boehm GC, checked read-only). Address reuse is a possible explanation for the repeated hash, not a cause
+uniquely established by the retained evidence. Subscriber inventories in the repeated-world
 flow now also carry a `serial` from `WeakObjectSerials` (`weak-reference-serial-v1`: one serial per live reference, never
 reused by a later object, weak references only, bounded 256); the producer compares serials for every role and records
 `subscriberIdentity` and `subscriberSerials` (capacity, assigned, faults) under contract `chunk7-repeated-worlds-v2`. The
@@ -563,7 +571,7 @@ After B15, with every run restored and read:
    run of this campaign or one of the named fixture-input exceptions.
 6. Ledger: one `final-ledger.json` in `analysis-cache/chunk7-continuation` listing per row: row, run id(s),
    result SHA-256, reader and binder verdicts, uncovered halves, restoration digest. Completion means all
-   76 rows PASS; any NOT RUN, BLOCKED, FAIL or newly uncovered row means no completion claim (the
+   81 rows PASS; any NOT RUN, BLOCKED, FAIL or newly uncovered row means no completion claim (the
    uncovered halves already in the matrix exclusions are recorded inside passing rows).
 
 **Margin audit after F5 (October 26, offline):** `analysis-cache/chunk7-continuation/final5-margin-audit.md` measures every

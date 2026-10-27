@@ -137,6 +137,16 @@ function New-RtOneUpdate{
 Check 'RT checkpoint sequenced v2: B first, A after B settled, recorded debts recomputed' {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtSequenced) $ids}
 Check 'RT checkpoint v1 producer evidence (one update, A then B) keeps its path' {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtOneUpdate) $ids}
 Check 'RT checkpoint synthetic primaries without a record keep their path' {$c=New-RtOneUpdate;foreach($i in $c.source.inputs){$i.label='native-primary-fixture'};Assert-KmcChunk7RealtimeCheckpointSequence $c $ids}
+foreach($version in @('0.1.0-chunk7b-preview.95','0.1.0-chunk7b-preview.96')){
+    $producer=[pscustomobject]@{productVersion=$version}
+    Check ("$version RT sequenced checkpoint accepted") {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtSequenced) $ids $producer}
+    Reject ("$version RT record cannot be downgraded to v1 input shape") {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtOneUpdate) $ids $producer}
+    Reject ("$version RT record cannot be omitted with synthetic primary labels") {
+        $c=New-RtOneUpdate;foreach($i in $c.source.inputs){$i.label='native-primary-fixture'}
+        Assert-KmcChunk7RealtimeCheckpointSequence $c $ids $producer
+    }
+}
+Check 'preview.94 RT one-update producer keeps its original path' {Assert-KmcChunk7RealtimeCheckpointSequence (New-RtOneUpdate) $ids ([pscustomobject]@{productVersion='0.1.0-chunk7b-preview.94'})}
 foreach($mutation in @('v1-different-frames','v1-reversed-without-record','v2-reversed-order','v2-order-field','a-issued-before-b-settled','a-issued-before-b-clock','checkpoint-before-a-settled','a-debt-expired','a-debt-expired-claimed','b-debt-expired','rider-b-spent','mammoth-spent','debt-differs-from-snapshot','debt-actor-order','saved-frame-differs','saved-debt-differs','contract','minimum','missing-debt','extra-property','third-input','missing-frame','b-during-initiative-wait','a-during-initiative-wait','initiative-unrecorded')) {
     Reject ('RT checkpoint '+$mutation) {
         $c=New-RtSequenced;$r=$c.source.realtimeCheckpoint

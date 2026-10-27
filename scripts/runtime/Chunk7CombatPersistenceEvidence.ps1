@@ -203,9 +203,12 @@ function Test-KmcChunk7CheckpointMountedAtAttack($Attack,$Archive,[string]$Rider
 # (`rt-debt-checkpoint-sequenced-v2`) issues pair B first and pair A only after pair B's attack settled, and records the
 # four measured RT standard debts with their snapshot before asserting. The reader requires the record whenever the
 # inputs are not the v1 one-update shape and recomputes the order, the frame/clock ordering and the debt predicate.
-function Assert-KmcChunk7RealtimeCheckpointSequence($Checkpoint,$Ids) {
+function Assert-KmcChunk7RealtimeCheckpointSequence($Checkpoint,$Ids,$Request=$null) {
     $source=$Checkpoint.source;$inputs=@($source.inputs)
     $record=if($null-ne$source.PSObject.Properties['realtimeCheckpoint']){$source.realtimeCheckpoint}else{$null}
+    # The request belongs to this source producer, not to a later cold consumer. Its DLL-bound
+    # revision makes the sequenced record mandatory even if the evidence is edited into a v1 shape.
+    if($null-ne$Request-and(Get-KmcChunk7CheckpointProducerPreview $Request)-ge95-and$null-eq$record){throw 'This producer revision requires the sequenced RT debt checkpoint record.'}
     if($null-eq$record){
         # Synthetic reader fixtures label their primaries 'native-primary-fixture' and keep their earlier path; a
         # producer-labelled run without the record must be exactly the v1 one-update shape.
@@ -292,7 +295,7 @@ function Assert-KmcChunk7CheckpointSource($Checkpoint,$Archive,$Request) {
                     if($moved-le0-or[double]$b[0].move-gt6.001-or-not([Math]::Abs($moved-$timed)-le0.001)-or$shift-lt0.05){throw 'Paired approach is not its own mount observed native movement within the move budget.'};continue}
                 if($a[0].$field-ne$b[0].$field){throw 'Native primary transferred expenditure to another actor.'}}}}
     }
-    if($rt){Assert-KmcChunk7RealtimeCheckpointSequence $Checkpoint $ids}
+    if($rt){Assert-KmcChunk7RealtimeCheckpointSequence $Checkpoint $ids $Request}
     if($legacy){$pending=$Checkpoint.source.pendingSurvivor;if($pending.stimulus-cne'UnitEntityData.LeaveCombat then native RemoveUnit if still registered'-or
        (ConvertTo-KmcChunk7Canonical $pending.participation)-cne(ConvertTo-KmcChunk7Canonical $Archive.Participations[0].State)){throw 'Legacy pending source lacks the actual native rider-removal stimulus and preserved participation.'}}
     if(-not$rt-and-not$zero-and-not$legacy){

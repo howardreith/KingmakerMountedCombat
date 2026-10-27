@@ -83,8 +83,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var distance = Vector3.Distance(moveStart, mount.Position); moveObservation["distance"] = distance;
             var beforeMount = Actor(before, mount); var afterMount = Actor(after, mount);
             // First-action Mount v4 (F6 review): the searched paired step records what the mount actually travelled, beside the
-            // admitted destination, before the assertion: MechanicsDistance, its bearing from the target direction (the same
-            // Quaternion.Euler(0, b, 0) convention as the search) and the end's residual to the clicked destination.
+            // admitted destination, before the assertion: MechanicsDistance, its bearing relative to the target position
+            // observed at move completion (Quaternion.Euler convention), and the end's residual to the clicked destination.
             if (moveObservation["destinationSearch"] != null)
             {
                 Vector3 toward = target.Position - moveStart, travel = mount.Position - moveStart; toward.y = 0f; travel.y = 0f;

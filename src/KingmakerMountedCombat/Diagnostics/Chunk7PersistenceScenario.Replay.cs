@@ -27,8 +27,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int replayAuthorityGeneration;
         private Chunk7WorldRetentionProbe retention;
         private RetainedObjectIdentity replayIdentities;
-        // Subscriber labels across worlds: RuntimeHelpers.GetHashCode is address-derived on Kingmaker's
-        // Boehm Mono, so a new Horse subscriber in a collected one's slot repeated its hash (F5 r27).
+        // Subscriber labels across worlds: RuntimeHelpers.GetHashCode is not a unique reference label.
+        // F5 r27 observed a repeated Horse subscriber hash; serials avoid relying on its cause.
         private WeakObjectSerials replaySubscriptionSerials;
         private const string ReplayContract = "chunk7-repeated-worlds-v2";
         private readonly JArray replayWorlds = new JArray(), replayRequests = new JArray();

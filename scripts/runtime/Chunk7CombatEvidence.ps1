@@ -886,6 +886,9 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  foreach($key in @('r1','firstActionMount','localFailure','registeredDisable','removalRefusal','pendingSurvivor','nativeLife','attackModes','reaction')){if($null-ne$o.PSObject.Properties[$key]){throw 'Staged actions cannot carry another combat case''s evidence.'}}
  if(@($o.activations).Count-ne0-or@($o.inputs).Count-ne0){throw 'Staged actions record no primary activation and no relationship input.'}
  $s=$o.staged
+ # The request's product version is bound to the candidate DLL and echoed by the artifact header. Preview .95+
+ # requires the final spare-preference/range observations; .94 historical contracts keep their original paths.
+ if((Get-KmcChunk7CheckpointProducerPreview $Request)-ge95-and($null-eq$s-or$s.contract-cne'owner-seed-staged-v3')){throw 'Preview .95 or later requires staged v3; legacy evidence cannot omit the spare preference or range observations.'}
  # owner-seed-staged-v2 (F6): geometry plan revision 2 and the approach shot's native range record; v1 keeps its path.
  $stagedV2=$null-ne$s-and$s.contract-cin@('owner-seed-staged-v2','owner-seed-staged-v3');$stagedRevision=if(-not$stagedV2){1}elseif($s.contract-ceq'owner-seed-staged-v3'){3}else{2}
  if($null-eq$s-or($s.contract-cne'owner-seed-staged-v1'-and-not$stagedV2)-or$s.riderId-cne$roles[0]-or$s.mountId-cne$roles[1]-or$s.weaponRanged-ne$true-or[string]$s.weapon-cnotmatch'^[0-9a-f]{32}$'-or-not(Test-KmcChunk7FiniteNumber $s.weaponRangeMeters)-or$s.weaponRangeMeters-le0-or$s.scrollUnits-ne4){throw 'Staged actions lack rider A''s ranged weapon or the declared scroll stack.'}

@@ -1482,6 +1482,13 @@ Check 'owner-seed staged v3 accepted (revision 3 plan, native range at the appro
 Check 'owner-seed staged v3 refuses a revision 2 plan' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV2.json') -Raw|ConvertFrom-Json;$v.artifact.observations.staged.geometryPlan=$sp.plan;Invoke-OwnedReader $v} $true 'plan revision differ'
 Check 'owner-seed staged v3 refuses a forged candidate spare' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$p=$v.artifact.observations.staged.geometryPlan;$p.candidates[[int]$p.selected].spare=$false;Invoke-OwnedReader $v} $true 'recorded spare differs'
 Check 'owner-seed staged v3 refuses a missing range record' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);$v.artifact.observations.staged.steps[9].PSObject.Properties.Remove('nativeRangeAtStop');Invoke-OwnedReader $v} $true 'range record does not match'
+# Preview .95 binds the final diagnostic contract to the DLL-backed product version, independently of the evidence label.
+foreach($revision in 95,96){Check ('preview.'+$revision+' staged v3 accepted') {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.'+$revision};Invoke-OwnedReader $v}}
+foreach($legacy in 1,2){
+ Check ('preview.94 staged v'+$legacy+' historical evidence accepted') {$v=New-KmcSeedStagedFixture;if($legacy-eq2){$v=ConvertTo-KmcSeedStagedV2 $v};foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.94'};Invoke-OwnedReader $v}
+ Check ('preview.95 refuses staged legacy v'+$legacy+' with its older field set') {$v=New-KmcSeedStagedFixture;if($legacy-eq2){$v=ConvertTo-KmcSeedStagedV2 $v};foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.95'};Invoke-OwnedReader $v} $true 'requires staged v3'
+}
+Check 'staged v3 refuses an unknown producer version' {$v=ConvertTo-KmcSeedStagedV3 (New-KmcSeedStagedFixture);foreach($x in @($v.request,$v.artifact)){$x.productVersion='unknown'};Invoke-OwnedReader $v} $true 'Unrecognised checkpoint producer revision'
 foreach($m in @(
  @('v2 with a revision 1 plan',{$s=$args[0].artifact.observations.staged;$sp=Get-Content -LiteralPath (Join-Path $repo 'tests/Chunk7Diagnostics/StagedGeometryPlanFixture.json') -Raw|ConvertFrom-Json;$s.geometryPlan=$sp.plan;$s.geometryConfirmation=$sp.confirmation},'plan revision differ'),
  @('v1 contract carrying a range record',{$args[0].artifact.observations.staged.contract='owner-seed-staged-v1'},'plan revision differ|range record does not match'),
@@ -1701,6 +1708,11 @@ foreach($base in @('combat-rider-first','combat-mount-first')){
     'admitted-inside-bound'{$s=$args[0].request.ownedPairs;$p=@($ma.before.actors|Where-Object id -CEQ $s.mountAId)[0].position;$x.previewEnd=@(([double]$p.x+0.35),[double]$p.y,[double]$p.z);$x.displacement=0.35;$x.endResidual=[Math]::Sqrt([Math]::Pow([double]$x.destination[0]-[double]$p.x-0.35,2)+[Math]::Pow([double]$x.destination[2]-[double]$p.z,2))}}}
  }
  Check ('owner-seed-derived TB v4 admits searched paired steps with their travelled records '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV4 $v;Invoke-OwnedReader $v}
+ foreach($revision in 95,96){Check ('preview.'+$revision+' TB v4 accepted '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV4 $v;foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.'+$revision};Invoke-OwnedReader $v}}
+ Check ('preview.94 TB v3 historical evidence accepted '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV3 $v;foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.94'};Invoke-OwnedReader $v}
+ Check ('preview.95 refuses TB v3 with travelled records omitted '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV3 $v;foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.95'};Invoke-OwnedReader $v} $true 'requires first-action Mount v4'
+ Check ('preview.95 refuses TB v1 with searched steps omitted '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;foreach($x in @($v.request,$v.artifact)){$x.productVersion='0.1.0-chunk7b-preview.95'};Invoke-OwnedReader $v} $true 'requires first-action Mount v4'
+ Check ('TB v4 refuses an unknown producer version '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV4 $v;foreach($x in @($v.request,$v.artifact)){$x.productVersion='unknown'};Invoke-OwnedReader $v} $true 'Unrecognised checkpoint producer revision'
  foreach($fault in @('missing-travelled','distance-forged','residual-forged','bearing-forged','extra-field','v3-with-travelled','target-moved')){
   Check-SeedCombat ('owner-seed-derived TB v4 refuses a travelled record with '+$fault+' '+$base) $base {&$horseStepV2 $args[0];&$pairedStepV4 $args[0];$o=$args[0].artifact.observations
    $mv=@($o.activations|Where-Object pair -EQ 1)[0].movement;$x=$mv.travelled
