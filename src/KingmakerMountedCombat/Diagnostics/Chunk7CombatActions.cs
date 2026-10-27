@@ -3,13 +3,16 @@ using System.Collections;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.TurnBasedMode;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using Pathfinding;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -39,6 +42,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             return settled;
         }
+        // Owner-seed TB rows 7/8 (first-action Mount contract v3): the paired full-activation move is searched like the
+        // independent Horse step. Other callers (native life, checkpoint sources, registered disable) keep the fixed click.
+        internal const string PairedStepSearchContract = "native-tb-paired-step-destination-v1";
+        private bool PairedStepSearchSelected => !checkpointOnly && OwnerSeedDerived && !RegisteredDisableCase &&
+            (SelectedScenario == RiderFirst || SelectedScenario == MountFirst);
         private void BeginMove()
         {
             var rider = actingPair.Relationship.Rider; var mount = actingPair.Relationship.Mount;
@@ -47,11 +55,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var delta = target.Position - moveStart; delta.y = 0f;
             Require(delta.sqrMagnitude > .01f, "Native target direction is unavailable.");
             // Different distances make the two actor allocation histories distinguishable.
-            var destination = moveStart + delta.normalized * (actingIndex == 0 ? .75f : .5f);
+            var stepDistance = actingIndex == 0 ? .75f : .5f;
+            var destination = moveStart + delta.normalized * stepDistance;
             moveObservation = new JObject { ["kind"] = "native-ground", ["before"] = WorldSnapshot("move-before"),
                 ["selectedId"] = rider.UniqueId, ["executorId"] = mount.UniqueId, ["requestedDistance"] = Vector3.Distance(moveStart, destination) };
             activation["movement"] = moveObservation;
-            using (var input = new NativeOrdinaryAttackInput(destination))
+            if (PairedStepSearchSelected) moveObservation["clicked"] = ClickSearchedPairedStep(delta.normalized, stepDistance);
+            else using (var input = new NativeOrdinaryAttackInput(destination))
             {
                 input.Predict(); var attempts = 0;
                 while ((actingTurn.EnabledFiveFootStep || actingTurn.EnabledSingleActionMove) && attempts++ < 4)
@@ -78,6 +88,64 @@ namespace KingmakerMountedCombat.Diagnostics
                 NeighbourBudgetsUnchanged(before, after), "Mounted native transport did not preserve separate actor expenditure.");
             moveObservation["terminal"] = true; return true;
         }
+        // The fixed paired click admitted 0.265-0.507 m of travel for 0.5 m (b213, F3), the F3 r07/r08 mechanism: the
+        // turn-based click consumes the native PathVisualizer preview of the paired input unit (ClickGroundHandler.OnClick
+        // reads it through the paired path-unit seam), whose end snaps to the grid. The same ground click is issued only for
+        // the first step destination (declared distance, target bearing first, NativeGroundStepDestinationPolicy offsets)
+        // whose own fresh, completed preview ends within the click's approach radius of it and outside it from the mount.
+        // Every candidate is recorded before the choice; none refuses the row as uncovered before any input.
+        private bool ClickSearchedPairedStep(Vector3 toward, float stepDistance)
+        {
+            var candidates = new JArray();
+            moveObservation["destinationSearch"] = new JObject { ["contract"] = PairedStepSearchContract, ["stepDistance"] = stepDistance,
+                ["approachRadius"] = NativeGroundStepDestinationPolicy.NativeGroundApproachRadius,
+                ["minimumNativeApproach"] = NativeGroundStepDestinationPolicy.MinimumNativeApproach, ["candidates"] = candidates };
+            NativeOrdinaryAttackInput chosen = null;
+            try
+            {
+                foreach (var offset in NativeGroundStepDestinationPolicy.BearingOffsets())
+                {
+                    var destination = moveStart + Quaternion.Euler(0f, offset, 0f) * toward * stepDistance;
+                    var row = new JObject { ["bearingOffset"] = offset, ["destination"] = new JArray(destination.x, destination.y, destination.z) };
+                    candidates.Add(row);
+                    var unit = PairedPreviewUnit(); var held = unit?.View == null ? null : PathVisualizer.Instance?.CurrentPathForUnit(unit.View);
+                    NativeOrdinaryAttackInput input;
+                    try { input = new NativeOrdinaryAttackInput(destination); }
+                    catch (InvalidOperationException error) { row["reason"] = "native-handler-not-ground"; row["detail"] = error.Message; continue; }
+                    var admitted = false;
+                    try
+                    {
+                        input.Predict(); var attempts = 0;
+                        while ((actingTurn.EnabledFiveFootStep || actingTurn.EnabledSingleActionMove) && attempts++ < 4) { input.Click(button: 1); input.Predict(); }
+                        unit = PairedPreviewUnit();
+                        var path = unit?.View == null ? null : PathVisualizer.Instance?.CurrentPathForUnit(unit.View); var points = path?.vectorPath;
+                        var fresh = path != null && !ReferenceEquals(path, held);
+                        var complete = path != null && path.CompleteState == PathCompleteState.Complete && points != null && points.Count > 0;
+                        var end = complete ? points[points.Count - 1] : moveStart;
+                        var residual = complete ? (double)GeometryUtils.MechanicsDistance(end, destination) : double.NaN;
+                        var displacement = complete ? (double)GeometryUtils.MechanicsDistance(end, moveStart) : double.NaN;
+                        admitted = NativeGroundStepDestinationPolicy.Admits(fresh, complete, residual, displacement);
+                        row["previewUnitId"] = unit?.UniqueId; row["freshPreview"] = fresh; row["previewState"] = path?.CompleteState.ToString();
+                        row["previewPoints"] = points?.Count; row["previewEnd"] = complete ? new JArray(end.x, end.y, end.z) : null;
+                        row["endResidual"] = complete ? new JValue(residual) : null; row["displacement"] = complete ? new JValue(displacement) : null;
+                        row["reason"] = NativeGroundStepDestinationPolicy.Reason(fresh, complete, residual, displacement);
+                    }
+                    finally { if (!admitted) input.Dispose(); }
+                    if (!admitted) continue;
+                    chosen = input; moveObservation["destination"] = new JArray(destination.x, destination.y, destination.z);
+                    moveObservation["bearingOffset"] = offset; moveObservation["requestedDistance"] = Vector3.Distance(moveStart, destination);
+                    break;
+                }
+                Require(chosen != null, "No paired step destination's own native preview leaves the mount's approach radius; the full-activation " +
+                    "move is uncovered on this fixture: " + candidates.ToString(Newtonsoft.Json.Formatting.None));
+                return chosen.Click();
+            }
+            finally { chosen?.Dispose(); }
+        }
+        // The unit whose preview ClickGroundHandler.OnClick consumes: the paired native input context's unit (the product's
+        // paired path-unit seam), else the native current unit.
+        private UnitEntityData PairedPreviewUnit() =>
+            world.UnifiedTurn?.SelectedNativeInputContext(Game.Instance.TurnBasedCombatController.CurrentTurn)?.Unit ?? TurnBased.Controllers.CombatController.CurrentUnit;
         private void BeginAttack(bool mountAttack, string label)
         {
             var rider = actingPair.Relationship.Rider;
