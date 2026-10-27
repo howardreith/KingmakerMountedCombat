@@ -1,11 +1,11 @@
 # Kingmaker Mounted Combat: Chunk 7 release notes (DRAFT)
 
 **This is not a public release.** It is a private engineering candidate. Owner/HUMAN PLAY acceptance is
-pending, exact-package 7E qualification has not run, and nothing here authorizes installing into a human
+pending, corrected-candidate qualification is IN PROGRESS, and nothing here authorizes installing into a human
 campaign.
 
-- Package: [TBD after 7E freeze]
-- DLL / MVID / commit: [TBD after 7E freeze]
+- Retained F6 candidate: `0.1.0-chunk7b-preview.95`, source `ebeaf8f6`, partial FAIL. Reviewed preview.96 awaits native qualification.
+- Exact package, DLL and MVID: [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
 - Previous release: `v0.1.0-chunk6-preview.211` (package version `0.1.0-chunk6d-preview.211`)
 
 ## Highlights
@@ -62,32 +62,19 @@ opportunity, staged moving actions (move, cast, move; double move and shot; beyo
 movement) and real-time Charge with a melee weapon have development evidence (batches 197 and 205).
 Exact-package 7E qualification re-runs each of them on the final candidate.
 
-Added to the 7E campaign on October 24, with no development run yet: a scroll cast from inside an enemy's
-reach (the game's casting-defensively check), folded into the disengagement row; and a rider knocked out,
-healed with a scroll by a companion and standing up next to the enemy (the stand-up attack of opportunity),
-folded into the incapacitation row.
+Prone stand-up provocation and defensive scroll casting while threatened have development evidence
+and remain required F6 rows 57 and 69. Prepared Cure Light Wounds while mounted and a BAB6 mounted
+ranged full attack with Rapid Shot off are required rows 80 and 81, using the owner's KMC Horse seed.
+All four await final F6 credit; none is an exclusion. The ordinary level-6 Smilodon seed supplies only
+a read-only census, not the mounted casting or attack proof.
 
-**Uncovered (final known set).** These are recorded, not waived, and are not tested by automation:
+**Uncovered by automation:** upgrade of a mounted archive actually written by preview.211 (above).
 
-- C03: base attack bonus variation and a mounted full attack with Rapid Shot off (the test Ranger has
-  BAB 4, so the game offers it a single attack only; a full attack needs BAB 6). Synthetic stat edits are
-  not accepted. Rapid Shot has development evidence. Haste variation is excluded by owner decision.
-- Prepared-spell casting while mounted. The leveled Ranger's level-1 slot is empty. Filling it needs a
-  spellbook choice and the game's camp rest. That rest rolls a random encounter the harness cannot
-  bound, spends rations and runs skill checks. Items (scroll and potion) while mounted have development evidence.
-- The owner's level-6 test save (October 24) holds a level-6 Ranger with base attack bonus 6 and two prepared
-  spells, but that Ranger took an animal companion (a Smilodon) at level 4. A Ranger keeps one animal companion,
-  so the test Horse cannot be given to it and it cannot ride; prepared casting and a full attack at base attack
-  bonus 6 while mounted cannot be tested on it. A character whose animal companion is not the KMC Horse (or a
-  supported Mammoth) keeps that companion and is not offered Mount Companion.
-- The owner then made a test save with this mod installed (`KMC_C7_MOUNTED6_SEED`, October 24): the Ranger took
-  the KMC Horse at level 4 and is level 6 with base attack bonus 6 and a memorized Cure Light Wounds. Prepared
-  casting while mounted and the Rapid Shot off full attack at base attack bonus 6 now have automated cases on that
-  save; until they pass in the game, both stay in this uncovered list. That save is a mod-made save, not a test of
-  loading without the mod.
-- Saves: the upgrade of a mounted save written by preview.211 (above).
-- The full Small rider calibration on a save made by the same build: the two cases that did it were
-  retired; the Small profile is covered by its own calibration and by mounted save and load.
+**Approved scope exclusions:** Haste variation, six-pair combat and the retired full Small calibration
+on a same-candidate paid source remain governed by the existing matrix dispositions. The Small profile
+retains its separate calibration, presentation and mounted save/load coverage. The owner decisions
+below and the engineering closeout identify the other already-approved exclusions; no new exclusion
+is inferred from a failed or missing fixture.
 
 ## Owner decisions (October 24, 2026)
 

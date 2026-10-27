@@ -1,11 +1,12 @@
 # Chunk 7 owner HUMAN PLAY checklist
 
 Use a **copy** of a save, never your only one. Write down:
-- Package: [TBD after 7E freeze]
-- DLL SHA-256: ______
+- Package: preview.95 F6 candidate; [exact package identity and qualification status](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
+- DLL SHA-256: `7f48118c7b16025447ff68c2f6138e2d33ee7aa81231578611b59a24569cc576`
 - Save copy: ______
 - Date: ______
 
+Automation does not complete this checklist. Owner play and visual acceptance remain pending.
 Tick each box when it behaves as described. If it does not, note the steps, the pair (rider and mount)
 and which character, then see "Reporting" at the end.
 
@@ -88,7 +89,7 @@ KMC does **not** fill action-bar slots.
 - [ ] On a copy of a campaign **without** a KMC Horse, press "Prepare to disable / remove KMC". It reports
   "Prepared: cleanup save …".
 - [ ] On a campaign **with** a KMC Horse, the same button refuses and names the Horse.
-- [ ] Remove the mod folder, start the game and load the cleanup save. The game plays normally.
+- [ ] Close the game, remove the mod folder, start the game and load the cleanup save. The game plays normally.
 
 ## Overall feel
 

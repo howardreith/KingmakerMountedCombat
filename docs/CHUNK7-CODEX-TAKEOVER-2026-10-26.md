@@ -53,6 +53,15 @@ the later spare-preference (`c01f0373`) or paired-travel (`db51def2`) changes.
 
 ## Correction and final-campaign state
 
+F6's original r09 is FAIL7/1 with exact restoration. Independent native-contract
+inspection confirms a diagnostic omission when a reaction spent before the
+player-click window renews through native cooldown expiry. The bounded root-only
+correction passed72 compiled predicate checks and31 reader checks, with independent
+delta review PASS; compiled native execution and successor qualification remain
+pending. Later r09 stages never ran. The original failure and unchanged frozen
+candidate remain preserved. Exact receipts and failed focused-test attempts are
+in `analysis-cache/chunk7-continuation/final6-r09-renewal-correction.md`.
+
 All reported changes are committed: r11 native waits/sequential attacks
 `8e8b9dec`; reference-stable subscriber serials `1d079c1e`; r07/r08 direction
 search `d81c8e85`; interior range target `be9a6ee3`; optional spare `c01f0373`;
@@ -94,11 +103,9 @@ inventory had 243 PASS/6 classified FAIL; all current checks passed. Exact recei
 are `final5-ledger.json`, `final5-f11.json`, `final5-full-classification.json` and
 `final5-progress.md` under `analysis-cache/chunk7-continuation`.
 
-No F6 final freeze exists at intake. The unbuilt b216 worktree at `dbd58bb2` was
-created before the schema-review findings and is retained unused. Finish the
-pilot successor below. Run
-only required changed paths with valid existing fixture lineage; finish the pilot
-gate before publication and the single final freeze. The existing final matrix
+No F6 final freeze existed at intake. The unbuilt b216 worktree at `dbd58bb2` was
+created before the schema-review findings and remains retained unused. The current
+F6 checkpoint below supersedes the intake next action. The existing final matrix
 and run plan govern all final rows, exclusions, performance and raw offline outcomes.
 
 ## b217 preflight correction
@@ -109,4 +116,65 @@ b217's isolated package attempt stopped before compilation with source validatio
 Its worktree and `b217-package-01-exit.json` (exit 1) remain intact; there was no
 native launch or package. The compiled constant is now .95 too. The existing
 source identity regression passes 149/0 (`takeover-version-source-check-01.log`),
-and a focused independent identity rereview is requested. The next pilot is b218.
+and focused independent identity rereview passed. The correction was committed as
+`ebeaf8f6b3d81ed7a189ca4b99fe2e95ceb56ad8` before building b218.
+
+## F6 freeze and retained partial result — FAIL
+
+b218's six affected paths passed on preview.95: r07/r08, staged range, repeated
+loads, RT cold continuation and three area transfers. The original x4c WhatIf
+refused an F5 predecessor because the acquired-source contract requires matching
+commit/DLL/MVID. No native launch occurred. Independent review confirmed the exact
+retained-object area path was needed; c1–c5 and x4s were produced on b218, then
+x4cr passed. The 12 b218 native launches all settled with exact restoration and no
+cache exception. `b218-pilot-gate.json` binds every result/check hash and original
+timing; `b218-x4c-preflight-incident.md` preserves the refusal and diagnosis.
+
+Guarded push published all 11 commits after the old remote head, preserving the
+nine interrupted local commits. Main remains an ancestor; PR #5 is open/draft,
+mergeable/clean at `ebeaf8f6`, with its body updated. The source tree is
+`d644ca52cab712aa4b68006852dc85698ee11d11`.
+
+The reviewed package/Candidate reuse retains the exact b218 frozen worktree and
+local branch. Package SHA-256 is
+`5a0d5281d376cac6577a593dbef9166e47556420513355188468b8bd4ea38149`;
+DLL SHA-256 `7f48118c7b16025447ff68c2f6138e2d33ee7aa81231578611b59a24569cc576`,
+MVID `32ac6aca-d9b4-4db8-9b49-2b5c5fe0f328`. The new F6 suite is
+`chunk7e-final-ebeaf8f6-20261027`, SHA-256
+`2ea084a946f98dbb57931c97ba0ab167fe9b9633319dd47d5608f1e2af9cea2b`.
+`final6-freeze.json` records the complete package/observer/fixture identities,
+source publication and pilot/review bindings. The old package qualifier remains
+part of its exact filename; no binary was rebuilt for the final label.
+
+The mechanically rebound final helpers passed independent review. FULL completed
+with the expected SupportingEvidence FAIL (exit 1, 539.6 seconds); its successful prefix
+is retained. The remaining 249-check inventory completed242 PASS/7 FAIL, no skips,
+in2672.410 seconds. Six failures retain their accepted historical dispositions;
+step176's historical-version replay failure235/5 is closed separately by a reviewed
+root-only test correction242/0 in32.292 seconds. Current production guards and
+historical evidence are unchanged; `final6-upgrade-replay-incident.md` preserves
+original and intermediate failures and exact replay contexts. The disposition
+receipt is `final6-offline-disposition.json`. The separate scenario-dispatch
+check passed181/0. The native matrix is
+81 rows/82 launches in 17 batches, derived from the current run plan and checked
+against every retained template. Batch1 started04:49:55 UTC with c1–c5 declared;
+no pilot result transfers. Fixed performance limits and GC-inclusive protocol remain.
+Closeout, final review and the authorized conditional merge follow qualification.
+
+F6 closed after B10 on October27 at07:32 UTC:52 actual launches,49 PASS and3 FAIL;
+267/0 subscenarios in successful attempts,274/3 across all attempts. r09 remains
+native FAIL7/1. r28 and s1 each had the exact predeclared startup signature and
+one successful same-selection retry; both original failures are retained.32 planned
+slots remain TODO, not excluded. F11 was not run on F6. All runs are settled;
+k1 has the existing five-leaf native achievement-cache exception, so its profile
+was not byte-identical. All other attempts restored exactly. The partial disposition
+SHA256 is `b95f4a25503de1d20149d19ecbad29240236ea0a75ec0d941ddbd95b0ac83c51`.
+
+The reviewed r09 correction is committed at `f91d63452cb80ef1470859d86febc9ad4f2a3c75`,
+preview.96. Root records and the separately reviewed offline test correction are
+being checkpointed before the new clean b219 pilot worktree. The existing frozen
+F6 tree/package remain unchanged. b219 readiness review PASS is hash-bound by
+`e4e8e0c5ce98f17a961d990ed55ef6f504a64064dd113777c54ea98e7c0a42dd`.
+The resume and private `takeover-active.json` identify exact next work and custody.
+Corrected native pilot, full successor qualification, closeout and gated merge
+remain pending; owner play/visual acceptance remains separate.

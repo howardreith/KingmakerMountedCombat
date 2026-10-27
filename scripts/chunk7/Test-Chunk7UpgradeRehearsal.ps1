@@ -492,8 +492,30 @@ $x5Order=@(Get-KmcChunk7UpgradeRehearsalSteps)
 function Get-ResultPin([string]$RunId){Get-KmcSha256 (Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$RunId+'/runtime-result.json'))}
 function New-X5Pins([string[]]$Labels=$x5Order,[string[]]$Ids=$x5Ids){@(for($i=0;$i-lt$Ids.Count;$i++){[pscustomobject][ordered]@{step=$Labels[$i];runId=$Ids[$i];resultSha256=(Get-ResultPin $Ids[$i])}})}
 $noReader={param($r,$q)}
-Check 'rows 55-56 bind the real b200 rehearsal (full external reader on each step)' {
- $b=Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins)
+# Historical requests retain their original product version and full-reader context.
+# Current binders still run here; historical replay is not current-candidate evidence.
+function Invoke-HistoricalResultReader([string]$Worktree,[string]$Commit,[string]$ReaderHash,[string]$ResultPath,[string]$RequestPath){
+ $root=Join-Path $realLab ('worktrees/'+$Worktree);$reader=Join-Path $root 'scripts/runtime/Test-RuntimeResult.ps1'
+ $head=& git -C $root rev-parse HEAD
+ if($LASTEXITCODE-ne0-or[string]$head-cne$Commit){throw 'Historical reader commit differs.'}
+ $dirty=@(& git -C $root status --porcelain --untracked-files=no)
+ if($LASTEXITCODE-ne0-or$dirty.Count-ne0-or(Get-KmcSha256 $reader)-cne$ReaderHash){throw 'Historical reader worktree differs.'}
+ $log=Join-Path $OutputDirectory ('historical-reader-'+(Split-Path -Leaf (Split-Path -Parent $ResultPath))+'.log')
+ if(Test-Path -LiteralPath $log){throw 'Preserve historical reader replay log.'}
+ $priorPreference=$ErrorActionPreference
+ try{$ErrorActionPreference='Continue'
+  & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $reader -ResultPath $ResultPath -RequestPath $RequestPath *> $log
+  $readerExit=$LASTEXITCODE
+ }finally{$ErrorActionPreference=$priorPreference}
+ if($readerExit-ne0){throw ('Historical full reader failed; see '+$log)}
+}
+$b200Reader={param($r,$q)Invoke-HistoricalResultReader 'chunk7-7e-b200-source-b9ce53d5' 'b9ce53d58587836860962fb834602e9a40824966' 'c2cc2fdb44424dc8ed6994e1e236100201dd89edc1b45c2e42b44bd4dd70a330' $r $q}
+# b191 used product62a68e64 with a later harness454177a6. Its accepted F5 full
+# replay is retained in final5-inventory-01/176-Test-Chunk7UpgradeRehearsal.log
+# (SHA256 01747dc80da10116703af33f4bbb77e4015240e3d0f9120d34182de3853151be).
+$b191Reader={param($r,$q)Invoke-HistoricalResultReader 'chunk7-final5-15f58fd7' '15f58fd7540b0a351f7dbd864f74c3ca24b97fe7' '4f33d1347b10bb3749a3c0eb5e3f3e6cf983f3cfd3b655bccf4d132a64ddbf67' $r $q}
+Check 'current rows 55-56 bind real b200 with its original frozen full reader on each step' {
+ $b=Assert-KmcChunk7UpgradeRehearsalComplete $x5Rid (New-X5Pins) $b200Reader
  if($b.rehearsalId-cne$x5Rid-or(@($b.steps|ForEach-Object{$_.step})-join',')-cne($x5Order-join',')-or(@($b.steps|ForEach-Object{$_.stagedRole})-join',')-cne'previous,candidate,previous'-or
   [string]$b.candidate.dllSha256-cne'ec20ee8f4e6824fb5530f386354fa1117da0920aff6c1a159c22b34a406ecc13'-or@($b.steps|Where-Object{[string]$_.ummReceiptSha256-cnotmatch'^[0-9a-f]{64}$'}).Count-ne0-or
   (@($b.steps|ForEach-Object{$_.requestBinding})-join',')-cne'legacy-pinned,legacy-pinned,legacy-pinned'){throw 'Binding differs.'}
@@ -537,11 +559,24 @@ function Invoke-X5Fake([scriptblock]$Mutate){Stage-X5 $Mutate;Use-Lab $x5Lab;try
 # An unchanged copy passes every cross-run check and stops only where the carried files are
 # re-derived from u1's staged-after tree, which the copy does not hold: so each mutation below
 # is refused by its own check, not by the copy.
-# The result validator verifies a recorded request hash against the request bytes.
-function Invoke-X5ResultValidator([string]$RunId){$d=Join-Path $x5Lab ('runtime-evidence/'+$RunId);$null=& (Join-Path $PSScriptRoot '../runtime/Test-RuntimeResult.ps1') -ResultPath (Join-Path $d 'runtime-result.json') -RequestPath (Join-Path $d 'runtime-request.json') 6>$null}
-Check 'the result validator accepts a recorded request hash that matches its request' {Stage-X5 {Bind-X5Request $x5Ids[1]};Invoke-X5ResultValidator $x5Ids[1]}
-Check 'the result validator refuses a request changed after its hash was recorded' {Stage-X5 {Bind-X5Request $x5Ids[1];[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-request.json')),' ')};Invoke-X5ResultValidator $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
-Check 'the result validator refuses a malformed recorded request hash' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue ('A'*64) -Force}};Invoke-X5ResultValidator $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
+# Execute the current validator's actual hash guard on disposable request bytes.
+# Full current validation deliberately rejects these historical product versions first.
+$resultReader=Join-Path $PSScriptRoot '../runtime/Test-RuntimeResult.ps1'
+$readerParseErrors=$null;$readerAst=[Management.Automation.Language.Parser]::ParseFile($resultReader,[ref]$null,[ref]$readerParseErrors)
+if(@($readerParseErrors).Count-ne0){throw 'Current result reader does not parse.'}
+$requestHashGuard=@($readerAst.FindAll({param($n)$n-is[Management.Automation.Language.IfStatementAst]-and$n.Extent.Text.StartsWith("if (`$null -ne `$result.PSObject.Properties['normalPlayerRequestSha256'] -and")},$true))
+function Invoke-X5RequestHashGuard([string]$RunId){
+ if($requestHashGuard.Count-ne1){throw 'Current result request-hash guard is not unique.'}
+ $d=Join-Path $x5Lab ('runtime-evidence/'+$RunId);$result=Read-KmcJson (Join-Path $d 'runtime-result.json');$RequestPath=Join-Path $d 'runtime-request.json'
+ & ([scriptblock]::Create($requestHashGuard[0].Extent.Text))
+}
+Check 'the current full reader refuses the historical product version' {
+ $d=Join-Path $realLab ('runtime-evidence/'+$x5Ids[1]);$null=& $resultReader -ResultPath (Join-Path $d 'runtime-result.json') -RequestPath (Join-Path $d 'runtime-request.json') 6>$null
+} $true 'Runtime request product version is not exact\.'
+Check 'the current result hash guard accepts a recorded hash matching its request' {Stage-X5 {Bind-X5Request $x5Ids[1]};Invoke-X5RequestHashGuard $x5Ids[1]}
+Check 'the current result hash guard refuses a request changed after its hash was recorded' {Stage-X5 {Bind-X5Request $x5Ids[1];[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-request.json')),' ')};Invoke-X5RequestHashGuard $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
+Check 'the current result hash guard refuses a malformed recorded hash' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue ('A'*64) -Force}};Invoke-X5RequestHashGuard $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
+Check 'the current result hash guard refuses a PASS with a null request hash' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue $null -Force}};Invoke-X5RequestHashGuard $x5Ids[1]} $true 'normalPlayerRequestSha256 does not match its request bytes'
 Check 'an unchanged fake-lab copy reaches the carried-file re-derivation' {Invoke-X5Fake $null} $true 'u1 staged-after tree'
 foreach($m in @(
  @('a tampered u2 game record',{[IO.File]::AppendAllText((Join-Path $x5Lab ('runtime-evidence/'+$x5Ids[1]+'/runtime-game-result.json')),' ')},'not hash-bound result to game record'),
@@ -570,7 +605,7 @@ foreach($m in @(
  Check ('rows 55-56 refuse '+$m[0]) {Invoke-X5Fake $m[1]} $true $m[2]
 }
 $r42Pass='20261023-c7b-world191-b191s2-normalplayer';$r42Fail='20261023-c7b-world191-b191s1-normalplayer'
-Check 'the row-42 binder binds the real b191 ordinary control (full external reader)' {$b=Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass);if($b.row-ne42-or$b.runId-cne$r42Pass){throw 'Binding differs.'}}
+Check 'the current row-42 binder binds real b191 with the accepted F5 historical full reader' {$b=Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass) $b191Reader;if($b.row-ne42-or$b.runId-cne$r42Pass){throw 'Binding differs.'}}
 Check 'the row-42 binder refuses the real b200 u2 rehearsal step' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $x5Ids[1] (Get-ResultPin $x5Ids[1]) $noReader)} $true 'cannot stand in for the ordinary request-free control'
 Check 'the row-42 binder refuses the real b200 u1 rehearsal step' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $x5Ids[0] (Get-ResultPin $x5Ids[0]) $noReader)} $true 'cannot stand in for the ordinary request-free control'
 Check 'the row-42 binder refuses the real failed b191 control' {[void](Assert-KmcChunk7NormalPlayerRow42Binding $r42Fail (Get-ResultPin $r42Fail) $noReader)} $true 'binds only a passed'
@@ -595,7 +630,7 @@ Check 'the runner refuses a request changed after launch' {$r=Invoke-RequestBloc
 Check 'the runner records no request hash outside a normal-player run' {$r=Invoke-RequestBlock $false (Get-KmcSha256 $requestStub);if($null-ne$r.hash-or$r.errors.Count-ne0){throw 'Hash recorded.'}}
 Check 'the runner writes the request hash into the normal-player outer result' {$final=@($runnerAst.FindAll({param($n)$n-is[Management.Automation.Language.AssignmentStatementAst]-and$n.Left.Extent.Text-ceq"`$final['normalPlayerRequestSha256']"-and$n.Right.Extent.Text-ceq'$normalPlayerRequestSha256'},$true))
  if($final.Count-ne1){throw 'Outer result field assignment differs.'}}
-Check 'the result validator keeps a FAIL whose request could not be hashed readable' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.status='FAIL';$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue $null -Force}};try{Invoke-X5ResultValidator $x5Ids[1]}catch{if($_.Exception.Message-match'normalPlayerRequestSha256'){throw}}}
+Check 'the current result hash guard accepts a FAIL whose request could not be hashed' {Stage-X5 {Edit-X5Json $x5Ids[1] 'runtime-result.json' {param($v)$v.status='FAIL';$v|Add-Member -NotePropertyName normalPlayerRequestSha256 -NotePropertyValue $null -Force}};Invoke-X5RequestHashGuard $x5Ids[1]}
 Check 'the row-42 binder reports the b191 control''s request as unbound' {$b=Assert-KmcChunk7NormalPlayerRow42Binding $r42Pass (Get-ResultPin $r42Pass) $noReader;if($b.requestBinding-cne'unbound'-or[string]$b.requestSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'Row-42 binding differs.'}}
 
 # --- Runner admission: refused before intake, approval, lock or launch ----------
