@@ -82,6 +82,19 @@ namespace KingmakerMountedCombat.Diagnostics
             var before = (JObject)moveObservation["before"];
             var distance = Vector3.Distance(moveStart, mount.Position); moveObservation["distance"] = distance;
             var beforeMount = Actor(before, mount); var afterMount = Actor(after, mount);
+            // First-action Mount v4 (F6 review): the searched paired step records what the mount actually travelled, beside the
+            // admitted destination, before the assertion: MechanicsDistance, its bearing from the target direction (the same
+            // Quaternion.Euler(0, b, 0) convention as the search) and the end's residual to the clicked destination.
+            if (moveObservation["destinationSearch"] != null)
+            {
+                Vector3 toward = target.Position - moveStart, travel = mount.Position - moveStart; toward.y = 0f; travel.y = 0f;
+                var destination = moveObservation["destination"];
+                var end = new Vector3((float)destination[0], (float)destination[1], (float)destination[2]);
+                moveObservation["travelled"] = new JObject { ["targetPosition"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
+                    ["distance"] = GeometryUtils.MechanicsDistance(moveStart, mount.Position),
+                    ["bearingOffset"] = travel.sqrMagnitude < 1e-8f ? null : new JValue(Math.Atan2(toward.z * travel.x - toward.x * travel.z, toward.x * travel.x + toward.z * travel.z) * 180.0 / Math.PI),
+                    ["residualToDestination"] = GeometryUtils.MechanicsDistance(mount.Position, end) };
+            }
             Require(ReferenceEquals(actingTurn, Game.Instance.TurnBasedCombatController.CurrentTurn) && distance > .02f &&
                 (float)afterMount["move"] > (float)beforeMount["move"] &&
                 (float)Actor(before, rider)["move"] == (float)Actor(after, rider)["move"] &&

@@ -1605,17 +1605,36 @@ function Assert-KmcChunk7PairedStepDestinationRecomputed($Move,[string]$MountId,
  Assert-KmcAssistedSame $Move.destination $x.destination 'paired admitted destination'
  if(-not(Test-KmcChunk7FiniteNumber $Move.requestedDistance)-or[Math]::Abs([double]$Move.requestedDistance-$Step)-gt1e-4){throw 'The paired move is not its declared step.'}
 }
-function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
+# Contract v4 (F6 review): each searched paired move records what the mount travelled beside its admitted destination; the
+# reader recomputes the MechanicsDistance from the move's before/after mount positions, the residual to the clicked destination
+# and the bearing from the recorded target direction (Quaternion.Euler(0, b, 0) convention), all within 1e-3.
+function Assert-KmcChunk7PairedStepTravelled($Move,[string]$MountId){
+ $x=if($null-ne$Move.PSObject.Properties['travelled']){$Move.travelled}else{$null};if($null-eq$x){throw 'The v4 paired move lacks its travelled record.'}
+ Assert-KmcExactProperties $x @('targetPosition','distance','bearingOffset','residualToDestination') 'paired step travelled'
+ $b=Get-KmcChunk7CombatActor $Move.before $MountId;$a=Get-KmcChunk7CombatActor $Move.after $MountId
+ $s=ConvertTo-KmcChunk7HorseStepPoint @($b.position.x,$b.position.y,$b.position.z) 'The paired step start';$e=ConvertTo-KmcChunk7HorseStepPoint @($a.position.x,$a.position.y,$a.position.z) 'The paired step end'
+ $t=ConvertTo-KmcChunk7HorseStepPoint $x.targetPosition 'The paired step target';$d=ConvertTo-KmcChunk7HorseStepPoint $Move.destination 'The paired step destination'
+ foreach($k in @('distance','residualToDestination')){if(-not(Test-KmcChunk7FiniteNumber $x.$k)){throw 'The paired step travelled values are not finite.'}}
+ if([Math]::Abs((Get-KmcChunk7MechanicsDistance $s $e)-[double]$x.distance)-gt1e-3-or[Math]::Abs((Get-KmcChunk7MechanicsDistance $e $d)-[double]$x.residualToDestination)-gt1e-3){throw 'The paired step travelled distance or residual differs from the recorded positions.'}
+ $tx=$t[0]-$s[0];$tz=$t[2]-$s[2];$vx=$e[0]-$s[0];$vz=$e[2]-$s[2]
+ if($vx*$vx+$vz*$vz-lt1e-8){if($null-ne$x.bearingOffset){throw 'A paired step that did not move records a bearing.'};return}
+ if(-not(Test-KmcChunk7FiniteNumber $x.bearingOffset)){throw 'The paired step travelled bearing is not finite.'}
+ $bearing=[Math]::Atan2($tz*$vx-$tx*$vz,$tx*$vx+$tz*$vz)*180.0/[Math]::PI
+ $delta=(($bearing-[double]$x.bearingOffset)%360.0+540.0)%360.0-180.0
+ if([Math]::Abs($delta)-gt1e-2){throw 'The paired step travelled bearing differs from the recorded positions.'}
+}function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$ids=@($o.actorIds)
  if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
  # v1 (F2 and earlier, and the 4e6cd034-91437a41 producers) keeps its original verdict; v2 requires the recomputed search.
- $f=$o.firstActionMount;$v3=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v3'
+ $f=$o.firstActionMount;$v4=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v4'
+ $v3=$v4-or($f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v3')
  $v2=$v3-or($f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v2')
- Assert-KmcBootstrapInventoryString $f.contract $(if($v3){'owner-seed-tb-first-action-mount-v3'}elseif($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})
+ Assert-KmcBootstrapInventoryString $f.contract $(if($v4){'owner-seed-tb-first-action-mount-v4'}elseif($v3){'owner-seed-tb-first-action-mount-v3'}elseif($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})
  # v3 (F6): both full-activation paired moves carry their searched step; v1/v2 producers clicked a fixed point and keep their path.
  $acts=@($o.activations)
  for($p=0;$p-lt2;$p++){$act=@($acts|Where-Object pair -EQ $p);if($act.Count-ne1){throw 'Owner-seed first-action Mount lacks its full pair activation.'};$mv=$act[0].movement
-  if($v3){$pairIds=if($p-eq0){@($s.riderAId,$s.mountAId)}else{@($s.riderBId,$s.mountBId)};Assert-KmcChunk7PairedStepDestinationRecomputed $mv $pairIds[1] $pairIds $(if($p-eq0){0.75}else{0.5})}
+  if($v3){$pairIds=if($p-eq0){@($s.riderAId,$s.mountAId)}else{@($s.riderBId,$s.mountBId)};Assert-KmcChunk7PairedStepDestinationRecomputed $mv $pairIds[1] $pairIds $(if($p-eq0){0.75}else{0.5})
+   if($v4){Assert-KmcChunk7PairedStepTravelled $mv $pairIds[1]}elseif($null-ne$mv.PSObject.Properties['travelled']){throw 'A v3 first-action Mount carries a travelled record.'}}
   elseif($null-ne$mv.PSObject.Properties['destinationSearch']){throw 'A pre-v3 first-action Mount carries a paired step search.'}}
  Assert-KmcBootstrapInventoryString $f.riderId $s.riderAId;Assert-KmcBootstrapInventoryString $f.mountId $s.mountAId
  $m=$f.horseMove;foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $m.$key $true}
