@@ -267,15 +267,43 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             return found;
         }
-        // The pair actor's reactions across a window that admitted n native attacks of opportunity: exactly n fewer, or (only with
-        // n >= 1) restored by the native RT contract: UnitCombatState.AttackOfOpportunity sets Cooldown.AttackOfOpportunity 5.4 s
+        // The pair actor's reactions across a window that admitted n native attacks of opportunity: exactly n fewer, or
+        // restored by the native RT contract: UnitCombatState.AttackOfOpportunity sets Cooldown.AttackOfOpportunity 5.4 s
         // on the first use, and UnitCombatCooldownsController ticks it down by game time and restores AttackOfOpportunityCount
         // to PerRound at zero. Admitted only with no cooldown left, the cooldown recorded at the last attack fully elapsed in game
         // time by the after snapshot (one 0.1 s frame of slack), and no prepare or clear of that actor in the window.
-        internal static bool ReactionsAccounted(JObject before, JObject after, int opportunityAttacks, long afterGameTicks, JObject lastAttack, bool resetSeen) =>
+        // With no new attack, the before snapshot must instead prove a carried cooldown and unchanged native capacity.
+        internal static bool ReactionsAccounted(JObject before, JObject after, int opportunityAttacks, long beforeGameTicks, long afterGameTicks, JObject lastAttack, bool resetSeen) =>
             (int)after["reactions"] == (int)before["reactions"] - opportunityAttacks ||
             opportunityAttacks > 0 && !resetSeen && lastAttack != null && (int)after["reactions"] == (int)before["reactions"] && (double)after["reactionCooldown"] <= .001 &&
-            (afterGameTicks - (long)lastAttack["costGameTicks"]) / 10000000.0 >= (double)lastAttack["costReactionCooldown"] - .1;
+            (afterGameTicks - (long)lastAttack["costGameTicks"]) / 10000000.0 >= (double)lastAttack["costReactionCooldown"] - .1 ||
+            opportunityAttacks == 0 && PreWindowReactionRenewed(before, after, beforeGameTicks, afterGameTicks, resetSeen);
+
+        // F6 r09: a reaction spent in the preceding companion window can renew during the player
+        // click without a new attack. Admit only the native cooldown's return to its unchanged
+        // capacity, after the carried cooldown elapsed, with no grant/prepare/clear intervention.
+        // This observes native ticking; it never grants, clears or restores a resource.
+        internal static bool PreWindowReactionRenewed(JObject before, JObject after, long beforeGameTicks, long afterGameTicks, bool resetSeen)
+        {
+            if (before == null || after == null) return false;
+            var beforeNative = before["native"] as JObject; var afterNative = after["native"] as JObject;
+            if (resetSeen || beforeGameTicks < 0 || afterGameTicks < beforeGameTicks || beforeNative == null || afterNative == null) return false;
+            var integers = new[] { before["reactions"], after["reactions"], beforeNative["reactions"], afterNative["reactions"],
+                beforeNative["reactionsPerRound"], afterNative["reactionsPerRound"], beforeNative["grantSequence"], afterNative["grantSequence"] };
+            if (integers.Any(x => x == null || x.Type != JTokenType.Integer)) return false;
+            var cooldowns = new[] { before["reactionCooldown"], after["reactionCooldown"], beforeNative["reactionCooldown"], afterNative["reactionCooldown"] };
+            if (cooldowns.Any(x => x == null || (x.Type != JTokenType.Integer && x.Type != JTokenType.Float) ||
+                double.IsNaN((double)x) || double.IsInfinity((double)x) || (double)x < 0)) return false;
+            var capacity = (long)beforeNative["reactionsPerRound"]; var count = (long)before["reactions"];
+            return capacity > 0 && capacity <= int.MaxValue && (long)afterNative["reactionsPerRound"] == capacity &&
+                count >= 0 && count < capacity && (long)after["reactions"] == capacity &&
+                (long)beforeNative["reactions"] == count && (long)afterNative["reactions"] == capacity &&
+                (long)beforeNative["grantSequence"] >= 0 && (long)afterNative["grantSequence"] == (long)beforeNative["grantSequence"] &&
+                (double)before["reactionCooldown"] > 0 && (double)after["reactionCooldown"] <= .001 &&
+                Math.Abs((double)before["reactionCooldown"] - (double)beforeNative["reactionCooldown"]) <= 1e-6 &&
+                Math.Abs((double)after["reactionCooldown"] - (double)afterNative["reactionCooldown"]) <= 1e-6 &&
+                (afterGameTicks - beforeGameTicks) / 10000000.0 >= (double)before["reactionCooldown"] - .1;
+        }
         internal static readonly string[] ReactionResetBoundaries = { "prepare-before", "prepare-after", "clear-before", "clear-after", "combat-clear-before", "combat-clear-after" };
         internal static bool ReactionResetSeen(IEnumerable<JObject> windowEvents, string actorId) =>
             windowEvents.Any(e => ReactionResetBoundaries.Contains((string)e["boundary"]) && (string)e["state"]?["actor"] == actorId);
@@ -324,7 +352,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var before = Actor((JObject)companionAction["before"], actor); var after = Actor((JObject)companionAction["after"], actor);
                 var mine = opportunity.Where(x => (string)x["actorId"] == actor.UniqueId).ToArray(); var aoo = mine.Length;
                 Require(aoo <= (int)before["reactions"], "A pair actor made more native attacks of opportunity than it had reactions during the companion's action.");
-                Require(new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) && ReactionsAccounted(before, after, aoo, (long)companionAction["after"]["gameTicks"],
+                Require(new[] { "standard", "move", "swift" }.All(f => (double)after[f] <= (double)before[f] + .001) && ReactionsAccounted(before, after, aoo, (long)companionAction["before"]["gameTicks"], (long)companionAction["after"]["gameTicks"],
                         (JObject)mine.LastOrDefault(), ReactionResetSeen(events.Cast<JObject>(), actor.UniqueId)),
                     "A pair actor's native expenditure rose during the companion's action.");
             }

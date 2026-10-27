@@ -1428,8 +1428,26 @@ function Get-KmcChunk7NativeOpportunityAttacks($Window,[string[]]$PairIds,[strin
 # Native RT contract: AttackOfOpportunity sets Cooldown.AttackOfOpportunity 5.4 s on first use; UnitCombatCooldownsController ticks it
 # by game time and restores AttackOfOpportunityCount at zero. Restoration is admitted only after the cooldown recorded at the last
 # attack fully elapsed by the after snapshot (0.1 s slack) and with no prepare or clear of the actor in the window.
-function Test-KmcChunk7ReactionsAccounted($Before,$After,[int]$Attacks,[long]$AfterTicks,$Last,[bool]$ResetSeen){
+# With no new attack, require the carried cooldown and unchanged native capacity in both snapshots.
+function Test-KmcChunk7PreWindowReactionRenewed($Before,$After,[long]$BeforeTicks,[long]$AfterTicks,[bool]$ResetSeen){
+ if($ResetSeen-or$BeforeTicks-lt0-or$AfterTicks-lt$BeforeTicks){return $false}
+ foreach($o in @($Before,$After)){if($null-eq$o){return $false};foreach($f in @('reactions','reactionCooldown','native')){if($null-eq$o.PSObject.Properties[$f]){return $false}}}
+ $bn=$Before.native;$an=$After.native
+ foreach($o in @($bn,$an)){if($null-eq$o){return $false};foreach($f in @('reactions','reactionCooldown','reactionsPerRound','grantSequence')){if($null-eq$o.PSObject.Properties[$f]){return $false}}}
+ foreach($v in @($Before.reactions,$After.reactions,$bn.reactions,$an.reactions,$bn.reactionsPerRound,$an.reactionsPerRound,$bn.grantSequence,$an.grantSequence)){if(-not(Test-KmcExactJsonInteger $v)){return $false}}
+ foreach($v in @($Before.reactionCooldown,$After.reactionCooldown,$bn.reactionCooldown,$an.reactionCooldown)){if(-not(Test-KmcChunk7FiniteNumber $v)-or[double]$v-lt0){return $false}}
+ $capacity=[long]$bn.reactionsPerRound;$count=[long]$Before.reactions
+ $capacity-gt0-and$capacity-le[int]::MaxValue-and[long]$an.reactionsPerRound-eq$capacity-and$count-ge0-and$count-lt$capacity-and
+  [long]$After.reactions-eq$capacity-and[long]$bn.reactions-eq$count-and[long]$an.reactions-eq$capacity-and
+  [long]$bn.grantSequence-ge0-and[long]$an.grantSequence-eq[long]$bn.grantSequence-and
+  [double]$Before.reactionCooldown-gt0-and[double]$After.reactionCooldown-le0.001-and
+  [Math]::Abs([double]$Before.reactionCooldown-[double]$bn.reactionCooldown)-le1e-6-and
+  [Math]::Abs([double]$After.reactionCooldown-[double]$an.reactionCooldown)-le1e-6-and
+  (([double]$AfterTicks-[double]$BeforeTicks)/10000000.0)-ge([double]$Before.reactionCooldown-0.1)
+}
+function Test-KmcChunk7ReactionsAccounted($Before,$After,[int]$Attacks,[long]$BeforeTicks,[long]$AfterTicks,$Last,[bool]$ResetSeen){
  if([long]$After.reactions-eq[long]$Before.reactions-$Attacks){return $true}
+ if($Attacks-eq0){return (Test-KmcChunk7PreWindowReactionRenewed $Before $After $BeforeTicks $AfterTicks $ResetSeen)}
  if($Attacks-le0-or$ResetSeen-or$null-eq$Last-or[long]$After.reactions-ne[long]$Before.reactions-or-not(Test-KmcChunk7FiniteNumber $After.reactionCooldown)-or[double]$After.reactionCooldown-gt0.001){return $false}
  if(-not(Test-KmcExactJsonInteger $Last.costGameTicks)-or-not(Test-KmcChunk7FiniteNumber $Last.costReactionCooldown)){return $false}
  (([double]$AfterTicks-[double]$Last.costGameTicks)/10000000.0)-ge([double]$Last.costReactionCooldown-0.1)
@@ -1484,7 +1502,7 @@ function Assert-KmcChunk7OwnerSeedCompanionAction($Request,$Observations){
  Assert-KmcOrdinaryInteger $stop.traceSequenceBefore ([int]$after[0].sequence) ([int]$c.traceSequenceAfter);Assert-KmcOrdinaryInteger $stop.traceSequenceAfter ([int]$stop.traceSequenceBefore) ([int]$c.traceSequenceAfter)
  if(@($mine|Where-Object{$_.sequence-gt$stop.traceSequenceBefore}).Count-ne0){throw 'The companion native Stop admitted, charged or interrupted a command.'} if((ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.after.pairCommands)-or(ConvertTo-KmcChunk7Canonical $c.before.pairCommands)-cne(ConvertTo-KmcChunk7Canonical $c.admitted.pairCommands)){throw 'The companion action reassigned or cancelled a pair command.'}
  foreach($id in $roles){$a=Get-KmcChunk7CombatActor $c.before $id;$b=Get-KmcChunk7CombatActor $c.after $id
-  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};$mineAoo=@($aoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$c.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $fullWindow $id))){throw 'A pair actor spent a reaction during the companion action.'}}
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'A pair actor spent native resources during the companion action.'}};$mineAoo=@($aoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$c.before.gameTicks) ([long]$c.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $fullWindow $id))){throw 'A pair actor spent a reaction during the companion action.'}}
  $ownersBefore=@($c.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($c.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')-or@($c.after.owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'The companion action changed pair custody.'}
 }
@@ -1690,7 +1708,7 @@ function Assert-KmcChunk7OwnerSeedPlayerClick($Request,$Observations){
  $paoo=Get-KmcChunk7NativeOpportunityAttacks @($window|Where-Object{$_.boundary-cin@('admission-before','admission-after','cost-before','cost-after','actor-cost-before','actor-cost-after','command-interrupt-before','command-interrupt-after')}) @($s.riderBId,$s.mountBId) $o.targetId $pslotted @($p.before.target.engagedBy)
  if((ConvertTo-KmcChunk7Canonical @($paoo.attacks))-cne(ConvertTo-KmcChunk7Canonical @($p.pairBNativeOpportunityAttacks))){throw 'The recorded pair B native attacks of opportunity differ from the native trace.'}
  foreach($id in @($s.riderBId,$s.mountBId)){$a=Get-KmcChunk7CombatActor $p.before $id;$b=Get-KmcChunk7CombatActor $p.after $id
-  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Pair B spent native resources during the player click.'}};$mineAoo=@($paoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$p.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $window $id))){throw 'Pair B spent a reaction during the player click.'}}
+  foreach($field in @('standard','move','swift')){if([double]$b.$field-gt[double]$a.$field+0.001){throw 'Pair B spent native resources during the player click.'}};$mineAoo=@($paoo.attacks|Where-Object actorId -CEQ $id);$n=$mineAoo.Count;if($n-gt[long]$a.reactions-or-not(Test-KmcChunk7ReactionsAccounted $a $b $n ([long]$p.before.gameTicks) ([long]$p.after.gameTicks) $(if($n){$mineAoo[-1]}else{$null}) (Test-KmcChunk7ReactionResetSeen $window $id))){throw 'Pair B spent a reaction during the player click.'}}
  $ownersBefore=@($p.before.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive);$ownersAfter=@($p.after.owners|ForEach-Object{(ConvertTo-KmcChunk7PairIdN $_.id)+'|'+$_.generation+'|'+$_.state}|Sort-Object -CaseSensitive)
  if(($ownersBefore-join';')-cne($ownersAfter-join';')){throw 'The player click changed pair custody.'}
 }
