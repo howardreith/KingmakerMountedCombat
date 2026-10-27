@@ -508,6 +508,14 @@ $pairedStepV3={param($v)$o=$v.artifact.observations;$s=$v.request.ownedPairs;$o.
    else{$rows+=[pscustomobject][ordered]@{bearingOffset=22.5;destination=$dest;previewUnitId=$mount;freshPreview=$true;previewState='Complete';previewPoints=2;previewEnd=$dest;endResidual=0.0;displacement=$step;reason='admitted'}}}
   $mv|Add-Member destinationSearch ([pscustomobject][ordered]@{contract='native-tb-paired-step-destination-v1';stepDistance=$step;approachRadius=0.3;minimumNativeApproach=0.1;candidates=$rows}) -Force
   $mv|Add-Member destination @($rows[1].destination) -Force;$mv|Add-Member bearingOffset 22.5 -Force;$mv|Add-Member requestedDistance $step -Force}}
+# Contract v4 (F6 review): v3 plus each searched paired move's travelled record (synthetic target 5 m along +z from the start).
+$pairedStepV4={param($v)&$pairedStepV3 $v;$o=$v.artifact.observations;$s=$v.request.ownedPairs;$o.firstActionMount.contract='owner-seed-tb-first-action-mount-v4'
+ foreach($p in 0,1){$mv=@($o.activations|Where-Object pair -EQ $p)[0].movement;$mount=if($p-eq0){$s.mountAId}else{$s.mountBId}
+  $b=@($mv.before.actors|Where-Object id -CEQ $mount)[0].position;$a=@($mv.after.actors|Where-Object id -CEQ $mount)[0].position
+  $t=@([double]$b.x,[double]$b.y,([double]$b.z+5.0));$vx=[double]$a.x-[double]$b.x;$vz=[double]$a.z-[double]$b.z;$tx=0.0;$tz=5.0
+  $dist=[Math]::Sqrt($vx*$vx+$vz*$vz);$d=@($mv.destination|ForEach-Object{[double]$_});$res=[Math]::Sqrt(([double]$a.x-$d[0])*([double]$a.x-$d[0])+([double]$a.z-$d[2])*([double]$a.z-$d[2]))
+  $bearing=if($vx*$vx+$vz*$vz-lt1e-8){$null}else{[Math]::Atan2($tz*$vx-$tx*$vz,$tx*$vx+$tz*$vz)*180.0/[Math]::PI}
+  $mv|Add-Member travelled ([pscustomobject][ordered]@{targetPosition=$t;distance=$dist;bearingOffset=$bearing;residualToDestination=$res}) -Force}}
 function Check-SeedCombat([string]$Name,[string]$Base,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedDerivedCombatFixture $Base;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
 foreach($base in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check ('owner-seed-derived combat evidence accepted '+$base) {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture $base)}
@@ -1691,6 +1699,14 @@ foreach($base in @('combat-rider-first','combat-mount-first')){
     'bearing-order'{$x.bearingOffset=-22.5};'destination-off-step'{$x.destination=@(([double]$x.destination[0]+0.2),$x.destination[1],$x.destination[2])}
     'v2-with-search'{$o.firstActionMount.contract='owner-seed-tb-first-action-mount-v2'};'start-moved'{foreach($row in $ma.before.actors){if($row.id-ceq$args[0].request.ownedPairs.mountAId){$row.position.x=[double]$row.position.x+0.3}}}
     'admitted-inside-bound'{$s=$args[0].request.ownedPairs;$p=@($ma.before.actors|Where-Object id -CEQ $s.mountAId)[0].position;$x.previewEnd=@(([double]$p.x+0.35),[double]$p.y,[double]$p.z);$x.displacement=0.35;$x.endResidual=[Math]::Sqrt([Math]::Pow([double]$x.destination[0]-[double]$p.x-0.35,2)+[Math]::Pow([double]$x.destination[2]-[double]$p.z,2))}}}
+ }
+ Check ('owner-seed-derived TB v4 admits searched paired steps with their travelled records '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV4 $v;Invoke-OwnedReader $v}
+ foreach($fault in @('missing-travelled','distance-forged','residual-forged','bearing-forged','extra-field','v3-with-travelled','target-moved')){
+  Check-SeedCombat ('owner-seed-derived TB v4 refuses a travelled record with '+$fault+' '+$base) $base {&$horseStepV2 $args[0];&$pairedStepV4 $args[0];$o=$args[0].artifact.observations
+   $mv=@($o.activations|Where-Object pair -EQ 1)[0].movement;$x=$mv.travelled
+   switch($fault){'missing-travelled'{$mv.PSObject.Properties.Remove('travelled')};'distance-forged'{$x.distance=[double]$x.distance+0.01};'residual-forged'{$x.residualToDestination=[double]$x.residualToDestination+0.01}
+    'bearing-forged'{$x.bearingOffset=[double]$x.bearingOffset+1.0};'extra-field'{$x|Add-Member note 'x'};'v3-with-travelled'{$o.firstActionMount.contract='owner-seed-tb-first-action-mount-v3'}
+    'target-moved'{$x.targetPosition=@(([double]$x.targetPosition[0]+3.0),$x.targetPosition[1],$x.targetPosition[2])}}}
  }
  Check-SeedCombat ('owner-seed-derived TB refuses pair B ownership change during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;@($t.after.owners)[1].generation=99} 'ownership changed'
  Check-SeedCombat ('owner-seed-derived TB refuses pair B spending during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;foreach($row in $t.after.actors){if($row.id-ceq$args[0].request.ownedPairs.riderBId){$row.standard=6.0}}}
