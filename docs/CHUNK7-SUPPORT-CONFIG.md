@@ -1,7 +1,7 @@
 # Kingmaker Mounted Combat: support and configuration (Chunk 7)
 
-Status: DRAFT for a private engineering candidate. It is not a public release, and it does not
-authorize installing into a human campaign. F6 preview.95 qualification is IN PROGRESS;
+Status: private engineering qualification PASS. It is not a public release, and it does not
+authorize installing into a human campaign. F7 preview.96 qualification passed;
 see the [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact identities and status.
 
 ## What is supported
@@ -84,10 +84,10 @@ selection change do not grant actions.
 - Haste variation and six-pair combat are excluded by the owner's scope decision.
 - Prone stand-up provocation, defensive scroll casting while threatened, prepared Cure Light Wounds
   while mounted, and a BAB6 mounted ranged full attack with Rapid Shot off have development evidence.
-  Their required F6 rows (57, 69, 80 and 81) remain pending; they are not scope exclusions.
+  Their required F7 rows (57, 69, 80 and 81) passed; they are not scope exclusions.
 - Death cleanup, Rapid Shot, disengagement attacks of opportunity, staged moving actions and optional
   melee real-time Charge also have development evidence. Final candidate coverage and performance
-  acceptance remain pending in the engineering closeout.
+  acceptance passed as recorded in the engineering closeout.
 - A mounted archive actually written by preview.211 has not undergone an automated upgrade.
   Schema migration derivatives and installation rehearsals do not prove that path.
 - Owner/HUMAN PLAY acceptance remains pending.

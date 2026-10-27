@@ -1,43 +1,45 @@
-# Chunk 7 finalization — IN PROGRESS
+# Chunk 7 — engineering qualification PASS
 
-The owner authorizes PR #5 merge after the agreed engineering, independent review,
-restoration and repository gates. Owner play/visual acceptance remains pending.
-No release/tag or permanent installation is selected. See the
-[active takeover checkpoint](docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md).
+F7 qualified preview.96 on source
+`650dd8a3bb53811ecd5eaf5510bf1b797738fd12`: **81 rows / 82 planned launches PASS**,
+404/0 passing subchecks. All 83 actual attempts were re-read with zero verdict or
+result-hash changes. The original Steam startup FAIL is retained separately from
+its sole permitted successful retry.
 
-F6 on published source `ebeaf8f6b3d81ed7a189ca4b99fe2e95ceb56ad8` is preserved
-as a **FAIL**, partial campaign. It made52 native launches:49 PASS and3 FAIL.
-The failures are r09's diagnostic reaction-renewal omission and two signature-matched
-startup failures; each startup had its sole permitted successful retry. All runs
-are settled.32 planned launch slots remain TODO; no scope exclusion was added.
-The fixed F11 performance protocol has not run on F6.
+F11 passed the fixed GC-inclusive protocol: two-pair medians 0.2693058333 ms and
+0.4088075 ms; six-pair median 0.4960833333 ms. The slow GC window is retained.
+The small per-second allocation increase was investigated as unchanged bytes per
+Update divided by shorter observed frame intervals.
 
-All attempts restored Mods/settings/protected saves. B10 k1 used the existing
-settled native achievement-cache exception (four rewrites and one created leaf);
-its profile was not byte-identical. Other attempts restored exactly. There is no
-live game, wrapper or transaction custody at the F6 close. Exact result/check
-hashes are bound by `analysis-cache/chunk7-continuation/final6-partial-disposition.json`,
-SHA256 `b95f4a25503de1d20149d19ecbad29240236ea0a75ec0d941ddbd95b0ac83c51`.
+Raw FULL remains **FAIL/exit 1**. The remaining inventory retains 242 PASS/7 FAIL,
+with no skips: six accepted historical failures and a separately corrected CRLF
+test. The reviewed actual-method correction passed 50/0. No raw FULL PASS is claimed.
 
-The reviewed correction is commit `f91d63452cb80ef1470859d86febc9ad4f2a3c75`,
-preview.96. It observes native expiry of a reaction cooldown carried into the
-window, with unchanged capacity/grant and no reset; it writes no resource.
-Focused checks passed72 compiled predicates plus31 reader cases, owned-pairs1462/0,
-and source149/0. Original r09 FAIL7/1 stays FAIL because later stages never ran.
-The b219 pilot helpers/readiness review passed; corrected compilation/native pilot
-and full successor qualification remain pending. The same81-row/82-launch plan
-will run on the exact corrected candidate; no F6 native PASS transfers to new DLLs.
+Every native transaction settled; no game or lock remained. Mods, settings and
+protected saves were restored. r02 admitted three cache rewrites and r54 three
+rewrites plus one created leaf, all 12,288 bytes under the existing policy.
+Those profiles were not byte-identical; all other attempts restored exactly.
 
-F6 raw FULL remains FAIL/exit1. Its remaining inventory was242 PASS/7 FAIL with
-no skips: six accepted historical failures and an historical-version test issue
-closed separately by reviewed focused PASS242/0. The original outcomes remain
-retained. No whole FULL PASS is claimed.
+The owner explicitly selected conditional merge of
+[PR #5](https://github.com/howardreith/KingmakerMountedCombat/pull/5), superseding
+older no-merge task instructions. Engineering evidence does not bypass repository
+requirements. The live PR and private promotion readback record the actual head,
+merge commit and remote main. **Owner play/visual acceptance remains TODO.**
+No public release/tag or permanent installation is selected.
 
-PR #5 remains open/draft at Ebeaf. Fresh main `d56ff670cca263da5197fd89f69cefd967e2d6b4`
-is an ancestor; no integration merge was needed. See [AUTONOMOUS-RESUME](AUTONOMOUS-RESUME.md)
-for the exact next operation and the private custody record. The
-[matrix](planning/CHUNK7-7E-QUALIFICATION-MATRIX.md),
-[run plan](planning/CHUNK7-7E-FINAL-RUN-PLAN.md), and
-[draft closeout](docs/CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) remain authoritative.
+Exact ZIP SHA-256:
+`42312267c91d7923dca6b4d5b1e8ab76312cfe072c6c22026abe66f0c4ac0d84`.
+Private package and completion records:
+`C:\Dev\KingmakerMountedCombatLab\handoffs\KMC_Chunk7_F7_Closeout_2026-10-27`.
 
-[Prior CURRENT chronology, preserved byte-for-byte](docs/history/CURRENT-before-codex-takeover-2026-10-26.md).
+The [closeout](docs/CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md),
+[81-row record](docs/CHUNK7-FINAL-QUALIFICATION-2026-10-27.md) and
+[resume](AUTONOMOUS-RESUME.md) hold exact identities, review and promotion steps.
+The closeout delta is documentation plus one reviewed offline test correction;
+product/build/runtime execution inputs remain the qualified ones.
+
+The genuine preview.211-written-mounted-save upgrade remains untested by the
+accepted scope decision. F1–F6, b215–b219, earlier packages and frozen worktrees
+are retained. No earlier candidate's native PASS was transferred into F7.
+
+[Prior CURRENT chronology](docs/history/CURRENT-before-codex-takeover-2026-10-26.md).

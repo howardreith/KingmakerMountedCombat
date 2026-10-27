@@ -1,7 +1,7 @@
 # Kingmaker Mounted Combat: install, upgrade, rollback and removal (Chunk 7)
 
-Status: DRAFT for a private engineering candidate. It is not a public release, and it does not
-authorize installing into a human campaign. F6 preview.95 qualification is IN PROGRESS;
+Status: private engineering qualification PASS. It is not a public release, and it does not
+authorize installing into a human campaign. F7 preview.96 qualification passed;
 see the [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact package identity.
 
 **Before anything: back up your saves.** Copy the whole Saved Games folder,
@@ -17,8 +17,8 @@ preview.211 package. Rollback depends on both.
    expected version.
 5. Check the UMM log for the version line and no KMC `[Exception]` or error line.
 
-Rehearsed: fresh install into a base-game-only tree, with Mount, move and Dismount
-(batch191 development PASS, row 42 in the 7E matrix).
+Rehearsed on the F7 preview.96 package: fresh install into a base-game-only tree,
+with Mount, move and Dismount (row 42, normal-player checks 42/0, exact restoration).
 
 ## Upgrade from preview.211
 
@@ -34,7 +34,7 @@ What changes:
   migration adapter, and writes schema 3 on the next save.
 - KMC keeps no settings file, so there are no settings to carry over. Real-time Charge starts off.
 
-### What was rehearsed (X5, batch200, development pilot on DLL `ec20ee8f…`)
+### What was rehearsed (F7, rows 55–56, rehearsal `x5-final-650dd8a3`)
 
 | Step | What ran | Result |
 | --- | --- | --- |
@@ -49,11 +49,13 @@ What changes:
   supported historical schema (7E rows 17–22, development lineage), not on an archive written by
   preview.211.
 - u2 loaded a save written by a Chunk 7 build, not one written by preview.211.
-- The table above is development evidence. F6 rows 55–56 remain pending.
+- The table above records F7 normal-player checks (u1/u2/u3: 27/0, 42/0, 27/0),
+  with exact restoration. The final consumer binder verified the common rehearsal,
+  candidate identity, request bindings, order and carried u1 folder state.
 
 The live producer's pending-only schema-3 cold load is a required final row (75,
-consuming row17), with genuine PairId and generation and no migration. It has development
-evidence and awaits F6 credit; it is not a scope exclusion. It does not close the
+consuming row17), with genuine PairId and generation and no migration. F7 passed
+3/0 with exact restoration; it is not a scope exclusion. It does not close the
 preview.211-written-save limitation.
 
 ## Rollback to preview.211
@@ -86,11 +88,12 @@ preview.211-written-save limitation.
 - Preparation dismounts every pair, writes one new save and checks it has no mounted pair, no combat
   participation, no KMC control binding and no KMC blueprint.
 - **A campaign that contains a KMC Horse still needs the mod.** Preparation refuses while any character
-  has the KMC Horse or its companion feature. Only campaigns using stock mounts (for example the Mammoth)
-  can be prepared for removal.
+  has the KMC Horse or its companion feature. Preparation requires a campaign without permanent KMC
+  references; the tested mounted removal case uses a stock Mammoth.
 - Rehearsed: positive cleanup of a mounted stock-Mammoth campaign, then a separate load with KMC fully
-  absent; the world continued and the main character moved normally (batches 65–67, development PASS on
-  an earlier candidate; 7E rows 31–32 not yet run on the final package).
+  absent; the world continued and the main character moved normally (F7 rows 31–32,
+  both PASS with exact restoration). The final binder matched the cleanup archive
+  SHA-256 to the mod-absent consumer's input and verified the candidate identities.
 - **Do not load a mounted save, or any save with a KMC Horse, without KMC.** That was not tested and the
   outcome is unknown. Never edit a save to strip KMC data.
 

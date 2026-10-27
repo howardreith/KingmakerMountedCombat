@@ -1,7 +1,7 @@
 # Chunk 7 private candidate guide
 
-Status: IN PROGRESS. Use the exact candidate and qualified behavior table in the
-final engineering handoff; native breadth and owner play acceptance are pending.
+Engineering qualification: PASS on F7 preview.96. Use the exact package and
+qualified behavior table in the engineering closeout. Owner play/visual acceptance remains pending.
 This guide does not authorize installation into a human campaign.
 
 The current private implementation admits up to six mounted pairs. Ordinary two-pair
@@ -18,9 +18,10 @@ Mammoth and unsupported forms are outside this declaration and can refuse Mount
 or saved restoration. Changing render scale does not make another body eligible.
 The exact Small [native Mount/movement/primary result](CHUNK7-BATCH72-SMALL-ORDINARY-NATIVE-2026-10-20.md)
 and later [mounted Manual/cold result](CHUNK7-BATCH100-SMALL-RETRAIN-COLD-2026-10-20.md)
-are development evidence on their recorded candidates; representative
-spell/item presentation, Medium breadth, conditional six-pair stress and final
-exact-package acceptance remain open.
+are development evidence on their recorded candidates. The [F7 row record](CHUNK7-FINAL-QUALIFICATION-2026-10-27.md)
+and [closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) now record final engineering
+coverage for representative spell/item handling, Medium breadth and six-pair
+exploration stress. Owner play and visual acceptance remain pending.
 
 Select the rider and open their ability drawer. Use **Mount Companion** on that
 rider's own supported animal companion, and **Dismount** on the rider to separate

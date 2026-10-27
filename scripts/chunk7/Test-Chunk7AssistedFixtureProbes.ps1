@@ -17,7 +17,7 @@ $substitutions=@('Native descriptors/world, patch install, worker and event sink
 $ordinary=[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/NativeOrdinaryAcquisitionProbe.cs'))
 $manual=[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7ManualSeedSaveProbe.cs'))
 $sourceMethods=@('NativeOrdinaryAcquisitionProbe::.ctor legacy','NativeOrdinaryAcquisitionProbe::.ctor assisted','NativeOrdinaryAcquisitionProbe::ForAssistedFixture','NativeOrdinaryAcquisitionProbe::PreparedAfter','Chunk7ManualSeedSaveProbe::.ctor','Chunk7ManualSeedSaveProbe::Expect','Chunk7ManualSeedSaveProbe::PreparedAfter')
-$factory=[regex]::Matches($ordinary,'(?m)^\s*internal static NativeOrdinaryAcquisitionProbe ForAssistedFixture\([^\r\n]+;$')
+$factory=[regex]::Matches($ordinary,'(?m)^\s*internal static NativeOrdinaryAcquisitionProbe ForAssistedFixture\([^\r\n]+;\r?$')
 if($factory.Count-ne1){throw 'Missing/ambiguous actual assisted probe factory.'}
 $constructors=(Member $ordinary 'internal NativeOrdinaryAcquisitionProbe(Func<UnitEntityData> actor)')+[Environment]::NewLine+$factory[0].Value.TrimStart()+[Environment]::NewLine+(Member $ordinary 'private NativeOrdinaryAcquisitionProbe(')
 $template=[IO.File]::ReadAllText((Source 'tests/Chunk7Diagnostics/AssistedFixtureProbeTemplate.cs'))

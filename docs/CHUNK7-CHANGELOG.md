@@ -1,10 +1,10 @@
 # Kingmaker Mounted Combat: Chunk 7 changelog (since preview.211)
 
-Status: DRAFT for a private engineering candidate. It is not a public release.
+Status: private engineering qualification PASS. It is not a public release.
 Baseline: released `v0.1.0-chunk6-preview.211` (package version `0.1.0-chunk6d-preview.211`).
 Retained F6 candidate: `0.1.0-chunk7b-preview.95` at `ebeaf8f6`, partial FAIL.
-The reviewed preview.96 diagnostic correction awaits native qualification. Final qualification is
-IN PROGRESS; exact identities and current gates are in the
+Current candidate: `0.1.0-chunk7b-preview.96` at `650dd8a3`. Its corrected r09 pilot passed;
+F7 final qualification passed all 81 rows. Exact identities and current gates are in the
 [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md).
 
 Note on history: the Chunk 7 branch does not descend from the preview.211 release merge (`7fa667b2`).
@@ -97,7 +97,7 @@ This list compares product source with `7fa667b2` and cites the Chunk 7 commits 
   (batch200) and capital rows 58 and 59 PASS (batch199). Incapacitation row 57 PASS was on an earlier
   candidate (batch197, DLL `c0fa0ebe…`). Death proper, Rapid Shot attack modes, the disengagement
   attack of opportunity, staged moving actions and real-time Charge with a melee weapon PASS on DLL
-  `feca06e9…` (batch205). **F6 exact-package qualification is IN PROGRESS.**
+  `feca06e9…` (batch205). **F7 exact-package qualification passed; F6 remains a retained partial FAIL.**
 - Final diagnostic corrections preserve native debt, use reference-stable subscriber serials,
   search valid native movement geometry, and require candidate-version-bound observations.
-  The affected preview.95 pilot passed; final matrix credit remains pending.
+  The affected pilots and the final preview.96 matrix passed; no pilot result transfers into final credit.

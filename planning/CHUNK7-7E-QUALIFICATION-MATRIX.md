@@ -1,8 +1,11 @@
 # Chunk 7 — 7E final private qualification matrix
 
-Status: **IN PROGRESS.** This is the finite matrix for the final private candidate.
-F5 is retained incomplete; the corrected F6 candidate has not been frozen.
-See [the active takeover checkpoint](../docs/CHUNK7-CODEX-TAKEOVER-2026-10-26.md).
+Status: **PASS** on F7 preview.96, source `650dd8a3`: all 81 rows / 82 planned launches.
+See the [final row record](../docs/CHUNK7-FINAL-QUALIFICATION-2026-10-27.md) and
+[engineering closeout](../docs/CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact
+results, retained failures, exclusions, restoration and pending owner acceptance.
+The development chronology below remains evidence; its earlier blockers and
+next actions do not supersede the final closeout or authorize repeated campaigns.
 The original declaration was written October 23, 2026 at `174f5b2b`. Sources:
 - the [requirement table](CHUNK7-COMPLETION-MISSION.md) and its §8–9;
 - the [original matrices](CHUNK7-ORIGINAL-SCOPE-AND-MATRICES.md);
