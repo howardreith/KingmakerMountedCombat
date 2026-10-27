@@ -34,13 +34,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var delta = target.Position - horseMoveStart; delta.y = 0f;
             Require(delta.sqrMagnitude > .01f, "Native target direction is unavailable for the independent Horse.");
             var toward = delta.normalized; var candidates = new JArray();
+            // v3 (F6): v2 plus both full-activation paired moves carry their searched step destination (ClickSearchedPairedStep).
             // v2: the destination search is required; a reader recomputes each preview's residual and displacement from the
             // Horse's position in the paused "before" snapshot (horseMoveStart, the same frame).
             var move = new JObject { ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["before"] = WorldSnapshot("horse-independent-move-before"),
                 ["destinationSearch"] = new JObject { ["contract"] = "native-tb-ground-step-destination-v1",
                     ["approachRadius"] = NativeGroundStepDestinationPolicy.NativeGroundApproachRadius,
                     ["minimumNativeApproach"] = NativeGroundStepDestinationPolicy.MinimumNativeApproach, ["candidates"] = candidates } };
-            firstActionMount = new JObject { ["contract"] = "owner-seed-tb-first-action-mount-v2", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
+            firstActionMount = new JObject { ["contract"] = "owner-seed-tb-first-action-mount-v3", ["riderId"] = ar.UniqueId, ["mountId"] = am.UniqueId,
                 ["neighbourOwnerId"] = b.Relationship.PairOwner?.Id.ToString(), ["neighbourGeneration"] = b.Relationship.MountedPairGeneration,
                 ["horseMove"] = move };
             evidence["firstActionMount"] = firstActionMount;

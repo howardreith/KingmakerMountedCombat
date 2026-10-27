@@ -498,6 +498,16 @@ $horseStepV2Search='{"contract":"native-tb-ground-step-destination-v1","approach
 $horseStepV2={param($v)$f=$v.artifact.observations.firstActionMount;$f.contract='owner-seed-tb-first-action-mount-v2';$m=$f.horseMove
  $m|Add-Member destinationSearch ($horseStepV2Search|ConvertFrom-Json) -Force;$m|Add-Member destination @($m.destinationSearch.candidates[12].destination) -Force;$m|Add-Member bearingOffset (-135.0) -Force;$m.requestedDistance=0.500000536
  foreach($row in $m.before.actors){if($row.id-ceq$v.request.ownedPairs.mountAId){$row|Add-Member position ([pscustomobject][ordered]@{x=-19.9680843;y=0.497627676;z=-12.4710951}) -Force}}}
+# Contract v3 (F6 rows 7/8): each full-activation paired move gets a synthetic two-candidate search (labelled synthetic): the
+# first bearing's preview stays at the mount (refused), the second reaches its destination (admitted).
+$pairedStepV3={param($v)$o=$v.artifact.observations;$s=$v.request.ownedPairs;$o.firstActionMount.contract='owner-seed-tb-first-action-mount-v3'
+ foreach($p in 0,1){$mv=@($o.activations|Where-Object pair -EQ $p)[0].movement;$mount=if($p-eq0){$s.mountAId}else{$s.mountBId};$step=if($p-eq0){0.75}else{0.5}
+  $pos=@($mv.before.actors|Where-Object id -CEQ $mount)[0].position;$start=@([double]$pos.x,[double]$pos.y,[double]$pos.z)
+  $rows=@();foreach($k in 0,1){$angle=$k*22.5*[Math]::PI/180;$dest=@(($start[0]+$step*[Math]::Sin($angle)),$start[1],($start[2]+$step*[Math]::Cos($angle)))
+   if($k-eq0){$rows+=[pscustomobject][ordered]@{bearingOffset=0.0;destination=$dest;previewUnitId=$mount;freshPreview=$true;previewState='Complete';previewPoints=2;previewEnd=$start;endResidual=$step;displacement=0.0;reason='preview-ends-away-from-destination'}}
+   else{$rows+=[pscustomobject][ordered]@{bearingOffset=22.5;destination=$dest;previewUnitId=$mount;freshPreview=$true;previewState='Complete';previewPoints=2;previewEnd=$dest;endResidual=0.0;displacement=$step;reason='admitted'}}}
+  $mv|Add-Member destinationSearch ([pscustomobject][ordered]@{contract='native-tb-paired-step-destination-v1';stepDistance=$step;approachRadius=0.3;minimumNativeApproach=0.1;candidates=$rows}) -Force
+  $mv|Add-Member destination @($rows[1].destination) -Force;$mv|Add-Member bearingOffset 22.5 -Force;$mv|Add-Member requestedDistance $step -Force}}
 function Check-SeedCombat([string]$Name,[string]$Base,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcOwnerSeedDerivedCombatFixture $Base;&$Mutation $v;Check $Name {Invoke-OwnedReader $v} $true $Pattern}
 foreach($base in @('combat-rider-first','combat-mount-first','realtime-core')){
  Check ('owner-seed-derived combat evidence accepted '+$base) {Invoke-OwnedReader (New-KmcOwnerSeedDerivedCombatFixture $base)}
@@ -1642,6 +1652,18 @@ foreach($base in @('combat-rider-first','combat-mount-first')){
   $d.candidates[0]=[pscustomobject][ordered]@{bearingOffset=0.0;destination=$d.candidates[0].destination;reason='native-handler-not-ground';detail='The native click handler is not the ground handler.'};Invoke-OwnedReader $v}
  Check ('owner-seed-derived TB v2 admits an incomplete preview without an end '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;$y=$v.artifact.observations.firstActionMount.horseMove.destinationSearch.candidates[10]
   $y.previewState='Error';$y.previewEnd=$null;$y.endResidual=$null;$y.displacement=$null;$y.reason='no-completed-native-preview';Invoke-OwnedReader $v}
+ # Contract v3 (F6): both full-activation paired moves carry their searched step (0.75 m pair A, 0.5 m pair B).
+ Check ('owner-seed-derived TB v3 admits searched paired steps '+$base) {$v=New-KmcOwnerSeedDerivedCombatFixture $base;&$horseStepV2 $v;&$pairedStepV3 $v;Invoke-OwnedReader $v}
+ foreach($fault in @('missing-pair-a-search','missing-pair-b-search','pair-a-half-step','foreign-preview-unit','residual-forged','passed-over-admitted','chose-refused','other-destination','other-bearing','requested-distance','extra-field','bearing-order','destination-off-step','v2-with-search','start-moved','admitted-inside-bound')){
+  Check-SeedCombat ('owner-seed-derived TB v3 refuses a paired step search with '+$fault+' '+$base) $base {&$horseStepV2 $args[0];&$pairedStepV3 $args[0];$o=$args[0].artifact.observations
+   $ma=@($o.activations|Where-Object pair -EQ 0)[0].movement;$mb=@($o.activations|Where-Object pair -EQ 1)[0].movement;$d=$ma.destinationSearch;$x=$d.candidates[1];$y=$d.candidates[0]
+   switch($fault){'missing-pair-a-search'{$ma.PSObject.Properties.Remove('destinationSearch')};'missing-pair-b-search'{$mb.PSObject.Properties.Remove('destinationSearch')};'pair-a-half-step'{$d.stepDistance=0.5}
+    'foreign-preview-unit'{$x.previewUnitId=$args[0].request.ownedPairs.riderBId};'residual-forged'{$x.endResidual=0.2};'passed-over-admitted'{$y.reason='admitted'};'chose-refused'{$d.candidates=@($y)}
+    'other-destination'{$ma.destination=$y.destination};'other-bearing'{$ma.bearingOffset=0.0};'requested-distance'{$ma.requestedDistance=0.5};'extra-field'{$d|Add-Member note 'x'}
+    'bearing-order'{$x.bearingOffset=-22.5};'destination-off-step'{$x.destination=@(([double]$x.destination[0]+0.2),$x.destination[1],$x.destination[2])}
+    'v2-with-search'{$o.firstActionMount.contract='owner-seed-tb-first-action-mount-v2'};'start-moved'{foreach($row in $ma.before.actors){if($row.id-ceq$args[0].request.ownedPairs.mountAId){$row.position.x=[double]$row.position.x+0.3}}}
+    'admitted-inside-bound'{$s=$args[0].request.ownedPairs;$p=@($ma.before.actors|Where-Object id -CEQ $s.mountAId)[0].position;$x.previewEnd=@(([double]$p.x+0.35),[double]$p.y,[double]$p.z);$x.displacement=0.35;$x.endResidual=[Math]::Sqrt([Math]::Pow([double]$x.destination[0]-[double]$p.x-0.35,2)+[Math]::Pow([double]$x.destination[2]-[double]$p.z,2))}}}
+ }
  Check-SeedCombat ('owner-seed-derived TB refuses pair B ownership change during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;@($t.after.owners)[1].generation=99} 'ownership changed'
  Check-SeedCombat ('owner-seed-derived TB refuses pair B spending during the Mount '+$base) $base {$t=$args[0].artifact.observations.firstActionMount.mountTurn;foreach($row in $t.after.actors){if($row.id-ceq$args[0].request.ownedPairs.riderBId){$row.standard=6.0}}}
 }

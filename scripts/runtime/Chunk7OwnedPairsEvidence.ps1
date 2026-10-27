@@ -1561,12 +1561,62 @@ function Assert-KmcChunk7HorseStepDestinationRecomputed($Move,[string]$MountId){
   if($x.reason-ceq'admitted'-and($residual-gt0.3+1e-6-or$displacement-lt0.4-1e-6)){throw 'The independent Horse step preview did not reach outside the native approach radius.'}
  }
 }
+# Contract v3 (F6, rows 7/8): each full-activation paired move carries its searched step destination
+# (native-tb-paired-step-destination-v1). The declared step stays 0.75 m for pair A and 0.5 m for pair B; candidates follow the
+# bearing order from the mount's position in the move's paused before snapshot; residual and displacement are recomputed by
+# MechanicsDistance within 1e-4 of the recorded float32 values; the consumed preview belongs to the moving pair; reasons follow
+# from the data; only the last candidate is admitted and it is the clicked destination.
+function Assert-KmcChunk7PairedStepDestinationRecomputed($Move,[string]$MountId,[string[]]$PairIds,[double]$Step){
+ if($null-eq$Move.PSObject.Properties['destinationSearch']){throw 'The v3 full-activation move lacks its paired step destination search.'}
+ $d=$Move.destinationSearch;Assert-KmcExactProperties $d @('contract','stepDistance','approachRadius','minimumNativeApproach','candidates') 'paired step destination search'
+ Assert-KmcBootstrapInventoryString $d.contract 'native-tb-paired-step-destination-v1'
+ foreach($p in @(@('stepDistance',$Step),@('approachRadius',0.3),@('minimumNativeApproach',0.1))){if(-not(Test-KmcChunk7FiniteNumber $d.($p[0]))-or[Math]::Abs([double]$d.($p[0])-[double]$p[1])-gt1e-6){throw 'The paired step search constants differ.'}}
+ if($d.candidates-isnot[Array]){throw 'The paired step search is malformed.'};$c=@($d.candidates)
+ if($c.Count-lt1-or$c.Count-gt16){throw 'The paired step search is empty or unbounded.'}
+ $actor=Get-KmcChunk7CombatActor $Move.before $MountId
+ Assert-KmcAssistedObjectValue $actor.position @('x','y','z') 'paired step start'
+ $start=ConvertTo-KmcChunk7HorseStepPoint @($actor.position.x,$actor.position.y,$actor.position.z) 'The paired step start'
+ $offsets=@(0.0);for($i=1;$i-lt16;$i++){$offsets+=$(if($i%2-eq1){1.0}else{-1.0})*22.5*[Math]::Floor(($i+1)/2)};$offsets[15]=180.0
+ for($i=0;$i-lt$c.Count;$i++){
+  $x=$c[$i];$last=$i-eq$c.Count-1
+  if(-not(Test-KmcChunk7FiniteNumber $x.bearingOffset)-or[double]$x.bearingOffset-ne$offsets[$i]){throw 'The paired step search is not in its declared bearing order.'}
+  $destination=ConvertTo-KmcChunk7HorseStepPoint $x.destination 'The paired step destination'
+  $flat=[Math]::Sqrt(($destination[0]-$start[0])*($destination[0]-$start[0])+($destination[2]-$start[2])*($destination[2]-$start[2]))
+  if([Math]::Abs($flat-$Step)-gt1e-4-or[Math]::Abs($destination[1]-$start[1])-gt1e-4){throw 'The paired step destination is not its declared step from the mount.'}
+  if($x.reason-ceq'native-handler-not-ground'){Assert-KmcExactProperties $x @('bearingOffset','destination','reason','detail') 'paired refused step';if($x.detail-isnot[string]-or$last){throw 'The paired step refusal is malformed or was chosen.'};continue}
+  Assert-KmcExactProperties $x @('bearingOffset','destination','previewUnitId','freshPreview','previewState','previewPoints','previewEnd','endResidual','displacement','reason') 'paired step candidate'
+  if($x.previewUnitId-isnot[string]-or$x.previewUnitId-cnotin$PairIds){throw 'The paired step preview belongs to another unit.'}
+  if($x.freshPreview-isnot[bool]){throw 'The paired step preview freshness is not boolean.'}
+  if($null-ne$x.previewState-and$x.previewState-isnot[string]){throw 'The paired step preview state is malformed.'}
+  if($null-ne$x.previewPoints){Assert-KmcOrdinaryInteger $x.previewPoints 0 ([int]::MaxValue)}
+  $complete=$x.previewState-ceq'Complete'-and$null-ne$x.previewPoints-and[long]$x.previewPoints-gt0
+  if(-not$complete){foreach($k in @('previewEnd','endResidual','displacement')){if($null-ne$x.$k){throw 'An incomplete paired step preview carries an end.'}};if($x.reason-cne'no-completed-native-preview'-or$last){throw 'The paired step reason differs from its preview.'};continue}
+  $end=ConvertTo-KmcChunk7HorseStepPoint $x.previewEnd 'The paired step preview end'
+  foreach($k in @('endResidual','displacement')){if(-not(Test-KmcChunk7FiniteNumber $x.$k)){throw 'The paired step preview distances are not finite.'}}
+  $residual=Get-KmcChunk7MechanicsDistance $end $destination;$displacement=Get-KmcChunk7MechanicsDistance $end $start
+  if([Math]::Abs($residual-[double]$x.endResidual)-gt1e-4-or[Math]::Abs($displacement-[double]$x.displacement)-gt1e-4){throw 'The paired step preview distances differ from its recorded end, destination and start.'}
+  $reason=Get-KmcChunk7HorseStepReason $x.freshPreview $true ([double]$x.endResidual) ([double]$x.displacement)
+  if($x.reason-cne$reason){throw 'The paired step reason differs from its preview.'}
+  if(($reason-ceq'admitted')-ne$last){throw 'The paired step search passed over an admitted destination or chose none.'}
+  if($last-and($residual-gt0.3+1e-6-or$displacement-lt0.4-1e-6)){throw 'The paired step preview did not reach outside the native approach radius.'}
+ }
+ $x=$c[$c.Count-1]
+ if(-not(Test-KmcChunk7FiniteNumber $Move.bearingOffset)-or[double]$Move.bearingOffset-ne[double]$x.bearingOffset){throw 'The paired move is not its admitted destination.'}
+ Assert-KmcAssistedSame $Move.destination $x.destination 'paired admitted destination'
+ if(-not(Test-KmcChunk7FiniteNumber $Move.requestedDistance)-or[Math]::Abs([double]$Move.requestedDistance-$Step)-gt1e-4){throw 'The paired move is not its declared step.'}
+}
 function Assert-KmcChunk7OwnerSeedFirstActionMount($Request,$Observations){
  $o=$Observations;$s=$Request.ownedPairs;$ids=@($o.actorIds)
  if($null-eq$o.PSObject.Properties['firstActionMount']){throw 'Owner-seed-derived TB lacks its first-action Mount.'}
  # v1 (F2 and earlier, and the 4e6cd034-91437a41 producers) keeps its original verdict; v2 requires the recomputed search.
- $f=$o.firstActionMount;$v2=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v2'
- Assert-KmcBootstrapInventoryString $f.contract $(if($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})
+ $f=$o.firstActionMount;$v3=$f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v3'
+ $v2=$v3-or($f.contract-is[string]-and$f.contract-ceq'owner-seed-tb-first-action-mount-v2')
+ Assert-KmcBootstrapInventoryString $f.contract $(if($v3){'owner-seed-tb-first-action-mount-v3'}elseif($v2){'owner-seed-tb-first-action-mount-v2'}else{'owner-seed-tb-first-action-mount-v1'})
+ # v3 (F6): both full-activation paired moves carry their searched step; v1/v2 producers clicked a fixed point and keep their path.
+ $acts=@($o.activations)
+ for($p=0;$p-lt2;$p++){$act=@($acts|Where-Object pair -EQ $p);if($act.Count-ne1){throw 'Owner-seed first-action Mount lacks its full pair activation.'};$mv=$act[0].movement
+  if($v3){$pairIds=if($p-eq0){@($s.riderAId,$s.mountAId)}else{@($s.riderBId,$s.mountBId)};Assert-KmcChunk7PairedStepDestinationRecomputed $mv $pairIds[1] $pairIds $(if($p-eq0){0.75}else{0.5})}
+  elseif($null-ne$mv.PSObject.Properties['destinationSearch']){throw 'A pre-v3 first-action Mount carries a paired step search.'}}
  Assert-KmcBootstrapInventoryString $f.riderId $s.riderAId;Assert-KmcBootstrapInventoryString $f.mountId $s.mountAId
  $m=$f.horseMove;foreach($key in @('clicked','terminal')){Assert-KmcChunk7Boolean $m.$key $true}
  if($m.round-ne$o.r1.independentRound-or-not(Test-KmcChunk7FiniteNumber $m.distance)-or[double]$m.distance-le0.02-or$m.command-eq0){throw 'The independent Horse did not take its own native move on its released turn.'}
