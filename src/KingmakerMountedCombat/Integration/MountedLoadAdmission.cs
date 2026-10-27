@@ -48,11 +48,20 @@ namespace KingmakerMountedCombat.Integration
                 {
                     // Inspect a clone; keep the UI descriptor's handle and the
                     // currently loaded world's semantic state out of this read.
+                    // Admission reads with the same format SelectLoad will restore: the
+                    // schema-1/2 reader reports every all-pair (schema-3) archive as Future,
+                    // which refused KMC's own two-pair saves (observed natively in
+                    // 20261018-c7b-world25-ownerseed-b3s2-load).
                     using (var reader = save.Saver.Clone())
-                        rejection = MountedLoadAdmissionPolicy.Rejection(NativeMountedSaveStorage.Read(reader),
-                            save.GameId, save.Area?.AssetGuidThreadSafe, Enabled, settings.EnablePairedActivation,
-                            settings.EnableUnifiedMountedTurn, settings.EnablePairedCommandScheduler,
-                            SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue);
+                        rejection = ArchiveNativeEnabled
+                            ? MountedLoadAdmissionPolicy.Rejection(NativeMountedSaveStorage.ReadArchive(reader),
+                                save.GameId, save.Area?.AssetGuidThreadSafe, Enabled, settings.EnablePairedActivation,
+                                settings.EnableUnifiedMountedTurn, settings.EnablePairedCommandScheduler,
+                                SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue)
+                            : MountedLoadAdmissionPolicy.Rejection(NativeMountedSaveStorage.Read(reader),
+                                save.GameId, save.Area?.AssetGuidThreadSafe, Enabled, settings.EnablePairedActivation,
+                                settings.EnableUnifiedMountedTurn, settings.EnablePairedCommandScheduler,
+                                SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue);
                 }
             }
             catch (Exception exception)

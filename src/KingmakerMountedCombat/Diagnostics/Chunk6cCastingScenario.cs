@@ -408,10 +408,13 @@ namespace KingmakerMountedCombat.Diagnostics
             ["raw"] = new JArray(actor.Commands.Raw.Select(c => c == null ? JValue.CreateNull() : new JValue(
                 c.GetType().Name + ":" + (c.IsFinished ? "finished" : c.IsRunning ? "running" : "pending")))),
             ["queue"] = new JArray(actor.Commands.Queue.Select(c => new JValue(c.GetType().Name))) };
-        // Turn-based remount after a life row. The product admits the combat Mount transition only on
-        // an ACTING rider turn (CM01-combat-mount-preparing-refused: frozen 203 mounted TB clicked Mount
-        // one frame after the rider's new turn prepared and the shell was interrupted at once), and a
-        // native turn becomes Acting only through a real order. The fixture therefore issues one bounded
+        // Turn-based remount after a life row. When written, the product admitted the combat Mount
+        // transition only on an ACTING rider turn; since 2026-10-18 it also admits the prepared
+        // (Preparing) turn. Correction (batch6-product-review01): the frozen 203 artifact
+        // (c6-staged203-o-casting-mounted-tb, frame 6676) shows the turn already Acting, the click
+        // admitted (refusal delta 0) and the shell held unstarted by an active WaitingForUI guard until
+        // the leaf deadline, not interrupted. A native turn becomes Acting only through a real order or
+        // an admitted command. The fixture issues one bounded
         // native ground order first (the 6A acting-turn setup pattern) and clicks Mount once the turn is
         // Acting. Every order and click is recorded with its native outcome, a shell that finished
         // unmounted releases the latch for a bounded retry, and exhausted attempts fail the row explicitly.

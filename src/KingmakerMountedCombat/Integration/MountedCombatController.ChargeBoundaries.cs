@@ -15,18 +15,29 @@ namespace KingmakerMountedCombat.Integration
     {
         private static readonly FieldInfo NativeModeEnabled = NativeCombatActorPersistence.Field(
             typeof(CombatController), "m_Enabled", 0x04000649, typeof(bool));
-        private readonly MountedChargeBoundaryQueue chargeBoundaries = new MountedChargeBoundaryQueue();
+        // Only the world's primary combat adapter owns the native replay queue.
+        // Other pair controllers delegate before touching permits or queue state.
+        private MountedChargeBoundaryQueue chargeBoundaries;
+        private MountedCombatController BoundaryCoordinator => relationship?.World?.Primary.Combat ?? this;
+        private MountedChargeBoundaryQueue ChargeBoundaries => chargeBoundaries ?? (chargeBoundaries = new MountedChargeBoundaryQueue());
+        private bool DrainBoundaryOwners(string reason) => relationship?.World?.DrainChargeOwnership(reason) ?? TryDrainChargeOwnership(reason);
         private bool replayingChargeBoundary;
         private CombatController chargeBoundaryPermitController;
         private MountedChargeBoundaryKind chargeBoundaryPermitKind;
         private bool chargeBoundaryPermitValue, chargeBoundaryPermit;
         private UnitEntityData chargeRemovalPermit;
         internal Func<bool> ChargeArchiveWorkerRunning { private get; set; }
-        private bool ChargeSerializationBusy => relationship?.SaveSerializationSuspended == true || ChargeArchiveWorkerRunning?.Invoke() == true;
-        internal bool ChargeNativeBoundaryPending => chargeBoundaries?.Pending == true;
+        private bool ChargeSerializationBusy => relationship?.World?.SerializationBusy ??
+            (relationship?.SaveSerializationSuspended == true || ChargeArchiveWorkerRunning?.Invoke() == true);
+        internal bool ChargeNativeBoundaryPending => ReferenceEquals(BoundaryCoordinator, this) ? chargeBoundaries?.Pending == true :
+            BoundaryCoordinator.ChargeNativeBoundaryPending;
         private static bool ChargeNativeWorldLoading => LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any();
         internal event Action<bool> ChargeNativeModeResumed;
-        internal void CompleteChargeNativeMode(bool enabled) => ChargeNativeModeResumed?.Invoke(enabled);
+        internal void CompleteChargeNativeMode(bool enabled)
+        {
+            if (!ReferenceEquals(BoundaryCoordinator, this)) { BoundaryCoordinator.CompleteChargeNativeMode(enabled); return; }
+            ChargeNativeModeResumed?.Invoke(enabled);
+        }
 
         // Native Activate refreshes the current setting through the same handler
         // as a real mode change. Enable/Disable return immediately when this
@@ -36,12 +47,13 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool AdmitChargeNativeBoundary(CombatController controller, MountedChargeBoundaryKind kind, bool value)
         {
+            if (!ReferenceEquals(BoundaryCoordinator, this)) return BoundaryCoordinator.AdmitChargeNativeBoundary(controller, kind, value);
             if (chargeBoundaryPermit && ReferenceEquals(controller, chargeBoundaryPermitController) &&
                 kind == chargeBoundaryPermitKind && value == chargeBoundaryPermitValue)
             { chargeBoundaryPermit = false; return true; }
-            if (!ChargeSerializationBusy && !ChargeNativeBoundaryPending && TryDrainChargeOwnership("native-" + kind)) return true;
+            if (!ChargeSerializationBusy && !ChargeNativeBoundaryPending && DrainBoundaryOwners("native-" + kind)) return true;
             var world = Game.Instance.Player;
-            chargeBoundaries.Enqueue(kind, controller, () => ReferenceEquals(world, Game.Instance?.Player) &&
+            ChargeBoundaries.Enqueue(kind, controller, () => ReferenceEquals(world, Game.Instance?.Player) &&
                 ReferenceEquals(controller, Game.Instance.TurnBasedCombatController) &&
                 (kind == MountedChargeBoundaryKind.Mode ? SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue == value :
                  kind != MountedChargeBoundaryKind.PartyCombat || world.IsInCombat == value), () =>
@@ -64,18 +76,20 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool AdmitChargeActorRemoval(CombatController controller, UnitEntityData unit)
         {
+            if (!ReferenceEquals(BoundaryCoordinator, this)) return BoundaryCoordinator.AdmitChargeActorRemoval(controller, unit);
             if (ReferenceEquals(unit, chargeRemovalPermit) && ReferenceEquals(controller, chargeBoundaryPermitController))
             { chargeRemovalPermit = null; return true; }
-            if (unit != null && (chargeBoundaries.Contains(MountedChargeBoundaryKind.RiderRemoval, unit) ||
-                chargeBoundaries.Contains(MountedChargeBoundaryKind.MountRemoval, unit))) return false;
-            var owner = chargeOwner;
-            var exactRider = owner?.Rider ?? relationship.Rider;
-            var exactMount = owner?.Mount ?? relationship.Mount;
+            if (unit != null && (ChargeBoundaries.Contains(MountedChargeBoundaryKind.RiderRemoval, unit) ||
+                ChargeBoundaries.Contains(MountedChargeBoundaryKind.MountRemoval, unit))) return false;
+            var pairCombat = relationship?.World?.ForActor(unit)?.Combat ?? this;
+            var owner = pairCombat.chargeOwner;
+            var exactRider = owner?.Rider ?? pairCombat.relationship?.PairOwner?.Rider ?? pairCombat.relationship?.Rider;
+            var exactMount = owner?.Mount ?? pairCombat.relationship?.PairOwner?.Mount ?? pairCombat.relationship?.Mount;
             if (unit == null || unit != exactRider && unit != exactMount) return true;
             var kind = unit == exactRider ? MountedChargeBoundaryKind.RiderRemoval : MountedChargeBoundaryKind.MountRemoval;
-            if (!ChargeSerializationBusy && TryDrainChargeOwnership("native-pair-actor-removal")) return true;
+            if (!ChargeSerializationBusy && pairCombat.TryDrainChargeOwnership("native-pair-actor-removal")) return true;
             var world = Game.Instance.Player;
-            chargeBoundaries.Enqueue(kind, unit, () => ReferenceEquals(world, Game.Instance?.Player) &&
+            ChargeBoundaries.Enqueue(kind, unit, () => ReferenceEquals(world, Game.Instance?.Player) &&
                 ReferenceEquals(controller, Game.Instance.TurnBasedCombatController) && controller.Initialized &&
                 (!unit.IsInState || !unit.IsInCombat || unit.Descriptor.State.IsDead), () =>
             {
@@ -93,24 +107,27 @@ namespace KingmakerMountedCombat.Integration
 
         private void ResumeChargeNativeBoundaries()
         {
-            if (!ChargeNativeBoundaryPending || ChargeSerializationBusy) return;
-            if (!chargeBoundaries.TryDrain(() => !ChargeSerializationBusy && TryDrainChargeOwnership("deferred-native-boundary")) && chargeBoundaries.Fault != null)
+            if (!ReferenceEquals(BoundaryCoordinator, this) || !ChargeNativeBoundaryPending || ChargeSerializationBusy) return;
+            if (!chargeBoundaries.TryDrain(() => !ChargeSerializationBusy && DrainBoundaryOwners("deferred-native-boundary")) && chargeBoundaries.Fault != null)
                 LastFeedback = "Native mode/combat transition retained after failure: " + chargeBoundaries.Fault;
         }
 
         internal void RetainDestroyedActorBoundary(UnitEntityData actor, Action retire)
         {
             if (actor == null) return;
-            var owner = chargeOwner;
+            if (!ReferenceEquals(BoundaryCoordinator, this)) { BoundaryCoordinator.RetainDestroyedActorBoundary(actor, retire); return; }
+            var pairCombat = relationship?.World?.ForActor(actor)?.Combat ?? this;
+            var owner = pairCombat.chargeOwner;
             var ownsActor = owner != null && (actor == owner.Rider || actor == owner.Mount);
             if (!ChargeSerializationBusy && !ChargeNativeBoundaryPending &&
-                (!ownsActor || TryDrainChargeOwnership("pair-unit-destroyed"))) { retire(); return; }
+                (!ownsActor || pairCombat.TryDrainChargeOwnership("pair-unit-destroyed"))) { retire(); return; }
             // Retirement is exact-reference bookkeeping. It is still required if
             // another lifecycle callback has already dissolved the relationship.
-            chargeBoundaries.Enqueue(MountedChargeBoundaryKind.DestroyedActor, actor, () => true, retire);
+            ChargeBoundaries.Enqueue(MountedChargeBoundaryKind.DestroyedActor, actor, () => true, retire);
         }
 
-        internal JObject CaptureChargeNativeBoundaries() => new JObject
+        internal JObject CaptureChargeNativeBoundaries() => !ReferenceEquals(BoundaryCoordinator, this) ?
+            BoundaryCoordinator.CaptureChargeNativeBoundaries() : new JObject
         {
             ["pending"] = ChargeNativeBoundaryPending, ["replaying"] = replayingChargeBoundary,
             ["completed"] = chargeBoundaries?.Completed ?? 0, ["superseded"] = chargeBoundaries?.Superseded ?? 0,

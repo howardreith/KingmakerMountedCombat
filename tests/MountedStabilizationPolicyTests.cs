@@ -57,6 +57,10 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveNonWorldUi, false, true, false, false), "Transient stock rider visibility under non-world UI was treated as relationship invalidation.");
             TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, true, true, true, true), "Active world views were rejected.");
             TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, false, true, false, true), "Inactive rider view was accepted after returning to the world.");
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, false, true, false, true, true), "The exact open native party selector invalidated a temporarily hidden rider view.");
+            TestRunner.True(MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, true, false, true, false, true), "The exact open native party selector invalidated a temporarily hidden mount view.");
+            TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.PreserveWorldInteraction, false, true, false, true, false), "A hidden rider remained admissible after the native party selector closed.");
+            TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.CleanDismount, false, true, false, true, true), "The native party selector escaped a world-changing cleanup boundary.");
             TestRunner.True(!MountedViewActivityPolicy.IsAdmissible(MountedGameModeDisposition.CleanDismount, true, true, true, true), "A true world-changing boundary retained view activity authority.");
         }
 

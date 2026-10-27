@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using Kingmaker;
 using Kingmaker.Controllers.Units;
@@ -10,7 +11,7 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed partial class UnifiedMountedTurnCoordinator
+    internal sealed partial class MountedPairTurnParticipant
     {
         private PairedActivation<UnitEntityData, TurnController> activation;
         private UnitEntityData armedRider;
@@ -39,6 +40,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool TryConfigurePairedActivation(bool enabled)
         {
+            if (world != null) return world.TryConfigurePairedActivation(enabled);
             if (enabled == settings.EnablePairedActivation) return true;
             if (!CanConfigurePairedActivation)
             {
@@ -277,6 +279,16 @@ namespace KingmakerMountedCombat.Integration
         // A split activation still governs the partner's participation until its
         // release round has passed. Until then a fresh voluntary combat Mount is
         // refused rather than layered on top of it.
+        internal bool RetainsPairParticipation(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (disposed) return false;
+            if (pendingSplitMount != null && (ReferenceEquals(pendingSplitMount, rider) || ReferenceEquals(pendingSplitMount, mount)))
+                return true;
+            if (activation == null || !ReferenceEquals(activation.Principal, rider) || !ReferenceEquals(activation.Partner, mount))
+                return false;
+            return !CanReplaceActivationForAdoption();
+        }
+
         private bool CanReplaceActivationForAdoption()
         {
             if (activation == null) return partnerContext == null;
@@ -519,12 +531,12 @@ namespace KingmakerMountedCombat.Integration
 
         private sealed class AdoptionFault : IDisposable
         {
-            private readonly UnifiedMountedTurnCoordinator owner;
+            private readonly MountedPairTurnParticipant owner;
             internal readonly string RiderId;
             internal readonly string MountId;
             internal bool Consumed;
 
-            internal AdoptionFault(UnifiedMountedTurnCoordinator owner, string riderId, string mountId)
+            internal AdoptionFault(MountedPairTurnParticipant owner, string riderId, string mountId)
             {
                 this.owner = owner;
                 RiderId = riderId;
@@ -798,12 +810,21 @@ namespace KingmakerMountedCombat.Integration
             DisposePartnerContext();
         }
 
-        private void SplitPairedActivation(CleanupTrigger trigger)
+        private void SplitPairedActivation(CleanupTrigger trigger) =>
+            SplitPairedActivationAtRound(trigger, Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1);
+
+        // The native round is observed once by the callback boundary. Detached
+        // component probes supply that external observation without starting Unity.
+        internal void SplitPairedActivationAtRound(CleanupTrigger trigger, int currentRound)
         {
             if (activation == null) { armedRider = null; armedMount = null; return; }
             ObservePairedCosts(activation.Principal); ObservePairedCosts(activation.Partner);
+            // Retained owners still receive cleanup retries and life-state events.
+            // Their original split already fixed the native exclusion boundary;
+            // a later callback must never restart that round or grant anything.
+            if (activation.Split) return;
             activation.Detach();
-            splitReleaseRound = Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1;
+            splitReleaseRound = currentRound;
             LastSplitObservation = "split-retains-current-grant;activation=" + activation.Identity + ";trigger=" + trigger;
             logger.Info("Paired split retains mount participation until the next native round: " + LastSplitObservation);
         }
@@ -814,6 +835,18 @@ namespace KingmakerMountedCombat.Integration
         internal long PairedLifetimeRetirementCount { get; private set; }
         internal long PairedLifetimeRetirementDeferredCount { get; private set; }
         internal string LastPairedLifetimeRetirement { get; private set; } = "none";
+
+        // Area admission may retire a naturally completed encounter before the
+        // next update. It cannot discard a live actor command, preparation or
+        // split obligation, and it never clears the world expenditure ledger.
+        internal bool TrySettleExplorationParticipation()
+        {
+            if (disposed || HasUnsettledPreparation) return false;
+            if (activation == null && partnerContext == null && pendingSplitMount == null) return true;
+            if (ParticipationActors.Any(actor => actor.IsInCombat || actor.Commands == null || !actor.Commands.Empty)) return false;
+            MaintainPairedLifetime();
+            return activation == null && partnerContext == null && pendingSplitMount == null && !HasUnsettledPreparation;
+        }
 
         private void MaintainPairedLifetime()
         {
@@ -843,11 +876,6 @@ namespace KingmakerMountedCombat.Integration
                 // Encounter participation is over. Native cooldowns continue to
                 // represent any real-time recovery; removing these supplemental
                 // references never clears or refunds those native costs.
-                if (activation != null)
-                {
-                    movementState.RetireCompletedEncounterActor(activation.Principal);
-                    movementState.RetireCompletedEncounterActor(activation.Partner);
-                }
                 nativePreparationCommands.Clear();
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;

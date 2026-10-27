@@ -3,25 +3,34 @@ using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed partial class UnifiedMountedTurnCoordinator
+    internal sealed partial class MountedPairTurnParticipant
     {
-        internal IEnumerable<UnitEntityData> PersistenceActors => movementState.PersistenceActors
-            .Concat(new[] { activation?.Principal, activation?.Partner, armedRider, armedMount, pendingSplitMount })
-            .Where(u => u != null).Distinct();
+        internal IEnumerable<UnitEntityData> ParticipationActors =>
+            new[] { relationship.Rider, relationship.Mount, activation?.Principal, activation?.Partner, armedRider, armedMount, pendingSplitMount }
+                .Where(u => u != null).Distinct();
+
+        internal IEnumerable<UnitEntityData> PersistenceActors => ParticipationActors;
+
+        // The saved pending split is a live obligation, not merely archive
+        // metadata. A replaced/dismissed pair cannot retain re-entry custody.
+        internal bool HasExactPendingSplit(UnitEntityData mount, int round) =>
+            mount != null && ReferenceEquals(pendingSplitMount, mount) && pendingSplitRound == round &&
+            activation == null && armedRider == null && armedMount == null;
 
         internal bool HasUnsettledPreparation => nativePreparationCommands.Values.Any(command => command != null && !command.IsFinished) ||
-            preparingConfusionActor != null || resumingContext != null;
+            preparingConfusionActor != null || resumingContext != null || nativeConditionForfeitContext != null;
 
-        internal void CapturePersistence(SavedCombatData saved)
+        internal SavedPairedState CaptureParticipation()
         {
+            if (activation == null && armedRider == null && armedMount == null && pendingSplitMount == null) return null;
             var snapshot = activation?.Capture();
-            saved.Allocations = movementState.CapturePersistence();
-            saved.Paired = new SavedPairedState
+            return new SavedPairedState
             {
                 RiderId = (activation?.Principal ?? armedRider)?.UniqueId,
                 MountId = (activation?.Partner ?? armedMount)?.UniqueId,
@@ -43,12 +52,10 @@ namespace KingmakerMountedCombat.Integration
             };
         }
 
-        internal void RestorePersistence(SavedCombatData saved, IDictionary<string, UnitEntityData> actors)
+        internal void RestoreParticipation(SavedPairedState pair, IDictionary<string, UnitEntityData> actors, bool turnBased)
         {
-            DiscardPersistenceWorld();
-            var pair = saved.Paired;
+            DiscardParticipation();
             var controller = Game.Instance.TurnBasedCombatController;
-            movementState.RestorePersistence(saved.Allocations, actors);
             if (pair == null) return;
             armedRider = pair.RiderId == null ? null : actors[pair.RiderId];
             armedMount = pair.MountId == null ? null : actors[pair.MountId];
@@ -57,7 +64,7 @@ namespace KingmakerMountedCombat.Integration
             pendingSplitMount = pair.PendingSplitId == null ? null : actors[pair.PendingSplitId];
             pendingSplitRound = pair.PendingSplitRound;
             pairedRenewalNotBefore = pair.RenewalNotBeforeTicks;
-            lastTurnBased = saved.TurnBased;
+            lastTurnBased = turnBased;
             if (pair.Activation == null) return;
             var boundary = pair.BoundaryIsCurrent ? controller.CurrentTurn :
                 NativeTurnPersistence.Restore(pair.Boundary, actors);
@@ -67,8 +74,11 @@ namespace KingmakerMountedCombat.Integration
                     pair.Activation.ToSnapshot(), armedRider, armedMount, boundary);
                 partnerContext = NativeTurnPersistence.Restore(pair.Partner, actors);
                 preparedRiderTurn = pair.BoundaryIsCurrent ? boundary : null;
-                // The allocation remains the authority for delegated motion.
-                if (boundary != null) movementState.CopyGrantedMovementToContext(boundary);
+                // The allocation remains the authority for delegated motion. A
+                // non-current boundary is an identity marker that keeps its exact
+                // saved native values (e.g. ForceToEnd's spent step), so a resave
+                // captures what was loaded.
+                if (boundary != null && pair.BoundaryIsCurrent) movementState.CopyGrantedMovementToContext(boundary);
                 if (partnerContext != null) movementState.CopyGrantedMovementToContext(partnerContext);
                 LastInitiativeObservation = "saved-activation-rebound;identity=" + activation.Identity +
                     ";sequence=" + activation.Sequence + ";no-prepare-or-end";
@@ -81,9 +91,8 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // Diagnostics only (preview.154 CM07-mount-load-rt measurement): how often and from where the
-        // persistence world was discarded, and which activation it held at that moment. Nothing here
-        // changes behaviour; the real-time cold load lost the rebound activation without a trace.
+        // Retain the discard count for persistence observations. Managed callers and text are
+        // forensic evidence for an exact selected persistence observer, not ordinary cleanup work.
         internal long PersistenceWorldDiscardCount { get; private set; }
         internal string LastPersistenceWorldDiscardObservation { get; private set; } = "none";
 
@@ -104,21 +113,32 @@ namespace KingmakerMountedCombat.Integration
             return names.Count == 0 ? "<none>" : string.Join(" < ", names.ToArray());
         }
 
-        internal void DiscardPersistenceWorld()
+        internal void DiscardParticipation()
         {
             PersistenceWorldDiscardCount++;
-            LastPersistenceWorldDiscardObservation = "discard;count=" + PersistenceWorldDiscardCount +
-                ";activation=" + (activation?.Identity ?? "none") + ";callers=" + DescribeManagedCallers();
-            logger.Info("Persistence world discarded: " + LastPersistenceWorldDiscardObservation);
-            // World replacement is housekeeping. End/forfeit and voluntary split
-            // belong to gameplay transitions and must not run during this discard.
-            DisposePartnerContext();
-            nativePreparationCommands.Clear();
-            movementState.Clear();
-            activation = null; armedRider = null; armedMount = null; activationSession = null;
-            preparingConfusionActor = null; preparedRiderTurn = null; resumingContext = null;
-            pendingSplitMount = null; pendingSplitRound = -1; splitReleaseRound = -1;
-            pairedRenewalNotBefore = 0;
+            // Never leave a previous captured trace looking like this discard's observation.
+            LastPersistenceWorldDiscardObservation = "not-captured";
+            try
+            {
+                if (RuntimeAutomationHost.ShouldCapturePersistenceWorldDiscard(this))
+                {
+                    LastPersistenceWorldDiscardObservation = "discard;count=" + PersistenceWorldDiscardCount +
+                        ";activation=" + (activation?.Identity ?? "none") + ";callers=" + DescribeManagedCallers();
+                    logger.Info("Pair participation discarded: " + LastPersistenceWorldDiscardObservation);
+                }
+            }
+            finally
+            {
+                // World replacement is housekeeping. End/forfeit and voluntary split
+                // belong to gameplay transitions and must not run during this discard.
+                // A forensic capture/logging failure propagates after real cleanup is attempted.
+                DisposePartnerContext();
+                nativePreparationCommands.Clear();
+                activation = null; armedRider = null; armedMount = null; activationSession = null;
+                preparingConfusionActor = null; preparedRiderTurn = null; resumingContext = null; nativeConditionForfeitContext = null;
+                pendingSplitMount = null; pendingSplitRound = -1; splitReleaseRound = -1;
+                pairedRenewalNotBefore = 0;
+            }
         }
 
         private static SavedParticipation CaptureParticipation(PairedActorSnapshot actor) => actor == null ? null :

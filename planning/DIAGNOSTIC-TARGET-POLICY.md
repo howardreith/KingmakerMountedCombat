@@ -6,6 +6,18 @@ Round 2 RT/TB evidence retains exact target identity, stationary/AI leases, atta
 
 No suitable quest-independent hostile is assumed to exist in the exact Working fixture. Runtime qualification may create one project-owned diagnostic target only after the guarded loader proves the exact `KMC_AUTOMATION_WORKING` identity.
 
+### Owner-approved owner-seed-derived scope (October 17, 2026)
+
+The owner approved reusing this exact target contract on disposable copies of the owner-seed-derived Manual (`docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md`, "Owner decisions on the combat slice"). The Working rule above is unchanged for every other case. The scope is exactly:
+
+- the closed owned two-pair family's owner-seed-derived combat kinds `owner-seed-realtime-core`, `owner-seed-combat-rider-first` and `owner-seed-combat-mount-first`;
+- the runner's fresh isolated copy of the Manual `KMC_C7_SEED_WORLD` that one successful owner-seed producer wrote. The selection pins the producer run, its world-evidence SHA-256 and the Manual SHA-256, plus the accepted PASS cold-consumer receipt (`owner-seed-persistence-load`) by run id and evidence SHA-256 on that same Manual;
+- the seed and derived-save hashes stand in place of the Working identity: the loaded copy must equal the pinned derived-Manual SHA-256 and must never equal the immutable seed's SHA-256. The seed master is never loaded or written;
+- the in-game authorization is derived from the admitted copy (`Chunk7CombatTargetAuthorization.Basis`, basis `owner-seed-derived-disposable-copy`), never passed as a literal. Evidence `targetAuthorization` records the basis, the owner approval, the seed, Manual, producer and consumer pins, the area, the rider and target positions, and `placementValidated`. Its `workingSha256` stays null;
+- placement is checked before any measured step (walkable, bounded, about 3.5 m ahead of mount A). A refusal fails closed with the exact reason before the target is spawned or initiative is forced;
+- the owner-seed setup kinds (exploration and the Manual producer) and the cold consumer never create a target. The cave's own monsters are never used or commandeered.
+
+Every other fail-closed gate below applies unchanged, with the derived-copy authorization in place of the first gate for these kinds only.
 ## Selected source and lifecycle
 
 The source unit is the stock, generic, unnamed `AnimalCompanionUnitMammoth` blueprint `e7aa96d15a45238438ae4cfb476f6bb9`. It is already the exact locally proven simple melee creature and introduces no second species or rider. The spawned target is never eligible as a KMC mount, never receives a rider, and is not added to any player, companion, quest, dialogue, summon-pool, or area-script collection.
@@ -36,7 +48,7 @@ Exact local contracts and the first guarded diagnostic runs refine that lifecycl
 
 The target is forbidden unless all of these are true:
 
-- exact Working fixture identity and read/write authorization are already active;
+- exact Working fixture identity and read/write authorization are already active (or, for the owner-approved owner-seed-derived combat kinds only, the derived-copy basis above);
 - no target with the run's ID exists;
 - the source blueprint resolves exactly and is the stock Mammoth GUID;
 - the chosen position is nav-valid, open, bounded near the pair, and unrelated to a door, interaction, quest, or map object;

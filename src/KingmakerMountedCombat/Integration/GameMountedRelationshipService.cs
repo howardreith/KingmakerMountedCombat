@@ -12,7 +12,7 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed class GameMountedRelationshipService : IDisposable
+    internal sealed partial class GameMountedRelationshipService : IDisposable
     {
         private readonly IModLogger logger;
         private readonly DiagnosticSettings settings;
@@ -26,7 +26,12 @@ namespace KingmakerMountedCombat.Integration
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
+            : this(logger, settings, new MountedPairRegistry<UnitEntityData, GameMountedRelationshipService>(unit => unit.UniqueId)) { }
+
+        internal GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings,
+            MountedPairRegistry<UnitEntityData, GameMountedRelationshipService> ownership)
         {
+            Ownership = ownership ?? throw new ArgumentNullException(nameof(ownership));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             runtime = new KingmakerMountedPairRuntime(logger, settings);
@@ -137,7 +142,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             if (selection == null || selection.Count != 1 || selection[0] == null)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active supported companion." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one supported rider with an active supported companion." }, false, false));
             }
 
             var rider = selection[0];
@@ -158,23 +163,30 @@ namespace KingmakerMountedCombat.Integration
         {
             ThrowIfDisposed();
             if (coordinator.State == RelationshipState.Mounted && Rider == rider && Mount == mount &&
-                runtime.MountProfileId == profileId) return LastTransition;
+                runtime.MountProfileId == profileId && SupportedMountedProfiles.Resolve(rider, mount)?.Id == profileId) return LastTransition;
             if (!settings.EnableUnsafeMovementExperiment || !settings.EnablePairedActivation ||
                 settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
                 coordinator.State != RelationshipState.Unmounted || rider == null || mount == null ||
-                SupportedMountedProfiles.Resolve(mount.Blueprint?.AssetGuid)?.Id != profileId)
+                SupportedMountedProfiles.Resolve(rider, mount)?.Id != profileId)
                 return Record(new TransitionResult(false, coordinator.State, null,
                     new[] { "Saved mounted relationship is incompatible with the active pair/policy." }, false, false));
-            runtime.Prepare(rider, mount);
-            var result = coordinator.RestoreSaved(runtime.CreateCandidate());
-            ObserveCleanupState(result);
-            if (result.Succeeded)
+            string ownershipRefusal;
+            if (!TryReserveSavedOwnership(rider, mount, out ownershipRefusal))
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { ownershipRefusal }, false, false));
+            try
             {
-                mountedPairGeneration = checked(mountedPairGeneration + 1);
-                ResetNativeTurnBasedExitAiLeaseEvidence();
+                runtime.Prepare(rider, mount);
+                var result = coordinator.RestoreSaved(runtime.CreateCandidate());
+                ObserveCleanupState(result);
+                if (result.Succeeded)
+                {
+                    CommitSavedOwnership();
+                    ResetNativeTurnBasedExitAiLeaseEvidence();
+                }
+                else runtime.ClearPreparedPairWhenUnmounted();
+                return Record(result);
             }
-            else runtime.ClearPreparedPairWhenUnmounted();
-            return Record(result);
+            finally { CompleteOwnershipAttempt(); }
         }
 
         // Every entry point other than the one explicit voluntary combat path
@@ -245,46 +257,54 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            runtime.Prepare(rider, mount);
-
-            // Revalidated immediately before the commit, field by field, against
-            // freshly observed state.
-            if (adoptionPlan != null)
+            string ownershipRefusal;
+            if (!TryReserveOwnership(rider, mount, out ownershipRefusal))
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { ownershipRefusal }, false, false));
+            try
             {
-                string revalidationRefusal;
-                if (!adoptionAuthority.RevalidateMidEncounterAdoptionPlan(
-                        adoptionPlan, rider, mount, out revalidationRefusal))
-                {
-                    runtime.ClearPreparedPairWhenUnmounted();
-                    LastAdoptionTransactionObservation = "revalidation-refused;reason=" + revalidationRefusal;
-                    return Record(new TransitionResult(false, coordinator.State, null,
-                        new[] { revalidationRefusal }, false, false));
-                }
-            }
+                runtime.Prepare(rider, mount);
 
-            var result = coordinator.Mount(runtime.CreateCandidate(), admission);
-            ObserveCleanupState(result);
-            if (result.Succeeded)
-            {
-                mountedPairGeneration = checked(mountedPairGeneration + 1);
-                ResetNativeTurnBasedExitAiLeaseEvidence();
+                // Revalidated immediately before the commit, field by field, against
+                // freshly observed state.
                 if (adoptionPlan != null)
                 {
-                    var committedPlan = adoptionPlan.WithCommittedGeneration(mountedPairGeneration);
-                    var adoptionRefusal = adoptionAuthority.AdoptRunningEncounter(committedPlan, rider, mount);
-                    if (adoptionRefusal != null)
+                    string revalidationRefusal;
+                    if (!adoptionAuthority.RevalidateMidEncounterAdoptionPlan(
+                            adoptionPlan, rider, mount, out revalidationRefusal))
                     {
-                        return Record(CompensateRefusedAdoption(adoptionRefusal, committedPlan));
+                        runtime.ClearPreparedPairWhenUnmounted();
+                        LastAdoptionTransactionObservation = "revalidation-refused;reason=" + revalidationRefusal;
+                        return Record(new TransitionResult(false, coordinator.State, null,
+                            new[] { revalidationRefusal }, false, false));
                     }
-                    LastAdoptionTransactionObservation = "committed;" + committedPlan.Describe();
                 }
-                MountedPairActivated?.Invoke(rider, mount);
+
+                var result = coordinator.Mount(runtime.CreateCandidate(), admission);
+                ObserveCleanupState(result);
+                if (result.Succeeded)
+                {
+                    mountedPairGeneration = checked(mountedPairGeneration + 1);
+                    CommitOwnership();
+                    ResetNativeTurnBasedExitAiLeaseEvidence();
+                    if (adoptionPlan != null)
+                    {
+                        var committedPlan = adoptionPlan.WithCommittedGeneration(mountedPairGeneration);
+                        var adoptionRefusal = adoptionAuthority.AdoptRunningEncounter(committedPlan, rider, mount);
+                        if (adoptionRefusal != null)
+                        {
+                            return Record(CompensateRefusedAdoption(adoptionRefusal, committedPlan));
+                        }
+                        LastAdoptionTransactionObservation = "committed;" + committedPlan.Describe();
+                    }
+                    MountedPairActivated?.Invoke(rider, mount);
+                }
+                if (!result.Succeeded)
+                {
+                    runtime.ClearPreparedPairWhenUnmounted();
+                }
+                return Record(result);
             }
-            if (!result.Succeeded)
-            {
-                runtime.ClearPreparedPairWhenUnmounted();
-            }
-            return Record(result);
+            finally { CompleteOwnershipAttempt(); }
         }
 
         // The relationship attached but its encounter adoption was refused, so the
@@ -421,23 +441,34 @@ namespace KingmakerMountedCombat.Integration
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
             }
 
+            CancelSavedOwnershipImport();
             // Refuse before subscribers can release turn, view, or relationship ownership.
             if (ChargeCleanupBarrier != null && !ChargeCleanupBarrier(trigger))
                 return Record(new TransitionResult(false, coordinator.State, trigger,
                     new[] { "Mounted charge cleanup is incomplete; exact native ownership is retained." }, false, false));
 
-            try
+            var subscriberErrors = new List<string>();
+            var subscribers = Dismounting?.GetInvocationList();
+            if (subscribers != null) foreach (Action<CleanupTrigger> subscriber in subscribers)
             {
-                Dismounting?.Invoke(trigger);
-            }
-            catch (Exception exception)
-            {
-                logger.Exception("Mounted combat cancellation before relationship cleanup", exception);
+                try { subscriber(trigger); }
+                catch (Exception exception)
+                {
+                    subscriberErrors.Add(exception.GetType().Name + ": " + exception.Message);
+                    logger.Exception("Mounted combat cancellation before relationship cleanup", exception);
+                }
             }
 
             var result = coordinator.Dismount(trigger);
             ObserveCleanupState(result);
+            if (subscriberErrors.Count != 0)
+            {
+                cleanupRetryRequired = true; cleanupRetryTrigger = trigger;
+                result = new TransitionResult(false, result.State, trigger, result.Errors.Concat(subscriberErrors).ToArray(),
+                    result.MovementAuthorityResidual, result.PresentationResidual);
+            }
             runtime.ClearPreparedPairWhenUnmounted();
+            CompleteOwnershipAttempt();
             return Record(result);
         }
 
@@ -565,7 +596,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool IsExactActivePairUnit(UnitEntityData unit)
         {
             return coordinator.State == RelationshipState.Mounted &&
-                unit != null && (unit == runtime.Rider || unit == runtime.Mount);
+                unit != null && ReferenceEquals(Ownership.FindActive(unit), PairOwner) && PairOwner != null;
         }
 
         public bool RouteContinuousMove(ref UnitEntityData executor)
@@ -606,6 +637,7 @@ namespace KingmakerMountedCombat.Integration
         public void ValidateActivePair()
         {
             if (SaveSerializationSuspended) return;
+            RefreshOwnership();
             if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
             {
                 RetryFailedCleanupOrThrow();

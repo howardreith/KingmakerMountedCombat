@@ -43,6 +43,13 @@ namespace KingmakerMountedCombat.Diagnostics
             return MovementCaptureOverlayLease.Acquire(new UmmCaptureOverlay(UnityModManager.UI.Instance));
         }
 
+        internal static void AcquireClosedUmmLeaseRetained(out MovementCaptureOverlayLease custody)
+        {
+            // Assign before adapter construction too, so missing UI never leaves a stale out value.
+            custody = null;
+            MovementCaptureOverlayLease.AcquireRetained(new UmmCaptureOverlay(UnityModManager.UI.Instance), out custody);
+        }
+
         public bool HasInFlightCapture => queue.HasInFlightCapture;
 
         public void Enqueue(string row, string milestone, int readyFrame)

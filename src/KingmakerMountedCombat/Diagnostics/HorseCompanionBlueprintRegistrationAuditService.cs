@@ -171,7 +171,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ranger.Features, untouchedFeaturesReference, untouchedFeaturesItems, horseFeature) &&
                     HasExactHorseAppend(ranger.AllFeatures, horseFeature) && initial.RangerAppendOwned &&
                     ranger.Items.Count(item => ReferenceEquals(item.Feature, horseFeature)) == 1,
-                    "ranger-append", "The live Features surface remains byte-for-byte untouched; Items-authoritative AllFeatures preserves seven stock options and appends one eligible Horse at index 7.", ref passed, ref failed);
+                    "ranger-append", "The live Features surface remains byte-for-byte untouched; Items-authoritative AllFeatures preserves its exact historical-seven or native-twelve prefix and appends one eligible Horse.", ref passed, ref failed);
 
                 var disableSucceeded = service.SetSelectionEnabled(false);
                 selectionDisabled = disableSucceeded;
@@ -182,7 +182,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ranger.Features, untouchedFeaturesReference, untouchedFeaturesItems, horseFeature) &&
                     HasExactStockRestore(ranger.AllFeatures, horseFeature) &&
                     !ranger.Items.Any(item => ReferenceEquals(item.Feature, horseFeature)),
-                    "exact-disable-restore", "Disabling the AllFeatures lease restores the exact seven stock options without touching Features or leaving an eligible Horse residue.", ref passed, ref failed);
+                    "exact-disable-restore", "Disabling the AllFeatures lease restores its exact original ordered options without touching Features or leaving an eligible Horse residue.", ref passed, ref failed);
 
                 var enableSucceeded = service.SetSelectionEnabled(true);
                 selectionDisabled = !enableSucceeded;
@@ -270,14 +270,28 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static bool HasExactHorseAppend(BlueprintFeature[] values, BlueprintFeature horseFeature)
         {
-            return values != null && values.Length == 8 && ReferenceEquals(values[7], horseFeature) &&
-                values.Count(item => ReferenceEquals(item, horseFeature)) == 1;
+            if (values == null || values.Length < 2 || horseFeature == null ||
+                !ReferenceEquals(values[values.Length - 1], horseFeature) ||
+                values.Count(item => ReferenceEquals(item, horseFeature)) != 1) { return false; }
+            try
+            {
+                HorseCompanionBlueprintService.RequireExactRangerOptions(
+                    values.Take(values.Length - 1).ToArray(), "audit appended prefix");
+                return true;
+            }
+            catch (InvalidOperationException) { return false; }
         }
 
         private static bool HasExactStockRestore(BlueprintFeature[] values, BlueprintFeature horseFeature)
         {
-            return values != null && values.Length == 7 &&
-                !values.Any(item => ReferenceEquals(item, horseFeature));
+            if (values == null || horseFeature == null ||
+                values.Any(item => ReferenceEquals(item, horseFeature))) { return false; }
+            try
+            {
+                HorseCompanionBlueprintService.RequireExactRangerOptions(values, "audit original restore");
+                return true;
+            }
+            catch (InvalidOperationException) { return false; }
         }
 
         private static bool FeaturesStayedUntouched(

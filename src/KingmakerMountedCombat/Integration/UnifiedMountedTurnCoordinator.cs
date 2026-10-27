@@ -9,6 +9,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UnitLogic;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
@@ -66,7 +67,7 @@ namespace KingmakerMountedCombat.Integration
         public string LastTurnCandidateObservation { get; set; }
     }
 
-    internal sealed partial class UnifiedMountedTurnCoordinator : IDisposable, IMidEncounterAdoptionAuthority
+    internal sealed partial class MountedPairTurnParticipant : IDisposable, IMidEncounterAdoptionAuthority
     {
         private const int NextUnitFieldToken = 0x04000652;
         private const int ChooseNextUnitToken = 0x06000BD2;
@@ -85,7 +86,8 @@ namespace KingmakerMountedCombat.Integration
         private static int trackerProjectionDepth;
 
         private readonly GameMountedRelationshipService relationship;
-        private readonly MountedMovementStateAdapter movementState = new MountedMovementStateAdapter();
+        private readonly MountedMovementStateAdapter movementState;
+        private readonly UnifiedMountedTurnCoordinator world;
         private readonly DiagnosticSettings settings;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly IModLogger logger;
@@ -103,12 +105,16 @@ namespace KingmakerMountedCombat.Integration
         private int mountCommandEligibilityLastFrame = -1;
         private string lastMountCommandEligibilityObservation = "not-observed";
 
-        public UnifiedMountedTurnCoordinator(
+        public MountedPairTurnParticipant(
             GameMountedRelationshipService relationship,
             DiagnosticSettings settings,
             MountedPairCommandScheduler pairedCommandScheduler,
-            IModLogger logger)
+            IModLogger logger,
+            MountedMovementStateAdapter movementState,
+            UnifiedMountedTurnCoordinator world)
         {
+            this.world = world ?? throw new ArgumentNullException(nameof(world));
+            this.movementState = movementState ?? throw new ArgumentNullException(nameof(movementState));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.pairedCommandScheduler = pairedCommandScheduler ??
@@ -121,6 +127,31 @@ namespace KingmakerMountedCombat.Integration
             // event cannot express, so the authority is bound explicitly here.
             relationship.BindMidEncounterAdoptionAuthority(this);
         }
+
+        internal GameMountedRelationshipService Relationship => relationship;
+        internal bool IsDisposed => disposed;
+        internal bool BelongsToWorld(UnifiedMountedTurnCoordinator owner) => ReferenceEquals(world, owner);
+        internal bool CanRetire => !disposed && relationship.State == RelationshipState.Unmounted &&
+            !HasUnsettledPreparation && CanReplaceActivationForAdoption() && pendingSplitMount == null &&
+            (activation != null || armedRider == null && armedMount == null);
+        internal bool CanReleaseBoundary => CanRetire;
+        internal void ReleaseSettledParticipation()
+        {
+            if (!CanReleaseBoundary) throw new InvalidOperationException("Pair participation still owns native obligations.");
+            DiscardParticipation();
+        }
+        internal bool OwnsActor(UnitEntityData actor) => !disposed && actor != null &&
+            (ReferenceEquals(actor, relationship.Rider) || ReferenceEquals(actor, relationship.Mount) ||
+             ReferenceEquals(actor, activation?.Principal) || ReferenceEquals(actor, activation?.Partner) ||
+             ReferenceEquals(actor, armedRider) || ReferenceEquals(actor, armedMount) || ReferenceEquals(actor, pendingSplitMount));
+        internal bool OwnsContext(TurnController context) => !disposed && context != null &&
+            (ReferenceEquals(context, activation?.Boundary) || ReferenceEquals(context, partnerContext) ||
+             ReferenceEquals(context, preparedRiderTurn) || ReferenceEquals(context, resumingContext) ||
+             ReferenceEquals(context, nativeConditionForfeitContext));
+        internal bool OwnsCommands(UnitCommands commands) => !disposed && commands != null &&
+            ParticipationActors.Any(actor => ReferenceEquals(actor.Commands, commands));
+
+        internal static UnitEntityData NativeNextCandidate(CombatController controller) => NextUnitField.GetValue(controller) as UnitEntityData;
 
         internal bool Enabled => settings.UseLegacyUnifiedTurn;
 
@@ -176,7 +207,6 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            movementState.MaintainLifetimes();
             MaintainPairedLifetime();
             var turnBased = CombatController.IsInTurnBasedCombat();
             var controller = Game.Instance?.TurnBasedCombatController;
@@ -318,7 +348,6 @@ namespace KingmakerMountedCombat.Integration
             if (!disposed)
             {
                 BeforePairedActorRemoval(actor);
-                movementState.RetireDestroyedActor(actor);
             }
         }
         internal void HandleTurnPrepared(TurnController turn)
@@ -704,10 +733,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            EndPairedServiceParticipation();
-            movementState.Clear();
-            nativePreparationCommands.Clear();
-            DisposePartnerContext();
+            // Pair retirement releases only local subscriptions/contexts. The world
+            // owns native activation completion and allocation lifetime separately.
+            DiscardParticipation();
             relationship.MountedPairActivated -= HandleMountedPairActivated;
             relationship.Dismounting -= HandleDismounting;
             combat = null;

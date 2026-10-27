@@ -1,3 +1,113 @@
+## October 19 - preview.48 batch23 and preview.49 TB disable diagnostic
+
+Preview.48 `dc1c1f63` was packaged once (SHA-256 `f6ba06d3114a932f2d4a5cff4f3fc9335a8475c22158c7b485a4183b5ea2343e`),
+Candidate PASS 6/0 and suite frozen. Bounded batch23 used three guarded
+WhatIf/native pairs. Three-load lifecycle PASS; registered disable FAIL before
+toggle with sole `paused=false` predicate; Oleg area Auto FAIL because the
+destination is effectively capital, with no transfer or save request. All
+games exited, Mods/protected saves restored, no lock remained. The area run
+retained six policy-accepted native cache changes, not exact profile equality.
+Exact private ledger and evidence hashes are in CURRENT.md.
+
+Installed Kingmaker refuses Pause mode during active TB combat. The first
+preview.49 wait-for-Pause draft failed independent review and was replaced.
+Current source uses quiescent native TB admission and preserves synchronous
+and later-frame budget, preparation, clock, round and custody checks. Focused
+reader PASS 65/0, actual-method disable adapter PASS 48/0, final Fast PASS
+3/0 (source 147/0). Corrected-source independent review PASS receipt SHA-256
+`dbdfce391a6c52e32bdba44aa608e106e5d675fb8a312962dc3f18e83bab5ff6`;
+changed-byte native retry remains. Neither old FAIL is relabelled. PR #5 remains draft.
+
+## October 19 - preview.47 batch22 and preview.48 repair IN PROGRESS
+
+Guarded-pushed preview.47 `10cbba57` package
+`a76cf9dc50b747ad4deb553faf942d8d22ca3c0abcc3e2538a3773f5c6aedf5f`;
+Candidate 6/0 plus frozen package build 11/0. Bounded three-slot native batch22
+has three immutable FAIL results: disable prelude lost pause only after native
+RemoveUnit; three loads passed in game but external final reader rejected its
+native D-form presentation and then exposed same-frame pending rider-component
+destruction; area AfterEntry returned to Oleg, restored A, rejected B's direct
+control, and wrote no Auto. Exact timed-out automation game closed normally;
+guarded combined Mods/save and separate profile recovery both PASS. Original
+FAIL remains. Private ledger and hashes are in CURRENT.md/AUTONOMOUS-RESUME.md.
+
+Preview.48 source is under review: re-pause after native survivor, exact D/N
+reader forms, next-frame repeated settlement, all-pair area eligibility
+preflight and dynamic capital/control observations. Fast 3/0, source 147/0;
+focused reader 106/0, owner-seed repeated 29/0, owned reader 680/0, area
+reader 48/0, actual cleanup adapter 99/0, actual production area preflight
+adapter 6/0. Reader and corrected area/source independent reviews PASS,
+with the earlier missing-test review FAIL retained. No new native
+credit, PR #5 draft, no merge/release/tag/permanent installation.
+
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
+native PASS yet. Focused C#775/0 plus actual505-source compile PASS; merged
+PS501/0; required applied assisted236/0. Earlier FAILs are preserved. Exact
+scope, private review/check receipts, substitutions and next native dependencies
+are in [the active checkpoint](docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+No game/transaction is live. Finish the clean source/package review checkpoint,
+guarded-push, one proper candidate build/Candidate and suite, then selected
+migration/area/disable/refusal/removal batches. Do not stop at this source commit.
+No merge/release/tag/permanent installation, full7E or HUMAN PLAY is selected.
+
+## 2026-10-18 — Directive 4 preview.42 native batch settled
+
+## October 19 - preview.43 closure and next source group IN PROGRESS
+
+Preview.43 worker cancel/drain and nonselected-owner global save barrier now
+PASS natively. Pending-schema2 and schema1 producers remain preserved FAIL;
+their dependent cold loads were not launched. All four runs restored all three
+transactions and profile bytes exactly; no game or lock remains. The schema2
+test must preserve the correct future-data guard and derive historical metadata
+from a genuine current pending save. The schema1 observer must preserve null
+hotbar collection custody without allocating native state.
+
+Exact source/package/DLL/run hashes, durations and remaining scope are in
+[the active Directive 4 checkpoint](docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+The source freeze is closed. Compose and review the private group44 drafts,
+run focused affected checks, commit/guarded-push, then build the next candidate
+once and declare bounded native retries. Directive 4 remains IN PROGRESS.
+
+IN PROGRESS. Source b9631449 guarded-pushed; one preview.42 build, Candidate6/6
+PASS in221.2420399s. Native batch13: worker FAIL (selected all6 rather than A),
+barrier FAIL (stale templates require exact native fact observations), read-only
+stock route inventory PASS. Pending survivor producer/cold were not launched.
+All exposed surfaces restored exactly, no game/lock. Both failures require
+focused driver/observation repairs and a reviewed fresh binary/native attempt;
+neither failed output is admitted as a source. Group43 also connects schema1
+and both actual schema3 third-process consumers. Area/disable/removal/native
+refusal gates remain actionable. No owner-save or push permission is pending.
+Exact identities, observations and next work: CURRENT.md and AUTONOMOUS-RESUME.md.
+
+## 2026-10-18 — Codex Directive 4 takeover, preview.41
+
+IN PROGRESS. Published source 6652c7fe on the existing successor branch; active
+checkout moved cleanly into the dedicated repository so the original approved
+push helper can run. The former successor worktree remains frozen at the same
+source. No old history, package, failed receipt or foreign worktree was discarded.
+
+Independent review of Claude's f1e54002 PASS; one preview.41 build, Candidate 6/6
+in 388.1997642 s. TB cold regression b12s1 PASS in 104.4654715 s: completed A's
+saved 2.286 step retained exactly at both restoration phases. Zero producer b12s2
+FAIL in 115.7495532 s (game PASS, reader conflated final detached state with the
+earlier mounted attack). Both transactions restored Mods/saves/profile exactly
+and released the lock. Reader work reuses the frozen DLL/package; malformed
+scalar and conflicting actor/owner review failures are preserved and repaired
+before another independent review/native attempt. No assembly contract changed.
+
+Final reader review PASS04 and 126/0 focused checks were committed/guarded-pushed
+as 2b3d6702. Fresh zero producer b12s4 PASS (126.9279735 s) and its separate-process
+cold load b12s5 PASS (119.7310995 s) reuse the unchanged preview.41 package.
+Zero pairs/two retained owners, exact debt, native continuation and each Horse's
+independent native turn at N+1 accepted. All transaction phases restored, profile bytes exact,
+lock absent. Original b12s2 remains FAIL and b12s3 never launched. Owner-seed worker,
+pending-Mount barrier and schema2 survivor source connections are next; no new
+native result is inferred from source compilation.
+Exact evidence, commands, hashes and next work: [CURRENT](CURRENT.md),
+[resume](AUTONOMOUS-RESUME.md), [evidence](docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
+
 ## 2026-10-07 - 6C preview191 closed; coherent192 native fixture cleanup
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
@@ -5240,3 +5350,18 @@ IN PROGRESS. Complete mandatory offline umbrella passed with actual exit0 in 17.
 Native progress remains closed130:11 accepted mandatory rows /3 failed /73 unqualified,29 original failures retained. Current131 source has0 accepted native rows; no new native ID attempted during this implementation/offline interval. The 87-ID inventory records42 registered paths and45 missing exact6A paths. Source preserves the accepted positive/compensation split and causal/action/reaction proof. Changes address spent-turn Dismount using one ordinary End input, exact next native allocation and observed mounted movement; idle impossible waits fail specifically. The mount-first observer emits explicit JSON null. Unused-Swift early End and unrelated actor terminal readers are included.
 
 Next: coherent commit and guarded publication, one immutable131 package from clean published HEAD, fresh suite and unchanged proof, FULL TB FIRST. Then affected order cases and independent previously unattempted cases. Do not run the six old passing-prefix scenarios merely to reach TB. Final87-row frozen acceptance is separate; no6B until every mandatory row qualifies. Goal ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/tag/release/PR/permanent install/HUMAN PLAY inference.
+
+## 2026-10-12 — Chunk 7B–7D reviewed diagnostic checkpoint
+
+IN PROGRESS on codex/mounted-combat-chunk7-foundation, published ec06a1d44c424e701634672edf48c1f6d449e457. The sustained owner mission and current validation policy supersede historical campaign/next-command chronology above. Root is sole live executor; no game launch, staging, native save or transaction has occurred in this mission.
+
+The next source batch connects ordinary paid/new and existing Ranger acquisition through native UI and the actual level-up autosave, exact one-write scope, selector activation/fade/closure, and original-world cleanup. Nine persistence cases include guarded schema-1 native load plus a distinct schema-3 resave. World/combat/persistence diagnostics retain exact native world/actor identity, command/process/preparation/worker/UI obligations and immutable pending evidence. During explicitly owned area loading only mode refresh may use the narrower persistent-world pin; actor/save/cleanup authority remains fully fenced. Small catalogue stays empty.
+
+Independent source review reproduced and repaired foreign-world cleanup/mode refresh and native selector lifecycle defects. Strict readers preserve signed engine identities while rejecting type coercions; world reaction budget must remain unchanged. Failed private reproductions and integration attempts remain under analysis-cache/chunk7-continuation. Current exact counts, hashes, commands and next action are in CURRENT.md and AUTONOMOUS-RESUME.md. Full affected diagnostic selection is running before a clean commit/guarded push and preview.3 candidate. Preview.2 remains ineligible; its cancelled WhatIf is not a purity PASS.
+
+Final affected selection: Test-Chunk7NativeDiagnostics.ps1 PASS 28 scripts in 133.2050516 s, integrated-diagnostics05. All reviewed source is integrated; no active process. Next is clean publication, one preview.3 package and selected Candidate/guarded native admission. Counts and remaining native gates are in CURRENT.md.
+
+
+### Chunk 7 preview.3 candidate freeze — IN PROGRESS
+
+Published b97db97f8f9641eea802a725295161ebdac4ad03 through the direct guarded helper. Package creation PASS7.2583522 s; Candidate PASS15 stages/346.6120886 s; fresh current suite WhatIf PASS105.3965121 s and creation PASS42.6984282 s. Immutable candidate-world03-freeze.json binds package6e3de9177c92accb009145bcda6bb03be127fec2bdf2460851bceb3276678418, DLL096671ee0629acd32d1c3a16906bac508e7afa2d6b2a75d5890ddd2755aee2a4 and exact source/suite. No live transaction or native proof yet. Next is unchanged-candidate guarded WhatIf, then the first finite native segment. Publication wrapper auto-review rejection was resolved using direct approved operations; receipt remains preserved.

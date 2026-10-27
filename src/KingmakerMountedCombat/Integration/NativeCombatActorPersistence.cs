@@ -84,7 +84,7 @@ namespace KingmakerMountedCombat.Integration
             units.SelectMany(unit => ((Dictionary<UnitEntityData, TimeSpan>)Engaged.GetValue(unit.CombatState))
                 .Select(edge => new SavedEngagement { From = unit.UniqueId, To = edge.Key.UniqueId, SinceTicks = edge.Value.Ticks })).ToArray();
 
-        internal static void RestoreActor(UnitEntityData unit, SavedCombatActor saved, long savedGameTicks)
+        internal static void ValidateActorReferences(UnitEntityData unit, SavedCombatActor saved)
         {
             // Validate installed semantic references before changing any native debt or participation.
             long validDescriptors = 0;
@@ -97,6 +97,14 @@ namespace KingmakerMountedCombat.Integration
             foreach (var action in saved.AiActions)
                 if (!available.ContainsKey(action.BlueprintId))
                     throw new InvalidDataException("A saved AI action is absent from the loaded actor's native brain.");
+        }
+
+        internal static void RestoreActor(UnitEntityData unit, SavedCombatActor saved, long savedGameTicks)
+        {
+            ValidateActorReferences(unit, saved);
+            var available = unit.Brain == null ? new Dictionary<string, BlueprintAiAction>(StringComparer.Ordinal) :
+                unit.Brain.AvailableActions.Select(a => a.Blueprint).Distinct()
+                    .ToDictionary(a => a.AssetGuidThreadSafe, StringComparer.Ordinal);
             var state = unit.CombatState;
             // Native JoinCombat binds group ownership and the command-event
             // subscription. It performs no turn preparation or round callbacks.

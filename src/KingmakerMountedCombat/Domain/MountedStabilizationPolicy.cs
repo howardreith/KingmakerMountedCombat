@@ -82,13 +82,15 @@ namespace KingmakerMountedCombat.Domain
             bool riderActiveSelf,
             bool mountActiveSelf,
             bool riderActiveInHierarchy,
-            bool mountActiveInHierarchy)
+            bool mountActiveInHierarchy,
+            bool nativePartySelectorActive = false)
         {
-            if (gameMode == MountedGameModeDisposition.PreserveNonWorldUi)
+            if (gameMode == MountedGameModeDisposition.PreserveNonWorldUi ||
+                (gameMode == MountedGameModeDisposition.PreserveWorldInteraction && nativePartySelectorActive))
             {
-                // Full-screen UI may temporarily hide either world view through stock
-                // visibility state. Exact view identity and detach/replacement events
-                // remain the relationship authority while the world is covered.
+                // Stock UI can temporarily hide a captured world view. The native
+                // party selector is also an overlay in Default mode. Exact view
+                // identity and the remaining mounted invariants still apply.
                 return true;
             }
 

@@ -26,8 +26,9 @@ namespace KingmakerMountedCombat.Integration
         {
             var blueprint = ability?.Blueprint;
             if (blueprint == null || blueprint.AssetGuid != MountedChargeSafetyPolicy.ChargeBlueprintId) return null;
-            return MountedChargeSafetyPolicy.ShouldReject(relationship.State,
-                relationship.IsExactActivePairUnit(ability.Caster?.Unit), blueprint.AssetGuid,
+            var owner = relationship.ResolveActorOwner(ability.Caster?.Unit, true);
+            return MountedChargeSafetyPolicy.ShouldReject(owner?.State ?? RelationshipState.Unmounted,
+                owner?.IsExactActivePairUnit(ability.Caster?.Unit) == true, blueprint.AssetGuid,
                 blueprint.GetComponent<AbilityCustomCharge>()?.GetType() == typeof(AbilityCustomCharge), alreadyActed)
                 ? MountedChargeSafetyPolicy.Feedback : null;
         }

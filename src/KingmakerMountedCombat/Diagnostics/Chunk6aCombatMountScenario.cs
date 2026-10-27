@@ -114,6 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk6aGeometryChanged;
         private JObject chunk6aEncounterLiveness;
         private bool chunk6aPreparingObserved;
+        private bool chunk6aForeignTurnObserved;
         // Bounded geometry and command evidence, one sample per named boundary.
         private readonly JArray chunk6aGeometry = new JArray();
         private JObject chunk6aApproachStart;
@@ -623,11 +624,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         return;
                     }
-                    // R3 proof: while the rider's own turn is still Preparing, the
-                    // transition must be refused, and refused with the reason that
-                    // names the preparing boundary rather than a generic one. The
-                    // native turn reaches Acting after a real ground order below;
-                    // this observation precedes that separately measured setup.
+                    // Prepared-turn proof (owner decision of 2026-10-18, superseding R3 and the
+                    // historical row CM01-combat-mount-preparing-refused, which stays with its
+                    // released ledgers): in the rider's own prepared (Preparing) native turn the
+                    // transition is offered, and sampling it charges nothing. The measured Mount
+                    // below still follows a real ground order, unchanged.
                     if (turn?.Unit == rider && turn.Status == TurnController.TurnStatus.Preparing &&
                         !chunk6aPreparingObserved)
                     {
@@ -635,13 +636,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         var preparingBefore = CaptureChunk6aState("mount-preparing-before");
                         var preparing = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
                         var preparingAfter = CaptureChunk6aState("mount-preparing-after");
-                        AddRow("CM01-combat-mount-preparing-refused",
-                            !preparing.IsEnabled &&
-                                preparing.Reason != null && preparing.Reason.Contains("finished preparing") &&
+                        AddRow("CM01-combat-mount-preparing-admitted",
+                            preparing.IsEnabled &&
                                 relationship.State == RelationshipState.Unmounted &&
                                 Chunk6aUnchangedExcept((JObject)preparingBefore["rider"], (JObject)preparingAfter["rider"]) &&
                                 Chunk6aUnchangedExcept((JObject)preparingBefore["mount"], (JObject)preparingAfter["mount"]),
-                            "While the rider's own native turn was still Preparing, combat Mount was refused with the reason that names the preparing boundary, and sampling it charged nothing.",
+                            "In the rider's own prepared (Preparing) native turn combat Mount was offered, and sampling it charged nothing.",
                             new JObject
                             {
                                 ["enabled"] = preparing.IsEnabled,
@@ -652,6 +652,30 @@ namespace KingmakerMountedCombat.Diagnostics
                                 ["after"] = preparingAfter
                             });
                         return;
+                    }
+                    // Earlier-boundary negative, recorded when the native order puts another actor's
+                    // turn first: the rider's transition belongs to its own turn and is refused.
+                    if (turn != null && turn.Unit != rider && !chunk6aForeignTurnObserved && !chunk6aPreparingObserved)
+                    {
+                        chunk6aForeignTurnObserved = true;
+                        var foreignBefore = CaptureChunk6aState("mount-foreign-turn-before");
+                        var foreign = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
+                        var foreignAfter = CaptureChunk6aState("mount-foreign-turn-after");
+                        AddRow("CM01-combat-mount-foreign-turn-refused",
+                            !foreign.IsEnabled && foreign.Reason != null && foreign.Reason.Contains("rider's current turn") &&
+                                relationship.State == RelationshipState.Unmounted &&
+                                Chunk6aUnchangedExcept((JObject)foreignBefore["rider"], (JObject)foreignAfter["rider"]) &&
+                                Chunk6aUnchangedExcept((JObject)foreignBefore["mount"], (JObject)foreignAfter["mount"]),
+                            "On another actor's native turn the rider's combat Mount was refused with the reason naming the rider's own turn, and sampling it charged nothing.",
+                            new JObject
+                            {
+                                ["enabled"] = foreign.IsEnabled,
+                                ["reason"] = foreign.Reason,
+                                ["turnActor"] = turn.Unit?.UniqueId,
+                                ["turnStatus"] = turn.Status.ToString(),
+                                ["before"] = foreignBefore,
+                                ["after"] = foreignAfter
+                            });
                     }
                     // Action-economy variants may spend the mount's own earlier slot first.
                     if (TickChunk6aMountSlotExpenditure(turn)) return;

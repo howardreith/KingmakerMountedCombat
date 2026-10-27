@@ -1,3 +1,62 @@
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
+native PASS yet. Focused C#775/0 plus actual505-source compile PASS; merged
+PS501/0; required applied assisted236/0. Earlier FAILs are preserved. Exact
+scope, private review/check receipts, substitutions and next native dependencies
+are in [the active checkpoint](docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+No game/transaction is live. Finish the clean source/package review checkpoint,
+guarded-push, one proper candidate build/Candidate and suite, then selected
+migration/area/disable/refusal/removal batches. Do not stop at this source commit.
+No merge/release/tag/permanent installation, full7E or HUMAN PLAY is selected.
+
+## 2026-10-18 — Directive 4 preview.42 native batch settled
+
+## October 19 - preview.43 closure and next source group IN PROGRESS
+
+Preview.43 worker cancel/drain and nonselected-owner global save barrier now
+PASS natively. Pending-schema2 and schema1 producers remain preserved FAIL;
+their dependent cold loads were not launched. All four runs restored all three
+transactions and profile bytes exactly; no game or lock remains. The schema2
+test must preserve the correct future-data guard and derive historical metadata
+from a genuine current pending save. The schema1 observer must preserve null
+hotbar collection custody without allocating native state.
+
+Exact source/package/DLL/run hashes, durations and remaining scope are in
+[the active Directive 4 checkpoint](docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+The source freeze is closed. Compose and review the private group44 drafts,
+run focused affected checks, commit/guarded-push, then build the next candidate
+once and declare bounded native retries. Directive 4 remains IN PROGRESS.
+
+IN PROGRESS. Source b9631449 guarded-pushed; one preview.42 build, Candidate6/6
+PASS in221.2420399s. Native batch13: worker FAIL (selected all6 rather than A),
+barrier FAIL (stale templates require exact native fact observations), read-only
+stock route inventory PASS. Pending survivor producer/cold were not launched.
+All exposed surfaces restored exactly, no game/lock. Both failures require
+focused driver/observation repairs and a reviewed fresh binary/native attempt;
+neither failed output is admitted as a source. Group43 also connects schema1
+and both actual schema3 third-process consumers. Area/disable/removal/native
+refusal gates remain actionable. No owner-save or push permission is pending.
+Exact identities, observations and next work: CURRENT.md and AUTONOMOUS-RESUME.md.
+
+## 2026-10-18 — Active Directive 4 dependencies
+
+IN PROGRESS. The completed-boundary product defect is natively closed on
+preview.41 by b12s1. Zero producer b12s2 stays FAIL because its external reader
+treated a zero-mounted save as already detached during the preceding attack.
+That failed producer was not reused. Corrected reader review PASS and fresh
+b12s4 producer/b12s5 separate-process cold load PASS close the zero checkpoint.
+All exposed surfaces restored exactly; batch12 is settled.
+
+Pending survivor, save barrier, worker, area, removal and schema-1/2 cases are
+not blocked by an owner-save request; their exact owner-seed connections and
+fixtures remain independently actionable. One-pair cases need a legitimate
+unmounted/no-owner B, and positive removal needs a reference-free fixture.
+The copied push-helper restriction was resolved by using the original helper
+from the dedicated root; no publication permission is pending. No game/lock
+remains at this checkpoint. [Exact state and next command](AUTONOMOUS-RESUME.md).
+Historical blocker records below retain their original scope and dispositions.
+
 ## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205: 6C/6D/6E qualified, 6F executed, final 6A ledger 68 PASS / 18 BLOCKED / 1 FAIL (Claude)
 
 ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING for 6C, 6D and 6E on the frozen preview.205 candidate
@@ -2673,3 +2732,7 @@ The original complete offline run ended exit1 at2026-09-29T01:32:11.7872782Z: Te
 Resumed read-only identity checks verified published/local aec84a95cf058b32aec10bb14718ecde63fd2e6b with accepted f05a265 ancestry, original128 package/manifest/DLL/MVID/suite/purity hashes, and all seven128 transaction restoration records (5/5 each). Actual Steam1920/current-session offline/cloud guard PASS; Kingmaker closed. Source129 DLL2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb/MVID5e4cecda-893f-4a1f-bafb-6ef9c2a8b944 remains unchanged. The admission guard correctly refuses the dirty129 worktree; historical byte checks are not runtime admission.
 
 Next: RUN-OFFLINE-PREVIEW129-RETRY1.ps1; preserve its distinct process/log/exit receipt. No source edits during this retry. Settle-Offline129-Retry1 then coherent guarded publication, new candidate/suite and one fresh proof. Prepared freeze generator's stale suite date was corrected to the actual new suite identity; no guard weakened. Never repeat128 proof or transfer its qualification.
+
+## 2026-10-12 — active Chunk 7B–7D dependencies
+
+IN PROGRESS; no critical stop is currently established. The reviewed source checkpoint has no native evidence yet. Preview.2 is ineligible after reproduced diagnostic cleanup defects; current repairs require preview.3, fresh suite/source/package identities and complete guarded WhatIf admission. First native two-pair inventory is the prerequisite for exact Small body selection and ordinary acquisition pins. Natural XP/funds/respec availability, disposable progression targets and a qualified six-pair fixture remain unproven prerequisites, not PASS or a reason to stop independent work. Historical campaigns above are provenance only under docs/VALIDATION-POLICY.md.

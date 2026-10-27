@@ -80,6 +80,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RecordChunk6aMountOrderMounted(mountProof);
             allocationTrace.ObserveReactionResources = true;
             chunk6aOrderCompletion = new NativeTurnCompletionProbe(allocationTrace, rider, horse, combat);
+            chunk6aOrderCompletion.Install();
             chunk6aStage = 29; ResetLeafClock();
         }
         // The mounted boundary and its terminal bridge are shared by the order completion and

@@ -40,6 +40,8 @@
     <Compile Include="ChargeCohortTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\CastingSummonResidue.cs"><Link>Shared\Diagnostics\CastingSummonResidue.cs</Link></Compile>
     <Compile Include="CastingSummonResidueTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DeclaredMemberCommandPolicy.cs"><Link>Shared\Diagnostics\DeclaredMemberCommandPolicy.cs</Link></Compile>
+    <Compile Include="DeclaredMemberCommandPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\InterruptedEvidenceFinalizer.cs"><Link>Shared\Diagnostics\InterruptedEvidenceFinalizer.cs</Link></Compile>
     <Compile Include="InterruptedEvidenceFinalizerTests.cs" />
     <Compile Include="Program.cs" />
@@ -47,12 +49,22 @@
     <Compile Include="CastingFixtureSlotSnapshotTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\CastingFixtureSlotSnapshot.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RetainedObjectIdentity.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\WeakObjectSerials.cs" />
+    <Compile Include="WeakObjectSerialsTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ObservedViewAttachmentCall.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
       <Link>Shared\BuildIdentity.cs</Link>
     </Compile>
     <Compile Include="MountedRelationshipTests.cs" />
+    <Compile Include="TransformAttachmentSlotTests.cs" />
+    <Compile Include="MountedPairOwnershipTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairRegistry.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationReadiness.cs" />
+    <Compile Include="SmallProfilePolicyTests.cs" />
+    <Compile Include="MountedPresentationReadinessTests.cs" />
     <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ActorAllocationLifetimeTests.cs" />
     <Compile Include="PairedActivationTests.cs" />
@@ -82,9 +94,14 @@
     <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="BoundaryScenarioEvidenceContractTests.cs" />
     <Compile Include="MovementScreenshotCaptureTests.cs" />
+    <Compile Include="MovementOverlayCustodyTests.cs" />
     <Compile Include="MovementNavigationBoundaryPolicyTests.cs" />
     <Compile Include="MovementRadialDistanceOrderTests.cs" />
     <Compile Include="NavigationEndpointDistanceTrackerTests.cs" />
+    <Compile Include="NativeGroundStepDestinationPolicyTests.cs" />
+    <Compile Include="DoorReturnGoalPolicyTests.cs" />
+    <Compile Include="GroundGoalFootprintPolicyTests.cs" />
+    <Compile Include="Chunk7SixPairGroundGoalPolicyTests.cs" />
     <Compile Include="NativeLifecycleDeliveryLedgerTests.cs" />
     <Compile Include="NativeMountedAbilityActivationLedgerTests.cs" />
     <Compile Include="NativeAreaBoundaryProgressTests.cs" />
@@ -145,12 +162,42 @@
     <Compile Include="HorseCompanionScenarioDeadlinePolicyTests.cs" />
     <Compile Include="DiagnosticTurnTraversalPolicyTests.cs" />
     <Compile Include="TestRunner.cs" />
+    <Compile Include="StockMammothFixtureSelectionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs">
       <Link>Shared\ModLoadSmokeObservation.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallCalibrationSelection.cs">
+      <Link>Diagnostics\Chunk7SmallCalibrationSelection.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SmallFixtureSelection.cs"><Link>Shared\Chunk7SmallFixtureSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7StockMammothFixtureSelection.cs"><Link>Shared\Chunk7StockMammothFixtureSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.SmallFixture.cs"><Link>Shared\PersistenceSaveAuthorization.SmallFixture.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.StockMammothFixture.cs"><Link>Shared\PersistenceSaveAuthorization.StockMammothFixture.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ProgressionSelection.cs"><Link>Shared\Chunk7ProgressionSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryFieldSelection.cs">
+      <Link>Diagnostics\Chunk7OrdinaryFieldSelection.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs">
+      <Link>Diagnostics\Chunk7OrdinaryAcquisitionSelection.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeBootstrapSelection.cs"><Link>Shared\Chunk7NativeBootstrapSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7BootstrapInventorySelection.cs"><Link>Shared\Chunk7BootstrapInventorySelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ManualSeedSelection.cs"><Link>Shared\Chunk7ManualSeedSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7ManualDerivedSelection.cs"><Link>Shared\Chunk7ManualDerivedSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7AcquiredManualSelection.cs"><Link>Shared\Chunk7AcquiredManualSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7AssistedColdInventorySelection.cs"><Link>Shared\Chunk7AssistedColdInventorySelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.AssistedColdInventory.cs"><Link>Shared\PersistenceSaveAuthorization.AssistedColdInventory.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7AssistedFixtureSelection.cs"><Link>Shared\Chunk7AssistedFixtureSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.AssistedFixture.cs"><Link>Shared\PersistenceSaveAuthorization.AssistedFixture.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7CumulativeAcquisitionSelection.cs"><Link>Shared\Chunk7CumulativeAcquisitionSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7OwnedPairsSelection.cs"><Link>Shared\Chunk7OwnedPairsSelection.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SixPairCombatEntry.cs"><Link>Shared\Chunk7SixPairCombatEntry.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Chunk7SixPairGroundGoalPolicy.cs"><Link>Shared\Chunk7SixPairGroundGoalPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs"><Link>Shared\PersistenceSaveAuthorization.OwnedPairs.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.ProgressionManual.cs"><Link>Shared\PersistenceSaveAuthorization.ProgressionManual.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
     </Compile>
@@ -159,6 +206,9 @@
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.cs">
       <Link>Shared\RuntimeSaveAuthorization.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeSaveAuthorization.LoadRefusal.cs">
+      <Link>Shared\RuntimeSaveAuthorization.LoadRefusal.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\StopEarlyCaptureBoundary.cs">
       <Link>Shared\StopEarlyCaptureBoundary.cs</Link>
@@ -184,6 +234,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\MovementRadialDistanceOrder.cs">
       <Link>Shared\MovementRadialDistanceOrder.cs</Link>
     </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeGroundStepDestinationPolicy.cs"><Link>Shared\NativeGroundStepDestinationPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs"><Link>Shared\DoorReturnGoalPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\GroundGoalFootprintPolicy.cs"><Link>Shared\GroundGoalFootprintPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NavigationEndpointDistanceTracker.cs">
       <Link>Shared\NavigationEndpointDistanceTracker.cs</Link>
     </Compile>
@@ -214,6 +267,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAreaControlRule.cs"><Link>Shared\Domain\MountedAreaControlRule.cs</Link></Compile>
+    <Compile Include="MountedAreaControlRuleTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipAdmission.cs"><Link>Shared\Domain\MountedRelationshipAdmission.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAuthorityPolicy.cs"><Link>Shared\Domain\MountedAuthorityPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAdmissionPhase.cs"><Link>Shared\Domain\MountedAdmissionPhase.cs</Link></Compile>
@@ -243,6 +298,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderGroundingPolicy.cs"><Link>Shared\Domain\MountedRiderGroundingPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs"><Link>Shared\Domain\MountedStabilizationPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs"><Link>Shared\Domain\MountedGroundOrderAdmissionPolicy.cs</Link></Compile>
+    <Compile Include="MountedGroundOrderAdmissionPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PoseVector3.cs"><Link>Shared\Domain\PoseVector3.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\RelationshipState.cs"><Link>Shared\Domain\RelationshipState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedPoseBaselineLease.cs"><Link>Shared\Domain\ScopedPoseBaselineLease.cs</Link></Compile>

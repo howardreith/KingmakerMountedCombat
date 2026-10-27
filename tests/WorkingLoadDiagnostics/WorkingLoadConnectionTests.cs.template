@@ -1,0 +1,173 @@
+// Original focused adapters. Only the marked bodies and three complete source
+// files are production logic. Native engine, hook installation and unrelated
+// host completion are external substitutes; no archive is opened.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Serialization;
+using Kingmaker;
+using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.GameModes;
+using Kingmaker.UI.LoadingScreen;
+using UnityEngine.SceneManagement;
+using KingmakerMountedCombat.Diagnostics.WorkingLoadPrototype;
+
+namespace Kingmaker { internal sealed class Game {
+ internal static Game Instance; internal SaveManager SaveManager; internal object CurrentlyLoadedArea;
+ internal bool IsControllerMouse=true; internal Ui UI=new Ui();
+ internal sealed class Ui { internal Menu MainMenu=new Menu(); }
+ internal sealed class Menu { internal bool Throw; internal void LoadGame(SaveInfo value){Trace.Events.Add("native-load");if(Throw)throw new InvalidOperationException("native load error");} }
+} }
+namespace Kingmaker.GameModes { internal static class SceneName { internal const string MainMenu="MainMenu"; } }
+namespace Kingmaker.UI.LoadingScreen { internal sealed class LoadingScreen { internal static LoadingScreen Instance=new LoadingScreen(); } }
+namespace UnityEngine.SceneManagement { internal static class SceneManager { internal static bool Present=true; internal struct Scene { internal bool isLoaded; } internal static Scene GetSceneByName(string name){return new Scene{isLoaded=Present};} } }
+namespace Kingmaker.EntitySystem.Persistence {
+ internal sealed class SaveInfo { }
+ internal sealed class LoadingProcess { internal static LoadingProcess Instance=new LoadingProcess(); internal bool IsLoadingInProcess; internal List<string> QueuedNames=new List<string>(); }
+ internal sealed class SaveManager {
+  internal string SavePath; internal Action Callback; internal SaveInfo Descriptor=new SaveInfo(); internal Action BeforeReturn=null;
+  internal SaveInfo LoadZipSave(string path){Trace.Events.Add("descriptor-read-boundary");BeforeReturn?.Invoke();return Descriptor;}
+  internal void AddCallbackAfterLoad(Action callback){Trace.Events.Add("callback-register");Callback=callback;}
+ }
+}
+namespace KingmakerMountedCombat.Integration { internal static class NativePersistenceIsolation { internal static bool HasPendingWrites; } }
+internal static class Trace { internal static readonly List<string> Events=new List<string>(); }
+
+namespace KingmakerMountedCombat.Diagnostics {
+ internal sealed class Main { }
+ internal sealed class TestLog { internal int Warnings; internal void Info(string value){ } internal void Warning(string value){Warnings++;} }
+ internal sealed class RuntimeSaveDescriptor { public string InternalName{get;set;} public string FileName{get;set;} public string Sha256{get;set;} public long Length{get;set;} public long LastWriteTimeUtcTicks{get;set;} }
+ internal sealed class RuntimeFixtureIdentity { public RuntimeSaveDescriptor Working{get;set;} }
+ internal sealed class F11NativeAllocationSelection { }
+ internal sealed class RuntimeRequest {
+  internal const int SaveBackedSchemaVersion=2;internal const string WorkingSaveName="KMC_AUTOMATION_WORKING";
+  public int SchemaVersion{get;set;}=2;public string Scenario{get;set;}="export-mounted-contracts";
+  public string RunId{get;set;}="generated-observation";public string Branch{get;set;}="codex/generated";public string Commit{get;set;}=new string('a',40);
+  public string ProductVersion{get;set;}="test";public string EvidenceRoot{get;set;} public RuntimeFixtureIdentity Fixture{get;set;}
+  __OPTION_PROPERTY__
+  public RuntimeSaveDescriptor PersistenceLoad{get;set;} public object PersistenceAlternate{get;set;}
+  public object PersistenceCase{get;set;} public object PersistenceAreaTarget{get;set;} public object PersistenceReplayTargets{get;set;}
+  public object SmallFixture{get;set;} public object StockMammothFixture{get;set;}
+  public object OwnedPairs{get;set;} public object AcquiredManual{get;set;} public object ManualDerived{get;set;} public object CumulativeAcquisition{get;set;}
+  public object ManualSeed{get;set;} public object BootstrapInventory{get;set;} public object NativeBootstrap{get;set;} public object SmallCalibration{get;set;}
+  public object OrdinaryField{get;set;} public object OrdinaryAcquisition{get;set;} public object Progression{get;set;}
+  public object AssistedFixture{get;set;} public object AssistedColdInventory{get;set;}
+  public string ExpectedNativeLoadType{get;set;}="Manual"; internal bool ForceInvalid;
+  public IReadOnlyList<string> Validate(){var errors=new List<string>();__ADMISSION_PREFIX__ if(ForceInvalid)errors.Add("external prior admission");return errors;}
+ }
+ internal enum WorkingFixtureLoadState {NotStarted,Loading,LoadedAndVerified,Failed}
+ internal sealed class WorkingFixtureLoader {
+  private readonly RuntimeRequest request;private readonly TestLog logger=new TestLog();private SaveInfo descriptor;private bool loadRoutineCompleted;
+  internal bool RejectDescriptor;internal int HashCalls;internal bool RejectSecondHash;
+  public WorkingFixtureLoadState State{get;private set;}=WorkingFixtureLoadState.NotStarted;
+  public string WorkingPath{get;private set;}internal bool LoadCallbackObserved=>loadRoutineCompleted;
+  internal WorkingFixtureLoader(RuntimeRequest request){this.request=request;}
+  private string ComputeSha256(string path){Trace.Events.Add("hash");HashCalls++;return RejectSecondHash&&HashCalls==2?"changed":request.Fixture.Working.Sha256;}
+  private void VerifyDescriptor(SaveInfo value,RuntimeSaveDescriptor expected,string path,string type){Trace.Events.Add("verify-descriptor");if(RejectDescriptor)throw new InvalidOperationException("descriptor refused");}
+  private void Fail(string value){State=WorkingFixtureLoadState.Failed;}
+  private void HandleLoadRoutineCompleted(){loadRoutineCompleted=true;}
+  __LOADER_START__
+ }
+ internal static class RuntimeLoaderInventory {
+  __ARTIFACT_WRITER__
+  __ARTIFACT_HASH__
+ }
+ internal static class NativeWorkingLoadContract {
+  internal static readonly Guid GameMvid=new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
+  internal static readonly Guid JsonMvid=new Guid("4f213745-d60e-425f-b763-df319c826ddf");
+ }
+ // Exact native adapter is reviewed/tested separately. This substitutes only its
+ // installation/lifetime boundary, retaining the real recorder and session.
+ internal sealed class NativeWorkingLoadObserver {
+  internal static NativeWorkingLoadObserver Last;internal static bool FailInstall;
+  internal readonly WorkingLoadObservation Observation;internal bool LoaderObserved,TaskObserved,TaskSettled,TaskSucceeded;
+  internal bool Released=>Observation.Released;internal int ReleaseCalls;internal bool UnpatchOkay=true;
+  private readonly object manager,save,loader=new object();private readonly Fields fields=new Fields();
+  internal NativeWorkingLoadObserver(Game game,SaveManager manager,SaveInfo save){this.manager=manager;this.save=save;Observation=new WorkingLoadObservation(manager,save,fields,1);Last=this;}
+  internal void Install(){Trace.Events.Add("install");if(FailInstall)throw new InvalidOperationException("partial install");}
+  internal bool TryRelease(bool busy){ReleaseCalls++;return Observation.TryRelease(busy,i=>UnpatchOkay);}
+  internal void Start(bool succeeds){LoaderObserved=true;Observation.LoaderCreated(manager,save,loader,false);TaskObserved=true;TaskSettled=true;TaskSucceeded=succeeds;Observation.TaskReturned(loader,succeeds?Task.FromResult(1):Task.FromException(new InvalidOperationException("native outer fault")));}
+  internal void Full(){
+   Start(true);var player=new object();var party=new object();fields.Player=player;fields.Scene=party;fields.Entity=new object();
+   foreach(var lane in new[]{DocumentLane.Player,DocumentLane.Party}){var callback=new object();var value=lane==DocumentLane.Player?player:party;Observation.SerializerReturned(loader,callback,lane,new object());Observation.ObjectReturned(loader,callback,lane,value);Observation.ObjectAssigned(loader,callback,lane,value);}
+   Observation.CrossSceneAssigned(loader,player,party);Observation.BeforeScenePostLoad(loader,player,party);Observation.AfterScenePostLoad(loader,player,party);
+  }
+  private sealed class Fields:IFieldObservationSource {
+   internal object Player,Scene,Entity;private readonly object converter=new object();
+   public string MainId(object value)=>"literal-main";public int EntityCount(object value)=>1;public object EntityAt(object value,int i)=>Entity;
+   public string EntityId(object value)=>"literal-main";public object HoldingScene(object value)=>Scene;public object CurrentScene(object value)=>Scene;
+   public string TypeLabel(object value)=>ReferenceEquals(value,converter)?"Kingmaker.EntitySystem.Persistence.JsonUtility.CollectionConverters.CollectionsConverter":"Generated.Entity";
+   public int ConverterCount(object value)=>1;public object ConverterAt(object value,int i)=>converter;public bool IsExactCollectionsConverter(object value)=>ReferenceEquals(value,converter);
+   public bool InitializedCollectionsEnablement(object value)=>true;public string ContractResolverType(object value)=>"Generated.Contract";public string ExistingReferenceResolverType(object value)=>null;
+  }
+ }
+ internal sealed class PersistenceBoundary {internal bool AreaTransitionPending,HasActiveSaveScope,HasSaveAdmissionFence;}
+ internal sealed class SaveAuthorizationBoundary {internal int AuthorizedLoadCount=1,AuthorizedWriteCount=0;}
+ internal sealed partial class RuntimeAutomationHost {
+  private RuntimeRequest request;private readonly PersistenceBoundary persistence=new PersistenceBoundary();private readonly TestLog logger=new TestLog();
+  private WorkingFixtureLoader fixtureLoader;private bool fixtureIdentityVerified=false;private double elapsedSeconds;
+  private readonly SaveAuthorizationBoundary saveAuthorization=new SaveAuthorizationBoundary();internal int CompletionCalls;internal string CompletedStatus;
+  internal RuntimeAutomationHost(RuntimeRequest r){request=r;fixtureLoader=new WorkingFixtureLoader(r);}
+  internal static void Token(string json){AssertWorkingObservationToken(json);}
+  internal void Begin(){BeginWorkingLoadObservation(Game.Instance,Game.Instance.SaveManager,new SaveInfo());}
+  internal bool Owns=>workingLoadObservation!=null;internal bool Released=>workingLoadObservation!=null&&workingLoadObservation.Released;
+  internal void Finish(string status){BeginWorkingLoadCompletion(status,new[]{"fixture stopped"});DrainWorkingLoadCompletion();}
+  internal void Tick(double elapsed){elapsedSeconds=elapsed;DrainWorkingLoadCompletion();}
+  internal void GuardDispose(){RequireWorkingObserverReleasedForDispose();}
+  internal int Warnings=>logger.Warnings;internal bool Waiting=>workingLoadCompletionPending;internal bool DeadlineStopped=>workingLoadPollDeadlineReached;
+  internal void LoadRequests(int count){saveAuthorization.AuthorizedLoadCount=count;}
+  internal void Fence(int which,bool value){if(which==0)persistence.AreaTransitionPending=value;if(which==1)persistence.HasActiveSaveScope=value;if(which==2)persistence.HasSaveAdmissionFence=value;}
+  private void CompleteSaveBackedSafely(string status,IReadOnlyList<string> errors){CompletionCalls++;CompletedStatus=status;PublishWorkingObservation(status);}
+ }
+ internal static class ConnectionTests {
+  private static int pass,fail;private static string output;
+  private static readonly JsonSerializerSettings Json=new JsonSerializerSettings{ContractResolver=new CamelCasePropertyNamesContractResolver()};
+  private static void Check(string name,Action body){try{body();pass++;Console.WriteLine("PASS "+name);}catch(Exception e){fail++;Console.WriteLine("FAIL "+name+": "+e.Message);}}
+  private static void Need(bool value){if(!value)throw new InvalidOperationException("assertion");}
+  private static void Refuse(Action action){try{action();}catch(InvalidOperationException){return;}throw new Exception("unexpected acceptance");}
+  private static RuntimeRequest Request(string name,bool create=true){
+   var root=Path.Combine(output,name);if(create)Directory.CreateDirectory(root);
+   return new RuntimeRequest{ObserveWorkingDeserialization=true,EvidenceRoot=root,Fixture=new RuntimeFixtureIdentity{Working=new RuntimeSaveDescriptor{InternalName=RuntimeRequest.WorkingSaveName,FileName="Manual_9_KMC_AUTOMATION_WORKING.zks",Sha256=new string('b',64)}}};
+  }
+  private static void Reset(){Game.Instance=new Game{SaveManager=new SaveManager()};LoadingProcess.Instance=new LoadingProcess();SceneManager.Present=true;LoadingScreen.Instance=new LoadingScreen();NativeWorkingLoadObserver.FailInstall=false;KingmakerMountedCombat.Integration.NativePersistenceIsolation.HasPendingWrites=false;Trace.Events.Clear();}
+  private static WorkingFixtureLoader Loader(RuntimeRequest r){Reset();Game.Instance.SaveManager.SavePath=r.EvidenceRoot;var path=Path.Combine(r.EvidenceRoot,r.Fixture.Working.FileName);File.WriteAllText(path,"generated non-archive bytes");var f=new FileInfo(path);r.Fixture.Working.Length=f.Length;r.Fixture.Working.LastWriteTimeUtcTicks=f.LastWriteTimeUtc.Ticks;return new WorkingFixtureLoader(r);}
+  private static void SaveRequest(RuntimeRequest r){var obj=JObject.Parse(JsonConvert.SerializeObject(r,Json));var artifact=JObject.Parse(File.ReadAllText(Path.Combine(r.EvidenceRoot,WorkingLoadDiagnosticSession.EvidenceFileName)));obj["dllSha256"]=artifact["dllSha256"];obj["dllMvid"]=artifact["dllMvid"];File.WriteAllText(Path.Combine(r.EvidenceRoot,"request.json"),obj.ToString(Formatting.None));}
+  internal static int Main(string[] args){output=args[0];
+   Check("old token omitted",()=>RuntimeAutomationHost.Token("{}"));Check("explicit true token",()=>RuntimeAutomationHost.Token("{\"observeWorkingDeserialization\":true}"));
+   foreach(var token in new[]{"false","null","1","\"true\"","[true]","{}"}){var copy=token;Check("refuse opt-in token "+copy,()=>Refuse(()=>RuntimeAutomationHost.Token("{\"observeWorkingDeserialization\":"+copy+"}")));}
+   Check("refuse case alias",()=>Refuse(()=>RuntimeAutomationHost.Token("{\"ObserveWorkingDeserialization\":true}")));
+   Check("refuse duplicate opt-in",()=>Refuse(()=>RuntimeAutomationHost.Token("{\"observeWorkingDeserialization\":true,\"observeWorkingDeserialization\":true}")));
+   Check("nested unrelated token ignored",()=>RuntimeAutomationHost.Token("{\"unrelated\":{\"observeWorkingDeserialization\":false}}"));
+   Check("old DTO shape omitted",()=>{var r=Request("shape");r.ObserveWorkingDeserialization=null;Need(JObject.Parse(JsonConvert.SerializeObject(r,Json))["observeWorkingDeserialization"]==null);});
+   Check("new DTO true shape",()=>Need(JObject.Parse(JsonConvert.SerializeObject(Request("shape-true"),Json))["observeWorkingDeserialization"].Type==JTokenType.Boolean));
+   Check("exact new admission",()=>Need(Request("valid").Validate().Count==0));
+   foreach(var field in new[]{"PersistenceAlternate","PersistenceCase","PersistenceAreaTarget","PersistenceReplayTargets","OwnedPairs","AcquiredManual","ManualDerived","CumulativeAcquisition","ManualSeed","BootstrapInventory","NativeBootstrap","SmallCalibration","OrdinaryField","OrdinaryAcquisition","Progression"}){var f=field;Check("refuse foreign selection "+f,()=>{var r=Request("foreign-"+f);typeof(RuntimeRequest).GetProperty(f).SetValue(r,new object());Need(r.Validate().Count==1);});}
+   Check("refuse alternate load",()=>{var r=Request("foreign-load");r.PersistenceLoad=r.Fixture.Working;Need(r.Validate().Count==1);});
+   Check("refuse old schema",()=>{var r=Request("schema");r.SchemaVersion=1;Need(r.Validate().Count==1);});
+   Check("refuse false selection",()=>{var r=Request("false");r.ObserveWorkingDeserialization=false;Need(r.Validate().Count==1);});
+   Check("refuse foreign family",()=>{var r=Request("family");r.Scenario="chunk7-native-bootstrap";Need(r.Validate().Count==1);});
+   Check("refuse non-Working source",()=>{var r=Request("source");r.Fixture.Working.InternalName="foreign";Need(r.Validate().Count==1);});
+   Check("guard before observer before exactly one load",()=>{var r=Request("loader-good");var l=Loader(r);l.Start((g,m,s)=>{Need(ReferenceEquals(g,Game.Instance)&&ReferenceEquals(m,g.SaveManager)&&ReferenceEquals(s,m.Descriptor));Trace.Events.Add("observer-owned");});Need(string.Join(",",Trace.Events)=="hash,descriptor-read-boundary,verify-descriptor,hash,observer-owned,callback-register,native-load");Need(!l.LoadCallbackObserved);Game.Instance.SaveManager.Callback();Need(l.LoadCallbackObserved);Refuse(()=>l.Start());});
+   Check("descriptor failure precedes observer",()=>{var l=Loader(Request("loader-descriptor"));l.RejectDescriptor=true;Refuse(()=>l.Start((g,m,s)=>Trace.Events.Add("observer")));Need(!Trace.Events.Contains("observer")&&!Trace.Events.Contains("native-load"));});
+   Check("second hash failure precedes observer",()=>{var l=Loader(Request("loader-rehash"));l.RejectSecondHash=true;Refuse(()=>l.Start((g,m,s)=>Trace.Events.Add("observer")));Need(!Trace.Events.Contains("observer")&&!Trace.Events.Contains("native-load"));});
+   Check("main menu guard precedes observer",()=>{var l=Loader(Request("loader-menu"));Game.Instance.CurrentlyLoadedArea=new object();Refuse(()=>l.Start((g,m,s)=>Trace.Events.Add("observer")));Need(Trace.Events.Count==0);});
+   Check("request guard precedes descriptor",()=>{var r=Request("loader-request");var l=Loader(r);r.ForceInvalid=true;Refuse(()=>l.Start());Need(Trace.Events.Count==0);});
+   Check("partial install remains owned before callback/load",()=>{var r=Request("install-failure");var l=Loader(r);var h=new RuntimeAutomationHost(r);h.LoadRequests(0);NativeWorkingLoadObserver.FailInstall=true;Refuse(()=>l.Start((g,m,s)=>h.Begin()));Need(h.Owns&&!Trace.Events.Contains("callback-register")&&!Trace.Events.Contains("native-load"));h.GuardDispose();Need(h.Released);});
+   Check("native load exception preserved after ownership",()=>{var r=Request("load-exception");var l=Loader(r);var h=new RuntimeAutomationHost(r);h.LoadRequests(0);Game.Instance.UI.MainMenu.Throw=true;Refuse(()=>l.Start((g,m,s)=>h.Begin()));Need(h.Owns&&Trace.Events.Last()=="native-load"&&l.State==WorkingFixtureLoadState.Failed);h.GuardDispose();});
+   Check("authorized load with missing first observation retains custody",()=>{Reset();var r=Request("missing-observation");var h=new RuntimeAutomationHost(r);h.Begin();h.LoadRequests(1);h.Finish("FAIL");Need(h.Waiting&&!h.Released&&h.CompletionCalls==0&&NativeWorkingLoadObserver.Last.ReleaseCalls==0);Refuse(()=>h.GuardDispose());});
+   Check("task success without callback publishes FAIL with release",()=>{Reset();var r=Request("failed-load");var h=new RuntimeAutomationHost(r);h.Begin();NativeWorkingLoadObserver.Last.Full();h.Finish("FAIL");Need(h.Released&&h.CompletionCalls==1&&h.CompletedStatus=="FAIL");SaveRequest(r);});
+   Check("writer failure remains retryable after release",()=>{Reset();var r=Request("writer-retry",false);var s=new WorkingLoadDiagnosticSession(r,Game.Instance,Game.Instance.SaveManager,new SaveInfo());s.Install();NativeWorkingLoadObserver.Last.Full();Need(s.TryRelease(false));try{s.PublishFinal("FAIL",false,false,1,0);throw new Exception("unexpected write");}catch(DirectoryNotFoundException){}Need(!s.FinalWritten);Directory.CreateDirectory(r.EvidenceRoot);s.PublishFinal("FAIL",false,false,1,0);Need(s.FinalWritten);SaveRequest(r);});
+   Check("success-shaped projection with actual producer",()=>{Reset();var r=Request("complete-observation");var s=new WorkingLoadDiagnosticSession(r,Game.Instance,Game.Instance.SaveManager,new SaveInfo());s.Install();NativeWorkingLoadObserver.Last.Full();Need(s.TryRelease(false));s.PublishFinal("PASS",true,true,1,0);SaveRequest(r);});
+   Check("pending write immutable, faulted task no release",()=>{Reset();var r=Request("faulted-pending");var h=new RuntimeAutomationHost(r);h.Begin();var o=NativeWorkingLoadObserver.Last;o.Start(false);h.Finish("FAIL");var path=Path.Combine(r.EvidenceRoot,WorkingLoadDiagnosticSession.PendingFileName);var original=File.ReadAllBytes(path);h.Tick(20);Need(h.Waiting&&!h.Released&&o.ReleaseCalls==0&&original.SequenceEqual(File.ReadAllBytes(path)));Refuse(()=>h.GuardDispose());h.Tick(300);h.Tick(301);Need(h.DeadlineStopped&&h.Warnings==1&&h.CompletionCalls==0&&!File.Exists(Path.Combine(r.EvidenceRoot,WorkingLoadDiagnosticSession.EvidenceFileName)));var obj=JObject.Parse(JsonConvert.SerializeObject(r,Json));var a=JObject.Parse(File.ReadAllText(path));obj["dllSha256"]=a["dllSha256"];obj["dllMvid"]=a["dllMvid"];File.WriteAllText(Path.Combine(r.EvidenceRoot,"request.json"),obj.ToString());});
+   Check("failed unpatch retained then retry succeeds",()=>{Reset();var r=Request("unpatch-retry");var h=new RuntimeAutomationHost(r);h.Begin();var o=NativeWorkingLoadObserver.Last;o.Full();o.UnpatchOkay=false;h.Finish("FAIL");Need(h.Waiting&&!h.Released&&h.CompletionCalls==0);o.UnpatchOkay=true;h.Tick(2);Need(h.Released&&h.CompletionCalls==1&&o.ReleaseCalls==2);SaveRequest(r);});
+   for(int which=0;which<6;which++){int w=which;Check("native custody fence "+w,()=>{Reset();var r=Request("fence-"+w);var h=new RuntimeAutomationHost(r);h.Begin();NativeWorkingLoadObserver.Last.Full();if(w<3)h.Fence(w,true);if(w==3)LoadingProcess.Instance.IsLoadingInProcess=true;if(w==4)LoadingProcess.Instance.QueuedNames.Add("queued");if(w==5)KingmakerMountedCombat.Integration.NativePersistenceIsolation.HasPendingWrites=true;h.Finish("FAIL");Need(h.Waiting&&!h.Released&&NativeWorkingLoadObserver.Last.ReleaseCalls==0);if(w<3)h.Fence(w,false);if(w==3)LoadingProcess.Instance.IsLoadingInProcess=false;if(w==4)LoadingProcess.Instance.QueuedNames.Clear();if(w==5)KingmakerMountedCombat.Integration.NativePersistenceIsolation.HasPendingWrites=false;h.Tick(2);Need(h.Released&&h.CompletionCalls==1);});}
+   Console.WriteLine("WORKING LOAD CONNECTION PASS="+pass+" FAIL="+fail);return fail==0?0:1;
+  }
+ }
+}

@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Integration
     {
         private const float MaximumElapsedSeconds = 12f;
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedPairOwner<UnitEntityData, GameMountedRelationshipService> pairOwner;
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
         private readonly StandardDoor door;
@@ -52,6 +53,7 @@ namespace KingmakerMountedCombat.Integration
             : base(CommandType.Standard, door == null ? Vector3.zero : door.transform.position)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            pairOwner = relationship.PairOwner;
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             this.door = door ?? throw new ArgumentNullException(nameof(door));
@@ -235,7 +237,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void RequireExactPair()
         {
-            if (relationship.State != RelationshipState.Mounted ||
+            if (!relationship.IsCurrentPairOwner(pairOwner) || relationship.State != RelationshipState.Mounted ||
                 relationship.Rider != rider || relationship.Mount != mount ||
                 rider.Descriptor?.Pet != mount || mount.Descriptor?.Master.Value != rider ||
                 !relationship.Runtime.PoseHealthy)

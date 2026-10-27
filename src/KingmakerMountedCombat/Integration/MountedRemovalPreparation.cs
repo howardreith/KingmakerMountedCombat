@@ -48,6 +48,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly Func<bool> cleanup;
         private readonly IModLogger logger;
+        private GameMountedRelationshipService[] Relationships => relationship.World == null ? new[] { relationship } :
+            relationship.World.Pairs.Select(p => p.Relationship).ToArray();
+        private MountedCombatController[] CombatOwners => relationship.World == null ? new[] { combat } :
+            relationship.World.Pairs.Select(p => p.Combat).ToArray();
         private SaveInfo pendingSave;
         private string pendingGameId;
         private int completedAtRequest;
@@ -104,7 +108,8 @@ namespace KingmakerMountedCombat.Integration
         internal RemovalAssessment Assess()
         {
             AssessmentCount++;
-            var assessment = new RemovalAssessment { Mounted = relationship.State == RelationshipState.Mounted };
+            var assessment = new RemovalAssessment { Mounted = Relationships.Any(r => r.State == RelationshipState.Mounted ||
+                r.State == RelationshipState.Faulted || r.PairOwner != null) };
             var game = Game.Instance;
             var facts = new RemovalWorldFacts();
             try
@@ -114,14 +119,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     facts.PartyInCombat = game.Player.IsInCombat;
                     facts.AnyPartyMemberInCombat = game.Player.Party.Any(u => u != null && u.IsInCombat);
-                    facts.ActiveMountedCommand = combat.HasActiveCommand || combat.HasChargeOwnership;
-                    facts.StockAttackIntent = combat.HasStockAttackIntent;
-                    facts.PairedActivation = !string.IsNullOrEmpty(combat.PairedActivationIdentity);
+                    facts.ActiveMountedCommand = CombatOwners.Any(c => c.HasActiveCommand || c.HasChargeOwnership);
+                    facts.StockAttackIntent = CombatOwners.Any(c => c.HasStockAttackIntent);
+                    facts.PairedActivation = CombatOwners.Any(c => !string.IsNullOrEmpty(c.PairedActivationIdentity));
                     facts.CombatRestorationPending = persistence.CombatRestorationPending;
                     facts.LoadInFlight = persistence.LoadInFlight;
                     facts.LoadingWorld = persistence.LoadingWorld;
                     facts.LoadingProcess = LoadingProcess.Instance.IsLoadingInProcess;
-                    facts.SaveSuspended = persistence.SaveSuspended || combat.ChargeAdmissionFenced;
+                    facts.SaveSuspended = persistence.SaveSuspended || persistence.HasSaveAdmissionFence || CombatOwners.Any(c => c.ChargeAdmissionFenced);
                     facts.ActiveSaveScope = persistence.HasActiveSaveScope;
                     facts.SaveDraining = persistence.SaveDraining;
                     facts.WorldHoldReleasePending = persistence.WorldHoldReleasePending;
@@ -214,7 +219,7 @@ namespace KingmakerMountedCombat.Integration
                 logger.Error(Status);
                 return false;
             }
-            if (relationship.State == RelationshipState.Mounted)
+            if (Relationships.Any(r => r.State == RelationshipState.Mounted || r.State == RelationshipState.Faulted || r.PairOwner != null))
             {
                 State = RemovalPreparationState.Failed;
                 Status = "Not prepared: the pair is still mounted after cleanup; nothing was saved.";
@@ -320,15 +325,26 @@ namespace KingmakerMountedCombat.Integration
             // mismatch now is unconfirmed, never something to wait out.
             var binding = RemovalReadinessPolicy.BindingReason(written, CleanupSaveName, pendingGameId);
             if (binding != null) { Unconfirmed(binding); return; }
-            MountedSaveReadResult read;
-            try { read = NativeMountedSaveStorage.Read(writtenSave.Saver); }
+            MountedSaveReadResult read = null;
+            MountedArchiveReadResult archive = null;
+            try
+            {
+                if (NativeMountedSaveFormat.ArchiveNativeSupportEnabled) archive = NativeMountedSaveStorage.ReadArchive(writtenSave.Saver);
+                else read = NativeMountedSaveStorage.Read(writtenSave.Saver);
+            }
             catch (Exception exception)
             {
                 logger.Exception("Prepare-to-disable could not read the cleanup archive", exception);
                 Unconfirmed("the cleanup archive could not be read back (" + exception.GetType().Name + ")");
                 return;
             }
-            var member = new RemovalMemberFacts
+            var member = archive != null ? new RemovalMemberFacts {
+                Kind = archive.Kind.ToString(), Mounted = archive.Data?.Pairs?.Length > 0 || archive.Data?.Participations?.Length > 0,
+                RiderPresent = archive.Data?.Pairs?.Any(p => p.Rider != null) == true,
+                MountPresent = archive.Data?.Pairs?.Any(p => p.Mount != null) == true,
+                CombatPresent = archive.Data?.Combat != null, SlotCount = archive.Data?.Slots?.Length ?? 0,
+                CampaignId = archive.Data?.CampaignId
+            } : new RemovalMemberFacts
             {
                 Kind = read.Kind.ToString(), Mounted = read.Data?.Mounted == true,
                 RiderPresent = read.Data?.Rider != null, MountPresent = read.Data?.Mount != null,

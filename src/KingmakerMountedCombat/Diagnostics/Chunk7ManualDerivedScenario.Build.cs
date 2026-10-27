@@ -1,0 +1,501 @@
+using System;
+using System.IO;
+using System.Linq;
+using Kingmaker;
+using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Classes;
+using Kingmaker.Blueprints.Root;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.Enums;
+using Kingmaker.GameModes;
+using Kingmaker.UI;
+using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic;
+using Kingmaker.UnitLogic.Class.LevelUp;
+using Kingmaker.UnitLogic.Parts;
+using KingmakerMountedCombat.Domain;
+using KingmakerMountedCombat.Integration;
+using Newtonsoft.Json.Linq;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    internal sealed partial class Chunk7ManualDerivedScenario
+    {
+        private const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
+        private JObject sourceObservations;
+        private Chunk7OrdinaryBuildDriver driver;
+        private Chunk7ManualSeedSaveProbe manualSaveProbe;
+        private SaveInfo requestedManual;
+        private bool manualSaveCallback;
+        private int manualCallbackCount;
+        private JObject beforeManualSaveArrangement;
+        private Chunk7NativeBuilderCancellation cancellation;
+        private Chunk7NativePartyFieldAdmission fieldAdmission;
+        private UnitEntityData acquiredActor, acquiredPet;
+        private object acquiredDescriptor, acquiredView, acquiredPetDescriptor, acquiredPetView;
+        private UnitEntityData[] originalSelection;
+        private string[] originalPartyCharacters;
+        private bool presentationCaptured, originalPause, buildStarted, buildInputAttempted, acquisitionProven;
+        private MovementCaptureOverlayLease ummLease;
+        private UnityModManagerNet.UnityModManager.UI ummInstance;
+        private bool originalUmmOpened;
+        private int buildStage;
+        private double buildStageStart;
+        private readonly JArray choices = new JArray();
+        private JArray f09PriorHorses;
+
+        private void RequireF09PriorHorses()
+        {
+            if (!selection.UsesF09FourHorseCold && !selection.UsesF09FiveHorseCold) return;
+            var facts = sourceObservations?[selection.UsesF09FiveHorseCold ? "fifthHorseFacts" : "fourthHorseFacts"] as JArray;
+            Require(facts != null && facts.Count == (selection.UsesF09FiveHorseCold ? 5 : 4), "F09 source lost its native Horse relationships.");
+            var rows = new JArray();
+            foreach (var item in facts)
+            {
+                var rider = actors.SingleOrDefault(actor => actor.UniqueId == (string)item["riderId"]);
+                var mount = actors.SingleOrDefault(actor => actor.UniqueId == (string)item["mountId"]);
+                var feature = rider?.Descriptor.GetFact(horses.HorseFeature) as Feature;
+                Require(rider != null && mount != null &&
+                    rider.Blueprint?.AssetGuid == (string)((JArray)sourceWorld["party"]).Single(actor => (string)actor["id"] == rider.UniqueId)["blueprint"] &&
+                    mount.Blueprint == horses.HorseUnit && mount.Blueprint.AssetGuid == (string)item["blueprint"] &&
+                    ReferenceEquals(rider.Descriptor.Pet, mount) && ReferenceEquals(mount.Descriptor.Master.Value, rider) &&
+                    feature != null && feature.Source != null &&
+                    horses.HorseFeature.AssetGuid == (string)item["featureGuid"] &&
+                    feature.Source.AssetGuid == (string)item["sourceGuid"] &&
+                    rider.Descriptor.GetFact(horses.LevelRank)?.GetRank() == (int)item["rank"] &&
+                    rider.IsInState && rider.IsInGame && mount.IsInState && mount.IsInGame &&
+                    rider.View?.AgentASP != null && mount.View?.AgentASP != null &&
+                    rider.Commands.Empty && mount.Commands.Empty,
+                    "A retained native F09 owner/Horse identity, feature, rank or field relationship changed.");
+                rows.Add(new JObject { ["riderId"] = rider.UniqueId, ["mountId"] = mount.UniqueId,
+                    ["riderObject"] = probe.Identity(rider), ["mountObject"] = probe.Identity(mount),
+                    ["riderDescriptor"] = probe.Identity(rider.Descriptor), ["mountDescriptor"] = probe.Identity(mount.Descriptor),
+                    ["riderView"] = probe.Identity(rider.View), ["mountView"] = probe.Identity(mount.View),
+                    ["featureObject"] = probe.Identity(feature), ["sourceObject"] = probe.Identity(feature.Source),
+                    ["rankObject"] = probe.Identity(rider.Descriptor.GetFact(horses.LevelRank)),
+                    ["featureGuid"] = horses.HorseFeature.AssetGuid, ["sourceGuid"] = feature.Source.AssetGuid,
+                    ["rank"] = rider.Descriptor.GetFact(horses.LevelRank).GetRank(), ["reciprocal"] = true });
+            }
+            if (f09PriorHorses == null) { f09PriorHorses = rows; evidence["f09PriorHorsesBefore"] = rows.DeepClone(); }
+            else Require(JToken.DeepEquals(f09PriorHorses, rows), "F09 native Horse references changed during paid acquisition.");
+        }
+
+        private void RequireManualReadiness()
+        {
+            var actual = evidence["fixtureReadiness"]; var prior = SelectedSourceReadiness;
+            foreach (var key in new[] { "mainProgression", "staticPartyFacts", "saveSettings", "experienceRatePercent" })
+                Require(JToken.DeepEquals(actual[key], prior[key]), "Native Manual acquisition readiness differs from source: " + key);
+            Require(JToken.DeepEquals(evidence["nativeProfileInventory"]["ordinaryAcquisitionPrerequisites"],
+                SelectedSourceInventory["ordinaryAcquisitionPrerequisites"]), "Native XP, money or party readiness differs from qualified Manual observation.");
+            Require(JToken.DeepEquals(CaptureNoArrangement(), SelectedSourceArrangement),
+                "Loaded Manual actor/class/XP/money state differs from its observed native source.");
+            Require(actual["saveSettings"]?["onlyOneSave"]?.Type == JTokenType.Boolean && !(bool)actual["saveSettings"]["onlyOneSave"] &&
+                !NativePersistenceIsolation.NativeSlotRotationEnabled, "Manual acquisition refuses one-save mode or a pre-existing slot projection.");
+            if (!selection.UsesF09FiveHorseCold) RequireLiveEligibility();
+            RequireF09PriorHorses();
+        }
+        private void RequireLiveEligibility()
+        {
+            var player = game.Player; var main = player.MainCharacter.Value;
+            var table = BlueprintRoot.Instance.Progression.XPTable;
+            Require(table?.Bonuses != null && table.Bonuses.Length >= 21, "Native XP table lacks bounded indices zero through twenty.");
+            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(RangerClassGuid);
+            Require(ranger != null, "Exact native Ranger class is unavailable.");
+            var target = selection.Case == Chunk7ManualDerivedSelection.ExistingCase ? actors.SingleOrDefault(actor => actor.UniqueId == selection.ExistingActorId) : null;
+            var actual = new Chunk7ManualDerivedNativeReadiness {
+                MainActorId = main.UniqueId, MainLevel = main.Descriptor.Progression.CharacterLevel,
+                MainExperience = main.Descriptor.Progression.Experience, Money = player.Money,
+                ExperienceRatePercent = player.ExperienceRatePercent, NativeHireCost = player.GetCustomCompanionCost(),
+                DefaultHireExperience = table.GetBonus(main.Descriptor.Progression.CharacterLevel), XpThresholds = table.Bonuses.Take(21).ToArray(),
+                PartyCharacterIds = player.PartyCharacters.Select(value => value.Value.UniqueId).ToArray(),
+                ExistingActorId = target?.UniqueId, ExistingLevel = target?.Descriptor.Progression.CharacterLevel ?? 0,
+                ExistingExperience = target?.Descriptor.Progression.Experience ?? 0, ExistingRangerLevel = target?.Descriptor.Progression.GetClassLevel(ranger) ?? 0,
+                TargetLiving = target != null && target.Descriptor.State.IsConscious && !target.Descriptor.State.IsDead,
+                TargetIsPet = target?.Descriptor.Master.Value != null, TargetHasPet = target?.Descriptor.Pet != null,
+                TargetHasDualCompanion = target?.Get<UnitPartDualCompanion>() != null,
+                TargetInField = target != null && target.IsInState && target.IsInGame && target.IsDirectlyControllable && target.View?.AgentASP != null,
+                TargetIdle = target != null && target.Commands.Empty && !target.IsInCombat,
+                TargetCanLevelUp = target != null && LevelUpController.CanLevelUp(target.Descriptor),
+                ExactSmallCatalogueMember = selection.Case == Chunk7ManualDerivedSelection.PaidSmallCase &&
+                    CatalogueContains(SelectedSourceInventory) && CatalogueContains(evidence["nativeProfileInventory"]),
+                NativeDepartureCompleted = sixthDeparture?.Completed == true,
+                NativeDepartureHireCost = sixthDepartureHireCost,
+                ExactMediumBodyMember = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase &&
+                    Chunk7MediumHireBodySource.Matches(SelectedSourceInventory, selection.MediumBody) &&
+                    Chunk7MediumHireBodySource.Matches(evidence["nativeProfileInventory"], selection.MediumBody) && NativeMediumBodyMatches()
+            };
+            var failures = Chunk7ManualDerivedAdmission.Validate(selection, request.RunId, actual, cumulative != null, cumulative != null);
+            Require(failures.Count == 0, "Native Manual-derived acquisition is ineligible: " + string.Join(" | ", failures));
+            evidence["liveEligibility"] = new JObject { ["nativeXpThresholds"] = new JArray(actual.XpThresholds),
+                ["mainActorId"] = actual.MainActorId, ["mainLevel"] = actual.MainLevel, ["mainExperience"] = actual.MainExperience,
+                ["money"] = actual.Money, ["experienceRatePercent"] = actual.ExperienceRatePercent,
+                ["nativeHireCost"] = actual.NativeHireCost, ["defaultHireExperience"] = actual.DefaultHireExperience,
+                ["partyCharacterIds"] = new JArray(actual.PartyCharacterIds), ["existingActorId"] = actual.ExistingActorId,
+                ["existingLevel"] = actual.ExistingLevel, ["existingExperience"] = actual.ExistingExperience, ["existingRangerLevel"] = actual.ExistingRangerLevel,
+                ["targetLiving"] = actual.TargetLiving, ["targetIsPet"] = actual.TargetIsPet, ["targetHasPet"] = actual.TargetHasPet,
+                ["targetHasDualCompanion"] = actual.TargetHasDualCompanion, ["targetInField"] = actual.TargetInField,
+                ["targetIdle"] = actual.TargetIdle, ["targetCanLevelUp"] = actual.TargetCanLevelUp,
+                ["exactSmallCatalogueMember"] = actual.ExactSmallCatalogueMember, ["arrangementGranted"] = false };
+            if (selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase)
+                evidence["liveEligibility"]["exactMediumBodyMember"] = actual.ExactMediumBodyMember;
+            if (selection.UsesF09FiveHorseCold)
+            {
+                evidence["liveEligibility"]["nativeDepartureCompleted"] = actual.NativeDepartureCompleted;
+                evidence["liveEligibility"]["nativeDepartureHireCost"] = actual.NativeDepartureHireCost;
+            }
+        }
+        private bool CatalogueContains(JToken inventory)
+        {
+            var races = inventory?["smallRaces"] as JArray; if (races == null) return false;
+            var race = races.OfType<JObject>().SingleOrDefault(row => (string)row["raceGuid"] == selection.SmallRaceGuid);
+            var preset = (race?["presets"] as JArray)?.OfType<JObject>().SingleOrDefault(row => (string)row["presetGuid"] == selection.SmallPresetGuid);
+            var skeleton = preset?[selection.Gender == "Male" ? "maleSkeleton" : "femaleSkeleton"];
+            return (string)race?["size"] == "Small" && (string)preset?["raceId"] == (string)race?["raceId"] &&
+                preset?["present"]?.Type == JTokenType.Boolean && (bool)preset["present"] &&
+                skeleton?["present"]?.Type == JTokenType.Boolean && (bool)skeleton["present"] && (string)skeleton["name"] == selection.SkeletonName;
+        }
+        private JObject CaptureNoArrangement() => new JObject { ["money"] = game.Player.Money, ["experienceRatePercent"] = game.Player.ExperienceRatePercent,
+            ["actors"] = new JArray(actors.OrderBy(actor => actor.UniqueId, StringComparer.Ordinal).Select(actor => new JObject {
+                ["actorId"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+                ["experience"] = actor.Descriptor.Progression.Experience, ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel,
+                ["classes"] = new JArray(actor.Descriptor.Progression.Classes.OrderBy(value => value.CharacterClass.AssetGuid, StringComparer.Ordinal)
+                    .Select(value => new JObject { ["classGuid"] = value.CharacterClass.AssetGuid, ["level"] = value.Level })) })) };
+        private JObject CaptureManualSaveArrangement()
+        {
+            RequireAcquiredActor();
+            var result = CaptureNoArrangement();
+            result["acquired"] = new JArray(new[] { acquiredActor, acquiredPet }.Where(value => value != null)
+                .Distinct().OrderBy(value => value.UniqueId, StringComparer.Ordinal).Select(value => new JObject {
+                    ["actorId"] = value.UniqueId, ["blueprint"] = value.Blueprint.AssetGuid,
+                    ["experience"] = value.Descriptor.Progression.Experience,
+                    ["characterLevel"] = value.Descriptor.Progression.CharacterLevel,
+                    ["classes"] = new JArray(value.Descriptor.Progression.Classes.OrderBy(item => item.CharacterClass.AssetGuid, StringComparer.Ordinal)
+                        .Select(item => new JObject { ["classGuid"] = item.CharacterClass.AssetGuid, ["level"] = item.Level })) }));
+            return result;
+        }
+
+        private void StartBuild()
+        {
+            RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            Require(!buildStarted && !Busy() && authority.AdmittedNativeWriteRequests == 0 && authorization.AuthorizedWriteCount == 0 &&
+                game.CurrentMode == GameModeType.Default && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog),
+                "Manual-derived choices require the exact idle cold-loaded world before any write.");
+            Require(game.UI?.CharacterBuildController != null && game.UI.CharacterBuildController.LevelUpController == null &&
+                game.UI.CharacterBuildController.Unit == null && (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown),
+                "A pre-existing builder or dialog cannot be borrowed.");
+            Require(horses.State == HorseCompanionBlueprintState.Registered && horses.HorseFeature != null && horses.HorseUnit != null && horses.LevelRank != null,
+                "Exact ordinary Horse registration is not ready.");
+            Require(game.SaveManager.IsSaveAllowed() && !NativePersistenceIsolation.NativeSlotRotationEnabled,
+                "Native save is unavailable or has a pre-existing slot projection.");
+            if (selection.UsesF09FiveHorseCold && sixthDeparture == null) { StartSixthDeparture(); return; }
+            RequireLiveEligibility();
+            originalSelection = SelectionManager.Instance.SelectedUnits.ToArray();
+            Require(originalSelection.All(value => !IsDepartedSourceActor(value) && actors.Any(actor => ReferenceEquals(actor, value))) && originalSelection.Distinct().Count() == originalSelection.Length,
+                "Native pre-choice selection includes an unowned or duplicate actor.");
+            originalPause = game.IsPaused;
+            originalPartyCharacters = game.Player.PartyCharacters.Select(value => value.Value.UniqueId).OrderBy(value => value, StringComparer.Ordinal).ToArray();
+            ummInstance = UnityModManagerNet.UnityModManager.UI.Instance;
+            Require(ummInstance != null, "Exact UMM presentation instance is unavailable."); originalUmmOpened = ummInstance.Opened;
+            Require(ummLease == null, "An existing presentation lease cannot be overwritten.");
+            presentationCaptured = true; MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
+            var paid = selection.PaidHire;
+            var medium = selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase;
+            var pins = new Chunk7OrdinaryBuildPins(request.RunId, selection.SourceArtifactSha256,
+                medium ? Chunk7OrdinaryBuildMode.NewMediumCustomCompanion : paid ? Chunk7OrdinaryBuildMode.NewSmallCustomCompanion : Chunk7OrdinaryBuildMode.ExistingRangerLevels,
+                medium ? selection.MediumBody.RaceGuid : selection.SmallRaceGuid,
+                medium ? selection.MediumBody.PresetGuid : selection.SmallPresetGuid,
+                medium ? selection.MediumBody.SkeletonName : selection.SkeletonName,
+                (medium ? selection.MediumBody.Gender : selection.Gender) == "Female" ? Gender.Female : Gender.Male,
+                (medium ? selection.MediumBody.LeftHanded : selection.LeftHanded) == true,
+                Chunk7ManualDerivedSelection.RangerAcquisitionLevel, medium ? Size.Medium : Size.Small);
+            driver = new Chunk7OrdinaryBuildDriver(pins, paid ? null : actors.Single(actor => actor.UniqueId == selection.ExistingActorId),
+                horses.HorseFeature, horses.HorseUnit.AssetGuid, AssertChoiceAuthority, ObserveChoice);
+            evidence["choices"] = choices; evidence["beforeChoices"] = CaptureNoArrangement();
+            evidence["originalPartyCharacters"] = new JArray(originalPartyCharacters);
+            evidence["slotProjection"] = new JObject { ["initiallyEnabled"] = false,
+                ["enabledForTerminalAuto"] = false, ["maximumNativeWrites"] = 1 };
+            evidence["vendorDialogueProven"] = false; evidence["mountedCombatProven"] = false; evidence["smallPoseQualified"] = false;
+            buildStarted = true; buildStage = 0; buildStageStart = clock.Elapsed.TotalSeconds; game.IsPaused = false;
+            Pass("C7-manual-derived-eligibility");
+        }
+        private void AssertChoiceAuthority()
+        {
+            RequireAuthority(false); RequireNoOwners(); RequireNoEffects();
+            RequireF09PriorHorses();
+            Require(!cleanup && !Busy() && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog) &&
+                (DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown) &&
+                !NativePersistenceIsolation.NativeSlotRotationEnabled,
+                "Native writer, unexpected UI or lost projection/world blocks ordinary input.");
+        }
+        private void ObserveChoice(JObject observation)
+        { Require(choices.Count < 1400, "Native choice evidence exceeds its declared bound."); choices.Add(observation.DeepClone()); }
+        private void TickBuild()
+        {
+            AssertChoiceAuthority();
+            TickManualBuild();
+        }
+        private void TickManualBuild()
+        {
+            Require(clock.Elapsed.TotalSeconds - buildStageStart <= (buildStage == 0 ? 600 : 90),
+                "Manual acquisition stage timed out: " + buildStage);
+            if (buildStage == 0)
+            {
+                if (!buildInputAttempted)
+                {
+                    RequireLiveEligibility();
+                    Require(game.CurrentMode == GameModeType.Default, "Initial native choice left the idle admitted mode.");
+                    buildInputAttempted = true;
+                }
+                if (driver.Tick() != Chunk7OrdinaryBuildStep.Complete) return;
+                RequireAcquiredActor(); evidence["builderComplete"] = driver.CaptureState();
+                Pass("C7-manual-derived-native-choices");
+                if (selection.PaidHire)
+                {
+                    fieldAdmission = new Chunk7NativePartyFieldAdmission(driver.Actor, originalPartyCharacters, AssertFieldAuthority);
+                    fieldAdmission.Open(); buildStage = 1;
+                }
+                else buildStage = 2;
+                buildStageStart = clock.Elapsed.TotalSeconds; return;
+            }
+            if (buildStage == 1)
+            {
+                if (!fieldAdmission.Tick()) return;
+                evidence["fieldSelection"] = fieldAdmission.Capture(); buildStage = 2;
+                buildStageStart = clock.Elapsed.TotalSeconds; return;
+            }
+            if (buildStage == 2)
+            {
+                if (!CaptureField()) return;
+                Pass("C7-manual-derived-native-field");
+                BeginManualDerivedSave(); buildStage = 3; buildStageStart = clock.Elapsed.TotalSeconds; return;
+            }
+            if (buildStage == 3 && ObserveManualDerivedSave())
+            {
+                acquisitionProven = true; evidence["ordinaryAcquisitionProven"] = true;
+                Pass("C7-manual-derived-native-manual-save"); BeginCleanup();
+            }
+        }
+        private void BeginManualDerivedSave()
+        {
+            RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            RequireF09PriorHorses();
+            Require(manualSaveProbe == null && requestedManual == null && !Busy() && manager.IsSaveAllowed() &&
+                authority.AdmittedNativeWriteRequests == 0 && authorization.AuthorizedWriteCount == 0 &&
+                !NativePersistenceIsolation.NativeSlotRotationEnabled &&
+                game.CurrentMode == GameModeType.Default && !game.Player.IsInCombat && !game.CutsceneLock &&
+                game.Player.SavedInArea == game.CurrentlyLoadedArea,
+                "Settled Manual-derived field cannot dispatch a native Manual.");
+            var saves = manager.Take(3).ToArray();
+            Require(saves.Length == 1 && saves[0].Type == SaveInfo.SaveType.Manual &&
+                saves[0].FileName == request.PersistenceLoad.FileName && saves[0].IsActuallySaved &&
+                saves[0].OperationState == SaveInfo.StateType.None,
+                "Native Manual source inventory changed before output numbering.");
+            evidence["sourceDescriptorObject"] = probe.Identity(saves[0]);
+            var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Manual);
+            var leaf = "Manual_" + number.ToString(System.Globalization.CultureInfo.InvariantCulture) + "_" +
+                selection.SelectedOutputName + ".zks";
+            Require(number == (cumulative?.UsesAssistedCold == true ? 301 : cumulative?.UsesOwnerSeedOneOwner == true ? 306 : cumulative != null ? 303 : selection.UsesF09FiveHorseCold ? 308 : selection.UsesF09FourHorseCold ? 307 : selection.UsesOwnerSeedCold ? 304 : 2) &&
+                leaf == selection.NativeWriteLeaf &&
+                !File.Exists(Path.Combine(root, leaf)), "Native Manual numbering or output absence differs.");
+            evidence["nativeNumbering"] = new JObject { ["method"] = "FindUnusedSaveNumber",
+                ["token"] = "06008024", ["moduleMvid"] = typeof(SaveManager).Module.ModuleVersionId.ToString("D"),
+                ["frame"] = UnityEngine.Time.frameCount, ["nativeSaveType"] = "Manual", ["number"] = number,
+                ["fileName"] = leaf, ["outputInitiallyAbsent"] = true, ["slotProjectionEnabled"] = false,
+                ["sourceDescriptors"] = evidence["fixtureReadiness"]["isolatedSaveDescriptors"]["descriptors"].DeepClone() };
+            beforeManualSaveArrangement = CaptureManualSaveArrangement();
+            evidence["beforeSaveArrangement"] = beforeManualSaveArrangement.DeepClone();
+            manualSaveProbe = new Chunk7ManualSeedSaveProbe(game, persistence, probe.Identity, RequireWorldReferences,
+                leaf, selection.SelectedOutputName);
+            manualSaveProbe.Install();
+            requestedManual = manager.CreateNewSave(selection.SelectedOutputName);
+            Require(requestedManual != null && requestedManual.Type == SaveInfo.SaveType.Manual &&
+                requestedManual.Name == selection.SelectedOutputName &&
+                !requestedManual.IsActuallySaved && !requestedManual.HasFileOnDisk &&
+                !requestedManual.IsAutoLevelupSave && requestedManual.Area == game.CurrentlyLoadedArea,
+                "Native Manual descriptor differs from the exact fresh field checkpoint.");
+            manualSaveProbe.Expect(requestedManual);
+            evidence["saveRequested"] = new JObject { ["frame"] = UnityEngine.Time.frameCount,
+                ["descriptor"] = probe.Identity(requestedManual), ["name"] = requestedManual.Name,
+                ["type"] = requestedManual.Type.ToString(), ["nativeSaveAllowed"] = true, ["newSlot"] = true,
+                ["snapshotCount"] = persistence.SnapshotCount, ["authority"] = AuthoritySnapshot() };
+            game.SaveGame(requestedManual, () => { manualCallbackCount++; manualSaveCallback = true; manualSaveProbe.ObserveCallback(); });
+        }
+        private bool ObserveManualDerivedSave()
+        {
+            if (!manualSaveCallback || Busy()) return false;
+            RequireAuthority(false); RequireWorld(); RequireNoOwners(); RequireNoEffects(); VerifySourceBytes();
+            RequireF09PriorHorses();
+            if (selection.UsesF09FourHorseCold || selection.UsesF09FiveHorseCold) evidence["f09PriorHorsesAfter"] = f09PriorHorses.DeepClone();
+            var completion = persistence.LastCompletedSave;
+            Require(manualCallbackCount == 1 && manualSaveProbe != null && manualSaveProbe.Complete &&
+                persistence.CompletedSaveCount == 1 && persistence.SnapshotCount == 1 &&
+                authorization.AuthorizedWriteCount == 1 && authority.AdmittedNativeWriteRequests == 1 &&
+                completion != null && completion.Sequence == 1 &&
+                ReferenceEquals(completion.Requested, requestedManual) &&
+                ReferenceEquals(completion.Written, manualSaveProbe.Written) &&
+                completion.Path == Path.Combine(root, selection.NativeWriteLeaf),
+                "Native Manual completion lacks exact request, worker, callback or authority proof.");
+            var save = completion.Written; var saves = manager.Take(3).ToArray();
+            Require(saves.Length == 2 && saves.Count(value => value.FileName == request.PersistenceLoad.FileName) == 1 &&
+                saves.Count(value => ReferenceEquals(value, save)) == 1 &&
+                save.FileName == selection.NativeWriteLeaf &&
+                save.Name == selection.SelectedOutputName && save.Type == SaveInfo.SaveType.Manual &&
+                !save.IsAutoLevelupSave && save.HasFileOnDisk && save.IsActuallySaved &&
+                save.OperationState == SaveInfo.StateType.None && save.GameId == request.PersistenceLoad.GameId &&
+                save.GameName == request.PersistenceLoad.GameName && save.Area?.AssetGuidThreadSafe == request.PersistenceLoad.Area,
+                "Settled native Manual descriptor inventory differs from its two entries.");
+            NativePersistenceIsolation.RequireOwnedWrite(save);
+            var afterArrangement = CaptureManualSaveArrangement();
+            Require(JToken.DeepEquals(beforeManualSaveArrangement, afterArrangement),
+                "Native Manual save changed money, XP, class ranks or actor identity.");
+            evidence["afterSaveArrangement"] = afterArrangement;
+            evidence["settledDescriptors"] = new JArray(saves.OrderBy(value => value.FileName, StringComparer.Ordinal).Select(value => new JObject {
+                ["descriptor"] = probe.Identity(value), ["fileName"] = value.FileName, ["internalName"] = value.Name,
+                ["type"] = value.Type.ToString(), ["gameId"] = value.GameId, ["gameName"] = value.GameName,
+                ["area"] = value.Area?.AssetGuidThreadSafe, ["isActuallySaved"] = value.IsActuallySaved,
+                ["hasFileOnDisk"] = value.HasFileOnDisk, ["operationState"] = value.OperationState.ToString(),
+                ["autoLevelup"] = value.IsAutoLevelupSave }));
+            var file = new FileInfo(completion.Path); var archive = NativeMountedSaveStorage.ReadArchive(save.Saver);
+            Require(file.Exists && file.Length > 0 && archive.Kind == MountedSaveReadKind.Current &&
+                archive.SourceSchema == 3 && archive.Data != null &&
+                archive.Data.CampaignId == request.PersistenceLoad.GameId && archive.Data.AreaId == request.PersistenceLoad.Area &&
+                archive.Data.Pairs.Length == 0 && archive.Data.Participations.Length == 0 &&
+                archive.Data.Slots.Length == 0 && archive.Data.Combat == null,
+                "Native Manual field checkpoint contains unsupported mounted restoration state.");
+            evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["leaf"] = save.FileName,
+                ["fileName"] = save.FileName, ["internalName"] = save.Name,
+                ["length"] = file.Length, ["sha256"] = Hash(file.FullName), ["lastWriteTimeUtcTicks"] = file.LastWriteTimeUtc.Ticks,
+                ["name"] = save.Name, ["type"] = save.Type.ToString(), ["operation"] = save.OperationState.ToString(),
+                ["operationState"] = save.OperationState.ToString(),
+                ["gameId"] = save.GameId, ["gameName"] = save.GameName, ["area"] = save.Area.AssetGuidThreadSafe,
+                ["requestedObject"] = probe.Identity(requestedManual), ["writtenObject"] = probe.Identity(save),
+                ["requestedDescriptor"] = probe.Identity(requestedManual), ["writtenDescriptor"] = probe.Identity(save),
+                ["completionSequence"] = completion.Sequence, ["authorizedWrites"] = authorization.AuthorizedWriteCount,
+                ["admittedWrites"] = authority.AdmittedNativeWriteRequests, ["completedWrites"] = persistence.CompletedSaveCount,
+                ["snapshotCount"] = persistence.SnapshotCount, ["callbackCount"] = manualCallbackCount,
+                ["autoLevelup"] = save.IsAutoLevelupSave, ["hasFileOnDisk"] = save.HasFileOnDisk,
+                ["isActuallySaved"] = save.IsActuallySaved, ["nativeWorkerSettled"] = true,
+                ["slotProjectionEnabled"] = NativePersistenceIsolation.NativeSlotRotationEnabled,
+                ["saveAfterFieldSelection"] = true, ["schema"] = archive.SourceSchema,
+                ["emptyMountedArchive"] = true, ["descriptorCount"] = saves.Length };
+            evidence["nativeSave"] = manualSaveProbe.Capture();
+            evidence["savedWorld"] = Snapshot();
+            evidence["savedFieldWorld"] = CaptureSavedFieldWorld();
+            if (selection.UsesF09FiveHorseCold) evidence["savedSixthRoster"] = CaptureSixthRoster();
+            return true;
+        }
+        private JObject CaptureSavedFieldWorld()
+        {
+            RequireAcquiredActor();
+            var current = Chunk7NativeFieldRoster.Capture(game.Player);
+            var retained = actors.Where(actor => !IsDepartedSourceActor(actor)).ToArray();
+            Require(current.Length == retained.Length + (selection.PaidHire ? 2 : 1) &&
+                current.All(value => value != null && value.IsInGame && value.IsInState && value.View?.AgentASP != null && value.Commands.Empty) &&
+                current.Count(value => ReferenceEquals(value, acquiredActor)) == 1 &&
+                current.Count(value => ReferenceEquals(value, acquiredPet)) == 1 &&
+                retained.All(original => current.Count(value => ReferenceEquals(value, original)) == 1),
+                "Saved Manual field roster differs from the settled acquired native pair.");
+            var snapshot = Snapshot();
+            snapshot["party"] = new JArray(current.Select(actor => new JObject {
+                ["id"] = actor.UniqueId, ["blueprint"] = actor.Blueprint.AssetGuid,
+                ["object"] = probe.Identity(actor), ["descriptor"] = probe.Identity(actor.Descriptor),
+                ["view"] = probe.Identity(actor.View), ["isInGame"] = actor.IsInGame,
+                ["isInState"] = actor.IsInState, ["commandsEmpty"] = actor.Commands.Empty }));
+            return snapshot;
+        }
+        private void RequireAcquiredActor()
+        {
+            var actor = driver?.Actor; if (actor == null) { Require(acquiredActor == null, "Acquired actor disappeared from its native builder."); return; }
+            if (acquiredActor == null) { acquiredActor = actor; acquiredDescriptor = actor.Descriptor; }
+            Require(ReferenceEquals(actor, acquiredActor) && ReferenceEquals(actor.Descriptor, acquiredDescriptor), "Acquired native actor/descriptor was replaced.");
+            if (actor.IsInState && actor.IsInGame && actor.View != null)
+            {
+                if (acquiredView == null) acquiredView = actor.View;
+                Require(ReferenceEquals(acquiredView, actor.View), "Acquired field actor view was replaced.");
+            }
+            var pet = actor.Descriptor.Pet;
+            if (pet == null) { Require(acquiredPet == null, "Acquired Horse disappeared."); return; }
+            Require(pet.Blueprint == horses.HorseUnit && ReferenceEquals(pet.Descriptor.Master.Value, actor) &&
+                actor.Descriptor.GetFact(horses.HorseFeature) is Feature fact && fact.Source != null,
+                "Native acquired Horse lacks exact sourced feature and reciprocal master.");
+            if (acquiredPet == null) { acquiredPet = pet; acquiredPetDescriptor = pet.Descriptor; }
+            Require(ReferenceEquals(acquiredPet, pet) && ReferenceEquals(acquiredPetDescriptor, pet.Descriptor), "Native acquired Horse/descriptor was replaced.");
+            if (pet.IsInState && pet.IsInGame && pet.View != null)
+            {
+                if (acquiredPetView == null) acquiredPetView = pet.View;
+                Require(ReferenceEquals(acquiredPetView, pet.View), "Acquired Horse field view was replaced.");
+            }
+        }
+        private bool CaptureField()
+        {
+            RequireAuthority(false); RequireNoOwners(); RequireNoEffects(); RequireAcquiredActor();
+            var actor = acquiredActor; var pet = acquiredPet;
+            if (actor?.View?.AgentASP == null || pet?.View?.AgentASP == null || !actor.IsInState || !actor.IsInGame || !pet.IsInState || !pet.IsInGame) return false;
+            Require(actor.IsDirectlyControllable && pet.IsDirectlyControllable && actor.Commands.Empty && pet.Commands.Empty &&
+                ReferenceEquals(pet.Descriptor.Master.Value, actor) && actor.Descriptor.GetFact(horses.HorseFeature) is Feature fact && fact.Source != null &&
+                (actor.Descriptor.GetFact(horses.LevelRank)?.GetRank() ?? 0) > 0 && actor.GetActivePolymorph() == null &&
+                game.Player.PartyCharacters.Count(value => ReferenceEquals(value.Value, actor)) == 1 &&
+                originalPartyCharacters.All(id => game.Player.PartyCharacters.Count(value => value.Value?.UniqueId == id) == 1) &&
+                game.Player.PartyCharacters.Count == originalPartyCharacters.Length + (selection.PaidHire ? 1 : 0),
+                "Acquired owner/Horse lacks exact native field, party, source/rank or command settlement.");
+            if (selection.PaidHire)
+                Require(actor.Descriptor.OriginalSize == (selection.Case == Chunk7ManualDerivedSelection.PaidMediumCase ? Size.Medium : Size.Small) &&
+                    actor.Descriptor.State.Size == actor.Descriptor.OriginalSize, "Selected paid body's original/effective size differs.");
+            var body = NativeSmallRiderBody.Capture(actor, pet);
+            if (selection.PaidHire && body?.NativeRigAvailable != true) return false;
+            Require(body != null, "Acquired field body observation is unavailable.");
+            evidence["field"] = new JObject { ["frame"] = UnityEngine.Time.frameCount, ["actorId"] = actor.UniqueId,
+                ["actorObject"] = probe.Identity(actor), ["actorDescriptor"] = probe.Identity(actor.Descriptor), ["actorView"] = probe.Identity(actor.View),
+                ["petId"] = pet.UniqueId, ["petObject"] = probe.Identity(pet), ["petDescriptor"] = probe.Identity(pet.Descriptor), ["petView"] = probe.Identity(pet.View),
+                ["horseBlueprint"] = pet.Blueprint.AssetGuid, ["featureBlueprint"] = horses.HorseFeature.AssetGuid,
+                ["featureSourceGuid"] = ((Feature)actor.Descriptor.GetFact(horses.HorseFeature)).Source.AssetGuid,
+                ["rank"] = actor.Descriptor.GetFact(horses.LevelRank).GetRank(), ["reciprocal"] = true,
+                ["partyCharacters"] = new JArray(game.Player.PartyCharacters.Select(value => value.Value.UniqueId)),
+                ["profileInventory"] = Chunk7NativeProfileInventory.Capture(new[] { actor, pet }),
+                ["bodyObservation"] = JObject.Parse(SmallRiderBodyFingerprint.Capture(body)),
+                ["ordinaryFieldAdmissionProven"] = true, ["mountedOrPoseAcceptanceProven"] = false };
+            evidence["afterChoices"] = CaptureNoArrangement(); return true;
+        }
+        private void AssertCleanupInputAuthority()
+        {
+            RequireAuthority(true); RequireNoOwners();
+            Require(!Busy() && !game.Player.IsInCombat && !game.CutsceneLock && !game.IsModeActive(GameModeType.Dialog),
+                "Native cleanup cannot cross an active writer/load/combat/foreign world boundary.");
+        }
+        private void AssertFieldAuthority()
+        {
+            if (!cleanup) { AssertChoiceAuthority(); return; }
+            AssertCleanupInputAuthority();
+            Require(DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown, "Unexpected dialog prevents owned selector cleanup.");
+        }
+        private bool DrainBuildCustody()
+        {
+            if (driver != null && cancellation == null && driver.TryGetOwnedBuildSession(out var builder))
+                cancellation = new Chunk7NativeBuilderCancellation(builder, AssertCleanupInputAuthority, Busy);
+            if (cancellation != null && !cancellation.TryDrain()) return false;
+            if (fieldAdmission != null && !fieldAdmission.TryDrain()) return false;
+            if (sixthDeparture != null && !sixthDeparture.TryDrain()) return false;
+            return true;
+        }
+        private void RestoreAcquisitionPresentation()
+        {
+            if (!presentationCaptured) return;
+            AssertCleanupInputAuthority();
+            Require(DialogMessageBox.Instance == null || !DialogMessageBox.Instance.IsShown, "Unexpected native message box retains final presentation custody.");
+            Require(ummInstance != null && ReferenceEquals(UnityModManagerNet.UnityModManager.UI.Instance, ummInstance),
+                "Captured UMM instance was replaced; final presentation custody is retained.");
+            SelectionManager.Instance.MultiSelect(originalSelection.Select(actor => actor.View), false);
+            Require(SelectionManager.Instance.SelectedUnits.SequenceEqual(originalSelection), "Exact original native selection was not restored.");
+            ummLease?.Dispose();
+            Require(ummInstance != null && ReferenceEquals(UnityModManagerNet.UnityModManager.UI.Instance, ummInstance) && ummInstance.Opened == originalUmmOpened,
+                "Captured UMM open state was not restored; a disposed lease retry cannot prove restoration.");
+            ummLease = null; game.IsPaused = originalPause;
+            evidence["cleanup"]["ummInstanceRestored"] = true; evidence["cleanup"]["ummOpenStateRestored"] = true;
+            evidence["cleanup"]["selectionRestored"] = true; evidence["cleanup"]["pauseRestored"] = game.IsPaused == originalPause;
+            evidence["cleanup"]["slotProjectionRestored"] = !NativePersistenceIsolation.NativeSlotRotationEnabled;
+            evidence["cleanup"]["acquiredNativeStateRetained"] = true;
+            evidence["cleanup"]["manualRefunds"] = 0; evidence["cleanup"]["manualFactRemovals"] = 0; evidence["cleanup"]["manualCompanionRemovals"] = 0;
+        }
+    }
+}

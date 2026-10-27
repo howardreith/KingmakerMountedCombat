@@ -79,6 +79,22 @@ function New-KmcPersistenceProfileSnapshot {
 # truncate a populated one. Accepted churn is returned so the caller records it
 # as an expected external change rather than claiming the profile is untouched.
 $script:KmcNativeAchievementCacheSettledSize = 12288
+# Final 7E B1 c4 (20261025-c7e-final-B1-c4, owner decision of October 25): the game also leaves NEW zero-length
+# leaves of the same native family and never populates them. Evidence of native origin: the owner's own profile
+# already held zero-length achievements.dat* leaves written by the owner's own play on 2026-09-08, 2026-10-09 and
+# 2026-10-11, among about 100 leaves of the family; c4's leaf (achievements.dat#3 + five U+FFFD + O, 0 bytes, written
+# 2026-10-25 11:18:14 local) is one more. This is not a profile delta or cache whitelist: it admits only a leaf of
+# exactly this name family (the same name rule as above), absent from the intake snapshot, of length exactly 0 with
+# the empty-content SHA-256, with a write time later than the newest leaf recorded in the intake snapshot (a lower bound:
+# snapshots carry no capture time) and untouched for the whole native settlement window (60 s) before admission, at
+# most one such leaf per comparison (c4 had one). It is left in place, never restored, quarantined or whitelisted for
+# content, and recorded as 'created-empty'. Every other name, every other new size, and every change to an existing
+# leaf (rewrite at another length, truncation, growth, deletion) still refuses. Callers choose the policy:
+#   Refuse (default) - the historical rule; Admit - the rule above; Defer - a young zero-length leaf is neither
+#   admitted nor refused (Restore-KmcPersistenceStartupSettings only; the runner's Wait-KmcPersistenceProfileUnchanged
+#   or the recovery tool's own pre-check is the authority that admits or refuses it).
+$script:KmcNativeEmptyCacheSettleSeconds = 60
+$script:KmcEmptySha256 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
 
 function Test-KmcNativeAchievementCacheName {
     param($Entry)
@@ -151,7 +167,7 @@ function Get-KmcPersistenceProfileIdentityDigest {
 }
 
 function Get-KmcPersistenceProfileCacheDelta {
-    param($Before,$After)
+    param($Before,$After,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse',[long]$NowUtcTicks=0)
     $priorByPath=@{};foreach($entry in $Before.entries){if(Test-KmcNativeAchievementCacheName $entry){$priorByPath[$entry.path]=$entry}}
     $currentByPath=@{};foreach($entry in $After.entries){if(Test-KmcNativeAchievementCacheName $entry){$currentByPath[$entry.path]=$entry}}
     $changes=@()
@@ -169,35 +185,86 @@ function Get-KmcPersistenceProfileCacheDelta {
                 beforeSha256=[string]$prior.sha256;afterSha256=[string]$current.sha256}
         }
     }
+    $unsettled=@();$admittedEmpty=0
     foreach($path in @($currentByPath.Keys)){
         if($priorByPath.ContainsKey($path)){continue}
         $current=$currentByPath[$path]
         if([long]$current.length-ne[long]$script:KmcNativeAchievementCacheSettledSize){
+            if([long]$current.length-eq0){
+                if($EmptyNewLeaf-ceq'Admit'){
+                    $empty=Get-KmcNativeEmptyCacheAdmission $Before $current $NowUtcTicks
+                    if($null-ne$empty-and$admittedEmpty-lt1){$admittedEmpty++;$changes+=$empty;continue}
+                }elseif($EmptyNewLeaf-ceq'Defer'){continue}
+                $unsettled+=$path;continue
+            }
             throw ('A new profile leaf used the achievement cache name without its settled native size: '+
                 $path+' '+$current.length)
         }
         $changes+=[pscustomobject]@{path=$path;change='created';length=[long]$current.length
             beforeSha256=$null;afterSha256=[string]$current.sha256}
     }
+    if($unsettled.Count-gt0){
+        $first=[string](@($unsettled|Sort-Object -CaseSensitive)[0])
+        $units=[string]::Join(',',@([char[]]$first|ForEach-Object{([int][char]$_).ToString('x4')}))
+        $beforeExact=@($Before.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
+        $afterExact=@($After.entries|Where-Object{[StringComparer]::Ordinal.Equals([string]$_.path,$first)}).Count
+        throw ('A new profile leaf used the achievement cache name without its settled native size: '+
+            $first+'; utf16='+$units+'; beforeExact='+$beforeExact+'; afterExact='+$afterExact+' 0')
+    }
     return $changes
 }
 
+# The settled-empty admission (see KmcNativeEmptyCacheSettleSeconds): exact empty bytes, written later than the newest leaf of the
+# intake snapshot and untouched for the whole settlement window. Returns the receipt row, or $null to keep refusing.
+function Get-KmcNativeEmptyCacheAdmission {
+    param($Before,$Entry,[long]$NowUtcTicks=0)
+    if($NowUtcTicks-le0){$NowUtcTicks=[DateTime]::UtcNow.Ticks}
+    if(-not(Test-KmcNativeAchievementCacheName $Entry)-or[long]$Entry.length-ne0-or[string]$Entry.sha256-cne$script:KmcEmptySha256){return $null}
+    if($null-eq$Entry.PSObject.Properties['lastWriteTimeUtcTicks']){return $null}
+    $written=[long]$Entry.lastWriteTimeUtcTicks
+    $intake=[long]0;foreach($prior in @($Before.entries)){
+        if($null-ne$prior.PSObject.Properties['lastWriteTimeUtcTicks']-and[long]$prior.lastWriteTimeUtcTicks-gt$intake){$intake=[long]$prior.lastWriteTimeUtcTicks}}
+    if($intake-le0-or$written-le$intake-or$written-gt$NowUtcTicks-[long]$script:KmcNativeEmptyCacheSettleSeconds*10000000L){return $null}
+    return [pscustomobject]@{path=[string]$Entry.path;change='created-empty';length=[long]0;beforeSha256=$null;afterSha256=[string]$Entry.sha256}
+}
+
 function Assert-KmcPersistenceProfileUnchanged {
-    param($Snapshot)
+    param($Snapshot,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse')
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
-    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
         (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $after)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
+    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
+    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after -EmptyNewLeaf $EmptyNewLeaf
     # Admitted native cache churn and appended analytics batches, for the caller
     # to record as expected external changes with their exact hashes. An empty
     # result means the profile really is byte-equal.
     return @($cacheChanges)+@($analyticsChanges)
+}
+
+function Wait-KmcPersistenceProfileUnchanged {
+    param($Snapshot,[ValidateRange(0,60000)][int]$MaximumWaitMilliseconds=60000,
+        [ValidateRange(25,1000)][int]$PollMilliseconds=250)
+    $elapsed=[Diagnostics.Stopwatch]::StartNew()
+    while($true){
+        try{return @(Assert-KmcPersistenceProfileUnchanged $Snapshot)}
+        catch{
+            # Only a newly created, not-yet-populated native achievement cache
+            # receives a short read-only settlement window. Every other profile,
+            # settings or process violation fails on its first observation.
+            if(-not$_.Exception.Message.StartsWith('A new profile leaf used the achievement cache name without its settled native size:',
+                    [StringComparison]::Ordinal)-or
+                    -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)){throw}
+            # A zero-length leaf that never populated within the window: only the settled-empty admission may take it
+            # (exact empty bytes, untouched for the whole settlement window); otherwise the original refusal stands.
+            if($elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){return @(Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Admit)}
+            Start-Sleep -Milliseconds $PollMilliseconds
+        }
+    }
 }
 
 # One observed owned LoadGameException reset changed this exact boolean.
@@ -242,7 +309,10 @@ function Get-KmcPersistencePreferenceChanges {
 }
 
 function Assert-KmcNativeUmmStartupDelta {
-    param([string]$Before,[string]$After,[switch]$RemovalObserver)
+    param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver,[string[]]$StagedModIds)
+    if($BaseGameOnly-and$RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
+    if($WithObserver-and-not$BaseGameOnly){throw 'The co-staged observer authority exists only in the isolated base-game mode.'}
+    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver;return}
     [xml]$original=$Before;[xml]$current=$After
     # Unchanged parameters are the ordinary case now and the safest possible
     # outcome, so they pass on their own. This assertion was written when UMM
@@ -251,21 +321,35 @@ function Assert-KmcNativeUmmStartupDelta {
     # requiring the append made a byte-identical file fail.
     if($current.OuterXml-ceq$original.OuterXml){return}
     if($RemovalObserver){
-        # A removal-observer run stages the live Mods clone WITHOUT KMC and with
-        # the observer in its place, so UMM's startup rewrite drops the KMC entry
-        # and records the observer's entry exactly where KMC's stood. Only that
-        # replacement is admitted: renaming the observer entry back must give the
-        # original document byte for byte.
+        # F2 r32: UMM also moves LastUpdateCheck forward and prunes the entry of a mod whose folder was absent from the run's
+        # own staged Mods tree (the owner's Params.xml still listed CheatMenu after its folder was removed). Both are the shared
+        # native rules of the base-game delta; the prune needs the run's staged Mods ids, otherwise nothing is pruned.
+        Step-KmcUmmLastUpdateCheck $original $current
+        # UMM records the staged observer in place of an existing KMC entry, or
+        # appends it when the owner's settled parameters contain no KMC entry.
+        # Both cases must leave every other parsed parameter exactly unchanged.
         $kmcBefore=@($original.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerBefore=@($original.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
         $kmcAfter=@($current.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
         $observerAfter=@($current.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
-        if($kmcBefore.Count-ne1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
+        if($kmcBefore.Count-gt1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
             [string]$observerAfter[0].GetAttribute('Enabled')-cne'true'){
             throw 'UMM parameter delta is outside the removal-observer replacement.'
         }
-        $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
-        if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
+        if($kmcBefore.Count-eq1){
+            $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        }else{
+            $modList=$current.SelectSingleNode('//ModParams')
+            if($null-eq$modList){$modList=$current.SelectSingleNode('//ModParamsList')}
+            if($null-eq$modList-or$observerAfter[0].ParentNode-ne$modList-or
+                $modList.LastChild-ne$observerAfter[0]-or$observerAfter[0].OuterXml-cne
+                '<Mod Id="KmcRemovalObserver" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'){
+                throw 'UMM parameter delta is outside the exact removal-observer append.'
+            }
+            [void]$modList.RemoveChild($observerAfter[0])
+        }
+        $pruned=if($null-ne$StagedModIds){Remove-KmcUmmAbsentModEntries $original @(@($StagedModIds)+@('KingmakerMountedCombat')) -FolderNames}else{$original}
+        if($current.OuterXml-cne$original.OuterXml-and$current.OuterXml-cne$pruned.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
         return
     }
     # The one historical startup transition is still accepted, and nothing else.
@@ -279,12 +363,106 @@ function Assert-KmcNativeUmmStartupDelta {
     if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include an unrelated change.'}
 }
 
+# The top-level mod folders of the run's own staged Mods tree, read from its staged manifest sidecar (digest-checked against
+# the transaction state recorded before launch). The removal-observer startup rule prunes only entries absent from these.
+function Get-KmcRunStagedModIds([string]$RunId){
+    $lab=Get-KmcLabRoot
+    $state=Read-KmcJson (Get-KmcTransactionStatePath (Join-Path $lab 'runtime-state') $RunId)
+    if([string]$state.runId-cne$RunId){throw 'Staged Mods record belongs to another run.'}
+    # A state without a staged manifest sidecar (older schema) admits no prune at all.
+    if($null-eq$state.PSObject.Properties['stagedManifestSidecar']){return $null}
+    if([string]$state.stagingMode-cne'live-clone-minus-kmc-plus-observer'){throw 'Staged Mods record is not a removal-observer staging.'}
+    $entries=Read-KmcModsStagedManifestSidecar -State $state -StagingRoot (Join-Path $lab 'runtime-staging') -RunId $RunId
+    $ids=[string[]]@($entries|Where-Object{$_.kind-ceq'directory'-and-not([string]$_.path).Contains('/')}|ForEach-Object{[string]$_.path})
+    # The staged tree must carry the observer itself; an empty or foreign id list would prune every entry.
+    if($ids-cnotcontains'KmcRemovalObserver'){throw 'Staged Mods record lacks the removal observer.'}
+    return ,$ids
+}
+# b210 c3: a native crash left the transaction prepared/staged, so profile recovery (which needs an otherwise-restored
+# transaction under the stale lock) could not run first, and after transaction recovery the lock is closed. The completed
+# transaction is the receipt: the run's combined, Mods and save transaction states all restored under the snapshot's own
+# token with every restoration proof true and no error, no runtime lock held and no prior profile-recovery receipt.
+# -ProfileRecoveryLock: the only admitted lock is this run's own 'profile-recovery' lock (a stale one left by an interrupted
+# recovery, which the tool adopts, or the one it now holds, so every check is repeated under the lock).
+function Get-KmcProfileRecoveryLockPayload([string]$LockPath){
+    Assert-KmcRecoveryLeafNoLinks $LockPath 'profile-recovery lock'
+    $stream=New-Object IO.FileStream($LockPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try{$reader=New-Object IO.StreamReader($stream,[Text.UTF8Encoding]::new($false));$text=$reader.ReadToEnd()}finally{$stream.Dispose()}
+    $payload=$text|ConvertFrom-Json
+    Assert-KmcExactProperties $payload @('schemaVersion','runId','token','ownerProcessId','createdAtUtc','purpose') 'profile-recovery lock'
+    return $payload
+}
+
+function Assert-KmcCompletedTransactionRecovery {
+    param([Parameter(Mandatory=$true)][string]$StateRoot,[Parameter(Mandatory=$true)][string]$EvidenceRoot,
+        [Parameter(Mandatory=$true)][string]$RunId,[Parameter(Mandatory=$true)]$Snapshot,[switch]$ProfileRecoveryLock,$HeldLock)
+    if($RunId-cnotmatch'^[A-Za-z0-9._-]{1,120}$'-or[string]$Snapshot.runId-cne$RunId-or[string]$Snapshot.token-cnotmatch'^[0-9a-f]{64}$'){
+        throw 'Post-transaction profile recovery has no exact run snapshot.'
+    }
+    $lockPath=Join-Path ([IO.Path]::GetFullPath($StateRoot)) 'active-transaction.lock'
+    if($null-ne$HeldLock){
+        # The held lock is read through its own exclusive handle (a second open would be a sharing violation).
+        if($ProfileRecoveryLock){throw 'A held lock and a stale lock cannot both be admitted.'}
+        $payload=Assert-KmcRuntimeLockOwner $HeldLock
+        if([IO.Path]::GetFullPath([string]$HeldLock.Path)-cne[IO.Path]::GetFullPath($lockPath)-or$null-eq$payload.PSObject.Properties['purpose']-or
+            [string]$payload.runId-cne$RunId-or[string]$payload.purpose-cne'profile-recovery'){throw 'The held runtime lock is not this run''s profile-recovery lock.'}
+    }
+    elseif($ProfileRecoveryLock){
+        if(-not(Test-Path -LiteralPath $lockPath -PathType Leaf)){throw 'Post-transaction profile recovery lost its profile-recovery lock.'}
+        $payload=Get-KmcProfileRecoveryLockPayload $lockPath
+        if([string]$payload.runId-cne$RunId-or[string]$payload.purpose-cne'profile-recovery'){throw 'The runtime lock is not this run''s profile-recovery lock.'}
+    }
+    elseif(Test-Path -LiteralPath $lockPath){throw 'Post-transaction profile recovery requires that no runtime lock is held.'}
+    $combinedPath=Get-KmcRunTransactionStatePath $StateRoot $RunId
+    if(-not(Test-Path -LiteralPath $combinedPath -PathType Leaf)){throw 'Post-transaction profile recovery has no combined transaction receipt.'}
+    $combined=Read-KmcRunTransactionState -StatePath $combinedPath
+    $errors=@();if($null-ne$combined.PSObject.Properties['restorationErrors']){$errors=@($combined.restorationErrors|Where-Object{$null-ne$_})}
+    foreach($name in @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed','restoredModsDigest','restoredSaveInventoryDigest','restoredAtUtc')){
+        if($null-eq$combined.PSObject.Properties[$name]){throw ('Post-transaction profile recovery receipt lacks '+$name+'.')}
+    }
+    if([string]$combined.runId-cne$RunId-or[string]$combined.token-cne[string]$Snapshot.token-or[string]$combined.phase-cne'restored'-or
+        $combined.modsRestored-isnot[bool]-or-not$combined.modsRestored-or$combined.saveProtectionPassed-isnot[bool]-or-not$combined.saveProtectionPassed-or
+        $combined.baselineImmutable-isnot[bool]-or-not$combined.baselineImmutable-or$combined.workingRestored-isnot[bool]-or-not$combined.workingRestored-or
+        $combined.saveWriteAllowlistPassed-isnot[bool]-or-not$combined.saveWriteAllowlistPassed-or$errors.Count-ne0){
+        throw 'Post-transaction profile recovery has no completed transaction recovery for this run and token.'
+    }
+    foreach($part in @(@('Mods',(Get-KmcTransactionStatePath $StateRoot $RunId)),@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId)))){
+        if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt.')}
+        $value=Read-KmcJson $part[1]
+        if([string]$value.runId-cne$RunId-or[string]$value.token-cne[string]$Snapshot.token-or[string]$value.phase-cne'restored'){
+            throw ('Post-transaction profile recovery '+$part[0]+' transaction is not restored under this run and token.')
+        }
+    }
+    $receipt=Join-Path ([IO.Path]::GetFullPath($EvidenceRoot)) ($RunId+'/profile-recovery.json')
+    if(Test-Path -LiteralPath $receipt){throw 'Profile recovery already has a receipt for this run.'}
+    return $combined
+}
+
 function Restore-KmcPersistenceStartupSettings {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
-    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver)
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly,
+        [string]$RecoveredTransactionToken)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
-    if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
+    # A post-transaction profile recovery holds its own fresh 'profile-recovery' lock for the run; the snapshot then binds to the
+    # completed transaction's token (Assert-KmcCompletedTransactionRecovery) instead of the lock's.
+    $purpose=$Lock.PSObject.Properties['Purpose']
+    $postTransaction=$null-ne$purpose-and[string]$purpose.Value-ceq'profile-recovery'
+    if($postTransaction){
+        if($Lock.RunId-cne$Snapshot.runId-or$RecoveredTransactionToken-cnotmatch'^[0-9a-f]{64}$'-or$RecoveredTransactionToken-cne$Snapshot.token){throw 'Profile restoration has no matching completed transaction.'}
+    }
+    elseif(-not[string]::IsNullOrEmpty($RecoveredTransactionToken)-or$null-ne$purpose){throw 'A recovered transaction token needs the profile-recovery lock.'}
+    elseif($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
+    $tokenForState=if($postTransaction){$RecoveredTransactionToken}else{[string]$Lock.Token}
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
+    $withObserver=$false
+    if($BaseGameOnly){
+        if($RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
+        $baseStatePath=Get-KmcTransactionStatePath (Join-Path (Get-KmcLabRoot) 'runtime-state') ([string]$Lock.RunId)
+        $baseState=Read-KmcJson $baseStatePath
+        Assert-KmcBaseGameSettingsAuthority -State $baseState -RunId ([string]$Lock.RunId) -Token $tokenForState -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir)
+        # The co-staged entry set comes from durable owned state, never a caller switch.
+        $withObserver=[string]$baseState.stagingMode-ceq'base-game-only-kmc-observer'
+    }
     $expectedParams=[IO.Path]::GetFullPath((Join-Path $intake.requestedLayout.kingmakerInstallDir 'Kingmaker_Data/Managed/UnityModManager/Params.xml'))
     if([IO.Path]::GetFullPath($Snapshot.paramsPath)-cne$expectedParams-or
         [IO.Path]::GetFullPath($Snapshot.profile)-cne[IO.Path]::GetFullPath((Split-Path $intake.requestedLayout.kingmakerSaveRoot))){
@@ -300,12 +478,15 @@ function Restore-KmcPersistenceStartupSettings {
         throw 'Current settings changed after the restoration review; refusing a stale overwrite.'
     }
     $profile=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $createdAnalytics=@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $profile)
+    # A young zero-length native cache leaf is deferred here, never admitted: the runner's Wait-KmcPersistenceProfileUnchanged
+    # or the recovery tool's own pre-check (settled-empty admission) decides it.
+    $createdAnalytics=@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $profile -EmptyNewLeaf Defer)
     Assert-KmcObservedPreparationTimeoutRecord $Snapshot.runId
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
-        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver
+        if($RemovalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver -StagedModIds (Get-KmcRunStagedModIds ([string]$Lock.RunId))}
+        else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver}
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}
@@ -321,7 +502,7 @@ function Restore-KmcPersistenceStartupSettings {
         Assert-KmcDirectoryTreeCloneable $source 'owned analytics cache'
         if(Test-Path -LiteralPath $destination){throw 'Analytics quarantine already exists; refusing an ambiguous move.'}
         $now=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-        [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now)
+        [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now -EmptyNewLeaf Defer)
         # Both resolved absolute roots and the exact four contents were checked.
         # Same-volume rename keeps evidence intact; no recursive delete is used.
         [IO.Directory]::Move($source,$destination)
@@ -340,7 +521,7 @@ function Restore-KmcPersistenceStartupSettings {
             $key.Flush()
         }finally{if($null-ne$key){$key.Dispose()}}
     }
-    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Defer)
 }
 
 # Exact one-run cache delta: native Unity analytics archived four new files on
@@ -365,8 +546,8 @@ function Test-KmcObservedValidationAnalyticsEntry {
 }
 
 function Get-KmcPersistenceProfileRecoveryDelta {
-    param($Snapshot,$Current)
-    [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current)
+    param($Snapshot,$Current,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse')
+    [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current -EmptyNewLeaf $EmptyNewLeaf)
     [void](Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $Current)
     if((Get-KmcPersistenceProfileIdentityDigest $Current $Snapshot.inventory)-ceq
         (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Current)){return @()}

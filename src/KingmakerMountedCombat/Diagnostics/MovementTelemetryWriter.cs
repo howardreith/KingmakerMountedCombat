@@ -65,11 +65,23 @@ namespace KingmakerMountedCombat.Diagnostics
             path = Path.Combine(request.EvidenceRoot, "movement-telemetry.jsonl");
         }
 
+        internal double LastSampleSeconds => lastSampleSeconds;
+        internal long SampleSequence => sequence;
+        internal bool HasCreatedTelemetry => created;
+        internal double SamplingIntervalSeconds => intervalSeconds;
+        internal double SamplingClockSeconds => clock.Elapsed.TotalSeconds;
+
         public void Update(float deltaTime)
         {
+            if (MountedOptionalDiagnosticsWindow.Suppresses(this)) return;
             var nowSeconds = clock.Elapsed.TotalSeconds;
             if (nowSeconds - lastSampleSeconds < intervalSeconds) { return; }
             lastSampleSeconds = nowSeconds;
+            CaptureNativeSample();
+        }
+
+        private void CaptureNativeSample()
+        {
             var rider = runtime.Rider;
             var mount = runtime.Mount;
             var agent = runtime.MovementAgent;

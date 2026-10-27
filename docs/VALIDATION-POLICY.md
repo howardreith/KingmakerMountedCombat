@@ -89,3 +89,59 @@ pending. This completed milestone does not select another campaign for ordinary
 work. All frequency, identity and live-safety rules above remain in force.
 Snapshot actual current human installation for any later transaction; never copy
 a historical preview pin into its restoration target.
+
+## Development acceleration (owner directives of October 16-17, 2026)
+
+[The owner's directives, verbatim.](CHUNK7-OWNER-DIRECTIVES-2026-10-16.md) For
+development work they supersede three earlier active requirements; the earlier
+text in dated checkpoint documents remains history and is not rewritten.
+
+- **Seed provenance.** Autonomous prologue production is no longer the universal
+  starting prerequisite. An owner-identified, owner-supplied disposable save may be
+  admitted on owner provenance plus archive validation plus one successful isolated
+  native cold load. The master stays immutable outside the game's writable save
+  root; every load uses a fresh ordinary copy, never a hard link. The seed is never
+  relabelled as producer output and proves nothing it did not exercise. Automated
+  prologue tooling and its failed evidence are retained as optional tooling.
+- **Audit scope.** The blanket whole-lab rehash before and after every native
+  attempt is replaced, for development runs only, by a reviewed dependency-scoped
+  audit over the run's actual inputs and every surface the runner or game may
+  modify. Unrelated historical archives, retired artifacts, other worktrees and
+  read-only reference trees are excluded and are not claimed unchanged afterwards.
+  Exposed restore targets are never excluded. Broad audit and release
+  qualification remain available for a separately selected milestone.
+- **Native attempts.** The 25-attempt lifetime cap is replaced by bounded batches
+  of at most five declared native scenarios. The historical ledger is preserved
+  exactly (14 attempts, all final FAIL); nothing is reset or renumbered. Two
+  equivalent failures without a new distinguishing observation require diagnosis
+  or a changed experiment before another run.
+- **Review.** Coherent production and safety changes still get one independent
+  review before live use. Mechanical regeneration by an unchanged reviewed generator
+  does not need a separate review procession; changing the generator or its safety
+  assumptions does. Recorded values in generated receipts are derived from validated
+  inputs rather than restated as literals.
+
+Unchanged and still mandatory: per-transaction locks; current-state backup and
+exact restoration of every exposed surface; package, seed, runner and recovery
+identity; focused positive and negative checks for safety changes; native evidence
+for behaviour claims; no transfer of an old PASS to changed bytes; one native
+executor; never terminating a live transaction for a time budget.
+
+### Shared transaction surfaces and the no-deployment window
+
+The runner moves the **entire** installed `Mods` tree into a transaction backup and
+moves a staged tree into its place; restore quarantines the staged tree and moves the
+original back. The whole installed `Mods` tree is therefore a shared transaction
+surface even when only KMC is active, and so are UMM's `Params.xml` under
+`Kingmaker_Data\Managed\UnityModManager`, the game profile and the save root. From
+the pre-run snapshot until verified restoration there is a no-deployment window: no
+human game session, no second executor, and no other project installing into those
+paths. Other projects may keep editing and building elsewhere.
+
+An unexpected write that reaches the staged tree during a run is preserved
+byte-exact in that run's quarantine, the live tree is returned to its pre-run
+snapshot so the human installation stays coherent, and the run is reported as
+**not restored and not passed**, naming the quarantine so any newer deployment can
+be re-applied. The only runtime write accepted as expected is UMM's assembly cache
+`<name>.dll.<digits>.cache` that is a byte copy of a `<name>.dll` staged by the run,
+established from three real runs.

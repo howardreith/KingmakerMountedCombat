@@ -208,7 +208,7 @@ function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
  $frozen.automaticEnd.PSObject.Properties.Remove('restored')
  if($null-ne$frozen.PSObject.Properties['unrelated']-and$null-ne$frozen.unrelated){$frozen.unrelated.PSObject.Properties.Remove('restoration')}
  Assert-KmcSameEvidence $rows[0].evidence $frozen 'action economy row'
- $allowed=@('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-preparing-refused',[string]$v.row)
+ $allowed=@('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-preparing-admitted','CM01-combat-mount-foreign-turn-refused',[string]$v.row)
  if(-not$v.riderExhaust){$allowed+=@('CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations');if(-not$v.adjacentMount){$allowed+='CM02-approach-arrival'}}
  if(@($Artifact.rows|Where-Object {$_.name-clike'CM*'-and$_.name-cnotin$allowed}).Count-ne0){throw 'Action economy allocation credited another combat row'}
 }

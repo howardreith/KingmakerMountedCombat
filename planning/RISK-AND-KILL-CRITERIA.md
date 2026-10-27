@@ -1,3 +1,58 @@
+## October 19 - preview.44 selected source connection IN PROGRESS
+
+Reviewed group44 source is applied after closure HEAD `7c1bcadc`; no preview.44
+native PASS yet. Focused C#775/0 plus actual505-source compile PASS; merged
+PS501/0; required applied assisted236/0. Earlier FAILs are preserved. Exact
+scope, private review/check receipts, substitutions and next native dependencies
+are in [the active checkpoint](../docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+No game/transaction is live. Finish the clean source/package review checkpoint,
+guarded-push, one proper candidate build/Candidate and suite, then selected
+migration/area/disable/refusal/removal batches. Do not stop at this source commit.
+No merge/release/tag/permanent installation, full7E or HUMAN PLAY is selected.
+
+## 2026-10-18 — Directive 4 preview.42 native batch settled
+
+## October 19 - preview.43 closure and next source group IN PROGRESS
+
+Preview.43 worker cancel/drain and nonselected-owner global save barrier now
+PASS natively. Pending-schema2 and schema1 producers remain preserved FAIL;
+their dependent cold loads were not launched. All four runs restored all three
+transactions and profile bytes exactly; no game or lock remains. The schema2
+test must preserve the correct future-data guard and derive historical metadata
+from a genuine current pending save. The schema1 observer must preserve null
+hotbar collection custody without allocating native state.
+
+Exact source/package/DLL/run hashes, durations and remaining scope are in
+[the active Directive 4 checkpoint](../docs/CHUNK7-CODEX-DIRECTIVE4-CHECKPOINT-2026-10-18.md).
+The source freeze is closed. Compose and review the private group44 drafts,
+run focused affected checks, commit/guarded-push, then build the next candidate
+once and declare bounded native retries. Directive 4 remains IN PROGRESS.
+
+IN PROGRESS. Source b9631449 guarded-pushed; one preview.42 build, Candidate6/6
+PASS in221.2420399s. Native batch13: worker FAIL (selected all6 rather than A),
+barrier FAIL (stale templates require exact native fact observations), read-only
+stock route inventory PASS. Pending survivor producer/cold were not launched.
+All exposed surfaces restored exactly, no game/lock. Both failures require
+focused driver/observation repairs and a reviewed fresh binary/native attempt;
+neither failed output is admitted as a source. Group43 also connects schema1
+and both actual schema3 third-process consumers. Area/disable/removal/native
+refusal gates remain actionable. No owner-save or push permission is pending.
+Exact identities, observations and next work: CURRENT.md and AUTONOMOUS-RESUME.md.
+
+## 2026-10-18 — Directive 4 persistence risks
+
+IN PROGRESS. The saved non-current native-boundary movement overwrite is fixed
+and natively accepted in preview.41 b12s1; original b11s2 FAIL is preserved.
+Zero-mounted retained-state save/cold qualification passed in fresh b12s4/b12s5
+after the reviewed reader correction. Original b12s2 FAIL remains immutable; its
+archive was not used as cold input. Native and external verdicts stay separate. Active-pair
+approach exceptions must bind scalar native identities, generations, roles and
+turn observations and reject conflicting claims; native movement/cost bounds
+remain required. Pending survivor, global save/worker barriers, area continuity,
+permanent Horse references/removal and migration remain selected evidence gaps.
+No action budget/preparation rule, safety guard, architecture kill criterion or
+historical matrix was relaxed. [Current evidence](../docs/CHUNK7-OWNER-SEED-EVIDENCE.md).
+
 ## 2026-10-05 - preview.176 continuation audit
 
 **BLOCKED — CRITICAL at the owner's unproven-persistence stop boundary.** Frozen40c40e4 skips the old
@@ -187,3 +242,9 @@ Source128 path observer: in-flight pathState now uses an explicit Null JToken. T
 Source129 native preparation ownership: pinned TurnController.Prepare06000C3C/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7/IL SHA27c769eb310f4bccfa9db38e06a921260696b4d95c382586bea04e2f091af408 calls Clear once. FullTB128 observed entry/exit withoutClear after duplicate caller/prefix reservation. Only the existing native prefix may reserve pending partner preparation. Source129 requires completion and retains all Clear/reaction event assertions. Compiled128 regression FAIL, repaired12916/0; Unity129 pending. Historical failures remain exact; bounded local IL stays outside Git.
 
 Source130 fixture precision risk: ordinary native ground input0.3m radius can lawfully finish outside strict0.06m fixture tolerance (observed129 residual0.285911083). Diagnostic callback now requests0.03m through native UnitMoveTo construction. Arrival, same-turn, carried debt and action/reaction gates remain strict. Native130 behavior is pending;129 fullTB did not reach partner preparation.
+
+## 2026-10-12 — Chunk 7 diagnostic authority and breadth
+
+IN PROGRESS. No diagnostic may mutate a replacement world or actor because an earlier scope once passed. Exact Game/Player/persistent state/campaign/name and actor/descriptor/view pins fence ordinary no-transition work; a declared native area transfer requires explicit restored-owner/view/slot proof before strict destination adoption. Mode refresh during its loading phase retains the original persistent-world identity without granting actor/save authority. Native selector alpha is readiness, not ownership: exact activation/reference establishes owned open/close state.
+
+The paid native level-up autosave precedes field selection; it cannot be advertised as a field-placed mounted Small fixture. Native retrain legitimately replaces descriptors/views and performs engine-owned rest/time/refunds; it needs a separate declared transition, never relaxed ordinary cleanup or KMC-manufactured resources. Six field characters is distinct from six qualified mounted pairs; selected native capacity remains two. Instrumented Update/frame/heap samples are neither diagnostics-off proof nor allocated-byte rates. Require actual same-candidate evidence and exact restoration; preserve failures and continue independent rows when a prerequisite is missing.

@@ -44,13 +44,18 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Reason { get; }
     }
 
-    internal sealed class RuntimeSaveAuthorization
+    internal sealed partial class RuntimeSaveAuthorization
     {
         private const string ManualSaveType = "Manual";
         private readonly object sync = new object();
         private AuthorizationScope activeScope;
         private PersistenceSaveAuthorization persistenceScope;
         internal bool IsPersistenceMode { get { lock (sync) return persistenceScope != null; } }
+        internal int AuthorityGeneration { get { lock (sync) return generation; } }
+        internal bool IsExactPersistenceScope(PersistenceSaveAuthorization scope)
+        {
+            lock (sync) return scope != null && activeScope != null && ReferenceEquals(persistenceScope, scope) && activeScope.SaveRoot == scope.Root;
+        }
 
         internal void BindPersistenceScope(PersistenceSaveAuthorization scope)
         {
@@ -200,11 +205,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        internal string ValidateLoadBeforeWorldReplacement(RuntimeSaveTarget target, string observedSaveRoot)
+        internal string ValidateLoadBeforeWorldReplacement(RuntimeSaveTarget target, string observedSaveRoot, string nativeEntry = null)
         {
             AuthorizationScope scope;
             lock (sync) { scope = activeScope; }
             if (scope == null) return null;
+            lock (sync)
+                if (loadRefusalProbe?.Armed == true)
+                    return loadRefusalProbe.ValidateEarly(target, observedSaveRoot, nativeEntry);
             // Read-only admission: the real LoadRoutine remains the counted
             // load boundary, and no previous-world cleanup has happened yet.
             return persistenceScope == null ?
@@ -226,7 +234,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var rejection = persistenceScope == null ? ValidateActiveRequest(scope, operation, target, observedSaveRoot, false) :
-                persistenceScope.Validate(operation, target, observedSaveRoot);
+                persistenceScope.AuthorizeNativeRequest(operation, target, observedSaveRoot);
             if (rejection == null)
             {
                 lock (sync)
@@ -443,6 +451,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     activeScope = null;
                     persistenceScope = null;
+                    loadRefusalProbe = null;
                     oneShotWorkingWriteSuppressionArmed = false;
                 }
             }

@@ -31,3 +31,41 @@ namespace KingmakerMountedCombat.RuntimeTooling
         }
     }
 }
+
+namespace KingmakerMountedCombat.RuntimeTooling
+{
+    // Bounded canonical UTF-8 hashing; caller retains the exact formatting and ordering.
+    public sealed class ManifestCanonicalHasher : IDisposable
+    {
+        private readonly SHA256 algorithm = SHA256.Create();
+        private readonly CryptoStream stream;
+        private readonly StreamWriter writer;
+        private bool first = true;
+        private bool complete;
+        public ManifestCanonicalHasher()
+        {
+            stream = new CryptoStream(Stream.Null, algorithm, CryptoStreamMode.Write);
+            writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false), 4096, true);
+        }
+        public void Append(string row)
+        {
+            if (complete) throw new InvalidOperationException("Canonical manifest is complete.");
+            if (!first) writer.Write('\n');
+            writer.Write(row);
+            first = false;
+        }
+        public string Complete()
+        {
+            if (complete) throw new InvalidOperationException("Canonical manifest is complete.");
+            writer.Flush();
+            stream.FlushFinalBlock();
+            complete = true;
+            return BitConverter.ToString(algorithm.Hash).Replace("-", string.Empty).ToLowerInvariant();
+        }
+        public void Dispose()
+        {
+            try { writer.Dispose(); }
+            finally { try { stream.Dispose(); } finally { algorithm.Dispose(); } }
+        }
+    }
+}

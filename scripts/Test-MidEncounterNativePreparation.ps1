@@ -19,7 +19,7 @@ public static class KmcMidEncounterPreparationRegression {
  public static void Run(string managed,string dll){
   ResolveEventHandler resolver=(s,e)=>{var name=new AssemblyName(e.Name).Name+".dll";var p=Path.Combine(managed,name);if(!File.Exists(p))p=Path.Combine(managed,"UnityModManager",name);return File.Exists(p)?Assembly.LoadFrom(p):null;};AppDomain.CurrentDomain.AssemblyResolve+=resolver;
   try{
-   var assembly=Assembly.LoadFrom(dll);var u=assembly.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+   var assembly=Assembly.LoadFrom(dll);var u=assembly.GetType("KingmakerMountedCombat.Integration.MountedPairTurnParticipant",true);
    var calls=Calls(u.GetMethod("AdoptRunningEncounter",flags));var reservations=calls.Count(m=>m.Name=="BeginActorPreparation");
    Check(calls.Count(m=>m.Name=="Prepare"&&m.DeclaringType.FullName=="TurnBased.Controllers.TurnController")==1,"Adoption must invoke exactly one partner native Prepare");
    Check(Calls(u.GetMethod("BeginPairedPreparation",flags)).Count(m=>m.Name=="BeginActorPreparation")==2,"Both native preparation branches must reserve their own grants");
@@ -44,7 +44,28 @@ public static class KmcMidEncounterPreparationRegression {
    var prepare=game.ManifestModule.ResolveMethod(0x06000C3C);var hash=BitConverter.ToString(SHA256.Create().ComputeHash(prepare.GetMethodBody().GetILAsByteArray())).Replace("-","").ToLowerInvariant();
    Check(hash=="27c769eb310f4bccfa9db38e06a921260696b4d95c382586bea04e2f091af408","Pinned native preparation body differs");
    Check(Calls(prepare).Count(m=>m.Name=="Clear"&&m.DeclaringType.FullName=="Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns")==1,"Native preparation lacks its exact single cooldown Clear");
-   Console.WriteLine("MID-ENCOUNTER NATIVE PREPARATION PASS="+count+" FAIL=0; compiled caller/domain/pinned native contract, not Unity qualification");
+       var facade=assembly.GetType("KingmakerMountedCombat.Integration.UnifiedMountedTurnCoordinator",true);
+    var dispatch=Calls(facade.GetMethod("HandleTurnPreparingAtCurrent",flags));
+    Check(dispatch.Count(m=>m.Name=="HandleTurnPreparing"&&m.DeclaringType==u)==1&&
+     dispatch.Count(m=>m.Name=="BeginGrantedPreparation")==1&&!dispatch.Any(m=>m.Name=="GetEnumerator"),
+     "World preparation must dispatch one participant or one global native allocation fallback without a participant loop");
+    var preparedDispatch=Calls(facade.GetMethod("HandleTurnPrepared",flags));
+    Check(preparedDispatch.Count(m=>m.Name=="HandleTurnPrepared"&&m.DeclaringType==u)==1&&
+     preparedDispatch.Count(m=>m.Name=="EndPreparation")==1,
+     "World preparation completion must dispatch one participant or one global fallback");
+    Check(Calls(facade.GetMethod("HandleNativeRoundState",flags)).Count(m=>m.Name=="BeforeNativeRoundState")==1,
+     "The world must observe native round resource reconciliation exactly once");
+    var startTurn=game.ManifestModule.ResolveMethod(0x06000BDA);var startCalls=Calls(startTurn);
+    var assigned=startCalls.FindIndex(m=>m.MetadataToken==0x06000BBF&&m.Module==game.ManifestModule);
+    var started=startCalls.FindIndex(m=>m.MetadataToken==0x06000C3A&&m.Module==game.ManifestModule);
+    Check(startTurn.Name=="StartTurn"&&assigned>=0&&started>assigned,
+     "Installed native StartTurn must assign CurrentTurn before invoking context Start");
+    var start=game.ManifestModule.ResolveMethod(0x06000C3A);
+    Check(Calls(start).Count(m=>m.MetadataToken==0x06000C3C&&m.Module==game.ManifestModule)==1,
+     "Installed native context Start must invoke its one Prepare after CurrentTurn assignment");
+    Check(!Calls(game.ManifestModule.ResolveMethod(0x06000C2C)).Any(m=>m.DeclaringType.FullName=="TurnBased.Controllers.TurnController"&&(m.Name=="Start"||m.Name=="Prepare")),
+     "Native context construction must not prepare before its caller binds ownership");
+Console.WriteLine("MID-ENCOUNTER NATIVE PREPARATION PASS="+count+" FAIL=0; compiled caller/domain/pinned native contract, not Unity qualification");
   }finally{AppDomain.CurrentDomain.AssemblyResolve-=resolver;}
  }
 }

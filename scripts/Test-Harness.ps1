@@ -2282,6 +2282,94 @@ try {
             Assert-Test ($state.stagedTreeChangedAtRuntime -eq $true) 'runtime mutation was not durably recorded'
             Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\runtime-owned.cache')) 'runtime mutation was not preserved in quarantine'
             Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'ExistingMod\runtime-owned.cache')) 'existing-mod runtime mutation was not preserved in quarantine'
+            # Arbitrary runtime files are not the UMM DLL cache: both are UNEXPECTED,
+            # recorded durably and re-read by an idempotent retry.
+            $unexpectedPaths = @($restored.unexpectedRuntimeWrites | ForEach-Object { '{0}|{1}' -f $_.change, $_.path } | Sort-Object)
+            Assert-Test (($unexpectedPaths -join ',') -ceq 'added|ExistingMod/runtime-owned.cache,added|KingmakerMountedCombat/runtime-owned.cache') ('arbitrary runtime files were not classified unexpected: ' + ($unexpectedPaths -join ','))
+            Assert-Test ($state.runtimeWritesClassified -eq $true -and @($state.runtimeExpectedWrites).Count -eq 0 -and @($state.runtimeUnexpectedWrites).Count -eq 2) 'runtime write classification was not durable'
+            Assert-Test ([string]$restored.runtimeQuarantine -ceq [string]$state.stagedAfter) 'quarantine path was not attached'
+            $again = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $mutationLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (@($again.unexpectedRuntimeWrites).Count -eq 2) 'an idempotent retry laundered the unexpected runtime writes'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'genuine UMM DLL cache is the only expected runtime write' {
+        $cacheLive = Join-Path $testRoot 'cache-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $cacheLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $cacheLive 'ExistingMod\payload.txt'), 'preserve-cache')
+        $cacheOriginal = Get-KmcDirectoryManifest $cacheLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-cache-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $cacheLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $statePath
+            Assert-Test (Test-Path -LiteralPath ([string]$state.stagedManifestSidecar) -PathType Leaf) 'staged manifest sidecar was not written at entry'
+            Copy-Item -LiteralPath (Join-Path $cacheLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll') -Destination (Join-Path $cacheLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.4242.cache')
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $cacheLive -BackupRoot $backup -StagingRoot $staging
+            $state = Read-KmcJson $statePath
+            Assert-Test ($restored.digest -ceq $cacheOriginal.digest) 'cache run did not restore the exact original'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 0) ('the genuine DLL cache was classified unexpected: ' + (@($restored.unexpectedRuntimeWrites | ForEach-Object { $_.path }) -join ','))
+            Assert-Test (@($state.runtimeExpectedWrites).Count -eq 1 -and [string]$state.runtimeExpectedWrites[0].path -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll.4242.cache') 'the genuine DLL cache was not recorded expected'
+            Assert-Test (Test-Path -LiteralPath (Join-Path ([string]$state.stagedAfter) 'KingmakerMountedCombat\KingmakerMountedCombat.dll.4242.cache')) 'the cache was not preserved in quarantine'
+            # A cache that is not a byte copy of the staged DLL is unexpected.
+            $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries @((Read-KmcJson ([string]$state.stagedManifestSidecar)).entries) -RuntimeManifest ([pscustomobject]@{ entries = @(@((Read-KmcJson ([string]$state.stagedManifestSidecar)).entries) + [pscustomobject]@{ kind='file'; path='KingmakerMountedCombat/KingmakerMountedCombat.dll.9.cache'; length=3; sha256=('e'*64) }) })
+            Assert-Test (@($classification.unexpected).Count -eq 1 -and @($classification.expected).Count -eq 0) 'a forged DLL cache was classified expected'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'tampered staged manifest sidecar fails restoration closed' {
+        $sidecarLive = Join-Path $testRoot 'sidecar-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $sidecarLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $sidecarLive 'ExistingMod\payload.txt'), 'preserve-sidecar')
+        $sidecarOriginal = Get-KmcDirectoryManifest $sidecarLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-sidecar-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $sidecarLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $sidecarPath = [string](Read-KmcJson $statePath).stagedManifestSidecar
+            $sidecar = Read-KmcJson $sidecarPath
+            $sidecar.entries = @($sidecar.entries | Where-Object { $_.path -cne 'ExistingMod/payload.txt' })
+            Write-KmcJsonAtomic $sidecarPath $sidecar
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $sidecarLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $sidecarOriginal.digest) 'tampered-sidecar restore did not return the original tree'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 1 -and [string]$restored.unexpectedRuntimeWrites[0].change -ceq 'sidecar-invalid') 'a tampered sidecar did not fail closed'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
+    Invoke-HarnessTest 'inert KMC cache-only residue predicate is exact' {
+        $residueRoot = Join-Path $testRoot 'residue-predicate'
+        function New-Residue([string]$Name, [string[]]$Files, [switch]$Subdirectory) {
+            $root = Join-Path (Join-Path $residueRoot $Name) 'KingmakerMountedCombat'
+            New-Item -ItemType Directory -Path $root -Force | Out-Null
+            foreach ($file in $Files) { [IO.File]::WriteAllText((Join-Path $root $file), 'cache-bytes') }
+            if ($Subdirectory) { New-Item -ItemType Directory -Path (Join-Path $root 'nested') | Out-Null }
+            return $root
+        }
+        Assert-Test (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'cache-only' @('KingmakerMountedCombat.dll.42328.cache'))) 'cache-only residue was not recognized'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'empty' @()))) 'an empty KMC folder was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-info' @('KingmakerMountedCombat.dll.1.cache','Info.json')))) 'cache plus Info.json was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-dll' @('KingmakerMountedCombat.dll.1.cache','KingmakerMountedCombat.dll')))) 'cache plus DLL was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'with-dir' @('KingmakerMountedCombat.dll.1.cache') -Subdirectory))) 'a subdirectory was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'foreign' @('KingmakerMountedCombat.dll.1.cache','Settings.xml')))) 'a foreign file was treated as residue'
+        Assert-Test (-not (Test-KmcInertKmcInstallationResidue -KmcRoot (New-Residue 'foreign-name' @('OtherMod.dll.1.cache')))) 'a foreign cache name was treated as residue'
+    }
+
+    Invoke-HarnessTest 'inert KMC cache-only residue stages and restores byte-exactly' {
+        $residueLive = Join-Path $testRoot 'residue-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $residueLive 'KingmakerMountedCombat') -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $residueLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllBytes((Join-Path $residueLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.42328.cache'), [byte[]](1..64))
+        [IO.File]::WriteAllText((Join-Path $residueLive 'ExistingMod\payload.txt'), 'preserve-residue')
+        $residueOriginal = Get-KmcDirectoryManifest $residueLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'runtime-residue-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $residueLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (Test-Path -LiteralPath (Join-Path $residueLive 'KingmakerMountedCombat\Info.json')) 'staged tree lacks the packaged KMC payload'
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $residueLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.42328.cache'))) 'residue leaked into the staged tree'
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $residueLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $residueOriginal.digest) 'cache-only residue was not restored byte-exactly'
+            Assert-Test (@($restored.unexpectedRuntimeWrites).Count -eq 0) ('clean residue run recorded unexpected writes: ' + (@($restored.unexpectedRuntimeWrites | ForEach-Object { '{0} {1} {2}' -f $_.change, $_.path, $_.detail }) -join '; '))
         }
         finally { Close-KmcRuntimeLock $lock }
     }
@@ -4423,6 +4511,99 @@ try {
         finally { Close-KmcRuntimeLock $lock }
     }
 
+    Invoke-HarnessTest 'development-scoped WhatIf is refused without WhatIf and for manual review' {
+        $scopedRunner = Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
+        $ErrorActionPreference = 'Continue'  # the refused child writes its refusal to stderr
+        $native = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario mod-load-smoke -DevelopmentScopedAudit -RunId 'scoped-refusal-test' 2>&1 | Out-String)
+        Assert-Test ($LASTEXITCODE -ne 0 -and $native.Contains('valid only together with -WhatIf')) 'the scoped audit was not refused on a native run'
+        $review = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario manual-visual-review -DevelopmentScopedAudit -RunId 'scoped-refusal-test' -WhatIf 2>&1 | Out-String)
+        Assert-Test ($LASTEXITCODE -ne 0 -and $review.Contains('refused for the manual-review scenario')) 'the scoped audit was not refused for manual review'
+    }
+
+    Invoke-HarnessTest 'development-scoped WhatIf keeps full content identity on exposed surfaces' {
+        $exposed = Join-Path $testRoot 'scoped-exposed'
+        foreach ($name in @('Mods\ExistingMod','runtime-state\transactions')) { New-Item -ItemType Directory -Path (Join-Path $exposed $name) -Force | Out-Null }
+        [IO.File]::WriteAllText((Join-Path $exposed 'Mods\ExistingMod\payload.txt'), 'mod')
+        [IO.File]::WriteAllText((Join-Path $exposed 'runtime-state\transactions\old.json'), '{}')
+        $roots = @((Join-Path $exposed 'runtime-state'), (Join-Path $exposed 'Mods'))
+        $before = @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        Assert-KmcWhatIfRootsUnchanged -Before $before -After @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        foreach ($mutation in @('added','changed','removed')) {
+            switch ($mutation) {
+                'added' { [IO.File]::WriteAllText((Join-Path $exposed 'Mods\ExistingMod\deployed.dll'), 'new') }
+                'changed' { [IO.File]::WriteAllText((Join-Path $exposed 'runtime-state\transactions\old.json'), '{"x":1}') }
+                'removed' { Remove-Item -LiteralPath (Join-Path $exposed 'Mods\ExistingMod\payload.txt') }
+            }
+            $refused = $null
+            try { Assert-KmcWhatIfRootsUnchanged -Before $before -After @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ }) } catch { $refused = $_.Exception.Message }
+            Assert-Test ($null -ne $refused -and $refused.Contains('WhatIf purity failed: an external tree changed') -and $refused.Contains($mutation + ' file|')) ("exposed-surface " + $mutation + " was not refused with its exact detail: " + $refused)
+            $before = @($roots | ForEach-Object { Get-KmcDirectoryManifest $_ })
+        }
+    }
+
+    Invoke-HarnessTest 'development-scoped WhatIf archive roots are run-scoped and never rehashed' {
+        $archive = Join-Path $testRoot 'scoped-archives'
+        $roots = @{}; foreach ($name in @('runtime-backups','runtime-staging','runtime-evidence')) { $roots[$name] = Join-Path $archive $name; New-Item -ItemType Directory -Path (Join-Path $roots[$name] 'historical-run') -Force | Out-Null }
+        $historical = Join-Path $roots['runtime-evidence'] 'historical-run\result.json'
+        [IO.File]::WriteAllText($historical, '{"historical":true}')
+        $scoped = { Get-KmcWhatIfRunScopedArchiveState -BackupRoot $roots['runtime-backups'] -StagingRoot $roots['runtime-staging'] -EvidenceRoot $roots['runtime-evidence'] -RunId 'scoped-whatif-run' }
+        # An unrelated historical file held without sharing would fail any rehash.
+        $held = [IO.FileStream]::new($historical, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+        try { $before = & $scoped; Assert-KmcWhatIfRunScopedArchiveUnchanged $before (& $scoped) }
+        finally { $held.Dispose() }
+        foreach ($case in @('runtime-staging\persistence-scoped-whatif-run','runtime-backups\scoped-whatif-run','runtime-evidence\unrelated-new-entry')) {
+            $path = Join-Path $archive $case
+            New-Item -ItemType Directory -Path $path | Out-Null
+            $refused = $null
+            try { Assert-KmcWhatIfRunScopedArchiveUnchanged $before (& $scoped) } catch { $refused = $_.Exception.Message }
+            Assert-Test ($null -ne $refused -and $refused.StartsWith('WhatIf purity failed:')) ("archive appearance was not refused: " + $case)
+            Remove-Item -LiteralPath $path
+        }
+        New-Item -ItemType Directory -Path (Join-Path $roots['runtime-evidence'] 'scoped-whatif-run') | Out-Null
+        $preexisting = $null; try { [void](& $scoped) } catch { $preexisting = $_.Exception.Message }
+        Assert-Test ($null -ne $preexisting -and $preexisting.Contains('run-owned path exists')) 'a pre-existing run-owned path was not refused'
+    }
+
+    Invoke-HarnessTest 'scoped WhatIf sentence is never accepted as the full purity proof' {
+        . (Join-Path $PSScriptRoot 'runtime\ScopedPreflightFullAuditReevaluation.ps1')
+        $scopedSentence = 'Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run x; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.'
+        Assert-Test (-not $scopedSentence.Contains('Runtime WhatIf purity')) 'the scoped sentence carries the full-proof prefix'
+        $refused = $false; try { [void](Get-KmcMeasuredWrappedPurityAssertion ($scopedSentence + "`r`n")) } catch { $refused = $true }
+        Assert-Test $refused 'the full-audit reevaluation accepted the scoped sentence'
+        $full = 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
+        Assert-Test ([regex]::Matches($scopedSentence, ('(?m)^' + [regex]::Escape($full) + '\r?$')).Count -eq 0) 'the scoped-preflight full-proof line matcher accepted the scoped sentence'
+    }
+
+    Invoke-HarnessTest 'combined restoration refuses unexpected runtime writes but preserves and restores' {
+        $conflictLive = Join-Path $testRoot 'conflict-game\Mods'
+        New-Item -ItemType Directory -Path (Join-Path $conflictLive 'ExistingMod') -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $conflictLive 'ExistingMod\payload.txt'), 'preserve-conflict')
+        $conflictSaveRoot = Join-Path $testRoot 'conflict-saves'
+        New-Item -ItemType Directory -Path $conflictSaveRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $conflictSaveRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $conflictSaveRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $conflictPair = Get-KmcValidatedFixturePair $conflictSaveRoot
+        $conflictModsBefore = Get-KmcDirectoryManifest $conflictLive
+        $conflictSavesBefore = Get-KmcSaveMetadataInventory $conflictSaveRoot
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'combined-conflict-test'
+        try {
+            $combinedState = New-KmcRunTransactionState -Lock $lock -Mode save-backed-v2 -LiveModsRoot $conflictLive -SaveRoot $conflictSaveRoot -StateRoot $stateRoot -ModsBefore $conflictModsBefore -SavesBefore $conflictSavesBefore
+            Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $conflictPair -SaveRoot $conflictSaveRoot -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake | Out-Null
+            $modsState = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $conflictLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            # An external deployment lands in the shared Mods path during the window.
+            New-Item -ItemType Directory -Path (Join-Path $conflictLive 'ExternalMod') | Out-Null
+            [IO.File]::WriteAllText((Join-Path $conflictLive 'ExternalMod\deployed.dll'), 'external deployment')
+            $restoration = Restore-KmcRuntimeTransactions -Lock $lock -CombinedStatePath $combinedState -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            $quarantine = [string](Read-KmcJson $modsState).stagedAfter
+            Assert-Test (-not $restoration.modsRestored) 'unexpected runtime writes were reported restored'
+            Assert-Test ((@($restoration.errors) -join ' ').Contains($quarantine) -and (@($restoration.errors) -join ' ').Contains('ExternalMod/deployed.dll') -and (@($restoration.errors) -join ' ').Contains('re-applied')) ('restoration error does not name the quarantine and entries: ' + (@($restoration.errors) -join ' | '))
+            Assert-Test ((Get-KmcDirectoryManifest $conflictLive).digest -ceq $conflictModsBefore.digest) 'live Mods did not return to its pre-run snapshot'
+            Assert-Test ([IO.File]::ReadAllText((Join-Path $quarantine 'ExternalMod\deployed.dll')) -ceq 'external deployment') 'external deployment was not preserved in quarantine'
+            Assert-Test ([string](Read-KmcRunTransactionState -StatePath $combinedState -Lock $lock).phase -cne 'restored') 'combined transaction was marked restored'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
+
     Invoke-HarnessTest 'combined runtime transaction restores Mods independently when save recovery fails' {
         $independentLive = Join-Path $testRoot 'independent-game\Mods'
         New-Item -ItemType Directory -Path (Join-Path $independentLive 'ExistingMod') -Force | Out-Null
@@ -4811,7 +4992,15 @@ try {
         $lockIndex = $launcherSource.IndexOf('    $lock=Open-KmcRuntimeLock', [StringComparison]::Ordinal)
         $combinedStateIndex = $launcherSource.IndexOf('    $combinedStatePath=New-KmcRunTransactionState', [StringComparison]::Ordinal)
         $enterSaveIndex = $launcherSource.IndexOf('        [void](Enter-KmcWorkingSaveTransaction', [StringComparison]::Ordinal)
-        $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
+        $continuityTokens=$null; $continuityParseErrors=$null
+        $continuityAst=[Management.Automation.Language.Parser]::ParseInput($launcherSource,[ref]$continuityTokens,[ref]$continuityParseErrors)
+        Assert-Test ($continuityParseErrors.Count -eq 0) 'runtime launcher cannot be parsed for its admission order'
+        $modsEntries=@($continuityAst.FindAll({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Enter-KmcModsTransaction'},$true))
+        $profileSnapshots=@($continuityAst.FindAll({param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'New-KmcPersistenceProfileSnapshot'},$true))
+        Assert-Test ($modsEntries.Count -eq 1 -and $profileSnapshots.Count -eq 1) 'runtime launcher has missing or duplicate Mods/profile entry operations'
+        $enterModsIndex=$modsEntries[0].Extent.StartOffset
+        $profileSnapshotIndex=$profileSnapshots[0].Extent.StartOffset
+        $lockedMetadataIndex=$launcherSource.IndexOf("-Description 'runtime locked fixture-continuity save metadata'",[StringComparison]::Ordinal)
         $continuityCalls = @([regex]::Matches(
             $launcherSource,
             '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualificationSuiteContinuity'))
@@ -4827,7 +5016,8 @@ try {
             $continuityCalls[1].Index -gt $shouldProcessIndex -and $continuityCalls[1].Index -lt $lockIndex -and
             $continuityCalls[2].Index -gt $lockIndex -and $continuityCalls[2].Index -lt $combinedStateIndex) `
             'runtime launcher continuity proofs are not ordered before approval, during WhatIf, and under lock before durable state'
-        Assert-Test ($combinedStateIndex -gt $continuityCalls[2].Index -and
+        Assert-Test ($lockedMetadataIndex -gt $continuityCalls[2].Index -and
+            $profileSnapshotIndex -gt $lockedMetadataIndex -and $combinedStateIndex -gt $profileSnapshotIndex -and
             $enterSaveIndex -gt $combinedStateIndex -and $enterModsIndex -gt $enterSaveIndex) `
             'runtime launcher can stage durable run state, Mods, or Working before locked continuity succeeds'
         Assert-Test ($postRestorationAuditIndex -gt $enterModsIndex -and
@@ -4861,7 +5051,11 @@ try {
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
         Assert-Test ($mainSource.Contains('root?.HandleUpdateFailure(exception);')) 'OnUpdate does not delegate every escaped failure to the fail-closed composition boundary'
         Assert-Test ($rootSource.Contains('runtimeAutomation?.Abort(exception);')) 'composition boundary does not abort active automation after an update failure'
-        Assert-Test ($rootSource.Contains('relationship.Dismount(CleanupTrigger.Exception)')) 'composition boundary does not force update-failure relationship cleanup'
+        Assert-Test ($rootSource.Contains('var errors = world.Visit(pair =>') -and
+            $rootSource.Contains('pair.Combat.Cancel("world update failure");') -and
+            $rootSource.Contains('pair.Relationship.Dismount(CleanupTrigger.Exception)') -and
+            $rootSource.Contains('if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);')) `
+            'composition boundary does not independently service every pair and retain update-failure cleanup errors'
         Assert-Test ($rootSource.Contains('Always execute idempotent cleanup on a disable request')) 'repeated disable requests can bypass idempotent cleanup'
         Assert-Test ($hostSource.Contains('TryCompleteFailure(exception ??')) 'runtime abort does not commit a bounded FAIL result and quit'
         Assert-Test ($serviceSource.Contains('cleanupRetryRequired || coordinator.State == RelationshipState.Faulted')) 'frame validation does not detect a prior lifecycle cleanup failure'
@@ -4873,11 +5067,18 @@ try {
         $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         Assert-Test ($subscriberSource.Contains('if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted') -and
             -not $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.CombatStarted')) 'combat start does not retain a valid mounted pair'
-        Assert-Test ($subscriberSource.Contains('else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded')) 'combat end does not cancel active combat work while retaining the pair'
-        Assert-Test ($subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitIncapacitated') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitDeath') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
-            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
+        Assert-Test ($subscriberSource.Contains('else { VisitCombatOwners(owner => owner.Cancel("party combat ended")); Observe(NativeLifecycleBoundary.CombatEnded') -and
+            $subscriberSource.Contains('service.World.Visit(pair => action(pair.Combat))') -and
+            $subscriberSource.Contains('if (errors.Length != 0) throw new AggregateException("Mounted owner boundary did not settle.", errors);')) `
+            'combat end does not independently cancel every owner while retaining attachments and failed cleanup'
+        Assert-Test ($subscriberSource.Contains('CleanupActor(unit, NativeLifecycleBoundary.UnitIncapacitated') -and
+            $subscriberSource.Contains('CleanupActor(entityData, NativeLifecycleBoundary.UnitDeath') -and
+            $subscriberSource.Contains('CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved') -and
+            $subscriberSource.Contains('service.Ownership.Owns(owner)') -and
+            $subscriberSource.Contains('CleanupOwner(owner.Boundary, NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed') -and
+            $subscriberSource.Contains('var owner = service.ResolveActorOwner(actor);') -and
+            $subscriberSource.Contains('return owner == null || CleanupOwner(owner, boundary, source, trigger);')) `
+            'pair invalidation is missing an exact actor/captured-owner cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
             $engineSource.Contains('? 7') -and
             $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
@@ -4891,7 +5092,8 @@ try {
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
         $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs')
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));')) 'grounding repair does not pin the exact Kingmaker method token and parameter list'
-        Assert-Test ($patchSource.Contains('!PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
+        Assert-Test ($patchSource.Contains('PatchBridge.Owner(__instance?.EntityData)?.TrySuppressRiderGroundPlacement(__instance) != true') -and
+            $patchSource.Contains('World != null ? World.ForActor(actor)?.Relationship : Service?.ResolveActorOwner(actor)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
         Assert-Test ($serviceSource.Contains('MountedRiderGroundingPolicy.ShouldSuppress(') -and $serviceSource.Contains('RiderGroundPlacementSuppressionCount++;')) 'relationship service does not apply and count the exact active-rider policy'
         Assert-Test ($engineSource.Contains('rider.View.ForcePlaceAboveGround();') -and $engineSource.Contains('suppressionCountAfter == suppressionCountBefore + 1L')) 'camera qualification does not deterministically exercise the exact grounding repair'
         # Chunk4 AW requires an entry observation even when native TickMovement
@@ -4899,7 +5101,8 @@ try {
         # source contract, not evidence of gameplay or callback delivery.
         Assert-Test (([regex]::Matches($patchSource,'PatchExact\(typeof\(UnitMoveController\)')).Count -eq 1 -and
             $patchSource.Contains('PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));') -and
-            $patchSource.Contains('NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $patchSource.Contains('if (PatchBridge.World == null) PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $patchSource.Contains('else PatchBridge.World.Visit(pair => pair.Relationship.BeginNativeMovementUpdate());') -and
             $serviceSource.Contains('if (disposed || coordinator.State != RelationshipState.Mounted ||') -and
             $serviceSource.Contains('!runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;') -and
             $serviceSource.Contains('runtime.MovementAgent?.BeginNativeMovementUpdate();')) 'movement entry hook escaped its exact pair/view contract'
@@ -4910,7 +5113,8 @@ try {
         $controllerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
         $policySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs')
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));')) 'opportunity isolation does not bind the exact Kingmaker method token and signature'
-        Assert-Test ($patchSource.Contains('PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)') -and
+        Assert-Test ($patchSource.Contains('PatchBridge.CombatFor(__instance?.Unit)?.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target) != true') -and
+            $patchSource.Contains('internal static MountedCombatController CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;') -and
             $patchSource.Contains('__result = false;')) 'opportunity prefix does not fail closed through the mounted combat controller'
         Assert-Test ($controllerSource.Contains('MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(') -and
             $controllerSource.Contains('relationship.State == RelationshipState.Mounted,') -and
@@ -5204,7 +5408,7 @@ try {
         productVersion=$request.productVersion; dllSha256=$request.dllSha256; dllMvid=$request.dllMvid; transactionToken=$request.transactionToken
         startedAtUtc=$gameStarted.ToString('o'); completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o'); loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion; gameAssemblySha256=[string]$gameAssembly.sha256; gameAssemblyMvid=[string]$gameAssembly.mvid
-        ummVersion='0.28.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
+        ummVersion='0.33.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted'; movementExperimentEnabled=$true; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
         expectedModId='KingmakerMountedCombat'; expectedProductVersion=$request.productVersion; gamePresent=$true
         shippedMovementExperimentEnabled=$true; shippedPairedActivationEnabled=$false
@@ -5335,8 +5539,29 @@ try {
         $noSaveV1 = $schema.definitions.noSaveV1
         $schemaProperties = @($noSaveV1.properties.PSObject.Properties.Name)
         $schemaRequired = @($noSaveV1.required)
-        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject ($schemaRequired | Sort-Object))) {
-            throw 'The schema v1 branch declares a property it does not require, or requires one it does not declare.'
+        # Startup telemetry is optional for historical results; every other v1 field remains required.
+        $schemaOptional = @('startupTrace')
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($schemaRequired + $schemaOptional) | Sort-Object))) {
+            throw 'The schema v1 property set differs from its required fields plus the one optional startup trace.'
+        }
+        foreach ($branch in @($noSaveV1, $schema.definitions.saveBackedV2)) {
+            if ($branch.required -contains 'startupTrace' -or $branch.properties.startupTrace.'$ref' -cne '#/definitions/runtimeStartupTrace') {
+                throw 'Both result versions must allow the same optional startup trace without requiring historical results to contain it.'
+            }
+        }
+        $traceSchema = $schema.definitions.runtimeStartupTrace
+        $sampleSchema = $schema.definitions.runtimeStartupSample
+        foreach ($node in @($traceSchema, $sampleSchema)) {
+            if ($node.type -cne 'object' -or $node.additionalProperties -ne $false -or
+                $null -ne (Compare-Object -ReferenceObject @($node.properties.PSObject.Properties.Name | Sort-Object) -DifferenceObject @($node.required | Sort-Object))) {
+                throw 'Startup trace and sample definitions require exact object fields.'
+            }
+        }
+        if ($traceSchema.properties.callbackCapacity.const -ne 10 -or $traceSchema.properties.sampleCapacity.const -ne 50 -or
+            $traceSchema.properties.callbacksObserved.maximum -ne 10 -or $traceSchema.properties.closedCallbacks.maximum -ne 10 -or
+            $traceSchema.properties.samples.maxItems -ne 50 -or $traceSchema.properties.samples.items.'$ref' -cne '#/definitions/runtimeStartupSample' -or
+            $sampleSchema.properties.callback.minimum -ne 1 -or $sampleSchema.properties.callback.maximum -ne 10) {
+            throw 'Startup schema callback and sample bounds differ from the passive recorder contract.'
         }
         if ($noSaveV1.additionalProperties -ne $false) { throw 'The schema v1 branch admits additional properties.' }
         # Every field the typed policy publishes must be in the schema.
@@ -5348,7 +5573,7 @@ try {
         foreach ($field in $policyFields) {
             if ($schemaProperties -notcontains $field) { throw "The schema v1 branch omits a published observation: $field" }
         }
-        # And the validator's own v1 list must be exactly the schema's set minus the common fields.
+        # The validator's v1 list must equal the schema's required set minus the common fields.
         $validatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
         $validatorBlock = [Regex]::Match($validatorSource, "(?s)\`$v1Fields = @\((.*?)\)\r?\n")
         if (-not $validatorBlock.Success) { throw 'The runtime game-result validator no longer declares an explicit v1 field list.' }
@@ -5356,10 +5581,10 @@ try {
         if ($null -ne (Compare-Object -ReferenceObject ($policyFields | Sort-Object) -DifferenceObject ($validatorFields | Sort-Object))) {
             throw 'The validator v1 field list and the typed policy field set have drifted apart.'
         }
-        $commonBlock = [Regex]::Match($validatorSource, "(?s)\`$commonRequired = @\((.*?)\)\r?\n")
+        $commonBlock = [Regex]::Match($validatorSource, "(?m)^\`$commonRequired = @\(([^)]*)\)")
         $commonFields = @([Regex]::Matches($commonBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
-        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
-            throw 'The schema v1 property set is not exactly the validator common set plus its v1 fields.'
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaRequired | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
+            throw 'The schema v1 required set is not exactly the validator common set plus its v1 fields.'
         }
         # The stale absolutes are gone: a real result must be admissible.
         $readConst = {
@@ -6066,7 +6291,7 @@ try {
         Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
             $targetSource.Contains('runtimeGroup.Dispose();') -and
             $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
-        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount);', [StringComparison]::Ordinal)
+        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount, otherPairActors);', [StringComparison]::Ordinal)
         $nonPairTargetSpawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
         $nonPairTargetRemovalIndex = $targetSource.IndexOf('var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved', [StringComparison]::Ordinal)
         Assert-Test ($nonPairLeaseAcquireIndex -ge 0 -and $nonPairTargetSpawnIndex -gt $nonPairLeaseAcquireIndex -and
@@ -6077,6 +6302,7 @@ try {
             $nonPairLeaseSource.Contains('group[index]') -and
             $nonPairLeaseSource.Contains('unit.Commands.Empty') -and
             $nonPairLeaseSource.Contains('unit.IsDirectlyControllable') -and
+            $nonPairLeaseSource.Contains('!otherPairActors.Contains(unit)') -and
             $nonPairLeaseSource.Contains('AiBackingField.GetValue(unit)') -and
             -not $nonPairLeaseSource.Contains('.Commands.Interrupt') -and
             -not $nonPairLeaseSource.Contains('.Commands.Clear') -and
@@ -7825,7 +8051,7 @@ try {
         productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid;transactionToken=$v2Request.transactionToken
         startedAtUtc=$gameStarted.ToString('o');completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion;gameAssemblySha256=[string]$gameAssembly.sha256;gameAssemblyMvid=[string]$gameAssembly.mvid
-        ummVersion='0.28.2.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
+        ummVersion='0.33.2.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted';movementExperimentEnabled=$false;processId=$PID;currentGameMode='Default';loadedAreaPresent=$true
         saveRequestCount=0;loadRequestCount=1;frameCount=10;elapsedSeconds=1.0;errors=@();fixture=$v2Fixture;fixtureIdentityVerified=$true
         baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
@@ -9872,6 +10098,20 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'native load admission reads the all-pair archive format it will restore' {
+        # Observed natively in 20261018-c7b-world25-ownerseed-b3s2-load: the pre-disposal admission used
+        # the schema-1/2 reader, which reports KMC's own schema-3 two-pair saves as Future and refuses them.
+        $admissionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLoadAdmission.cs'))
+        $serviceSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPersistenceService.cs'))
+        $gate = $admissionSource.Substring($admissionSource.IndexOf('internal bool CanLoadBeforeWorldReplacement', [StringComparison]::Ordinal))
+        $gate = $gate.Substring(0, $gate.IndexOf('RejectedLoadCount++', [StringComparison]::Ordinal))
+        Assert-Test ($gate.Contains('rejection = ArchiveNativeEnabled') -and
+            $gate.IndexOf('NativeMountedSaveStorage.ReadArchive(reader)', [StringComparison]::Ordinal) -ge 0 -and
+            $gate.IndexOf('NativeMountedSaveStorage.ReadArchive(reader)', [StringComparison]::Ordinal) -lt $gate.IndexOf('NativeMountedSaveStorage.Read(reader)', [StringComparison]::Ordinal) -and
+            $serviceSource.Contains('if (ArchiveNativeEnabled)') -and $serviceSource.Contains('loadedArchive = NativeMountedSaveStorage.ReadArchive(save.Saver);')) `
+            'native load admission does not read the same all-pair archive format that SelectLoad restores'
+    }
+
     Invoke-HarnessTest 'private-alpha stabilization is pair-local, view-safe, and preserves native action ownership' {
         $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
@@ -9884,6 +10124,9 @@ try {
         $overlaySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionOverlay.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $turnPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $groundOrderPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs'))
+        $groundOrderTestSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'tests\MountedGroundOrderAdmissionPolicyTests.cs'))
+        $componentProgramSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'tests\Program.cs'))
         $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
         $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
         $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
@@ -9917,13 +10160,14 @@ try {
             $lifecycleSource.Contains('CleanupTrigger.ViewReplaced') -and
             $runtimeSource.Contains('ReleaseReplacementRiderViewFromOwnedAnchor') -and
             $attachmentSource.Contains('public bool ReleaseInheritedReplacement(') -and
-            $attachmentSource.Contains('setParent(replacement, originalParent, true);')) `
+            $attachmentSource.Contains('moveToContainer(replacement, originalContainer);')) `
             'polymorph/view replacement does not release the stock replacement before KMC anchor cleanup'
         $replacementRelease = $runtimeSource.IndexOf('ReleaseReplacementRiderViewFromOwnedAnchor', [StringComparison]::Ordinal)
         $poseRestore = $runtimeSource.IndexOf('poseAdapter.Deconfigure();', $replacementRelease, [StringComparison]::Ordinal)
         $attachmentRestore = $runtimeSource.IndexOf('riderAttachmentLease.Restore();', $poseRestore, [StringComparison]::Ordinal)
-        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore) `
-            'stock replacement release is not ordered before old-view pose and attachment restoration'
+        $poseRelease = $runtimeSource.IndexOf('UnityEngine.Object.Destroy(poseAdapter);', $attachmentRestore, [StringComparison]::Ordinal)
+        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore -and $poseRelease -gt $attachmentRestore) `
+            'stock replacement release, pose baseline restoration, attachment restoration and pose component release are out of order'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC') -and
             $patchSource.Contains('nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix)') -and
             $patchSource.Contains('TryAdmitGroundCommand(unit)') -and
@@ -9936,9 +10180,9 @@ try {
             $combatSource.Contains('LastGroundMoveSlotRestored = commands != null') -and
             $combatSource.Contains('MountedPairTurnPolicy.CanDriveRiderGroundMovement(') -and
             $turnPolicySource.Contains('public static bool CanDriveRiderGroundMovement(') -and
-            $combatSource.Contains('requestedUnit != relationship.Rider') -and
-            $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal) -gt
-                $combatSource.IndexOf('requestedUnit != relationship.Rider', [StringComparison]::Ordinal) -and
+            $combatSource.Contains('requestedUnit == relationship.Rider,') -and
+            $combatSource.Contains('public void CancelPairCommands() => controller.Cancel("ground command");') -and
+            $groundOrderPolicySource.Contains('MountedPairTurnPolicy.CanAdmitRiderGroundMovement(') -and
             -not $patchSource.Contains('PatchBridge.Combat?.Cancel("ground command")') -and
             $turnPolicySource.Contains('public static bool CanAdmitRiderGroundMovement(')) `
             'turn-based rider ground clicks do not retain exact Mammoth Move-slot ownership and rider-turn accounting'
@@ -10023,14 +10267,22 @@ try {
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A') -and
             $patchSource.Contains('nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix)') -and
             $patchSource.Contains('RuntimeAutomationHost.ObserveCombatCooldownTick(') -and
-            $automationHostSource.Contains('active?.combatEngine?.ObserveCombatCooldownTick(') -and
-            $combatEngineSource.Contains('step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor') -and
+            $patchSource.Contains('RuntimeAutomationHost.GetCombatCooldownConsumer(unit)') -and
+            $patchSource.Contains('RuntimeAutomationHost.IsCurrentCombatCooldownConsumer(__state.Consumer, unit)') -and
+            $patchSource.Contains('ReferenceEquals(unit, __state.Unit)') -and
+            $automationHostSource.Contains('ReferenceEquals(consumer, GetCombatCooldownConsumer(unit))') -and
+            $automationHostSource.Contains('host == null || host.disposed || host.completed') -and
+            $combatEngineSource.Contains('!disposed && !completed && step == CombatEngineStep.AwaitCombatFrame') -and
+            $combatEngineSource.Contains('unit != null && unit == AttackActor') -and
             $combatEngineSource.Contains('initiativeTickObservation.Observe(') -and
             -not $patchSource.Contains('Cooldown.Initiative =')) `
             'initiative diagnosis does not remain an exact actor-scoped observation-only native cooldown probe'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC') -and
             $patchSource.Contains('nameof(PatchMethods.CommandInterruptPrefix)') -and
-            $patchSource.Contains('PatchBridge.Combat?.ObserveCommandInterrupt(__instance);') -and
+            $patchSource.Contains('PatchBridge.CombatFor(__instance?.Executor)?.ObserveCommandInterrupt(__instance);') -and
+            $patchSource.Contains('CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;') -and
+            $patchSource.Contains('World != null ? World.ForActor(actor)?.Relationship : Service?.ResolveActorOwner(actor);') -and
+            $patchSource.Contains('CombatFor(__instance?.Unit?.EntityData)') -and
             $combatSource.Contains('ReferenceEquals(command, observedNativeMountTurnMove)') -and
             $combatSource.Contains('new System.Diagnostics.StackTrace(1, false)') -and
             $combatSource.Contains('DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo)') -and
@@ -10066,6 +10318,20 @@ try {
                 [StringComparison]::Ordinal) -lt
                 $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal)) `
             'overlay combat-button activation can leak a same-click unit/ground command into the world'
+        $groundAdmission = $combatSource.Substring($combatSource.IndexOf('public bool TryAdmitGroundCommand', [StringComparison]::Ordinal))
+        $groundAdmission = $groundAdmission.Substring(0, $groundAdmission.IndexOf('public void CompleteGroundCommandAdmission', [StringComparison]::Ordinal))
+        # The paused-RT, unsupported-mode, unchanged-TB, save-serialization and cross-pair behaviour
+        # of this decision is exercised by MountedGroundOrderAdmissionPolicyTests (component runner);
+        # here only the production wiring is pinned: the controller delegates to that exact policy.
+        Assert-Test ($groundAdmission.Contains('MountedGroundOrderAdmissionPolicy.Decide(') -and
+            $groundAdmission.Contains('new GroundOrderFacts(this)') -and
+            $groundAdmission.Contains('return MountedGroundOrderAdmissionPolicy.LetsNativeOrderRun(disposition);') -and
+            $groundOrderPolicySource.Contains('MountedGameModePolicy.CanQueueMountedAction(mode) && !facts.InTurnBasedCombat') -and
+            $groundOrderTestSource.Contains('RealTimeDefaultAndPauseAreAdmitted') -and
+            $groundOrderTestSource.Contains('SaveSerializationRefusesBeforeCancel') -and
+            $groundOrderTestSource.Contains('OtherActorsPassThroughUntouched') -and
+            $componentProgramSource.Contains('MountedGroundOrderAdmissionPolicyTests.Register(runner);')) `
+            'a paused real-time mounted ground order is refused instead of queued like an unmounted one (observed natively in 20261017-c7b-world20-ownerseed-b2s2-twopair), or the admission no longer delegates to the behaviour-tested policy'
         Assert-Test (-not $patchSource.Contains('Renderer.enabled') -and
             -not $patchSource.Contains('GameObject.SetActive') -and
             -not $runtimeSource.Contains('renderer.enabled = true')) `
@@ -10156,8 +10422,13 @@ try {
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
             $patchSource.Contains('PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));') -and
-            $patchSource.Contains('PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);') -and
-            $patchSource.Contains('PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $patchSource.Contains('PatchBridge.World?.ForActor(__instance?.View?.EntityData)?.Animation') -and
+            $patchSource.Contains('(PatchBridge.World == null ? PatchBridge.Animation : null))?.RestoreExactDelegatedMountLocomotion(__instance);') -and
+            $patchSource.Contains('if (PatchBridge.World == null) PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $patchSource.Contains('else PatchBridge.World.Visit(pair => pair.Animation.SupplyExactHorsePrimaryAnimation(__instance));') -and
+            $horsePrimaryAnimationSource.Contains('ReferenceEquals(command.ChildAttack.PlannedAttack, attack)') -and
+            $horsePrimaryAnimationSource.Contains('attack?.Hand?.Owner?.Unit == horse') -and
+            $horsePrimaryAnimationSource.Contains('ReferenceEquals(attack.Weapon, command.ChildAttack.PlannedAttack.Weapon)') -and
             $animationSource.Contains('combat.TryGetExactRiderTurnDelegatedMoveForAnimation(mount, out move, out source)') -and
             $animationSource.Contains('combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse)') -and
             $animationSource.Contains('horsePrimaryAttackAnimation.SupplyExact(command, attack, horse);') -and
@@ -12397,6 +12668,7 @@ try {
     }
 
     Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
+        $worldTurnSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedWorldTurnCoordinator.cs'))
         $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
@@ -12423,7 +12695,11 @@ try {
             $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target)') -and
-            $patchSource.Contains('PatchBridge.Service.RouteContinuousMove(ref executor)') -and
+            $worldTurnSource.Contains('Find(target)?.ShouldSuppressStepOpportunity(target)') -and
+            $patchSource.Contains('var owner = PatchBridge.Owner(executor);') -and
+            $patchSource.Contains('if (owner?.IsExactActivePairUnit(executor) == true)') -and
+            $patchSource.Contains('owner.CombatOwner.Cancel("continuous movement replaced the active mounted combat intent");') -and
+            $patchSource.Contains('return owner == null || owner.RouteContinuousMove(ref executor);') -and
             -not $patchSource.Contains('Dismount(CleanupTrigger.UnexpectedCommand)')) `
             'Phase 3D exact-token orchestration lost stock-input, tracker, step, or continuous-move isolation'
         Assert-Test ($relationshipSource.Contains('public bool RouteContinuousMove(ref UnitEntityData executor)') -and
@@ -12442,7 +12718,7 @@ try {
         Assert-Test ($nativeSource.Contains('NativeMountedAbilityActivationLedger') -and
             $nativeSource.Contains('NativeMountedAbilityActivationPhase.RelationshipEnded') -and
             $nativeSource.Contains('UnitCommand.CommandType.Move,') -and
-            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);') -and
+            $nativeSource.Contains('ResolveControlBoundary(unit, false)?.CombatOwner.ObserveStockAttackRequested(unit, target?.EntityData);') -and
             $nativeSource.Contains('NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(') -and
             $nativeSource.Contains('command.NeedLoS = false;') -and
             $nativeSource.Contains('command.IgnoreCooldown();') -and

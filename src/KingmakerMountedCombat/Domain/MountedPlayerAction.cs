@@ -22,6 +22,8 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderIsExactlyMedium { get; set; }
 
+        public SmallRiderBodyMatch SmallRiderBodyMatch { get; set; }
+
         public bool RiderBodyProfileSupported { get; set; }
 
         public bool ExactActiveOwnedSupportedMount { get; set; }
@@ -48,7 +50,7 @@ namespace KingmakerMountedCombat.Domain
 
         public bool CombatTurnEligible { get; set; }
 
-        // The exact reason the turn is not eligible, so the Preparing boundary is
+        // The exact reason the turn is not eligible, so an unprepared rider turn is
         // refused with its own message instead of the generic wrong-turn one.
         public string CombatTurnIneligibilityReason { get; set; }
 
@@ -256,9 +258,9 @@ namespace KingmakerMountedCombat.Domain
                     reasons);
             }
 
-            if (!context.RiderIsExactlyMedium)
+            if (!MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch))
             {
-                reasons.Add("The selected rider must currently be Medium.");
+                reasons.Add("The selected rider needs exactly one supported Medium or declared Small body profile.");
             }
             if (!context.RiderBodyProfileSupported)
             {
@@ -405,27 +407,28 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        // A relationship transition in turn-based combat requires the exact rider's
-        // turn to be ACTING, not merely Preparing.
+        // A relationship transition in turn-based combat belongs to the exact rider's
+        // own turn once native preparation has run: Preparing or Acting.
         //
-        // Kingmaker's TurnController runs Prepare() at the actor's own initiative
-        // slot and only then advances the turn to Acting; a player command is
-        // delivered by UnitCommands.Tick inside Acting. Admitting a transition
-        // while the turn is still Preparing would settle the transition ledger and
-        // the adopted paired grant against a turn whose native preparation has not
-        // finished, and there is no exact native evidence that no callback or
-        // ledger step is skipped in that window. Preparing is therefore refused
-        // rather than retained on an assumption.
+        // TurnController.Prepare() completes the actor's native preparation and then
+        // sets a directly controllable unit's turn to Preparing; the turn becomes
+        // Acting only on its first command, a spent action or an inability to act
+        // (TurnController.Tick). KMC's paired grant is taken at that Prepare boundary.
+        // Refusing Preparing therefore made a transition unavailable as the first
+        // action of a turn. Admitting it lets the transition's own command move the
+        // turn to Acting, exactly as any other first command does (owner decision,
+        // October 18 2026; Chunk 6A rule R3 superseded). Earlier boundaries, such as
+        // the scrolling phase before Prepare, stay refused.
         public static bool IsTurnEligible(
             bool turnBasedCombat,
             bool currentTurnIsExactRider,
+            bool turnPreparing,
             bool turnActing)
         {
-            return !turnBasedCombat || currentTurnIsExactRider && turnActing;
+            return !turnBasedCombat || currentTurnIsExactRider && (turnPreparing || turnActing);
         }
 
-        // The exact reason a turn-based transition is not eligible, so the Preparing
-        // boundary is refused with its own message instead of the generic one.
+        // The exact reason a turn-based transition is not eligible.
         public static string DescribeTurnIneligibility(
             string actionName,
             bool turnBasedCombat,
@@ -433,7 +436,7 @@ namespace KingmakerMountedCombat.Domain
             bool turnPreparing,
             bool turnActing)
         {
-            if (IsTurnEligible(turnBasedCombat, currentTurnIsExactRider, turnActing))
+            if (IsTurnEligible(turnBasedCombat, currentTurnIsExactRider, turnPreparing, turnActing))
             {
                 return null;
             }
@@ -441,11 +444,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 return actionName + " during turn-based combat belongs to the rider's current turn.";
             }
-            if (turnPreparing)
-            {
-                return actionName + " waits until the rider's turn has finished preparing.";
-            }
-            return actionName + " requires the rider's turn to be acting.";
+            return actionName + " waits until the rider's turn has been prepared.";
         }
 
         public static bool IsAdjacent(
