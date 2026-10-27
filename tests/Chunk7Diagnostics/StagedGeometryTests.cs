@@ -184,7 +184,7 @@ namespace KingmakerMountedCombat.Tests
             foreach (var leg in sim.Legs.Where(l => Chunk7StagedGeometry.Moves(l.Kind)))
             {
                 var last = leg.Spare >= 0 ? leg.Spare : leg.Chosen;
-                Check(last == leg.Proposals.Count - 1 && leg.Proposals.Take(leg.Chosen).All(q => q.Refusal != null) &&
+                Check((last == leg.Proposals.Count - 1 || leg.Spare < 0 && leg.Proposals.Skip(leg.Chosen + 1).All(q => q.Refusal != null)) && leg.Proposals.Take(leg.Chosen).All(q => q.Refusal != null) &&
                     (leg.Spare < 0 || leg.Spare > leg.Chosen && leg.Proposals.Skip(leg.Chosen + 1).Take(leg.Spare - leg.Chosen - 1).All(q => q.Refusal != null) && leg.Proposals[leg.Spare].Refusal == null),
                     name + ": every leg takes its first eligible proposal (and a revision 2 spare is the next one)");
                 var p = leg.Proposals[leg.Chosen]; var d = Chunk7StagedGeometry.Flat(p.Goal, target);
@@ -303,6 +303,48 @@ namespace KingmakerMountedCombat.Tests
             File.WriteAllText(Path.Combine(output, "fixture-plan-v2.json"), "{\"plan\":" + Chunk7StagedGeometry.PlanJson(fixture2, 15.24f, .9f) + ",\"confirmation\":" +
                 Chunk7StagedGeometry.ConfirmationJson(fixtureStart, confirmed2, confirmation2) + "}", new UTF8Encoding(false));
             GeometryRevision2(output, open, t0);
+            GeometryRevision3(output, open, t0, disc, nav, fixtureStart, fixtureRider, fixtureNav);
+        }
+        // Revision 3 (F6 review): centre aim; a planned beyond-range leg records a spare but never refuses for its absence; the
+        // placement selection takes the first feasible placement with a spare, else (after all 64) the first feasible one.
+        private static void CheckPreference(StagedPlanSelection s, string name)
+        {
+            var spare = s.Candidates.FindIndex(c => c.Refusal == null && Chunk7StagedGeometry.HasSpare(c.Simulation));
+            var feasible = s.Candidates.FindIndex(c => c.Refusal == null);
+            Check(spare >= 0 ? s.Selected == spare && s.Candidates.Count == spare + 1 : s.Selected == feasible && (feasible < 0 || s.Candidates.Count == 64),
+                name + ": revision 3 selects the first feasible placement with a spare, else the first feasible after all 64");
+        }
+        private static void GeometryRevision3(string output, IStagedNavmesh open, StagedPoint t0, IStagedNavmesh disc, IStagedNavmesh b203,
+            StagedPoint fixtureStart, StagedPoint fixtureRider, IStagedNavmesh fixtureNav)
+        {
+            var beyondStep = Array.FindIndex(Steps, s => s.Kind == "move-beyond-range");
+            var cursor = new StagedCursor { Step = beyondStep, Leg = 0, Time = 0, Side = 1, Position = new StagedPoint(0, 0, -13) };
+            var corridor = new WorldNavmesh((x, z) => Math.Abs(x) <= .05 && z <= -12);
+            var lone = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 3), corridor, cursor.Copy(), null);
+            Check(lone.Chosen == 0 && lone.Spare == -1 && lone.Check == null && lone.Proposals.Count == 48,
+                "revision 3 keeps a lone eligible beyond-range choice, records no spare and searches the whole leg");
+            var wide = new WorldNavmesh((x, z) => Math.Abs(x) <= 3 && z <= -12);
+            var spared = Chunk7StagedGeometry.SearchLeg(Chunk7StagedGeometry.Inputs(t0, PlanEnvelope, Speed, Steps, 3), wide, cursor.Copy(), null);
+            Check(spared.Chosen == 0 && spared.Spare == 1 && spared.Proposals.Count == 2, "revision 3 records the next eligible proposal as the spare");
+            foreach (var floor in new[] { new { name = "open", nav = open }, new { name = "disc", nav = disc }, new { name = "b203", nav = b203 } })
+            {
+                var s = Chunk7StagedGeometry.Select(MountStart, RiderStart, PlanEnvelope, Speed, Steps, floor.nav, 3);
+                CheckPreference(s, "revision 3 " + floor.name);
+                if (s.Chosen != null) CheckFeasiblePlan(s.Chosen.Simulation, s.Chosen.Goal, PlanEnvelope, "revision 3 " + floor.name);
+                Console.WriteLine("revision 3 " + floor.name + ": selected " + s.Selected + " of " + s.Candidates.Count + ", spare " +
+                    (s.Chosen == null ? "n/a" : Chunk7StagedGeometry.HasSpare(s.Chosen.Simulation).ToString()));
+                File.WriteAllText(Path.Combine(output, floor.name + "-plan-v3.json"), "{\"plan\":" + Chunk7StagedGeometry.PlanJson(s, 15.24f, .9f) + "}", new UTF8Encoding(false));
+            }
+            var fixture3 = Chunk7StagedGeometry.Select(fixtureStart, fixtureRider, PlanEnvelope, Speed, Steps, fixtureNav, 3);
+            CheckPreference(fixture3, "revision 3 reader fixture");
+            Check(fixture3.Selected == 8 && Math.Abs(fixture3.Chosen.Goal.X) < 1e-9 && Math.Abs(fixture3.Chosen.Goal.Z) < 1e-9, "revision 3 reader fixture: the ninth placement (the origin) is selected");
+            var confirmed3 = Chunk7StagedGeometry.Inputs(fixture3.Chosen.Goal, PlanEnvelope, Speed, Steps, 3);
+            var confirmation3 = Chunk7StagedGeometry.Simulate(confirmed3, fixtureNav, Chunk7StagedGeometry.Start(fixtureStart));
+            CheckFeasiblePlan(confirmation3, fixture3.Chosen.Goal, PlanEnvelope, "revision 3 reader fixture");
+            var json = Chunk7StagedGeometry.PlanJson(fixture3, 15.24f, .9f);
+            Check(json.Contains("\"contract\":\"owner-seed-staged-geometry-plan-v3\"") && json.Contains("\"spare\":true"), "revision 3 records its contract and each candidate's spare");
+            File.WriteAllText(Path.Combine(output, "fixture-plan-v3.json"), "{\"plan\":" + json + ",\"confirmation\":" +
+                Chunk7StagedGeometry.ConfirmationJson(fixtureStart, confirmed3, confirmation3) + "}", new UTF8Encoding(false));
         }
         // Revision 2 (F6 st audit): the beyond-range leg aims at its band centre and a planned beyond-range leg keeps a spare.
         private static void GeometryRevision2(string output, IStagedNavmesh open, StagedPoint t0)

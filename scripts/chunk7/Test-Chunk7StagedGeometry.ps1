@@ -69,8 +69,25 @@ $v2mutations=@(
  @('a moved spare',{param($p)$l=Get-V2BeyondLeg $p;$l.spare=[int]$l.spare+1},'spare is not the next eligible'),
  @('a dropped spare proposal',{param($p)$l=Get-V2BeyondLeg $p;$l.proposals=@($l.proposals|Select-Object -First ([int]$l.spare));$l.spare=$null},'stopped before its first eligible|spare'),
  @('a floor-aimed request under revision 2',{param($p)$l=Get-V2BeyondLeg $p;$l.proposals[0][1]=[double]$l.proposals[0][1]-0.75},'order differs'),
- @('an unknown plan contract',{param($p)$p.contract='owner-seed-staged-geometry-plan-v3'},'lack their up-front geometry plan')
+ @('an unknown plan contract',{param($p)$p.contract='owner-seed-staged-geometry-plan-v9'},'lack their up-front geometry plan')
 )
 foreach($m in $v2mutations){$p=(Read-Plan 'open-plan-v2.json').plan;&$m[1] $p;Reject $m[0] {[void](Get-KmcChunk7StagedPlanSelection $p)} $m[2]}
+# Geometry revision 3 (owner-seed-staged-geometry-plan-v3, F6 review): the spare is recorded and only preferred.
+$committed3=Join-Path $RepositoryRoot 'tests/Chunk7Diagnostics/StagedGeometryPlanFixtureV3.json'
+Check 'the committed revision 3 reader fixture equals the plan the C# planner regenerates' {
+ if(-not[IO.File]::Exists($committed3)-or(Get-KmcSha256 $committed3)-cne(Get-KmcSha256 (Join-Path $OutputDirectory 'fixture-plan-v3.json'))){throw 'The committed revision 3 staged plan fixture differs from the regenerated plan.'}}
+Check 'the reader replays the revision 3 fixture and its confirmation' {$f=Read-Plan 'fixture-plan-v3.json';$c=Get-KmcChunk7StagedPlanSelection $f.plan;if($null-eq$c-or[double]$c.angle-ne-90.0-or[double]$c.distance-ne8.0){throw 'Wrong selection.'}
+ if(-not(Test-KmcChunk7StagedSimulation $f.confirmation.simulation @($f.confirmation.mountStart|ForEach-Object{[double]$_}) @($f.confirmation.target|ForEach-Object{[double]$_}) ([double]$f.confirmation.envelope) ([double]$f.confirmation.speed) 'v3 confirmation' 3)){throw 'Infeasible.'}}
+foreach($floor in 'open','disc','b203'){Check ('the reader replays the revision 3 '+$floor+' selection') {[void](Get-KmcChunk7StagedPlanSelection (Read-Plan ($floor+'-plan-v3.json')).plan)}}
+function Get-V3BeyondLeg($p){@($p.candidates[$p.selected].simulation.legs|Where-Object kind -CEQ 'move-beyond-range')[0]}
+$v3mutations=@(
+ @('a forged candidate spare',{param($p)$p.candidates[$p.selected].spare=$false},'recorded spare differs'),
+ @('a missing candidate spare field',{param($p)$p.candidates[$p.selected].PSObject.Properties.Remove('spare')},'spare field does not match'),
+ @('a revision 3 plan read as revision 2',{param($p)$p.contract='owner-seed-staged-geometry-plan-v2'},'spare field does not match'),
+ @('a moved spare',{param($p)$l=Get-V3BeyondLeg $p;$l.spare=[int]$l.spare+1},'spare is not the next eligible'),
+ @('a spare dropped while still recorded',{param($p)$l=Get-V3BeyondLeg $p;$l.spare=$null},'spare is not the next eligible|past the first eligible'),
+ @('a spareless selection while a spare-bearing placement exists later',{param($p)$p.candidates[$p.selected].spare=$false;$p.candidates[$p.selected].simulation.legs|Where-Object kind -CEQ 'move-beyond-range'|ForEach-Object{$_.spare=$null}},'spare|past the first eligible')
+)
+foreach($m in $v3mutations){$p=(Read-Plan 'fixture-plan-v3.json').plan;&$m[1] $p;Reject $m[0] {[void](Get-KmcChunk7StagedPlanSelection $p)} $m[2]}
 Write-Output ('Staged geometry reader: '+$passed+' PASS / '+$failed+' FAIL')
 if($failed-ne0){throw 'Staged geometry reader regression failed.'}

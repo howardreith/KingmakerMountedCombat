@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -26,7 +27,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class StagedPlanInputs
     {
         internal StagedPoint Target; internal double Envelope, Speed; internal StagedPlanStep[] Steps;
-        // 1: the retained geometry-plan-v1 rules; 2 (F6): the beyond-range leg aims at its band centre and the plan keeps a spare.
+        // 1: the retained geometry-plan-v1 rules; 2: the beyond-range leg aims at its band centre and a planned leg must keep a spare;
+        // 3 (F6 review): centre aim, the spare recorded and only preferred by the placement selection.
         internal int Revision = 1;
     }
     // Where a simulation (or a native execution) stands: the plan step, the leg inside it, the mount's
@@ -110,7 +112,11 @@ namespace KingmakerMountedCombat.Diagnostics
         // target's envelope differs.
         internal const double PlannedTargetCorpulence = .7;
         internal const string PlanContract = "owner-seed-staged-geometry-plan-v1", PlanContractV2 = "owner-seed-staged-geometry-plan-v2";
-        internal static string Contract(int revision) => revision >= 2 ? PlanContractV2 : PlanContract;
+        internal const string PlanContractV3 = "owner-seed-staged-geometry-plan-v3";
+        internal static string Contract(int revision) => revision >= 3 ? PlanContractV3 : revision == 2 ? PlanContractV2 : PlanContract;
+        // Revision 3: a feasible placement "has a spare" when every planned beyond-range leg of its simulation recorded one.
+        internal static bool HasSpare(StagedSimulation sim) => sim != null && sim.Feasible &&
+            sim.Legs.Any(l => l.Kind == "move-beyond-range") && sim.Legs.Where(l => l.Kind == "move-beyond-range").All(l => l.Spare >= 0);
 
         internal const string NotWalkable = "not-walkable", TraceInexact = "trace-inexact", TooShort = "too-short",
             BelowBand = "below-band", AboveBand = "above-band", ExhaustTail = "exhaust-tail",
@@ -203,9 +209,11 @@ namespace KingmakerMountedCombat.Diagnostics
             double dx = rx, dz = rz;
             if (kind != "move-beyond-range") Rotate(rx, rz, 90.0 * cursor.Side, out dx, out dz);
             var norm = Math.Sqrt(dx * dx + dz * dz); dx /= norm; dz /= norm;
-            // Revision 2: a planned beyond-range leg (no continuation term: the up-front plan and its in-combat confirmation)
-            // searches on after its first eligible proposal for a spare one; without a spare the leg refuses.
-            var requireSpare = plan.Revision >= 2 && kind == "move-beyond-range" && continuation == null; var first = -1;
+            // A planned beyond-range leg (no continuation term: the up-front plan and its in-combat confirmation) searches on after
+            // its first eligible proposal for a spare one. Revision 2 refused the leg without a spare; revision 3 (F6 review) keeps
+            // the first eligible choice either way and only records the spare (the placement selection prefers one).
+            var planned = kind == "move-beyond-range" && continuation == null;
+            var recordSpare = planned && plan.Revision >= 2; var requireSpare = planned && plan.Revision == 2; var first = -1;
             foreach (var length in Lengths(kind, Flat(start, plan.Target), plan.Envelope, plan.Revision))
                 foreach (var angle in Fan)
                 {
@@ -221,11 +229,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (p.Refusal == null && continuation != null) { p.Continuation = continuation(cursor, p); if (p.Continuation != null) p.Refusal = NoPlanContinuation; }
                     leg.Proposals.Add(p);
                     if (p.Refusal != null) continue;
-                    if (!requireSpare) { leg.Chosen = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg; }
+                    if (!recordSpare) { leg.Chosen = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg; }
                     if (first < 0) { first = leg.Proposals.Count - 1; continue; }
                     leg.Chosen = first; leg.Spare = leg.Proposals.Count - 1; Advance(plan, cursor.Copy(), leg); return leg;
                 }
-            if (first >= 0) leg.Check = NoSpareProposal;
+            if (first >= 0 && requireSpare) leg.Check = NoSpareProposal;
+            else if (first >= 0) { leg.Chosen = first; Advance(plan, cursor.Copy(), leg); }
             return leg;
         }
         // The cursor after a leg's chosen proposal: movement time grows by the leg at the mount's native speed,
@@ -330,6 +339,7 @@ namespace KingmakerMountedCombat.Diagnostics
             StagedPlanStep[] steps, IStagedNavmesh nav, int revision = 1)
         {
             var selection = new StagedPlanSelection { MountStart = mountStart, RiderStart = riderStart, Envelope = envelope, Speed = speed, Revision = revision };
+            var firstFeasible = -1;
             foreach (var distance in PlacementDistances)
                 foreach (var angle in Fan)
                 {
@@ -346,8 +356,13 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!candidate.Simulation.Feasible) candidate.Refusal = PlanInfeasible;
                     }
                     selection.Candidates.Add(candidate);
-                    if (candidate.Refusal == null) { selection.Selected = selection.Candidates.Count - 1; return selection; }
+                    if (candidate.Refusal != null) continue;
+                    if (revision < 3 || HasSpare(candidate.Simulation)) { selection.Selected = selection.Candidates.Count - 1; return selection; }
+                    // Revision 3: a feasible placement whose planned beyond-range leg has no spare is passed over for the first one
+                    // that has; when none of the 64 has, the first feasible placement is selected (exactly the v1 choice).
+                    if (firstFeasible < 0) firstFeasible = selection.Candidates.Count - 1;
                 }
+            selection.Selected = firstFeasible;
             return selection;
         }
 
@@ -400,7 +415,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var c = selection.Candidates[i]; if (i > 0) b.Append(',');
                 b.Append("{\"angle\":").Append(N(c.Angle)).Append(",\"distance\":").Append(N(c.Distance)).Append(",\"requested\":"); P(b, c.Requested);
                 b.Append(",\"walkable\":").Append(c.Walkable ? "true" : "false").Append(",\"goal\":"); P(b, c.Goal);
-                b.Append(",\"refusal\":").Append(S(c.Refusal)).Append(",\"simulation\":");
+                b.Append(",\"refusal\":").Append(S(c.Refusal));
+                if (selection.Revision >= 3) b.Append(",\"spare\":").Append(c.Refusal != null ? "null" : HasSpare(c.Simulation) ? "true" : "false");
+                b.Append(",\"simulation\":");
                 if (c.Simulation == null) b.Append("null"); else Simulation(b, c.Simulation, c.Goal);
                 b.Append('}');
             }

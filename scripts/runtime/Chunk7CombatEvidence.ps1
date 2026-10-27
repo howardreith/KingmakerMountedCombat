@@ -744,7 +744,7 @@ function Get-KmcChunk7StagedLengths([string]$Kind,[double]$StartDistance,[double
  switch -CaseSensitive($Kind){'move-short'{,@(2.0)}'move-probe'{,@(2.0)}'move-two-moves'{,@(7.0)}'move-exhaust'{,@(7.0,5.0,3.5)}
   'move-beyond-range'{$aim=if($Revision-ge2){3.0+0.75}else{3.0};$l=[Math]::Max(0.6,$Envelope+$aim-$StartDistance);,@($l,($l+2.0),($l+4.0))}default{throw ('Unknown staged movement kind '+$Kind+'.')}}
 }
-function Get-KmcChunk7StagedRevision([string]$Contract){switch -CaseSensitive($Contract){'owner-seed-staged-geometry-plan-v1'{1}'owner-seed-staged-geometry-plan-v2'{2}default{throw 'Staged actions lack their up-front geometry plan.'}}}
+function Get-KmcChunk7StagedRevision([string]$Contract){switch -CaseSensitive($Contract){'owner-seed-staged-geometry-plan-v1'{1}'owner-seed-staged-geometry-plan-v2'{2}'owner-seed-staged-geometry-plan-v3'{3}default{throw 'Staged actions lack their up-front geometry plan.'}}}
 # One recorded proposal checked against its replayed request and recomputed term; returns the term.
 function Get-KmcChunk7StagedProposalTerm($P,[double]$Angle,[double]$Length,$Requested,$Start,[string]$Why){
  if(@($P).Count-ne13){throw ($Why+': a proposal record is malformed.')}
@@ -793,7 +793,7 @@ function Test-KmcChunk7StagedSimulation($Sim,$MountStart,$Target,[double]$Envelo
   if($rx*$rx+$rz*$rz-le1e-8){if($l.check-cne'no-direction'){throw ($lw+': the missing direction is not recorded.')};&$refuse $kind 'no-direction';return $false}
   $dir=if($kind-ceq'move-beyond-range'){@($rx,$rz)}else{Get-KmcChunk7StagedRotation $rx $rz (90.0*$side)}
   $norm=[Math]::Sqrt($dir[0]*$dir[0]+$dir[1]*$dir[1]);$dx=$dir[0]/$norm;$dz=$dir[1]/$norm
-  $props=@($l.proposals);$k=0;$chosen=$null;$goal=$null;$spare=$null;$requireSpare=$Revision-ge2-and$kind-ceq'move-beyond-range'
+  $props=@($l.proposals);$k=0;$chosen=$null;$goal=$null;$spare=$null;$recordSpare=$Revision-ge2-and$kind-ceq'move-beyond-range';$requireSpare=$recordSpare-and$Revision-eq2
   $hasSpare=$null-ne$l.PSObject.Properties['spare'];if($hasSpare-ne($Revision-ge2)){throw ($lw+': the leg''s spare field does not match its geometry revision.')}
   :search foreach($length in (Get-KmcChunk7StagedLengths $kind (Get-KmcChunk7StagedFlat $pos $Target) $Envelope $Revision)){foreach($angle in $script:KmcStagedFan){
    if($k-ge$props.Count){throw ($lw+': the leg stopped before its first eligible proposal.')}
@@ -804,7 +804,7 @@ function Test-KmcChunk7StagedSimulation($Sim,$MountStart,$Target,[double]$Envelo
    if($null-eq$term-and$kind-ceq'move-exhaust'){$after=$time+(Get-KmcChunk7StagedFlat $pos $r[1])/$Speed;if($after-lt5.95-and(6.0-$after)*$Speed-le0.5+0.5){$term='exhaust-tail'}}
    if([string]$props[$k][12]-cne[string]$term-or($null-eq$term)-ne($null-eq$props[$k][12])){throw ($lw+': proposal '+$k+' records '+$props[$k][12]+' but recomputes '+$term+'.')}
    $k++;if($null-ne$term){continue}
-   if($null-eq$chosen){$chosen=$k-1;$goal=$r[1];if(-not$requireSpare){break search};continue}
+   if($null-eq$chosen){$chosen=$k-1;$goal=$r[1];if(-not$recordSpare){break search};continue}
    $spare=$k-1;break search}}
   if($k-ne$props.Count){throw ($lw+': proposals are recorded past the first eligible one (or its spare).')}
   if($requireSpare-and$null-ne$chosen-and$null-eq$spare){
@@ -834,7 +834,7 @@ function Get-KmcChunk7StagedPlanSelection($Plan){
     (ConvertTo-Json -InputObject @($Plan.angles|ForEach-Object{[double]$_}) -Compress)-cne(ConvertTo-Json -InputObject $script:KmcStagedFan -Compress)){throw 'The staged geometry plan''s declared parameters differ.'}
  if([Math]::Abs([double]$Plan.envelope-([double]$Plan.mountCorpulence+[double]$Plan.plannedTargetCorpulence+[double]$Plan.weaponRange))-gt1e-6){throw 'The planned envelope is not the mount footprint, the planned target footprint and the weapon range.'}
  $mount=Get-KmcChunk7StagedVector $Plan.mountStart 'Staged plan';$rider=Get-KmcChunk7StagedVector $Plan.riderStart 'Staged plan'
- $candidates=@($Plan.candidates);$i=0;$selected=$null
+ $candidates=@($Plan.candidates);$i=0;$selected=$null;$firstFeasible=$null;$firstIndex=-1
  foreach($distance in $script:KmcStagedPlacementDistances){foreach($angle in $script:KmcStagedFan){
   if($i-ge$candidates.Count){break};$c=$candidates[$i];$why='Staged plan candidate '+$i
   if([double]$c.angle-ne$angle-or[double]$c.distance-ne$distance){throw ($why+': the candidate order differs from the declared order.')}
@@ -845,11 +845,19 @@ function Get-KmcChunk7StagedPlanSelection($Plan){
   if($null-eq$term){if(-not(Test-KmcChunk7StagedSimulation $c.simulation $mount $goal ([double]$Plan.envelope) ([double]$Plan.speed) $why $revision)){$term='plan-infeasible'}}
   elseif($null-ne$c.simulation){throw ($why+': a placement-refused candidate records a simulation.')}
   if([string]$c.refusal-cne[string]$term-or($null-eq$c.refusal)-ne($null-eq$term)){throw ($why+': the recorded refusal differs from its recomputation.')}
-  $i++;if($null-eq$term){$selected=$c;break}}
+  # Revision 3: each candidate records whether its planned beyond-range legs keep a spare (null when not feasible); the
+  # first feasible candidate with a spare is selected, else (after all 64) the first feasible one.
+  $hasSpareField=$null-ne$c.PSObject.Properties['spare'];if($hasSpareField-ne($revision-ge3)){throw ($why+': the candidate''s spare field does not match its geometry revision.')}
+  $spare=$null;if($null-eq$term){$beyond=@($c.simulation.legs|Where-Object kind -CEQ 'move-beyond-range');$spare=$beyond.Count-gt0-and@($beyond|Where-Object{$null-eq$_.PSObject.Properties['spare']-or$null-eq$_.spare}).Count-eq0}
+  if($revision-ge3-and(($null-eq$term-and($c.spare-isnot[bool]-or$c.spare-ne$spare))-or($null-ne$term-and$null-ne$c.spare))){throw ($why+': the recorded spare differs from its replay.')}
+  $i++;if($null-eq$term){if($revision-lt3-or$spare){$selected=$c;break};if($null-eq$firstFeasible){$firstFeasible=$c;$firstIndex=$i-1}}}
   if($null-ne$selected){break}}
  if($i-ne$candidates.Count){throw 'The staged plan records candidates past the first feasible one or outside the declared order.'}
+ if($null-eq$selected-and$null-ne$firstFeasible){
+  # Revision 3 fallback: no feasible placement keeps a spare, so every declared candidate is recorded and the first feasible one is chosen.
+  if($candidates.Count-ne64-or$Plan.selected-ne$firstIndex){throw 'The staged plan did not fall back to its first feasible candidate after recording every candidate without a spare.'};return $firstFeasible}
  if($null-eq$selected){if($null-ne$Plan.selected-or$candidates.Count-ne64){throw 'A refused staged plan must record every declared candidate and no selection.'};return $null}
- if($Plan.selected-ne$i-1){throw 'The staged plan did not select its first feasible candidate.'}
+ if($Plan.selected-ne$i-1){throw 'The staged plan did not select its first feasible candidate (with a spare, under revision 3).'}
  $selected
 }
 # The plan bound to the run: the selected placement is the authorized target point, the planned envelope is the
@@ -879,7 +887,7 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  if(@($o.activations).Count-ne0-or@($o.inputs).Count-ne0){throw 'Staged actions record no primary activation and no relationship input.'}
  $s=$o.staged
  # owner-seed-staged-v2 (F6): geometry plan revision 2 and the approach shot's native range record; v1 keeps its path.
- $stagedV2=$null-ne$s-and$s.contract-ceq'owner-seed-staged-v2'
+ $stagedV2=$null-ne$s-and$s.contract-cin@('owner-seed-staged-v2','owner-seed-staged-v3');$stagedRevision=if(-not$stagedV2){1}elseif($s.contract-ceq'owner-seed-staged-v3'){3}else{2}
  if($null-eq$s-or($s.contract-cne'owner-seed-staged-v1'-and-not$stagedV2)-or$s.riderId-cne$roles[0]-or$s.mountId-cne$roles[1]-or$s.weaponRanged-ne$true-or[string]$s.weapon-cnotmatch'^[0-9a-f]{32}$'-or-not(Test-KmcChunk7FiniteNumber $s.weaponRangeMeters)-or$s.weaponRangeMeters-le0-or$s.scrollUnits-ne4){throw 'Staged actions lack rider A''s ranged weapon or the declared scroll stack.'}
  Assert-KmcChunk7Boolean $s.complete $true
  if($null-eq$s.PSObject.Properties['rules']-or$null-eq$s.rules-or$s.rules.dropped-ne0-or@($s.rules.errors).Count-ne0){throw 'Staged rule observation dropped or failed.'}
@@ -895,7 +903,7 @@ function Assert-KmcChunk7StagedCombat($Request,$Observations){
  $steps=@($s.steps);if($steps.Count-ne$plan.Count){throw 'Staged actions need every planned native step.'}
  # The whole leg plan was chosen up front, before any lease, placement or input, and confirmed in combat.
  $planContract=if($null-ne$s.geometryPlan-and$null-ne$s.geometryPlan.PSObject.Properties['contract']){[string]$s.geometryPlan.contract}else{''}
- if((Get-KmcChunk7StagedRevision $planContract)-ne$(if($stagedV2){2}else{1})){throw 'The staged contract and its geometry plan revision differ.'}
+ if((Get-KmcChunk7StagedRevision $planContract)-ne$stagedRevision){throw 'The staged contract and its geometry plan revision differ.'}
  Assert-KmcChunk7StagedGeometryPlan $s $o $roles
  for($i=0;$i-lt$steps.Count;$i++){$has=$null-ne$steps[$i].PSObject.Properties['nativeRangeAtStop'];if($has-ne($stagedV2-and$steps[$i].kind-ceq'attack-ranged-approach')){throw 'The approach shot''s native range record does not match its staged contract.'}}
  $spends=0
