@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $boundary = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) ('kmc-tier-selection-' + [Guid]::NewGuid().ToString('N'))))
 $previous = @{}
-foreach ($name in @('KMC_WORKFLOW_TEST_TRACE','KMC_WORKFLOW_BUDGET_ROOT','KMC_WORKFLOW_BUDGET_ID','KMC_WORKFLOW_BUDGET_ENTRY','KMC_WORKFLOW_TEST_CLOCK_FILE','KMC_WORKFLOW_TEST_DEAD_PIDS')) {
+foreach ($name in @('KMC_WORKFLOW_TEST_TRACE','KMC_WORKFLOW_BUDGET_ROOT','KMC_WORKFLOW_BUDGET_ID','KMC_WORKFLOW_BUDGET_ENTRY','KMC_WORKFLOW_TEST_CLOCK_FILE','KMC_WORKFLOW_TEST_DEAD_PIDS','KMC_WORKFLOW_TEST_ADVANCE_TO','KMC_WORKFLOW_NATIVE_BATCH')) {
     $previous[$name] = [Environment]::GetEnvironmentVariable($name)
     [Environment]::SetEnvironmentVariable($name, $null)
 }
@@ -17,22 +17,26 @@ $junction = $null
 function Set-Clock([string]$Value) { Set-Content -LiteralPath $env:KMC_WORKFLOW_TEST_CLOCK_FILE -Value $Value -Encoding ASCII }
 function Read-Calls([string]$Trace) { if (Test-Path -LiteralPath $Trace) { @(Get-Content -LiteralPath $Trace | ForEach-Object { $_ | ConvertFrom-Json }) } else { @() } }
 function Read-Budget([string]$Root, [string]$Id) { $path = Join-Path $Root ($Id + '.json'); if (Test-Path -LiteralPath $path) { Get-Content -Raw -LiteralPath $path | ConvertFrom-Json } else { $null } }
+function Use-BudgetRoot([string]$Name) { $root = Join-Path $boundary $Name; New-Item -ItemType Directory -Path $root -Force | Out-Null; $env:KMC_WORKFLOW_BUDGET_ROOT = $root; return $root }
+function Write-Record([string]$Root, [hashtable[]]$Entries, [hashtable]$StepHistory = @{}) {
+    @{ schemaVersion=1; budgetId='development'; allowanceMinutes=90; blockCeilingMinutes=30; createdUtc='2026-10-29T12:00:00Z'; stepHistory=$StepHistory; entries=$Entries } |
+        ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $Root 'development.json') -Encoding UTF8
+}
 try {
     $scripts = Join-Path $boundary 'scripts'
     $trace = Join-Path $boundary 'calls.jsonl'
-    $budgetRoot = Join-Path $boundary 'budgets'
     $clock = Join-Path $boundary 'clock.txt'
     $env:KMC_WORKFLOW_TEST_TRACE = $trace
-    $env:KMC_WORKFLOW_BUDGET_ROOT = $budgetRoot
     $env:KMC_WORKFLOW_TEST_CLOCK_FILE = $clock
+    $budgetRoot = Use-BudgetRoot 'budgets'
     Set-Clock '2026-10-29T12:00:00Z'
-    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','workflow-impact-map.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
+    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','Reconcile-WorkflowBudget.ps1','workflow-impact-map.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
     # Discover the actual umbrella's children rather than a claimed plan.
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $scripts 'Test.ps1'), [ref]$tokens, [ref]$errors)
     if ($errors.Count -ne 0) { throw 'Umbrella parse failed.' }
     $children = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -like '*.ps1' }, $true) | ForEach-Object { $_.Value })
-    $children += @('Validate-Source.ps1','Test-SelectedFixture.ps1','chunk7\Test-SelectedNested.ps1','Test-AdvanceClock.ps1')
+    $children += @('Validate-Source.ps1','Test-SelectedFixture.ps1','chunk7\Test-SelectedNested.ps1','Test-AdvanceClock.ps1','Test-Marker.ps1')
     foreach ($name in @($children | Select-Object -Unique)) {
         $path = Join-Path $scripts $name
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
@@ -40,7 +44,7 @@ try {
 [CmdletBinding()]
 param([string]$Configuration='Release', [string]$Target='Both', [Parameter(ValueFromRemainingArguments=$true)][object[]]$Rest)
 @{ script=[IO.Path]::GetFileName($PSCommandPath); configuration=$Configuration; target=$Target; entry=$env:KMC_WORKFLOW_BUDGET_ENTRY } | ConvertTo-Json -Compress | Add-Content -LiteralPath $env:KMC_WORKFLOW_TEST_TRACE
-if ([IO.Path]::GetFileName($PSCommandPath) -eq 'Test-AdvanceClock.ps1') { Set-Content -LiteralPath $env:KMC_WORKFLOW_TEST_CLOCK_FILE -Value '2026-10-29T13:35:00Z' -Encoding ASCII }
+if ([IO.Path]::GetFileName($PSCommandPath) -eq 'Test-AdvanceClock.ps1') { Set-Content -LiteralPath $env:KMC_WORKFLOW_TEST_CLOCK_FILE -Value $env:KMC_WORKFLOW_TEST_ADVANCE_TO -Encoding ASCII }
 $global:LASTEXITCODE=0
 '@ | Set-Content -LiteralPath $path -Encoding ASCII
     }
@@ -64,6 +68,7 @@ public static class TierFixture {
 }
 '@
     $selector = Join-Path $scripts 'Test-Tiers.ps1'
+    $reconcile = Join-Path $scripts 'Reconcile-WorkflowBudget.ps1'
     $passed = 0
     function Count-Entries { $record = Read-Budget $env:KMC_WORKFLOW_BUDGET_ROOT 'development'; if ($null -eq $record) { 0 } else { @($record.entries).Count } }
     function Assert-Refused([hashtable]$Arguments, [string]$Expected) {
@@ -73,6 +78,11 @@ public static class TierFixture {
         if ($null -eq $refused -or (Test-Path -LiteralPath $trace)) { throw ('Unsupported selection was not refused before work: ' + ($Arguments | ConvertTo-Json -Compress)) }
         if ($refused -notlike ('*' + $Expected + '*')) { throw ('Refusal gave the wrong reason for ' + ($Arguments | ConvertTo-Json -Compress) + ': ' + $refused) }
         if ((Count-Entries) -ne $entriesBefore) { throw 'A refused selection recorded a budget entry.' }
+    }
+    function Invoke-Selector([hashtable]$Arguments) {
+        $failure = $null
+        $output = @(try { & $selector @Arguments *>&1 | ForEach-Object { [string]$_ } } catch { $failure = $_.Exception.Message })
+        return [pscustomobject]@{ Output = ($output -join "`n"); Failure = $failure }
     }
     foreach ($case in @(
         @{ Arguments = @{ Tier='Full'; Focused='Test-SelectedFixture.ps1'; QualificationTask='selection test' }; Expected = 'does not accept -Focused' },
@@ -92,12 +102,11 @@ public static class TierFixture {
     )) { Assert-Refused $case.Arguments $case.Expected; $passed++ }
 
     # Plan only: resolved steps, prerequisites, allowance; nothing runs and nothing is recorded.
-    $plan = @(& $selector -Plan -Tier Candidate -SkipBuild -Configuration Debug -Focused 'chunk7/Test-SelectedNested.ps1,Test-SelectedFixture.ps1' *>&1 | ForEach-Object { [string]$_ })
-    $planText = $plan -join "`n"
-    if ($planText -notmatch 'PLAN tier=Candidate' -or $planText -notmatch 'assemblyTarget=Kingmaker' -or $planText -notmatch 'FOCUSED chunk7\\Test-SelectedNested\.ps1' -or
-        $planText -notmatch 'FOCUSED Test-SelectedFixture\.ps1' -or $planText -notmatch 'CANDIDATE assembly Kingmaker' -or $planText -notmatch 'last=unknown' -or
-        $planText -notmatch 'estimate=unknown' -or $planText -notmatch 'spent 0 of 90 min' -or $planText -notmatch 'plan only') { throw ('Plan output is incomplete: ' + $planText) }
-    if ((Test-Path -LiteralPath $trace) -or ($null -ne (Read-Budget $budgetRoot 'development') -and @((Read-Budget $budgetRoot 'development').entries).Count -ne 0)) { throw 'Plan-only invocation ran work or recorded a budget entry.' }
+    $plan = (Invoke-Selector @{ Plan=$true; Tier='Candidate'; SkipBuild=$true; Configuration='Debug'; Focused='chunk7/Test-SelectedNested.ps1,Test-SelectedFixture.ps1' }).Output
+    if ($plan -notmatch 'PLAN tier=Candidate' -or $plan -notmatch 'assemblyTarget=Kingmaker' -or $plan -notmatch 'FOCUSED chunk7\\Test-SelectedNested\.ps1' -or
+        $plan -notmatch 'FOCUSED Test-SelectedFixture\.ps1' -or $plan -notmatch 'CANDIDATE assembly Kingmaker' -or $plan -notmatch 'last=unknown' -or
+        $plan -notmatch 'estimate=unknown' -or $plan -notmatch 'spent 0 of 90 min' -or $plan -notmatch 'plan only') { throw ('Plan output is incomplete: ' + $plan) }
+    if ((Test-Path -LiteralPath $trace) -or (Count-Entries) -ne 0) { throw 'Plan-only invocation ran work or recorded a budget entry.' }
     $passed++
 
     # Nested repository-relative paths in every accepted spelling run once; Kingmaker is the default target.
@@ -113,13 +122,14 @@ public static class TierFixture {
     $budget = Read-Budget $budgetRoot 'development'
     if ($null -eq $budget -or @($budget.entries).Count -ne 1 -or [string]$budget.entries[0].status -cne 'completed' -or [string]$budget.entries[0].kind -cne 'tier' -or
         $null -eq $budget.stepHistory.'CANDIDATE assembly Kingmaker') { throw 'The tier run was not recorded in the shared budget with its step durations.' }
-    $entryId = [string]$budget.entries[0].entryId
-    if (@($calls | Where-Object { [string]$_.entry -cne $entryId }).Count -ne 0) { throw 'Children did not inherit the budget entry.' }
+    $completedEntryId = [string]$budget.entries[0].entryId
+    if (@($calls | Where-Object { [string]$_.entry -cne $completedEntryId }).Count -ne 0) { throw 'Children did not inherit the budget entry.' }
+    if (-not [string]::IsNullOrWhiteSpace($env:KMC_WORKFLOW_BUDGET_ENTRY)) { throw 'The selector did not restore the caller''s entry context.' }
     $passed++
     Remove-Item -LiteralPath $trace
 
     # Recorded durations make the next plan's estimate known.
-    $plan2 = (@(& $selector -Plan -Tier Candidate -SkipBuild -Configuration Debug *>&1 | ForEach-Object { [string]$_ })) -join "`n"
+    $plan2 = (Invoke-Selector @{ Plan=$true; Tier='Candidate'; SkipBuild=$true; Configuration='Debug' }).Output
     if ($plan2 -notmatch 'estimate=\d+s from recorded durations' -or $plan2 -match 'last=unknown') { throw ('Second plan did not use recorded durations: ' + $plan2) }
     $passed++
 
@@ -135,27 +145,40 @@ public static class TierFixture {
     $passed++
     Remove-Item -LiteralPath $trace
 
-    # A nested invocation (a wrapper's child) is counted in its parent, never twice.
-    $env:KMC_WORKFLOW_BUDGET_ENTRY = $entryId
-    $env:KMC_WORKFLOW_BUDGET_ID = 'development'
-    & $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-SelectedFixture.ps1' | Out-Null
-    [Environment]::SetEnvironmentVariable('KMC_WORKFLOW_BUDGET_ENTRY', $null); [Environment]::SetEnvironmentVariable('KMC_WORKFLOW_BUDGET_ID', $null)
-    $budget = Read-Budget $budgetRoot 'development'
-    if (@($budget.entries).Count -ne 2) { throw 'A nested invocation created its own budget entry.' }
-    $calls = Read-Calls $trace
-    if (@($calls | Where-Object { [string]$_.entry -cne $entryId }).Count -ne 0) { throw 'A nested invocation did not propagate the parent entry.' }
-    $passed++
+    # Inheritance is verified, never assumed. A live running parent (this process, admitted
+    # through the library) is inherited; a completed, missing or dead parent is stale context
+    # and the invocation is accounted on its own.
+    . (Join-Path $scripts 'WorkflowBudget.ps1')
+    $parent = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind tier -Selection 'parent wrapper'
+    $live = Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }
+    if ($live.Failure -or $live.Output -notmatch 'nested under live entry' -or (Count-Entries) -ne 3) { throw ('A live parent was not inherited: ' + $live.Output + $live.Failure) }
+    if (@(Read-Calls $trace | Where-Object { [string]$_.entry -cne $parent.EntryId }).Count -ne 0) { throw 'A nested invocation did not propagate the live parent entry.' }
+    if ($env:KMC_WORKFLOW_BUDGET_ENTRY -cne $parent.EntryId) { throw 'The nested invocation did not restore the parent context.' }
+    Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $parent -Status completed
     Remove-Item -LiteralPath $trace
+    foreach ($stale in @(@{ Entry = $completedEntryId; Expected = 'completed' }, @{ Entry = 'development:x:1:ffffffff'; Expected = 'missing' })) {
+        $env:KMC_WORKFLOW_BUDGET_ENTRY = $stale.Entry
+        $before = Count-Entries
+        $result = Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }
+        [Environment]::SetEnvironmentVariable('KMC_WORKFLOW_BUDGET_ENTRY', $null)
+        if ($result.Failure -or $result.Output -notmatch ('is ' + $stale.Expected + ', not a live parent') -or (Count-Entries) -ne $before + 1) { throw ('A ' + $stale.Expected + ' inherited entry was not treated as stale: ' + $result.Output + $result.Failure) }
+        Remove-Item -LiteralPath $trace
+    }
+    $passed++
 
-    # Exhaustion: a child advances the controlled clock past the allowance during a run; the run
-    # completes (running work is never interrupted), and the NEXT selection is refused before work.
-    & $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-AdvanceClock.ps1' | Out-Null
+    # A step after the one that exhausts the allowance never starts: the exhausting step settles,
+    # the following marker stub is refused before it runs, and the entry is accounted.
+    $env:KMC_WORKFLOW_TEST_ADVANCE_TO = '2026-10-29T13:35:00Z'
+    $exhaust = Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-AdvanceClock.ps1,Test-Marker.ps1' }
+    $calls = Read-Calls $trace
+    if (-not $exhaust.Failure -or $exhaust.Failure -notmatch 'refused step' -or $exhaust.Output -notmatch 'REFUSED FOCUSED Test-Marker\.ps1: Workflow budget exhausted' -or
+        @($calls | Where-Object script -eq 'Test-AdvanceClock.ps1').Count -ne 1 -or @($calls | Where-Object script -eq 'Test-Marker.ps1').Count -ne 0) { throw ('The step after exhaustion was started: ' + $exhaust.Output + $exhaust.Failure) }
     $budget = Read-Budget $budgetRoot 'development'
-    $spent = ($budget.entries | ForEach-Object { [double]$_.seconds } | Measure-Object -Sum).Sum
-    if (@($budget.entries).Count -ne 3 -or [string]$budget.entries[2].status -cne 'completed' -or $spent -lt 90 * 60) { throw ('Exhausting run was not completed and accounted: ' + ($budget | ConvertTo-Json -Depth 6 -Compress)) }
+    $last = $budget.entries[-1]
+    if ([string]$last.status -cne 'failed' -or [double]$last.seconds -lt 90 * 60) { throw 'The exhausting run was not accounted.' }
     Remove-Item -LiteralPath $trace
     Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' } 'Workflow budget exhausted'
-    $planAfter = (@(& $selector -Plan -Tier Fast -SkipBuild -Configuration Debug *>&1 | ForEach-Object { [string]$_ })) -join "`n"
+    $planAfter = (Invoke-Selector @{ Plan=$true; Tier='Fast'; SkipBuild=$true; Configuration='Debug' }).Output
     if ($planAfter -notmatch 'remaining 0 min') { throw ('Plan did not report the exhausted allowance: ' + $planAfter) }
     # A new shell, commit or wrapper does not replenish it; only an explicitly selected new budget admits more work.
     Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1'; BudgetId='development' } 'Workflow budget exhausted'
@@ -164,32 +187,128 @@ public static class TierFixture {
     $passed++
     Remove-Item -LiteralPath $trace
 
-    # Interrupted records: a running entry whose process is gone is reconciled to its last heartbeat
-    # before admission, and an interrupted spend that reaches the allowance refuses new work.
-    $interruptedRoot = Join-Path $boundary 'budgets-interrupted'
-    New-Item -ItemType Directory -Path $interruptedRoot -Force | Out-Null
-    $env:KMC_WORKFLOW_BUDGET_ROOT = $interruptedRoot
+    # The ordinary-block ceiling: a block that has run 31 minutes (well inside the allowance)
+    # does not start its next step either.
+    $blockRoot = Use-BudgetRoot 'budgets-block'
+    Set-Clock '2026-10-29T12:00:00Z'
+    $env:KMC_WORKFLOW_TEST_ADVANCE_TO = '2026-10-29T12:31:00Z'
+    $block = Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-AdvanceClock.ps1,Test-Marker.ps1' }
+    $calls = Read-Calls $trace
+    if (-not $block.Failure -or $block.Output -notmatch 'REFUSED FOCUSED Test-Marker\.ps1: Workflow block ceiling reached' -or
+        @($calls | Where-Object script -eq 'Test-Marker.ps1').Count -ne 0) { throw ('The block ceiling did not stop the next step: ' + $block.Output + $block.Failure) }
+    $budget = Read-Budget $blockRoot 'development'
+    if ([string]$budget.entries[0].status -cne 'failed' -or [double]$budget.entries[0].seconds -ne 31 * 60) { throw 'The block-ceiling run was not accounted.' }
+    Remove-Item -LiteralPath $trace
+    # 59 minutes remain, so a further selection is admitted on its own fresh block.
+    & $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-SelectedFixture.ps1' | Out-Null
+    if ((Count-Entries) -ne 2) { throw 'A fresh block was not admitted after a block-ceiling refusal.' }
+    $passed++
+    Remove-Item -LiteralPath $trace
+
+    # Known oversized work is refused, not warned about: a recorded 95-minute component step
+    # against a fresh 90-minute allowance never starts; a selection whose known 40-minute step
+    # exceeds the 10 minutes left is refused at admission before any step; and a step whose
+    # known 15 minutes exceed what is left of the 30-minute block is refused at its own boundary.
+    $sizeRoot = Use-BudgetRoot 'budgets-size'
+    Set-Clock '2026-10-29T12:00:00Z'
+    Write-Record $sizeRoot @() @{ 'FAST components' = @{ seconds = 95 * 60; observedUtc = '2026-10-29T11:00:00Z' } }
+    Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' } 'refuses oversized work'
+    Write-Record $sizeRoot @(@{ entryId='development:a:0:00000001'; kind='tier'; selection='earlier'; startedUtc='2026-10-29T10:00:00Z'; heartbeatUtc='2026-10-29T11:20:00Z'; stepStartedUtc=$null; processId=0; status='completed'; estimatedSeconds=$null; endedUtc='2026-10-29T11:20:00Z'; seconds=80*60; launch=$false; batchId=$null; batchKey=$null }) `
+        @{ 'FOCUSED Test-Marker.ps1' = @{ seconds = 40 * 60; observedUtc = '2026-10-29T11:00:00Z' } }
+    Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1,Test-Marker.ps1' } 'refuses oversized work'
+    $blockSizeRoot = Use-BudgetRoot 'budgets-block-size'
+    Write-Record $blockSizeRoot @() @{ 'FOCUSED Test-Marker.ps1' = @{ seconds = 15 * 60; observedUtc = '2026-10-29T11:00:00Z' } }
+    $env:KMC_WORKFLOW_TEST_ADVANCE_TO = '2026-10-29T12:20:00Z'
+    $oversized = Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-AdvanceClock.ps1,Test-Marker.ps1' }
+    $calls = Read-Calls $trace
+    if (-not $oversized.Failure -or $oversized.Output -notmatch 'REFUSED FOCUSED Test-Marker\.ps1: Workflow block ceiling refuses oversized work' -or
+        @($calls | Where-Object script -eq 'Test-AdvanceClock.ps1').Count -ne 1 -or @($calls | Where-Object script -eq 'Test-Marker.ps1').Count -ne 0) { throw ('An oversized step was started inside a block: ' + $oversized.Output + $oversized.Failure) }
+    $passed++
+    Remove-Item -LiteralPath $trace
+
+    # Interrupted records: a running entry whose process is gone is charged to its last measured
+    # point before admission; an unmeasured interval with no estimate blocks admission until it
+    # is reconciled explicitly, and an estimate is charged when nothing was measured.
+    $interruptedRoot = Use-BudgetRoot 'budgets-interrupted'
     Set-Clock '2026-10-29T14:00:00Z'
-    @{ schemaVersion=1; budgetId='development'; allowanceMinutes=90; createdUtc='2026-10-29T12:00:00Z'; stepHistory=@{}; entries=@(
-        @{ entryId='development:a:999999'; kind='native'; selection='persistence-p05-save/quick'; startedUtc='2026-10-29T12:00:00Z'; heartbeatUtc='2026-10-29T12:40:00Z'; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null }
-    ) } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $interruptedRoot 'development.json') -Encoding UTF8
-    $output = (@(& $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-SelectedFixture.ps1' *>&1 | ForEach-Object { [string]$_ })) -join "`n"
+    Write-Record $interruptedRoot @(@{ entryId='development:a:999999:00000002'; kind='native'; selection='persistence-p05-save/quick'; startedUtc='2026-10-29T12:00:00Z'; heartbeatUtc='2026-10-29T12:40:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null; launch=$true; batchId='development:batch1'; batchKey='persistence-p05-save/quick' })
+    $output = (Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }).Output
     $budget = Read-Budget $interruptedRoot 'development'
     if ($output -notmatch 'reconciled 1 interrupted entry' -or [string]$budget.entries[0].status -cne 'interrupted' -or [double]$budget.entries[0].seconds -ne 2400 -or
         @($budget.entries).Count -ne 2 -or $output -notmatch 'spent 40 of 90 min') { throw ('Interrupted entry was not reconciled before admission: ' + $output) }
     Remove-Item -LiteralPath $trace
-    @{ schemaVersion=1; budgetId='development'; allowanceMinutes=90; createdUtc='2026-10-29T12:00:00Z'; stepHistory=@{}; entries=@(
-        @{ entryId='development:b:999999'; kind='native'; selection='persistence-p05-save/quick'; startedUtc='2026-10-29T12:00:00Z'; heartbeatUtc='2026-10-29T13:31:00Z'; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null }
-    ) } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $interruptedRoot 'development.json') -Encoding UTF8
-    Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' } 'Workflow budget exhausted'
+    Write-Record $interruptedRoot @(@{ entryId='development:b:999999:00000003'; kind='tier'; selection='unmeasured'; startedUtc='2026-10-29T12:00:00Z'; heartbeatUtc='2026-10-29T12:00:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null; launch=$false; batchId=$null; batchKey=$null })
+    Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' } 'unknown spend'
+    & $reconcile -EntryId 'development:b:999999:00000003' -Seconds 600 -Reason 'transcript shows ten minutes' | Out-Null
+    & $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-SelectedFixture.ps1' | Out-Null
+    $budget = Read-Budget $interruptedRoot 'development'
+    if ([string]$budget.entries[0].status -cne 'interrupted' -or [double]$budget.entries[0].seconds -ne 600 -or @($budget.entries).Count -ne 2) { throw 'Explicit reconciliation did not admit the next check.' }
+    Remove-Item -LiteralPath $trace
+    Write-Record $interruptedRoot @(@{ entryId='development:c:999999:00000004'; kind='native'; selection='x'; startedUtc='2026-10-29T12:00:00Z'; heartbeatUtc='2026-10-29T12:00:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=360; endedUtc=$null; seconds=$null; launch=$true; batchId='development:batch1'; batchKey='x' })
+    $output = (Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }).Output
+    $budget = Read-Budget $interruptedRoot 'development'
+    if ([double]$budget.entries[0].seconds -ne 360 -or [string]$budget.entries[0].reconciliation -cne 'charged-estimate-unmeasured') { throw 'An unmeasured interrupted estimate was not charged.' }
+    # Imported work (run before the record existed) counts like any other spend.
+    & $reconcile -ImportKind tier -ImportSelection 'pre-record Fast run' -ImportSeconds 120 -ImportStartedUtc '2026-10-29T11:00:00Z' -Reason 'transcript' | Out-Null
+    $budget = Read-Budget $interruptedRoot 'development'
+    if (@($budget.entries | Where-Object { $null -ne $_.PSObject.Properties['reconciliation'] -and [string]$_.reconciliation -like 'imported:*' }).Count -ne 1 -or ($budget.entries | ForEach-Object { [double]$_.seconds } | Measure-Object -Sum).Sum -lt 480) { throw 'Imported work was not accounted.' }
+    $passed++
+    Remove-Item -LiteralPath $trace
+
+    # The native batch rule at admission: five distinct scenarios per batch, two equivalent
+    # failures per scenario, decided before any lock.
+    $batchRoot = Use-BudgetRoot 'budgets-batch'
+    Set-Clock '2026-10-29T15:00:00Z'
+    foreach ($key in @('a/1','b/1','c/1','d/1','e/1')) {
+        $admission = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection ($key + '/launch/r') -EstimatedSeconds 60 -Launch -BatchKey $key
+        Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $admission -Status completed
+    }
+    $sixth = $null
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'f/1/launch/r' -EstimatedSeconds 60 -Launch -BatchKey 'f/1') } catch { $sixth = $_.Exception.Message }
+    if ($sixth -notlike '*already names 5 scenarios*') { throw ('A sixth scenario was admitted into the batch: ' + $sixth) }
+    $dry = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'f/1/whatif/r' -BatchKey 'f/1'
+    Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $dry -Status completed
+    foreach ($attempt in 1..2) { $failed = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection ('a/1/launch/r' + $attempt) -EstimatedSeconds 60 -Launch -BatchKey 'a/1'; Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $failed -Status failed }
+    $third = $null
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'a/1/launch/r3' -EstimatedSeconds 60 -Launch -BatchKey 'a/1') } catch { $third = $_.Exception.Message }
+    if ($third -notlike '*third equivalent attempt*') { throw ('A third equivalent failure was admitted: ' + $third) }
+    $env:KMC_WORKFLOW_NATIVE_BATCH = 'development:batch2'
+    $fresh = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'f/1/launch/r' -EstimatedSeconds 60 -Launch -BatchKey 'f/1'
+    Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $fresh -Status completed
+    [Environment]::SetEnvironmentVariable('KMC_WORKFLOW_NATIVE_BATCH', $null)
     $passed++
 
-    # The admission function itself refuses before a caller takes any lock: the native launcher calls
-    # it before Steam checks, evidence directories, locks, staging or launch.
-    . (Join-Path $scripts 'WorkflowBudget.ps1')
+    # A launcher-shaped early failure (admitted, then a terminating error before its own
+    # try/finally) still completes its entry and restores the shell's context, so the next
+    # invocation in the same shell is metered on its own rather than riding a stale entry.
+    $trapRoot = Use-BudgetRoot 'budgets-trap'
+    Set-Clock '2026-10-29T16:00:00Z'
+    $early = Join-Path $boundary 'early-failure.ps1'
+    @'
+param([string]$Boundary)
+$ErrorActionPreference = 'Stop'
+. (Join-Path $Boundary 'scripts\WorkflowBudget.ps1')
+$workflowAdmission = Request-KmcWorkflowAdmission -RepoRoot $Boundary -Kind native -Selection 'early/case/launch/r1' -EstimatedSeconds 60 -Launch -BatchKey 'early/case'
+trap { try { Complete-KmcWorkflowEntry -RepoRoot $Boundary -Admission $workflowAdmission -Status failed } catch { }; break }
+throw 'Runtime request branch is outside the KMC prefix.'
+'@ | Set-Content -LiteralPath $early -Encoding ASCII
+    $env:KMC_WORKFLOW_BUDGET_ENTRY = $null
+    $earlyFailure = $null
+    try { & $early -Boundary $boundary *>&1 | Out-Null } catch { $earlyFailure = $_.Exception.Message }
+    $budget = Read-Budget $trapRoot 'development'
+    if ($earlyFailure -notlike '*KMC prefix*' -or @($budget.entries).Count -ne 1 -or [string]$budget.entries[0].status -cne 'failed' -or -not [string]::IsNullOrWhiteSpace($env:KMC_WORKFLOW_BUDGET_ENTRY)) { throw ('An early launcher failure left the budget entry running or the context installed: ' + $earlyFailure) }
+    & $selector -Tier Fast -SkipBuild -Configuration Debug -Focused 'Test-SelectedFixture.ps1' | Out-Null
+    $budget = Read-Budget $trapRoot 'development'
+    if (@($budget.entries).Count -ne 2 -or [string]$budget.entries[1].status -cne 'completed') { throw 'The invocation after an early failure was not metered on its own.' }
+    $passed++
+    Remove-Item -LiteralPath $trace
+
+    # The admission function itself refuses before a caller takes any lock: the native launcher
+    # calls it before validation, Steam checks, evidence directories, locks, staging or launch.
     $lockSentinel = Join-Path $boundary 'active-transaction.lock'
+    $env:KMC_WORKFLOW_BUDGET_ROOT = $budgetRoot
     $refusedBeforeLock = $false
-    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'persistence-p05-save/quick' -EstimatedSeconds 360); New-Item -ItemType File -Path $lockSentinel | Out-Null }
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'persistence-p05-save/quick/launch/r' -EstimatedSeconds 360 -Launch -BatchKey 'persistence-p05-save/quick'); New-Item -ItemType File -Path $lockSentinel | Out-Null }
     catch { $refusedBeforeLock = $_.Exception.Message -like '*Workflow budget exhausted*' }
     if (-not $refusedBeforeLock -or (Test-Path -LiteralPath $lockSentinel)) { throw 'An exhausted budget did not refuse before the lock step.' }
     $passed++

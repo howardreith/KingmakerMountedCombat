@@ -37,6 +37,10 @@ param(
 #   FULL       at a milestone, at final qualification, or when a shared foundation change affects
 #              the whole repository: the complete umbrella (scripts/Test.ps1), selected explicitly.
 #
+# Budget: admission once before any work, then again before EVERY further step (cumulative
+# allowance, 30-minute block ceiling, known oversized steps refused rather than started). A
+# running step always settles; a refusal only stops the steps that have not started.
+#
 # docs/VALIDATION-POLICY.md also governs package/suite/purity/native work:
 # those are explicit frozen-candidate/release operations, not checkpoint gates.
 $ErrorActionPreference = 'Stop'
@@ -122,11 +126,15 @@ if ($Tier -eq 'Full') {
 $budgetIdResolved = Get-KmcWorkflowBudgetId $BudgetId
 $budgetView = Read-KmcWorkflowBudget $repoRoot $budgetIdResolved
 $knownSeconds = 0.0; $unknownSteps = 0
+$stepEstimates = @{}
 foreach ($step in $steps) {
     $last = Get-KmcWorkflowStepHistorySeconds $budgetView $step.Name
-    if ($null -eq $last) { $unknownSteps++ } else { $knownSeconds += $last }
+    if ($null -eq $last) { $unknownSteps++ } else { $knownSeconds += $last; $stepEstimates[$step.Name] = [int][Math]::Ceiling($last) }
 }
 $estimate = if ($unknownSteps -eq 0 -and $steps.Count -gt 0) { [int][Math]::Ceiling($knownSeconds) } else { $null }
+# What admission is told: the complete estimate when every step is known, otherwise the known
+# part as a lower bound (a selection whose known steps alone exceed the allowance never starts).
+$admissionEstimate = if ($knownSeconds -gt 0) { [int][Math]::Ceiling($knownSeconds) } else { $null }
 
 if ($Plan) {
     $now = Get-KmcWorkflowClock
@@ -172,9 +180,20 @@ if ($Plan) {
 
 # ---- Admission, then execution ----------------------------------------------------------------
 $selectionText = $Tier + ': ' + (($steps | ForEach-Object { $_.Name }) -join ', ')
-$admission = Request-KmcWorkflowAdmission -RepoRoot $repoRoot -BudgetId $BudgetId -Kind tier -Selection $selectionText -EstimatedSeconds $estimate
+$admission = Request-KmcWorkflowAdmission -RepoRoot $repoRoot -BudgetId $BudgetId -Kind tier -Selection $selectionText -EstimatedSeconds $admissionEstimate
 $invokedTests = @{}
+$refusal = $null
 function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
+    # Admission again before this step: cumulative allowance, block ceiling and the step's own
+    # known cost. A refusal here stops only the steps that have not started.
+    $known = if ($stepEstimates.ContainsKey($Name)) { [int]$stepEstimates[$Name] } else { $null }
+    try { Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $admission -StepName $Name -EstimatedSeconds $known }
+    catch {
+        $script:refusal = $_.Exception.Message
+        $script:results += [pscustomobject]@{ step = $Name; pass = $false; seconds = 0; detail = 'REFUSED before start: ' + $script:refusal }
+        Write-Host ('REFUSED ' + $Name + ': ' + $script:refusal)
+        throw ('Workflow budget refused step: ' + $Name)
+    }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $ok = $true; $detail = ''
     try { & $Body } catch { $ok = $false; $detail = $_.Exception.Message }
@@ -184,6 +203,27 @@ function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
     try { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission -StepName $Name -StepSeconds $sw.Elapsed.TotalSeconds } catch { Write-Warning ('Workflow budget heartbeat failed: ' + $_.Exception.Message) }
     if (-not $ok) { throw ('Tier step failed: ' + $Name) }
 }
+# Children run as separate processes whose output is relayed when they end; while they run
+# the entry's heartbeat is refreshed every 15 seconds, so an interrupted long step is charged
+# to within that bound instead of to its start.
+function Invoke-KmcTierChild([string]$FilePath, [string[]]$Arguments) {
+    $stdout = [IO.Path]::GetTempFileName(); $stderr = [IO.Path]::GetTempFileName()
+    try {
+        $quoted = @($Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } })
+        $start = @{ FilePath = $FilePath; NoNewWindow = $true; PassThru = $true; RedirectStandardOutput = $stdout; RedirectStandardError = $stderr }
+        if ($quoted.Count -gt 0) { $start.ArgumentList = $quoted }
+        $process = Start-Process @start
+        # Windows PowerShell only reports ExitCode for a process whose handle was taken while it ran.
+        $null = $process.Handle
+        while (-not $process.WaitForExit(15000)) {
+            try { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission } catch { }
+        }
+        $process.WaitForExit()
+        foreach ($file in @($stdout, $stderr)) { if (Test-Path -LiteralPath $file) { Get-Content -LiteralPath $file | ForEach-Object { Write-Host ('    ' + $_) } } }
+        return $process.ExitCode
+    }
+    finally { foreach ($file in @($stdout, $stderr)) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue } }
+}
 function Invoke-TestScript([string]$Name, [string[]]$Extra = @(), [string]$Path = '') {
     if ($invokedTests.ContainsKey($Name)) { return }
     if ([string]::IsNullOrWhiteSpace($Path)) { $Path = Join-Path $scriptsRoot $Name }
@@ -192,8 +232,8 @@ function Invoke-TestScript([string]$Name, [string[]]$Extra = @(), [string]$Path 
     $arguments = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$Path)
     if ($takesConfiguration) { $arguments += @('-Configuration',$Configuration) }
     if ($Extra.Count -gt 0) { $arguments += $Extra }
-    & powershell.exe @arguments | ForEach-Object { Write-Host ('    ' + $_) }
-    if ($LASTEXITCODE -ne 0) { throw ($Name + ' exited ' + $LASTEXITCODE) }
+    $exit = Invoke-KmcTierChild 'powershell.exe' $arguments
+    if ($exit -ne 0) { throw ($Name + ' exited ' + $exit) }
     $invokedTests[$Name] = $true
 }
 $outcome = 'failed'
@@ -206,14 +246,13 @@ try {
         if (-not $SkipBuild) {
             Invoke-Tiered 'build' {
                 if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild not found.' }
-                & $msbuild (Join-Path $repoRoot 'KingmakerMountedCombat.sln') /t:Build "/p:Configuration=$Configuration" /m:1 /v:minimal /nologo | ForEach-Object { Write-Host ('    ' + $_) }
-                if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+                $exit = Invoke-KmcTierChild $msbuild @((Join-Path $repoRoot 'KingmakerMountedCombat.sln'), '/t:Build', "/p:Configuration=$Configuration", '/m:1', '/v:minimal', '/nologo')
+                if ($exit -ne 0) { throw 'Build failed.' }
             }
         }
         Invoke-Tiered 'FAST components' {
             if(-not(Test-Path -LiteralPath $components)){throw 'Compiled component runner missing.'}
-            & $components | ForEach-Object { Write-Host ('    '+$_) }
-            $componentExit=$LASTEXITCODE
+            $componentExit = Invoke-KmcTierChild $components @()
             if($componentExit-ne0){throw ('Component runner exited '+$componentExit)}
         }
         foreach ($testScript in $tierBuiltIns) { Invoke-Tiered ('FAST ' + $testScript) { Invoke-TestScript $testScript } }

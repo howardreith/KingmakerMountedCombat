@@ -41,6 +41,10 @@ param(
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
     [switch]$DevelopmentScopedAudit,
+    # Isolated persistence runs only: hand the engine the isolated root spelled exactly as a
+    # player's Unity persistent data path (forward slashes joined with backslashes), so the
+    # run keeps the player's path condition while every write stays in the same owned root.
+    [switch]$EngineShapedSaveRoot,
     [switch]$ObserveWorkingDeserialization,
     [switch]$F11NativeAllocationProbe,
     [switch]$OwnerStockRemoval,
@@ -392,6 +396,22 @@ $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
 $runtimeEvidence=Join-Path $labRoot 'runtime-evidence'
+# Shared sprint validation budget (scripts/WorkflowBudget.ps1): admission is decided here,
+# before source/package validation, continuity preflight, the WhatIf/ShouldProcess boundary,
+# Steam checks, evidence directories, locks, staging or launch, so every expensive phase is
+# inside the accounted interval and a refusal can never strand a transaction. A real launch
+# is also subject to the five-scenario batch rule. Work already running is never interrupted
+# by the budget; settlement/restoration is recorded separately.
+. (Join-Path $PSScriptRoot '..\WorkflowBudget.ps1')
+$workflowBatchKey=$Scenario+'/'+$(if([string]::IsNullOrWhiteSpace($PersistenceCase)){'-'}else{$PersistenceCase})
+$workflowAdmission=Request-KmcWorkflowAdmission -RepoRoot $repoRoot -Kind native `
+    -Selection ($workflowBatchKey+'/'+$(if($requestedWhatIf){'whatif'}else{'launch'})+'/'+$(if([string]::IsNullOrWhiteSpace($RunId)){'auto'}else{$RunId})) `
+    -EstimatedSeconds $(if($requestedWhatIf){$null}else{$TimeoutSeconds}) -Launch:(-not$requestedWhatIf) -BatchKey $workflowBatchKey
+$workflowHeartbeatAt=[DateTime]::UtcNow
+# Lifetime: a terminating error anywhere outside the transaction's own try/finally (an early
+# refusal, a WhatIf failure, the final verdict) still completes this entry and restores the
+# caller's context; the error itself propagates unchanged.
+trap { try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
 $f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
 $f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
 $f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
@@ -542,15 +562,8 @@ if($isSaveBacked){
         -After $beforeSaves `
         -Description 'runtime preflight fixture-continuity save metadata'
 }
-# Shared sprint validation budget (scripts/WorkflowBudget.ps1): admission is decided here,
-# before the WhatIf/ShouldProcess boundary, Steam checks, evidence directories, locks,
-# staging or launch, so a refusal can never strand a transaction. Work already running is
-# never interrupted by the budget; settlement/restoration time is recorded separately.
-. (Join-Path $PSScriptRoot '..\WorkflowBudget.ps1')
-$workflowAdmission=Request-KmcWorkflowAdmission -RepoRoot $repoRoot -Kind native `
-    -Selection ($Scenario+'/'+$(if([string]::IsNullOrWhiteSpace($PersistenceCase)){'-'}else{$PersistenceCase})+'/'+$(if($requestedWhatIf){'whatif'}else{'launch'})+'/'+$(if([string]::IsNullOrWhiteSpace($RunId)){'auto'}else{$RunId})) `
-    -EstimatedSeconds $(if($requestedWhatIf){$null}else{$TimeoutSeconds})
-$workflowHeartbeatAt=[DateTime]::UtcNow
+# Preflight validation is done: measured point for the budget before the guarded boundary.
+try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
 $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
@@ -661,6 +674,7 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
+    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
         runId=$actualRunId
@@ -674,6 +688,7 @@ try{
         evidenceRoot=$evidenceRoot
     }
     if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
+    if($EngineShapedSaveRoot){if(-not$isSaveBacked){throw 'The engine-shaped save root applies to save-backed isolated runs only.'};$request['engineShapedSaveRoot']=$true}
     if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
         contract='f11-native-allocation-v1';baseGameOnly=$true
         path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
@@ -1128,6 +1143,7 @@ try{
         # No KMC arguments at all: even a stray KMC assembly would stay inert.
         @('-applaunch','640820','-kmcObserverRequest',('"'+$observerRequestPath+'"'),'-kmcObserverToken',[string]$lock.Token,'-kmcObserverRequestSha256',(Get-KmcSha256 $observerRequestPath))
     }else{@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)}
+    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
     [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
