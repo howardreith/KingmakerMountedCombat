@@ -51,7 +51,8 @@ function Get-KmcChunk7OwnedWriteCount($Request){
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
  if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7SixPairSave $Request)){return 1}
  # The worker writes a seed and its cancelled replacement to one landed archive.
- if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};return 1}
+ # A slot rotation writes its selected output once and then overwrites it (3 Quick writes, 2 Manual writes).
+ if(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request){if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2};if(Test-KmcChunk7SlotRotationCase $Request.persistenceCase){return Get-KmcChunk7SlotRotationWrites $Request.persistenceCase};return 1}
  if(Test-KmcChunk7OwnedPairsSeedCheckpointLoad $Request){if($Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema1-resave-manual')){return 1};return 0}
  if(Test-KmcChunk7OwnedPairsSeedDerivedInput $Request){return 0}
  if($Request.ownedPairs.case-ceq'persistence-save'-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){return 2}
@@ -184,7 +185,7 @@ function Test-KmcChunk7OwnedPairsRegisteredDisable($Request){(Get-KmcChunk7Owned
 function Test-KmcChunk7OwnedPairsSeedCheckpointSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-checkpoint-save'}
 function Test-KmcChunk7OwnedPairsSeedCheckpointLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-checkpoint-load'}
 # The checkpoints the owner-seed checkpoint pair admits; extend this one list as each family is connected.
-function Get-KmcChunk7OwnerSeedCheckpoints {@('multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave')}
+function Get-KmcChunk7OwnerSeedCheckpoints {@('multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','multi-area-autosave','multi-exploration-rotation-quick','multi-exploration-overwrite-manual')}
 function Get-KmcChunk7OwnerSeedSourceOnlyCheckpoints {@('multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual')}
 function Get-KmcChunk7OwnerSeedLoadOnlyCheckpoints {@('owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual')}
 function Test-KmcChunk7OwnerSeedCurrentCheckpoint([string]$Checkpoint){$Checkpoint-cin@('owned-schema1-current-manual','owned-schema2-pending-current-manual')}
@@ -568,10 +569,14 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  $worker=$Request.ownedPairs.case-cin@('persistence-save','owner-seed-checkpoint-save')-and$Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'
  $writeCount=Get-KmcChunk7OwnedWriteCount $Request
  $area=$Request.ownedPairs.case-cin@('persistence-save','owner-seed-checkpoint-save')-and$Request.persistenceCase-ceq'multi-area-autosave'
- $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'};if($area){$properties+='areaSaveIdentity'}
+ $rotation=$Request.ownedPairs.case-ceq'owner-seed-checkpoint-save'-and(Test-KmcChunk7SlotRotationCase $Request.persistenceCase)
+ $properties=@('completionSequence','callbackCount','nativeWorkerSettled','nativeInventory','authority');if($worker){$properties+='replacement'};if($area){$properties+='areaSaveIdentity'};if($rotation){$properties+='rotation'}
  Assert-KmcExactProperties $b $properties 'inherited native save settlement'
  if($worker){$replacement=$b.replacement;Assert-KmcExactProperties $replacement @('callbackCount','completedSaveCount','drainCount','committed','outcomeEstablished','path','stagingLeaf') 'inherited cancelled replacement';Assert-KmcOrdinaryInteger $replacement.callbackCount 0 0;foreach($key in @('completedSaveCount','drainCount')){Assert-KmcOrdinaryInteger $replacement.$key 1 1};foreach($key in @('committed','outcomeEstablished')){Assert-KmcChunk7Boolean $replacement.$key $true};Assert-KmcBootstrapInventoryString $replacement.path $Observations.nativeWrite.path;Assert-KmcBootstrapInventoryString $replacement.stagingLeaf ('Manual_'+($a.number+1).ToString([Globalization.CultureInfo]::InvariantCulture)+'_'+(Get-KmcChunk7OwnedManualOutputName $Request)+'.zks')}
- Assert-KmcOrdinaryInteger $b.completionSequence 1 1;Assert-KmcOrdinaryInteger $b.callbackCount $(if($area){0}else{1}) $(if($area){0}else{1});Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
+ # A slot rotation completes once per write; its one callback belongs to the first (slot-route) write.
+ $completions=if($rotation){$writeCount}else{1}
+ Assert-KmcOrdinaryInteger $b.completionSequence $completions $completions;Assert-KmcOrdinaryInteger $b.callbackCount $(if($area){0}else{1}) $(if($area){0}else{1});Assert-KmcChunk7Boolean $b.nativeWorkerSettled $true
+ if($rotation){Assert-KmcChunk7OwnedRotationSettlement $Request $Observations $leaf}
  $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$name=if($type-ceq'Manual'){Get-KmcChunk7OwnedManualOutputName $Request}else{$Observations.nativeWrite.nativeName}
  if($name-isnot[string]-or[string]::IsNullOrWhiteSpace($name)-or$name.Length-gt256-or$name-match'[\x00-\x1f\x7f]'){throw 'Native output name must be an exact bounded scalar.'}
  $root=Join-Path (Join-Path (Join-Path (Split-Path (Split-Path $Request.evidenceRoot -Parent) -Parent) 'runtime-staging') ('persistence-'+$Request.runId)) 'Saved Games'
@@ -594,6 +599,50 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeType $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeName $name
  if($area){Assert-KmcChunk7OwnedAreaSaveIdentity $Request $Observations}
+}
+# Sprint 1 slot rotation settlement: the selected output was overwritten by ordinary saves. Every
+# write after the first is a native replacement commit onto the unchanged leaf: the commit count
+# rose by exactly the replacements, the bytes changed each time, the staging leaf is gone, no save
+# failed, and the final bytes are the generic receipt the launcher and the cold consumer compare.
+function Assert-KmcChunk7OwnedRotationSettlement($Request,$Observations,[string]$Leaf){
+ $writes=Get-KmcChunk7SlotRotationWrites $Request.persistenceCase;if($writes-lt2){throw 'Slot rotation requires at least two selected writes.'}
+ if($null-eq$Observations.PSObject.Properties['slotRotation']-or$null-eq$Observations.ownedOutputCompletion.PSObject.Properties['rotation']){throw 'Slot rotation producer lacks its rotation receipt.'}
+ $type=Get-KmcChunk7PersistenceType $Request.persistenceCase;$b=$Observations.ownedOutputCompletion;$r=$b.rotation;$s=$Observations.slotRotation
+ Assert-KmcExactProperties $r @('writes','replacements','commitCount','replacementFailures','failedSaves','landedLeaf','stagingLeaf','sha256ByWrite','finalSha256') 'slot rotation settlement'
+ Assert-KmcOrdinaryInteger $r.writes $writes $writes;Assert-KmcOrdinaryInteger $r.replacements ($writes-1) ($writes-1);Assert-KmcOrdinaryInteger $r.commitCount ($writes-1) ($writes-1)
+ Assert-KmcOrdinaryInteger $r.replacementFailures 0 0;Assert-KmcOrdinaryInteger $r.failedSaves 0 0;Assert-KmcBootstrapInventoryString $r.landedLeaf $Leaf
+ $a=$Observations.ownedOutputAdmission;$stagingNumber=([int]$a.number+1).ToString([Globalization.CultureInfo]::InvariantCulture)
+ $staging=if($type-ceq'Manual'){'Manual_'+$stagingNumber+'_'+(Get-KmcChunk7OwnedManualOutputName $Request)+'.zks'}else{$type+'_'+$stagingNumber+'.zks'}
+ Assert-KmcBootstrapInventoryString $r.stagingLeaf $staging
+ if($r.sha256ByWrite-isnot[Array]-or$r.sha256ByWrite.Count-ne$writes){throw 'Slot rotation recorded a different number of writes than selected.'}
+ foreach($h in $r.sha256ByWrite){if($h-isnot[string]-or$h-cnotmatch'^[0-9a-f]{64}$'){throw 'Slot rotation write hash is malformed.'}}
+ if(@($r.sha256ByWrite|Select-Object -Unique).Count-ne$writes){throw 'Two slot rotation writes left identical bytes.'}
+ Assert-KmcBootstrapInventoryString $r.finalSha256 $r.sha256ByWrite[$writes-1];Assert-KmcBootstrapInventoryString $r.finalSha256 $Observations.nativeWrite.sha256
+ Assert-KmcExactProperties $s @('contract','checkpoint','nativeType','selectedWrites','projectedSlotCapacity','overwriteRoute','keyPressSynthesized','replacementSiteInvokedDirectly','commitCountBefore','writes') 'slot rotation'
+ Assert-KmcBootstrapInventoryString $s.contract 'sprint1-slot-rotation-v1';Assert-KmcBootstrapInventoryString $s.checkpoint $Request.persistenceCase;Assert-KmcBootstrapInventoryString $s.nativeType $type
+ Assert-KmcOrdinaryInteger $s.selectedWrites $writes $writes;Assert-KmcOrdinaryInteger $s.projectedSlotCapacity 1 1;Assert-KmcChunk7Boolean $s.keyPressSynthesized $false;Assert-KmcChunk7Boolean $s.replacementSiteInvokedDirectly $false
+ if($s.overwriteRoute-isnot[string]-or($type-ceq'Quick'-and$s.overwriteRoute-cnotlike'Game.MakeQuickSave()*')-or($type-ceq'Manual'-and$s.overwriteRoute-cnotlike'Game.SaveGame(existing Manual descriptor)*')){throw 'Slot rotation overwrite route is not the ordinary handler/menu route.'}
+ if($s.writes-isnot[Array]-or$s.writes.Count-ne$writes){throw 'Slot rotation write rows differ from the selected count.'}
+ $commitBefore=[int]$s.commitCountBefore
+ for($i=0;$i-lt$writes;$i++){$w=$s.writes[$i];Assert-KmcOrdinaryInteger $w.index ($i+1) ($i+1);Assert-KmcBootstrapInventoryString $w.sha256 $r.sha256ByWrite[$i];Assert-KmcBootstrapInventoryString $w.landedLeaf $Leaf
+  if($i-eq0){Assert-KmcChunk7Boolean $w.replacement $false;Assert-KmcChunk7Boolean $w.callback $true;Assert-KmcChunk7Boolean $w.commitRecorded $false;Assert-KmcOrdinaryInteger $w.completionSequence 1 1;Assert-KmcOrdinaryInteger $w.commitCount $commitBefore $commitBefore;Assert-KmcOrdinaryInteger $w.nativeWrites 1 1;continue}
+  Assert-KmcExactProperties $w @('index','route','replacement','callback','requestedIsExistingSlot','requestedIsListDescriptor','nextSlotIsExisting','nativeSlotCapacity','savedOfCategory','stagingLeaf','landedLeaf','previousSha256','previousLength','commitCountBefore','completionSequenceBefore','replacementFailuresBefore','gameTicks','snapshotCount','completionSequence','commitCountAfter','commitRecorded','committedDestination','path','sha256','length','bytesChanged','stagingAbsent','writtenIsNewDescriptor','requestedDescriptorRetired','nativeWrites','failedSaves','holdsReleased','archiveGameTimeTicks') ('slot rotation write '+($i+1))
+  foreach($flag in @('replacement','requestedIsExistingSlot','requestedIsListDescriptor','nextSlotIsExisting','commitRecorded','bytesChanged','stagingAbsent','writtenIsNewDescriptor','requestedDescriptorRetired','holdsReleased')){Assert-KmcChunk7Boolean $w.$flag $true}
+  Assert-KmcChunk7Boolean $w.callback $false;Assert-KmcBootstrapInventoryString $w.route $s.overwriteRoute;Assert-KmcBootstrapInventoryString $w.stagingLeaf $staging
+  Assert-KmcBootstrapInventoryString $w.previousSha256 $r.sha256ByWrite[$i-1];if($w.sha256-ceq$w.previousSha256){throw 'Slot rotation overwrite left the previous bytes.'}
+  Assert-KmcOrdinaryInteger $w.commitCountBefore ($commitBefore+$i-1) ($commitBefore+$i-1);Assert-KmcOrdinaryInteger $w.commitCountAfter ($commitBefore+$i) ($commitBefore+$i)
+  Assert-KmcOrdinaryInteger $w.completionSequenceBefore $i $i;Assert-KmcOrdinaryInteger $w.completionSequence ($i+1) ($i+1);Assert-KmcOrdinaryInteger $w.nativeWrites ($i+1) ($i+1)
+  Assert-KmcOrdinaryInteger $w.failedSaves 0 0;Assert-KmcOrdinaryInteger $w.replacementFailuresBefore 0 0;Assert-KmcOrdinaryInteger $w.savedOfCategory 1 1
+  if($type-ceq'Manual'){if($w.nativeSlotCapacity-ne-1){throw 'Manual overwrite reports a slot capacity.'}}elseif($w.nativeSlotCapacity-ne1){throw 'Slot rotation ran outside the disposable one-slot capacity.'}
+  if($w.committedDestination-isnot[string]-or[IO.Path]::GetFullPath($w.committedDestination)-cne[IO.Path]::GetFullPath($w.path)-or[IO.Path]::GetFullPath($w.path)-cne[IO.Path]::GetFullPath($Observations.nativeWrite.path)){throw 'Slot rotation commit landed somewhere other than the selected leaf.'}
+  if(-not(Test-KmcExactJsonInteger $w.length)-or$w.length-le0-or-not(Test-KmcExactJsonInteger $w.previousLength)-or$w.previousLength-le0){throw 'Slot rotation write lengths are invalid.'}
+ }
+}
+function Assert-KmcChunk7SlotRotationEvidence($Request,$Observations){
+ if(-not(Test-KmcChunk7SlotRotationCase $Request.persistenceCase)-or$Request.ownedPairs.case-cne'owner-seed-checkpoint-save'){throw 'Slot rotation evidence belongs only to the owner-seed checkpoint producer.'}
+ if($null-eq$Observations.PSObject.Properties['slotRotation']-or$null-eq$Observations.ownedOutputCompletion.PSObject.Properties['rotation']){throw 'Slot rotation producer lacks its rotation receipt.'}
+ $writes=Get-KmcChunk7SlotRotationWrites $Request.persistenceCase
+ $labels=@($Observations.snapshots|ForEach-Object label);for($i=2;$i-le$writes;$i++){if(@($labels|Where-Object{$_-ceq('slot-rotation-write-'+$i+'-complete')}).Count-ne1){throw 'Slot rotation snapshot for an overwrite is missing.'}}
 }
 function Assert-KmcChunk7OwnedFinalSaveRoot($Request,[string[]]$Leaves,$Observations){
  Assert-KmcChunk7OwnedPairsDescriptor $Request

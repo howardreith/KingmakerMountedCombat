@@ -198,7 +198,18 @@ namespace KingmakerMountedCombat.Diagnostics
         // The checkpoints the owner-seed checkpoint pair admits; extend this one list as each
         // further family is connected.
         internal static readonly string[] OwnerSeedCheckpoints = { "multi-exploration-quick", "multi-exploration-auto",
-            "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave" };
+            "multi-rt-debt-manual", "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "multi-area-autosave",
+            RotationQuickCheckpoint, OverwriteManualCheckpoint };
+        // Sprint 1 (SAVE-01/03): the repaired replacement branch exercised through ordinary save
+        // behaviour. The Quick producer fills the one projected slot through the slot route and then
+        // makes the next ordinary QuickSave through the engine's own hotkey handler body
+        // (Game.MakeQuickSave), twice, so the second and third writes replace Quick_1 in place.
+        // The Manual control writes a new Manual and then overwrites that same descriptor, as the
+        // save menu's overwrite does. Every write beyond the first is a native replacement commit.
+        internal const string RotationQuickCheckpoint = "multi-exploration-rotation-quick";
+        internal const string OverwriteManualCheckpoint = "multi-exploration-overwrite-manual";
+        internal static bool IsSlotRotationCheckpoint(string value) => value == RotationQuickCheckpoint || value == OverwriteManualCheckpoint;
+        internal static int SlotRotationWrites(string value) => value == RotationQuickCheckpoint ? 3 : value == OverwriteManualCheckpoint ? 2 : 0;
         internal const string ManticoreFixtureCheckpoint = "owner-seed-manticore-fixture-manual";
         internal const string TombFixtureCheckpoint = "owner-seed-tomb-door-fixture-manual";
         internal const string ThornRiverFixtureCheckpoint = "owner-seed-thorn-river-door-fixture-manual";
@@ -396,7 +407,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // consumers may skip the ordinary idle/empty-command readiness check.
         internal bool RequiresCombatColdBind(string checkpoint) => Cold &&
             checkpoint != "multi-exploration-manual" && checkpoint != "multi-exploration-quick" &&
-            checkpoint != "multi-exploration-auto" && checkpoint != "multi-area-autosave" &&
+            checkpoint != "multi-exploration-auto" && checkpoint != "multi-area-autosave" && !IsSlotRotationCheckpoint(checkpoint) &&
             !RepeatedCheckpoint(checkpoint) && !IsManticoreManualCold(checkpoint) && !CapitalCheckpoint(checkpoint) &&
             !OwnedSchema1Cold(checkpoint) && checkpoint != "owned-schema1-current-manual" &&
             !IsOwnerSeedLoadRefusal;
@@ -404,7 +415,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Owner seed: exactly the native setup level-up Autos its selection declares (bound at admission).
         // Owner-seed Manual producer: exactly its one measured Manual (no setup write exists).
         internal int WriteCount(string checkpoint) => IsOwnerSeed ? ExpectedNativeWriteCount : IsOwnerSeedManual || IsSmallFixtureSave || IsSmallThirdHorseSave || IsFourthHorseSave || IsMediumFixtureSave || IsSixPairSave ? 1 :
-            IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : 1) :
+            IsOwnerSeedCheckpointSave ? (checkpoint == "multi-owned-worker-cancel-manual" ? 2 : IsSlotRotationCheckpoint(checkpoint) ? SlotRotationWrites(checkpoint) : 1) :
             IsOwnerSeedCheckpointLoad ? (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint) ? 1 : 0) :
             Case == "persistence-save" && checkpoint == "multi-owned-worker-cancel-manual" ? 2 : Case == "persistence-save" ||
             Cold && (checkpoint == "legacy-mounted-pending-tb-manual" || OwnedSchema1Cold(checkpoint)) || IsCapitalArrivalProducer(checkpoint) ? 1 : 0;
