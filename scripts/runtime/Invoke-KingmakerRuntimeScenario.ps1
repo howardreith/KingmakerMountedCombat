@@ -85,7 +85,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
     # Shared by the three steps of one rehearsal; u2 and u3 require a passed u1 of the same id.
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$UpgradeRehearsalId,
-    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaEnterPoints,
@@ -671,6 +671,9 @@ $manualReadyHash=$null
 $manualReviewReady=$false
 $manualFailureObserved=$false
 $errors=New-Object 'System.Collections.Generic.List[string]'
+# Re-admission before the live transaction: preflight above may have consumed the allowance
+# or the block. A refusal here leaves no evidence directory, lock, staging or game.
+Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('transaction lock '+$workflowBatchKey)
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
@@ -1143,7 +1146,11 @@ try{
         # No KMC arguments at all: even a stray KMC assembly would stay inert.
         @('-applaunch','640820','-kmcObserverRequest',('"'+$observerRequestPath+'"'),'-kmcObserverToken',[string]$lock.Token,'-kmcObserverRequestSha256',(Get-KmcSha256 $observerRequestPath))
     }else{@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)}
-    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
+    # Re-admission immediately before the game starts: lock and staging time is inside the
+    # accounted interval. A refusal here propagates to this transaction's finally block, which
+    # restores the staged installation normally; a game or save worker is never interrupted.
+    Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('game launch '+$workflowBatchKey) -EstimatedSeconds $TimeoutSeconds
+    $workflowLaunchStarted=[DateTime]::UtcNow
     [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
@@ -1255,6 +1262,8 @@ try{
             if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
             Start-Sleep -Milliseconds 250
         }
+        # Measured launch-to-result duration of this selection, for later planning estimates.
+        try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('native launch '+$workflowBatchKey) -StepSeconds ([DateTime]::UtcNow-$workflowLaunchStarted).TotalSeconds}catch{}
         if($isNormalPlayer){
             & (Join-Path $repoRoot 'scripts\runtime\Test-KmcNormalPlayerResult.ps1') -ObserverResultPath $observerResultPath -RequestPath $requestPath -ObserverRequestPath $observerRequestPath -GameResultPath $gameResultPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
             $gameResultHash=Get-KmcSha256 $gameResultPath
@@ -1504,9 +1513,10 @@ catch{
     }
 }
 finally{
-    # The budgeted spend ends here. Everything below is settlement/restoration: it is never
-    # skipped or shortened for a budget, and its duration is recorded separately.
-    try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status $(if($errors.Count-eq0){'completed'}else{'failed'})}catch{Write-Warning ('Workflow budget completion failed: '+$_.Exception.Message)}
+    # Settlement/restoration: the entry's clock is suspended here, because restoration is never
+    # skipped or shortened for a budget and is never charged to one. The entry stays pending:
+    # it completes only after the final evidence readers below decide the actual verdict.
+    try{Suspend-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{Write-Warning ('Workflow budget suspension failed: '+$_.Exception.Message)}
     $workflowRestorationStarted=[DateTime]::UtcNow
     if($null-ne$process){
         try{
@@ -1685,7 +1695,11 @@ finally{
         }catch{Write-Error ('Orchestration evidence update failed: '+$_.Exception.Message)}
     }
     try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('restoration '+$Scenario+' '+$actualRunId) -StepSeconds ([DateTime]::UtcNow-$workflowRestorationStarted).TotalSeconds}catch{Write-Warning ('Workflow budget restoration record failed: '+$_.Exception.Message)}
+    # Restoration is settled; the final evidence readers below are ordinary metered validation.
+    try{Resume-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{Write-Warning ('Workflow budget resumption failed: '+$_.Exception.Message)}
 }
+# Every throw from here on reaches the script-scope trap above, which completes this run's
+# budget entry as failed: a late restoration or reader failure stays a failed native attempt.
 if(-not(Test-Path -LiteralPath $requestPath -PathType Leaf)-or-not(Test-Path -LiteralPath $finalResultPath -PathType Leaf)){
     throw "Runtime scenario failed before complete request/result evidence was written. Evidence: $evidenceRoot"
 }
@@ -1699,3 +1713,5 @@ else{
     if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Runtime scenario failed. Evidence: $finalResultPath"}
     Write-Host "Runtime scenario PASS: $finalResultPath"
 }
+# The actual final verdict is known only now: the entry completes with it, reader time included.
+Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
