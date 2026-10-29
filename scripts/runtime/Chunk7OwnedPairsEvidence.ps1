@@ -632,7 +632,8 @@ function Assert-KmcChunk7OwnedRotationSettlement($Request,$Observations,[string]
   Assert-KmcBootstrapInventoryString $w.previousSha256 $r.sha256ByWrite[$i-1];if($w.sha256-ceq$w.previousSha256){throw 'Slot rotation overwrite left the previous bytes.'}
   Assert-KmcOrdinaryInteger $w.commitCountBefore ($commitBefore+$i-1) ($commitBefore+$i-1);Assert-KmcOrdinaryInteger $w.commitCountAfter ($commitBefore+$i) ($commitBefore+$i)
   Assert-KmcOrdinaryInteger $w.completionSequenceBefore $i $i;Assert-KmcOrdinaryInteger $w.completionSequence ($i+1) ($i+1);Assert-KmcOrdinaryInteger $w.nativeWrites ($i+1) ($i+1)
-  Assert-KmcOrdinaryInteger $w.failedSaves 0 0;Assert-KmcOrdinaryInteger $w.replacementFailuresBefore 0 0;Assert-KmcOrdinaryInteger $w.savedOfCategory 1 1
+  # Saved descriptors of the overwritten category before the overwrite: the one Quick slot, or the immutable source Manual plus the new Manual.
+  $ofCategory=if($type-ceq'Manual'){2}else{1};Assert-KmcOrdinaryInteger $w.failedSaves 0 0;Assert-KmcOrdinaryInteger $w.replacementFailuresBefore 0 0;Assert-KmcOrdinaryInteger $w.savedOfCategory $ofCategory $ofCategory
   if($type-ceq'Manual'){if($w.nativeSlotCapacity-ne-1){throw 'Manual overwrite reports a slot capacity.'}}elseif($w.nativeSlotCapacity-ne1){throw 'Slot rotation ran outside the disposable one-slot capacity.'}
   if($w.committedDestination-isnot[string]-or[IO.Path]::GetFullPath($w.committedDestination)-cne[IO.Path]::GetFullPath($w.path)-or[IO.Path]::GetFullPath($w.path)-cne[IO.Path]::GetFullPath($Observations.nativeWrite.path)){throw 'Slot rotation commit landed somewhere other than the selected leaf.'}
   if(-not(Test-KmcExactJsonInteger $w.length)-or$w.length-le0-or-not(Test-KmcExactJsonInteger $w.previousLength)-or$w.previousLength-le0){throw 'Slot rotation write lengths are invalid.'}
