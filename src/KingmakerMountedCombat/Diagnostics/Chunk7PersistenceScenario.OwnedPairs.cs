@@ -156,7 +156,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ownedSaveCallbacks == 0 && !callback && completion != null && persistence.CompletedSaveCount == 1 &&
                 completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, areaRequestedSave) &&
                 ReferenceEquals(completion.Written, areaPreparedSave) && ReferenceEquals(savedDescriptor, areaPreparedSave) &&
-                completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
+                completion.Path != null && Path.GetFullPath(completion.Path) == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
                 replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
                 replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
                 replayAuthorization.AuthorizedWriteCount == 1 && !NativePersistenceIsolation.HasPendingWrites &&
