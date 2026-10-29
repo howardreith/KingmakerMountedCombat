@@ -74,9 +74,14 @@ KMC assembly checks default to Kingmaker; Wrath or Both must be selected explici
 Test-Tiers and the native launcher ask for admission before any validation, build,
 lock or launch and again before every further step (cumulative allowance, 30-minute
 block ceiling, known oversized work refused rather than started); children inherit a
-parent's entry only after it is verified live; a real native launch is subject to the
-batch rule (five distinct scenario/case selections per batch, two failed attempts per
-selection); an interrupted entry with unknown spend blocks admission until
+parent's entry only after it is verified live, and a real native launch under such a parent
+is still one counted attempt of the batch (recorded under the parent, no spend of its own);
+a real native launch is subject to the batch rule (five distinct scenario/case selections
+per batch, two failed attempts per selection); the launcher re-admits before its live
+transaction and immediately before the game starts, suspends the entry's clock for
+settlement/restoration (never charged), meters the final readers, and completes the entry
+only at the final verdict, so a late restoration or reader failure stays a failed attempt;
+an interrupted entry with unknown spend blocks admission until
 `scripts/Reconcile-WorkflowBudget.ps1` records it; and an exhausted allowance refuses
 new work without ever shortening settlement or restoration. Isolated persistence runs
 may keep the player's archive-path spelling with the launcher's `-EngineShapedSaveRoot`. Documentation or external-reader work may

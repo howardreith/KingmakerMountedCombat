@@ -198,3 +198,112 @@ retained). r03–r05 consumed r01/r02 produced by the previous build of the same
 checkpoint family (second `GetNextQuickslot()` under slot count 1 over `Quick_1.zks`, both
 leaves declared) on this candidate, then its cold load; the same for Auto via
 `multi-area-autosave` after an in-run second transition.
+
+## Iteration 3 — the repaired branch through ordinary saves; launch accounting (2026-10-29, later)
+
+**Disposition: still SPRINT 1 PARTIAL — READY FOR REVIEW.** The Quick overwrite (the
+repaired branch) is now exercised natively through the engine's own QuickSave handler body,
+twice, with cold load; the Manual overwrite control passed natively (reader-only outer
+correction, re-evaluated); the genuine area-transition Auto overwrite and UPG-01 remain the
+missing results. Owner play acceptance is separate.
+
+Candidate: product `0.1.0-chunk7b-preview.98`, DLL SHA-256
+`a680dd6982485fa0d4305d5f3294327fb3b133b508d56c69765eec81236722ea`, MVID
+`0b40e3b8-460e-4dff-8ced-619f009fa795` (deterministic build; identical bytes from `4644a433`
+through `b3256e52`, which change scripts only). Packages of the same DLL:
+`…preview.98-sprint1i-diagnostic.zip` `078e841d…` (commit `4644a433`, suite
+`sprint1i-4644a433-20261029` `65d03aa9…`, runs r06 and the first r07 attempt) and
+`…preview.98-sprint1j-diagnostic.zip` `5995751b…` (commit `984ae01a`, suite
+`sprint1j-984ae01a-20261029` `70b5b2e3…`, runs r07, r08, r09). Candidate tier 9/0 on the
+packaged bytes (components 913/0 with the new authority tests, Validate-Source 149/0,
+Test-Harness, paired-activation, manifest, assembly Kingmaker, `Test-NativeArchiveCommitPaths`
+7/0, `chunk7\Test-Chunk7OwnedPairsEvidence.ps1` with the rotation fixture and its refusals);
+`Test-TierSelection` 29/0; `chunk7\Test-Chunk7OwnedPairsSource.ps1` PASS.
+
+### Workflow corrections (A1–A3, `3acb4ee1`)
+
+- **Nested native attempts count.** A real game launch under a verified live parent entry is
+  admitted against the batch's five selections and the two-failure limit, recorded as an
+  attempt under the parent (`parentEntryId`, no spend of its own), and completed with its own
+  outcome; a nested dry run records no attempt; the parent's time is counted once and the
+  child never completes the parent. A dead parent with a still-"running" attempt reconciles
+  as one spend (`counted-in-parent`). Tested with a live parent: five selections, sixth
+  refused, two failures then a third refused, dry run, single-counted time, parent ownership.
+- **Recheck before the game.** The launcher re-admits before the live transaction (after
+  preflight; a refusal leaves no evidence directory, lock, staging or game) and immediately
+  before `Start-Process` (a refusal propagates to the transaction's `finally`, which restores
+  normally; a running game or save worker is never interrupted). Tested with a launcher-shaped
+  stub whose preflight or staging advances the clock past exhaustion (launch marker absent,
+  owned lock released by the stub's own restoration path) and by an order check on the real
+  launcher's text (lock re-admission before `Open-KmcRuntimeLock`, launch re-admission before
+  `Start-Process`, suspension before restoration, resumption before the final reader,
+  completion only after it).
+- **Final failures and reader time.** Restoration suspends the entry's clock (excluded, never
+  charged; a dead suspended entry is charged only to its suspension); the final readers run
+  metered again; the entry completes only after the final verdict, so a late restoration or
+  reader failure stays a failed attempt (r07's refused first attempt and r08's outer FAIL are
+  recorded exactly so). Tested: game PASS then reader FAIL, restoration FAIL, success, and
+  completion while suspended, each with the expected net seconds and the retry limit.
+
+### The repaired branch through ordinary save behaviour (`4644a433`, readers `984ae01a`, `b3256e52`)
+
+Two owner-seed checkpoint cases in the existing family, selected by name, one write plan each:
+`multi-exploration-rotation-quick` (three writes) and `multi-exploration-overwrite-manual`
+(two writes). The first write is the generic one (slot route for Quick; `CreateNewSave` for
+Manual). Every further write is an ordinary overwrite of that selected output and must land as
+a native replacement commit: `NativeMountedArchiveCommit` records a commit only at the
+transpiled replacement site, so the commit count and its destination, the changed bytes at the
+unchanged leaf, the absent next-number staging leaf, the settled two-descriptor inventory, the
+released serialization holds and a full read-back of the two-pair graph are the proof per
+write. The authority's worker-cancel seed/replacement model is generalised: a rotation
+re-reserves the same staging leaf after each landed overwrite, and every owned-pair write after
+the first must be such a replacement (`OwnedPairsAuthorityTests`: both cases, the over-quota
+write, a one-write checkpoint that never reserves a replacement).
+
+**Input provenance.** Quick overwrites call `Game.MakeQuickSave()`, the method the engine's
+`Keyboard.Bind("QuickSave", …)` delegate invokes (`UpdateSaveListIfNeeded` then
+`SaveGame(GetNextQuickslot())`); the key press itself is not synthesized, and the producer
+first verifies that `GetNextQuickslot()` returns the existing descriptor under the projected
+one-slot capacity. The Manual overwrite calls `Game.SaveGame` on the existing Manual
+descriptor, as the save menu's overwrite does. Neither route touches the replacement method.
+
+### Native batch `sprint1:owner-seed-chain-2` (two further selections) and `sprint1:upgrade-1`
+
+| Run | Route | Outcome |
+| --- | --- | --- |
+| r06 `20261029-sprint1-r06-ownerseed-rotation-quick` | Quick producer, 3 writes | PASS. Write 1 slot route `Quick_1.zks` `5f11bffd…`; write 2 handler, commits 0→1 onto `Quick_1.zks`, `82a548aa…`, `Quick_2.zks` staging absent; write 3 handler, commits 1→2, `dcb23dc1…`; no failed save, no replacement failure, capacity 1, both pairs' custody and slots unchanged after each read-back. |
+| r07 first attempt | cold consumer of r06 | refused in preflight: the consumer's producer gate pinned one native write (reader `Chunk7OwnedPairsFixtures.ps1`, fixed in `984ae01a` to the producer's own count; `Test-Chunk7OwnedPairsSource` covers 3 accepted / 1 refused / plain Quick with 3 refused). Counted as a failed attempt of that selection. |
+| r07 `20261029-sprint1-r07-ownerseed-rotation-quick-cold` | separate-process cold load of the rotated `Quick_1.zks` `dcb23dc1…` | PASS, both pairs restored (`loadedEqualsProducerReadback`), restored exactly. |
+| r08 `20261029-sprint1-r08-ownerseed-overwrite-manual` | Manual control: new `Manual_305_KMC_C7_SEED_CHECKPOINT.zks`, then its overwrite | game PASS (2 writes, 1 replacement commit, final `24929d4f…`, staging `Manual_306…` absent); outer reader FAIL on my new settlement check (it expected one saved descriptor of the category; a Manual overwrite sees the source Manual and the new one). Reader-only correction `b3256e52`; re-evaluation receipt `analysis-cache\sprint1\r08-reader-only-reevaluation.log` (PASS); the original outer FAIL is retained in its `runtime-result.json`. |
+| r09 `20261029-sprint1-r09-upg01-p05-load-quick` | UPG-01: `persistence-p05-load/quick` on the preview.211-written `Quick_1.zks` `83e92e1a…` (provenance verified: `final211-p05-save-quick` PASS, `final211-p05-load-quick` request pins the same bytes) | FAIL in the engine: "loading pipeline stopped before the exact Working load callback completed" (1 assertion). The exception text is not retained on the base-game-only route (no UMM log; the profile is restored byte-exact). Same symptom as the lineage's `Player.PostLoad` failure in iteration 1, but not proven for this archive. Restored exactly. |
+
+Every run restored exactly (`restoredSaveInventoryDigest` `60e3d6cc…` unchanged, Mods tree
+empty as at intake, loader parameters `ca5d4022…`, no lock or game process).
+
+### Still open
+
+- **Genuine area-transition Auto overwrite.** Not run. The one-transition area producer writes a
+  first-ever `Auto_1`; a second `AfterEntry` transition in the same process (re-entering the
+  destination, so the replacement stays same-area) needs the area scenario's single-shot
+  observation state made re-entrant and the authority's same-area replacement contract kept.
+  Not attempted within this iteration's active-work ceiling; the r05 slot-route Auto remains a
+  first-ever write only.
+- **UPG-01.** Attempted on its own archive; blocked in the engine's load before the callback
+  (above). Stays open with that recorded blocker; no resave or derivative cold load was possible.
+- Manual overwrite: native PASS with a reader-only outer correction; no further native run was
+  spent on it (the retained evidence has every observation).
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 2 h 50 min |
+| Shared budget `sprint1`, cumulative | 78.47 of 90 min (this iteration 28.1 min: offline tiers 18.7 min incl. two failed builds from a mis-targeted project-file edit, native entries 6.9 min, imported packaging/suite freezes 2.6 min) |
+| Real game launches this iteration | 5 attempts: r06 PASS, r07 preflight refusal, r07 PASS, r08 game PASS/outer FAIL (re-evaluated PASS), r09 FAIL |
+| Restoration outside the spend | the runs' own settlement only (suspended, excluded) |
+
+**Safety note.** Two wasted builds came from editing the product project file with a .NET
+file API on a relative path inside the tool shell, which resolved against the root repository;
+the root's project file was restored to its committed bytes immediately (`git checkout --`
+on that one file), the root stayed on `main` with its frozen preview.96 DLL untouched
+(`9d090645…`), and the worktree edit was redone by absolute path.
