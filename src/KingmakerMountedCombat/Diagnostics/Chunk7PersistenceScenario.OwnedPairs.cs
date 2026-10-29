@@ -92,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, ownedRequestedSave) &&
                 (cancelledReplacement ? ReferenceEquals(completion.Written, boundarySeedDescriptor) && ReferenceEquals(savedDescriptor, boundaryReplacementDescriptor) &&
                     ReferenceEquals(completion, boundarySeedCompletion) && boundarySeedCallbacks == 1 && boundaryReplacementCallbacks == 0 && boundaryDrainedCommitted &&
-                    persistence.CompletedSaveCount == 1 && persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 : ReferenceEquals(completion.Written, savedDescriptor)) && completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
+                    persistence.CompletedSaveCount == 1 && persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 : ReferenceEquals(completion.Written, savedDescriptor)) && SameArchivePath(completion.Path, Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf)) &&
                 replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
                 replaySaveAuthority.AdmittedNativeWriteRequests == (cancelledReplacement ? 2 : 1) && replayAuthorization.AuthorizedLoadCount == 1 &&
                 replayAuthorization.AuthorizedWriteCount == (cancelledReplacement ? 2 : 1) && !NativePersistenceIsolation.HasPendingWrites &&
