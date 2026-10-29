@@ -930,7 +930,9 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  foreach($h in @(@($m.headerStarting,'native-header-starting',0),@($m.headerStaged,'native-header-staged',1))){
   $v=$h[0];Assert-KmcExactProperties $v @('label','frame','requestedIsSelectedDescriptor','preparedIsCopy','preparedLeaf','preparedName','preparedType','preparedPath','snapshots','activeOwners','nativeWrites','serializationBusy') 'owner-seed native Manual header'
   Assert-KmcBootstrapInventoryString $v.label $h[1];Assert-KmcBootstrapInventoryString $v.preparedLeaf $leaf;Assert-KmcBootstrapInventoryString $v.preparedName (Get-KmcChunk7OwnerSeedManualName);Assert-KmcBootstrapInventoryString $v.preparedType 'Manual'
-  Assert-KmcBootstrapInventoryString $v.preparedPath $w.path;Assert-KmcOrdinaryInteger $v.snapshots $h[2] $h[2];Assert-KmcOrdinaryInteger $v.activeOwners 2 2;Assert-KmcOrdinaryInteger $v.nativeWrites 0 1
+  # The prepared descriptor carries the engine's own spelling, which mixes separators under the engine-shaped isolated root; the written path is canonical. Same file, compared by identity.
+  if($v.preparedPath-isnot[string]-or[string]::IsNullOrWhiteSpace($v.preparedPath)){throw 'Bootstrap inventory exact scalar identity differs.'}
+  Assert-KmcBootstrapInventoryString ([IO.Path]::GetFullPath($v.preparedPath)) $w.path;Assert-KmcOrdinaryInteger $v.snapshots $h[2] $h[2];Assert-KmcOrdinaryInteger $v.activeOwners 2 2;Assert-KmcOrdinaryInteger $v.nativeWrites 0 1
   foreach($key in @('requestedIsSelectedDescriptor','preparedIsCopy')){Assert-KmcChunk7Boolean $v.$key $true};if($v.serializationBusy-isnot[bool]){throw 'Native header serialization state must be an observed boolean.'}
  }
  # The two pair records correspond to the actual runtime at the save boundary.
