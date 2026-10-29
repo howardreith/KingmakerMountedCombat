@@ -82,6 +82,7 @@
       "paths": [
         "scripts/Test-Tiers.ps1",
         "scripts/WorkflowBudget.ps1",
+        "scripts/Reconcile-WorkflowBudget.ps1",
         "scripts/workflow-impact-map.json",
         "scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1"
       ],
