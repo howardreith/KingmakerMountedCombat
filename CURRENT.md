@@ -8,7 +8,8 @@ branch. The lab's isolated root is canonical, which is why every lab rotation ro
 Reproduction on the frozen preview.96 DLL and verification on the candidate both use the
 real engine types offline (`scripts/Test-NativeArchiveCommitPaths.ps1`).
 
-Review branch `codex/mounted-combat-sprint1-save-reliability`, candidate
+Review branch `codex/mounted-combat-sprint1-save-reliability`
+([draft PR #6](https://github.com/howardreith/KingmakerMountedCombat/pull/6)), candidate
 `0.1.0-chunk7b-preview.97` (commit `d590822f`, DLL `09c00dda…`, package
 `…preview.97-sprint1b-d590822f-diagnostic.zip` `d4a857fa…`). Candidate tier 7/0 on the
 packaged bytes; workflow enforcement (`Test-Tiers.ps1 -Plan`, nested `-Focused` paths,
