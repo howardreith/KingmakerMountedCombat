@@ -178,6 +178,7 @@
     <Compile Include="Integration\RetainedNativeReentryPolicy.cs" />
     <Compile Include="Integration\NativeSaveEffectBoundary.cs" />
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
+    <Compile Include="Integration\NativeArchiveReplacementPath.cs" />
     <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\NativeSaveCommitOutcome.cs" />
     <Compile Include="Domain\OwnedWorkerTeardownPolicy.cs" />
