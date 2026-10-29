@@ -1880,12 +1880,13 @@ Check 'manual overwrite settlement reader accepts the Manual staging leaf and re
  $route='Game.SaveGame(existing Manual descriptor): the save menu''s overwrite of an existing Manual';$leaf='Manual_304_KMC_C7_SEED_CHECKPOINT.zks';$path='C:\lab\runtime-staging\persistence-x\Saved Games\'+$leaf
  $o.ownedOutputAdmission.number=304;$o.nativeWrite.path=$path;$o.nativeWrite.sha256='2'*64
  $first=$o.slotRotation.writes[0];$first.landedLeaf=$leaf;$first.path=$path;$first.route='CreateNewSave + Game.SaveGame (new Manual control)'
- $second=New-KmcRotationWriteRow 2 ('1'*64) ('2'*64) $path $first.length $route 'Manual_305_KMC_C7_SEED_CHECKPOINT.zks' $leaf (-1.0)
+ $second=New-KmcRotationWriteRow 2 ('1'*64) ('2'*64) $path $first.length $route 'Manual_305_KMC_C7_SEED_CHECKPOINT.zks' $leaf (-1.0);$second.savedOfCategory=2
  $o.slotRotation=[pscustomobject][ordered]@{contract='sprint1-slot-rotation-v1';checkpoint='multi-exploration-overwrite-manual';nativeType='Manual';selectedWrites=2;projectedSlotCapacity=1;overwriteRoute=$route;keyPressSynthesized=$false;replacementSiteInvokedDirectly=$false;commitCountBefore=0;writes=@($first,$second)}
  $o.ownedOutputCompletion.rotation=[pscustomobject][ordered]@{writes=2;replacements=1;commitCount=1;replacementFailures=0;failedSaves=0;landedLeaf=$leaf;stagingLeaf='Manual_305_KMC_C7_SEED_CHECKPOINT.zks';sha256ByWrite=@(('1'*64),('2'*64));finalSha256=('2'*64)}
  Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf
  if((Get-KmcChunk7OwnedWriteCount $r)-ne2){throw 'Manual overwrite quota differs'}
  $second.nativeSlotCapacity=1.0;$refused=$false;try{Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf}catch{$refused=$_.Exception.Message-match'slot capacity'};if(-not$refused){throw 'Manual overwrite accepted a slot capacity claim'}
+ $second.nativeSlotCapacity=-1.0;$second.savedOfCategory=1;$refused=$false;try{Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf}catch{$refused=$true};if(-not$refused){throw 'Manual overwrite accepted a single Manual descriptor where the source and the output must both be present'}
 }
 Check 'owner-seed checkpoint consumer maps to the generic load scenario' {if((Get-KmcChunk7SelectedScenario (New-KmcOwnerSeedCheckpointLoadFixture).request)-cne'chunk7-persistence-load'-or(Get-KmcChunk7OwnedWriteCount (New-KmcOwnerSeedCheckpointLoadFixture).request)-ne0){throw 'Checkpoint consumer scenario or write quota differs'}}
 # Refusals: Mount inputs on a derived start, restored-start mismatch, wrong ancestry, wrong quotas, a Manual for a Quick.
