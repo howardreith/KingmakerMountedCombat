@@ -254,7 +254,10 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
             Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
             Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint,
-            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
+            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint,
+            Chunk7OwnedPairsSelection.RotationQuickCheckpoint, Chunk7OwnedPairsSelection.OverwriteManualCheckpoint }, value) >= 0;
+        // The owner-seed checkpoint pair's Quick slot cases: the first-ever Quick and the rotated one.
+        internal static bool IsChunk7QuickSlotCase(string value) => value == "multi-exploration-quick" || value == Chunk7OwnedPairsSelection.RotationQuickCheckpoint;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
             PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea :
@@ -264,7 +267,7 @@ namespace KingmakerMountedCombat.Diagnostics
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
-            (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
+            (IsChunk7QuickSlotCase(PersistenceCase) ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
@@ -766,8 +769,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceCase == "owned-schema2-pending-current-manual" ? "KMC_C7_SCHEMA2" :
                         OwnedPairs.IsCapitalArrivalCold(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalManualName :
                         OwnedPairs.IsOwnerSeedCheckpointLoad ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : "KMC_C7_WORLD";
-                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
-                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+                    var inputName = OwnedPairs.Cold ? (IsChunk7QuickSlotCase(PersistenceCase) || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
+                    var inputPattern = OwnedPairs.Cold ? (IsChunk7QuickSlotCase(PersistenceCase) ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", inputName, inputPattern));
                     if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
                         (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))

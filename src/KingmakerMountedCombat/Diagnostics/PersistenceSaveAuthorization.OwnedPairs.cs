@@ -20,7 +20,15 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool OwnedPairsWorkerReplacement => (ownedPairsRequest?.OwnedPairs?.Case == "persistence-save" ||
             ownedPairsRequest?.OwnedPairs?.IsOwnerSeedCheckpointSave == true) &&
             ownedPairsRequest.PersistenceCase == "multi-owned-worker-cancel-manual" && maximumNativeWriteRequests == 2;
-        private bool OwnedPairsReplacementReady(RuntimeSaveTarget target) => OwnedPairsWorkerReplacement &&
+        // Slot rotation (Sprint 1): the owner-seed checkpoint producer's selected output is
+        // overwritten by ordinary saves. Each overwrite is the engine's own replacement: a fresh
+        // next-number staging leaf written in place, then moved onto the completed output. The
+        // staging leaf is reserved again for every overwrite and is always gone when one lands.
+        private bool OwnedPairsSlotRotation => ownedPairsRequest?.OwnedPairs?.IsOwnerSeedCheckpointSave == true &&
+            Chunk7OwnedPairsSelection.IsSlotRotationCheckpoint(ownedPairsRequest.PersistenceCase) &&
+            maximumNativeWriteRequests == Chunk7OwnedPairsSelection.SlotRotationWrites(ownedPairsRequest.PersistenceCase);
+        private bool OwnedPairsReplacementPlan => OwnedPairsWorkerReplacement || OwnedPairsSlotRotation;
+        private bool OwnedPairsReplacementReady(RuntimeSaveTarget target) => OwnedPairsReplacementPlan &&
             ownedPairsReplacementLeaf != null && ownedPairsSeedDescriptor != null && target?.FileName == ownedPairsOutputLeaf &&
             MatchesOwnedPairsPlan(true, false);
         internal int OwnedPairsReservationCount { get { lock (sync) return ownedPairsReservations; } }
@@ -195,7 +203,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (ownedPairsReplacementLeaf != null)
                 {
                     Entry stage;
-                    if (!OwnedPairsWorkerReplacement || ownedPairsSeedDescriptor == null || requireUnwritten ||
+                    if (!OwnedPairsReplacementPlan || ownedPairsSeedDescriptor == null || requireUnwritten ||
                         admittedNativeWriteRequests < 1 || !entries.TryGetValue(ownedPairsReplacementLeaf, out stage) ||
                         stage.Name != output.Name || stage.Type != output.Type || stage.Area != output.Area || !stage.Writable ||
                         stage.Bootstrap || stage.AdmitsBeforeArea || stage.AdmissionArea != null || stage.ForeignGameId != null || stage.ForeignGameName != null || output.Hash == null) return false;
@@ -215,22 +223,34 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
-                if (!OwnedPairsWorkerReplacement || !ReferenceEquals(request, ownedPairsRequest) ||
+                // The worker-cancel pair reserves its one replacement once; a slot rotation reserves
+                // the same staging leaf again for every further overwrite, after the previous one landed.
+                var again = ownedPairsReplacementLeaf != null;
+                if (!OwnedPairsReplacementPlan || !ReferenceEquals(request, ownedPairsRequest) ||
                     !ReferenceEquals(nativeGame, ownedPairsGame) || !ReferenceEquals(nativeManager, ownedPairsManager) ||
-                    nativeSeed == null || ownedPairsReplacementLeaf != null || admittedNativeLoadRequests != 1 || admittedNativeWriteRequests != 1 ||
+                    nativeSeed == null || again && !OwnedPairsSlotRotation || admittedNativeLoadRequests != 1 || admittedNativeWriteRequests < 1 ||
+                    admittedNativeWriteRequests >= maximumNativeWriteRequests.Value ||
                     !MatchesOwnedPairsPlan(true, false) || seed?.FileName != ownedPairsOutputLeaf || ValidateArchiveIdentity(seed, Root) != null ||
                     ownedPairsNumber == int.MaxValue || number != ownedPairsNumber + 1)
-                    throw new InvalidOperationException("Owned-pair replacement requires the exact completed seed and next native Manual number.");
+                    throw new InvalidOperationException("Owned-pair replacement requires the exact completed seed and next native number.");
                 var output = entries[ownedPairsOutputLeaf];
-                if (output.Hash == null || output.Writing || output.Type != "Manual")
-                    throw new InvalidOperationException("The native seed is not a completed run-owned Manual archive.");
+                if (output.Hash == null || output.Writing || output.Type != ownedPairsOutputType || !OwnedPairsSlotRotation && output.Type != "Manual")
+                    throw new InvalidOperationException("The native seed is not a completed run-owned archive of the selected category.");
                 var expected = new[] { Path.Combine(Root, request.PersistenceLoad.FileName), Path.Combine(Root, ownedPairsOutputLeaf) };
                 var paths = Directory.EnumerateFileSystemEntries(Root).ToArray();
                 if (paths.Length != 2 || paths.Any(p => !expected.Contains(p, StringComparer.Ordinal) || Directory.Exists(p)))
                     throw new InvalidOperationException("Isolated native inventory changed before replacement reservation.");
                 VerifyFile(request.PersistenceLoad.FileName, entries[request.PersistenceLoad.FileName]);
                 VerifyFile(ownedPairsOutputLeaf, output);
-                var leaf = "Manual_" + number.ToString(CultureInfo.InvariantCulture) + "_" + ownedPairsOutputName + ".zks";
+                var leaf = output.Type + "_" + number.ToString(CultureInfo.InvariantCulture) + (output.Type == "Manual" ? "_" + ownedPairsOutputName : "") + ".zks";
+                if (again)
+                {
+                    Entry settled;
+                    if (leaf != ownedPairsReplacementLeaf || !entries.TryGetValue(leaf, out settled) || settled.Hash != null || settled.Writing || !settled.Writable)
+                        throw new InvalidOperationException("The previous overwrite's staging leaf has not landed on the selected output.");
+                    VerifyFile(leaf, settled); ownedPairsSeedDescriptor = nativeSeed;
+                    return;
+                }
                 var stage = new Entry { Name = output.Name, Type = output.Type, Area = output.Area, Writable = true };
                 VerifyFile(leaf, stage);
                 entries.Add(leaf, stage); ownedPairsSeedDescriptor = nativeSeed; ownedPairsReplacementLeaf = leaf;
@@ -242,10 +262,10 @@ namespace KingmakerMountedCombat.Diagnostics
             lock (sync)
             {
                 if (!ReferenceEquals(request, ownedPairsRequest) || !ReferenceEquals(nativeGame, ownedPairsGame) ||
-                    !ReferenceEquals(nativeManager, ownedPairsManager) || nativeDescriptor == null || (maximumNativeWriteRequests != 1 && !OwnedPairsWorkerReplacement) ||
+                    !ReferenceEquals(nativeManager, ownedPairsManager) || nativeDescriptor == null || (maximumNativeWriteRequests != 1 && !OwnedPairsReplacementPlan) ||
                     ownedPairsReservations != 0 || !MatchesOwnedPairsPlan(false, true) || ValidateArchiveIdentity(source, Root) != null)
                     throw new InvalidOperationException("Owned-pair output reservation lacks exact unchanged request/world/native source custody.");
-                var selectedType = request.OwnedPairs.Cold ? "Manual" : request.PersistenceCase == "multi-exploration-quick" ? "Quick" :
+                var selectedType = request.OwnedPairs.Cold ? "Manual" : RuntimeRequest.IsChunk7QuickSlotCase(request.PersistenceCase) ? "Quick" :
                     request.PersistenceCase == "multi-exploration-auto" || request.PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual";
                 var selectedName = request.OwnedPairs.OwnedManualOutputName(request.PersistenceCase);
                 if (number <= 0 || type != selectedType || nativeName != ownedPairsExpectedNativeName || string.IsNullOrWhiteSpace(nativeName) || nativeName.Length > 256 || nativeName.Any(char.IsControl) ||

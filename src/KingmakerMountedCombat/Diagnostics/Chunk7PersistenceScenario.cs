@@ -256,8 +256,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!callback || NativePersistenceIsolation.HasPendingWrites || persistence.HasActiveSaveScope || persistence.HasSaveAdmissionFence) return;
                         ObserveSaved();
                         if (OwnedSchema1SourceCase) { BeginCleanup(); break; }
+                        if (SlotRotationCase) { BeginSlotRotation(); Next(8); break; }
                         if (CombatCase) { BeginCombatContinuation(); Next(20); } else if (SixPairCase) BeginSixPairContinuation(); else Next(10);
                         break;
+                    case 8:
+                        if (!PollSlotRotation()) return;
+                        Next(10); break;
                     case 300: case 301: case 310: case 311:
                         UpdateSixPairPersistence(); break;
                     case 41:

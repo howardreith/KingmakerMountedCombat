@@ -231,7 +231,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     return "The exact isolated scope exhausted its selected native write admission count.";
                 if (OwnerSeedPlan && (ownerSeedPhase != "levelup" || admittedNativeWriteRequests != ownerSeedConfirmedWrites))
                     return "Owner-seed native write is outside its one reserved setup level-up Auto.";
-                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests == 1 && !OwnedPairsReplacementReady(target))
+                // Every owned-pair write after the first is a replacement of the completed output:
+                // the worker-cancel seed/replacement pair, or a slot rotation's repeated overwrites.
+                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests >= 1 && !OwnedPairsReplacementReady(target))
                     return "Owned-pair replacement lacks its exact completed native seed and reserved staging leaf.";
                 admittedNativeWriteRequests++;
                 return null;
