@@ -53,7 +53,7 @@ namespace KingmakerMountedCombat.Integration
         internal static void PreservePrevious(ISaver previous, SaveInfo replacement)
         {
             if (!IsZip(previous) || !IsZip(replacement?.Saver)) { previous.Clear(); return; }
-            ValidatePaths(PathOf(replacement.Saver), PathOf(previous));
+            NativeArchiveReplacementPath.Resolve(PathOf(replacement.Saver), PathOf(previous));
             // Release cached native read handles without deleting last-good bytes.
             previous.Dispose();
         }
@@ -73,13 +73,19 @@ namespace KingmakerMountedCombat.Integration
             }
             if (PathOf(original.Saver) != destination)
                 throw new IOException("Native replacement destination differs from its original descriptor.");
-            var source = PathOf(staged);
-            ValidatePaths(source, destination);
-            using (var ownership = NativePersistenceIsolation.BeginArchiveReplacement(source, destination))
+            // The engine's own strings decide WHICH files these are; their
+            // canonical forms are what the filesystem is asked to replace. The
+            // engine mints both from Unity's forward-slash persistent data path,
+            // so neither equals its own GetFullPath in ordinary play (see
+            // NativeArchiveReplacementPath). The descriptor keeps the engine's
+            // string: SerializeAndSaveThread rebinds saveInfo.FolderName to
+            // originalSave.FolderName right after this returns.
+            var resolved = NativeArchiveReplacementPath.Resolve(PathOf(staged), destination);
+            using (var ownership = NativePersistenceIsolation.BeginArchiveReplacement(resolved.Source, resolved.Destination))
             {
                 // Same-directory replacement commits the already complete native
                 // archive atomically. No original deletion and no content rewrite.
-                try { File.Replace(source, destination, null); }
+                try { File.Replace(resolved.Source, resolved.Destination, null); }
                 catch (IOException) { System.Threading.Interlocked.Increment(ref replacementFailures); throw; }
                 // Committed. Record it before the two steps below, either of
                 // which can throw without un-writing these bytes.
@@ -87,19 +93,6 @@ namespace KingmakerMountedCombat.Integration
                 PathField.SetValue(staged, destination);
                 ownership?.Complete();
             }
-        }
-
-        private static void ValidatePaths(string source, string destination)
-        {
-            if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(destination) ||
-                !Path.IsPathRooted(source) || !Path.IsPathRooted(destination) ||
-                Path.GetFullPath(source) != source || Path.GetFullPath(destination) != destination ||
-                string.Equals(source, destination, StringComparison.OrdinalIgnoreCase) ||
-                !string.Equals(Path.GetDirectoryName(source), Path.GetDirectoryName(destination), StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(source) || !File.Exists(destination) ||
-                (File.GetAttributes(source) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
-                (File.GetAttributes(destination) & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0)
-                throw new IOException("Native archive replacement requires two existing regular sibling files.");
         }
 
         internal static IEnumerable<CodeInstruction> Transform(IEnumerable<CodeInstruction> instructions)
