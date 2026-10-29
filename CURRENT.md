@@ -1,45 +1,30 @@
-# Chunk 7 — engineering qualification PASS
+# Sprint 1 — saving reliability: PARTIAL, READY FOR REVIEW (2026-10-29)
 
-F7 qualified preview.96 on source
-`650dd8a3bb53811ecd5eaf5510bf1b797738fd12`: **81 rows / 82 planned launches PASS**,
-404/0 passing subchecks. All 83 actual attempts were re-read with zero verdict or
-result-hash changes. The original Steam startup FAIL is retained separately from
-its sole permitted successful retry.
+The owner's playtest finding (Quick and Auto saves fail with KMC enabled, Manual works)
+is reproduced and repaired at source: the native replacement commit refused the engine's
+own mixed-separator archive paths (Unity's forward-slash persistent data path joined with
+backslashes), which only overwrites reach. Manual saves with new names never reach that
+branch. The lab's isolated root is canonical, which is why every lab rotation row passed.
+Reproduction on the frozen preview.96 DLL and verification on the candidate both use the
+real engine types offline (`scripts/Test-NativeArchiveCommitPaths.ps1`).
 
-F11 passed the fixed GC-inclusive protocol: two-pair medians 0.2693058333 ms and
-0.4088075 ms; six-pair median 0.4960833333 ms. The slow GC window is retained.
-The small per-second allocation increase was investigated as unchanged bytes per
-Update divided by shorter observed frame intervals.
+Review branch `codex/mounted-combat-sprint1-save-reliability`, candidate
+`0.1.0-chunk7b-preview.97` (commit `d590822f`, DLL `09c00dda…`, package
+`…preview.97-sprint1b-d590822f-diagnostic.zip` `d4a857fa…`). Candidate tier 7/0 on the
+packaged bytes; workflow enforcement (`Test-Tiers.ps1 -Plan`, nested `-Focused` paths,
+Kingmaker default, Full gate, shared `WorkflowBudget.ps1`, launcher admission) tested
+22/0 and used live.
 
-Raw FULL remains **FAIL/exit 1**. The remaining inventory retains 242 PASS/7 FAIL,
-with no skips: six accepted historical failures and a separately corrected CRLF
-test. The reviewed actual-method correction passed 50/0. No raw FULL PASS is claimed.
+Open: native rotation proof (`persistence-p05-save/quick`) is blocked by a pre-existing
+engine `Player.PostLoad` failure of the Chunk 5 Working fixture lineage on preview.96 and
+preview.97 alike (two equivalent failures retained, restored exactly); UPG-01 input exists
+(preview.211 `Quick_1.zks`, mounted) but shares that lineage; owner play verification of
+Quick/Auto on their own saves remains the decisive check.
 
-Every native transaction settled; no game or lock remained. Mods, settings and
-protected saves were restored. r02 admitted three cache rewrites and r54 three
-rewrites plus one created leaf, all 12,288 bytes under the existing policy.
-Those profiles were not byte-identical; all other attempts restored exactly.
+**Owner play/visual acceptance of Chunk 7 remains TODO.** No merge, release or installation
+is selected. Live installation restored exactly: Mods tree empty as at intake, loader
+parameters and preferences exact, protected saves unchanged, no lock or game process.
 
-The owner explicitly selected conditional merge of
-[PR #5](https://github.com/howardreith/KingmakerMountedCombat/pull/5), superseding
-older no-merge task instructions. Engineering evidence does not bypass repository
-requirements. The live PR and private promotion readback record the actual head,
-merge commit and remote main. **Owner play/visual acceptance remains TODO.**
-No public release/tag or permanent installation is selected.
-
-Exact ZIP SHA-256:
-`42312267c91d7923dca6b4d5b1e8ab76312cfe072c6c22026abe66f0c4ac0d84`.
-Private package and completion records:
-`C:\Dev\KingmakerMountedCombatLab\handoffs\KMC_Chunk7_F7_Closeout_2026-10-27`.
-
-The [closeout](docs/CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md),
-[81-row record](docs/CHUNK7-FINAL-QUALIFICATION-2026-10-27.md) and
-[resume](AUTONOMOUS-RESUME.md) hold exact identities, review and promotion steps.
-The closeout delta is documentation plus one reviewed offline test correction;
-product/build/runtime execution inputs remain the qualified ones.
-
-The genuine preview.211-written-mounted-save upgrade remains untested by the
-accepted scope decision. F1–F6, b215–b219, earlier packages and frozen worktrees
-are retained. No earlier candidate's native PASS was transferred into F7.
-
-[Prior CURRENT chronology](docs/history/CURRENT-before-codex-takeover-2026-10-26.md).
+The [sprint report](docs/SPRINT1-SAVE-RELIABILITY-2026-10-29.md) holds identities, the
+native batch outcomes, cost, safety and the next checks. Prior Chunk 7 state:
+[CURRENT before Sprint 1](docs/history/CURRENT-before-sprint1-2026-10-29.md).

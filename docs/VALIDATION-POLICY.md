@@ -56,14 +56,24 @@ select a broad campaign for an ordinary checkpoint.
 .\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-Chunk6cCasting.ps1
 # After review, when freezing a native candidate, choose Candidate instead of Fast.
 .\scripts\Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker -Focused Test-Chunk6cCasting.ps1
-# Explicit milestone/final offline qualification only:
-.\scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker
+# Explicit milestone/final offline qualification only (the task must be named):
+.\scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker -QualificationTask 'chunk7 final'
+# Resolve the selection, prerequisites, artifact identity, impact map and remaining
+# allowance without building, running, locking or launching:
+.\scripts\Test-Tiers.ps1 -Plan -Tier Candidate -Focused chunk7\Test-Chunk7PersistenceEvidence.ps1
 ```
 
 Candidate contains Fast; never run both for unchanged inputs. Full forwards the
 assembly target, configuration and build choice through Test.ps1. Unsupported
 combinations are refused before expensive work. Selected scripts are deduplicated
-against the tier's built-in checks. Documentation or external-reader work may
+against the tier's built-in checks. `-Focused` accepts repository-relative paths
+inside `scripts\`; traversal, links and paths outside the tree are refused. Current
+KMC assembly checks default to Kingmaker; Wrath or Both must be selected explicitly.
+`scripts/WorkflowBudget.ps1` keeps one cumulative sprint allowance (90 minutes;
+`KMC_WORKFLOW_BUDGET_ID`, record under the lab's `runtime-state\workflow-budgets`):
+Test-Tiers and the native launcher ask for admission before any build, lock or
+launch, children inherit the parent's entry, and an exhausted allowance refuses new
+work without ever shortening settlement or restoration. Documentation or external-reader work may
 invoke its relevant reader directly, without a product build.
 
 Package creation, suite freeze, launcher purity, the cross-feature native campaign
