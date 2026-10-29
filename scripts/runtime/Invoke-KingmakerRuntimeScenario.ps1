@@ -542,6 +542,15 @@ if($isSaveBacked){
         -After $beforeSaves `
         -Description 'runtime preflight fixture-continuity save metadata'
 }
+# Shared sprint validation budget (scripts/WorkflowBudget.ps1): admission is decided here,
+# before the WhatIf/ShouldProcess boundary, Steam checks, evidence directories, locks,
+# staging or launch, so a refusal can never strand a transaction. Work already running is
+# never interrupted by the budget; settlement/restoration time is recorded separately.
+. (Join-Path $PSScriptRoot '..\WorkflowBudget.ps1')
+$workflowAdmission=Request-KmcWorkflowAdmission -RepoRoot $repoRoot -Kind native `
+    -Selection ($Scenario+'/'+$(if([string]::IsNullOrWhiteSpace($PersistenceCase)){'-'}else{$PersistenceCase})+'/'+$(if($requestedWhatIf){'whatif'}else{'launch'})+'/'+$(if([string]::IsNullOrWhiteSpace($RunId)){'auto'}else{$RunId})) `
+    -EstimatedSeconds $(if($requestedWhatIf){$null}else{$TimeoutSeconds})
+$workflowHeartbeatAt=[DateTime]::UtcNow
 $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
@@ -594,9 +603,11 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     if($DevelopmentScopedAudit){
         # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
         Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
+        Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
         return
     }
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
+    Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
     return
 }
 $WhatIfPreference=$false
@@ -1223,6 +1234,7 @@ try{
             if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
             $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
             if($all.Count-ne1-or$all[0].Id-ne$process.Id){throw 'Kingmaker process attribution changed during the run.'}
+            if(([DateTime]::UtcNow-$workflowHeartbeatAt).TotalSeconds-ge60){try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{};$workflowHeartbeatAt=[DateTime]::UtcNow}
             if(@(Get-KmcSuspiciousWindows).Count-ne0){throw 'Unexpected Steam/account UI appeared during the run.'}
             if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
             Start-Sleep -Milliseconds 250
@@ -1476,6 +1488,10 @@ catch{
     }
 }
 finally{
+    # The budgeted spend ends here. Everything below is settlement/restoration: it is never
+    # skipped or shortened for a budget, and its duration is recorded separately.
+    try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status $(if($errors.Count-eq0){'completed'}else{'failed'})}catch{Write-Warning ('Workflow budget completion failed: '+$_.Exception.Message)}
+    $workflowRestorationStarted=[DateTime]::UtcNow
     if($null-ne$process){
         try{
             $exitDeadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
@@ -1652,6 +1668,7 @@ finally{
             Write-KmcJsonAtomic $orchestrationPath $orchestration
         }catch{Write-Error ('Orchestration evidence update failed: '+$_.Exception.Message)}
     }
+    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('restoration '+$Scenario+' '+$actualRunId) -StepSeconds ([DateTime]::UtcNow-$workflowRestorationStarted).TotalSeconds}catch{Write-Warning ('Workflow budget restoration record failed: '+$_.Exception.Message)}
 }
 if(-not(Test-Path -LiteralPath $requestPath -PathType Leaf)-or-not(Test-Path -LiteralPath $finalResultPath -PathType Leaf)){
     throw "Runtime scenario failed before complete request/result evidence was written. Evidence: $evidenceRoot"

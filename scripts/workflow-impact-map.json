@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "description": "Small reviewed impact map for ordinary development: which focused tests, native routes, neighbors and safety checks a change to a source family actually depends on. Matched against the working-tree diff by path pattern. This is not project-wide dependency inference; add a family only for a demonstrated shared dependency.",
+  "families": [
+    {
+      "id": "persistence-save",
+      "title": "Save, archive commit and serialization barriers",
+      "paths": [
+        "src/KingmakerMountedCombat/Integration/MountedDeferredSave.cs",
+        "src/KingmakerMountedCombat/Integration/MountedPersistenceService*.cs",
+        "src/KingmakerMountedCombat/Integration/NativeArchiveReplacementPath.cs",
+        "src/KingmakerMountedCombat/Integration/NativeMountedArchiveCommit.cs",
+        "src/KingmakerMountedCombat/Integration/NativeMountedSaveStorage.cs",
+        "src/KingmakerMountedCombat/Integration/NativeMountedSaveFormat.cs",
+        "src/KingmakerMountedCombat/Integration/NativeSaveCommitOutcome.cs",
+        "src/KingmakerMountedCombat/Integration/NativeSaveWorkerBoundary.cs",
+        "src/KingmakerMountedCombat/Integration/NativeSaveEffectBoundary.cs",
+        "src/KingmakerMountedCombat/Integration/NativeDeferredSave.cs",
+        "src/KingmakerMountedCombat/Integration/NativePersistenceIsolation.cs",
+        "src/KingmakerMountedCombat/Domain/DeferredSaveEnumerator.cs"
+      ],
+      "focusedTests": [
+        "Test-NativeArchiveCommitPaths.ps1",
+        "Test-PersistenceContracts.ps1",
+        "chunk7/Test-Chunk7PersistenceEvidence.ps1",
+        "chunk7/Test-Chunk7CurrentMigrationEvidence.ps1"
+      ],
+      "nativeRoutes": [
+        "persistence-p05-save/quick: real GetNextQuickslot route, first-ever then oldest-slot overwrite (rotation)",
+        "persistence-p05-load/quick: separate-process cold load of the produced Quick save",
+        "persistence-p05-save/auto: real GetNextAutoslot route with rotation",
+        "persistence-p07-save/area-cross-entry-auto: the actual area-transition AfterEntry autosave event",
+        "persistence-p05-save/manual: Manual control",
+        "persistence-p07-save/locked-replace: replacement failure keeps the previous archive"
+      ],
+      "neighbors": [
+        "cold load and presentation restore (MountedPersistenceService.World.cs, MountedLoadAdmission.cs)",
+        "schema migration (NativeMountedSaveFormat.cs, MountedArchiveCodec.cs; chunk7/Test-Chunk7CurrentMigrationEvidence.ps1)",
+        "native action debt capture/restore (NativeCombatActorPersistence.cs, NativeCombatTurnPersistence.cs; multi-rt-debt-manual, multi-tb-debt-manual)",
+        "area transition restore before autosave (MountedAreaPersistence.cs; multi-area-autosave)"
+      ],
+      "safetyChecks": [
+        "isolated save authority and write leases (PersistenceSaveAuthorizationTests, Test-PersistenceContracts.ps1)",
+        "protected human saves and exact restoration (scoped preflight; runtime transaction state)",
+        "no diagnostic-only authorization is required for ordinary play (NativePersistenceIsolation prefixes pass through when unbound)"
+      ]
+    },
+    {
+      "id": "persistence-load",
+      "title": "Load admission, world replacement and restoration",
+      "paths": [
+        "src/KingmakerMountedCombat/Integration/MountedLoadAdmission.cs",
+        "src/KingmakerMountedCombat/Integration/MountedPersistenceService.World.cs",
+        "src/KingmakerMountedCombat/Integration/MountedPersistenceService.PresentationReadiness.cs",
+        "src/KingmakerMountedCombat/Integration/MountedAreaPersistence.cs",
+        "src/KingmakerMountedCombat/Integration/MountedArchiveCodec.cs",
+        "src/KingmakerMountedCombat/Integration/MountedArchiveData.cs",
+        "src/KingmakerMountedCombat/Domain/NativeLoadWorld.cs"
+      ],
+      "focusedTests": [
+        "chunk7/Test-Chunk7PersistenceEvidence.ps1",
+        "chunk7/Test-Chunk7AreaPersistenceEvidence.ps1",
+        "chunk7/Test-Chunk7CurrentMigrationEvidence.ps1"
+      ],
+      "nativeRoutes": [
+        "persistence-p05-load/manual|quick|auto: separate-process cold loads",
+        "persistence-p07-save/area-cross-entry|area-cross-exit: area transitions with restoration before autosave",
+        "persistence-p06-load/*: refusal of malformed, future and foreign archives"
+      ],
+      "neighbors": [
+        "save barrier (persistence-save family)",
+        "schema migration and legacy archives (owned-schema1-*, legacy-schema1-resave-manual)"
+      ],
+      "safetyChecks": [
+        "load refusal never strips a human save; read-only isolated loads (Test-PersistenceContracts.ps1)",
+        "failed native load is never accounted as a completed world"
+      ]
+    },
+    {
+      "id": "workflow-runner",
+      "title": "Tier selector, budget and native launcher",
+      "paths": [
+        "scripts/Test-Tiers.ps1",
+        "scripts/WorkflowBudget.ps1",
+        "scripts/workflow-impact-map.json",
+        "scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1"
+      ],
+      "focusedTests": [
+        "Test-TierSelection.ps1"
+      ],
+      "nativeRoutes": [
+        "none: offline orchestration only; a native launch is selected by its own request"
+      ],
+      "neighbors": [
+        "scripts/Test.ps1 (FULL umbrella) and every child wrapper that inherits KMC_WORKFLOW_BUDGET_ENTRY"
+      ],
+      "safetyChecks": [
+        "a refusal happens before any lock, staging or launch and never interrupts a running transaction",
+        "plan-only invocations build nothing, lock nothing and start no game"
+      ]
+    }
+  ]
+}
