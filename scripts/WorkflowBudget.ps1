@@ -364,19 +364,22 @@ function Complete-KmcWorkflowEntry {
     }
     if ($Admission.Nested) { return }
     $now = Get-KmcWorkflowClock
-    $summary = Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
+    $outcome = Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
         param($budget)
         $entry = Find-KmcWorkflowEntry $budget $Admission.EntryId
+        $changed = $false
         if ($null -ne $entry -and [string]$entry.status -eq 'running') {
             $started = ConvertTo-KmcWorkflowUtc ([string]$entry.startedUtc)
             $entry | Add-Member -NotePropertyName status -NotePropertyValue $Status -Force
             $entry | Add-Member -NotePropertyName endedUtc -NotePropertyValue $now.ToString('o') -Force
             $entry | Add-Member -NotePropertyName seconds -NotePropertyValue ([Math]::Round([Math]::Max(0, ($now - $started).TotalSeconds), 1)) -Force
             $entry | Add-Member -NotePropertyName heartbeatUtc -NotePropertyValue $now.ToString('o') -Force
+            $changed = $true
         }
-        return Get-KmcWorkflowBudgetSummary $budget $now
+        return [pscustomobject]@{ Summary = (Get-KmcWorkflowBudgetSummary $budget $now); Changed = $changed }
     }
-    Write-Host ('Workflow budget: ' + $Status + ' ' + $Admission.EntryId + '; ' + (Format-KmcWorkflowBudgetSummary $summary))
+    # Completion is idempotent: a second call (a trap after the finally block) changes nothing and says nothing.
+    if ($outcome.Changed) { Write-Host ('Workflow budget: ' + $Status + ' ' + $Admission.EntryId + '; ' + (Format-KmcWorkflowBudgetSummary $outcome.Summary)) }
 }
 
 # Explicit reconciliation of an entry whose spend the record could not measure, and the

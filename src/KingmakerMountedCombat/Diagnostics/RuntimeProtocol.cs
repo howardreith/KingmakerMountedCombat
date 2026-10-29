@@ -293,7 +293,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
                 errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
             if (EngineShapedSaveRoot.HasValue && (EngineShapedSaveRoot != true || SchemaVersion != SaveBackedSchemaVersion ||
-                !(Scenario != null && Scenario.StartsWith("persistence-", StringComparison.Ordinal) || IsChunk7PersistenceScenario(SelectedChunk7Scenario))))
+                !(Scenario != null && Scenario.StartsWith("persistence-", StringComparison.Ordinal) || IsChunk7PersistenceScenario(Scenario) ||
+                    Scenario == "chunk7-owned-two-pair-campaign" || OwnedPairs != null)))
                 errors.Add("The engine-shaped save root is an explicit true opt-in for isolated persistence scenarios only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
