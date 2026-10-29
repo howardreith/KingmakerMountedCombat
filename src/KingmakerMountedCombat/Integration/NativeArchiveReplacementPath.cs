@@ -40,12 +40,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // The canonical absolute form of an engine path, or null when it is not
-        // a plain rooted local file path: relative, UNC, device or stream
-        // syntax, invalid characters, or anything GetFullPath itself rejects.
+        // a fully qualified local file path. Path.IsPathRooted is not enough:
+        // "C:Quick_1.zks" (drive-relative) and "\Saved Games\Quick_1.zks"
+        // (root-relative) are rooted but resolve against the current directory or
+        // drive, so only "<drive>:<separator>..." is accepted; UNC, device and
+        // stream syntax, invalid characters, and anything GetFullPath itself
+        // rejects are refused. Separator form after the drive is the engine's.
         internal static string Canonical(string path)
         {
-            if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) ||
-                path.StartsWith(@"\\", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal) ||
+            if (string.IsNullOrWhiteSpace(path) || !IsFullyQualifiedLocal(path) ||
                 path.IndexOf(':', 2) >= 0 || path.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
                 return null;
             try { return Path.GetFullPath(path); }
@@ -53,6 +56,24 @@ namespace KingmakerMountedCombat.Integration
             catch (NotSupportedException) { return null; }
             catch (PathTooLongException) { return null; }
         }
+
+        // The parent an isolated run hands the engine in place of
+        // Application.persistentDataPath: the canonical save root's parent spelled
+        // as Unity spells it on Windows (forward slashes, no trailing separator), so
+        // SaveManager.PrepareSave's Path.Combine calls mint exactly the player's
+        // mixed-separator archive paths under the same owned directory.
+        internal static string EngineShapedParent(string canonicalSaveRoot)
+        {
+            var parent = Path.GetDirectoryName(canonicalSaveRoot);
+            if (string.IsNullOrEmpty(parent) || !IsFullyQualifiedLocal(parent))
+                throw new ArgumentException("An engine-shaped parent needs a fully qualified canonical save root.");
+            return parent.Replace('\\', '/').TrimEnd('/');
+        }
+
+        internal static bool IsFullyQualifiedLocal(string path) =>
+            path != null && path.Length >= 3 &&
+            ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
+            path[1] == ':' && (path[2] == '\\' || path[2] == '/');
 
         private static bool IsRegularFile(string path) =>
             File.Exists(path) &&

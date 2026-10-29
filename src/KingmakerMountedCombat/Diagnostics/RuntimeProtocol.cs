@@ -145,6 +145,13 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? ObserveWorkingDeserialization { get; set; }
         public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
 
+        // Opt-in for isolated persistence runs: the engine mints its archive paths from
+        // the isolated root spelled exactly as a player's Unity persistent data path
+        // (forward slashes joined with backslashes), so the run keeps the path condition
+        // a player has while every write stays inside the same owned isolated root.
+        public bool? EngineShapedSaveRoot { get; set; }
+        public bool ShouldSerializeEngineShapedSaveRoot() => EngineShapedSaveRoot.HasValue;
+
         // Private, guarded F11 measurement only. The native observer is not a
         // package member and ordinary requests cannot name or load native code.
         public F11NativeAllocationSelection F11AllocationProbe { get; set; }
@@ -285,6 +292,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ManualSeed != null || BootstrapInventory != null || NativeBootstrap != null || AssistedFixture != null || AssistedColdInventory != null || SmallCalibration != null ||
                 OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
                 errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
+            if (EngineShapedSaveRoot.HasValue && (EngineShapedSaveRoot != true || SchemaVersion != SaveBackedSchemaVersion ||
+                !(Scenario != null && Scenario.StartsWith("persistence-", StringComparison.Ordinal) || IsChunk7PersistenceScenario(SelectedChunk7Scenario))))
+                errors.Add("The engine-shaped save root is an explicit true opt-in for isolated persistence scenarios only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
