@@ -11,6 +11,10 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class Chunk7PersistenceScenario
     {
+        // Engine descriptor strings may mix separators under the engine-shaped isolated
+        // root; file identity, not spelling, is what these assertions are about.
+        private static bool SameArchivePath(string left, string right) =>
+            !string.IsNullOrEmpty(left) && !string.IsNullOrEmpty(right) && Path.GetFullPath(left) == Path.GetFullPath(right);
         private RetainedObjectIdentity areaIdentities;
         private object areaSaveOperation;
         private SaveInfo areaRequestedSave, areaPreparedSave;
@@ -54,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // WorkingFixtureLoader reads its own descriptor with SaveManager.LoadZipSave, so it is never the
                 // list's object (as observed for the owner-seed Manual); both must describe the same file.
                 var loaded = ownedFixtureLoader?.Descriptor;
-                if (loaded == null || loaded.FileName != source.FileName || loaded.FolderName != source.FolderName || loaded.Name != source.Name || loaded.GameId != source.GameId)
+                if (loaded == null || loaded.FileName != source.FileName || !SameArchivePath(loaded.FolderName, source.FolderName) || loaded.Name != source.Name || loaded.GameId != source.GameId)
                     failed.Add("notLoadedDescriptorFile(loadedIsNull=" + (loaded == null) + ")");
                 if (source.FileName != request.PersistenceLoad.FileName) failed.Add("fileName=" + source.FileName);
                 if (source.Name != request.PersistenceLoad.InternalName) failed.Add("name=" + source.Name);
