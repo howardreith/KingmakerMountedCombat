@@ -8,9 +8,13 @@
 # admission before it validates, builds, locks or launches; asks again before every
 # further child step; keeps a bounded heartbeat while it runs; and completes its entry
 # when it ends. A nested invocation (a wrapper's child) inherits its parent's entry only
-# after that entry is verified live, and then counts in the parent. A new shell, restart,
-# worktree, commit or agent does not replenish the allowance: the record is keyed by
-# budget id, not by process. Record updates run under an exclusive lock file.
+# after that entry is verified live, and then counts in the parent; a nested real game
+# launch is still one native attempt of the batch (counted, limited and recorded under the
+# parent, with no spend of its own). Settlement/restoration suspends an entry's clock; the
+# final evidence readers run metered again, and the entry completes only at its actual
+# final verdict. A new shell, restart, worktree, commit or agent does not replenish the
+# allowance: the record is keyed by budget id, not by process. Record updates run under an
+# exclusive lock file.
 #
 # Rules enforced here (ceilings, not estimates):
 #   allowance        90 min cumulative per budget id (policy default, created once)
@@ -124,10 +128,34 @@ function Test-KmcWorkflowProcessAlive([int]$ProcessId, [string]$StartedUtc) {
     try { return $process.StartTime.ToUniversalTime() -le (ConvertTo-KmcWorkflowUtc $StartedUtc).AddMinutes(1) } catch { return $true }
 }
 
-function Get-KmcWorkflowEntrySeconds($Entry, [DateTime]$Now) {
+function Get-KmcWorkflowEntryField($Entry, [string]$Name) {
+    if ($null -eq $Entry -or $null -eq $Entry.PSObject.Properties[$Name]) { return $null }
+    return $Entry.$Name
+}
+
+# A nested native attempt is recorded under its parent so the batch rule sees it, but its
+# time is the parent's: it never adds to the cumulative spend on its own.
+function Test-KmcWorkflowNestedAttempt($Entry) {
+    return -not [string]::IsNullOrWhiteSpace([string](Get-KmcWorkflowEntryField $Entry 'parentEntryId'))
+}
+
+# Elapsed validation time of a running entry: wall time since its start, stopped while it
+# is suspended (settlement/restoration in progress) and net of every interval already
+# excluded. Settlement is never shortened for a budget, so it is never charged to one.
+function Get-KmcWorkflowEntryElapsed($Entry, [DateTime]$Now) {
     $started = ConvertTo-KmcWorkflowUtc ([string]$Entry.startedUtc)
+    $end = $Now
+    $suspended = [string](Get-KmcWorkflowEntryField $Entry 'suspendedUtc')
+    if (-not [string]::IsNullOrWhiteSpace($suspended)) { $candidate = ConvertTo-KmcWorkflowUtc $suspended; if ($candidate -lt $end) { $end = $candidate } }
+    $excluded = Get-KmcWorkflowEntryField $Entry 'excludedSeconds'
+    if ($null -eq $excluded) { $excluded = 0 }
+    return [Math]::Max(0, ($end - $started).TotalSeconds - [double]$excluded)
+}
+
+function Get-KmcWorkflowEntrySeconds($Entry, [DateTime]$Now) {
+    if (Test-KmcWorkflowNestedAttempt $Entry) { return 0 }
     switch ([string]$Entry.status) {
-        'running' { return [Math]::Max(0, ($Now - $started).TotalSeconds) }
+        'running' { return Get-KmcWorkflowEntryElapsed $Entry $Now }
         default {
             if ($null -ne $Entry.PSObject.Properties['seconds'] -and $null -ne $Entry.seconds) { return [double]$Entry.seconds }
             return 0
@@ -147,6 +175,17 @@ function Update-KmcWorkflowBudgetReconciliation($Budget, [DateTime]$Now) {
     foreach ($entry in $Budget.Record.entries) {
         if ([string]$entry.status -ne 'running') { continue }
         if (Test-KmcWorkflowProcessAlive ([int]$entry.processId) ([string]$entry.startedUtc)) { continue }
+        if (Test-KmcWorkflowNestedAttempt $entry) {
+            # Its time is its parent's (reconciled above or below); the attempt itself is a
+            # failed native attempt for the batch rule and carries no spend of its own.
+            $entry | Add-Member -NotePropertyName status -NotePropertyValue 'interrupted' -Force
+            $entry | Add-Member -NotePropertyName seconds -NotePropertyValue 0 -Force
+            $entry | Add-Member -NotePropertyName reconciliation -NotePropertyValue 'counted-in-parent' -Force
+            $entry | Add-Member -NotePropertyName endedUtc -NotePropertyValue $Now.ToString('o') -Force
+            $entry | Add-Member -NotePropertyName reconciledUtc -NotePropertyValue $Now.ToString('o') -Force
+            $reconciled++
+            continue
+        }
         $started = ConvertTo-KmcWorkflowUtc ([string]$entry.startedUtc)
         $last = $started
         foreach ($name in @('heartbeatUtc', 'stepStartedUtc')) {
@@ -155,7 +194,12 @@ function Update-KmcWorkflowBudgetReconciliation($Budget, [DateTime]$Now) {
                 if ($candidate -gt $last) { $last = $candidate }
             }
         }
-        $measured = [Math]::Round([Math]::Max(0, ($last - $started).TotalSeconds), 1)
+        # A suspended entry stopped measuring when settlement began; nothing after that is spend.
+        $suspended = [string](Get-KmcWorkflowEntryField $entry 'suspendedUtc')
+        if (-not [string]::IsNullOrWhiteSpace($suspended)) { $candidate = ConvertTo-KmcWorkflowUtc $suspended; if ($candidate -lt $last) { $last = $candidate } }
+        $excluded = Get-KmcWorkflowEntryField $entry 'excludedSeconds'
+        if ($null -eq $excluded) { $excluded = 0 }
+        $measured = [Math]::Round([Math]::Max(0, ($last - $started).TotalSeconds - [double]$excluded), 1)
         $estimate = if ($null -ne $entry.PSObject.Properties['estimatedSeconds'] -and $null -ne $entry.estimatedSeconds) { [double]$entry.estimatedSeconds } else { $null }
         if ($measured -gt 0) {
             $charged = if ($null -ne $estimate -and $estimate -gt $measured) { $estimate } else { $measured }
@@ -219,7 +263,7 @@ function Assert-KmcWorkflowAllowance($Budget, [DateTime]$Now, [string]$What, [Nu
     }
     if ($null -ne $Entry) {
         $ceiling = [double]$Budget.Record.blockCeilingMinutes * 60
-        $elapsed = ($Now - (ConvertTo-KmcWorkflowUtc ([string]$Entry.startedUtc))).TotalSeconds
+        $elapsed = Get-KmcWorkflowEntryElapsed $Entry $Now
         if ($elapsed -ge $ceiling) {
             throw ('Workflow block ceiling reached: this validation block has run ' + [Math]::Round($elapsed / 60, 1) + ' min of its ' + $Budget.Record.blockCeilingMinutes +
                 ' min ceiling; ' + $What + ' is not started. Running work settles; report the remaining steps as NOT RUN.')
@@ -292,8 +336,25 @@ function Request-KmcWorkflowAdmission {
             return 'live'
         }
         if ($verdict -eq 'live') {
+            if ($Kind -eq 'native' -and $Launch) {
+                # A real game launch under a live parent shares the parent's timing but is still
+                # one native attempt: the batch's scenario count and the repeated-failure limit
+                # apply to it, and its own outcome is recorded under the parent.
+                $attemptBatch = Get-KmcWorkflowBatchId $parentId
+                $attemptId = $parent + ':attempt:' + $now.ToString('yyyyMMddTHHmmssfffZ') + ':' + $PID + ':' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+                [void](Update-KmcWorkflowBudgetRecord $RepoRoot $parentId {
+                    param($budget)
+                    Assert-KmcWorkflowNativeBatch $budget $attemptBatch $BatchKey
+                    $attempt = [pscustomobject]@{ entryId = $attemptId; kind = $Kind; selection = $Selection; startedUtc = $now.ToString('o'); heartbeatUtc = $now.ToString('o')
+                        stepStartedUtc = $null; processId = $PID; status = 'running'; estimatedSeconds = $EstimatedSeconds; endedUtc = $null; seconds = $null
+                        launch = $true; batchId = $attemptBatch; batchKey = $BatchKey; parentEntryId = $parent }
+                    $budget.Record.entries = @($budget.Record.entries) + @($attempt)
+                })
+                Write-Host ('Workflow budget: nested native attempt ' + $attemptId + ' under live entry ' + $parent + '; its time is counted in its parent.')
+                return [pscustomobject]@{ EntryId = $parent; Nested = $true; AttemptEntryId = $attemptId; BudgetId = $parentId; PreviousEntry = $previousEntry }
+            }
             Write-Host ('Workflow budget: nested under live entry ' + $parent + '; this invocation is counted in its parent.')
-            return [pscustomobject]@{ EntryId = $parent; Nested = $true; BudgetId = $parentId; PreviousEntry = $previousEntry }
+            return [pscustomobject]@{ EntryId = $parent; Nested = $true; AttemptEntryId = $null; BudgetId = $parentId; PreviousEntry = $previousEntry }
         }
         Write-Warning ('Workflow budget: inherited entry ' + $parent + ' is ' + $verdict + ', not a live parent; this invocation is accounted on its own.')
         Remove-Item Env:KMC_WORKFLOW_BUDGET_ENTRY -ErrorAction SilentlyContinue
@@ -310,13 +371,62 @@ function Request-KmcWorkflowAdmission {
         if ($null -ne $batchId) { Assert-KmcWorkflowNativeBatch $budget $batchId $BatchKey }
         $entry = [pscustomobject]@{ entryId = $entryId; kind = $Kind; selection = $Selection; startedUtc = $now.ToString('o'); heartbeatUtc = $now.ToString('o')
             stepStartedUtc = $null; processId = $PID; status = 'running'; estimatedSeconds = $EstimatedSeconds; endedUtc = $null; seconds = $null
-            launch = [bool]$Launch; batchId = $batchId; batchKey = $(if ($null -ne $batchId) { $BatchKey } else { $null }) }
+            launch = [bool]$Launch; batchId = $batchId; batchKey = $(if ($null -ne $batchId) { $BatchKey } else { $null })
+            parentEntryId = $null; suspendedUtc = $null; excludedSeconds = 0 }
         $budget.Record.entries = @($budget.Record.entries) + @($entry)
         return $admitted
     }
     $env:KMC_WORKFLOW_BUDGET_ENTRY = $entryId
     Write-Host ('Workflow budget: admitted ' + $Kind + ' "' + $Selection + '" as ' + $entryId + '; ' + (Format-KmcWorkflowBudgetSummary $summary))
-    return [pscustomobject]@{ EntryId = $entryId; Nested = $false; BudgetId = $id; PreviousEntry = $previousEntry }
+    return [pscustomobject]@{ EntryId = $entryId; Nested = $false; AttemptEntryId = $null; BudgetId = $id; PreviousEntry = $previousEntry }
+}
+
+# Settlement/restoration boundary. Between Suspend and Resume the entry's clock is stopped:
+# necessary restoration is never shortened for a budget and is never charged to one. Work
+# after Resume (the final evidence readers) is ordinary metered validation again, and the
+# entry stays pending until Complete-KmcWorkflowEntry records its actual final verdict.
+function Suspend-KmcWorkflowEntry {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot, $Admission)
+    if ($null -eq $Admission) { return }
+    $now = Get-KmcWorkflowClock
+    [void](Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
+        param($budget)
+        foreach ($id in @($Admission.EntryId, (Get-KmcWorkflowEntryField $Admission 'AttemptEntryId'))) {
+            if ([string]::IsNullOrWhiteSpace([string]$id)) { continue }
+            $entry = Find-KmcWorkflowEntry $budget ([string]$id)
+            if ($null -eq $entry -or [string]$entry.status -ne 'running') { continue }
+            if (-not [string]::IsNullOrWhiteSpace([string](Get-KmcWorkflowEntryField $entry 'suspendedUtc'))) { continue }
+            $entry | Add-Member -NotePropertyName suspendedUtc -NotePropertyValue $now.ToString('o') -Force
+            $entry | Add-Member -NotePropertyName heartbeatUtc -NotePropertyValue $now.ToString('o') -Force
+        }
+    })
+}
+
+function Resume-KmcWorkflowEntryLocked($Entry, [DateTime]$Now) {
+    $suspended = [string](Get-KmcWorkflowEntryField $Entry 'suspendedUtc')
+    if ([string]::IsNullOrWhiteSpace($suspended)) { return 0 }
+    $excluded = Get-KmcWorkflowEntryField $Entry 'excludedSeconds'
+    if ($null -eq $excluded) { $excluded = 0 }
+    $interval = [Math]::Max(0, ($Now - (ConvertTo-KmcWorkflowUtc $suspended)).TotalSeconds)
+    $Entry | Add-Member -NotePropertyName excludedSeconds -NotePropertyValue ([Math]::Round([double]$excluded + $interval, 1)) -Force
+    $Entry | Add-Member -NotePropertyName suspendedUtc -NotePropertyValue $null -Force
+    $Entry | Add-Member -NotePropertyName heartbeatUtc -NotePropertyValue $Now.ToString('o') -Force
+    return $interval
+}
+
+function Resume-KmcWorkflowEntry {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot, $Admission)
+    if ($null -eq $Admission) { return }
+    $now = Get-KmcWorkflowClock
+    [void](Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
+        param($budget)
+        foreach ($id in @($Admission.EntryId, (Get-KmcWorkflowEntryField $Admission 'AttemptEntryId'))) {
+            if ([string]::IsNullOrWhiteSpace([string]$id)) { continue }
+            $entry = Find-KmcWorkflowEntry $budget ([string]$id)
+            if ($null -eq $entry -or [string]$entry.status -ne 'running') { continue }
+            [void](Resume-KmcWorkflowEntryLocked $entry $now)
+        }
+    })
 }
 
 # Before every further child step of an admitted invocation: the cumulative allowance and
@@ -362,24 +472,28 @@ function Complete-KmcWorkflowEntry {
         if ([string]::IsNullOrWhiteSpace([string]$Admission.PreviousEntry)) { Remove-Item Env:KMC_WORKFLOW_BUDGET_ENTRY -ErrorAction SilentlyContinue }
         else { $env:KMC_WORKFLOW_BUDGET_ENTRY = [string]$Admission.PreviousEntry }
     }
-    if ($Admission.Nested) { return }
+    # A nested invocation never completes its parent's entry; a nested native attempt records
+    # its own terminal outcome (for the repeated-failure limit) with no spend of its own.
+    $completing = if ($Admission.Nested) { [string](Get-KmcWorkflowEntryField $Admission 'AttemptEntryId') } else { [string]$Admission.EntryId }
+    if ([string]::IsNullOrWhiteSpace($completing)) { return }
     $now = Get-KmcWorkflowClock
     $outcome = Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
         param($budget)
-        $entry = Find-KmcWorkflowEntry $budget $Admission.EntryId
+        $entry = Find-KmcWorkflowEntry $budget $completing
         $changed = $false
         if ($null -ne $entry -and [string]$entry.status -eq 'running') {
-            $started = ConvertTo-KmcWorkflowUtc ([string]$entry.startedUtc)
+            # Completing while suspended closes the excluded interval first.
+            [void](Resume-KmcWorkflowEntryLocked $entry $now)
             $entry | Add-Member -NotePropertyName status -NotePropertyValue $Status -Force
             $entry | Add-Member -NotePropertyName endedUtc -NotePropertyValue $now.ToString('o') -Force
-            $entry | Add-Member -NotePropertyName seconds -NotePropertyValue ([Math]::Round([Math]::Max(0, ($now - $started).TotalSeconds), 1)) -Force
+            $entry | Add-Member -NotePropertyName seconds -NotePropertyValue $(if (Test-KmcWorkflowNestedAttempt $entry) { 0 } else { [Math]::Round((Get-KmcWorkflowEntryElapsed $entry $now), 1) }) -Force
             $entry | Add-Member -NotePropertyName heartbeatUtc -NotePropertyValue $now.ToString('o') -Force
             $changed = $true
         }
         return [pscustomobject]@{ Summary = (Get-KmcWorkflowBudgetSummary $budget $now); Changed = $changed }
     }
     # Completion is idempotent: a second call (a trap after the finally block) changes nothing and says nothing.
-    if ($outcome.Changed) { Write-Host ('Workflow budget: ' + $Status + ' ' + $Admission.EntryId + '; ' + (Format-KmcWorkflowBudgetSummary $outcome.Summary)) }
+    if ($outcome.Changed) { Write-Host ('Workflow budget: ' + $Status + ' ' + $completing + '; ' + (Format-KmcWorkflowBudgetSummary $outcome.Summary)) }
 }
 
 # Explicit reconciliation of an entry whose spend the record could not measure, and the

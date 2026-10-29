@@ -312,6 +312,157 @@ throw 'Runtime request branch is outside the KMC prefix.'
     catch { $refusedBeforeLock = $_.Exception.Message -like '*Workflow budget exhausted*' }
     if (-not $refusedBeforeLock -or (Test-Path -LiteralPath $lockSentinel)) { throw 'An exhausted budget did not refuse before the lock step.' }
     $passed++
+
+    # Nested native attempts still count: under a live parent, each real launch shares the
+    # parent's timing but is admitted against the batch's five selections, limited to two
+    # failures per selection, and records its own outcome under the parent. A nested dry run
+    # records no attempt. Time is counted once, in the parent, whose entry the child never completes.
+    $nestedRoot = Use-BudgetRoot 'budgets-nested'
+    Set-Clock '2026-10-29T18:00:00Z'
+    $liveParent = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind tier -Selection 'parent wrapper with native children'
+    $tick = [DateTime]::Parse('2026-10-29T18:00:00Z', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal)
+    foreach ($key in @('a/1','b/1','c/1','d/1','e/1')) {
+        $child = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection ($key + '/launch/r1') -EstimatedSeconds 60 -Launch -BatchKey $key
+        if (-not $child.Nested -or $child.EntryId -cne $liveParent.EntryId -or [string]::IsNullOrWhiteSpace([string]$child.AttemptEntryId) -or $env:KMC_WORKFLOW_BUDGET_ENTRY -cne $liveParent.EntryId) { throw 'A nested native launch was not recorded as an attempt under its live parent.' }
+        $tick = $tick.AddSeconds(120); Set-Clock $tick.ToString('o')
+        Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $child -Status completed
+        if ($env:KMC_WORKFLOW_BUDGET_ENTRY -cne $liveParent.EntryId) { throw 'Completing a nested attempt did not restore the parent context.' }
+    }
+    $sixthNested = $null
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'f/1/launch/r1' -EstimatedSeconds 60 -Launch -BatchKey 'f/1') } catch { $sixthNested = $_.Exception.Message }
+    if ($sixthNested -notlike '*already names 5 scenarios*') { throw ('A sixth nested scenario was admitted into the batch: ' + $sixthNested) }
+    $nestedDry = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'f/1/whatif/r1' -BatchKey 'f/1'
+    if (-not $nestedDry.Nested -or -not [string]::IsNullOrWhiteSpace([string]$nestedDry.AttemptEntryId)) { throw 'A nested dry run was recorded as a native attempt.' }
+    Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $nestedDry -Status completed
+    foreach ($attempt in 1..2) { $failedChild = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection ('a/1/launch/r' + ($attempt + 1)) -EstimatedSeconds 60 -Launch -BatchKey 'a/1'; Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $failedChild -Status failed }
+    $thirdNested = $null
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'a/1/launch/r4' -EstimatedSeconds 60 -Launch -BatchKey 'a/1') } catch { $thirdNested = $_.Exception.Message }
+    if ($thirdNested -notlike '*third equivalent attempt*') { throw ('A third equivalent nested failure was admitted: ' + $thirdNested) }
+    $budget = Read-Budget $nestedRoot 'development'
+    $attempts = @($budget.entries | Where-Object { $null -ne $_.PSObject.Properties['parentEntryId'] -and [string]$_.parentEntryId -ceq $liveParent.EntryId })
+    $parentEntry = @($budget.entries | Where-Object { [string]$_.entryId -ceq $liveParent.EntryId })[0]
+    if ($attempts.Count -ne 7 -or @($attempts | Where-Object { [string]$_.status -ceq 'completed' }).Count -ne 5 -or @($attempts | Where-Object { [string]$_.status -ceq 'failed' }).Count -ne 2 -or
+        @($attempts | Where-Object { [double]$_.seconds -ne 0 -or -not $_.launch -or [string]$_.batchId -cne 'development:batch1' }).Count -ne 0 -or [string]$parentEntry.status -cne 'running' -or
+        @($budget.entries).Count -ne 8) { throw 'Nested attempts were not recorded exactly once each under the running parent with no spend of their own.' }
+    $planNested = (Invoke-Selector @{ Plan=$true; Tier='Fast'; SkipBuild=$true; Configuration='Debug' }).Output
+    if ($planNested -notmatch 'spent 10 of 90 min') { throw ('Nested attempts changed the single-counted parent time: ' + $planNested) }
+    Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $liveParent -Status completed
+    $budget = Read-Budget $nestedRoot 'development'
+    if ([string](@($budget.entries | Where-Object { [string]$_.entryId -ceq $liveParent.EntryId })[0].status) -cne 'completed' -or [double](@($budget.entries | Where-Object { [string]$_.entryId -ceq $liveParent.EntryId })[0].seconds) -ne 600) { throw 'The parent entry was not completed with its own single-counted time.' }
+    # A dead parent with a still-"running" attempt: the parent is charged, the attempt is a failed
+    # attempt counted in its parent, and the next admission sees exactly the parent's spend.
+    $deadRoot = Use-BudgetRoot 'budgets-nested-dead'
+    Set-Clock '2026-10-29T19:00:00Z'
+    Write-Record $deadRoot @(
+        @{ entryId='development:p:999999:00000005'; kind='tier'; selection='dead parent'; startedUtc='2026-10-29T18:00:00Z'; heartbeatUtc='2026-10-29T18:10:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null; launch=$false; batchId=$null; batchKey=$null; parentEntryId=$null; suspendedUtc=$null; excludedSeconds=0 },
+        @{ entryId='development:p:999999:00000005:attempt:1'; kind='native'; selection='x/1/launch/r1'; startedUtc='2026-10-29T18:02:00Z'; heartbeatUtc='2026-10-29T18:02:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=60; endedUtc=$null; seconds=$null; launch=$true; batchId='development:batch1'; batchKey='x/1'; parentEntryId='development:p:999999:00000005' })
+    $deadOutput = (Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }).Output
+    $budget = Read-Budget $deadRoot 'development'
+    if ($deadOutput -notmatch 'reconciled 2 interrupted entries' -or $deadOutput -notmatch 'spent 10 of 90 min' -or [string]$budget.entries[1].reconciliation -cne 'counted-in-parent' -or [double]$budget.entries[1].seconds -ne 0 -or [double]$budget.entries[0].seconds -ne 600) { throw ('A dead parent and its attempt were not reconciled as one spend: ' + $deadOutput) }
+    Remove-Item -LiteralPath $trace
+    $passed++
+
+    # Recheck before the game: a launcher-shaped stub admits, runs a preflight that advances the
+    # clock, re-admits before its lock and again immediately before its launch marker. Exhaustion
+    # during preflight leaves no lock and no launch; exhaustion after the lock (during staging)
+    # leaves no launch, and the stub's own finally path restores (removes) the lock it owned.
+    $launcherStub = Join-Path $boundary 'launcher-shaped.ps1'
+    @'
+param([string]$Boundary, [string]$AdvanceAt, [string]$AdvanceTo, [string]$Markers)
+$ErrorActionPreference = 'Stop'
+. (Join-Path $Boundary 'scripts\WorkflowBudget.ps1')
+$admission = Request-KmcWorkflowAdmission -RepoRoot $Boundary -Kind native -Selection 'stub/case/launch/r1' -EstimatedSeconds 60 -Launch -BatchKey 'stub/case'
+trap { try { Complete-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission -Status failed } catch { }; break }
+function Advance([string]$Phase) { if ($AdvanceAt -ceq $Phase) { Set-Content -LiteralPath $env:KMC_WORKFLOW_TEST_CLOCK_FILE -Value $AdvanceTo -Encoding ASCII } }
+Advance 'preflight'
+Update-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission
+Assert-KmcWorkflowStepAdmission -RepoRoot $Boundary -Admission $admission -StepName 'transaction lock stub/case'
+$lock = Join-Path $Markers 'lock'
+New-Item -ItemType File -Path $lock | Out-Null
+try {
+    Advance 'staging'
+    Assert-KmcWorkflowStepAdmission -RepoRoot $Boundary -Admission $admission -StepName 'game launch stub/case' -EstimatedSeconds 60
+    New-Item -ItemType File -Path (Join-Path $Markers 'launch') | Out-Null
+}
+finally {
+    Suspend-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission
+    Remove-Item -LiteralPath $lock -Force
+    New-Item -ItemType File -Path (Join-Path $Markers 'restored') | Out-Null
+    Resume-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission
+}
+Complete-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission -Status completed
+'@ | Set-Content -LiteralPath $launcherStub -Encoding ASCII
+    foreach ($phase in @('preflight', 'staging')) {
+        $recheckRoot = Use-BudgetRoot ('budgets-recheck-' + $phase)
+        Set-Clock '2026-10-29T20:00:00Z'
+        $markers = Join-Path $boundary ('markers-' + $phase); New-Item -ItemType Directory -Path $markers -Force | Out-Null
+        $env:KMC_WORKFLOW_BUDGET_ENTRY = $null
+        $recheckFailure = $null
+        try { & $launcherStub -Boundary $boundary -AdvanceAt $phase -AdvanceTo '2026-10-29T21:35:00Z' -Markers $markers *>&1 | Out-Null } catch { $recheckFailure = $_.Exception.Message }
+        $budget = Read-Budget $recheckRoot 'development'
+        if ($recheckFailure -notlike '*Workflow budget exhausted*' -or (Test-Path -LiteralPath (Join-Path $markers 'launch')) -or (Test-Path -LiteralPath (Join-Path $markers 'lock')) -or
+            [string]$budget.entries[0].status -cne 'failed' -or -not [string]::IsNullOrWhiteSpace($env:KMC_WORKFLOW_BUDGET_ENTRY)) { throw ('Exhaustion during ' + $phase + ' did not stop the launch: ' + $recheckFailure) }
+        if ($phase -eq 'staging' -and -not (Test-Path -LiteralPath (Join-Path $markers 'restored'))) { throw 'A refusal after the lock did not let the finally path restore the owned transaction.' }
+        if ($phase -eq 'preflight' -and (Test-Path -LiteralPath (Join-Path $markers 'restored'))) { throw 'A refusal before the lock entered the transaction.' }
+    }
+    # The real launcher keeps that order: lock re-admission before the lock, launch re-admission
+    # before Start-Process, suspension before restoration, resumption before the final reader,
+    # and completion only after the reader's verdict.
+    $launcherText = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+    function Find-Launcher([string]$Text, [string]$Needle, [switch]$Last) { $index = if ($Last) { $Text.LastIndexOf($Needle, [StringComparison]::Ordinal) } else { $Text.IndexOf($Needle, [StringComparison]::Ordinal) }; if ($index -lt 0) { throw ('Launcher text lacks: ' + $Needle) }; return $index }
+    $lockAdmission = Find-Launcher $launcherText "Assert-KmcWorkflowStepAdmission -RepoRoot `$repoRoot -Admission `$workflowAdmission -StepName ('transaction lock '"
+    $lockOpen = Find-Launcher $launcherText '$lock=Open-KmcRuntimeLock $runtimeState $actualRunId'
+    $launchAdmission = Find-Launcher $launcherText "Assert-KmcWorkflowStepAdmission -RepoRoot `$repoRoot -Admission `$workflowAdmission -StepName ('game launch '"
+    $launchStart = Find-Launcher $launcherText 'Start-Process -FilePath $SteamPath -ArgumentList $arguments'
+    $suspend = Find-Launcher $launcherText 'Suspend-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission'
+    $resume = Find-Launcher $launcherText 'Resume-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission'
+    $reader = Find-Launcher $launcherText "scripts\runtime\Test-RuntimeResult.ps1"
+    $completion = Find-Launcher $launcherText 'Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed' -Last
+    $earlyCompletion = $launcherText.IndexOf('Complete-KmcWorkflowEntry', $suspend, $reader - $suspend, [StringComparison]::Ordinal)
+    if (-not ($lockAdmission -lt $lockOpen -and $lockOpen -lt $launchAdmission -and $launchAdmission -lt $launchStart -and $launchStart -lt $suspend -and $suspend -lt $resume -and $resume -lt $reader -and $reader -lt $completion) -or $earlyCompletion -ge 0) {
+        throw 'The native launcher does not re-admit before its lock and launch, suspend for restoration, and complete only after its final reader.'
+    }
+    $passed++
+
+    # Final failures and reader time: the entry stays pending through restoration (suspended,
+    # excluded) and the reader (metered); the recorded terminal result is the actual final verdict.
+    $terminalRoot = Use-BudgetRoot 'budgets-terminal'
+    $start = [DateTime]::Parse('2026-10-29T22:00:00Z', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AdjustToUniversal -bor [Globalization.DateTimeStyles]::AssumeUniversal)
+    $at = $start
+    foreach ($variant in @('reader-fail', 'restoration-fail', 'success', 'completed-while-suspended')) {
+        Set-Clock $at.ToString('o')
+        $env:KMC_WORKFLOW_BUDGET_ENTRY = 'development:x:1:ffffffff'
+        $run = Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection ('terminal/' + $variant + '/launch/r1') -EstimatedSeconds 60 -Launch -BatchKey ('terminal/' + $(if ($variant -like '*fail*') { 'failing' } else { $variant }))
+        $at = $at.AddSeconds(60); Set-Clock $at.ToString('o')             # the game ran 60 s
+        Suspend-KmcWorkflowEntry -RepoRoot $boundary -Admission $run
+        $at = $at.AddSeconds(20); Set-Clock $at.ToString('o')             # restoration took 20 s (excluded)
+        if ($variant -ne 'completed-while-suspended') {
+            Resume-KmcWorkflowEntry -RepoRoot $boundary -Admission $run
+            $at = $at.AddSeconds(5); Set-Clock $at.ToString('o')          # the reader took 5 s (metered)
+        }
+        Complete-KmcWorkflowEntry -RepoRoot $boundary -Admission $run -Status $(if ($variant -like '*fail*') { 'failed' } else { 'completed' })
+        if ($env:KMC_WORKFLOW_BUDGET_ENTRY -cne 'development:x:1:ffffffff') { throw 'Completion did not restore the previous context.' }
+        $budget = Read-Budget $terminalRoot 'development'
+        $entry = @($budget.entries | Where-Object { [string]$_.entryId -ceq $run.EntryId })[0]
+        $expectedSeconds = if ($variant -eq 'completed-while-suspended') { 60 } else { 65 }
+        if ([string]$entry.status -cne $(if ($variant -like '*fail*') { 'failed' } else { 'completed' }) -or [double]$entry.seconds -ne $expectedSeconds -or [double]$entry.excludedSeconds -ne 20 -or -not [string]::IsNullOrWhiteSpace([string]$entry.suspendedUtc)) {
+            throw ('Terminal accounting differs for ' + $variant + ': status=' + $entry.status + ' seconds=' + $entry.seconds + ' excluded=' + $entry.excludedSeconds)
+        }
+        $at = $at.AddSeconds(5)
+    }
+    [Environment]::SetEnvironmentVariable('KMC_WORKFLOW_BUDGET_ENTRY', $null)
+    # Two late failures of one selection are two failed attempts: the third is refused.
+    $thirdTerminal = $null
+    try { [void](Request-KmcWorkflowAdmission -RepoRoot $boundary -Kind native -Selection 'terminal/third/launch/r1' -EstimatedSeconds 60 -Launch -BatchKey 'terminal/failing') } catch { $thirdTerminal = $_.Exception.Message }
+    if ($thirdTerminal -notlike '*third equivalent attempt*') { throw ('A late failure did not count toward the repeated-failure limit: ' + $thirdTerminal) }
+    # A suspended entry whose process dies is charged only up to its suspension.
+    Write-Record $terminalRoot @(@{ entryId='development:s:999999:00000006'; kind='native'; selection='suspended/dead/launch/r1'; startedUtc='2026-10-29T22:00:00Z'; heartbeatUtc='2026-10-29T22:03:00Z'; stepStartedUtc=$null; processId=999999; status='running'; estimatedSeconds=$null; endedUtc=$null; seconds=$null; launch=$true; batchId='development:batch1'; batchKey='suspended/dead'; parentEntryId=$null; suspendedUtc='2026-10-29T22:01:00Z'; excludedSeconds=30 })
+    Set-Clock '2026-10-29T23:00:00Z'
+    $suspendedOutput = (Invoke-Selector @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' }).Output
+    $budget = Read-Budget $terminalRoot 'development'
+    if ([string]$budget.entries[0].status -cne 'interrupted' -or [double]$budget.entries[0].seconds -ne 30 -or $suspendedOutput -notmatch 'spent 0.5 of 90 min') { throw ('A dead suspended entry was charged past its suspension: ' + $suspendedOutput) }
+    Remove-Item -LiteralPath $trace
+    $passed++
     Write-Host "Tier selection: PASS=$passed FAIL=0; offline orchestration only (stub children, boundary budget, file clock)."
 }
 finally {
