@@ -291,6 +291,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     NativePersistenceIsolation.Install(harmony);
                     NativePersistenceIsolation.Bind(authority);
+                    if (request.EngineShapedSaveRoot == true) NativePersistenceIsolation.EnableEngineShapedRoot();
                 }
                 catch { harmony.UnpatchAll(HarmonyId); throw; }
                 redirected = true;

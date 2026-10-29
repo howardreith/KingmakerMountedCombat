@@ -72,6 +72,15 @@ namespace KingmakerMountedCombat.Tests
                 var resolved = NativeArchiveReplacementPath.Resolve(staged, original);
                 TestRunner.Equal(staged, resolved.Source, "Canonical source changed.");
                 TestRunner.Equal(original, resolved.Destination, "Canonical destination changed.");
+                // The parent an isolated run hands the engine: Unity's spelling, and the
+                // engine's own Path.Combine then mints the player's mixed form under it.
+                var saveRoot = Path.Combine(root.Canonical, "Saved Games");
+                var parent = NativeArchiveReplacementPath.EngineShapedParent(saveRoot);
+                TestRunner.Equal(root.Canonical.Replace('\\', '/'), parent, "Engine-shaped parent is not Unity's spelling.");
+                var minted = EngineShaped(parent, "Auto_2");
+                TestRunner.True(minted.IndexOf('/') >= 0 && minted.IndexOf('\\') >= 0 && Path.GetFullPath(minted) == staged,
+                    "The engine-shaped parent does not mint the player's path form onto the same file.");
+                TestRunner.True(NativeArchiveReplacementPath.Resolve(minted, original).Source == staged, "The minted path was not resolved onto the staged archive.");
             }
         }
 
@@ -111,6 +120,25 @@ namespace KingmakerMountedCombat.Tests
                 Refused(null, original, "A null source was accepted.");
                 Refused(staged, string.Empty, "An empty destination was accepted.");
                 TestRunner.True(NativeArchiveReplacementPath.Canonical(@"\\?\C:\x.zks") == null, "Device syntax was canonicalized.");
+                // Rooted but not fully qualified: these resolve against the current
+                // directory or drive, so they must never reach File.Replace even when
+                // that resolution happens to land on the real archives.
+                var previous = Directory.GetCurrentDirectory();
+                try
+                {
+                    Directory.SetCurrentDirectory(Path.Combine(root.Canonical, "Saved Games"));
+                    var driveRelative = root.Canonical.Substring(0, 2) + "Quick_2.zks";
+                    var rootRelative = staged.Substring(2);
+                    TestRunner.True(Path.IsPathRooted(driveRelative) && Path.IsPathRooted(rootRelative) &&
+                        Path.GetFullPath(driveRelative) == staged && Path.GetFullPath(rootRelative) == staged,
+                        "Fixture does not reproduce rooted-but-relative resolution onto the staged archive.");
+                    Refused(driveRelative, original, "A drive-relative source was accepted.");
+                    Refused(staged, rootRelative.Replace("Quick_2", "Quick_1"), "A root-relative destination was accepted.");
+                    Refused(rootRelative.Replace('\\', '/'), original, "A forward-slash root-relative source was accepted.");
+                    TestRunner.True(NativeArchiveReplacementPath.Canonical(driveRelative) == null &&
+                        NativeArchiveReplacementPath.Canonical(rootRelative) == null, "Rooted-but-relative paths were canonicalized.");
+                }
+                finally { Directory.SetCurrentDirectory(previous); }
             }
         }
     }

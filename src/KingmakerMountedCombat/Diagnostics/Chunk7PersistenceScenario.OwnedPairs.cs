@@ -130,7 +130,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 requested.Name == NativeName(SaveInfo.SaveType.Auto) && prepared.Name == requested.Name &&
                 prepared.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
                 prepared.GameName == request.PersistenceLoad.GameName && prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
-                !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
+                !prepared.IsAutoLevelupSave && prepared.FolderName != null && Path.GetFullPath(prepared.FolderName) == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
                 "Owned area autosave changed its exact native request, prepared copy, category, destination or path.");
             if (!staged)
             {
