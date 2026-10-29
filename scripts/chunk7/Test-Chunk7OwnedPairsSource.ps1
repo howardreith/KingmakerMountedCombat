@@ -333,13 +333,13 @@ Check 'owner-seed-derived RT refuses a pair actor as companion' {$c=New-SeedComb
 # producer plus ACCEPTED cold consumer) with one write and a Quick/Auto checkpoint; the consumer
 # reads the producer's own receipt set and builds its input from the producer's nativeWrite.
 function New-SeedCheckpointSaveSource([string]$Checkpoint='multi-exploration-quick'){
- $c=New-SeedCombatSource;$c.selection.case='owner-seed-checkpoint-save';$c.selection.expectedNativeWriteCount=if($Checkpoint-ceq'multi-owned-worker-cancel-manual'){2}else{1};$c.persistenceCase=$Checkpoint;$c
+ $c=New-SeedCombatSource;$c.selection.case='owner-seed-checkpoint-save';$c.selection.expectedNativeWriteCount=if($Checkpoint-ceq'multi-owned-worker-cancel-manual'){2}elseif(Test-KmcChunk7SlotRotationCase $Checkpoint){Get-KmcChunk7SlotRotationWrites $Checkpoint}else{1};$c.persistenceCase=$Checkpoint;$c
 }
 function New-SeedCheckpointLoadSource([string]$Checkpoint='multi-exploration-quick'){
  $sourceCase=Get-KmcChunk7PersistenceSourceCase $Checkpoint
  $p=New-SeedCheckpointSaveSource $sourceCase;$manual=Qualify-Combat $p;$script:readCounts=@{};$script:calls=[Collections.Generic.List[string]]::new()
  # A combat checkpoint is a genuine native Manual numbered after the derived Manual (303 -> 304) under its distinct name.
- $type=if($Checkpoint-ceq'multi-exploration-quick'){'Quick'}elseif($Checkpoint-ceq'multi-exploration-auto'){'Auto'}else{'Manual'}
+ $type=if($Checkpoint-cin@('multi-exploration-quick','multi-exploration-rotation-quick')){'Quick'}elseif($Checkpoint-ceq'multi-exploration-auto'){'Auto'}else{'Manual'}
  $number=if($type-ceq'Manual'){304}else{1};$name=if($type-ceq'Manual'){'KMC_C7_SEED_CHECKPOINT'}else{$type+' save'};$leaf=if($type-ceq'Manual'){'Manual_304_KMC_C7_SEED_CHECKPOINT.zks'}else{$type+'_1.zks'}
  $pr=[ordered]@{scenario='chunk7-owned-two-pair-campaign';runId='synthetic-owner-seed-checkpoint';evidenceRoot='';fixture=$p.fixture;ownedPairs=($p.selection|ConvertTo-Json -Depth 20|ConvertFrom-Json);persistenceCase=$sourceCase;persistenceLoad=($manual.descriptor|ConvertTo-Json -Depth 5|ConvertFrom-Json)}
  foreach($key in @('branch','commit','productVersion','dllSha256','dllMvid','transactionToken')){$pr[$key]=$p.producer.request.$key};$pr=[pscustomobject]$pr
@@ -358,6 +358,12 @@ foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')
      $v.artifactSha256-cne('6'*64)-or$v.checkpointRunId-cne'synthetic-owner-seed-checkpoint'-or$v.checkpointArtifactSha256-cne('2'*64)-or$v.manual.consumerRunId-cne'synthetic-owner-seed-cold'-or$v.manual.descriptor.sha256-cne('5'*64)){throw 'Checkpoint consumer substituted the producer checkpoint, its evidence or the Manual lineage'}
   foreach($gate in @('owner-seed-registry-master-intake-header','strict-producer-world-artifact','strict-checkpoint-artifact','consumer-cold-proof')){if(-not$script:calls.Contains($gate)){throw ('checkpoint consumer omitted required gate '+$gate)}}}
 }
+# Sprint 1 slot rotation: the consumer's producer gate uses the producer's own selected write count (three
+# Quick writes), never the ordinary one; a plain Quick producer that wrote three times is still refused.
+Check 'slot rotation consumer qualifies a producer that wrote its three selected writes' {$c=New-SeedCheckpointLoadSource 'multi-exploration-rotation-quick';foreach($k in @('saveRequestCount','workingSaveRequestCount')){$c.checkpoint.game.$k=3};$v=Qualify-Combat $c
+ if($v.descriptor.fileName-cne'Quick_1.zks'-or$v.checkpointRunId-cne'synthetic-owner-seed-checkpoint'-or$v.descriptor.sha256-cne('3'*64)){throw 'Rotation consumer substituted its producer slot'}}
+Check 'slot rotation consumer refuses a producer that wrote once' {$c=New-SeedCheckpointLoadSource 'multi-exploration-rotation-quick';[void](Qualify-Combat $c)} $true
+Check 'plain Quick consumer refuses a producer that wrote three times' {$c=New-SeedCheckpointLoadSource 'multi-exploration-quick';foreach($k in @('saveRequestCount','workingSaveRequestCount')){$c.checkpoint.game.$k=3};[void](Qualify-Combat $c)} $true
 Check 'owner-seed checkpoint producer records a later current candidate without relabelling the chain' {$c=New-SeedCheckpointSaveSource;$c.candidate.commit='f'*40;$c.candidate.dllSha256='f'*64;$c.candidate.dllMvid='ffffffff-ffff-4fff-8fff-ffffffffffff';$v=Qualify-Combat $c
  if($v.candidates.sameCandidate-ne$false-or$v.candidates.current.commit-cne('f'*40)-or$v.candidates.producer.commit-ceq('f'*40)){throw 'Cross-candidate fact was not recorded honestly'}}
 # P2 combat checkpoints: the producer chain is unchanged; the consumer's input is the producer's genuine native

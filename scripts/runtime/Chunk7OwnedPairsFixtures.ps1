@@ -357,7 +357,7 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
   Get-KmcChunk7ManticoreReturnSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget
  }else{Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget}
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint producer did not load the exact owner-seed-derived Manual.'}
- Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 1
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 (Get-KmcChunk7OwnedWriteCount $request)
  Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
  $areaCustody=$null
  if($PersistenceCase-ceq'multi-area-autosave'){
