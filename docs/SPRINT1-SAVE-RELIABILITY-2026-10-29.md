@@ -108,3 +108,93 @@ boundary that autosaves, then make one Manual save; the UMM log should show
 twice with slot count 1) or a refreshed Working fixture made on the current product, then
 `persistence-p05-save/quick` and `persistence-p05-load/quick` on preview.97; UPG-01 can
 load `Quick_1.zks` above once that lineage loads again.
+
+---
+
+## Iteration 2 — review corrections and the owner-seed save routes (2026-10-29, later)
+
+**Disposition: still SPRINT 1 PARTIAL — READY FOR REVIEW.** Candidate
+`0.1.0-chunk7b-preview.98`, commit `aa08ba1a`, DLL SHA-256
+`4c085da3cc8f55d91f95f39ce4bbe2abf254ab6592ff63fb46ad880d825f23c5`, MVID
+`63c75dab-55d1-49ab-91ab-ff315a198d73`, package
+`…preview.98-sprint1h-aa08ba1a-diagnostic.zip` `207d635d…`, suite
+`sprint1h-aa08ba1a-20261029` `6d1818ae…`. Candidate tier 8/0 on these bytes;
+Test-TierSelection 26/0; components 913/0.
+
+### Review items
+
+1. **Per-step budget gate (P1).** `Test-Tiers.ps1` re-admits every step against the
+   cumulative allowance, the 30-minute block ceiling and the step's recorded cost; known
+   oversized work is refused at admission (the known part of a selection is a lower bound)
+   and at the step boundary; a refusal stops only steps that have not started. The native
+   launcher enforces the batch rule: five distinct scenario/case selections per batch, two
+   failed attempts per selection. Tests: a marker stub after the exhausting stub never runs;
+   the block ceiling; oversized refusals at both boundaries; the batch rule.
+2. **Inherited entries (P1).** An inherited entry is used only when it exists, is running,
+   belongs to a live process and has allowance left; completed, missing or dead parents are
+   reported as stale and the invocation is accounted on its own. The launcher admits before
+   source/package validation and completes through a script-scope trap, restoring the
+   caller's context; an early launcher failure followed by another invocation in the same
+   shell is metered (tested).
+3. **Accounting (P2).** Admission precedes every expensive launcher phase; heartbeats at the
+   preflight, lock and launch boundaries and every 15 s around tier children; interrupted
+   entries are charged to the last measured point, to their estimate when unmeasured, and
+   otherwise block admission until `scripts/Reconcile-WorkflowBudget.ps1` records them.
+   Record updates run under an exclusive lock file. The first iteration's unrecorded work
+   (78 s, 36 s, 85 s) is imported; this iteration's spend is in the same record.
+4. **Path guard (P2).** `Canonical` accepts only `<drive>:<separator>…`; drive-relative and
+   root-relative forms resolving onto the real archives are refused (tested), mixed
+   separators remain accepted.
+
+### Keeping the player's path condition in the lab
+
+Isolated runs can opt in (`-EngineShapedSaveRoot`, request `engineShapedSaveRoot`) to an
+engine-shaped root: the isolation hands `SaveManager.PrepareSave` the isolated root's parent
+spelled as Unity spells `Application.persistentDataPath`, so every archive path the engine
+mints is the player's mixed-separator form inside the same owned root; `SavePath` stays
+canonical and the authority compares observed paths by file identity. The evidence of the
+runs below records the prepared path as
+`C:/Dev/KingmakerMountedCombatLab/runtime-staging/persistence-<run>\Saved Games\<leaf>`.
+
+### Native batch `sprint1:owner-seed-chain-2` (NO_MODS owner seed, two mounted pairs)
+
+| Run | Route | Outcome |
+| --- | --- | --- |
+| `20261029-sprint1-r01-ownerseed-manual-r4` | owner-seed Manual producer (new slot) | PASS; `Manual_304_KMC_C7_SEED_WORLD.zks` |
+| `20261029-sprint1-r02-ownerseed-manual-cold` | separate-process cold load of r01 | PASS; both pairs restored |
+| `20261029-sprint1-r03-ownerseed-quick-r2` | Quick producer: `SaveManager.GetNextQuickslot()` + `Game.SaveGame`, the body of the hotkey's `MakeQuickSave` (key press not synthesized), first-ever slot | PASS; `Quick_1.zks` `3b2f4ba3…` |
+| `20261029-sprint1-r04-ownerseed-quick-cold` | separate-process cold load of the Quick save | PASS; mounted state restored |
+| `20261029-sprint1-r05-ownerseed-auto` | Auto producer: `GetNextAutoslot()` + `Game.SaveGame` (slot route, not an area event), first-ever slot | PASS; `Auto_1.zks` `1f5972bc…` |
+
+Every run: Mods restored, saves protected, profile bytes exact, no lock. Retained failures
+on the way (all restored exactly): `r01-ownerseed-manual` (in-game request refusal of the
+new flag, fixed in `05494fcd`), `r01-…-r2` and `r03-ownerseed-quick` (scenario
+canonical-spelling assertions, fixed in `31d50be2` / `aa08ba1a`), `r01-…-r3` (game PASS,
+outer reader canonical-spelling check; reader-only correction `22f41eb7`; re-evaluation
+receipt `analysis-cache\sprint1\r01-r3-reader-only-reevaluation.log`, original outer FAIL
+retained). r03–r05 consumed r01/r02 produced by the previous build of the same source line
+(`22f41eb7`); the admission accepted them, which is recorded here rather than relabelled.
+
+### Still open
+
+- **Overwrite/rotation** (the repaired branch) is not exercised natively: every owner-seed
+  route writes a first-ever slot. The offline reproduction and verification against real
+  engine types remain the evidence for the repair itself.
+- **Genuine area-transition Auto event** and **Manual overwrite** not run; **UPG-01** not run
+  (input and blocker unchanged).
+- The old Working fixture lineage still fails in the engine's `Player.PostLoad` on both
+  builds (unchanged, retained).
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 2 h 10 min |
+| Shared budget `sprint1`, cumulative | 50.4 of 90 min (9 tier runs 28.8 min, 27 native entries 17.7 min, including the imported 3.3 min) |
+| Real game launches this iteration | 9 (5 PASS, 4 retained FAIL/refusal) |
+| Restoration outside the spend | none needed beyond the runs' own settlement |
+
+**Next check (smallest):** a `multi-exploration-quick-rotation` case in the owner-seed
+checkpoint family (second `GetNextQuickslot()` under slot count 1 over `Quick_1.zks`, both
+leaves declared) on this candidate, then its cold load; the same for Auto via
+`multi-area-autosave` after an in-run second transition.
