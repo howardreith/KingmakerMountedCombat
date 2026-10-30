@@ -244,6 +244,11 @@ namespace KingmakerMountedCombat.Integration
                 move = activeDoorInteraction.DelegatedMove;
                 source = "door-approach";
             }
+            else if (pendingDoorSettlement?.RecoveryMove != null)
+            {
+                move = pendingDoorSettlement.RecoveryMove;
+                source = "door-recovery";
+            }
 
             var commands = relationship.Mount?.Commands;
             return move != null && move.Executor == relationship.Mount && commands != null &&
@@ -777,6 +782,7 @@ namespace KingmakerMountedCombat.Integration
                     LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
+                CancelPendingDoorSettlement("pair attack admitted");
                 activeCommand = command;
                 unifiedTurn.RememberPairedMovementInput();
                 LastOutcome = null;
@@ -847,17 +853,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeDoorInteraction = null;
             }
-            if (pendingDoorSettlement != null)
+            var settlement = pendingDoorSettlement;
+            if (settlement != null)
             {
-                pendingDoorSettlement.Tick();
-                if (pendingDoorSettlement.IsFinished)
+                settlement.Tick();
+                if (settlement.IsFinished)
                 {
-                    var settled = pendingDoorSettlement.Outcome;
+                    var settled = settlement.Outcome;
                     logger.Info("Mounted door occupancy settled: mountId=" + settled.MountId + "; settled=" + settled.OccupancySettled +
                         " (" + settled.OccupancySettleGameSeconds.ToString("F2") + " s); footprintClear=" + settled.FootprintClear +
                         "; recovery=" + settled.RecoveryDisposition + "/" + settled.RecoveryTerminal +
                         "; footprintClearAfter=" + settled.FootprintClearAfterRecovery + "; slotRestored=" + settled.MountMoveSlotRestored);
-                    pendingDoorSettlement = null;
+                    if (ReferenceEquals(pendingDoorSettlement, settlement)) pendingDoorSettlement = null;
                 }
             }
             DriveRiderTurnGroundMovement();
@@ -1459,16 +1466,19 @@ namespace KingmakerMountedCombat.Integration
             // the accepted command; a click on another door replaces it; the mount's ordinary real-time player move
             // yields to the door approach exactly as a native unit's own move yields to its new Standard command.
             var mountCommands = relationship.Mount?.Commands;
+            var disposition = DecideDoorAdmission(mountCommands, exactDoor);
             // A new door click is the player's explicit intent: an owned occupancy recovery still running from the
             // previous click yields to it (its outcome records the cancellation), as a native unit's own move would.
-            if (pendingDoorSettlement != null && !pendingDoorSettlement.IsFinished)
+            // Decided first, so a click that is refused for another reason keeps the recovery.
+            if (disposition == MountedDoorAdmissionDisposition.RejectMountBusy && pendingDoorSettlement?.RecoveryMove != null &&
+                mountCommands != null && ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), pendingDoorSettlement.RecoveryMove) &&
+                mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
+                mountCommands.GetCommand(UnitCommand.CommandType.Swift) == null && mountCommands.Queue.Count == 0)
             {
-                var yielding = pendingDoorSettlement;
-                pendingDoorSettlement = null;
-                if (yielding.RecoveryMove != null) DoorInteractionReplacedRecoveryCount++;
-                yielding.Cancel("replaced by a new door click");
+                DoorInteractionReplacedRecoveryCount++;
+                CancelPendingDoorSettlement("replaced by a new door click");
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
             }
-            var disposition = DecideDoorAdmission(mountCommands, exactDoor);
             if (disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
             {
                 var replaced = activeDoorInteraction;
@@ -1510,6 +1520,8 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            // Admitted: a settlement still waiting on the previous click (no move yet) is superseded by this one.
+            CancelPendingDoorSettlement("superseded by a new door click");
             var routed = new MountedDoorInteractionCommand(
                 relationship,
                 relationship.Rider,
@@ -1695,6 +1707,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal long DoorInteractionReplacedRecoveryCount { get; private set; }
 
+        // The settlement yields to any admitted pair command (door click, pair attack, charge): one owner of the mount.
+        private void CancelPendingDoorSettlement(string reason)
+        {
+            var yielding = pendingDoorSettlement;
+            pendingDoorSettlement = null;
+            if (yielding != null && !yielding.IsFinished) yielding.Cancel(reason);
+        }
+
         internal long DoorOccupancyRecoveryCount { get; private set; }
 
         private MountedDoorAdmissionDisposition DecideDoorAdmission(UnitCommands mountCommands, StandardDoor exactDoor)
@@ -1733,7 +1753,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 // The native action ended; the controller now owns the settlement (and any recovery move) until it
                 // reports a terminal result on this same outcome, or Stop/retarget/dismount/area change cancels it.
-                pendingDoorSettlement?.Cancel("superseded by a later door interaction");
+                CancelPendingDoorSettlement("superseded by a later door interaction");
                 pendingDoorSettlement = outcome.Settlement;
                 DoorOccupancyRecoveryCount++;
             }

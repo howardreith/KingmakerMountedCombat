@@ -281,10 +281,20 @@ namespace KingmakerMountedCombat.Integration
                 interactionCount++;
                 var openBefore = door.GetState();
                 door.Interact(rider);
-                ObserveImmediateOccupancy();
-                // The native action is complete here. The door's collision change lands on a later frame; the owned
-                // settlement waits for it, samples the pair's footprint and recovers through one owned native move.
-                Settlement = new MountedDoorOccupancySettlement(relationship, rider, mount, door, door.GetState() != openBefore ? door.GetState() : !openBefore, logger, outcome);
+                // The native action is complete here; nothing after the interaction may turn it into a failure.
+                try
+                {
+                    ObserveImmediateOccupancy();
+                    // The door's collision change lands on a later frame; the owned settlement waits for it, samples the
+                    // pair's footprint and recovers through one owned native move.
+                    Settlement = new MountedDoorOccupancySettlement(relationship, rider, mount, door,
+                        door.GetState() != openBefore ? door.GetState() : !openBefore, logger, outcome, NativePartnerMovement, MovementOpportunity);
+                }
+                catch (Exception settlementException)
+                {
+                    logger.Exception("Mounted door occupancy settlement setup", settlementException);
+                    occupancyRecovery = "settlement-unavailable: " + settlementException.GetType().Name;
+                }
                 return ResultType.Success;
             }
             catch (Exception exception)
@@ -300,6 +310,12 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 StopDelegatedMove();
+            }
+            catch (Exception exception)
+            {
+                // The native Interrupt/Run caller must not see a cleanup fault; it is recorded on the outcome.
+                terminalReason = terminalReason ?? exception.GetType().Name + ": " + exception.Message;
+                logger.Exception("Mounted door interaction cleanup", exception);
             }
             finally
             {
@@ -363,7 +379,10 @@ namespace KingmakerMountedCombat.Integration
         {
             var position = mount.Position;
             var now = GameTime;
-            var approachRunning = delegatedMove != null && delegatedMove.IsStarted && !delegatedMove.IsFinished;
+            // A native UnitMoveTo travels UNSTARTED (the action controller approaches it and starts it only inside its
+            // radius), so "running" is the live delegated move still owning the mount's Move slot, never IsStarted.
+            var approachRunning = delegatedMove != null && !delegatedMove.IsFinished && mount.Commands != null &&
+                ReferenceEquals(mount.Commands.GetCommand(CommandType.Move), delegatedMove);
             // The clock follows the actual mode and the mount's movement opportunity (MountedDoorApproachPolicy
             // .StallClockRuns), not the paired-activation toggle: a real-time approach with paired activation on
             // still times out on genuine no-progress; an off-turn or budget-exhausted turn-based mount never does.
@@ -382,6 +401,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 lastSampledMountPosition = position;
                 stalledGameSeconds = 0f;
+                return;
+            }
+            // A gap longer than one tick (turn-based: the ticks stop between the rider's turns) is re-sampled, never charged.
+            if (elapsed > MountedDoorApproachPolicy.MaximumTickGapSeconds)
+            {
                 return;
             }
             stalledGameSeconds += Math.Max(0f, elapsed);

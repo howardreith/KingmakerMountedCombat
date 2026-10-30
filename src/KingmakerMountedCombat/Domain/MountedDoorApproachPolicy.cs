@@ -51,6 +51,8 @@ namespace KingmakerMountedCombat.Domain
         public const float RecoveryRadiusMetres = 1.5f;
         // Displacement below this is "still" for the stall clock.
         public const float DisplacementEpsilonMetres = 0.02f;
+        // A longer gap between two stall samples is a pause in ticking (turn-based rounds), re-sampled rather than charged.
+        public const float MaximumTickGapSeconds = 0.5f;
 
         public static MountedDoorAdmissionDisposition DecideAdmission(
             bool otherPairCommandActive,

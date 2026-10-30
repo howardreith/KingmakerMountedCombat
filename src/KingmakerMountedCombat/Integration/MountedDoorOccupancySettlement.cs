@@ -77,6 +77,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly bool expectedDoorOpen;
         private readonly IModLogger logger;
         private readonly MountedDoorInteractionOutcome outcome;
+        // Turn-based combat: the recovery move is ticked natively only under paired activation (the unified turn
+        // coordinator); without it nothing drives a mount move off the rider's own command, so recovery is refused.
+        private readonly bool turnBasedRecoveryDrivenNatively;
+        private readonly Func<bool> movementOpportunity;
         private readonly TimeSpan began;
         private int phase;
         private int settledFrame = -1;
@@ -93,8 +97,12 @@ namespace KingmakerMountedCombat.Integration
             StandardDoor door,
             bool expectedDoorOpen,
             IModLogger logger,
-            MountedDoorInteractionOutcome outcome)
+            MountedDoorInteractionOutcome outcome,
+            bool turnBasedRecoveryDrivenNatively,
+            Func<bool> movementOpportunity)
         {
+            this.turnBasedRecoveryDrivenNatively = turnBasedRecoveryDrivenNatively;
+            this.movementOpportunity = movementOpportunity;
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             pairOwner = relationship.PairOwner;
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
@@ -205,7 +213,7 @@ namespace KingmakerMountedCombat.Integration
             outcome.RecoveryCandidateReasons = Summarize(reasons);
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             var turnBased = CombatController.IsInTurnBasedCombat();
-            var riderTurnActing = turn != null && turn.Unit == rider && turn.IsActing;
+            var riderTurnActing = turn != null && turn.Unit == rider && turn.IsActing && turnBasedRecoveryDrivenNatively;
             var mountIdle = mount.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0;
             var disposition = MountedDoorOccupancyPolicy.DecideRecovery(sample.IsClear, admitted, turnBased, riderTurnActing, mountIdle);
             outcome.RecoveryDisposition = disposition.ToString();
@@ -291,11 +299,15 @@ namespace KingmakerMountedCombat.Integration
             {
                 var elapsed = (float)(now - lastSampleGameTime).TotalSeconds;
                 lastSampleGameTime = now;
+                // The same clock rule as the approach: real time counts stillness; turn-based combat only on frames the
+                // native movement override admitted the mount; a pause or a tick gap is re-sampled, never charged.
+                var clockRuns = MountedDoorApproachPolicy.StallClockRuns(owned && !move.IsFinished, Game.Instance.IsPaused,
+                    CombatController.IsInTurnBasedCombat(), movementOpportunity == null || movementOpportunity());
                 if (MountedFootprintProbe.Horizontal(position, lastSampledPosition) >= MountedDoorOccupancyPolicy.DisplacementEpsilonMetres)
                 {
                     lastSampledPosition = position; stalledSeconds = 0f;
                 }
-                else if (!Game.Instance.IsPaused)
+                else if (clockRuns && elapsed <= MountedDoorApproachPolicy.MaximumTickGapSeconds)
                 {
                     stalledSeconds += Math.Max(0f, elapsed);
                 }
@@ -318,15 +330,20 @@ namespace KingmakerMountedCombat.Integration
         {
             var move = recoveryMove;
             if (move == null) return;
-            if (!move.IsFinished) move.Interrupt(false);
-            if (mount.Commands != null && mount.Commands.Contains(move) && mount.Commands.Queue.Count == 0)
+            var commands = mount.Commands;
+            var slot = commands?.GetCommand(UnitCommand.CommandType.Move);
+            // Only the mod's own move is touched: when another command (a native order, AI, a cutscene) now holds the
+            // slot, the agent is theirs and is left alone.
+            var slotOursOrEmpty = slot == null || ReferenceEquals(slot, move);
+            if (!move.IsFinished && ReferenceEquals(slot, move)) move.Interrupt(false);
+            if (slotOursOrEmpty && commands != null && commands.Contains(move) && commands.Queue.Count == 0)
             {
-                mount.Commands.RemoveFinishedAndUpdateQueue();
+                commands.RemoveFinishedAndUpdateQueue();
             }
-            mount.View?.StopMoving();
-            outcome.MountMoveSlotRestored = mount.Commands != null &&
-                mount.Commands.GetCommand(UnitCommand.CommandType.Move) == null &&
-                !mount.Commands.Contains(move) && mount.Commands.Queue.Count == 0;
+            if (slotOursOrEmpty) mount.View?.StopMoving();
+            outcome.MountMoveSlotRestored = commands != null &&
+                commands.GetCommand(UnitCommand.CommandType.Move) == null &&
+                !commands.Contains(move) && commands.Queue.Count == 0;
             recoveryMove = null;
         }
 
