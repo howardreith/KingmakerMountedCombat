@@ -329,6 +329,25 @@ function New-DoorV4Fixture(){
     return $copy
 }
 $doorV4=New-DoorV4Fixture
+# v4 layout restore (r08 correction): optional block; each pair's ordinary move back toward its pre-setup start.
+function New-DoorV4LayoutFixture(){
+    $copy=Copy-TestValue $doorV4;$d=$copy.observations.door
+    $moveA=[pscustomobject]@{pair=0;preSetupStart=(New-TestPoint 0 0 0);positionBefore=(New-TestPoint -12 0 0);distanceToStartBefore=12.0;goalSearch=(New-TestGoalSearch (New-TestPoint -12 0 0) (New-TestPoint 1 0 0) 12.0 (New-TestPoint -0.5 0 0) 10.5);goal=(New-TestPoint -0.5 0 0);command=1840;applicable=$true;positionAfter=(New-TestPoint -0.5 0 0);distanceToStartAfter=0.5;result='Success'}
+    $moveB=[pscustomobject]@{pair=1;preSetupStart=(New-TestPoint 8 0 0);positionBefore=(New-TestPoint 8.4 0 0);distanceToStartBefore=0.4;applicable=$false;reason='already within 1.5 m of the pre-setup start';positionAfter=(New-TestPoint 8.4 0 0);distanceToStartAfter=0.4}
+    $d|Add-Member layoutRestore ([pscustomobject]@{applicable=$true;moves=@($moveA,$moveB)})
+    $copy.observations.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1840;finished=$true;hasExecutionProcess=$false;processEnded=$true})
+    return $copy
+}
+$doorV4Layout=New-DoorV4LayoutFixture
+Check 'v4 door with the layout restored toward the pre-setup starts' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4Layout) 'PASS'}
+$layoutMutations=@(
+ @('v4 layout restore move failed',{param($v)$v.observations.door.layoutRestore.moves[0].result='Interrupt'}),
+ @('v4 layout restore ending farther from the start',{param($v)$v.observations.door.layoutRestore.moves[0].distanceToStartAfter=13.0}),
+ @('v4 layout restore applicability disagreeing with its moves',{param($v)$v.observations.door.layoutRestore.applicable=$false}),
+ @('v4 layout restore with one move only',{param($v)$v.observations.door.layoutRestore.moves=@($v.observations.door.layoutRestore.moves[0])}),
+ @('v4 layout restore move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1840)})
+)
+foreach($mutation in $layoutMutations){$copy=Copy-TestValue $doorV4Layout;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Check 'v4 door with unmounted control, endpoint neighbor, Stop control and clear settled footprints' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4) 'PASS'}
 Check 'v4 door with one completed owned recovery that left the footprint clear' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
     $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'

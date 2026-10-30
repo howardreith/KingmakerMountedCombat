@@ -8,6 +8,9 @@ function Test-KmcPersistenceAreasIsolationSelection {
     if($ObserveWorkingDeserialization){return $false}
     if($Scenario-ceq'chunk7-stock-mammoth-fixture-preparation'){return $true}
     if($Scenario-ceq'persistence-p07-load'){return $true}
+    # Sprint 2 (r07): the Working-fixture traversal suite loads from the live profile, and the engine unpacks the
+    # loaded archive into the profile's Areas tree; the isolation holds the intake tree and quarantines the generated one.
+    if($Scenario-ceq'chunk4-traversal-core'){return $true}
     if($Scenario-ceq'persistence-p07-save'){
         return ($OwnerStockRemoval -and $PersistenceCase-ceq'prepare-removal') -or
             $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')

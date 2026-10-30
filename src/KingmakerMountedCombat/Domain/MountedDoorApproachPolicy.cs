@@ -26,6 +26,20 @@ namespace KingmakerMountedCombat.Domain
         RejectMountBusy
     }
 
+    // Review correction B: the two-phase admission plan. Phase one evaluates every gate without touching the
+    // existing operation; only an admissible plan mutates (cancels the recovery, interrupts the active door or the
+    // mount's move) and installs the new command. A click forbidden by the turn gate cancels nothing.
+    public enum MountedDoorAdmissionPlan
+    {
+        Admit,
+        ReplaceRecovery,
+        ReplaceActiveDoor,
+        ReplaceMountMovement,
+        RetainSameDoor,
+        RejectWrongTurn,
+        Reject
+    }
+
     public enum MountedDoorOccupancyDisposition
     {
         // The mount's logical position is on the navmesh after the door changed state.
@@ -85,6 +99,32 @@ namespace KingmakerMountedCombat.Domain
                     : MountedDoorAdmissionDisposition.RejectMountBusy;
             }
             return MountedDoorAdmissionDisposition.Admit;
+        }
+
+        public static MountedDoorAdmissionPlan PlanAdmission(
+            MountedDoorAdmissionDisposition disposition, bool mountBusyOnlyWithOwnRecovery, bool turnAdmissible)
+        {
+            if (!turnAdmissible)
+            {
+                return MountedDoorAdmissionPlan.RejectWrongTurn;
+            }
+            switch (disposition)
+            {
+                case MountedDoorAdmissionDisposition.Admit: return MountedDoorAdmissionPlan.Admit;
+                case MountedDoorAdmissionDisposition.RetainActiveSameDoor: return MountedDoorAdmissionPlan.RetainSameDoor;
+                case MountedDoorAdmissionDisposition.ReplaceActiveDoor: return MountedDoorAdmissionPlan.ReplaceActiveDoor;
+                case MountedDoorAdmissionDisposition.ReplaceMountMovement: return MountedDoorAdmissionPlan.ReplaceMountMovement;
+                case MountedDoorAdmissionDisposition.RejectMountBusy:
+                    return mountBusyOnlyWithOwnRecovery ? MountedDoorAdmissionPlan.ReplaceRecovery : MountedDoorAdmissionPlan.Reject;
+                default: return MountedDoorAdmissionPlan.Reject;
+            }
+        }
+
+        // Whether a plan mutates the existing operation before the new command is installed.
+        public static bool PlanMutates(MountedDoorAdmissionPlan plan)
+        {
+            return plan == MountedDoorAdmissionPlan.Admit || plan == MountedDoorAdmissionPlan.ReplaceRecovery ||
+                plan == MountedDoorAdmissionPlan.ReplaceActiveDoor || plan == MountedDoorAdmissionPlan.ReplaceMountMovement;
         }
 
         public static bool ApproachProgressed(float bestDistanceMetres, float distanceNowMetres, float epsilonMetres)

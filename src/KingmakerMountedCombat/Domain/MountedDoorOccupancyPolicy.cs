@@ -53,7 +53,10 @@ namespace KingmakerMountedCombat.Domain
         // The mount owns another command: nothing is replaced for a recovery.
         RefusedMountBusy,
         // No safe, reachable candidate: reported, never transported.
-        Unrecoverable
+        Unrecoverable,
+        // The door's navmesh change never settled inside the bound: nothing sampled, nothing searched, no move; the
+        // interaction result stands on its own and no collision-safe completion is awarded.
+        Unresolved
     }
 
     public enum MountedDoorRecoveryTerminal
@@ -80,7 +83,8 @@ namespace KingmakerMountedCombat.Domain
         public static readonly float[] RecoveryRings = { 0.5f, 1.0f, 1.5f, 2.0f, 2.5f };
         public const int RecoveryBearings = 16;
         public static int RecoveryCandidateCount => RecoveryRings.Length * RecoveryBearings;
-        // Game seconds the settlement waits for the door's navmesh change before evaluating anyway.
+        // Game seconds the settlement waits for the door's navmesh change; past it the settlement ends Unresolved
+        // (MountedDoorSettlementLifecycle): no sample, no search, no move on an unconfirmed graph.
         public const float SettleGameSecondsLimit = 3f;
         // Game seconds a running recovery move may hold the mount still before it is interrupted.
         public const float RecoveryStallSecondsLimit = 4f;
@@ -157,6 +161,7 @@ namespace KingmakerMountedCombat.Domain
                 case MountedDoorRecoveryDisposition.Admitted: return "repath";
                 case MountedDoorRecoveryDisposition.RefusedTurn: return "repath-refused-turn";
                 case MountedDoorRecoveryDisposition.RefusedMountBusy: return "repath-refused-mount-busy";
+                case MountedDoorRecoveryDisposition.Unresolved: return "unresolved";
                 default: return "unrecoverable";
             }
         }

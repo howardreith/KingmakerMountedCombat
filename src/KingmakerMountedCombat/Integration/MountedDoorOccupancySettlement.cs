@@ -82,8 +82,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly bool turnBasedRecoveryDrivenNatively;
         private readonly Func<bool> movementOpportunity;
         private readonly TimeSpan began;
+        private readonly MountedDoorSettlementLifecycle lifecycle = new MountedDoorSettlementLifecycle(MountedDoorOccupancyPolicy.SettleGameSecondsLimit);
         private int phase;
-        private int settledFrame = -1;
         private UnitMoveTo recoveryMove;
         private Vector3 lastSampledPosition;
         private bool positionSampled;
@@ -166,59 +166,69 @@ namespace KingmakerMountedCombat.Integration
 
         private void WaitForSettledNavmesh()
         {
-            var elapsed = (float)(GameTime - began).TotalSeconds;
+            var elapsed = (GameTime - began).TotalSeconds;
             var settled = MountedDoorOccupancyPolicy.NavmeshSettled(
                 door.GetState() == expectedDoorOpen,
                 cut != null && cut.RequiresUpdate(),
                 AstarPath.active != null && AstarPath.active.IsAnyGraphUpdatesQueued,
                 Time.frameCount > Pathfinding.Util.TileHandler.LastUpdateFrame);
-            if (settled)
+            var step = lifecycle.Observe(settled, Math.Max(0d, elapsed), Time.frameCount);
+            if (step == MountedDoorSettlementStep.Waiting) return;
+            outcome.OccupancySettled = lifecycle.Settled;
+            outcome.OccupancySettleGameSeconds = (float)lifecycle.ElapsedSeconds;
+            if (step == MountedDoorSettlementStep.Unresolved)
             {
-                if (settledFrame < 0) { settledFrame = Time.frameCount; return; }
-                if (Time.frameCount <= settledFrame) return;
-                outcome.OccupancySettled = true;
+                // Review correction A: the graph never confirmed inside the bound. Nothing is sampled or searched and no
+                // move is issued on it; the door's own interaction result stands separately on the outcome.
+                var unresolved = MountedDoorSettlementLifecycle.Resolve(step, SampleCurrentFootprint, () => false, false, false, false);
+                outcome.RecoveryDisposition = unresolved.Disposition.ToString();
+                outcome.OccupancyRecovery = MountedDoorOccupancyPolicy.LegacyRecoveryWord(unresolved.Disposition);
+                outcome.FootprintClear = null;
+                logger.Warning("Mounted door occupancy unresolved: the door's navmesh change did not settle within " +
+                    MountedDoorOccupancyPolicy.SettleGameSecondsLimit + " game seconds; mountId=" + mount.UniqueId +
+                    "; no footprint sample, no recovery (the interaction result is recorded separately).");
+                Finish();
+                return;
             }
-            else
-            {
-                settledFrame = -1;
-                if (elapsed <= MountedDoorOccupancyPolicy.SettleGameSecondsLimit) return;
-                outcome.OccupancySettled = false;
-            }
-            outcome.OccupancySettleGameSeconds = elapsed;
-            EvaluateFootprint();
+            EvaluateFootprint(step);
         }
 
-        private void EvaluateFootprint()
+        private MountedFootprintSample SampleCurrentFootprint()
+        {
+            return MountedFootprintProbe.Sample(mount.Position, Corpulence());
+        }
+
+        private void EvaluateFootprint(MountedDoorSettlementStep step)
         {
             var position = mount.Position;
             var corpulence = Corpulence();
-            var sample = MountedFootprintProbe.Sample(position, corpulence);
+            var nearest = ObstacleAnalyzer.GetNearestNode(position);
+            Vector3 destination = position;
+            var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
+            var evaluated = 0;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var riderTurnActing = turn != null && turn.Unit == rider && turn.IsActing && turnBasedRecoveryDrivenNatively;
+            var mountIdle = mount.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0;
+            // The sampler and the candidate search run only here, on the confirmed graph (MountedDoorSettlementLifecycle).
+            var verdict = MountedDoorSettlementLifecycle.Resolve(step,
+                () => MountedFootprintProbe.Sample(position, corpulence),
+                () => SearchRecoveryDestination(position, corpulence, nearest, reasons, out destination, out evaluated),
+                turnBased, riderTurnActing, mountIdle);
+            var sample = verdict.Sample;
             outcome.MountCorpulence = corpulence;
             outcome.FootprintClear = sample.IsClear;
             outcome.FootprintRingInside = sample.RingInside;
             outcome.FootprintRingReachable = sample.RingReachable;
             outcome.OccupancyInsideNavmesh = sample.CenterInside;
-            var nearest = ObstacleAnalyzer.GetNearestNode(position);
             outcome.OccupancyNearestNodeDistance = nearest.node != null && nearest.node.Walkable
                 ? MountedFootprintProbe.Horizontal(position, nearest.clampedPosition) : float.PositiveInfinity;
-            Vector3 destination = position;
-            var admitted = false;
-            var reasons = new Dictionary<string, int>(StringComparer.Ordinal);
-            var evaluated = 0;
-            if (!sample.IsClear)
-            {
-                admitted = SearchRecoveryDestination(position, corpulence, nearest, reasons, out destination, out evaluated);
-            }
             outcome.RecoveryCandidatesEvaluated = evaluated;
             outcome.RecoveryCandidateReasons = Summarize(reasons);
-            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            var turnBased = CombatController.IsInTurnBasedCombat();
-            var riderTurnActing = turn != null && turn.Unit == rider && turn.IsActing && turnBasedRecoveryDrivenNatively;
-            var mountIdle = mount.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0;
-            var disposition = MountedDoorOccupancyPolicy.DecideRecovery(sample.IsClear, admitted, turnBased, riderTurnActing, mountIdle);
+            var disposition = verdict.Disposition;
             outcome.RecoveryDisposition = disposition.ToString();
             outcome.OccupancyRecovery = MountedDoorOccupancyPolicy.LegacyRecoveryWord(disposition);
-            if (disposition != MountedDoorRecoveryDisposition.Admitted)
+            if (!verdict.MoveAuthorized)
             {
                 if (disposition != MountedDoorRecoveryDisposition.NotNeeded)
                 {
