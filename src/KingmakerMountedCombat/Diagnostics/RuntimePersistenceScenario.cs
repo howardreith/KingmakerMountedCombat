@@ -290,15 +290,57 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe = new MountedCombatRuleProbe();
                 ruleProbe.Arm(rider, mount, rider, target);
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                // Derive the pair's first actor from the same native readiness the product's stock policy reads
+                // at this click; a rider carrying restored Standard debt is not ready and the mount goes first.
+                var riderReady = rider.HasStandardAction(); var mountReady = mount.HasStandardAction();
+                var riderWeapon = rider.Body?.PrimaryHand?.MaybeWeapon?.Blueprint;
+                var riderRanged = riderWeapon != null && riderWeapon.IsRanged;
+                var decision = UnifiedMountedStockAttackPolicy.DecideNext(true, true, combat.HasActiveCommand, false, riderReady, mountReady, riderRanged, false);
+                var riderCooldown = rider.CombatState?.Cooldown?.StandardAction ?? 0f; var mountCooldown = mount.CombatState?.Cooldown?.StandardAction ?? 0f;
+                expectMountFirst = decision == MountedStockAttackDecision.DispatchMount ||
+                    (decision == MountedStockAttackDecision.Wait && !riderRanged && mountCooldown < riderCooldown);
+                attackDispatch = new JObject
+                {
+                    ["riderHasStandardAction"] = riderReady, ["mountHasStandardAction"] = mountReady, ["riderRanged"] = riderRanged,
+                    ["riderStandardCooldown"] = riderCooldown, ["mountStandardCooldown"] = mountCooldown,
+                    ["policyDecision"] = decision.ToString(), ["expectedFirstActor"] = expectMountFirst ? "mount" : "rider",
+                    ["pairCommandActive"] = combat.HasActiveCommand, ["riderDispatchesBefore"] = combat.StockAttackRiderDispatchCount,
+                    ["mountDispatchesBefore"] = combat.StockAttackMountDispatchCount, ["targetId"] = target.UniqueId
+                };
+                attackTimeline = new JArray(); attackTimelineLastTicks = 0; mountStandardPeakAfterUnexpected = 0f;
                 using (var input = new NativeOrdinaryAttackInput(target)) Check(input.Click(), "ordinary-attack-input");
-                Write("attack-dispatched"); stage = 5; return;
+                SampleAttackTimeline(true);
+                Write("attack-dispatched", attackDispatch); stage = 5; return;
             }
             if (stage == 5)
             {
                 targetService.RefreshBidirectionalCombatMemoryLease();
+                SampleAttackTimeline(false);
                 if (ruleProbe.AttackRuleCount < 1 || ruleProbe.AttackRollCount < 1) return;
-                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetService.TargetId &&
-                    ruleProbe.UnexpectedPairAttackCount == 0, "native-ordinary-attack-delivered");
+                SampleAttackTimeline(true);
+                var targetId = targetService.TargetId;
+                var firstUnexpected = ruleProbe.FirstUnexpectedPairAttack;
+                // The rider's own ordinary attack: exactly one rule and one roll against the clicked target.
+                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetId &&
+                    ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1, "native-ordinary-attack-delivered");
+                // The pair order the product's policy decided at the click: no other pair attack before the rider's
+                // when the rider was ready; exactly one mount primary natural attack (a pair-owned command, not an
+                // attack of opportunity, charge or AI action, with the mount's AI lease still disabled) when it was not.
+                Check(expectMountFirst
+                    ? ruleProbe.UnexpectedPairAttackCount == 1 && firstUnexpected != null && firstUnexpected.InitiatorId == mount.UniqueId &&
+                        firstUnexpected.TargetId == targetId && !firstUnexpected.IsAttackOfOpportunity && !firstUnexpected.IsCharge &&
+                        !firstUnexpected.InitiatorAiEnabled && firstUnexpected.CommandAiActionBlueprintId == null &&
+                        combat.StockAttackMountDispatchCount >= 1 && combat.StockAttackRiderDispatchCount == 1
+                    : ruleProbe.UnexpectedPairAttackCount == 0 && combat.StockAttackRiderDispatchCount == 1,
+                    "pair-stock-attack-order");
+                Check(combat.StockAttackDuplicateDispatchCount == 0, "pair-stock-attack-no-duplicate-dispatch");
+                // Native expenditure, never refunded: the rider's Standard is spent at its own attack; when the mount
+                // went first its Standard was spent by that attack (observed after the rule or on the timeline).
+                Check((rider.CombatState?.Cooldown?.StandardAction ?? 0f) > 0f &&
+                    (!expectMountFirst || firstUnexpected.StandardCooldownAfter > 0f || mountStandardPeakAfterUnexpected > 0f),
+                    "pair-stock-attack-expenditure");
+                Check(relationship.State == RelationshipState.Mounted && relationship.Rider == rider && relationship.Mount == mount,
+                    "pair-authority-retained-through-attack");
                 Write("attack-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
                     ["rolls"] = ruleProbe.AttackRollCount, ["damage"] = ruleProbe.TotalDamage });
                 SelectionManager.Instance.Stop();
@@ -491,6 +533,73 @@ namespace KingmakerMountedCombat.Diagnostics
             throw new InvalidOperationException("No native walkable destination exists for the owned P01 fixture.");
         }
 
+        // Sprint 1 UPG-01 (iteration 7): the stock hostile click is a PAIR command. Its first actor is decided by
+        // the product's own policy from native readiness at the click (a rider restored with Standard debt is not
+        // ready, so the mount's primary natural attack goes first). The expectation is derived from those inputs
+        // here, recorded with them, and the pair's attack rules are observed passively (probe events, the target's
+        // own first-incoming-attack snapshot, the controller's dispatch counters and a bounded timeline).
+        private JObject attackDispatch;
+        private JArray attackTimeline;
+        private long attackTimelineLastTicks;
+        private bool expectMountFirst;
+        private float mountStandardPeakAfterUnexpected;
+
+        private JObject AttackActorState(UnitEntityData unit)
+        {
+            var command = unit?.Commands?.Standard;
+            return unit == null ? null : new JObject
+            {
+                ["id"] = unit.UniqueId, ["hasStandardAction"] = unit.HasStandardAction(),
+                ["standardCooldown"] = unit.CombatState?.Cooldown?.StandardAction,
+                ["aiEnabled"] = unit.IsAIEnabled, ["commandsEmpty"] = unit.Commands?.Empty,
+                ["command"] = command?.GetType().Name, ["commandCreatedByPlayer"] = command?.CreatedByPlayer,
+                ["commandAiAction"] = command?.AiAction?.AssetGuid, ["commandStarted"] = command?.IsStarted,
+                ["commandActed"] = command?.IsActed, ["commandFinished"] = command?.IsFinished,
+                ["commandTarget"] = command?.TargetUnit?.UniqueId
+            };
+        }
+
+        private void SampleAttackTimeline(bool force)
+        {
+            if (ruleProbe == null || targetService?.Target == null || attackTimeline == null) return;
+            var ticks = Game.Instance?.TimeController?.GameTime.Ticks ?? 0;
+            if (!force && (attackTimeline.Count >= 24 || ticks - attackTimelineLastTicks < TimeSpan.TicksPerSecond)) return;
+            attackTimelineLastTicks = ticks;
+            if (ruleProbe.FirstUnexpectedPairAttack != null)
+                mountStandardPeakAfterUnexpected = Math.Max(mountStandardPeakAfterUnexpected, mount.CombatState?.Cooldown?.StandardAction ?? 0f);
+            attackTimeline.Add(new JObject
+            {
+                ["ticks"] = ticks, ["rider"] = AttackActorState(rider), ["mount"] = AttackActorState(mount),
+                ["mountTargetDistance"] = GeometryUtils.MechanicsDistance(mount.Position, targetService.Target.Position),
+                ["rules"] = ruleProbe.AttackRuleCount, ["rolls"] = ruleProbe.AttackRollCount, ["unexpected"] = ruleProbe.UnexpectedPairAttackCount,
+                ["pairRules"] = ruleProbe.ObservedPairRuleCount, ["activeCommand"] = combat.HasActiveCommand,
+                ["riderDispatches"] = combat.StockAttackRiderDispatchCount, ["mountDispatches"] = combat.StockAttackMountDispatchCount,
+                ["stockObservation"] = combat.LastStockAttackObservation, ["partyCombat"] = Game.Instance?.Player?.IsInCombat
+            });
+        }
+
+        private JObject CurrentAttackObservation()
+        {
+            if (ruleProbe == null) return null;
+            var serializer = MountedSaveCodec.CreateSerializer();
+            return new JObject
+            {
+                ["dispatch"] = attackDispatch, ["expectMountFirst"] = expectMountFirst,
+                ["rules"] = ruleProbe.AttackRuleCount, ["rolls"] = ruleProbe.AttackRollCount, ["damageRules"] = ruleProbe.DamageRuleCount,
+                ["unexpectedPairAttacks"] = ruleProbe.UnexpectedPairAttackCount, ["observedPairRules"] = ruleProbe.ObservedPairRuleCount,
+                ["lastInitiator"] = ruleProbe.LastInitiatorId, ["lastTarget"] = ruleProbe.LastTargetId,
+                ["lastResult"] = ruleProbe.LastAttackResult, ["lastHit"] = ruleProbe.LastAttackHit, ["totalDamage"] = ruleProbe.TotalDamage,
+                ["firstExpected"] = ruleProbe.FirstExpectedAttack == null ? null : JObject.FromObject(ruleProbe.FirstExpectedAttack, serializer),
+                ["firstUnexpected"] = ruleProbe.FirstUnexpectedPairAttack == null ? null : JObject.FromObject(ruleProbe.FirstUnexpectedPairAttack, serializer),
+                ["events"] = new JArray(ruleProbe.Events.Select(e => JObject.FromObject(e, serializer))),
+                ["targetIncomingRules"] = targetService?.IncomingAttackRuleCount, ["targetPreDispatchRules"] = targetService?.PreDispatchIncomingAttackRuleCount,
+                ["targetFirstIncoming"] = targetService?.FirstIncomingAttack == null ? null : JObject.FromObject(targetService.FirstIncomingAttack, serializer),
+                ["riderDispatches"] = combat.StockAttackRiderDispatchCount, ["mountDispatches"] = combat.StockAttackMountDispatchCount,
+                ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount, ["stockObservation"] = combat.LastStockAttackObservation,
+                ["mountStandardPeakAfterUnexpected"] = mountStandardPeakAfterUnexpected, ["timeline"] = attackTimeline
+            };
+        }
+
         private void Check(bool condition, string label)
         {
             if (!condition) { Write("assertion-failed", new JObject { ["assertion"] = label }); throw new InvalidOperationException(label); }
@@ -533,6 +642,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["targetLife"] = targetLife == null ? null : JObject.FromObject(targetLife, MountedSaveCodec.CreateSerializer()) },
                 ["persistence"] = new JObject { ["semantics"] = persistence.SemanticRestoreCount,
                     ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback },
+                ["attack"] = CurrentAttackObservation(),
                 ["detail"] = detail
             };
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
