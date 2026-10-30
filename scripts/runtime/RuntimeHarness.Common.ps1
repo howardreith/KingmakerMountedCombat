@@ -3966,7 +3966,10 @@ function Get-KmcModsRuntimeWriteClassification {
         [AllowEmptyCollection()][object[]]$RetainedDependencies = @())
     $carriedByPath = @{}
     $dependencyRoots = @($RetainedDependencies | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_.id + '/' })
-    $isDependencyRuntimePath = { param([string]$Path) foreach ($root in $dependencyRoots) { if ($Path.StartsWith($root, [StringComparison]::Ordinal)) { $leaf = [IO.Path]::GetFileName($Path); return -not ($leaf -imatch '\.dll$' -or $leaf -ieq 'Info.json') } }; return $false }
+    # Executable-derived paths never reach this exception: the assembly, Info.json, anything named after a DLL
+    # ('<name>.dll.<digits>.cache' and any other '<name>.dll.*') and any '*.cache'. A UMM loader cache is accepted
+    # only by the byte-copy rule below, so a mismatching or orphaned cache stays unexpected.
+    $isDependencyRuntimePath = { param([string]$Path) foreach ($root in $dependencyRoots) { if ($Path.StartsWith($root, [StringComparison]::Ordinal)) { $leaf = [IO.Path]::GetFileName($Path); return -not ($leaf -imatch '\.dll(\.|$)' -or $leaf -imatch '\.cache$' -or $leaf -ieq 'Info.json') } }; return $false }
     foreach ($c in @($CarriedFiles | Where-Object { $null -ne $_ })) { $carriedByPath[('file|KingmakerMountedCombat/' + [string]$c.name)] = $c }
     $staged = @{}; $runtime = @{}
     foreach ($entry in $StagedEntries) { $staged[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
