@@ -266,6 +266,7 @@ namespace KingmakerMountedCombat.Integration
                         MountedCombatRejectionCode.CommandAdmissionFailure);
                 }
 
+                CancelPendingDoorSettlement("mounted charge admitted");
                 activeCommand = command;
                 unifiedTurn.RememberPairedMovementInput();
                 LastOutcome = null;
