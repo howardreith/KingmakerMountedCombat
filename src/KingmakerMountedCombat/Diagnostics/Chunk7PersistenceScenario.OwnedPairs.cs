@@ -127,14 +127,19 @@ namespace KingmakerMountedCombat.Diagnostics
             inherited.RequirePreserved();
             object operation; SaveInfo requested, prepared;
             persistence.ObserveActiveSaveHeader(out operation, out requested, out prepared);
+            // An overwrite's prepared copy is written at the reserved staging leaf and moved onto the
+            // existing leaf by the engine's replacement; a first-ever Auto is prepared at the output leaf.
+            var preparedLeaf = AreaOverwriteCase && prepared != null && prepared.FileName == replaySaveAuthority.OwnedPairsReplacementLeaf
+                ? replaySaveAuthority.OwnedPairsReplacementLeaf : replaySaveAuthority.OwnedPairsOutputLeaf;
             Require(operation != null && requested != null && prepared != null && !ReferenceEquals(requested, prepared) &&
                 !ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
                 !ReferenceEquals(prepared, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
+                (!AreaOverwriteCase || ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSeedDescriptor) && ReferenceEquals(requested, areaExistingSlot) && requested.IsActuallySaved) &&
                 requested.Type == SaveInfo.SaveType.Auto && prepared.Type == SaveInfo.SaveType.Auto &&
                 requested.Name == NativeName(SaveInfo.SaveType.Auto) && prepared.Name == requested.Name &&
-                prepared.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
+                prepared.FileName == preparedLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
                 prepared.GameName == request.PersistenceLoad.GameName && prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
-                !prepared.IsAutoLevelupSave && prepared.FolderName != null && Path.GetFullPath(prepared.FolderName) == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
+                !prepared.IsAutoLevelupSave && prepared.FolderName != null && Path.GetFullPath(prepared.FolderName) == Path.Combine(replaySaveAuthority.Root, preparedLeaf),
                 "Owned area autosave changed its exact native request, prepared copy, category, destination or path.");
             if (!staged)
             {

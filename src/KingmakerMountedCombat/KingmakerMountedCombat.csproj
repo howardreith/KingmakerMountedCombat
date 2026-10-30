@@ -2,6 +2,7 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Compile Include="Diagnostics\Chunk7SmallFixtureSelection.cs" />
+    <Compile Include="Diagnostics\NativeEngineLogTail.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.ThirdHorse.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPair.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPairSiblings.cs" />

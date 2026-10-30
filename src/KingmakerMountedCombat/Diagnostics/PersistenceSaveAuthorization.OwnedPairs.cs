@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private string ownedPairsOutputLeaf, ownedPairsOutputName, ownedPairsOutputType;
         private string ownedPairsReplacementLeaf;
         private object ownedPairsSeedDescriptor;
+        // True from a replacement reservation until the engine's replacement lands on the output.
+        private bool ownedPairsReplacementPending;
         internal string OwnedPairsReplacementLeaf { get { lock (sync) return ownedPairsReplacementLeaf; } }
         private bool OwnedPairsWorkerReplacement => (ownedPairsRequest?.OwnedPairs?.Case == "persistence-save" ||
             ownedPairsRequest?.OwnedPairs?.IsOwnerSeedCheckpointSave == true) &&
@@ -27,10 +29,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool OwnedPairsSlotRotation => ownedPairsRequest?.OwnedPairs?.IsOwnerSeedCheckpointSave == true &&
             Chunk7OwnedPairsSelection.IsSlotRotationCheckpoint(ownedPairsRequest.PersistenceCase) &&
             maximumNativeWriteRequests == Chunk7OwnedPairsSelection.SlotRotationWrites(ownedPairsRequest.PersistenceCase);
-        private bool OwnedPairsReplacementPlan => OwnedPairsWorkerReplacement || OwnedPairsSlotRotation;
+        // Area overwrite (Sprint 1, SAVE-02): the owner-seed area producer admits one pre-existing Auto
+        // slot whose pinned bytes are copied beside the Manual input. Its sole write is the genuine
+        // AfterEntry autosave, which the engine lands as a replacement of that slot: the next-number
+        // staging leaf is written in the destination and moved onto the existing leaf through the
+        // transpiled replacement site. The pinned bytes must be exactly present until the overwrite lands.
+        private bool OwnedPairsAreaOverwrite => ownedPairsRequest?.OwnedPairs?.IsAreaOverwrite(ownedPairsRequest.PersistenceCase) == true &&
+            maximumNativeWriteRequests == 1;
+        private int OwnedPairsReplacementThreshold => OwnedPairsAreaOverwrite ? 0 : 1;
+        private string OwnedPairsExistingHash => ownedPairsRequest?.OwnedPairs?.ExistingAutoSha256;
+        private bool OwnedPairsReplacementPlan => OwnedPairsWorkerReplacement || OwnedPairsSlotRotation || OwnedPairsAreaOverwrite;
         private bool OwnedPairsReplacementReady(RuntimeSaveTarget target) => OwnedPairsReplacementPlan &&
             ownedPairsReplacementLeaf != null && ownedPairsSeedDescriptor != null && target?.FileName == ownedPairsOutputLeaf &&
             MatchesOwnedPairsPlan(true, false);
+        internal object OwnedPairsSeedDescriptor { get { lock (sync) return ownedPairsSeedDescriptor; } }
         internal int OwnedPairsReservationCount { get { lock (sync) return ownedPairsReservations; } }
         internal int OwnedPairsOutputNumber { get { lock (sync) return ownedPairsNumber; } }
         internal string OwnedPairsOutputLeaf { get { lock (sync) return ownedPairsOutputLeaf; } }
@@ -46,7 +58,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 value?.PersistenceAreaTarget?.EnterPoint, value?.PersistenceAreaTarget?.Area, value?.PersistenceAreaTarget?.AutoSaveMode, selected?.CheckpointSourceRunId,
                 selected?.CheckpointSourceArtifactSha256, selected?.RiderAId, selected?.MountAId, selected?.RiderBId, selected?.MountBId,
                 selected?.PartyIds == null ? null : string.Join(",", selected.PartyIds), selected?.BaseGameOnly.ToString(),
-                selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(), source?.FileName,
+                selected?.ExpectedNativeLoadCount.ToString(), selected?.ExpectedNativeWriteCount.ToString(),
+                selected?.ExistingAutoRunId, selected?.ExistingAutoArtifactSha256, selected?.ExistingAutoSha256, source?.FileName,
                 source?.InternalName, source?.GameId, source?.GameName, source?.Area, source?.Sha256, source?.Length.ToString(),
                 source?.LastWriteTimeUtcTicks.ToString(), value?.PersistenceReplayTargets == null ? null :
                 string.Join(";", value.PersistenceReplayTargets.Select(target => target == null ? null :
@@ -193,7 +206,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (maximumNativeWriteRequests == 0)
                     return ownedPairsReservations == 0 && entries.Count == 1 && admittedNativeWriteRequests == 0;
                 if (ownedPairsReservations == 0)
-                    return !requireReserved && entries.Count == 1 && admittedNativeLoadRequests == 0 && admittedNativeWriteRequests == 0;
+                {
+                    if (!OwnedPairsAreaOverwrite)
+                        return !requireReserved && entries.Count == 1 && admittedNativeLoadRequests == 0 && admittedNativeWriteRequests == 0;
+                    // Before reservation the pre-existing slot is a second, read-only, pinned leaf in the
+                    // declared destination beside the immutable input.
+                    Entry existing;
+                    return !requireReserved && entries.Count == 2 && admittedNativeLoadRequests == 0 && admittedNativeWriteRequests == 0 &&
+                        entries.TryGetValue(OwnerSeedAutoLeaf, out existing) && existing.Type == "Auto" && existing.Hash != null &&
+                        existing.Hash == OwnedPairsExistingHash && existing.Area == ownedPairsRequest.ExpectedChunk7ArchiveArea &&
+                        !existing.Writable && !existing.Writing && !existing.Bootstrap && !existing.AdmitsBeforeArea && existing.AdmissionArea == null &&
+                        existing.ForeignGameId == null && existing.ForeignGameName == null;
+                }
                 Entry output;
                 if (ownedPairsReservations != 1 || ownedPairsSourceDescriptor == null || ownedPairsNumber <= 0 || entries.Count != (ownedPairsReplacementLeaf == null ? 2 : 3) ||
                     !entries.TryGetValue(ownedPairsOutputLeaf, out output) || output.Name != ownedPairsOutputName || output.Type != ownedPairsOutputType ||
@@ -203,11 +227,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (ownedPairsReplacementLeaf != null)
                 {
                     Entry stage;
-                    if (!OwnedPairsReplacementPlan || ownedPairsSeedDescriptor == null || requireUnwritten ||
-                        admittedNativeWriteRequests < 1 || !entries.TryGetValue(ownedPairsReplacementLeaf, out stage) ||
+                    if (!OwnedPairsReplacementPlan || ownedPairsSeedDescriptor == null || requireUnwritten && !OwnedPairsAreaOverwrite ||
+                        admittedNativeWriteRequests < OwnedPairsReplacementThreshold || !entries.TryGetValue(ownedPairsReplacementLeaf, out stage) ||
                         stage.Name != output.Name || stage.Type != output.Type || stage.Area != output.Area || !stage.Writable ||
                         stage.Bootstrap || stage.AdmitsBeforeArea || stage.AdmissionArea != null || stage.ForeignGameId != null || stage.ForeignGameName != null || output.Hash == null) return false;
+                    // The area overwrite's staging leaf is reserved before its one write: until that write is
+                    // admitted the existing slot still holds exactly its pinned bytes and the staging leaf is empty.
+                    if (OwnedPairsAreaOverwrite && admittedNativeWriteRequests == 0 && (output.Hash != OwnedPairsExistingHash || stage.Hash != null || stage.Writing)) return false;
                 }
+                if (OwnedPairsAreaOverwrite)
+                    return requireUnwritten ? output.Hash == OwnedPairsExistingHash && !output.Writing && admittedNativeWriteRequests == 0 :
+                        output.Hash == OwnedPairsExistingHash && !output.Writing || admittedNativeWriteRequests >= 1;
                 return requireUnwritten ? output.Hash == null && !output.Writing && admittedNativeWriteRequests == 0 :
                     output.Hash == null && !output.Writing || admittedNativeWriteRequests >= 1;
             }
@@ -228,7 +258,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var again = ownedPairsReplacementLeaf != null;
                 if (!OwnedPairsReplacementPlan || !ReferenceEquals(request, ownedPairsRequest) ||
                     !ReferenceEquals(nativeGame, ownedPairsGame) || !ReferenceEquals(nativeManager, ownedPairsManager) ||
-                    nativeSeed == null || again && !OwnedPairsSlotRotation || admittedNativeLoadRequests != 1 || admittedNativeWriteRequests < 1 ||
+                    nativeSeed == null || again && !OwnedPairsSlotRotation || ownedPairsReplacementPending || admittedNativeLoadRequests != 1 || admittedNativeWriteRequests < 1 ||
                     admittedNativeWriteRequests >= maximumNativeWriteRequests.Value ||
                     !MatchesOwnedPairsPlan(true, false) || seed?.FileName != ownedPairsOutputLeaf || ValidateArchiveIdentity(seed, Root) != null ||
                     ownedPairsNumber == int.MaxValue || number != ownedPairsNumber + 1)
@@ -248,12 +278,50 @@ namespace KingmakerMountedCombat.Diagnostics
                     Entry settled;
                     if (leaf != ownedPairsReplacementLeaf || !entries.TryGetValue(leaf, out settled) || settled.Hash != null || settled.Writing || !settled.Writable)
                         throw new InvalidOperationException("The previous overwrite's staging leaf has not landed on the selected output.");
-                    VerifyFile(leaf, settled); ownedPairsSeedDescriptor = nativeSeed;
+                    VerifyFile(leaf, settled); ownedPairsSeedDescriptor = nativeSeed; ownedPairsReplacementPending = true;
                     return;
                 }
                 var stage = new Entry { Name = output.Name, Type = output.Type, Area = output.Area, Writable = true };
                 VerifyFile(leaf, stage);
-                entries.Add(leaf, stage); ownedPairsSeedDescriptor = nativeSeed; ownedPairsReplacementLeaf = leaf;
+                entries.Add(leaf, stage); ownedPairsSeedDescriptor = nativeSeed; ownedPairsReplacementLeaf = leaf; ownedPairsReplacementPending = true;
+            }
+        }
+        // The pre-existing Auto slot is the area producer's selected output from the start. Its one
+        // admitted write is the engine's replacement of that descriptor: the staging leaf is reserved
+        // now, the existing leaf becomes the writable two-area output (admitted in the departure area,
+        // committed in the destination), and no other leaf is ever writable.
+        internal void ReserveOwnedPairsAreaOverwrite(RuntimeRequest request, object nativeGame, object nativeManager, object nativeSource,
+            RuntimeSaveTarget source, object nativeExisting, RuntimeSaveTarget existing, int stagingNumber)
+        {
+            lock (sync)
+            {
+                if (!OwnedPairsAreaOverwrite || !ReferenceEquals(request, ownedPairsRequest) || !ReferenceEquals(nativeGame, ownedPairsGame) ||
+                    !ReferenceEquals(nativeManager, ownedPairsManager) || nativeSource == null || nativeExisting == null || ReferenceEquals(nativeSource, nativeExisting) ||
+                    ownedPairsReservations != 0 || admittedNativeLoadRequests != 0 || admittedNativeWriteRequests != 0 || !MatchesOwnedPairsPlan(false, true) ||
+                    ValidateArchiveIdentity(source, Root) != null || ValidateArchiveIdentity(existing, Root) != null)
+                    throw new InvalidOperationException("Owned area overwrite reservation lacks exact unchanged request/world/native source and existing-slot custody.");
+                var output = entries[OwnerSeedAutoLeaf];
+                if (existing?.FileName != OwnerSeedAutoLeaf || existing.SaveType != "Auto" || existing.InternalName != ownedPairsExpectedNativeName ||
+                    existing.InternalName != output.Name || existing.Area != request.ExpectedChunk7ArchiveArea || existing.GameId != gameId ||
+                    existing.GameName != gameName || stagingNumber != 2 || output.Hash != OwnedPairsExistingHash || output.Writable || output.Writing)
+                    throw new InvalidOperationException("The pre-existing Auto slot is not the pinned settled archive of this campaign in the declared destination.");
+                var expected = new[] { Path.Combine(Root, request.PersistenceLoad.FileName), Path.Combine(Root, OwnerSeedAutoLeaf) };
+                var paths = Directory.EnumerateFileSystemEntries(Root).ToArray();
+                if (paths.Length != 2 || paths.Any(p => !expected.Contains(p, StringComparer.Ordinal) || Directory.Exists(p)))
+                    throw new InvalidOperationException("Owned area overwrite isolated inventory changed before reservation.");
+                VerifyFile(request.PersistenceLoad.FileName, entries[request.PersistenceLoad.FileName]);
+                VerifyFile(OwnerSeedAutoLeaf, output);
+                var leaf = "Auto_" + stagingNumber.ToString(CultureInfo.InvariantCulture) + ".zks";
+                if (leaf != OwnerSeedStagingLeaf || entries.ContainsKey(leaf)) throw new InvalidOperationException("Owned area overwrite staging leaf is not the exact next native number.");
+                var stage = new Entry { Name = output.Name, Type = output.Type, Area = output.Area, Writable = true };
+                VerifyFile(leaf, stage);
+                // SaveRoutine's Harmony admission runs when LoadArea constructs the iterator in the
+                // departure area; PrepareSave and the commit follow in the destination.
+                output.Writable = true; output.AdmissionArea = request.PersistenceLoad.Area;
+                entries.Add(leaf, stage);
+                ownedPairsSourceDescriptor = nativeSource; ownedPairsSeedDescriptor = nativeExisting; ownedPairsNumber = 1;
+                ownedPairsOutputLeaf = OwnerSeedAutoLeaf; ownedPairsOutputName = output.Name; ownedPairsOutputType = output.Type;
+                ownedPairsReplacementLeaf = leaf; ownedPairsReplacementPending = true; ownedPairsReservations = 1;
             }
         }
         internal void ReserveOwnedPairsOutput(RuntimeRequest request, object nativeGame, object nativeManager, object nativeDescriptor,
@@ -263,7 +331,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!ReferenceEquals(request, ownedPairsRequest) || !ReferenceEquals(nativeGame, ownedPairsGame) ||
                     !ReferenceEquals(nativeManager, ownedPairsManager) || nativeDescriptor == null || (maximumNativeWriteRequests != 1 && !OwnedPairsReplacementPlan) ||
-                    ownedPairsReservations != 0 || !MatchesOwnedPairsPlan(false, true) || ValidateArchiveIdentity(source, Root) != null)
+                    OwnedPairsAreaOverwrite || ownedPairsReservations != 0 || !MatchesOwnedPairsPlan(false, true) || ValidateArchiveIdentity(source, Root) != null)
                     throw new InvalidOperationException("Owned-pair output reservation lacks exact unchanged request/world/native source custody.");
                 var selectedType = request.OwnedPairs.Cold ? "Manual" : RuntimeRequest.IsChunk7QuickSlotCase(request.PersistenceCase) ? "Quick" :
                     request.PersistenceCase == "multi-exploration-auto" || request.PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual";

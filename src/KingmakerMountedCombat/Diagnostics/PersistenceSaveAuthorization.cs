@@ -233,7 +233,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     return "Owner-seed native write is outside its one reserved setup level-up Auto.";
                 // Every owned-pair write after the first is a replacement of the completed output:
                 // the worker-cancel seed/replacement pair, or a slot rotation's repeated overwrites.
-                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests >= 1 && !OwnedPairsReplacementReady(target))
+                // The area overwrite's only write is already a replacement of its pre-existing slot.
+                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests >= OwnedPairsReplacementThreshold && !OwnedPairsReplacementReady(target))
                     return "Owned-pair replacement lacks its exact completed native seed and reserved staging leaf.";
                 admittedNativeWriteRequests++;
                 return null;
@@ -888,6 +889,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         throw new IOException("Native replacement did not move the exact completed archive.");
                     current.entries[source].Hash = null;
                     current.entries[destination].Hash = committedHash;
+                    current.ownedPairsReplacementPending = false;
                     Dispose();
                 }
             }

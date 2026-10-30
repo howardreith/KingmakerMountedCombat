@@ -61,6 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
         private readonly RuntimeStartupTrace startupTrace;
+        private readonly NativeEngineLogTail engineLogTail;
         private int frameCount;
         private double elapsedSeconds;
         private bool completed;
@@ -228,16 +229,19 @@ namespace KingmakerMountedCombat.Diagnostics
             startupTrace = new RuntimeStartupTrace(Stopwatch.Frequency,
                 () => runtimeClock.ElapsedTicks, () => Time.frameCount,
                 () => Application.isFocused, () => Application.runInBackground);
+            engineLogTail = new NativeEngineLogTail(logger);
             try
             {
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
                 {
                     ActivateSaveBackedBoundary();
                 }
+                engineLogTail.Register();
                 active = this;
             }
             catch
             {
+                engineLogTail.Dispose();
                 saveAuthorizationLease?.Dispose();
                 saveAuthorizationLease = null;
                 throw;
@@ -1460,6 +1464,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Chunk 7 host retains its engine, observers and authorization while native cleanup is pending.");
             }
             disposed = true;
+            engineLogTail.Dispose();
             worldCombatEngine?.Dispose();
             worldCombatEngine = null;
             worldPersistenceEngine?.Dispose();
@@ -1565,6 +1570,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 SchemaVersion = 1,
                 StartupTrace = startupTrace.Capture(),
+                EngineLogTail = engineLogTail.Capture(),
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Status = status,
@@ -2043,6 +2049,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
                 StartupTrace = startupTrace.Capture(),
+                EngineLogTail = engineLogTail.Capture(),
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Status = status,
@@ -2601,6 +2608,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public object StartupTrace { get; set; }
             public bool ShouldSerializeStartupTrace() => StartupTrace != null;
+            public object EngineLogTail { get; set; }
+            public bool ShouldSerializeEngineLogTail() => EngineLogTail != null;
             public int SchemaVersion { get; set; }
             public string RunId { get; set; }
             public string Scenario { get; set; }
@@ -2665,6 +2674,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             public object StartupTrace { get; set; }
             public bool ShouldSerializeStartupTrace() => StartupTrace != null;
+            // The engine's own error channel while this request was active (UberLogger
+            // warnings and errors); the shipped game forwards none of it to the player log.
+            public object EngineLogTail { get; set; }
+            public bool ShouldSerializeEngineLogTail() => EngineLogTail != null;
             public int SchemaVersion { get; set; }
             public string RunId { get; set; }
             public string Scenario { get; set; }

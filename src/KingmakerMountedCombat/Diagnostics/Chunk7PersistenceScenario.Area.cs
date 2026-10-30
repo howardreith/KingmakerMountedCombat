@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints;
@@ -32,6 +33,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private SavedNativeActor[] areaActorDebt;
         private long areaNativeTicks;
         private readonly JObject areaContinuationPlans = new JObject();
+        // Sprint 1 (SAVE-02): the genuine AfterEntry autosave overwriting an admitted pre-existing slot.
+        private bool AreaOverwriteCase => OwnedAreaAutosave && request.OwnedPairs.IsAreaOverwrite(request.PersistenceCase);
+        private JObject areaOverwrite;
+        private SaveInfo areaExistingSlot;
+        private string areaOverwritePreviousHash;
+        private int areaOverwriteCommitsBefore, areaOverwriteReplacementFailuresBefore;
 
         // Invoked after both native Mount shells settle and owned slots are bound.
         // The declared native area entry is the sole source of the autosave.
@@ -66,10 +73,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 enter.Area.AssetGuidThreadSafe == target.Area && enter.Area != game.CurrentlyLoadedArea,
                 "Area autosave cannot resolve the exact authorized native enter point.");
             Require(SettingsRoot.Instance.AutosaveEnabled.CurrentValue && game.SaveManager.IsSaveAllowed() &&
-                !game.SaveManager.Any(s => s.Type == SaveInfo.SaveType.Auto && s.IsActuallySaved),
+                (AreaOverwriteCase || !game.SaveManager.Any(s => s.Type == SaveInfo.SaveType.Auto && s.IsActuallySaved)),
                 "Native AfterEntry autosave is disabled, refused or would rotate an existing slot.");
-            if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Auto);
+            if (AreaOverwriteCase) RequireOwnedAreaOverwriteAdmission();
+            else if (request.OwnedPairs != null) RequireOwnedSaveAdmission(SaveInfo.SaveType.Auto);
             NativePersistenceIsolation.EnableNativeSlotRotation();
+            if (AreaOverwriteCase) RequireOwnedAreaOverwriteSlotSelection();
             areaWorld = game.Player; areaNativeTicks = game.TimeController.GameTime.Ticks;
             areaActorDebt = actors.Select(MountedPersistenceService.CaptureActor).ToArray();
             foreach (var actor in actors) areaViewIds.Add(actor.UniqueId, actor.View.GetInstanceID());
@@ -187,7 +196,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 return true;
             }
             AdoptDeclaredAreaWorld();
-            var archive = Game.Instance.SaveManager.SingleOrDefault(s => s.Type == SaveInfo.SaveType.Auto && s.Name == NativeName(SaveInfo.SaveType.Auto));
+            var autos = Game.Instance.SaveManager.Where(s => s.Type == SaveInfo.SaveType.Auto && s.Name == NativeName(SaveInfo.SaveType.Auto)).ToArray();
+            // An overwrite retires the requested descriptor only when its replacement lands; until then
+            // the list may still show the pre-existing slot, which is not the settled output.
+            if (AreaOverwriteCase && (autos.Length != 1 || ReferenceEquals(autos[0], areaExistingSlot) || persistence.CompletedSaveCount < 1)) return true;
+            var archive = AreaOverwriteCase ? autos[0] : autos.SingleOrDefault();
             if (archive == null || !archive.HasFileOnDisk || archive.OperationState != SaveInfo.StateType.None) return true;
             var after = CaptureAreaWorld("after-native-transfer");
             var row = (JObject)evidence["areaTransfer"]; row["after"] = after;
@@ -210,6 +223,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The native autosave header ran before both attachments were restored.");
             // No callback is invented: normal ObserveSaved must admit this exact
             // engine-autosave completion separately from an explicit SaveGame callback.
+            if (AreaOverwriteCase) ObserveAreaOverwrite(archive);
             savedDescriptor = archive;
             EndAreaObservation(); ObserveSaved();
             var sourceHash = Hash(archive.FolderName);
@@ -404,6 +418,115 @@ namespace KingmakerMountedCombat.Diagnostics
             persistence.SaveSnapshotStarting -= ObserveAreaAutosaveStarting;
             persistence.SaveSnapshotStaged -= ObserveAreaAutosaveStaged;
             areaObserverAttached = false;
+        }
+
+        // Sprint 1 (SAVE-02): the pre-existing Auto slot is the producer's sole reserved output. Before
+        // the genuine transition the isolated inventory must hold exactly the immutable Manual input
+        // and that slot with its pinned bytes, and the staging leaf the engine's replacement will use
+        // must be absent. Nothing here loads, writes or relabels the slot.
+        private void RequireOwnedAreaOverwriteAdmission()
+        {
+            Require(AreaOverwriteCase && inherited != null && inherited.Bound && !LoadingProcess.Instance.IsLoadingInProcess &&
+                !LoadingProcess.Instance.QueuedNames.Any() && !NativePersistenceIsolation.HasPendingWrites &&
+                !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence && ownedRequestedSave == null && areaExistingSlot == null,
+                "Inherited source still owns native loading/writing or already admitted its pre-existing slot.");
+            inherited.RequirePreserved();
+            var manager = Game.Instance.SaveManager; var selection = request.OwnedPairs;
+            Require(replaySaveAuthority.MatchesOwnedPairsPlan(true, true) && replaySaveAuthority.OwnedPairsOutputType == "Auto" &&
+                replaySaveAuthority.OwnedPairsReservationCount == 1 && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
+                replayAuthorization.AuthorizedLoadCount == 1 && replaySaveAuthority.AdmittedNativeWriteRequests == 0 &&
+                replayAuthorization.AuthorizedWriteCount == 0 && manager.IsSaveAllowed() && replaySaveAuthority.OwnedPairsOutputNumber == 1 &&
+                replaySaveAuthority.OwnedPairsOutputLeaf == PersistenceSaveAuthorization.OwnerSeedAutoLeaf &&
+                replaySaveAuthority.OwnedPairsReplacementLeaf == PersistenceSaveAuthorization.OwnerSeedStagingLeaf && replaySaveAuthority.OwnedPairsSeedDescriptor != null,
+                "The pre-existing slot lacks its exact reserved replacement after the completed sole load.");
+            var descriptors = manager.Take(3).ToArray();
+            var existing = descriptors.SingleOrDefault(value => ReferenceEquals(value, replaySaveAuthority.OwnedPairsSeedDescriptor));
+            var source = descriptors.SingleOrDefault(value => ReferenceEquals(value, replaySaveAuthority.OwnedPairsSourceDescriptor));
+            var loaded = ownedFixtureLoader?.Descriptor;
+            Require(descriptors.Length == 2 && existing != null && source != null && !ReferenceEquals(existing, source) &&
+                loaded != null && loaded.FileName == source.FileName && SameArchivePath(loaded.FolderName, source.FolderName) && loaded.Name == source.Name && loaded.GameId == source.GameId &&
+                source.FileName == request.PersistenceLoad.FileName && source.Name == request.PersistenceLoad.InternalName && source.Type.ToString() == request.ExpectedNativeLoadType &&
+                source.OperationState == SaveInfo.StateType.None && source.HasFileOnDisk && source.IsActuallySaved &&
+                existing.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && existing.Name == replaySaveAuthority.OwnedPairsOutputName && existing.Type == SaveInfo.SaveType.Auto &&
+                existing.GameId == request.PersistenceLoad.GameId && existing.GameName == request.PersistenceLoad.GameName && existing.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
+                existing.IsActuallySaved && existing.HasFileOnDisk && !existing.IsAutoLevelupSave && existing.OperationState == SaveInfo.StateType.None &&
+                SameArchivePath(existing.FolderName, Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf)),
+                "Inherited native inventory is not exactly the immutable input and the admitted pre-existing Auto slot.");
+            var number = manager.FindUnusedSaveNumber(SaveInfo.SaveType.Auto);
+            var staging = Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsReplacementLeaf);
+            Require(number == 2 && !File.Exists(staging) && !Directory.Exists(staging),
+                "The engine's next Auto number is not the reserved staging leaf, or that leaf already exists.");
+            var reason = replaySaveAuthority.ValidateArchiveIdentity(new RuntimeSaveTarget { FullPath = Path.Combine(replaySaveAuthority.Root, request.PersistenceLoad.FileName),
+                FileName = request.PersistenceLoad.FileName, InternalName = request.PersistenceLoad.InternalName, SaveType = request.ExpectedNativeLoadType,
+                GameId = request.PersistenceLoad.GameId, GameName = request.PersistenceLoad.GameName, Area = request.PersistenceLoad.Area }, manager.SavePath);
+            Require(reason == null, "Inherited source archive changed before the genuine transition: " + reason);
+            replaySaveAuthority.AssertReadableArchive(existing.FolderName);
+            var file = new FileInfo(existing.FolderName);
+            areaOverwritePreviousHash = Hash(file.FullName);
+            Require(file.Length > 0 && areaOverwritePreviousHash == selection.ExistingAutoSha256, "The pre-existing Auto slot does not hold exactly its pinned bytes.");
+            areaExistingSlot = existing;
+            areaOverwriteCommitsBefore = NativeMountedArchiveCommit.CommitCount; areaOverwriteReplacementFailuresBefore = NativeMountedArchiveCommit.ReplacementFailureCount;
+            evidence["ownedOutputAdmission"] = new JObject { ["method"] = "FindUnusedSaveNumber", ["token"] = "06008024",
+                ["moduleMvid"] = typeof(SaveManager).Module.ModuleVersionId.ToString("D"), ["number"] = replaySaveAuthority.OwnedPairsOutputNumber, ["leaf"] = replaySaveAuthority.OwnedPairsOutputLeaf,
+                ["nativeInventory"] = new JArray(descriptors.OrderBy(value => value.FileName, StringComparer.Ordinal).Select(OwnedNativeDescriptor)), ["authority"] = OwnedAuthoritySnapshot() };
+            areaOverwrite = new JObject { ["contract"] = "sprint1-area-auto-overwrite-v1",
+                ["eventDispatch"] = "Game.LoadArea(enterPoint, AutoSaveMode.AfterEntry): the engine's own after-entry branch requests SaveRoutine(GetNextAutoslot())",
+                ["existingRunId"] = selection.ExistingAutoRunId, ["existingArtifactSha256"] = selection.ExistingAutoArtifactSha256, ["existingSha256"] = selection.ExistingAutoSha256,
+                ["existingLeaf"] = existing.FileName, ["existingName"] = existing.Name, ["existingArea"] = existing.Area?.AssetGuidThreadSafe, ["existingFolderName"] = existing.FolderName,
+                ["existingLength"] = file.Length, ["previousSha256"] = areaOverwritePreviousHash, ["stagingLeaf"] = replaySaveAuthority.OwnedPairsReplacementLeaf, ["stagingNumber"] = number,
+                ["commitCountBefore"] = areaOverwriteCommitsBefore, ["replacementFailuresBefore"] = areaOverwriteReplacementFailuresBefore,
+                ["replacementSiteInvokedDirectly"] = false, ["explicitSaveGameDispatches"] = 0, ["preseededByFixture"] = true, ["existingLoaded"] = false,
+                ["engineShapedRoot"] = request.EngineShapedSaveRoot == true };
+            evidence["areaOverwrite"] = areaOverwrite;
+        }
+
+        // Read-only: at the projected one-slot capacity the engine's own selector returns the oldest
+        // existing Auto descriptor instead of minting one, so the genuine autosave will overwrite it.
+        private void RequireOwnedAreaOverwriteSlotSelection()
+        {
+            var manager = Game.Instance.SaveManager;
+            var capacity = SettingsRoot.Instance.AutosaveSlots.CurrentValue;
+            var saved = manager.Count(value => value.Type == SaveInfo.SaveType.Auto && value.IsActuallySaved);
+            var next = manager.GetNextAutoslot();
+            Require(areaExistingSlot != null && NativePersistenceIsolation.NativeSlotRotationEnabled && capacity == 1f && saved == 1 &&
+                ReferenceEquals(next, areaExistingSlot) && manager.Contains(next),
+                "The projected one-slot Auto capacity is not full of exactly the admitted pre-existing slot: the genuine autosave would mint a new slot instead of overwriting it.");
+            areaOverwrite["nativeSlotCapacity"] = capacity; areaOverwrite["savedOfCategory"] = saved;
+            areaOverwrite["nextAutoslotIsExisting"] = true; areaOverwrite["requestedIsExistingSlot"] = true;
+        }
+
+        // After the settled transfer: the one native replacement commit landed on the pre-existing
+        // leaf, the bytes changed, the staging leaf is gone, the requested descriptor is retired and the
+        // inventory is exactly the immutable input and the overwritten slot.
+        private void ObserveAreaOverwrite(SaveInfo written)
+        {
+            var manager = Game.Instance.SaveManager; var leafPath = Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf);
+            var commits = NativeMountedArchiveCommit.CommitCount; var landed = NativeMountedArchiveCommit.LastCommittedDestination;
+            Require(areaExistingSlot != null && commits == areaOverwriteCommitsBefore + 1 && SameArchivePath(landed, leafPath) &&
+                NativeMountedArchiveCommit.ReplacementFailureCount == areaOverwriteReplacementFailuresBefore && persistence.FailedSaveCount == 0,
+                "The genuine autosave did not commit exactly one native replacement onto the pre-existing slot (commits " + areaOverwriteCommitsBefore + " -> " + commits + ", landed " + landed + ").");
+            var descriptors = manager.Take(3).ToArray();
+            var staging = Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsReplacementLeaf);
+            Require(written != null && descriptors.Length == 2 && descriptors.Count(value => ReferenceEquals(value, written)) == 1 &&
+                descriptors.Count(value => ReferenceEquals(value, replaySaveAuthority.OwnedPairsSourceDescriptor)) == 1 &&
+                descriptors.All(value => !ReferenceEquals(value, areaExistingSlot)) && !ReferenceEquals(written, areaExistingSlot) &&
+                written.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && written.Name == areaExistingSlot.Name && written.Type == SaveInfo.SaveType.Auto &&
+                SameArchivePath(written.FolderName, leafPath) && !File.Exists(staging) && !Directory.Exists(staging),
+                "The genuine autosave did not land its prepared descriptor at the pre-existing leaf with the staging leaf gone and the old descriptor retired.");
+            var entries = Directory.EnumerateFileSystemEntries(replaySaveAuthority.Root).Select(Path.GetFileName).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+            Require(entries.Length == 2 && entries.Contains(request.PersistenceLoad.FileName) && entries.Contains(replaySaveAuthority.OwnedPairsOutputLeaf),
+                "The isolated save root holds more than the immutable input and the overwritten slot.");
+            replaySaveAuthority.AssertReadableArchive(written.FolderName);
+            var file = new FileInfo(written.FolderName); var hash = Hash(file.FullName);
+            Require(file.Length > 0 && hash != areaOverwritePreviousHash, "The genuine autosave left the pre-existing bytes at the slot.");
+            Require(replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeWriteRequests == 1 &&
+                replayAuthorization.AuthorizedWriteCount == 1 && !NativeSaveWorkerBoundary.WorkerHeld,
+                "The overwrite spent other than exactly its one admitted native write or still holds the worker.");
+            areaOverwrite["commitCountAfter"] = commits; areaOverwrite["commitRecorded"] = true; areaOverwrite["committedDestination"] = landed;
+            areaOverwrite["path"] = file.FullName; areaOverwrite["landedFolderName"] = written.FolderName; areaOverwrite["sha256"] = hash; areaOverwrite["length"] = file.Length;
+            areaOverwrite["bytesChanged"] = true; areaOverwrite["stagingAbsent"] = true; areaOverwrite["writtenIsNewDescriptor"] = true;
+            areaOverwrite["requestedDescriptorRetired"] = true; areaOverwrite["holdsReleased"] = true; areaOverwrite["failedSaves"] = persistence.FailedSaveCount;
+            areaOverwrite["replacementFailures"] = NativeMountedArchiveCommit.ReplacementFailureCount; areaOverwrite["nativeWrites"] = replaySaveAuthority.AdmittedNativeWriteRequests;
         }
     }
 }
