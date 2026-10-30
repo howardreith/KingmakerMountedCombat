@@ -32,6 +32,23 @@ namespace KingmakerMountedCombat.Integration
         public bool? OccupancyInsideNavmesh { get; set; }
         public string OccupancyRecovery { get; set; }
         public float OccupancyNearestNodeDistance { get; set; }
+        // Sprint 2 completion (SPACE-01): the owned post-interaction settlement. These fields are filled by
+        // MountedDoorOccupancySettlement after the native action ended, on the same outcome instance.
+        public bool PreventionRefused { get; set; }
+        public bool OccupancySettled { get; set; }
+        public float OccupancySettleGameSeconds { get; set; }
+        public float MountCorpulence { get; set; }
+        public bool? FootprintClear { get; set; }
+        public int FootprintRingInside { get; set; }
+        public int FootprintRingReachable { get; set; }
+        public string RecoveryDisposition { get; set; } = "not-evaluated";
+        public string RecoveryTerminal { get; set; } = "None";
+        public int RecoveryCandidatesEvaluated { get; set; }
+        public string RecoveryCandidateReasons { get; set; } = "";
+        public float RecoveryDestinationDistance { get; set; } = float.NaN;
+        public bool? FootprintClearAfterRecovery { get; set; }
+        public string RecoveryCancelReason { get; set; }
+        internal MountedDoorOccupancySettlement Settlement { get; set; }
     }
 
     // The mount's delegated approach carries the door's own transform as the native LOS object, exactly
@@ -90,7 +107,13 @@ namespace KingmakerMountedCombat.Integration
         private bool? occupancyInsideNavmesh;
         private string occupancyRecovery = "not-evaluated";
         private float occupancyNearestNodeDistance = float.NaN;
+        private bool preventionRefused;
+        private readonly MountedDoorInteractionOutcome outcome = new MountedDoorInteractionOutcome();
         internal bool NativePartnerMovement { get; set; }
+        // The controller's observation of the mount's legitimate movement opportunity this frame (turn-based
+        // combat only): the native movement override admitted the mount with movement budget left.
+        internal Func<bool> MovementOpportunity { get; set; }
+        internal MountedDoorOccupancySettlement Settlement { get; private set; }
 
         public MountedDoorInteractionCommand(
             GameMountedRelationshipService relationship,
@@ -171,6 +194,15 @@ namespace KingmakerMountedCombat.Integration
                 {
                     StopDelegatedMove();
                     CompleteApproachClock();
+                    // Prevention before the native action starts (no cost is spent on an unstarted command): closing a
+                    // door whose cut is written on state changes while the pair's footprint overlaps that cut would
+                    // embed the pair when the cut lands; the click is refused with the reason instead.
+                    if (ClosingWouldEmbedPair())
+                    {
+                        preventionRefused = true;
+                        throw new InvalidOperationException("Refused before interaction: closing " + door.name +
+                            " would embed the pair standing in its doorway; move the pair out of the doorway first.");
+                    }
                     approachSatisfied = true;
                     return;
                 }
@@ -237,12 +269,22 @@ namespace KingmakerMountedCombat.Integration
                 {
                     throw new InvalidOperationException("Exact door interaction attempted more than once.");
                 }
+                if (ClosingWouldEmbedPair())
+                {
+                    preventionRefused = true;
+                    terminalReason = "Refused at interaction: closing " + door.name + " would embed the pair standing in its doorway.";
+                    return ResultType.Fail;
+                }
                 var approachPoint = NativeApproachPoint;
                 distanceAtInteraction = HorizontalDistance(mount.Position, approachPoint);
                 lineOfSightAtInteraction = !LineOfSightGeometry.Instance.HasObstacle(mount.EyePosition, approachPoint, GetTargetLOSObjectId());
                 interactionCount++;
+                var openBefore = door.GetState();
                 door.Interact(rider);
-                RevalidateOccupancy();
+                ObserveImmediateOccupancy();
+                // The native action is complete here. The door's collision change lands on a later frame; the owned
+                // settlement waits for it, samples the pair's footprint and recovers through one owned native move.
+                Settlement = new MountedDoorOccupancySettlement(relationship, rider, mount, door, door.GetState() != openBefore ? door.GetState() : !openBefore, logger, outcome);
                 return ResultType.Success;
             }
             catch (Exception exception)
@@ -321,7 +363,13 @@ namespace KingmakerMountedCombat.Integration
         {
             var position = mount.Position;
             var now = GameTime;
-            if (!mountPositionSampled)
+            var approachRunning = delegatedMove != null && delegatedMove.IsStarted && !delegatedMove.IsFinished;
+            // The clock follows the actual mode and the mount's movement opportunity (MountedDoorApproachPolicy
+            // .StallClockRuns), not the paired-activation toggle: a real-time approach with paired activation on
+            // still times out on genuine no-progress; an off-turn or budget-exhausted turn-based mount never does.
+            var clockRuns = MountedDoorApproachPolicy.StallClockRuns(approachRunning, Game.Instance.IsPaused,
+                TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), MovementOpportunity == null || MovementOpportunity());
+            if (!mountPositionSampled || !clockRuns)
             {
                 mountPositionSampled = true;
                 lastSampledMountPosition = position;
@@ -337,8 +385,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             stalledGameSeconds += Math.Max(0f, elapsed);
-            if (MountedDoorApproachPolicy.MovementStalled(stalledGameSeconds, MountedDoorApproachPolicy.StalledSecondsLimit,
-                delegatedMove != null && delegatedMove.IsStarted && !delegatedMove.IsFinished && !NativePartnerMovement))
+            if (MountedDoorApproachPolicy.MovementStalled(stalledGameSeconds, MountedDoorApproachPolicy.StalledSecondsLimit, approachRunning))
             {
                 delegatedMove.Interrupt(false);
                 RecordApproachEnd("stalled for " + stalledGameSeconds.ToString("F1") + " game seconds");
@@ -401,43 +448,25 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void RevalidateOccupancy()
+        // The synchronous observation right after the interaction: the center's navmesh membership before the
+        // door's cut has landed. It proves nothing about the settled state; the owned settlement decides that.
+        private void ObserveImmediateOccupancy()
         {
             var position = mount.Position;
-            var inside = ObstacleAnalyzer.IsPointInsideNavMesh(position);
-            occupancyInsideNavmesh = inside;
+            occupancyInsideNavmesh = ObstacleAnalyzer.IsPointInsideNavMesh(position);
             var nearest = ObstacleAnalyzer.GetNearestNode(position);
             var walkable = nearest.node != null && nearest.node.Walkable;
             occupancyNearestNodeDistance = walkable ? HorizontalDistance(position, nearest.clampedPosition) : float.PositiveInfinity;
-            var disposition = MountedDoorApproachPolicy.DecideOccupancy(inside, walkable, occupancyNearestNodeDistance,
-                MountedDoorApproachPolicy.RecoveryRadiusMetres);
-            switch (disposition)
-            {
-                case MountedDoorOccupancyDisposition.Valid:
-                    occupancyRecovery = "none";
-                    break;
-                case MountedDoorOccupancyDisposition.RepathToNearest:
-                    // One native move to the nearest walkable node: the mount's own agent walks it, nothing
-                    // is transported. The mount's Move slot is idle here because the approach has ended.
-                    if (mount.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0)
-                    {
-                        mount.Commands.Run(new UnitMoveTo(nearest.clampedPosition, 0.1f) { CreatedByPlayer = false, ShowTargetMarker = false });
-                        occupancyRecovery = "repath";
-                        mountMoveSlotRestored = false;
-                    }
-                    else
-                    {
-                        occupancyRecovery = "repath-refused-mount-busy";
-                    }
-                    logger.Info("Mounted door occupancy recovery: mountId=" + mount.UniqueId + "; nearestNodeDistance=" +
-                        occupancyNearestNodeDistance.ToString("F3") + "; recovery=" + occupancyRecovery);
-                    break;
-                default:
-                    occupancyRecovery = "unrecoverable";
-                    logger.Warning("Mounted door occupancy left the navmesh with no walkable node within " +
-                        MountedDoorApproachPolicy.RecoveryRadiusMetres + " m: mountId=" + mount.UniqueId + ".");
-                    break;
-            }
+            occupancyRecovery = "pending-settlement";
+        }
+
+        private bool ClosingWouldEmbedPair()
+        {
+            var agent = mount.View?.AgentASP;
+            var corpulence = agent != null && agent.Corpulence > 0f ? agent.Corpulence : 0.5f;
+            var cut = door.GetComponentInChildren<Pathfinding.NavmeshCut>();
+            return MountedDoorOccupancyPolicy.ClosingWouldEmbed(door.DisableNavmeshCutWhenOpen, door.GetState(),
+                MountedFootprintProbe.IntersectsCut(cut, mount.Position, corpulence));
         }
 
         private bool IsMountWithinDoorRange()
@@ -483,26 +512,33 @@ namespace KingmakerMountedCombat.Integration
             {
                 CompleteApproachClock();
             }
-            terminal(this, new MountedDoorInteractionOutcome
+            outcome.Result = Result.ToString();
+            outcome.RiderId = rider.UniqueId;
+            outcome.MountId = mount.UniqueId;
+            outcome.InteractionCount = interactionCount;
+            outcome.DelegatedMoveStartCount = delegatedMoveStartCount;
+            outcome.DelegatedMoveTickCount = delegatedMoveTickCount;
+            outcome.DoorStateChanged = door != null && door.GetState() != initialDoorState;
+            outcome.RiderPathSuppressed = rider.View?.AgentASP != null && !rider.View.AgentASP.enabled;
+            outcome.MountMoveSlotRestored = mountMoveSlotRestored;
+            outcome.TerminalReason = terminalReason;
+            outcome.ApproachesWithoutProgress = approachesWithoutProgress;
+            outcome.ApproachElapsedGameSeconds = approachElapsedGameSeconds;
+            outcome.DistanceAtInteraction = distanceAtInteraction;
+            outcome.LineOfSightAtInteraction = lineOfSightAtInteraction;
+            outcome.OccupancyInsideNavmesh = occupancyInsideNavmesh;
+            outcome.PreventionRefused = preventionRefused;
+            if (Settlement == null)
             {
-                Result = Result.ToString(),
-                RiderId = rider.UniqueId,
-                MountId = mount.UniqueId,
-                InteractionCount = interactionCount,
-                DelegatedMoveStartCount = delegatedMoveStartCount,
-                DelegatedMoveTickCount = delegatedMoveTickCount,
-                DoorStateChanged = door != null && door.GetState() != initialDoorState,
-                RiderPathSuppressed = rider.View?.AgentASP != null && !rider.View.AgentASP.enabled,
-                MountMoveSlotRestored = mountMoveSlotRestored,
-                TerminalReason = terminalReason,
-                ApproachesWithoutProgress = approachesWithoutProgress,
-                ApproachElapsedGameSeconds = approachElapsedGameSeconds,
-                DistanceAtInteraction = distanceAtInteraction,
-                LineOfSightAtInteraction = lineOfSightAtInteraction,
-                OccupancyInsideNavmesh = occupancyInsideNavmesh,
-                OccupancyRecovery = occupancyRecovery,
-                OccupancyNearestNodeDistance = occupancyNearestNodeDistance
-            });
+                // No interaction happened: nothing to settle. The legacy word keeps the v3 reader's meaning.
+                outcome.OccupancyRecovery = occupancyRecovery;
+                outcome.RecoveryDisposition = "not-evaluated";
+            }
+            outcome.OccupancyNearestNodeDistance = occupancyNearestNodeDistance;
+            outcome.Settlement = Settlement;
+            // The settlement mutates this same instance after the native action ended (the controller pumps it);
+            // readers that wait for the controller's pending settlement to finish see the settled fields.
+            terminal(this, outcome);
         }
 
         private static TimeSpan GameTime => Game.Instance.TimeController.GameTime;

@@ -14,6 +14,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted door click refuses other pair commands and busy mounts", RefusalsAreExact);
             runner.Run("mounted door re-approach is bounded by progress, not elapsed time", ReapproachIsProgressBounded);
             runner.Run("mounted door stall clock needs a running approach and a positive limit", StallDetectionIsExact);
+            runner.Run("mounted door stall clock follows the mode and movement opportunity, not the paired-activation toggle", StallClockFollowsModeNotToggle);
             runner.Run("mounted door re-approach delay stays inside the native cooldown", ReapproachDelayIsNative);
             runner.Run("mounted door occupancy recovery is nearby-only and never transports", OccupancyDispositionIsExact);
             runner.Run("mounted door admission feedback names each disposition", FeedbackIsPerDisposition);
@@ -89,6 +90,35 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!MountedDoorApproachPolicy.MovementStalled(3.9f, 4f, true), "An approach inside the limit was stalled.");
             TestRunner.True(!MountedDoorApproachPolicy.MovementStalled(4.5f, 0f, true), "A zero limit stalled the approach.");
             TestRunner.True(!MountedDoorApproachPolicy.MovementStalled(float.NaN, 4f, true), "A non-finite clock stalled the approach.");
+        }
+
+        private static void StallClockFollowsModeNotToggle()
+        {
+            // The production-facing combination: a real-time approach with paired activation enabled is the owner's
+            // configuration; the clock must run there (the former !NativePartnerMovement guard disabled it). The
+            // toggle is not an input of the decision at all; only mode and movement opportunity are.
+            TestRunner.True(MountedDoorApproachPolicy.StallClockRuns(true, false, false, true), "A running real-time approach did not count stillness.");
+            TestRunner.True(MountedDoorApproachPolicy.StallClockRuns(true, false, false, false), "Real time consulted the turn-based movement opportunity.");
+            TestRunner.True(!MountedDoorApproachPolicy.StallClockRuns(false, false, false, true), "An approach that is not running counted stillness.");
+            TestRunner.True(!MountedDoorApproachPolicy.StallClockRuns(true, true, false, true), "A paused real-time game counted stillness.");
+            TestRunner.True(MountedDoorApproachPolicy.StallClockRuns(true, false, true, true), "A rider-turn approach with movement budget did not count stillness.");
+            TestRunner.True(!MountedDoorApproachPolicy.StallClockRuns(true, false, true, false),
+                "An off-turn or budget-exhausted turn-based mount was read as pathfinding failure.");
+            TestRunner.True(!MountedDoorApproachPolicy.StallClockRuns(true, true, true, true), "A paused turn-based game counted stillness.");
+            // Sustained progress never stalls regardless of the clock: the limit applies to accumulated stillness only.
+            var stillSeconds = 0f;
+            for (var tick = 0; tick < 100; tick++)
+            {
+                var displaced = tick % 3 != 2; // moves two ticks of three
+                if (MountedDoorApproachPolicy.StallClockRuns(true, false, false, true)) stillSeconds = displaced ? 0f : stillSeconds + 0.1f;
+                TestRunner.True(!MountedDoorApproachPolicy.MovementStalled(stillSeconds, MountedDoorApproachPolicy.StalledSecondsLimit, true),
+                    "Sustained progress was reported as a stall at tick " + tick + ".");
+            }
+            // Genuine no-progress in real time with paired activation on: the clock accumulates and the limit trips.
+            stillSeconds = 0f;
+            for (var tick = 0; tick < 45; tick++) if (MountedDoorApproachPolicy.StallClockRuns(true, false, false, false)) stillSeconds += 0.1f;
+            TestRunner.True(MountedDoorApproachPolicy.MovementStalled(stillSeconds, MountedDoorApproachPolicy.StalledSecondsLimit, true),
+                "A real-time approach that made no progress for 4.5 s was not stalled.");
         }
 
         private static void ReapproachDelayIsNative()

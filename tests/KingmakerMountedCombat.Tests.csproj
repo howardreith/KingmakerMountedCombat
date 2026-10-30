@@ -60,6 +60,10 @@
     <Compile Include="MountedPairOwnershipTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairRegistry.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorApproachPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorOccupancyPolicy.cs" />
+    <Compile Include="MountedDoorOccupancyPolicyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs" />
+    <Compile Include="SpeedLegSamplerTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />

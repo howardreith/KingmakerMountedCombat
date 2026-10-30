@@ -114,6 +114,21 @@ namespace KingmakerMountedCombat.Domain
                 limitSeconds > 0f && secondsWithoutDisplacement > limitSeconds;
         }
 
+        // Whether this tick's stillness counts toward the stall limit. The clock runs on the actual mode
+        // and the mount's legitimate movement opportunity, never on a feature toggle: a running approach
+        // in real time always counts; in turn-based combat it counts only while the native movement
+        // override admitted the mount this frame (rider's acting turn with movement budget left), so an
+        // off-turn actor, exhausted movement or a native wait is never read as pathfinding failure.
+        // A paused game advances no game time and counts nothing.
+        public static bool StallClockRuns(bool approachRunning, bool gamePaused, bool turnBasedCombat, bool mountMovementOpportunity)
+        {
+            if (!approachRunning || gamePaused)
+            {
+                return false;
+            }
+            return !turnBasedCombat || mountMovementOpportunity;
+        }
+
         // The native re-approach delay for one uniform sample in [0, 1].
         public static float ReapproachDelaySeconds(float unitSample)
         {
