@@ -10213,7 +10213,10 @@ try {
             $combatSource.Contains('command.GetType() == typeof(UnitInteractWithObject)') -and
             $combatSource.Contains('stockInteraction.Interaction.GetType() == typeof(StandardDoor)') -and
             $patchSource.Contains('TryRouteMountedDoorInteraction(__instance, ref cmd)') -and
-            $doorSource.Contains('new UnitMoveTo(door.transform.position, GetDoorApproachRadius())') -and
+            $doorSource.Contains('new MountedDoorApproachMove(NativeApproachPoint, approachRadius, GetTargetLOSObjectId())') -and
+            $doorSource.Contains('public override bool CanStart => approachSatisfied;') -and
+            $doorSource.Contains('IsUnitCloseEnough(NativeApproachPoint, mount.Position, mount.EyePosition, approachRadius, true, GetTargetLOSObjectId())') -and
+            -not $doorSource.Contains('MaximumElapsedSeconds') -and
             $doorSource.Contains('mount.Commands.Run(delegatedMove);') -and
             $doorSource.Contains('door.Interact(rider);') -and
             $doorSource.Contains('interactionCount != 0') -and
