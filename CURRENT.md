@@ -1,32 +1,28 @@
-# Sprint 2 — exploration speed, doors and collision safety: ENGINEERING PARTIAL, READY FOR FINAL REVIEW (2026-10-30)
+# Sprint 2 — exploration speed, doors and collision safety: ENGINEERING PARTIAL, READY FOR FINAL REVIEW (2026-10-30, third iteration)
 
 **SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** No merge, release or
 installation is selected.
 
-Review branch `codex/mounted-combat-sprint2-movement-doors` from `main` `05a9efd0` (the PR #6 merge). HEAD `b3f78482`
-(lab recovery fix) over `4c57b5a8` (delta-review fixes), `3ef8119f` (reader correction) and `63d83e2e` (completion
-product + diagnostics). Candidate `0.1.0-chunk7b-preview.100`: DLL `ee2f72a9…`, MVID `ee7142af…`, package sprint2i
-`91165cf5…`, suite `sprint2i-b3f78482-20261030` `f2235aaa…`. Candidate tier 7/0 (sprint2h bytes = same DLL); reader
-tests 389/0; budget `sprint2` 58.35 of 90 min.
+Review branch `codex/mounted-combat-sprint2-movement-doors` from `main` `05a9efd0`. Product commits `5b02d4dd` and
+`7d124fad` over the reviewed `4224afba`. Candidate `0.1.0-chunk7b-preview.100`: DLL `809573ad…`, MVID `2b00f9fa…`,
+package sprint2k `4a3497f9…`, suite `sprint2k-7d124fad-20261030` `0e3c7701…`. Candidate tier 8/0; components 942/0;
+reader 395/0; budget `sprint2` 73.22 of 90 min.
 
-- **DOOR-01: repaired and PASS natively.** One click opens a door from distance (r05 17.8 m and r08 25.6 m on the Old
-  Sycamore seed; r07 the dwarf dungeon door on the Working fixture); the routed command is never started while the mount
-  moves, so the native nine-second interrupt cannot end an approach; a click while the mount moves replaces the move; the
-  native Stop ends an approach cleanly; the stall clock keys on the live delegated move and the actual mode/movement
-  opportunity, not on the paired-activation toggle. Turn-based door control: NOT RUN natively (offline-proven turn-aware).
-- **SPACE-01: repaired and PASS natively.** After the door's navmesh cut has landed, the pair's body footprint is sampled;
-  a footprint overlapping an obstacle is recovered through exactly one owned native move to a reachable body-clear point
-  (r05/r08: 0.5 m, clear afterwards), never a transport; on the dungeon door the settled footprint was clear and the pair
-  traversed the doorway both ways (r07). Closing a toggling-cut door over the footprint is refused before any cost. The
-  owner's exact door: NOT RUN (owner save located and copied, not admissible yet).
-- **MOVE-01: measured with the aligned sampler; no KMC clamp.** Party-paced pair 2.54–2.82 m/s at the native walk gait,
-  pair alone 4.17–4.55, Horse unmounted 4.33, rider on foot 3.04 (v1 figures 2–4 % higher). Native party pacing and the
-  walk gait under 95 % of own speed explain the report. The owner's surface: NOT RUN natively (same owner save).
-- **Runs on the final binary:** r08's door probe passed in-game; the run then failed in an unrelated pre-existing cycle
-  step (route goal search after the longer setup spread the actors). r07's outer verdict failed on the engine `Areas\`
-  unpack cache (lab classification; its stale lock was recovered after a one-line recovery fix). Details in the
-  completion and review-fix sections of [docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md](docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md).
+- **DOOR-01: repaired and PASS natively on the final binary** (r09: one click from 17.9 m, unstarted on every moving
+  poll; click while moving replaces the move; native Stop ends an approach cleanly; r10: dwarf dungeon door). A refused
+  click (wrong turn, busy mount, other pair command, same door) now mutates nothing (two-phase admission). The nine-second
+  mechanism has an offline lifecycle regression plus the native unstarted-while-moving observations; the native >9 s
+  route is NOT RUN. Turn-based door control: NOT RUN natively (contract named in the report).
+- **SPACE-01: repaired and PASS natively on the final binary.** The settlement evaluates only on a confirmed navmesh;
+  a deadline ends it Unresolved with no move and no clear-placement claim. r09: footprint 7/8 → one owned 0.5 m
+  recovery, clear afterwards, second pair at the endpoint; r10: dwarf dungeon door settled 0.06 s, footprint 8/8,
+  doorway traversed both ways. The owner's exact door: NOT RUN (owner save copied; needs a pre-owned single-pair mode).
+- **MOVE-01: measured with the aligned sampler; no KMC clamp** (r09: party-paced 2.69 m/s at the walk gait, pair alone
+  4.55, Horse unmounted 4.18, rider on foot 3.02). The owner's surface: NOT RUN natively (same contract).
+- **Lab:** `chunk4-traversal-core` runs under the existing Areas isolation (r10: generated tree quarantined, intake tree
+  restored exactly); the door probe restores the fixture layout after its inputs (r08's fault). Details:
+  [docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md](docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md), "Third iteration".
 
-Live installation at closeout: Mods tree empty as at intake, loader parameters and profile root at their intake digests,
-protected saves unchanged, no lock or game process, no candidate installed. Owner play acceptance of Sprint 1 and
-Sprint 2 remains separate. Sprint 1 state: [CURRENT before Sprint 2](docs/history/CURRENT-before-sprint2-2026-10-30.md).
+Live installation at closeout: Mods tree empty as at intake, loader parameters and profile root (including `Areas\`) at
+their intake digests, protected saves unchanged, no lock or game process, no candidate installed. Owner play acceptance
+of Sprint 1 and Sprint 2 remains separate. Sprint 1 state: [CURRENT before Sprint 2](docs/history/CURRENT-before-sprint2-2026-10-30.md).

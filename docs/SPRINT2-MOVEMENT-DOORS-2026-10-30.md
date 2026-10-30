@@ -1,7 +1,7 @@
 # Sprint 2 — exploration speed, single-click doors and collision safety (2026-10-30)
 
 > **Completion iteration (same day, PR #7 follow-up): see [Completion iteration](#completion-iteration-2026-10-30-afternoon)
-> and "Review-fix iteration" at the end of this file for the current disposition, identity and evidence. The first-iteration record below is kept as
+> "Review-fix iteration" and "Third iteration" at the end of this file; the third iteration holds the current disposition, identity and evidence. The first-iteration record below is kept as
 > written.**
 
 **Disposition (first iteration): SPRINT 2 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE PENDING.**
@@ -281,3 +281,101 @@ clamp; owner's surface NOT RUN. Lab: r07's profile classification of the engine 
 re-evaluation charged); active work about 4 h 50 min for this iteration, over the four-hour ceiling by the review-fix
 pass and the r07 recovery, which were judged necessary before a closeout. Live state: Mods tree empty, no lock, no game
 process, no candidate installed, protected saves unchanged, loader parameters and profile root at intake.
+
+## Third iteration (2026-10-30, evening): corrections A/B, nine-second regression, full-run PASS on the final binary
+
+**Final disposition: SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** The two
+remaining source defects are closed and the selected door/speed/collision outcomes pass end to end on the final binary;
+two agreed rows remain NOT RUN natively (the owner's exact surface/door; a turn-based door control), each with its exact
+technical contract named below. This section supersedes the dispositions above.
+
+### Identity
+
+Commits over `4224afba`: `5b02d4dd` (product + diagnostics + lab) and `7d124fad` (delta-review fixes), then the docs
+commit. Product `0.1.0-chunk7b-preview.100`, DLL SHA-256 `809573ade5fb7324d94c42f1daf5008b91e050706f79f0d1f3d7fe42529147ee`,
+MVID `2b00f9fa-5f00-402e-992f-04c8e242daf0`, package `KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint2k-diagnostic.zip`
+SHA-256 `4a3497f936022601e86945f7bdecf6f2fcb4bb7ff7d8e0928a71bad9291dc68f`, suite `sprint2k-7d124fad-20261030`
+SHA-256 `0e3c770164260cfa0d2db0d60fe14b1d8a588a576563ed778be245e326273ef1`. Candidate tier 8/0 on the sprint2j bytes
+(`5b02d4dd`; components 942/0 incl. 8 new lifecycle tests, Harness, assembly contracts 751/0, reader 395/0, Areas
+selection 7/0); the sprint2k product delta is the five review items below, covered by the component run (942/0) and the
+two native runs. Independent delta review of `5b02d4dd` (read-only, bounded) ran BEFORE the native batch.
+
+### Source corrections
+
+- **A. A timeout never authorizes movement.** `Domain/MountedDoorSettlementLifecycle.cs`: the settlement evaluates only
+  after the door's navmesh change is observed settled on two consecutive frames; past the 3 s deadline the step is
+  `Unresolved`: no footprint sample, no candidate search, no move, `FootprintClear`/`OccupancyInsideNavmesh` null,
+  `RecoveryDisposition = Unresolved`, `OccupancyRecovery = "unresolved"`; the door's interaction result stays on its own
+  fields. Tests: delayed-then-settled graph; deadline with a pending cut though a sample would read clear; deadline with a
+  would-be candidate; normal clear / blocked / no-candidate / off-turn / busy paths (all through the decision call path).
+- **B. Refused input mutates nothing.** `MountedDoorApproachPolicy.PlanAdmission` and the two-phase
+  `TryRouteMountedDoorInteraction`: phase one computes the turn gate, the disposition and whether the busy Move slot is
+  only the pair's own recovery, without touching anything; only an admissible plan mutates in phase two (stock intent
+  cleared and a dispatched stock attack interrupted, recovery cancelled, earlier door interrupted and its finished move
+  swept, player move interrupted), re-decides and installs the command. Tests: every disposition off-turn plans
+  `RejectWrongTurn` with no mutation; same-door retention; each replacement exactly once; busy mount not ours rejected.
+- **Nine-second regression (equivalent proof).** `Domain/MountedDoorApproachLifecycle.cs` is now the command's approach
+  state machine (unstarted until valid arrival; native-cooldown retries bounded by progress; mode-aware stall clock that
+  re-samples tick gaps and moves its anchor only on real displacement). The OFFLINE regression (simulated game seconds,
+  labelled as such) drives a 15 s approach past the nine-second boundary while moving, asserts no start/interrupt in
+  between, and completes once at arrival; the native observations (r09: 171 and 39 moving polls, `startedWhileMoving`
+  false on both pairs) show the command unstarted throughout real movement. The native >9 s route is NOT RUN.
+- **Delta review of `5b02d4dd`** (five items, fixed in `7d124fad`): the stall anchor had been re-set every tick (slow
+  creep would read as stillness); a dispatched stock attack was no longer replaceable by a door click; the phase-two
+  stock cancel used the controller-wide Cancel; the replaced earlier door's finished move was not swept before
+  re-deciding; the Unresolved path left `OccupancyInsideNavmesh` stale.
+
+### Harness obstacles
+
+- **Engine `Areas\` unpack cache (r07):** the lab already has an Areas isolation (intake tree held, engine-generated tree
+  quarantined with its digest, original restored byte-exact) selected per route; `chunk4-traversal-core` now selects it
+  (`PersistenceProfileAreasIsolation.ps1`, one line) with a selection test that also checks the retained r07 inventory
+  (no Areas leaves at intake; the seven quarantined members). No guard was weakened; unrelated profile changes still
+  refuse. r10 exercised it natively: `profile-areas-isolation.json` records the generated digest `56fa566a…` and
+  `originalAreasRestoredExactly: true`; the live `Areas\` is empty as at intake.
+- **r08 cycle/placement fault:** the door probe now returns both pairs toward their pre-setup starts through ordinary
+  moves after its inputs (`layoutRestore` block, reader + tests). r09: pair A 11.9 m → 0.05 m, pair B 7.2 m → 0.05 m,
+  both Success; the engine's cycles, sampling and cleanup then passed.
+
+### Native runs on the final binary (batch `sprint2:completion-3`)
+
+| Run | Route | Game | Outer |
+| --- | --- | --- | --- |
+| r09 `20261030-sprint2-r09-doors-speed-v4-final` | two pairs, Old Sycamore `TavernDoor` | PASS 33/0 | PASS |
+| r10 `20261030-sprint2-r10-traversal-core-dungeon-door-final` | Working fixture, `DoorHolder/dwarf_dungeon_door_01` | PASS 4/4 rows, 257 assertions | PASS |
+
+r09: unmounted native control opened the door (7.2 m, Success); pair A one click from 17.9 m, unstarted on 171 moving
+polls, interaction at 1.97 m with LOS after 2.40 game s; settled in 0.017 s, footprint 7/8 → one owned 0.5 m recovery,
+clear afterwards; pair B at 3.54 m during A's click (on the navmesh afterwards), then click-while-moving (move
+`Interrupt`, one interaction, 39 unstarted moving polls, same recovery); Stop control clean (Interrupt, no interaction,
+no pending settlement, 4 frames); layout restored; speed legs (v2) party-paced 2.69 m/s (v1 2.70, Slow gait), pair alone
+4.55 (4.65), Horse unmounted 4.18 (4.26), rider on foot 3.02 (3.06); cycles, sampling, cleanup PASS. r10: the Mammoth
+pair opened the closed dwarf dungeon door once (settled 0.06 s, footprint 8/8, no recovery), the row's readiness probe saw
+the cut toggle off, the pair traversed the doorway; doorway both ways with unmounted control, turns/corners and party
+formation PASS. Capture `…r10…\movement-visuals\mounted-distance-door-interaction-door-mounted-01.png` (`840473858…`).
+
+### Still NOT RUN, with the exact contract
+
+- **MOVE-01 on the owner's surface / SPACE-01 at the owner's exact door.** Inputs are copied and pinned
+  (`KMC_S2_ROGUELIKE_SURFACE_CANDIDATE.master.zks` `1fda72b1…`, `KMC_S2_DUNGEON_FLOOR_CANDIDATE.master.zks`
+  `4c1db37e…`, game "Akasa" `48a4bec2…`, rider `121dc2f0…` with KMC Horse `fb764728…`, Call of the Wild 1.14.4c-2.1).
+  The only native speed/door route is `Chunk7WorldScenarioEngine` (two pairs: `Chunk7OwnedPairsSelection`, PowerShell
+  selection validator, owner-seed registry, world evidence reader) whose setup builds two petless Ranger riders or binds
+  the one registered pre-owned MOUNTED6 identity; a pre-owned single-pair mode (bind rider `121dc2f0…` to its existing
+  pet, skip pair B, run speed legs on one pair) is a new selection contract across the C# selection, the launcher's
+  owner-seed source and the reader, plus CotW staging for the owner-seed route. Not attempted inside this effort's
+  ceilings; the engine rules measured (party pacing, walk gait under 95 % of own speed) are area-independent, but the
+  surface's own weather/terrain was not measured.
+- **Turn-based door control.** No existing route clicks a door in turn-based combat; the owner-seed combat checkpoint
+  cases (`owner-seed-combat-*`, `Chunk7CombatCheckpointDriver`) would need a door stage (rider's acting turn, cost and
+  movement allocation, rejected off-turn input) and reader rows. Offline, the stall clock, recovery admission and the
+  two-phase admission are proven turn-aware; `MountedDoorInteractionCommand.OnAction` still charges through the native
+  `UnitCommand` lifecycle unchanged.
+
+### Cost and state
+
+Budget `sprint2` 73.22 of 90 min at closeout (this iteration: package sprint2j/k, Candidate tier 3.89, suite freeze,
+two WhatIfs, two launches, local test runs, all charged). Active work for this iteration about 2 h 40 min. Live state:
+Mods tree empty, no lock, no game process, no candidate installed, protected saves unchanged, loader parameters and
+profile root (including `Areas\`) at intake. Original verdicts retained: r05 outer FAIL (+ offline re-evaluation), r07
+outer FAIL (+ recovery receipt), r08 FAIL.
