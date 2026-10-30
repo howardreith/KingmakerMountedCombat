@@ -396,6 +396,20 @@ $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
 $runtimeEvidence=Join-Path $labRoot 'runtime-evidence'
+# Parameter-shape refusals depend on the request alone: they are decided before the budget is
+# asked, so a refused shape is never recorded as a native attempt of the sprint batch.
+$isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
+$isManualReview=[string]$Scenario -ceq 'manual-visual-review'
+# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
+if($DevelopmentScopedAudit){
+    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
+    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
+    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
+}
+if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
+if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
+    throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
+}
 # Shared sprint validation budget (scripts/WorkflowBudget.ps1): admission is decided here,
 # before source/package validation, continuity preflight, the WhatIf/ShouldProcess boundary,
 # Steam checks, evidence directories, locks, staging or launch, so every expensive phase is
@@ -429,20 +443,8 @@ $liveMods=[string]$intake.requestedLayout.kingmakerModsRoot
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
-$isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
-$isManualReview=[string]$Scenario -ceq 'manual-visual-review'
-# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
-if($DevelopmentScopedAudit){
-    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
-    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
-    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
-}
-if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
 $baseGameDependencies=$null
 if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
-if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
-    throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
-}
 $legacyContinuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
