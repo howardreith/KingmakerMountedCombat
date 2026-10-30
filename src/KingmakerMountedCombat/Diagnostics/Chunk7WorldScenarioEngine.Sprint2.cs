@@ -24,7 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // nine-metre route is recorded as not applicable rather than forced.
     internal sealed partial class Chunk7WorldScenarioEngine
     {
-        internal const string SpeedLegContract = "sprint2-speed-legs/v1";
+        internal const string SpeedLegContract = "sprint2-speed-legs/v2";
         internal const float SpeedLegDistanceMetres = 9f;
         private const float SpeedLegClampResidualMetres = 0.5f;
         private const float SpeedLegDoorClearanceMetres = 1.5f;
@@ -38,11 +38,10 @@ namespace KingmakerMountedCombat.Diagnostics
             internal UnitEntityData Unit;
             internal UnitMoveTo Move;
             internal JObject Record;
-            internal Vector3 LastPosition;
-            internal double PathLength;
+            // v2: path and motion time over the same samples (SpeedLegSampler); the v1 figure is kept beside it.
+            internal readonly SpeedLegSampler Sampler = new SpeedLegSampler();
             internal long Samples, MovingSamples;
             internal double AgentSpeedSum, MaximumAgentSpeed, EntitySpeedSum, MaximumEntitySpeed;
-            internal TimeSpan FirstMotion = TimeSpan.MinValue, LastMotion = TimeSpan.MinValue;
             internal Dictionary<string, long> Gaits = new Dictionary<string, long>(StringComparer.Ordinal);
             internal bool Accelerated;
             internal string FinalMovementType;
@@ -123,7 +122,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var record = new JObject { ["id"] = unit.UniqueId, ["role"] = role, ["commandObject"] = Id(move),
                     ["executorId"] = move.Executor?.UniqueId, ["speedLimitAtClick"] = move.SpeedLimit,
                     ["movementTypeAtClick"] = move.MovementType.ToString(), ["start"] = Point(unit.Position) };
-                speedLegMovers.Add(new SpeedLegMover { Unit = unit, Move = move, Record = record, LastPosition = unit.Position });
+                var speedMover = new SpeedLegMover { Unit = unit, Move = move, Record = record };
+                // The at-rest baseline sample at the click: the motion interval can open no earlier than this.
+                speedMover.Sampler.Observe(speedLegStartedGame.TotalSeconds, unit.Position.x, unit.Position.z);
+                speedLegMovers.Add(speedMover);
             }
             speedLeg["movers"] = new JArray(speedLegMovers.Select(m => m.Record));
             Require(speedLegMovers.Any(m => ReferenceEquals(m.Unit, mover)), "The native ground click did not move the speed leg's primary mover.");
@@ -142,13 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var m in speedLegMovers)
             {
                 var unit = m.Unit; var agent = unit.View?.AgentASP;
-                var moved = Vector3.Distance(Flat(unit.Position), Flat(m.LastPosition));
-                if (moved > 0.001f)
-                {
-                    m.PathLength += moved; m.LastPosition = unit.Position;
-                    if (m.FirstMotion == TimeSpan.MinValue) m.FirstMotion = now;
-                    m.LastMotion = now;
-                }
+                m.Sampler.Observe(now.TotalSeconds, unit.Position.x, unit.Position.z);
                 var agentSpeed = agent != null ? agent.Speed : 0f;
                 m.Samples++;
                 if (agentSpeed > 0.05f)
@@ -167,11 +163,15 @@ namespace KingmakerMountedCombat.Diagnostics
             speedLeg["gameSeconds"] = legGameSeconds;
             foreach (var m in speedLegMovers)
             {
-                var motionSeconds = m.FirstMotion == TimeSpan.MinValue ? 0d : (m.LastMotion - m.FirstMotion).TotalSeconds;
                 var r = m.Record;
                 r["end"] = Point(m.Unit.Position); r["result"] = m.Move.Result.ToString();
-                r["pathLength"] = m.PathLength; r["motionGameSeconds"] = motionSeconds;
-                r["effectiveSpeedMps"] = motionSeconds > 0d ? m.PathLength / motionSeconds : 0d;
+                r["pathLength"] = m.Sampler.PathLength; r["motionGameSeconds"] = m.Sampler.MotionSeconds;
+                r["effectiveSpeedMps"] = m.Sampler.EffectiveSpeed;
+                // v2: the interval is aligned to the path (opened at the last at-rest sample); the v1 figure beside it.
+                r["samplingContract"] = SpeedLegSampler.Contract;
+                r["firstMotionGameSeconds"] = m.Sampler.Moved ? (JToken)(m.Sampler.FirstMotionSeconds.Value - speedLegStartedGame.TotalSeconds) : null;
+                r["unalignedMotionGameSeconds"] = m.Sampler.UnalignedMotionSeconds;
+                r["effectiveSpeedMpsUnaligned"] = m.Sampler.UnalignedEffectiveSpeed;
                 r["samples"] = m.Samples; r["movingSamples"] = m.MovingSamples;
                 r["meanAgentSpeedMps"] = m.MovingSamples > 0 ? m.AgentSpeedSum / m.MovingSamples : 0d;
                 r["maximumAgentSpeedMps"] = m.MaximumAgentSpeed;
@@ -183,10 +183,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 r["factsAfter"] = CaptureSpeedFacts(m.Unit);
             }
             var primary = speedLegMovers.First(m => (string)m.Record["id"] == (string)speedLeg["primaryMoverId"]);
-            Require(primary.Move.Result == UnitCommand.ResultType.Success && primary.PathLength >= SpeedLegDistanceMetres * 0.5f,
+            Require(primary.Move.Result == UnitCommand.ResultType.Success && primary.Sampler.PathLength >= SpeedLegDistanceMetres * 0.5f,
                 "The speed leg's primary mover did not complete a native route of meaningful length: " + speedLeg["label"]);
             logger.Info("Sprint 2 speed leg " + speedLeg["label"] + ": primary effective " + ((double)primary.Record["effectiveSpeedMps"]).ToString("F2") +
-                " m/s over " + primary.PathLength.ToString("F2") + " m; gaits=" + primary.Record["gaits"].ToString(Newtonsoft.Json.Formatting.None));
+                " m/s (v1 interval " + primary.Sampler.UnalignedEffectiveSpeed.ToString("F2") + ") over " + primary.Sampler.PathLength.ToString("F2") +
+                " m; gaits=" + primary.Record["gaits"].ToString(Newtonsoft.Json.Formatting.None));
             speedLeg = null; speedLegMovers = null;
             return true;
         }

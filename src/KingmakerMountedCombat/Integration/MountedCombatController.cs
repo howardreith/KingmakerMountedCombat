@@ -47,6 +47,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly ObservedPlayerAttackRequest<UnitEntityData, UnitCommand> observedStockRequest =
             new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private MountedDoorInteractionCommand activeDoorInteraction;
+        // Sprint 2 (SPACE-01): the owned post-interaction occupancy settlement of the last door click.
+        private MountedDoorOccupancySettlement pendingDoorSettlement;
+        // The last frame on which the native turn movement override admitted the mount with budget left.
+        private int mountMovementOpportunityFrame = -1;
         private UnitMoveTo activeRiderTurnGroundMove;
         private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> groundMoveOwner;
         private UnitMoveTo observedNativeMountTurnMove;
@@ -89,8 +93,12 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
+        public bool HasPendingDoorSettlement => pendingDoorSettlement != null && !pendingDoorSettlement.IsFinished;
+
+        internal bool MountMovementOpportunityRecently => mountMovementOpportunityFrame >= 0 && Time.frameCount - mountMovementOpportunityFrame <= 2;
+
         internal bool HasRetainedPairCommands => HasChargeOwnership || activeCommand != null ||
-            finishedCommandPendingSweep != null || activeDoorInteraction != null || activeRiderTurnGroundMove != null ||
+            finishedCommandPendingSweep != null || activeDoorInteraction != null || pendingDoorSettlement != null || activeRiderTurnGroundMove != null ||
             riderTurnGroundMoveAdmissionPending || HasStockAttackIntent;
 
         internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
@@ -132,7 +140,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool HasExactMountMovement =>
             activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished ||
             activeCommand?.DelegatedMove != null && !activeCommand.DelegatedMove.IsFinished ||
-            activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished;
+            activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished ||
+            pendingDoorSettlement?.RecoveryMove != null;
 
         internal bool OwnsExactUnifiedMountCommand(UnitCommand command)
         {
@@ -147,7 +156,8 @@ namespace KingmakerMountedCombat.Integration
             var commands = relationship.Mount.Commands;
             return ReferenceEquals(commands.GetCommand(command.Type), command) &&
                 (OwnsExactUnifiedMountCommand(command) || ReferenceEquals(command, activeRiderTurnGroundMove) ||
-                 ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove));
+                 ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove) ||
+                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove));
         }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
@@ -837,6 +847,19 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeDoorInteraction = null;
             }
+            if (pendingDoorSettlement != null)
+            {
+                pendingDoorSettlement.Tick();
+                if (pendingDoorSettlement.IsFinished)
+                {
+                    var settled = pendingDoorSettlement.Outcome;
+                    logger.Info("Mounted door occupancy settled: mountId=" + settled.MountId + "; settled=" + settled.OccupancySettled +
+                        " (" + settled.OccupancySettleGameSeconds.ToString("F2") + " s); footprintClear=" + settled.FootprintClear +
+                        "; recovery=" + settled.RecoveryDisposition + "/" + settled.RecoveryTerminal +
+                        "; footprintClearAfter=" + settled.FootprintClearAfterRecovery + "; slotRestored=" + settled.MountMoveSlotRestored);
+                    pendingDoorSettlement = null;
+                }
+            }
             DriveRiderTurnGroundMovement();
             SweepRiderTurnGroundMovement();
             if (activeCommand != null && activeCommand.IsFinished)
@@ -884,6 +907,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 doorInteraction.Interrupt();
             }
+            var settlement = pendingDoorSettlement;
+            pendingDoorSettlement = null;
+            settlement?.Cancel(reason);
             CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
             relationship.Runtime.CancelMountMovement();
@@ -1226,7 +1252,9 @@ namespace KingmakerMountedCombat.Integration
         {
             result = false;
             var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
-            var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished;
+            // The door's occupancy recovery move is driven exactly like its approach: on the rider's acting turn.
+            var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished ||
+                pendingDoorSettlement?.RecoveryMove != null;
             var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
             if (disposed || !attackApproachActive && !doorApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
@@ -1266,6 +1294,9 @@ namespace KingmakerMountedCombat.Integration
             }
             unifiedTurn.TickMountMovement(turn, ref deltaTime);
             result = deltaTime > 0f;
+            // The mount's legitimate movement opportunity this frame: admitted on the rider's acting turn with
+            // movement budget left. The door approach's stall clock counts stillness only on such frames.
+            if (result) mountMovementOpportunityFrame = Time.frameCount;
             // At zero remaining time use the native denial branch. Because the
             // mount is not CurrentTurn, it cannot be charged twice there; native
             // CanMoveInTurnBased completes/interrupts its path with the installed
@@ -1428,6 +1459,15 @@ namespace KingmakerMountedCombat.Integration
             // the accepted command; a click on another door replaces it; the mount's ordinary real-time player move
             // yields to the door approach exactly as a native unit's own move yields to its new Standard command.
             var mountCommands = relationship.Mount?.Commands;
+            // A new door click is the player's explicit intent: an owned occupancy recovery still running from the
+            // previous click yields to it (its outcome records the cancellation), as a native unit's own move would.
+            if (pendingDoorSettlement != null && !pendingDoorSettlement.IsFinished)
+            {
+                var yielding = pendingDoorSettlement;
+                pendingDoorSettlement = null;
+                if (yielding.RecoveryMove != null) DoorInteractionReplacedRecoveryCount++;
+                yielding.Cancel("replaced by a new door click");
+            }
             var disposition = DecideDoorAdmission(mountCommands, exactDoor);
             if (disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
             {
@@ -1478,6 +1518,7 @@ namespace KingmakerMountedCombat.Integration
                 logger,
                 HandleDoorInteractionTerminal);
             routed.NativePartnerMovement = settings.EnablePairedActivation;
+            routed.MovementOpportunity = () => MountMovementOpportunityRecently;
             activeDoorInteraction = routed;
             unifiedTurn.RememberPairedMovementInput();
             LastDoorInteractionOutcome = null;
@@ -1652,6 +1693,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal long DoorInteractionRetainedClickCount { get; private set; }
 
+        internal long DoorInteractionReplacedRecoveryCount { get; private set; }
+
+        internal long DoorOccupancyRecoveryCount { get; private set; }
+
         private MountedDoorAdmissionDisposition DecideDoorAdmission(UnitCommands mountCommands, StandardDoor exactDoor)
         {
             if (mountCommands == null)
@@ -1684,6 +1729,14 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeDoorInteraction = null;
             }
+            if (outcome.Settlement != null && !outcome.Settlement.IsFinished)
+            {
+                // The native action ended; the controller now owns the settlement (and any recovery move) until it
+                // reports a terminal result on this same outcome, or Stop/retarget/dismount/area change cancels it.
+                pendingDoorSettlement?.Cancel("superseded by a later door interaction");
+                pendingDoorSettlement = outcome.Settlement;
+                DoorOccupancyRecoveryCount++;
+            }
             LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString() &&
                 outcome.InteractionCount == 1 && outcome.DoorStateChanged
                 ? "Mounted door interaction completed."
@@ -1695,6 +1748,8 @@ namespace KingmakerMountedCombat.Integration
                 "; doorStateChanged=" + outcome.DoorStateChanged +
                 "; riderPathSuppressed=" + outcome.RiderPathSuppressed +
                 "; mountMoveSlotRestored=" + outcome.MountMoveSlotRestored +
+                "; preventionRefused=" + outcome.PreventionRefused +
+                "; settlementPending=" + (outcome.Settlement != null && !outcome.Settlement.IsFinished) +
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; feedback=" + LastFeedback);
         }

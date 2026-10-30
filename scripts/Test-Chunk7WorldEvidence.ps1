@@ -311,6 +311,70 @@ $v3Mutations=@(
  @('v3 lateral move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1811)})
 )
 foreach($mutation in $v3Mutations){$copy=Copy-TestValue $doorV3;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v4 door (Sprint 2 completion): unmounted control, endpoint neighbor, Stop control, unstarted-while-moving samples and the
+# owned settlement (settled cut, body footprint, recovery) on top of v3. Built independently of the reader.
+function New-TestOccupancy([double]$Distance){[pscustomobject]@{mountPosition=(New-TestPoint 8.2 0 0);riderPosition=(New-TestPoint 8.2 1.2 0);mountInsideNavmesh=$true;riderInsideNavmesh=$false;mountDistanceToApproachPoint=$Distance;mountDistanceToDoor=$Distance;doorOpen=$true;cutEnabled=$false;mountCanMove=$true;mountCommandsEmpty=$true}}
+function New-DoorV4Fixture(){
+    $copy=Copy-TestValue $doorV3;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v4'
+    $d.longApproach|Add-Member requestedDistances @(26.0,20.0)
+    $d.setupInteractions=$(if($d.fixture.originalOpen){2}else{1})+2
+    $d|Add-Member unmountedControl ([pscustomobject]@{applicable=$true;actorId='8265f8cf-0969-4ec7-a266-2448de91c8c4';accepted=$true;commandType='Kingmaker.UnitLogic.Commands.UnitInteractWithObject';commandObject=1830;distanceBefore=9.0;routedByKmc=$false;result='Success';doorOpenAfter=$true;distanceAfter=1.5;actorInsideNavmesh=$true})
+    $d|Add-Member endpointNeighbor ([pscustomobject]@{applicable=$true;goalSearch=(New-TestGoalSearch (New-TestPoint 20 0 0) (New-TestPoint -1 0 0) 7.0 (New-TestPoint 13 0 0) 3.3);goal=(New-TestPoint 13 0 0);moveCommand=1831;moveResult='Success';positionAtFirstClick=(New-TestPoint 13 0 0);distanceToApproachPointAtFirstClick=3.3;occupancyAfterFirstInteraction=(New-TestOccupancy 3.3)})
+    $d|Add-Member stopControl ([pscustomobject]@{applicable=$true;commandObject=1832;distanceBefore=14.0;mountPositionAtStop=(New-TestPoint -5 0 0);commandStartedAtStop=$false;distanceMovedAtStop=2.5;stopFrame=5000;commandResult='Interrupt';doorOpenAfter=$false;interactionCount=0;outcomeResult='Interrupt';mountMoveSlotRestored=$true;mountCommandsEmpty=$true;riderCommandsEmpty=$true;pendingSettlement=$false;framesToSettle=4;mountPositionAfter=(New-TestPoint -5 0 0)})
+    for($i=0;$i-lt2;$i++){$v=$d.interactions[$i];$v|Add-Member movingPolls 40;$v|Add-Member startedWhileMoving $false;$v|Add-Member unstartedWhileMoving $true
+        $o=$v.outcome;$o|Add-Member PreventionRefused $false;$o|Add-Member OccupancySettled $true;$o|Add-Member OccupancySettleGameSeconds 0.05;$o|Add-Member MountCorpulence 0.9
+        $o|Add-Member FootprintClear $true;$o|Add-Member FootprintRingInside 8;$o|Add-Member FootprintRingReachable 8;$o|Add-Member RecoveryDisposition 'NotNeeded';$o|Add-Member RecoveryTerminal 'None'
+        $o|Add-Member RecoveryCandidatesEvaluated 0;$o|Add-Member RecoveryCandidateReasons '';$o|Add-Member RecoveryDestinationDistance ([double]::NaN);$o|Add-Member FootprintClearAfterRecovery $null;$o|Add-Member RecoveryCancelReason $null}
+    $copy.observations.factRemovalAdmission.commands+=@((1830..1832)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
+    return $copy
+}
+$doorV4=New-DoorV4Fixture
+Check 'v4 door with unmounted control, endpoint neighbor, Stop control and clear settled footprints' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4) 'PASS'}
+Check 'v4 door with one completed owned recovery that left the footprint clear' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
+    $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'
+    $o.RecoveryCandidatesEvaluated=3;$o.RecoveryCandidateReasons='admitted=1,footprint-blocked=2';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'v4 door with the controls recorded as not applicable' {$copy=Copy-TestValue $doorV4;$d=$copy.observations.door
+    $d.unmountedControl=[pscustomobject]@{applicable=$false;reason='no idle unmounted controllable party member within the scan radius'};$d.setupInteractions=$(if($d.fixture.originalOpen){2}else{1})+1
+    $d.endpointNeighbor=[pscustomobject]@{applicable=$false;goalSearch=[pscustomobject]@{skipped='second pair already within the neighbor distance'};reason='no clear native goal near the door approach point for the second pair'}
+    $d.stopControl=[pscustomobject]@{applicable=$false;reason='the first pair stands inside the door''s immediate range'}
+    $copy.observations.factRemovalAdmission.commands=@($copy.observations.factRemovalAdmission.commands|Where-Object{$_.commandObject-notin@(1830,1831,1832)});Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+$v4Mutations=@(
+ @('v4 contract in the v3 shape',{param($v)foreach($k in @('unmountedControl','endpointNeighbor','stopControl')){$v.observations.door.PSObject.Properties.Remove($k)}}),
+ @('v4 interaction in the v3 row shape',{param($v)$v.observations.door.interactions[0].PSObject.Properties.Remove('unstartedWhileMoving')}),
+ @('v4 outcome in the v3 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('FootprintClear')}),
+ @('v4 command started while the mount moved',{param($v)$v.observations.door.interactions[0].startedWhileMoving=$true;$v.observations.door.interactions[0].unstartedWhileMoving=$false}),
+ @('v4 mount never observed moving',{param($v)$v.observations.door.interactions[1].movingPolls=0}),
+ @('v4 prevention refused the interaction',{param($v)$v.observations.door.interactions[0].outcome.PreventionRefused=$true}),
+ @('v4 settlement never settled',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettled=$false}),
+ @('v4 settlement exceeded its bound',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=4.0}),
+ @('v4 footprint not clear without recovery',{param($v)$v.observations.door.interactions[0].outcome.FootprintClear=$false;$v.observations.door.interactions[0].outcome.FootprintRingReachable=7}),
+ @('v4 clear footprint reporting a recovery',{param($v)$v.observations.door.interactions[0].outcome.OccupancyRecovery='repath'}),
+ @('v4 footprint unrecoverable',{param($v)$o=$v.observations.door.interactions[0].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Unrecoverable';$o.OccupancyRecovery='unrecoverable'}),
+ @('v4 recovery interrupted',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Interrupted';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$false}),
+ @('v4 recovery replaced by another order',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Replaced';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true}),
+ @('v4 recovery destination beyond the recovery radius',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=2.6;$o.FootprintClearAfterRecovery=$true}),
+ @('v4 recovery leaving the footprint blocked',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$false}),
+ @('v4 settlement cancelled',{param($v)$v.observations.door.interactions[0].outcome.RecoveryCancelReason='ground command'}),
+ @('v4 unmounted control routed by KMC',{param($v)$v.observations.door.unmountedControl.routedByKmc=$true}),
+ @('v4 unmounted control not the native interaction',{param($v)$v.observations.door.unmountedControl.commandType='KingmakerMountedCombat.Integration.MountedDoorInteractionCommand'}),
+ @('v4 unmounted control by a declared rider',{param($v)$v.observations.door.unmountedControl.actorId=$first}),
+ @('v4 unmounted control that did not open the door',{param($v)$v.observations.door.unmountedControl.doorOpenAfter=$false}),
+ @('v4 setup closes not accounting for the unmounted control',{param($v)$v.observations.door.setupInteractions=$v.observations.door.setupInteractions-1}),
+ @('v4 endpoint neighbor inside the door approach',{param($v)$v.observations.door.endpointNeighbor.distanceToApproachPointAtFirstClick=2.3}),
+ @('v4 endpoint neighbor far from the door',{param($v)$v.observations.door.endpointNeighbor.distanceToApproachPointAtFirstClick=6.0}),
+ @('v4 endpoint neighbor off the navmesh after the first interaction',{param($v)$v.observations.door.endpointNeighbor.occupancyAfterFirstInteraction.mountInsideNavmesh=$false}),
+ @('v4 endpoint neighbor move failed',{param($v)$v.observations.door.endpointNeighbor.moveResult='Interrupt'}),
+ @('v4 Stop control command started at the stop',{param($v)$v.observations.door.stopControl.commandStartedAtStop=$true}),
+ @('v4 Stop control that interacted',{param($v)$v.observations.door.stopControl.interactionCount=1}),
+ @('v4 Stop control leaving a pending settlement',{param($v)$v.observations.door.stopControl.pendingSettlement=$true}),
+ @('v4 Stop control leaving a mount command',{param($v)$v.observations.door.stopControl.mountCommandsEmpty=$false}),
+ @('v4 Stop control ending as success',{param($v)$v.observations.door.stopControl.commandResult='Success'}),
+ @('v4 long approach requesting beyond the click bound',{param($v)$v.observations.door.longApproach.requestedDistances=@(40.0)}),
+ @('v4 control command excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1830)}),
+ @('v4 neighbor move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1831)}),
+ @('v4 Stop command excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1832)})
+)
+foreach($mutation in $v4Mutations){$copy=Copy-TestValue $doorV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 # Sprint 2 (MOVE-01) speed legs: optional, recorded with their contract; the primary mover must complete a measured native route.
 function New-SpeedLegsFixture(){
     $copy=Copy-TestValue $doorV3;$o=$copy.observations
@@ -334,7 +398,25 @@ $legMutations=@(
  @('speed leg move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1820)})
 )
 foreach($mutation in $legMutations){$copy=Copy-TestValue $speedLegs;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
-Check 'door probe writes the v2 contract the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v3"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v3 reader.'}
+# v2 speed legs (Sprint 2 completion): the aligned motion interval and the v1 figure beside it.
+function New-SpeedLegsV2Fixture(){
+    $copy=Copy-TestValue $speedLegs;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v2'
+    $mv=$o.speedLegs[0].movers[0];$mv|Add-Member samplingContract 'aligned-interval/v2';$mv|Add-Member firstMotionGameSeconds 0.1;$mv|Add-Member unalignedMotionGameSeconds 2.9;$mv|Add-Member effectiveSpeedMpsUnaligned 3.1
+    return $copy
+}
+$speedLegsV2=New-SpeedLegsV2Fixture
+Check 'Sprint 2 v2 speed legs with the aligned interval' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV2) 'PASS'}
+$legV2Mutations=@(
+ @('v2 speed leg in the v1 mover shape',{param($v)$v.observations.speedLegs[0].movers[0].PSObject.Properties.Remove('samplingContract')}),
+ @('v2 speed leg with another sampling contract',{param($v)$v.observations.speedLegs[0].movers[0].samplingContract='aligned-interval/v1'}),
+ @('v2 speed leg aligned interval shorter than the v1 interval',{param($v)$v.observations.speedLegs[0].movers[0].unalignedMotionGameSeconds=3.5}),
+ @('v2 speed leg first motion before the click',{param($v)$v.observations.speedLegs[0].movers[0].firstMotionGameSeconds=-0.5}),
+ @('v1 speed leg carrying v2 fields',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v1'})
+)
+foreach($mutation in $legV2Mutations){$copy=Copy-TestValue $speedLegsV2;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v4"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v4 reader.'}
+    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v2"'){throw 'Speed leg contract differs from the v2 reader.'}
+    $sampler=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs'));if($sampler-cnotmatch'Contract = "aligned-interval/v2"'){throw 'Speed leg sampler contract differs from the v2 reader.'}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
     foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
 # v2 route moves (F5 hardening): each fixed 2 m move goes to the first route candidate (declared direction first, then
