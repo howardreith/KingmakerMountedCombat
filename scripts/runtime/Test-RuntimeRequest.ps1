@@ -94,6 +94,11 @@ $hasWorkingObservation = @($request.PSObject.Properties.Name) -ccontains 'observ
 $hasF11AllocationProbe = @($request.PSObject.Properties.Name) -ccontains 'f11AllocationProbe'
 $hasOwnerStockRemoval = @($request.PSObject.Properties.Name) -ccontains 'ownerStockRemoval'
 $hasEngineShapedSaveRoot = @($request.PSObject.Properties.Name) -ccontains 'engineShapedSaveRoot'
+$hasUpgradeChain = @($request.PSObject.Properties.Name) -ccontains 'upgradeChain'
+if($hasUpgradeChain -and ($request.upgradeChain -isnot [bool] -or $request.upgradeChain -ne $true -or $request.scenario -cne 'persistence-p05-load' -or
+    -not(@($request.PSObject.Properties.Name) -ccontains 'persistenceCase') -or $request.persistenceCase -cnotin @('quick','manual'))){
+    throw 'The upgrade chain is an explicit true opt-in for the P05 Quick cold load that resaves and the P05 Manual cold load of that resave.'
+}
 if($hasEngineShapedSaveRoot -and ($request.engineShapedSaveRoot -isnot [bool] -or $request.engineShapedSaveRoot -ne $true -or
     -not(Test-JsonInteger $request.schemaVersion) -or $request.schemaVersion -ne 2)) {
     throw 'The engine-shaped save root is an explicit true opt-in for save-backed isolated runs only.'
@@ -226,6 +231,7 @@ elseif ($schemaVersion -eq 2) {
     if($hasWorkingObservation){$extra+=@('observeWorkingDeserialization')}
     if($hasF11AllocationProbe){$extra+=@('f11AllocationProbe')}
     if($hasEngineShapedSaveRoot){$extra+=@('engineShapedSaveRoot')}
+    if($hasUpgradeChain){$extra+=@('upgradeChain')}
     if($hasOwnerStockRemoval){$extra+='ownerStockRemoval';if($request.scenario-ceq'persistence-p07-save'){$extra+='persistenceLoad'}}
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($loadRefusal){Assert-KmcChunk7LoadRefusalDescriptor $request}
@@ -277,7 +283,7 @@ elseif ($schemaVersion -eq 2) {
         # The foreign-header derivative is campaign B's own archive whose KMC
         # member claims A: its native header carries B's minted identity.
         $foreignHeader=$second-and$validation-and$request.persistenceCase-ceq'foreign-header-campaign'
-        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){if($hasOwnerStockRemoval){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_301_KMC_CLEANUP.zks'}}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){if($hasOwnerStockRemoval){'Manual_306_KMC_CLEANUP.zks'}else{'Manual_301_KMC_CLEANUP.zks'}}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($hasUpgradeChain-and$request.persistenceCase-ceq'manual'){'Manual_1_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
         $nameOk=if($second-and$validation){if($foreignHeader){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}elseif($deathCold){$d.internalName-ceq'KMC_DEATH'}elseif($sizeCold){$d.internalName-ceq'KMC_SIZE'}elseif($campaignBCold){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or

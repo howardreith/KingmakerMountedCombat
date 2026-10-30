@@ -15,7 +15,7 @@ function Get-KmcPersistenceSource {
         # destination manual archive and the engine's own transition autosave.
         # A prepare-removal run's cleanup archive and a death run's no-pair
         # archive are their own roles.
-        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual','eligibility-manual','campaign-b-manual')][string]$ArtifactRole='destination-manual',
+        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual','eligibility-manual','campaign-b-manual','upgrade-resave-manual')][string]$ArtifactRole='destination-manual',
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -24,11 +24,15 @@ function Get-KmcPersistenceSource {
     Assert-KmcDirectoryTreeCloneable $root 'owned persistence source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
-    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')-or$result.status-cne'PASS'-or
+    # Sprint 1 UPG-01: the upgrade producer is a P05 Quick cold load that resaved one Manual (upgradeChain), exported only under its role.
+    $isUpgradeResave=$ArtifactRole-ceq'upgrade-resave-manual'
+    $admittedScenarios=@('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')+@(if($isUpgradeResave){'persistence-p05-load'})
+    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin $admittedScenarios-or$result.status-cne'PASS'-or
         $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
         $result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
+    if($isUpgradeResave-and($owner.scenario-cne'persistence-p05-load'-or$NativeCase-cne'quick'-or[string]$owner.persistenceCase-cne'quick'-or$null-eq$owner.PSObject.Properties['upgradeChain']-or$owner.upgradeChain-ne$true-or$Alternate)){throw 'Only the upgrade producer (the P05 Quick cold load that resaved) exports its resave.'}
     if($owner.scenario-ceq'persistence-p07-save'){
         if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
@@ -39,17 +43,17 @@ function Get-KmcPersistenceSource {
         if($owner.scenario-cne'persistence-p02-save'-or$owner.persistenceCase-cne$NativeCase){throw '6C TB source checkpoint differs.'}
     }elseif($NativeCase-cin @('condition','condition-preparing','suspended')){
         if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
-    }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
+    }elseif(-not[string]::IsNullOrEmpty($NativeCase)-and-not$isUpgradeResave){throw 'Declared native case requires an exact P03/P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     if($NativeCase-ceq'mounted-charge-removal'-and$ArtifactRole-cne'cleanup-manual'){throw 'Charge removal exports only its exact cleanup archive.'}
-    $type=if($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
+    $type=if($isUpgradeResave){'Manual'}elseif($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
     if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
     if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cnotin @('prepare-removal','mounted-charge-removal')-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
     if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
     if($ArtifactRole-ceq'eligibility-manual'-and($NativeCase-cne'rider-size-change'-or$Alternate)){throw 'Only an eligibility source run produces a no-pair size archive.'}
     if($ArtifactRole-ceq'campaign-b-manual'-and($NativeCase-cne'campaign-b'-or$Alternate)){throw 'Only a campaign-b source run produces B own manual archive.'}
     $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($ArtifactRole-ceq'eligibility-manual'){'KMC_SIZE'}elseif($ArtifactRole-ceq'campaign-b-manual'){'KMC_B'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'eligibility-manual'){'Manual_301_KMC_SIZE.zks'}elseif($ArtifactRole-ceq'campaign-b-manual'){'Manual_302_KMC_B.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $leaf=if($isUpgradeResave){'Manual_1_KMC_P01.zks'}elseif($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'eligibility-manual'){'Manual_301_KMC_SIZE.zks'}elseif($ArtifactRole-ceq'campaign-b-manual'){'Manual_302_KMC_B.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     # Campaign B's archive carries the identity the engine minted for B, read from
     # the source run's own frozen observation, never the fixture's.
     $expectedGameId=[string]$Fixture.working.gameId;$expectedGameName=[string]$Fixture.working.gameName
@@ -719,13 +723,15 @@ function Assert-KmcPersistenceScenarioEvidence {
         # cold process still writes nothing, and neither may disturb the
         # archive it loaded.
         $autoCold=$Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
+        $upgradeResave=$Request.scenario-ceq'persistence-p05-load'-and$Request.persistenceCase-ceq'quick'-and$null-ne$Request.PSObject.Properties['upgradeChain']-and$Request.upgradeChain-eq$true
         $coldWrites=@($rows|Where-Object kind -CEQ 'native-write-complete')
-        if($coldWrites.Count-ne$(if($autoCold){1}else{0})){throw 'P01 cold process unexpectedly wrote a save.'}
+        if($coldWrites.Count-ne$(if($autoCold-or$upgradeResave){1}else{0})){throw 'P01 cold process unexpectedly wrote a save.'}
         $archive=Join-Path $root $Request.persistenceLoad.fileName
         if((Get-KmcSha256 $archive)-cne$Request.persistenceLoad.sha256){throw 'P01 cold process did not retain its selected archive.'}
-        if($autoCold-and($coldWrites[0].detail.path-ceq$archive-or$coldWrites[0].detail.sha256-ceq$Request.persistenceLoad.sha256)){
+        if(($autoCold-or$upgradeResave)-and($coldWrites[0].detail.path-ceq$archive-or$coldWrites[0].detail.sha256-ceq$Request.persistenceLoad.sha256)){
             throw 'P07 transition autosave cold write replaced the archive it loaded.'
         }
+        if($upgradeResave){Assert-KmcUpgradeResaveEvidence $Request $rows $root}
     }
 }
 
@@ -2188,4 +2194,25 @@ function Assert-KmcAreaPersistenceEvidence {
         }
         if($a.$actor.ReactionsRemaining-ne$b.$actor.ReactionsRemaining){throw 'P07 area refreshed native reactions.'}
     }
+}
+
+# Sprint 1 UPG-01: the one native Manual resave after the cold load of the retained older Quick. The current product
+# writes the schema-3 archive member; the restored pair, area and campaign must be the retained input's, and the
+# written bytes must differ from it (a new archive, never the input rewritten).
+function Assert-KmcUpgradeResaveEvidence {
+    param($Request,$Rows,[string]$Root)
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($initial.Count-ne1-or$written.Count-ne1){throw 'UPG-01 producer lacks its exact cold-load and resave observations.'}
+    $w=$written[0].detail
+    $archive=Join-Path $Root 'Manual_1_KMC_P01.zks'
+    $pairs=@($w.snapshot.Pairs)
+    if($w.ordinal-ne1-or$w.path-cne$archive-or$w.nativeType-cne'Manual'-or$w.nativeCallback-ne$true-or$w.operation-cne'None'-or
+        $w.sha256-cnotmatch'^[0-9a-f]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sourceSha256-cne$Request.persistenceLoad.sha256-or
+        -not(Test-Path -LiteralPath $archive -PathType Leaf)-or(Get-KmcSha256 $archive)-cne$w.sha256-or(Get-Item -LiteralPath $archive).Length-ne$w.length-or
+        $w.snapshot.SchemaVersion-ne3-or$w.snapshot.AreaId-cne$Request.persistenceLoad.area-or$w.snapshot.CampaignId-cne$Request.persistenceLoad.gameId-or
+        $pairs.Count-ne1-or$pairs[0].Rider.Id-cne$initial[0].rider.Id-or$pairs[0].Mount.Id-cne$initial[0].mount.Id){
+        throw 'UPG-01 resave is not one new native Manual carrying the restored mounted pair in the retained area and campaign.'
+    }
+    if(@(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne2){throw 'UPG-01 producer root holds other than the retained Quick and its resave.'}
 }

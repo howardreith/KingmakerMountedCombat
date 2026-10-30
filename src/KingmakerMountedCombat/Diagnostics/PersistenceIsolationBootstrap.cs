@@ -121,7 +121,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // at 1 here rather than at the 300 a staged Working fixture
                 // produces. The declared leaf has to be the one the engine will
                 // actually choose, or PrepareSave rejects its own descriptor.
-                if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase))
+                // The UPG-01 resave shares the rule: its root holds just the retained Quick.
+                if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) || request.IsUpgradeResave)
                     entries.Add(new PersistenceSaveEntry {
                         FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
