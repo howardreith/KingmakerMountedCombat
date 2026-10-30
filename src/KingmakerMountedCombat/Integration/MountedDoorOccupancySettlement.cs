@@ -184,6 +184,7 @@ namespace KingmakerMountedCombat.Integration
                 outcome.RecoveryDisposition = unresolved.Disposition.ToString();
                 outcome.OccupancyRecovery = MountedDoorOccupancyPolicy.LegacyRecoveryWord(unresolved.Disposition);
                 outcome.FootprintClear = null;
+                outcome.OccupancyInsideNavmesh = null;
                 logger.Warning("Mounted door occupancy unresolved: the door's navmesh change did not settle within " +
                     MountedDoorOccupancyPolicy.SettleGameSecondsLimit + " game seconds; mountId=" + mount.UniqueId +
                     "; no footprint sample, no recovery (the interaction result is recorded separately).");

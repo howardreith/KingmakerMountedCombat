@@ -189,8 +189,12 @@ namespace KingmakerMountedCombat.Integration
                 // command only executes the action against the mount's Move slot. CanStart stays false until Satisfied.
                 var position = mount.Position;
                 var displacement = mountPositionSampled ? HorizontalDistance(position, lastSampledMountPosition) : 0f;
+                // The anchor moves only on a real displacement, so slow creep accumulates and is never read as stillness.
+                if (!mountPositionSampled || displacement >= MountedDoorApproachPolicy.DisplacementEpsilonMetres)
+                {
+                    lastSampledMountPosition = position;
+                }
                 mountPositionSampled = true;
-                lastSampledMountPosition = position;
                 var live = delegatedMove != null && !delegatedMove.IsFinished;
                 var owned = live && mount.Commands != null && ReferenceEquals(mount.Commands.GetCommand(CommandType.Move), delegatedMove);
                 var turnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
