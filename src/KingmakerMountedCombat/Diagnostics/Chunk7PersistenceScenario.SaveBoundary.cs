@@ -263,7 +263,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any()) return true;
                 Require(persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 &&
                     persistence.LastDrainedSaveCommitted && persistence.LastDrainedSaveOutcomeEstablished &&
-                    persistence.LastDrainedSavePath == Path.Combine(replaySaveAuthority.Root, SelectedOutputLeaf(SaveInfo.SaveType.Manual)) &&
+                    persistence.LastDrainedSavePath != null && Path.GetFullPath(persistence.LastDrainedSavePath) == Path.Combine(replaySaveAuthority.Root, SelectedOutputLeaf(SaveInfo.SaveType.Manual)) &&
                     persistence.CompletedSaveCount == 1 && ReferenceEquals(persistence.LastCompletedSave, boundarySeedCompletion) && persistence.FailedSaveCount == 0 &&
                     !callback && !NativeSaveWorkerBoundary.WorkerHeld &&
                     MountedPersistenceService.NativePauseDepth() == pauseDepthBeforeCancel && Game.Instance.IsPaused == pausedBeforeCancel,

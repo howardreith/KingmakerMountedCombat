@@ -27,6 +27,18 @@ namespace KingmakerMountedCombat.Integration
             nativeSlotRotation = true;
         }
         internal static void DisableNativeSlotRotation() => nativeSlotRotation = false;
+        // Opt-in per isolated run: the engine mints its archive paths from the parent
+        // directory exactly as a player's Unity persistent data path is spelled
+        // (forward slashes) joined with backslashes, so every path the engine builds
+        // has the player's mixed-separator form while every write stays inside the
+        // same owned isolated root. SaveManager.SavePath itself stays canonical.
+        private static bool engineShapedRoot;
+        internal static bool EngineShapedRootEnabled => engineShapedRoot;
+        internal static void EnableEngineShapedRoot()
+        {
+            if (authority == null) throw new InvalidOperationException("The engine-shaped save root requires active isolated authority.");
+            engineShapedRoot = true;
+        }
         internal static bool HasPendingWrites { get { lock (writeGate) return writes.Count != 0; } }
         private static readonly object writeGate = new object();
         private sealed class WriteTransaction
@@ -226,8 +238,8 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool CloudPrefix() => authority == null;
 
-        private static string IsolatedDataParent() => authority == null ?
-            ApplicationPaths.persistentDataPath : Path.GetDirectoryName(authority.Root);
+        private static string IsolatedDataParent() => authority == null ? ApplicationPaths.persistentDataPath :
+            engineShapedRoot ? NativeArchiveReplacementPath.EngineShapedParent(authority.Root) : Path.GetDirectoryName(authority.Root);
 
         private sealed class ReadOnlyLoadScope
         {

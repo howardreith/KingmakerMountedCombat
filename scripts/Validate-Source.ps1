@@ -115,7 +115,7 @@ Assert-Kmc ($disposeBody.Success -and $disposeBody.Value -match 'persistence\.Dr
 # of which can throw afterwards without un-writing the bytes; otherwise a
 # post-commit failure would be reported to the player as a lost save.
 $commitText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedArchiveCommit.cs')
-$replaceAt = $commitText.IndexOf('File.Replace(source, destination, null)', [StringComparison]::Ordinal)
+$replaceAt = $commitText.IndexOf('File.Replace(resolved.Source, resolved.Destination, null)', [StringComparison]::Ordinal)
 $recordAt = if ($replaceAt -ge 0) { $commitText.IndexOf('RecordCommit(destination);', $replaceAt, [StringComparison]::Ordinal) } else { -1 }
 $rebindAt = if ($replaceAt -ge 0) { $commitText.IndexOf('PathField.SetValue(staged, destination)', $replaceAt, [StringComparison]::Ordinal) } else { -1 }
 $completeAt = if ($replaceAt -ge 0) { $commitText.IndexOf('ownership?.Complete()', $replaceAt, [StringComparison]::Ordinal) } else { -1 }

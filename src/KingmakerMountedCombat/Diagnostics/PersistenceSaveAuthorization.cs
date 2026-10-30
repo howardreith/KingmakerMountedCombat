@@ -231,7 +231,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return "The exact isolated scope exhausted its selected native write admission count.";
                 if (OwnerSeedPlan && (ownerSeedPhase != "levelup" || admittedNativeWriteRequests != ownerSeedConfirmedWrites))
                     return "Owner-seed native write is outside its one reserved setup level-up Auto.";
-                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests == 1 && !OwnedPairsReplacementReady(target))
+                // Every owned-pair write after the first is a replacement of the completed output:
+                // the worker-cancel seed/replacement pair, or a slot rotation's repeated overwrites.
+                // The area overwrite's only write is already a replacement of its pre-existing slot.
+                if (ownedPairsRequest != null && !OwnerSeedPlan && admittedNativeWriteRequests >= OwnedPairsReplacementThreshold && !OwnedPairsReplacementReady(target))
                     return "Owned-pair replacement lacks its exact completed native seed and reserved staging leaf.";
                 admittedNativeWriteRequests++;
                 return null;
@@ -659,10 +662,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!OwnedPairsUnchanged()) throw new InvalidOperationException("Owned-pair captured request changed before native archive access.");
                 if (!AcquiredManualRequestUnchanged()) throw new InvalidOperationException("Acquired Manual captured request changed before native archive access.");
                 if (!ProgressionManualUnchanged()) throw new InvalidOperationException("Owned progression Manual request changed before native archive access.");
-                if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
-                    !entries.TryGetValue(Path.GetFileName(path), out var entry) || entry.Writing || entry.Hash == null)
+                var full = Observed(path);
+                if (Path.GetDirectoryName(full) != Root ||
+                    !entries.TryGetValue(Path.GetFileName(full), out var entry) || entry.Writing || entry.Hash == null)
                     throw new InvalidOperationException("Native load archive is not a completed exact owned entry.");
-                VerifyFile(Path.GetFileName(path), entry);
+                VerifyFile(Path.GetFileName(full), entry);
             }
         }
 
@@ -690,8 +694,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!ProgressionManualUnchanged() || progressionManualRequest != null &&
                     (progressionManualReservations != 1 || admittedNativeLoadRequests != 1))
                     throw new InvalidOperationException("Owned progression Manual projection requires its exact reservation and admitted cold load.");
-                if (predicted == null || Canonical(observedRoot) != Root ||
-                    Canonical(predicted.FullPath) != Path.Combine(Root, predicted.FileName) ||
+                if (predicted == null || Observed(observedRoot) != Root ||
+                    Observed(predicted.FullPath) != Path.Combine(Root, predicted.FileName) ||
                     predicted.FileName != Path.GetFileName(predicted.FullPath))
                     throw new InvalidOperationException("New request projection escaped its exact isolated root.");
                 RequireDirectory(Root);
@@ -761,12 +765,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (acquiredManualRequest != null && operation == RuntimeSaveOperation.Write &&
                     (acquiredManualReservations != 1 || admittedNativeLoadRequests != 1))
                     return "Acquired Manual write requires its exact reservation and admitted cold load.";
-                if (Canonical(observedRoot) != Root) return "Observed save root differs from the isolated run root.";
+                if (Observed(observedRoot) != Root) return "Observed save root differs from the isolated run root.";
                 RequireDirectory(Root);
                 if (target == null || string.IsNullOrEmpty(target.FileName) ||
                     !entries.TryGetValue(target.FileName, out var entry))
                     return "Save is not an explicit run-owned allowlist entry.";
-                if (Canonical(target.FullPath) != Path.Combine(Root, target.FileName) ||
+                if (Observed(target.FullPath) != Path.Combine(Root, target.FileName) ||
                     target.FileName != Path.GetFileName(target.FullPath))
                     return "Save is not the exact canonical direct child.";
                 if (operation != RuntimeSaveOperation.Load && operation != RuntimeSaveOperation.Write &&
@@ -885,6 +889,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         throw new IOException("Native replacement did not move the exact completed archive.");
                     current.entries[source].Hash = null;
                     current.entries[destination].Hash = committedHash;
+                    current.ownedPairsReplacementPending = false;
                     Dispose();
                 }
             }
@@ -909,13 +914,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             lock (sync)
             {
-                if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
-                    !entries.TryGetValue(Path.GetFileName(path), out var entry) ||
+                var full = Observed(path);
+                if (Path.GetDirectoryName(full) != Root ||
+                    !entries.TryGetValue(Path.GetFileName(full), out var entry) ||
                     !entry.Writable || entry.Writing || entry.Hash == null)
                     throw new InvalidOperationException("Cleanup is not a completed owned staging archive.");
-                VerifyFile(Path.GetFileName(path), entry);
-                File.Delete(path);
-                if (File.Exists(path) || Directory.Exists(path)) throw new IOException("Owned staging cleanup failed.");
+                VerifyFile(Path.GetFileName(full), entry);
+                File.Delete(full);
+                if (File.Exists(full) || Directory.Exists(full)) throw new IOException("Owned staging cleanup failed.");
                 entry.Hash = null;
             }
         }
@@ -1013,6 +1019,27 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!string.Equals(path.TrimEnd(Path.DirectorySeparatorChar), full, StringComparison.Ordinal) ||
                 full == Path.GetPathRoot(full).TrimEnd(Path.DirectorySeparatorChar))
                 throw new ArgumentException("Noncanonical or filesystem-root save path.");
+            return full;
+        }
+
+        // An engine-minted path. The engine spells every archive path from Unity's
+        // forward-slash persistent data path joined with backslashes, so observed
+        // paths are accepted in any spelling that resolves to the same fully
+        // qualified local file; a relative, drive-relative, root-relative, UNC,
+        // device or stream path is still refused. Configuration inputs keep the
+        // strict canonical spelling above.
+        private static string Observed(string path)
+        {
+            Required(path, 240);
+            if (path.Length < 3 || !char.IsLetter(path[0]) || path[1] != ':' || (path[2] != '\\' && path[2] != '/') ||
+                path.IndexOf(':', 2) >= 0)
+                throw new ArgumentException("A fully qualified local path without device/stream syntax is required.");
+            // The engine never spells a traversal segment; one here is substitution, not spelling.
+            if (path.Split('\\', '/').Any(segment => segment == "." || segment == ".."))
+                throw new ArgumentException("A traversal segment is not an engine spelling.");
+            var full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
+            if (full == Path.GetPathRoot(full).TrimEnd(Path.DirectorySeparatorChar))
+                throw new ArgumentException("A filesystem root is not a save path.");
             return full;
         }
 

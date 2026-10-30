@@ -1834,6 +1834,60 @@ foreach($checkpointCase in @('multi-exploration-quick','multi-exploration-auto')
  Check ('owner-seed checkpoint consumer matches its producer read-back '+$checkpointCase) {$v=New-KmcOwnerSeedCheckpointLoadFixture $checkpointCase;Assert-KmcChunk7OwnerSeedCheckpointColdSource $v.request (New-KmcOwnerSeedCheckpointProducer $v) $v.artifact}
 }
 Check 'owner-seed checkpoint producer maps to the generic save scenario' {if((Get-KmcChunk7SelectedScenario (New-KmcOwnerSeedCheckpointSaveFixture).request)-cne'chunk7-persistence-save'-or(Get-KmcChunk7OwnedWriteCount (New-KmcOwnerSeedCheckpointSaveFixture).request)-ne1){throw 'Checkpoint producer scenario or write quota differs'}}
+# Sprint 1 slot rotation: the Quick producer fixture, derived from the first-ever Quick fixture, carries
+# three writes (first-ever, then two handler-route overwrites landed as native replacement commits).
+function New-KmcRotationWriteRow([int]$Index,[string]$Previous,[string]$Sha,[string]$Path,$Length,[string]$Route,[string]$Staging,[string]$Leaf,$Capacity){
+ [pscustomobject][ordered]@{index=$Index;route=$Route;replacement=$true;callback=$false;requestedIsExistingSlot=$true;requestedIsListDescriptor=$true;nextSlotIsExisting=$true;nativeSlotCapacity=$Capacity;savedOfCategory=1;stagingLeaf=$Staging;landedLeaf=$Leaf;previousSha256=$Previous;previousLength=$Length;commitCountBefore=($Index-2);completionSequenceBefore=($Index-1);replacementFailuresBefore=0;gameTicks=1;snapshotCount=($Index-1);completionSequence=$Index;commitCountAfter=($Index-1);commitRecorded=$true;committedDestination=$Path;path=$Path;sha256=$Sha;length=$Length;bytesChanged=$true;stagingAbsent=$true;writtenIsNewDescriptor=$true;requestedDescriptorRetired=$true;nativeWrites=$Index;failedSaves=0;holdsReleased=$true;archiveGameTimeTicks=1}
+}
+$rotationQuickRoute='Game.MakeQuickSave(): the QuickSave key binding''s handler body (UpdateSaveListIfNeeded + SaveGame(GetNextQuickslot())); key press not synthesized'
+function New-KmcSlotRotationSaveFixture{
+ $v=New-KmcOwnerSeedCheckpointSaveFixture 'multi-exploration-quick';$r=$v.request;$o=$v.artifact.observations
+ $r.persistenceCase='multi-exploration-rotation-quick';$r.ownedPairs.expectedNativeWriteCount=3;$o.checkpoint='multi-exploration-rotation-quick';$o.ownerSeedCheckpointSource.checkpoint='multi-exploration-rotation-quick'
+ $h1='1'*64;$h2='2'*64;$h3=$o.nativeWrite.sha256;$path=$o.nativeWrite.path;$len=$o.nativeWrite.length
+ $o.nativeWrite.nativeCallback=$false;$o.nativeWrite.snapshotCount=3
+ $o.ownedOutputCompletion.completionSequence=3;$o.ownedOutputCompletion.authority.nativeWrites=3;$o.ownedOutputCompletion.authority.authorizedWrites=3;$o.ownedOutputCompletion.authority.writeCap=3;$o.ownedOutputAdmission.authority.writeCap=3
+ $writes=@([pscustomobject][ordered]@{index=1;replacement=$false;callback=$true;route='slot route: GetNextQuickslot() + Game.SaveGame (first-ever Quick; fills the one projected slot)';landedLeaf='Quick_1.zks';path=$path;sha256=$h1;length=$len;completionSequence=1;commitCount=0;commitRecorded=$false;nativeWrites=1})
+ $writes+=New-KmcRotationWriteRow 2 $h1 $h2 $path $len $rotationQuickRoute 'Quick_2.zks' 'Quick_1.zks' 1.0;$writes+=New-KmcRotationWriteRow 3 $h2 $h3 $path $len $rotationQuickRoute 'Quick_2.zks' 'Quick_1.zks' 1.0
+ $o|Add-Member slotRotation ([pscustomobject][ordered]@{contract='sprint1-slot-rotation-v1';checkpoint='multi-exploration-rotation-quick';nativeType='Quick';selectedWrites=3;projectedSlotCapacity=1;overwriteRoute=$rotationQuickRoute;keyPressSynthesized=$false;replacementSiteInvokedDirectly=$false;commitCountBefore=0;writes=$writes}) -Force
+ $o.ownedOutputCompletion|Add-Member rotation ([pscustomobject][ordered]@{writes=3;replacements=2;commitCount=2;replacementFailures=0;failedSaves=0;landedLeaf='Quick_1.zks';stagingLeaf='Quick_2.zks';sha256ByWrite=@($h1,$h2,$h3);finalSha256=$h3}) -Force
+ $complete=@($o.snapshots|Where-Object label -CEQ 'native-write-complete')[0]
+ $o.snapshots=@($o.snapshots)+@(2,3|ForEach-Object{$s=Copy-Value $complete;$s.label='slot-rotation-write-'+$_+'-complete';$s})
+ $v.name='persistence-owner-seed-checkpoint-save-multi-exploration-rotation-quick';$v
+}
+function Check-SlotRotation([string]$Name,[scriptblock]$Mutation,[string]$Pattern=''){$v=New-KmcSlotRotationSaveFixture;&$Mutation $v;Check $Name {Invoke-OwnedReader $v;Assert-KmcChunk7OwnedOutputEvidence $v.request $v.artifact.observations} $true $Pattern}
+Check 'slot rotation producer evidence accepted' {$v=New-KmcSlotRotationSaveFixture;Invoke-OwnedReader $v;Assert-KmcChunk7OwnedOutputEvidence $v.request $v.artifact.observations;Assert-KmcChunk7OwnedFinalSaveRoot $v.request @($v.request.persistenceLoad.fileName,'Quick_1.zks') $v.artifact.observations}
+Check 'slot rotation producer selects three Quick writes and its cold consumer loads the rotated slot' {$v=New-KmcSlotRotationSaveFixture;if((Get-KmcChunk7OwnedWriteCount $v.request)-ne3-or(Get-KmcChunk7PersistenceType 'multi-exploration-rotation-quick')-cne'Quick'-or(Get-KmcChunk7PersistenceType 'multi-exploration-overwrite-manual')-cne'Manual'-or(Get-KmcChunk7OwnedOutputLeaf $v.request $v.artifact.observations)-cne'Quick_1.zks'){throw 'Rotation quota, type or leaf differs'}
+ $c=New-KmcOwnerSeedCheckpointLoadFixture 'multi-exploration-quick';$c.request.persistenceCase='multi-exploration-rotation-quick';$c.artifact.observations.checkpoint='multi-exploration-rotation-quick';Invoke-OwnedReader $c;if((Get-KmcChunk7OwnedWriteCount $c.request)-ne0){throw 'Rotation consumer writes'}}
+Check-SlotRotation 'slot rotation refuses a missing rotation receipt' {$args[0].artifact.observations.ownedOutputCompletion.PSObject.Properties.Remove('rotation')}
+Check-SlotRotation 'slot rotation refuses a missing per-write record' {$args[0].artifact.observations.PSObject.Properties.Remove('slotRotation')} 'rotation receipt'
+Check-SlotRotation 'slot rotation refuses an overwrite that recorded no replacement commit' {$w=$args[0].artifact.observations.slotRotation.writes[2];$w.commitCountAfter=$w.commitCountBefore;$args[0].artifact.observations.ownedOutputCompletion.rotation.commitCount=1}
+Check-SlotRotation 'slot rotation refuses an overwrite that left the previous bytes' {$o=$args[0].artifact.observations;$o.slotRotation.writes[2].sha256=$o.slotRotation.writes[1].sha256;$o.ownedOutputCompletion.rotation.sha256ByWrite[2]=$o.slotRotation.writes[1].sha256;$o.ownedOutputCompletion.rotation.finalSha256=$o.slotRotation.writes[1].sha256;$o.nativeWrite.sha256=$o.slotRotation.writes[1].sha256} 'identical bytes'
+Check-SlotRotation 'slot rotation refuses a staging leaf left behind' {$args[0].artifact.observations.slotRotation.writes[1].stagingAbsent=$false}
+Check-SlotRotation 'slot rotation refuses a commit that landed elsewhere' {$args[0].artifact.observations.slotRotation.writes[1].committedDestination='C:\elsewhere\Quick_1.zks'} 'other than the selected leaf'
+Check-SlotRotation 'slot rotation refuses a synthesized key press claim' {$args[0].artifact.observations.slotRotation.keyPressSynthesized=$true}
+Check-SlotRotation 'slot rotation refuses a direct replacement-site invocation claim' {$args[0].artifact.observations.slotRotation.replacementSiteInvokedDirectly=$true}
+Check-SlotRotation 'slot rotation refuses an overwrite outside the one-slot capacity' {$args[0].artifact.observations.slotRotation.writes[1].nativeSlotCapacity=3.0} 'one-slot capacity'
+Check-SlotRotation 'slot rotation refuses a handler that minted a new slot' {$args[0].artifact.observations.slotRotation.writes[2].nextSlotIsExisting=$false}
+Check-SlotRotation 'slot rotation refuses a failed native save' {$args[0].artifact.observations.ownedOutputCompletion.rotation.failedSaves=1}
+Check-SlotRotation 'slot rotation refuses fewer completions than writes' {$args[0].artifact.observations.ownedOutputCompletion.completionSequence=1}
+Check-SlotRotation 'slot rotation refuses a final receipt that is not the last write' {$o=$args[0].artifact.observations;$o.nativeWrite.sha256=$o.slotRotation.writes[0].sha256}
+Check-SlotRotation 'slot rotation refuses a missing overwrite snapshot' {$o=$args[0].artifact.observations;$o.snapshots=@($o.snapshots|Where-Object label -CNE 'slot-rotation-write-3-complete')} 'snapshot'
+Check-SlotRotation 'slot rotation refuses a one-write quota' {$args[0].request.ownedPairs.expectedNativeWriteCount=1}
+Check 'plain Quick checkpoint refuses a rotation receipt' {$v=New-KmcOwnerSeedCheckpointSaveFixture 'multi-exploration-quick';$v.artifact.observations.ownedOutputCompletion|Add-Member rotation ([pscustomobject]@{writes=3}) -Force;Invoke-OwnedReader $v;Assert-KmcChunk7OwnedOutputEvidence $v.request $v.artifact.observations} $true
+# The Manual overwrite control shares the settlement reader with a Manual staging leaf and no slot capacity.
+Check 'manual overwrite settlement reader accepts the Manual staging leaf and refuses a slot capacity claim' {
+ $v=New-KmcSlotRotationSaveFixture;$r=Copy-Value $v.request;$o=Copy-Value $v.artifact.observations;$r.persistenceCase='multi-exploration-overwrite-manual';$r.ownedPairs.expectedNativeWriteCount=2
+ $route='Game.SaveGame(existing Manual descriptor): the save menu''s overwrite of an existing Manual';$leaf='Manual_304_KMC_C7_SEED_CHECKPOINT.zks';$path='C:\lab\runtime-staging\persistence-x\Saved Games\'+$leaf
+ $o.ownedOutputAdmission.number=304;$o.nativeWrite.path=$path;$o.nativeWrite.sha256='2'*64
+ $first=$o.slotRotation.writes[0];$first.landedLeaf=$leaf;$first.path=$path;$first.route='CreateNewSave + Game.SaveGame (new Manual control)'
+ $second=New-KmcRotationWriteRow 2 ('1'*64) ('2'*64) $path $first.length $route 'Manual_305_KMC_C7_SEED_CHECKPOINT.zks' $leaf (-1.0);$second.savedOfCategory=2
+ $o.slotRotation=[pscustomobject][ordered]@{contract='sprint1-slot-rotation-v1';checkpoint='multi-exploration-overwrite-manual';nativeType='Manual';selectedWrites=2;projectedSlotCapacity=1;overwriteRoute=$route;keyPressSynthesized=$false;replacementSiteInvokedDirectly=$false;commitCountBefore=0;writes=@($first,$second)}
+ $o.ownedOutputCompletion.rotation=[pscustomobject][ordered]@{writes=2;replacements=1;commitCount=1;replacementFailures=0;failedSaves=0;landedLeaf=$leaf;stagingLeaf='Manual_305_KMC_C7_SEED_CHECKPOINT.zks';sha256ByWrite=@(('1'*64),('2'*64));finalSha256=('2'*64)}
+ Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf
+ if((Get-KmcChunk7OwnedWriteCount $r)-ne2){throw 'Manual overwrite quota differs'}
+ $second.nativeSlotCapacity=1.0;$refused=$false;try{Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf}catch{$refused=$_.Exception.Message-match'slot capacity'};if(-not$refused){throw 'Manual overwrite accepted a slot capacity claim'}
+ $second.nativeSlotCapacity=-1.0;$second.savedOfCategory=1;$refused=$false;try{Assert-KmcChunk7OwnedRotationSettlement $r $o $leaf}catch{$refused=$true};if(-not$refused){throw 'Manual overwrite accepted a single Manual descriptor where the source and the output must both be present'}
+}
 Check 'owner-seed checkpoint consumer maps to the generic load scenario' {if((Get-KmcChunk7SelectedScenario (New-KmcOwnerSeedCheckpointLoadFixture).request)-cne'chunk7-persistence-load'-or(Get-KmcChunk7OwnedWriteCount (New-KmcOwnerSeedCheckpointLoadFixture).request)-ne0){throw 'Checkpoint consumer scenario or write quota differs'}}
 # Refusals: Mount inputs on a derived start, restored-start mismatch, wrong ancestry, wrong quotas, a Manual for a Quick.
 Check-SeedCheckpointSave 'owner-seed checkpoint producer refuses native Mount inputs on its derived start' {$plain=Copy-Value @($fixtures|Where-Object name -CEQ 'persistence-save-multi-exploration-quick')[0];$args[0].artifact.observations.inputs=$plain.artifact.observations.inputs} 'Mount input is not admitted'

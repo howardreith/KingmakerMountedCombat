@@ -11,6 +11,10 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class Chunk7PersistenceScenario
     {
+        // Engine descriptor strings may mix separators under the engine-shaped isolated
+        // root; file identity, not spelling, is what these assertions are about.
+        private static bool SameArchivePath(string left, string right) =>
+            !string.IsNullOrEmpty(left) && !string.IsNullOrEmpty(right) && Path.GetFullPath(left) == Path.GetFullPath(right);
         private RetainedObjectIdentity areaIdentities;
         private object areaSaveOperation;
         private SaveInfo areaRequestedSave, areaPreparedSave;
@@ -54,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // WorkingFixtureLoader reads its own descriptor with SaveManager.LoadZipSave, so it is never the
                 // list's object (as observed for the owner-seed Manual); both must describe the same file.
                 var loaded = ownedFixtureLoader?.Descriptor;
-                if (loaded == null || loaded.FileName != source.FileName || loaded.FolderName != source.FolderName || loaded.Name != source.Name || loaded.GameId != source.GameId)
+                if (loaded == null || loaded.FileName != source.FileName || !SameArchivePath(loaded.FolderName, source.FolderName) || loaded.Name != source.Name || loaded.GameId != source.GameId)
                     failed.Add("notLoadedDescriptorFile(loadedIsNull=" + (loaded == null) + ")");
                 if (source.FileName != request.PersistenceLoad.FileName) failed.Add("fileName=" + source.FileName);
                 if (source.Name != request.PersistenceLoad.InternalName) failed.Add("name=" + source.Name);
@@ -88,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, ownedRequestedSave) &&
                 (cancelledReplacement ? ReferenceEquals(completion.Written, boundarySeedDescriptor) && ReferenceEquals(savedDescriptor, boundaryReplacementDescriptor) &&
                     ReferenceEquals(completion, boundarySeedCompletion) && boundarySeedCallbacks == 1 && boundaryReplacementCallbacks == 0 && boundaryDrainedCommitted &&
-                    persistence.CompletedSaveCount == 1 && persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 : ReferenceEquals(completion.Written, savedDescriptor)) && completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
+                    persistence.CompletedSaveCount == 1 && persistence.DrainedSaveCount == 1 && persistence.DeferredSaveCancellationCount == 1 : ReferenceEquals(completion.Written, savedDescriptor)) && SameArchivePath(completion.Path, Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf)) &&
                 replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
                 replaySaveAuthority.AdmittedNativeWriteRequests == (cancelledReplacement ? 2 : 1) && replayAuthorization.AuthorizedLoadCount == 1 &&
                 replayAuthorization.AuthorizedWriteCount == (cancelledReplacement ? 2 : 1) && !NativePersistenceIsolation.HasPendingWrites &&
@@ -123,14 +127,19 @@ namespace KingmakerMountedCombat.Diagnostics
             inherited.RequirePreserved();
             object operation; SaveInfo requested, prepared;
             persistence.ObserveActiveSaveHeader(out operation, out requested, out prepared);
+            // An overwrite's prepared copy is written at the reserved staging leaf and moved onto the
+            // existing leaf by the engine's replacement; a first-ever Auto is prepared at the output leaf.
+            var preparedLeaf = AreaOverwriteCase && prepared != null && prepared.FileName == replaySaveAuthority.OwnedPairsReplacementLeaf
+                ? replaySaveAuthority.OwnedPairsReplacementLeaf : replaySaveAuthority.OwnedPairsOutputLeaf;
             Require(operation != null && requested != null && prepared != null && !ReferenceEquals(requested, prepared) &&
                 !ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
                 !ReferenceEquals(prepared, replaySaveAuthority.OwnedPairsSourceDescriptor) &&
+                (!AreaOverwriteCase || ReferenceEquals(requested, replaySaveAuthority.OwnedPairsSeedDescriptor) && ReferenceEquals(requested, areaExistingSlot) && requested.IsActuallySaved) &&
                 requested.Type == SaveInfo.SaveType.Auto && prepared.Type == SaveInfo.SaveType.Auto &&
                 requested.Name == NativeName(SaveInfo.SaveType.Auto) && prepared.Name == requested.Name &&
-                prepared.FileName == replaySaveAuthority.OwnedPairsOutputLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
+                prepared.FileName == preparedLeaf && prepared.GameId == request.PersistenceLoad.GameId &&
                 prepared.GameName == request.PersistenceLoad.GameName && prepared.Area?.AssetGuidThreadSafe == ExpectedArchiveArea &&
-                !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf),
+                !prepared.IsAutoLevelupSave && prepared.FolderName != null && Path.GetFullPath(prepared.FolderName) == Path.Combine(replaySaveAuthority.Root, preparedLeaf),
                 "Owned area autosave changed its exact native request, prepared copy, category, destination or path.");
             if (!staged)
             {
@@ -156,7 +165,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ownedSaveCallbacks == 0 && !callback && completion != null && persistence.CompletedSaveCount == 1 &&
                 completion.Sequence == snapshotBefore + 1 && ReferenceEquals(completion.Requested, areaRequestedSave) &&
                 ReferenceEquals(completion.Written, areaPreparedSave) && ReferenceEquals(savedDescriptor, areaPreparedSave) &&
-                completion.Path == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
+                completion.Path != null && Path.GetFullPath(completion.Path) == Path.Combine(replaySaveAuthority.Root, replaySaveAuthority.OwnedPairsOutputLeaf) &&
                 replaySaveAuthority.MatchesOwnedPairsPlan(true, false) && replaySaveAuthority.AdmittedNativeLoadRequests == 1 &&
                 replaySaveAuthority.AdmittedNativeWriteRequests == 1 && replayAuthorization.AuthorizedLoadCount == 1 &&
                 replayAuthorization.AuthorizedWriteCount == 1 && !NativePersistenceIsolation.HasPendingWrites &&

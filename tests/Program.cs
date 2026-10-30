@@ -581,6 +581,7 @@ namespace KingmakerMountedCombat.Tests
             DeferredSaveEnumeratorTests.Register(runner);
             OwnedWorkerTeardownPolicyTests.Register(runner);
             NativeSaveCommitOutcomeTests.Register(runner);
+            NativeArchiveReplacementPathTests.Register(runner);
             RemovalReadinessPolicyTests.Register(runner);
             NativeLoadWorldTests.Register(runner);
             PersistenceSaveAuthorizationTests.Register(runner);

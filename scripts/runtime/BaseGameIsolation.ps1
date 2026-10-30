@@ -145,7 +145,9 @@ function New-KmcBaseGameReadyTree {
         [string]$ObserverModRoot,
         # F12 upgrade rehearsal only (with the observer): exact UMM cache files from a
         # previous install, copied beside the package files and re-hashed in place.
-        $KmcCarryFiles)
+        $KmcCarryFiles,
+        # Sprint 1 UPG-01: explicitly retained foreign mod folders (verified by Read-KmcRetainedDependencySelection).
+        [AllowEmptyCollection()]$RetainedDependencies=@())
     $clone=Assert-KmcChildPath $CloneRoot $StagingRun 'preserved base-game clone'
     $ready=Assert-KmcChildPath $ReadyRoot $StagingRun 'base-game ready tree'
     $package=Assert-KmcChildPath $PackageModRoot $StagingRun 'base-game package root'
@@ -186,8 +188,23 @@ function New-KmcBaseGameReadyTree {
         Assert-KmcNotHardLink $target 'staged carried KMC folder file'
     }
     if($null-ne$observer){[void](Copy-KmcDirectoryTreeExact -SourceRoot $observer -DestinationRoot (Join-Path $ready 'KmcRemovalObserver'))}
+    $dependencies=@($RetainedDependencies|Where-Object{$null-ne$_})
+    if($dependencies.Count-gt4){throw 'Retained dependencies are unbounded.'}
+    foreach($dependency in $dependencies){
+        $id=[string]$dependency.id
+        if($id-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'-or$id-in@('KingmakerMountedCombat','KmcRemovalObserver')){throw 'A retained dependency id is invalid or reserved.'}
+        $source=Assert-KmcChildPath ([string]$dependency.sourcePath) (Get-KmcLabRoot) 'retained dependency source'
+        $target=Assert-KmcChildPath (Join-Path $ready $id) $ready 'retained dependency target'
+        if(Test-Path -LiteralPath $target){throw 'A retained dependency collides with a staged entry.'}
+        [void](Copy-KmcDirectoryTreeExact -SourceRoot $source -DestinationRoot $target)
+        # UMM assembly caches are never staged: the installed loader regenerates them and deletes stale ones.
+        foreach($cache in @(Get-ChildItem -LiteralPath $target -File -Recurse -Force|Where-Object {$_.Name-cmatch'^.+\.dll\.[0-9]{1,9}\.cache$'})){Remove-Item -LiteralPath $cache.FullName -Force}
+        $copied=Get-KmcRetainedDependencyManifest $target
+        if($copied.excludedCacheFiles.Count-ne0-or$copied.digest-cne[string]$dependency.digest-or$copied.fileCount-ne[int]$dependency.fileCount-or
+            (Get-KmcSha256 (Join-Path $target ([string]$dependency.dllName)))-cne[string]$dependency.dllSha256){throw 'A retained dependency changed while staging.'}
+    }
     $readyTop=@(Get-ChildItem -LiteralPath $ready -Force|ForEach-Object Name|Sort-Object)
-    $expectedTop=@(@('KingmakerMountedCombat')+@(if($null-ne$observer){'KmcRemovalObserver'})|Sort-Object)
+    $expectedTop=@(@('KingmakerMountedCombat')+@(if($null-ne$observer){'KmcRemovalObserver'})+@($dependencies|ForEach-Object{[string]$_.id})|Sort-Object)
     if(($readyTop-join '|')-cne($expectedTop-join '|')){throw 'Base-game ready tree holds other than exactly the selected packages.'}
     Assert-KmcDirectoryManifestsEqual $Before (Get-KmcDirectoryManifest $clone) 'Preserved base-game clone after ready-tree construction'
 }
@@ -222,7 +239,9 @@ function Remove-KmcUmmAbsentModEntries([Xml.XmlDocument]$Document,[string[]]$Pre
 function Assert-KmcBaseGameUmmStartupDelta {
     param([Parameter(Mandatory=$true)][string]$Before,[Parameter(Mandatory=$true)][string]$After,
         # The normal-player observer mode found exactly KMC and the observer.
-        [switch]$WithObserver)
+        [switch]$WithObserver,
+        # Sprint 1 UPG-01: retained dependency ids staged beside KMC (base-game mode only).
+        [string[]]$StagedDependencyIds=@())
     $original=Assert-KmcBaseGameParameters $Before
     $current=Assert-KmcBaseGameParameters $After
     # UMM 0.33.2.0 writes Params.xml only on a normal exit (UI.OnDestroy) or its Save
@@ -233,7 +252,9 @@ function Assert-KmcBaseGameUmmStartupDelta {
     # admitted: the LastUpdateCheck stamp, present on both sides, may only move forward.
     Step-KmcUmmLastUpdateCheck $original $current
     $actual=Get-KmcBaseGameXmlShapeText $current
-    $found=@('KingmakerMountedCombat')+@(if($WithObserver){'KmcRemovalObserver'})
+    $dependencyIds=@($StagedDependencyIds|Where-Object{-not[string]::IsNullOrWhiteSpace($_)})
+    if($dependencyIds.Count-gt4){throw 'Staged dependency ids are unbounded.'}
+    $found=@('KingmakerMountedCombat')+@(if($WithObserver){'KmcRemovalObserver'})+@($dependencyIds)
     $reduced=Remove-KmcUmmAbsentModEntries $original $found
     $allowed=New-Object 'Collections.Generic.List[string]'
     $allowed.Add((Get-KmcBaseGameXmlShapeText $original))
@@ -242,8 +263,9 @@ function Assert-KmcBaseGameUmmStartupDelta {
     # either append order is the native rebuild of the same exact set.
     $missing=@($found|Where-Object{$id=$_;@($reduced.SelectNodes('/Param/ModParams/Mod')|Where-Object{[string]$_.GetAttribute('Id')-ceq$id}).Count-eq0})
     $orders=New-Object 'Collections.Generic.List[string[]]'
-    if($missing.Count-eq2){$orders.Add([string[]]@($missing[0],$missing[1]));$orders.Add([string[]]@($missing[1],$missing[0]))}
-    elseif($missing.Count-eq1){$orders.Add([string[]]@($missing[0]))}
+    if($missing.Count-gt3){throw 'UMM startup delta admits at most three default appends.'}
+    $indexOrders=switch($missing.Count){1{,@(,@(0))}2{@(@(0,1),@(1,0))}3{@(@(0,1,2),@(0,2,1),@(1,0,2),@(1,2,0),@(2,0,1),@(2,1,0))}default{@()}}
+    foreach($indexes in @($indexOrders)){$orders.Add([string[]]@(@($indexes)|ForEach-Object{$missing[$_]}))}
     $rewrites=New-Object 'Collections.Generic.List[Xml.XmlDocument]';$rewrites.Add($reduced)
     foreach($order in $orders){
         $appended=$reduced.Clone();$container=$appended.SelectSingleNode('/Param/ModParams')
@@ -267,7 +289,14 @@ function Assert-KmcBaseGameUmmStartupDelta {
             $allowed.Add((Get-KmcBaseGameXmlShapeText $swapped))
         }
     }
-    if(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native rewrite of the selected packages and a forward LastUpdateCheck.'}
+    if($dependencyIds.Count-ne0){
+        # Retained dependencies: the loader rebuilds the same exact entry set in its own load order.
+        $allowedSorted=New-Object 'Collections.Generic.List[string]'
+        $allowedSorted.Add((Get-KmcBaseGameXmlShapeTextModsSorted $original));$allowedSorted.Add((Get-KmcBaseGameXmlShapeTextModsSorted $reduced))
+        foreach($rewrite in @($rewrites)){$allowedSorted.Add((Get-KmcBaseGameXmlShapeTextModsSorted $rewrite))}
+        if(-not$allowedSorted.Contains((Get-KmcBaseGameXmlShapeTextModsSorted $current))){throw 'Base-game UMM parameters changed beyond the native rewrite of the selected packages and retained dependencies.'}
+    }
+    elseif(-not$allowed.Contains($actual)){throw 'Base-game UMM parameters changed beyond the native rewrite of the selected packages and a forward LastUpdateCheck.'}
 }
 
 # Parameter restoration may use the base-only reduction solely after the exact
@@ -282,4 +311,68 @@ function Assert-KmcBaseGameSettingsAuthority {
         throw 'Base-game settings restoration requires its settled exact owned Mods transaction.'
     }
     Assert-KmcBaseGameDependencyReceipt $State.baseGameDependencies
+}
+
+# Sprint 1 UPG-01: explicitly retained foreign mod folders (the archive's own serialized dependencies) staged
+# beside KMC in the base-game ready tree. The source is a retained staged-after tree under the lab's runtime-staging;
+# UMM assembly caches (<dll>.<n>.cache) are never copied (the installed loader regenerates and deletes them), so the
+# pinned digest covers every other file. Nothing reaches the human live tree; the transaction restores it exactly.
+function Get-KmcRetainedDependencyManifest {
+    param([Parameter(Mandatory=$true)][string]$Root)
+    $manifest=Get-KmcDirectoryManifest $Root
+    $isCache={param($e)[string]$e.path-cmatch'(^|/)[^/]+\.dll\.[0-9]{1,9}\.cache$'}
+    $entries=@($manifest.entries|Where-Object {-not(&$isCache $_)})
+    $excluded=@($manifest.entries|Where-Object {&$isCache $_}|ForEach-Object {[string]$_.path})
+    return [pscustomobject]@{digest=(Get-KmcManifestEntriesDigest -Entries $entries);fileCount=@($entries|Where-Object kind -CEQ 'file').Count;entries=$entries;excludedCacheFiles=$excluded}
+}
+function Read-KmcRetainedDependencySelection {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    $lab=Get-KmcLabRoot
+    $full=Assert-KmcChildPath ([IO.Path]::GetFullPath($Path)) (Join-Path $lab 'analysis-cache') 'retained dependency selection'
+    Assert-KmcNotReparsePoint $full 'retained dependency selection';Assert-KmcNotHardLink $full 'retained dependency selection'
+    $selection=Read-KmcJson $full
+    Assert-KmcExactProperties $selection @('contract','dependencies') 'retained dependency selection'
+    if([string]$selection.contract-cne'retained-dependency-staging-v1'){throw 'Retained dependency selection contract differs.'}
+    $rows=@($selection.dependencies)
+    if($rows.Count-lt1-or$rows.Count-gt4){throw 'Retained dependency selection is empty or unbounded.'}
+    $ids=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $result=@(foreach($row in $rows){
+        Assert-KmcExactProperties $row @('id','version','sourceRunId','sourcePath','dllName','dllSha256','digest','fileCount') 'retained dependency'
+        $id=[string]$row.id
+        if($id-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'-or$id-in@('KingmakerMountedCombat','KmcRemovalObserver')-or-not$ids.Add($id)){throw 'Retained dependency id is invalid, reserved or duplicated.'}
+        if([string]$row.sourceRunId-cnotmatch'^[A-Za-z0-9._-]{1,120}$'-or[string]$row.dllName-cnotmatch'^[A-Za-z0-9._-]{1,120}\.dll$'-or
+            [string]$row.dllSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$row.digest-cnotmatch'^[0-9a-f]{64}$'-or
+            ($row.fileCount-isnot[int]-and$row.fileCount-isnot[long])-or$row.fileCount-lt1){throw 'Retained dependency pins are malformed.'}
+        $expectedSource=[IO.Path]::GetFullPath((Join-Path (Join-Path (Join-Path (Join-Path $lab 'runtime-staging') ([string]$row.sourceRunId)) 'Mods-staged-after') $id)).TrimEnd('\')
+        $source=Assert-KmcChildPath ([IO.Path]::GetFullPath([string]$row.sourcePath)) (Join-Path $lab 'runtime-staging') 'retained dependency source'
+        if($source.TrimEnd('\')-cne$expectedSource){throw 'Retained dependency source is not the retained staged-after folder of its producer run.'}
+        if(-not(Test-Path -LiteralPath $source -PathType Container)){throw 'Retained dependency source is missing.'}
+        Assert-KmcNotReparsePoint $source 'retained dependency source';Assert-KmcDirectoryTreeCloneable $source 'retained dependency source'
+        $info=@(Get-ChildItem -LiteralPath $source -File -Force|Where-Object {$_.Name-ieq'Info.json'})
+        if($info.Count-ne1){throw 'Retained dependency has no single UMM Info.json.'}
+        $meta=Read-KmcJson $info[0].FullName
+        # UMM defaults a mod's AssemblyName to <Id>.dll when Info.json omits it.
+        $declaredAssembly=if($null-ne$meta.PSObject.Properties['AssemblyName']){[string]$meta.AssemblyName}else{$id+'.dll'}
+        if([string]$meta.Id-cne$id-or[string]$meta.Version-cne[string]$row.version-or$declaredAssembly-cne[string]$row.dllName){throw 'Retained dependency UMM identity differs from the selection.'}
+        $dll=Join-Path $source ([string]$row.dllName)
+        Assert-KmcNotReparsePoint $dll 'retained dependency assembly';Assert-KmcNotHardLink $dll 'retained dependency assembly'
+        if((Get-KmcSha256 $dll)-cne[string]$row.dllSha256){throw 'Retained dependency assembly bytes differ from the selection.'}
+        $manifest=Get-KmcRetainedDependencyManifest $source
+        if($manifest.digest-cne[string]$row.digest-or$manifest.fileCount-ne[int]$row.fileCount){throw 'Retained dependency folder digest differs from the selection.'}
+        [pscustomobject][ordered]@{id=$id;version=[string]$row.version;sourceRunId=[string]$row.sourceRunId;sourcePath=$source;dllName=[string]$row.dllName;dllSha256=[string]$row.dllSha256;digest=[string]$row.digest;fileCount=[int]$row.fileCount;excludedCacheFiles=@($manifest.excludedCacheFiles)}
+    })
+    return $result
+}
+# Order-insensitive view of the UMM mod entries: with retained dependencies staged the installed loader rebuilds
+# ModParams in its own load order, so the exact entry set is compared regardless of entry order.
+function Get-KmcBaseGameXmlShapeTextModsSorted {
+    param([Parameter(Mandatory=$true)][Xml.XmlDocument]$Document)
+    $copy=$Document.Clone()
+    $container=$copy.SelectSingleNode('/Param/ModParams')
+    if($null-ne$container){
+        $mods=@($container.SelectNodes('Mod'))
+        foreach($mod in $mods){[void]$container.RemoveChild($mod)}
+        foreach($mod in @($mods|Sort-Object {[string]$_.GetAttribute('Id')})){[void]$container.AppendChild($mod)}
+    }
+    return (Get-KmcBaseGameXmlShapeText $copy)
 }

@@ -48,3 +48,28 @@ function Assert-KmcRuntimeStartupTrace {
     if ($entries -ne $Trace.callbacksObserved -or $exits -ne $Trace.closedCallbacks -or
         $sawNull -ne [bool]$Trace.readFailure) { throw 'Runtime startup counts or unavailable-read flag do not match raw samples.' }
 }
+
+# Passive capture of the engine's own UberLogger Warning/Error channel while a request was
+# active. A tail is observational only: it never proves or refutes a native outcome by itself.
+function Assert-KmcNativeEngineLogTail {
+    param([Parameter(Mandatory=$true)][AllowNull()]$Tail)
+    if ($null -eq $Tail -or $Tail.GetType().FullName -cne 'System.Management.Automation.PSCustomObject') { throw 'Native engine log tail must be one object.' }
+    Assert-KmcExactProperties $Tail @('contract','capacity','observed','dropped','entries') 'native engine log tail'
+    foreach ($name in @('capacity','observed','dropped')) {
+        if (($Tail.$name -isnot [int]) -and ($Tail.$name -isnot [long])) { throw "Native engine log tail $name must be an integer." }
+    }
+    if ($Tail.contract -isnot [string] -or $Tail.contract -cne 'native-engine-log-tail-v1' -or $Tail.capacity -ne 64 -or
+        $Tail.observed -lt 0 -or $Tail.dropped -lt 0 -or $Tail.entries -isnot [array]) { throw 'Native engine log tail declaration or bounds are invalid.' }
+    $rows = @($Tail.entries)
+    if ($rows.Count -gt 64 -or $rows.Count -ne [Math]::Min([long]$Tail.observed, 64) -or $Tail.dropped -ne ($Tail.observed - $rows.Count)) { throw 'Native engine log tail counts do not account for its rows.' }
+    foreach ($row in $rows) {
+        if ($null -eq $row -or $row.GetType().FullName -cne 'System.Management.Automation.PSCustomObject') { throw 'Native engine log tail row must be one object.' }
+        Assert-KmcExactProperties $row @('severity','channel','timeStamp','message','callstack') 'native engine log tail row'
+        if ($row.severity -isnot [string] -or $row.severity -cnotin @('Warning','Error')) { throw 'Native engine log tail row severity is invalid.' }
+        if ($null -ne $row.channel -and $row.channel -isnot [string]) { throw 'Native engine log tail row channel is invalid.' }
+        if ($null -eq $row.timeStamp -or $row.timeStamp -is [array]) { throw 'Native engine log tail row time stamp is invalid.' }
+        if ($null -ne $row.message -and ($row.message -isnot [string] -or $row.message.Length -gt 2000)) { throw 'Native engine log tail row message is invalid.' }
+        if ($row.callstack -isnot [array] -or @($row.callstack).Count -gt 12) { throw 'Native engine log tail row callstack is invalid.' }
+        foreach ($frame in @($row.callstack)) { if ($null -ne $frame -and ($frame -isnot [string] -or $frame.Length -gt 2000)) { throw 'Native engine log tail frame is invalid.' } }
+    }
+}

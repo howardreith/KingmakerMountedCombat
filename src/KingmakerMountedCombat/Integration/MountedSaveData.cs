@@ -30,6 +30,14 @@ namespace KingmakerMountedCombat.Integration
         public SavedMountedSlot[] Slots { get; set; }
         public SavedCombatData Combat { get; set; }
 
+        // Legacy (schema 1/2) restore contract when no archive member is loaded: one semantic
+        // restore per distinct actor among the combat actor snapshots and the saved rider and
+        // mount, and one presentation restore for a mounted pair. Derivation only.
+        internal string[] SemanticRestoreActorIds()
+            => (Combat?.Actors ?? new SavedCombatActor[0]).Select(a => a?.Native).Concat(new[] { Rider, Mount })
+                .Where(a => a != null).Select(a => a.Id).Distinct(StringComparer.Ordinal).ToArray();
+        internal int ExpectedPresentationRestoreCount => Mounted ? 1 : 0;
+
         internal void Validate()
         {
             if (SchemaVersion != CurrentSchema || !Guid.TryParse(CampaignId, out var campaign) ||

@@ -131,6 +131,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var result = CreateBootstrapFailureV2(request, loadedModId, modAssembly, typeof(Kingmaker.Game).Assembly, umm,
                 harmony, DateTimeOffset.UtcNow, stress ? "C7-world-cleanup" : "C7-persistence-cleanup", exitReason);
             result.StartupTrace = startupTrace.Capture();
+            result.EngineLogTail = engineLogTail.Capture();
             result.StartedAtUtc = startedAt.ToString("o");
             result.FrameCount = frameCount;
             result.ElapsedSeconds = elapsedSeconds;
