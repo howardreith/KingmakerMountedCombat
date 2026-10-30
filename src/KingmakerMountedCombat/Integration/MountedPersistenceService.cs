@@ -118,6 +118,9 @@ namespace KingmakerMountedCombat.Integration
         internal int NativeLoadFailureCount { get; private set; }
         internal string NativeLoadFailure { get; private set; }
         internal MountedSaveData LoadedData => loaded?.Data;
+        // The current archive member (schema 3). The legacy DTO above is only the migrated
+        // view of an older schema-1/2 member, so a current-format archive leaves it null.
+        internal MountedArchiveData LoadedArchiveData => loadedArchive?.Data;
 
         internal MountedPersistenceService(GameMountedRelationshipService relationship,
             NativeMountedControlService controls, UnifiedMountedTurnCoordinator unifiedTurn,

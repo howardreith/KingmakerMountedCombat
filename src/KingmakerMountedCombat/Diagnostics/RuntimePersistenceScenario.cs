@@ -119,17 +119,27 @@ namespace KingmakerMountedCombat.Diagnostics
                     !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "required-policy");
                 if (Cold)
                 {
-                    Check(persistence.LoadedData?.Mounted == true && relationship.State == RelationshipState.Mounted,
+                    // The saved pair is read from the migrated legacy DTO of a schema-1/2 archive, or
+                    // from the current schema-3 archive member (the UPG-01 resave consumer); the
+                    // observer never decides which format the product wrote.
+                    var legacy = persistence.LoadedData;
+                    var archiveData = persistence.LoadedArchiveData;
+                    var savedPair = archiveData != null && archiveData.Pairs != null && archiveData.Pairs.Length == 1 ? archiveData.Pairs[0] : null;
+                    var savedMounted = legacy != null ? legacy.Mounted : savedPair != null;
+                    var savedRiderId = legacy != null ? legacy.Rider?.Id : savedPair?.Rider?.Id;
+                    var savedMountId = legacy != null ? legacy.Mount?.Id : savedPair?.Mount?.Id;
+                    var savedSlots = (legacy != null ? legacy.Slots : archiveData?.Slots) ?? new SavedMountedSlot[0];
+                    Check(savedMounted && relationship.State == RelationshipState.Mounted,
                         "cold-pair-restored-from-archive: " + persistence.Feedback);
                     rider = relationship.Rider; mount = relationship.Mount;
                     Check(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1,
                         "early-semantic-and-once-presentation");
-                    Check(rider.UniqueId == persistence.LoadedData.Rider.Id && mount.UniqueId == persistence.LoadedData.Mount.Id,
+                    Check(rider.UniqueId == savedRiderId && mount.UniqueId == savedMountId,
                         "same-saved-native-actors");
                     Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
                         game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1, "unique-native-actors");
                     var bindings = controls.CapturePersistentSlots();
-                    Check(bindings.Length == persistence.LoadedData.Slots.Length && persistence.LoadedData.Slots.All(
+                    Check(bindings.Length == savedSlots.Length && savedSlots.All(
                         s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
                         "cold-owned-hotbar-bindings");
                     Check(controls.NativeCastRequestCount == 0, "cold-restoration-did-not-cast-mount");
