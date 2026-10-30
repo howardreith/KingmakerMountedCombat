@@ -46,7 +46,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 firstStart, interactionStart, returnGoal;
         private MountedDoorInteractionCommand command;
         private UnitMoveTo returnMove, setupMove, lateralMove, neighborMove;
-        private JObject row, returnRecord, longApproach, clickWhileMoving, unmountedControl, endpointNeighbor, stopControl;
+        private readonly UnitMoveTo[] layoutMoves = new UnitMoveTo[2];
+        private Vector3[] preSetupStarts;
+        private JObject row, returnRecord, longApproach, clickWhileMoving, unmountedControl, endpointNeighbor, stopControl, layoutRestore;
         private int lateralMovingFrames, stopMovingFrames, stopSettledFrame = -1;
         private UnitEntityData controlActor;
         private UnitCommand controlCommand;
@@ -130,6 +132,10 @@ namespace KingmakerMountedCombat.Diagnostics
             unmountedControl = new JObject { ["applicable"] = false }; evidence["unmountedControl"] = unmountedControl;
             endpointNeighbor = new JObject { ["applicable"] = false }; evidence["endpointNeighbor"] = endpointNeighbor;
             stopControl = new JObject { ["applicable"] = false }; evidence["stopControl"] = stopControl;
+            // v4 (r08 correction): the pairs' positions before any probe movement; both return there through ordinary
+            // ground moves once the probe's inputs are done, so the engine's later steps see the fixture's captured layout.
+            preSetupStarts = new[] { mounts[0].Position, mounts[1].Position };
+            layoutRestore = new JObject { ["applicable"] = false, ["moves"] = new JArray() }; evidence["layoutRestore"] = layoutRestore;
             // A closed door is already in its input state; only an open one is closed as setup.
             if (originalOpen) CloseForInput();
             Next(9);
@@ -495,9 +501,12 @@ namespace KingmakerMountedCombat.Diagnostics
                         if ((bool)stopControl["applicable"])
                             Require(stopCommand.Result == UnitCommand.ResultType.Interrupt && !door.GetState() && outcome != null && outcome.InteractionCount == 0 &&
                                 outcome.MountMoveSlotRestored && mounts[0].Commands.Empty, "The native Stop did not end the mounted door approach cleanly.");
-                        Next(4);
+                        BeginLayoutRestore(); Next(16);
                     }
                     break;
+                case 16:
+                    if (!FinishLayoutRestore()) return false;
+                    Next(4); break;
                 case 3:
                     // The outcome is recorded every poll, so a timeout or refusal keeps the last native state.
                     ObserveReturn();
@@ -599,6 +608,47 @@ namespace KingmakerMountedCombat.Diagnostics
             stopControl["commandObject"] = Id(stopCommand); stopControl["distanceBefore"] = Distance(stopStart, door.transform.position);
             stopMovingFrames = 0;
             Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
+        }
+
+        // v4 (r08 correction): each pair returns to a clear goal near its pre-setup start through an ordinary ground move
+        // (SearchClearGoal from its current position toward that start). Recorded before any assertion; a pair whose
+        // start is already within reach, or without a clear goal, is recorded and left where it stands.
+        private void BeginLayoutRestore()
+        {
+            RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Layout restore requires idle actors.");
+            var moves = (JArray)layoutRestore["moves"];
+            for (var pair = 0; pair < 2; pair++)
+            {
+                var record = new JObject { ["pair"] = pair, ["preSetupStart"] = Point(preSetupStarts[pair]), ["positionBefore"] = Point(mounts[pair].Position) };
+                moves.Add(record);
+                var toStart = preSetupStarts[pair] - mounts[pair].Position; var distance = Distance(mounts[pair].Position, preSetupStarts[pair]);
+                record["distanceToStartBefore"] = distance;
+                if (distance < 1.5f) { record["applicable"] = false; record["reason"] = "already within 1.5 m of the pre-setup start"; continue; }
+                var search = new JObject(); record["goalSearch"] = search;
+                var goal = SearchClearGoal(mounts[pair], riders[pair], toStart, distance, 0.5f, search, out var found);
+                if (!found) { record["applicable"] = false; record["reason"] = "no clear native goal toward the pre-setup start"; continue; }
+                record["applicable"] = true; record["goal"] = Point(goal);
+                layoutMoves[pair] = IssueGroundMove(pair, goal); record["command"] = Id(layoutMoves[pair]);
+                layoutRestore["applicable"] = true;
+            }
+        }
+
+        private bool FinishLayoutRestore()
+        {
+            for (var pair = 0; pair < 2; pair++)
+            {
+                var move = layoutMoves[pair];
+                if (move != null && (!move.IsFinished || mounts[pair].View.AgentASP.IsReallyMoving)) return false;
+            }
+            if (!actors.All(Chunk7NativeFixture.Idle)) return false;
+            var moves = (JArray)layoutRestore["moves"];
+            for (var pair = 0; pair < 2; pair++)
+            {
+                var record = (JObject)moves[pair];
+                record["positionAfter"] = Point(mounts[pair].Position); record["distanceToStartAfter"] = Distance(mounts[pair].Position, preSetupStarts[pair]);
+                if (layoutMoves[pair] != null) record["result"] = layoutMoves[pair].Result.ToString();
+            }
+            return true;
         }
 
         private bool FinishInput()

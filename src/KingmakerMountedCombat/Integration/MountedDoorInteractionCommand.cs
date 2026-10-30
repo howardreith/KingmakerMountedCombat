@@ -89,14 +89,9 @@ namespace KingmakerMountedCombat.Integration
         private int interactionCount;
         private int delegatedMoveStartCount;
         private int delegatedMoveTickCount;
-        private int approachesWithoutProgress;
-        private float bestApproachDistance = float.PositiveInfinity;
-        private float stalledGameSeconds;
+        private readonly MountedDoorApproachLifecycle lifecycle = new MountedDoorApproachLifecycle();
         private Vector3 lastSampledMountPosition;
         private bool mountPositionSampled;
-        private TimeSpan lastStallSampleGameTime = TimeSpan.MinValue;
-        private TimeSpan nextApproachGameTime = TimeSpan.MinValue;
-        private TimeSpan approachBeganGameTime = TimeSpan.MinValue;
         private float approachElapsedGameSeconds;
         private bool approachSatisfied;
         private bool terminalReported;
@@ -190,42 +185,64 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
-                if (IsMountWithinDoorRange())
+                // The approach state machine (MountedDoorApproachLifecycle) decides from this tick's observation; the
+                // command only executes the action against the mount's Move slot. CanStart stays false until Satisfied.
+                var position = mount.Position;
+                var displacement = mountPositionSampled ? HorizontalDistance(position, lastSampledMountPosition) : 0f;
+                mountPositionSampled = true;
+                lastSampledMountPosition = position;
+                var live = delegatedMove != null && !delegatedMove.IsFinished;
+                var owned = live && mount.Commands != null && ReferenceEquals(mount.Commands.GetCommand(CommandType.Move), delegatedMove);
+                var turnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+                var action = lifecycle.Tick(new MountedDoorApproachObservation
                 {
-                    StopDelegatedMove();
-                    CompleteApproachClock();
-                    // Prevention before the native action starts (no cost is spent on an unstarted command): closing a
-                    // door whose cut is written on state changes while the pair's footprint overlaps that cut would
-                    // embed the pair when the cut lands; the click is refused with the reason instead.
-                    if (ClosingWouldEmbedPair())
-                    {
-                        preventionRefused = true;
-                        throw new InvalidOperationException("Refused before interaction: closing " + door.name +
-                            " would embed the pair standing in its doorway; move the pair out of the doorway first.");
-                    }
-                    approachSatisfied = true;
-                    return;
-                }
-                if (delegatedMove == null)
+                    NowSeconds = GameTime.TotalSeconds,
+                    InRange = IsMountWithinDoorRange(),
+                    Move = delegatedMove == null ? MountedDoorApproachMoveState.None : delegatedMove.IsFinished ? MountedDoorApproachMoveState.Finished : MountedDoorApproachMoveState.Live,
+                    MoveResult = delegatedMove != null && delegatedMove.IsFinished ? delegatedMove.Result.ToString() : null,
+                    DistanceToPoint = HorizontalDistance(position, NativeApproachPoint),
+                    DisplacementSinceLastTick = displacement,
+                    StallClockRuns = MountedDoorApproachPolicy.StallClockRuns(owned, Game.Instance.IsPaused, turnBased, MovementOpportunity == null || MovementOpportunity()),
+                    ReapproachSample = UnityEngine.Random.value
+                });
+                switch (action)
                 {
-                    if (GameTime >= nextApproachGameTime)
-                    {
+                    case MountedDoorApproachAction.Satisfied:
+                        StopDelegatedMove();
+                        approachElapsedGameSeconds = lifecycle.ElapsedSeconds;
+                        // Prevention before the native action starts (no cost is spent on an unstarted command): closing a
+                        // door whose cut is written on state changes while the pair's footprint overlaps that cut would
+                        // embed the pair when the cut lands; the click is refused with the reason instead.
+                        if (ClosingWouldEmbedPair())
+                        {
+                            preventionRefused = true;
+                            throw new InvalidOperationException("Refused before interaction: closing " + door.name +
+                                " would embed the pair standing in its doorway; move the pair out of the doorway first.");
+                        }
+                        approachSatisfied = true;
+                        return;
+                    case MountedDoorApproachAction.BeginMove:
                         BeginDelegatedMove();
-                    }
-                    return;
+                        return;
+                    case MountedDoorApproachAction.Retry:
+                        // The native re-approach: the move ended outside range; the lifecycle scheduled the next one.
+                        ClearFinishedDelegatedMove();
+                        return;
+                    case MountedDoorApproachAction.Stalled:
+                        delegatedMove.Interrupt(false);
+                        ClearFinishedDelegatedMove();
+                        logger.Info("Mounted door approach " + lifecycle.LastApproachEnd + "; retrying after the native cooldown (mountId=" + mount.UniqueId + ").");
+                        return;
+                    case MountedDoorApproachAction.Exhausted:
+                        if (delegatedMove != null) ClearFinishedDelegatedMove();
+                        throw new InvalidOperationException(lifecycle.ExhaustedReason + " Radius " + approachRadius.ToString("F2") + " m.");
+                    default:
+                        if (live && turnBased)
+                        {
+                            DriveDelegatedMoveOnRiderTurn();
+                        }
+                        return;
                 }
-                if (delegatedMove.IsFinished)
-                {
-                    // The native re-approach: the move ended outside range, so try again after the native
-                    // cooldown, unless it is no longer getting nearer.
-                    RecordApproachEnd("ended outside range (" + delegatedMove.Result + ")");
-                    return;
-                }
-                if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
-                {
-                    DriveDelegatedMoveOnRiderTurn();
-                }
-                ObserveStall();
             }
             catch (Exception exception)
             {
@@ -337,82 +354,12 @@ namespace KingmakerMountedCombat.Integration
             };
             delegatedMoveStartCount++;
             mountMoveSlotRestored = false;
-            if (approachBeganGameTime == TimeSpan.MinValue)
-            {
-                approachBeganGameTime = GameTime;
-            }
-            stalledGameSeconds = 0f;
-            mountPositionSampled = false;
             mount.Commands.Run(delegatedMove);
             if (delegatedMove.Executor != mount ||
                 mount.Commands.GetCommand(CommandType.Move) != delegatedMove ||
                 mount.Commands.Queue.Contains(delegatedMove))
             {
                 throw new InvalidOperationException("Exact mount door approach did not acquire only its Move slot.");
-            }
-        }
-
-        private void RecordApproachEnd(string why)
-        {
-            var distance = HorizontalDistance(mount.Position, NativeApproachPoint);
-            if (MountedDoorApproachPolicy.ApproachProgressed(bestApproachDistance, distance, MountedDoorApproachPolicy.ProgressEpsilonMetres))
-            {
-                bestApproachDistance = distance;
-                approachesWithoutProgress = 0;
-            }
-            else
-            {
-                approachesWithoutProgress++;
-            }
-            ClearFinishedDelegatedMove();
-            if (MountedDoorApproachPolicy.ApproachExhausted(approachesWithoutProgress, MountedDoorApproachPolicy.MaximumApproachesWithoutProgress))
-            {
-                throw new InvalidOperationException("Mount door approach cannot reach the exact interaction point: " +
-                    approachesWithoutProgress + " approaches " + why + " without progress; nearest " +
-                    bestApproachDistance.ToString("F2") + " m against radius " + approachRadius.ToString("F2") + " m.");
-            }
-            nextApproachGameTime = GameTime + TimeSpan.FromSeconds(
-                MountedDoorApproachPolicy.ReapproachDelaySeconds(UnityEngine.Random.value));
-        }
-
-        private void ObserveStall()
-        {
-            var position = mount.Position;
-            var now = GameTime;
-            // A native UnitMoveTo travels UNSTARTED (the action controller approaches it and starts it only inside its
-            // radius), so "running" is the live delegated move still owning the mount's Move slot, never IsStarted.
-            var approachRunning = delegatedMove != null && !delegatedMove.IsFinished && mount.Commands != null &&
-                ReferenceEquals(mount.Commands.GetCommand(CommandType.Move), delegatedMove);
-            // The clock follows the actual mode and the mount's movement opportunity (MountedDoorApproachPolicy
-            // .StallClockRuns), not the paired-activation toggle: a real-time approach with paired activation on
-            // still times out on genuine no-progress; an off-turn or budget-exhausted turn-based mount never does.
-            var clockRuns = MountedDoorApproachPolicy.StallClockRuns(approachRunning, Game.Instance.IsPaused,
-                TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), MovementOpportunity == null || MovementOpportunity());
-            if (!mountPositionSampled || !clockRuns)
-            {
-                mountPositionSampled = true;
-                lastSampledMountPosition = position;
-                lastStallSampleGameTime = now;
-                return;
-            }
-            var elapsed = (float)(now - lastStallSampleGameTime).TotalSeconds;
-            lastStallSampleGameTime = now;
-            if (HorizontalDistance(position, lastSampledMountPosition) >= MountedDoorApproachPolicy.DisplacementEpsilonMetres)
-            {
-                lastSampledMountPosition = position;
-                stalledGameSeconds = 0f;
-                return;
-            }
-            // A gap longer than one tick (turn-based: the ticks stop between the rider's turns) is re-sampled, never charged.
-            if (elapsed > MountedDoorApproachPolicy.MaximumTickGapSeconds)
-            {
-                return;
-            }
-            stalledGameSeconds += Math.Max(0f, elapsed);
-            if (MountedDoorApproachPolicy.MovementStalled(stalledGameSeconds, MountedDoorApproachPolicy.StalledSecondsLimit, approachRunning))
-            {
-                delegatedMove.Interrupt(false);
-                RecordApproachEnd("stalled for " + stalledGameSeconds.ToString("F1") + " game seconds");
             }
         }
 
@@ -461,14 +408,6 @@ namespace KingmakerMountedCombat.Integration
             if (delegatedMove != null)
             {
                 ClearFinishedDelegatedMove();
-            }
-        }
-
-        private void CompleteApproachClock()
-        {
-            if (approachBeganGameTime != TimeSpan.MinValue)
-            {
-                approachElapsedGameSeconds = (float)(GameTime - approachBeganGameTime).TotalSeconds;
             }
         }
 
@@ -532,9 +471,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             terminalReported = true;
-            if (approachElapsedGameSeconds <= 0f)
+            if (approachElapsedGameSeconds <= 0f && lifecycle.BeganAt.HasValue)
             {
-                CompleteApproachClock();
+                approachElapsedGameSeconds = (float)(GameTime.TotalSeconds - lifecycle.BeganAt.Value);
             }
             outcome.Result = Result.ToString();
             outcome.RiderId = rider.UniqueId;
@@ -546,7 +485,7 @@ namespace KingmakerMountedCombat.Integration
             outcome.RiderPathSuppressed = rider.View?.AgentASP != null && !rider.View.AgentASP.enabled;
             outcome.MountMoveSlotRestored = mountMoveSlotRestored;
             outcome.TerminalReason = terminalReason;
-            outcome.ApproachesWithoutProgress = approachesWithoutProgress;
+            outcome.ApproachesWithoutProgress = lifecycle.ApproachesWithoutProgress;
             outcome.ApproachElapsedGameSeconds = approachElapsedGameSeconds;
             outcome.DistanceAtInteraction = distanceAtInteraction;
             outcome.LineOfSightAtInteraction = lineOfSightAtInteraction;

@@ -355,6 +355,28 @@ function Assert-KmcChunk7DoorV4Blocks($Door,$Fixture,[string[]]$Riders){
         if($s.commandObject-eq0-or$s.commandResult-cne'Interrupt'-or$s.outcomeResult-cne'Interrupt'){throw 'The native Stop did not end the mounted door approach as an interrupt.'}
         foreach($field in @('distanceBefore','distanceMovedAtStop')){if(-not(Test-KmcChunk7FiniteNumber $s.$field)-or$s.$field-lt0){throw 'Stop control distance is invalid.'}}
     } else { if($null-eq$s.PSObject.Properties['reason']-or$s.reason-isnot[string]){throw 'Door Stop control (not applicable) is missing its reason.'} }
+    # v4 (r08 correction): after the probe's inputs each pair returned toward its pre-setup start through an ordinary
+    # move, so the engine's later steps see the captured layout. Optional for v4 artifacts written before the correction.
+    if($null-ne$Door.PSObject.Properties['layoutRestore']){
+        $l=$Door.layoutRestore
+        if($null-eq$l-or$l.applicable-isnot[bool]-or$l.moves-isnot[Array]-or$l.moves.Count-ne2){throw 'Door layout-restore record is missing or malformed.'}
+        $anyMoved=$false
+        for($i=0;$i-lt2;$i++){$m=$l.moves[$i]
+            if($m.pair-ne$i-or$m.applicable-isnot[bool]){throw 'Door layout-restore move is malformed.'}
+            Assert-KmcChunk7DoorPoint $m.preSetupStart 'layout restore start';Assert-KmcChunk7DoorPoint $m.positionBefore 'layout restore position before';Assert-KmcChunk7DoorPoint $m.positionAfter 'layout restore position after'
+            foreach($field in @('distanceToStartBefore','distanceToStartAfter')){if(-not(Test-KmcChunk7FiniteNumber $m.$field)-or$m.$field-lt0){throw 'Layout restore distance is invalid.'}}
+            if($m.applicable){
+                Assert-KmcExactProperties $m @('pair','preSetupStart','positionBefore','distanceToStartBefore','goalSearch','goal','command','applicable','positionAfter','distanceToStartAfter','result') 'door layout restore move'
+                Assert-KmcChunk7GoalSearchShape $m.goalSearch ('layout restore pair '+$i);Assert-KmcChunk7DoorPoint $m.goal 'layout restore goal';Assert-KmcChunk7WorldInt32 $m.command
+                if($m.command-eq0-or$m.result-cne'Success'-or$m.distanceToStartAfter-gt$m.distanceToStartBefore){throw 'Door layout restore did not bring the pair back toward its pre-setup start through its own native move.'}
+                $anyMoved=$true
+            } else {
+                if($null-eq$m.PSObject.Properties['reason']-or$m.reason-isnot[string]){throw 'Door layout restore (not applicable) is missing its reason.'}
+                if($null-ne$m.PSObject.Properties['goalSearch']){Assert-KmcChunk7GoalSearchShape $m.goalSearch ('layout restore pair '+$i)}
+            }
+        }
+        if($l.applicable-ne$anyMoved){throw 'Door layout-restore applicability disagrees with its moves.'}
+    }
 }
 function Assert-KmcChunk7DoorV3Blocks($Door,$Fixture,[switch]$V4){
     $a=$Door.approach
@@ -447,7 +469,7 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     $doorV3=$Door.contract-cin@('two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4')
     $doorKeys=@('contract','interactions','setupInteractions','cutObservations','fixture','firstPairReturn','restoration','completed')
     if($doorV3){$doorKeys+=@('approach','longApproach','clickWhileMoving')}
-    if($doorV4){$doorKeys+=@('unmountedControl','endpointNeighbor','stopControl')}
+    if($doorV4){$doorKeys+=@('unmountedControl','endpointNeighbor','stopControl');if($null-ne$Door.PSObject.Properties['layoutRestore']){$doorKeys+=@('layoutRestore')}}
     Assert-KmcExactProperties $Door $doorKeys 'Chunk 7 native door proof'
     # v1 (through F4): the first pair returned to its captured start. v2 (F4 r30 correction): it returns to a goal
     # clear of every other unit's native avoidance footprint, recorded with its search (Assert-KmcChunk7DoorReturnV2).
@@ -989,6 +1011,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         if($o.door.unmountedControl.applicable){$doorCommands+=@([string]$o.door.unmountedControl.commandObject)}
         if($o.door.endpointNeighbor.applicable){$doorCommands+=@([string]$o.door.endpointNeighbor.moveCommand)}
         if($null-ne$o.door.stopControl.PSObject.Properties['commandObject']){$doorCommands+=@([string]$o.door.stopControl.commandObject)}
+        if($null-ne$o.door.PSObject.Properties['layoutRestore']){foreach($m in @($o.door.layoutRestore.moves)){if($m.applicable){$doorCommands+=@([string]$m.command)}}}
     }
     $legCommands=@();if($null-ne$o.PSObject.Properties['speedLegs']){foreach($leg in @($o.speedLegs)){if($leg.applicable){foreach($mv in @($leg.movers)){$legCommands+=@([string]$mv.commandObject)}}}}
     Assert-KmcChunk7ExactIds $admission.commands @(@($issued|ForEach-Object{[string]$_.commandObject})+$doorCommands+$legCommands) 'commandObject'

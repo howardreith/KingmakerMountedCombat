@@ -1457,29 +1457,54 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
+            // Sprint 2 (DOOR-01): native replacement semantics. A click on the door already being approached keeps
+            // the accepted command; a click on another door replaces it; the mount's ordinary real-time player move
+            // yields to the door approach exactly as a native unit's own move yields to its new Standard command.
+            // Review correction B: two phases. Phase one evaluates every gate (turn/mode, admission disposition,
+            // whether the busy Move slot is only the pair's own recovery) WITHOUT touching the existing operation;
+            // only an admissible plan mutates, in phase two, and installs the new command. A forbidden click cancels
+            // nothing: no stock intent, no active door, no recovery, no mount move.
+            var mountCommands = relationship.Mount?.Commands;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var turnAdmissible = MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == relationship.Rider,
+                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                turn != null && turn.IsActing);
+            var disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            var busyOnlyWithOwnRecovery = pendingDoorSettlement?.RecoveryMove != null && mountCommands != null &&
+                ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), pendingDoorSettlement.RecoveryMove) &&
+                mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
+                mountCommands.GetCommand(UnitCommand.CommandType.Swift) == null && mountCommands.Queue.Count == 0;
+            var plan = MountedDoorApproachPolicy.PlanAdmission(disposition, busyOnlyWithOwnRecovery, turnAdmissible);
+            if (plan == MountedDoorAdmissionPlan.RejectWrongTurn)
+            {
+                LastFeedback = "Open an approached door during the rider's turn.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
+                logger.Info("Rejected mounted door interaction (nothing replaced): " + LastFeedback);
+                return false;
+            }
+            if (!MountedDoorApproachPolicy.PlanMutates(plan))
+            {
+                LastFeedback = MountedDoorApproachPolicy.Feedback(disposition, MountDisplayName);
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                if (plan == MountedDoorAdmissionPlan.RetainSameDoor) DoorInteractionRetainedClickCount++;
+                logger.Info(LastFeedback);
+                return false;
+            }
+
+            // Phase two: the admissible plan mutates exactly what it names, then the admission is re-decided.
             if (HasStockAttackIntent)
             {
                 Cancel("door interaction replaced stock attack intent");
             }
-
-            // Sprint 2 (DOOR-01): native replacement semantics. A click on the door already being approached keeps
-            // the accepted command; a click on another door replaces it; the mount's ordinary real-time player move
-            // yields to the door approach exactly as a native unit's own move yields to its new Standard command.
-            var mountCommands = relationship.Mount?.Commands;
-            var disposition = DecideDoorAdmission(mountCommands, exactDoor);
-            // A new door click is the player's explicit intent: an owned occupancy recovery still running from the
-            // previous click yields to it (its outcome records the cancellation), as a native unit's own move would.
-            // Decided first, so a click that is refused for another reason keeps the recovery.
-            if (disposition == MountedDoorAdmissionDisposition.RejectMountBusy && pendingDoorSettlement?.RecoveryMove != null &&
-                mountCommands != null && ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), pendingDoorSettlement.RecoveryMove) &&
-                mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
-                mountCommands.GetCommand(UnitCommand.CommandType.Swift) == null && mountCommands.Queue.Count == 0)
+            if (plan == MountedDoorAdmissionPlan.ReplaceRecovery)
             {
                 DoorInteractionReplacedRecoveryCount++;
                 CancelPendingDoorSettlement("replaced by a new door click");
                 disposition = DecideDoorAdmission(mountCommands, exactDoor);
             }
-            if (disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
+            if (plan == MountedDoorAdmissionPlan.ReplaceActiveDoor || disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
             {
                 var replaced = activeDoorInteraction;
                 activeDoorInteraction = null;
@@ -1500,23 +1525,10 @@ namespace KingmakerMountedCombat.Integration
             }
             if (disposition != MountedDoorAdmissionDisposition.Admit)
             {
+                // Fail closed after a replacement that did not free the pair: reported, nothing further replaced.
                 LastFeedback = MountedDoorApproachPolicy.Feedback(disposition, MountDisplayName);
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
-                if (disposition == MountedDoorAdmissionDisposition.RetainActiveSameDoor) DoorInteractionRetainedClickCount++;
-                logger.Info(LastFeedback);
-                return false;
-            }
-
-            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            if (!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
-                CombatController.IsInTurnBasedCombat(),
-                turn?.Unit == relationship.Rider,
-                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
-                turn != null && turn.IsActing))
-            {
-                LastFeedback = "Open an approached door during the rider's turn.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
-                logger.Info("Rejected mounted door interaction: " + LastFeedback);
+                logger.Warning("Mounted door interaction replacement did not free the pair: plan=" + plan + "; " + LastFeedback);
                 return false;
             }
 

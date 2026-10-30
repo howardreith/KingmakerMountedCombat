@@ -159,6 +159,8 @@
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\MountedDoorApproachPolicy.cs" />
     <Compile Include="Domain\MountedDoorOccupancyPolicy.cs" />
+    <Compile Include="Domain\MountedDoorSettlementLifecycle.cs" />
+    <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />
     <Compile Include="Integration\MountedDoorOccupancySettlement.cs" />
     <Compile Include="Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
