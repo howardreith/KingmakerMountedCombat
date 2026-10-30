@@ -278,6 +278,19 @@ namespace KingmakerMountedCombat.Diagnostics
         public string AreaRoute { get; set; }
         // Scenario 3 only: the unrelated companion whose one ordinary native action is observed.
         public string CompanionId { get; set; }
+        // Sprint 1 (SAVE-02): the owner-seed area producer may admit one verified, real Auto archive of
+        // this same campaign, written in the declared destination by an accepted earlier producer, as a
+        // disposable pre-existing slot. Fixture preparation only: the archive is copied beside the Manual
+        // input and never loaded or relabelled; the genuine AfterEntry autosave then selects that full
+        // slot and overwrites it through the engine's own replacement branch.
+        public string ExistingAutoRunId { get; set; }
+        public string ExistingAutoArtifactSha256 { get; set; }
+        public string ExistingAutoSha256 { get; set; }
+        public bool ShouldSerializeExistingAutoRunId() => ExistingAutoRunId != null;
+        public bool ShouldSerializeExistingAutoArtifactSha256() => ExistingAutoArtifactSha256 != null;
+        public bool ShouldSerializeExistingAutoSha256() => ExistingAutoSha256 != null;
+        internal bool DeclaresExistingAuto => ExistingAutoRunId != null || ExistingAutoArtifactSha256 != null || ExistingAutoSha256 != null;
+        internal bool IsAreaOverwrite(string checkpoint) => IsOwnerSeedCheckpointSave && checkpoint == "multi-area-autosave" && DeclaresExistingAuto;
         // Keep every historical serialized selection byte shape unchanged.
         public bool ShouldSerializeSourceArea() => SourceArea != null;
         public bool ShouldSerializeAreaRoute() => AreaRoute != null;
@@ -458,6 +471,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (AreaRoute != null && (!(IsOwnerSeedCheckpointSave || IsOwnerSeedCheckpointLoad) ||
                 checkpoint != "multi-area-autosave" || !IsManticoreReturnArea))
                 return new[] { "Only the exact owner-seed checkpoint area pair admits the distinct Manticore return route." };
+            if (DeclaresExistingAuto && !IsAreaOverwrite(checkpoint))
+                return new[] { "Only the owner-seed area autosave producer admits a pre-existing Auto slot." };
             if (OwnerSeedSetup) return ValidateOwnerSeed(scenario, runId, checkpoint);
             if (IsOwnerSeedDerivedLoad) return ValidateOwnerSeedDerivedLoad(scenario, runId, checkpoint);
             if (IsOwnerSeedLoadRefusal)
@@ -712,6 +727,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add(IsOwnerSeedCheckpointSave ? "The owner-seed checkpoint producer requires the exact distinct accepted cold-consumer run and its evidence SHA256." :
                     "The owner-seed checkpoint consumer requires the exact distinct checkpoint producer run and its persistence evidence SHA256.");
             if (CompanionId != null) errors.Add("Only owner-seed-derived RT combat names an unrelated companion.");
+            if (DeclaresExistingAuto && (!Run(ExistingAutoRunId) || ExistingAutoRunId == runId || ExistingAutoRunId == SourceRunId ||
+                ExistingAutoRunId == CheckpointSourceRunId || ExistingAutoRunId == SeedId || !Hash(ExistingAutoArtifactSha256) || !Hash(ExistingAutoSha256) ||
+                ExistingAutoArtifactSha256 == ExistingAutoSha256 || new[] { SourceArtifactSha256, SourceArchiveSha256, CheckpointSourceArtifactSha256, SeedSha256 }
+                    .Any(pin => pin == ExistingAutoArtifactSha256 || pin == ExistingAutoSha256)))
+                errors.Add("The pre-existing Auto slot requires its exact distinct accepted producer run, evidence SHA256 and archive SHA256.");
             if (checkpoint == ManticoreFixtureCheckpoint && (!IsOwnerSeedCheckpointSave || SourceArchiveSha256 != ManticoreFixtureSourceSha256))
                 errors.Add("Manticore fixture preparation is source-only and requires the exact accepted mounted owner-seed Manual.");
             if (checkpoint == TombFixtureCheckpoint && (!IsOwnerSeedCheckpointSave || SourceArchiveSha256 != TombFixtureSourceSha256))

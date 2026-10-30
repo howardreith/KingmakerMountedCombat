@@ -1041,10 +1041,28 @@ try{
             if((Get-KmcSha256 $copiedFixture)-cne[string]$copyDescriptor.sha256){
                 throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
             }
-            Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') ([ordered]@{
+            $ownerRecord=[ordered]@{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
-            })
+            }
+            if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$null-ne$ownedPairsSource.PSObject.Properties['existingAuto']){
+                # Sprint 1 (SAVE-02): the admitted pre-existing Auto slot, copied beside the Manual input
+                # under its own leaf so the genuine AfterEntry autosave overwrites it. Fixture preparation
+                # only: never loaded, relabelled or edited; its bytes are pinned by the selection.
+                $existing=$ownedPairsSource.existingAuto;$existingAutoCopy=Join-Path $isolatedSaves ([string]$existing.descriptor.fileName)
+                if(Test-Path -LiteralPath $existingAutoCopy){throw 'The pre-existing Auto slot leaf already exists in the isolated root.'}
+                Assert-KmcNotReparsePoint $existing.path 'pre-existing Auto source'
+                Assert-KmcNotHardLink $existing.path 'pre-existing Auto source'
+                Copy-Item -LiteralPath $existing.path -Destination $existingAutoCopy
+                $existingInfo=Get-Item -LiteralPath $existingAutoCopy
+                if($existingInfo.IsReadOnly){$existingInfo.IsReadOnly=$false}
+                [IO.File]::SetLastWriteTimeUtc($existingAutoCopy,([IO.File]::GetLastWriteTimeUtc($existing.path)))
+                if((Get-KmcSha256 $existingAutoCopy)-cne[string]$existing.descriptor.sha256-or[string]$existing.descriptor.sha256-cne[string]$request.ownedPairs.existingAutoSha256){
+                    throw 'Copied pre-existing Auto bytes differ from the admitted pin.'
+                }
+                $ownerRecord['existingAutoSha256']=[string]$existing.descriptor.sha256
+            }
+            Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') $ownerRecord
             if(Test-KmcChunk7SmallScenario $Scenario){if(Test-KmcChunk7SmallF09Case $request.smallCalibration){Copy-KmcChunk7SmallF09SourceArtifact $smallSource $profileRoot $lock}elseif(Test-KmcChunk7SmallManualCase $request.smallCalibration){Copy-KmcChunk7SmallManualSourceArtifact $smallSource $profileRoot $lock}else{Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}}
             if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
             if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}

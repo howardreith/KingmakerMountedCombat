@@ -207,6 +207,14 @@ function Test-KmcChunk7ManticoreReturnArea($Selection){
  $null-ne$Selection-and$null-ne$Selection.PSObject.Properties['areaRoute']-and
  $Selection.areaRoute-is[string]-and$Selection.areaRoute-ceq'manticore-to-spider-v1'
 }
+# Sprint 1 (SAVE-02): the owner-seed area producer may admit one accepted pre-existing destination Auto
+# slot (its run, evidence SHA256 and archive SHA256 pinned) so the genuine AfterEntry autosave overwrites it.
+function Test-KmcChunk7OwnedAreaOverwriteSelection($Selection){
+ $null-ne$Selection-and(($null-ne$Selection.PSObject.Properties['existingAutoRunId'])-or($null-ne$Selection.PSObject.Properties['existingAutoArtifactSha256'])-or($null-ne$Selection.PSObject.Properties['existingAutoSha256']))
+}
+function Test-KmcChunk7OwnedAreaOverwrite($Request){
+ (Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)-and$null-ne$Request.PSObject.Properties['persistenceCase']-and$Request.persistenceCase-ceq'multi-area-autosave'-and(Test-KmcChunk7OwnedAreaOverwriteSelection $Request.ownedPairs)
+}
 function Assert-KmcChunk7OwnerSeedDerivedLoadSelection($Request,$Selection,$Checkpoint){
  $s=$Selection
  $manticore=$Checkpoint-ceq'manticore-fixture-cold-manual'
@@ -587,14 +595,18 @@ function Assert-KmcChunk7OwnedOutputEvidence($Request,$Observations){
   $writes=if($i-eq0){0}else{$writeCount};foreach($key in @('nativeWrites','authorizedWrites')){Assert-KmcOrdinaryInteger $v.$key $writes $writes};Assert-KmcOrdinaryInteger $v.number $a.number $a.number
   Assert-KmcBootstrapInventoryString $v.leaf $leaf;Assert-KmcBootstrapInventoryString $v.nativeType $type;Assert-KmcBootstrapInventoryString $v.nativeName $name
  }
- if($a.nativeInventory-isnot[Array]-or$a.nativeInventory.Count-ne1-or$b.nativeInventory-isnot[Array]-or$b.nativeInventory.Count-ne2){throw 'Inherited native inventory did not transition from one immutable input to one fresh output.'}
+ # An area overwrite admits the immutable input beside its pre-existing slot; every other case admits the input alone.
+ $overwrite=Test-KmcChunk7OwnedAreaOverwrite $Request;$admitted=if($overwrite){2}else{1}
+ if($a.nativeInventory-isnot[Array]-or$a.nativeInventory.Count-ne$admitted-or$b.nativeInventory-isnot[Array]-or$b.nativeInventory.Count-ne2){throw 'Inherited native inventory did not transition from one immutable input to one fresh output.'}
  $inputType=if($Request.ownedPairs.case-cin@('persistence-load','owner-seed-checkpoint-load')){Get-KmcChunk7PersistenceType $Request.persistenceCase}else{'Manual'}
- Assert-KmcChunk7OwnedNativeDescriptor $a.nativeInventory[0] $Request.persistenceLoad $inputType
+ $admittedInput=@($a.nativeInventory|Where-Object fileName -CEQ $Request.persistenceLoad.fileName);if($admittedInput.Count-ne1){throw 'Admitted inherited inventory omits or repeats the immutable input.'}
+ Assert-KmcChunk7OwnedNativeDescriptor $admittedInput[0] $Request.persistenceLoad $inputType
  $input=@($b.nativeInventory|Where-Object fileName -CEQ $Request.persistenceLoad.fileName);$output=@($b.nativeInventory|Where-Object fileName -CEQ $leaf)
  if($input.Count-ne1-or$output.Count-ne1-or$leaf-ceq$Request.persistenceLoad.fileName){throw 'Settled inherited inventory aliases or omits the immutable input/fresh output.'}
  Assert-KmcChunk7OwnedNativeDescriptor $input[0] $Request.persistenceLoad $inputType
  $descriptor=[pscustomobject]@{fileName=$leaf;internalName=$name;gameId=$Request.persistenceLoad.gameId;gameName=$Request.persistenceLoad.gameName;area=(Get-KmcChunk7ExpectedArchiveArea $Request)}
  Assert-KmcChunk7OwnedNativeDescriptor $output[0] $descriptor $type
+ if($overwrite){$existing=@($a.nativeInventory|Where-Object fileName -CEQ $leaf);if($existing.Count-ne1){throw 'Admitted inherited inventory omits the pre-existing Auto slot.'};Assert-KmcChunk7OwnedNativeDescriptor $existing[0] $descriptor $type}
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.path (Join-Path $root $leaf)
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeType $type
  Assert-KmcBootstrapInventoryString $Observations.nativeWrite.nativeName $name
@@ -1165,7 +1177,13 @@ function Assert-KmcChunk7OwnerSeedDerivedCombatSelection($Request,$Selection,$Ch
 function Assert-KmcChunk7OwnerSeedCheckpointSelection($Request,$Selection,$Checkpoint){
  $s=$Selection;$save=$s.case-ceq'owner-seed-checkpoint-save';$area=$Checkpoint-ceq'multi-area-autosave'
  $fields=@('case','sourceRunId','sourceArtifactSha256','sourceArchiveSha256','checkpointSourceRunId','checkpointSourceArtifactSha256','seedId','seedSha256','riderAId','mountAId','riderBId','mountBId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($area){$fields+='sourceArea';if($s.PSObject.Properties['areaRoute']){$fields+='areaRoute'}}
+ $overwrite=$area-and$save-and(Test-KmcChunk7OwnedAreaOverwriteSelection $s);if($overwrite){$fields+=@('existingAutoRunId','existingAutoArtifactSha256','existingAutoSha256')}
  Assert-KmcExactProperties $s $fields 'owner-seed checkpoint selection'
+ if($overwrite){
+  if($s.existingAutoRunId-isnot[string]-or$s.existingAutoRunId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.existingAutoRunId-cin@($Request.runId,$s.sourceRunId,$s.checkpointSourceRunId,$s.seedId)){throw 'The pre-existing Auto slot requires its exact distinct accepted producer run.'}
+  foreach($key in @('existingAutoArtifactSha256','existingAutoSha256')){if($s.$key-isnot[string]-or$s.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'The pre-existing Auto slot requires exact SHA256 pins.'}}
+  if(@(@($s.existingAutoArtifactSha256,$s.existingAutoSha256,$s.sourceArtifactSha256,$s.sourceArchiveSha256,$s.checkpointSourceArtifactSha256,$s.seedSha256)|Select-Object -Unique).Count-ne6){throw 'The pre-existing Auto slot pins alias one another or the lineage pins.'}
+ }
  if($area){
   if($s.PSObject.Properties['areaRoute']){
    Assert-KmcBootstrapInventoryString $s.areaRoute 'manticore-to-spider-v1'

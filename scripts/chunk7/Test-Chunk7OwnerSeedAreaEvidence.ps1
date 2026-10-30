@@ -41,10 +41,12 @@ function New-SeedAreaCold {
  $r.ownedPairs=Copy-Value $source.request.ownedPairs;$r.ownedPairs.case='owner-seed-checkpoint-load';$r.ownedPairs.expectedNativeWriteCount=0;$r.ownedPairs.checkpointSourceRunId=$source.request.runId;$r.ownedPairs.sourceArchiveSha256='7'*64
  Put-Area $r persistenceAreaTarget (Copy-Value $source.request.persistenceAreaTarget);$r.persistenceLoad.area=$destination;$o.loadedDescriptor=Copy-Value $r.persistenceLoad;$o.loadedArchive=Copy-Value $source.artifact.observations.nativeWrite.archive
  $o.inheritedFixture=Copy-Value $source.artifact.observations.inheritedFixture;$o.inheritedCleanup=Copy-Value $source.artifact.observations.inheritedCleanup;Set-KmcOwnerSeedDerivedLabels $o $r.ownedPairs
+ # The cold area consumer re-plans both continuation rays, and its source pins the producer's recorded candidate (as the sibling generic area cold fixture does).
+ Put-Area $o areaContinuationPlans (Copy-Value $source.artifact.observations.areaContinuationPlans)
  $source.artifact.observations.ownerSeedCheckpointSource.manualSha256=$r.ownedPairs.sourceArchiveSha256
  $dir=Join-Path $script:areaLab ('runtime-evidence/'+$source.request.runId);[void][IO.Directory]::CreateDirectory($dir);$p=Join-Path $dir 'chunk7-persistence-evidence.json'
  [IO.File]::WriteAllText($p,($source.artifact|ConvertTo-Json -Depth 90),[Text.UTF8Encoding]::new($false));$sha=Get-KmcSha256 $p;$r.ownedPairs.checkpointSourceArtifactSha256=$sha
- [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length}}
+ [pscustomobject]@{parent=$source;request=$r;artifact=$cold.artifact;source=[pscustomobject]@{checkpointArtifactPath=$p;checkpointArtifactSha256=$sha;checkpointArtifactLength=[long](Get-Item -LiteralPath $p).Length;checkpointCandidate=[pscustomobject]@{commit=$source.artifact.commit;dllSha256=$source.artifact.dllSha256;dllMvid=$source.artifact.dllMvid}}}
 }
 $results=[Collections.Generic.List[object]]::new();$clock=[Diagnostics.Stopwatch]::StartNew()
 function Check([string]$Name,[scriptblock]$Body,[bool]$Refuse=$false,[string]$Reason=''){$errorText=$null;$ok=$false;try{&$Body;$ok=-not$Refuse}catch{$errorText=$_.Exception.Message;$ok=$Refuse-and(-not$Reason-or$errorText-match$Reason)};$results.Add([pscustomobject]@{name=$Name;pass=$ok;expectedRefusal=$Refuse;error=$errorText});if(-not$ok){Write-Output ('FAIL '+$Name+': '+$errorText)}}
@@ -80,6 +82,39 @@ $bad=[ordered]@{
  'explicit SaveGame dispatched'={param($f)$f.artifact.observations.areaTransfer.explicitSaveGameDispatches=1}
 }
 foreach($m in $bad.GetEnumerator()){Check $m.Key {$f=New-SeedArea;&$m.Value $f;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true}
+# Sprint 1 (SAVE-02): the owner-seed area producer whose genuine after-entry autosave overwrote an admitted
+# pre-existing destination Auto (pinned by run, evidence SHA256 and archive SHA256) through the engine's own
+# replacement: the prepared copy lands at the reserved staging leaf and is moved onto the existing leaf.
+function New-SeedAreaOverwrite {
+ $f=New-SeedArea;$r=$f.request;$o=$f.artifact.observations;$s=$r.ownedPairs
+ Put-Area $s existingAutoRunId 'synthetic-area-auto-producer';Put-Area $s existingAutoArtifactSha256 ('5'*64);Put-Area $s existingAutoSha256 ('3'*64)
+ $w=$o.nativeWrite;$a=$o.ownedOutputAdmission
+ $existing=Copy-Value (@($o.ownedOutputCompletion.nativeInventory|Where-Object nativeType -CEQ 'Auto')[0]);$a.nativeInventory=@($a.nativeInventory)+@($existing)
+ foreach($p in @($o.areaTransfer.headerStarting,$o.areaTransfer.headerStaged)){$p.nativeSaveBoundary.preparedLeaf='Auto_2.zks';$p.nativeSaveBoundary.preparedPath=(Join-Path (Split-Path -Parent $w.path) 'Auto_2.zks')}
+ Put-Area $o areaOverwrite ([pscustomobject][ordered]@{contract='sprint1-area-auto-overwrite-v1';eventDispatch='Game.LoadArea(enterPoint, AutoSaveMode.AfterEntry): the engine''s own after-entry branch requests SaveRoutine(GetNextAutoslot())';existingRunId=$s.existingAutoRunId;existingArtifactSha256=$s.existingAutoArtifactSha256;existingSha256=$s.existingAutoSha256;existingLeaf='Auto_1.zks';existingName=$w.nativeName;existingArea=$r.persistenceAreaTarget.area;existingFolderName=$w.path;existingLength=1000;previousSha256=$s.existingAutoSha256;stagingLeaf='Auto_2.zks';stagingNumber=2;commitCountBefore=0;replacementFailuresBefore=0;replacementSiteInvokedDirectly=$false;explicitSaveGameDispatches=0;preseededByFixture=$true;existingLoaded=$false;engineShapedRoot=$false;nativeSlotCapacity=1.0;savedOfCategory=1;nextAutoslotIsExisting=$true;requestedIsExistingSlot=$true;commitCountAfter=1;commitRecorded=$true;committedDestination=$w.path;path=$w.path;landedFolderName=$w.path;sha256=$w.sha256;length=$w.length;bytesChanged=$true;stagingAbsent=$true;writtenIsNewDescriptor=$true;requestedDescriptorRetired=$true;holdsReleased=$true;failedSaves=0;replacementFailures=0;nativeWrites=1})
+ return (Copy-Value $f)
+}
+Check 'owner-seed area overwrite: genuine after-entry autosave replaces the admitted pre-existing slot' {$f=New-SeedAreaOverwrite;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}
+Check 'owner-seed area overwrite: engine-shaped prepared and committed paths compare by identity' {$f=New-SeedAreaOverwrite;$o=$f.artifact.observations;Put-Area $f.request engineShapedSaveRoot $true;$o.areaOverwrite.engineShapedRoot=$true;$mixed=$o.nativeWrite.path -replace '\\','/';$o.areaOverwrite.committedDestination=$mixed;$o.areaOverwrite.landedFolderName=$mixed;$o.ownedOutputCompletion.areaSaveIdentity.path=$mixed;foreach($p in @($o.areaTransfer.headerStarting,$o.areaTransfer.headerStaged)){$p.nativeSaveBoundary.preparedPath=$p.nativeSaveBoundary.preparedPath -replace '\\','/'};Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'}
+$badOverwrite=[ordered]@{
+ 'overwrite receipt missing'={param($f)$f.artifact.observations.PSObject.Properties.Remove('areaOverwrite')}
+ 'overwrite commit not recorded'={param($f)$f.artifact.observations.areaOverwrite.commitCountAfter=0}
+ 'overwrite staging retained'={param($f)$f.artifact.observations.areaOverwrite.stagingAbsent=$false}
+ 'overwrite bytes unchanged'={param($f)$f.artifact.observations.areaOverwrite.sha256=$f.artifact.observations.areaOverwrite.previousSha256}
+ 'overwrite existing pin differs'={param($f)$f.artifact.observations.areaOverwrite.existingSha256='4'*64}
+ 'overwrite selector minted a slot'={param($f)$f.artifact.observations.areaOverwrite.nextAutoslotIsExisting=$false}
+ 'overwrite two Autos of category'={param($f)$f.artifact.observations.areaOverwrite.savedOfCategory=2}
+ 'overwrite replacement invoked directly'={param($f)$f.artifact.observations.areaOverwrite.replacementSiteInvokedDirectly=$true}
+ 'overwrite explicit save dispatched'={param($f)$f.artifact.observations.areaOverwrite.explicitSaveGameDispatches=1}
+ 'overwrite landed elsewhere'={param($f)$f.artifact.observations.areaOverwrite.committedDestination=(Join-Path (Split-Path -Parent $f.artifact.observations.nativeWrite.path) 'Auto_2.zks')}
+ 'overwrite admission omits the existing slot'={param($f)$f.artifact.observations.ownedOutputAdmission.nativeInventory=@($f.artifact.observations.ownedOutputAdmission.nativeInventory[0])}
+ 'overwrite capacity not one'={param($f)$f.artifact.observations.areaOverwrite.nativeSlotCapacity=3.0}
+ 'overwrite existing run aliases consumer'={param($f)$f.request.ownedPairs.existingAutoRunId=$f.request.ownedPairs.checkpointSourceRunId}
+ 'overwrite prepared copy at a foreign leaf'={param($f)foreach($p in @($f.artifact.observations.areaTransfer.headerStarting,$f.artifact.observations.areaTransfer.headerStaged)){$p.nativeSaveBoundary.preparedLeaf='Auto_3.zks'}}
+}
+foreach($m in $badOverwrite.GetEnumerator()){Check $m.Key {$f=New-SeedAreaOverwrite;&$m.Value $f;$f=Copy-Value $f;Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true}
+Check 'first-ever area Auto refuses an overwrite receipt' {$f=New-SeedArea;Put-Area $f.artifact.observations areaOverwrite ([pscustomobject]@{contract='sprint1-area-auto-overwrite-v1'});Assert-KmcChunk7PersistenceObservation $f.request $f.artifact 'PASS'} $true
+Check 'area cold consumer refuses pre-existing slot pins' {$f=New-SeedAreaCold;Put-Area $f.request.ownedPairs existingAutoRunId 'synthetic-area-auto-producer';Put-Area $f.request.ownedPairs existingAutoArtifactSha256 ('5'*64);Put-Area $f.request.ownedPairs existingAutoSha256 ('3'*64);Assert-KmcChunk7OwnedPairsSelection $f.request} $true
 function New-ManticoreReturnEntry {
  $f=New-SeedArea;$s=$f.request.ownedPairs;$s|Add-Member NoteProperty areaRoute 'manticore-to-spider-v1'
  $s.sourceArea='314e8c3b15b896a4f847c85f9250f02b'
