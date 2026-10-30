@@ -307,3 +307,155 @@ file API on a relative path inside the tool shell, which resolved against the ro
 the root's project file was restored to its committed bytes immediately (`git checkout --`
 on that one file), the root stayed on `main` with its frozen preview.96 DLL untouched
 (`9d090645…`), and the worktree edit was redone by absolute path.
+
+## Iteration 4 — the genuine area-transition Auto overwrite and the UPG-01 cause (2026-10-30)
+
+Assignment: close SAVE-02 through one genuine supported area event that overwrites an
+admitted, verified pre-existing Auto of the same fixture campaign/area, and recover the
+UPG-01 cause before any further load. One-time allowance adjustment on the same `sprint1`
+record: 90 → 135 min (`allowanceAdjustments[0]`, applied 2026-10-30T03:18:32Z, authority
+"Sprint 1 completion mission, review iteration 4 prompt forwarded by the owner, 2026-10-29").
+
+### SAVE-02: admitted pre-existing Auto, overwritten by the engine's own `AfterEntry` autosave (`d48e7627`)
+
+- **Selection.** `owner-seed-checkpoint-save` / `multi-area-autosave` on the accepted
+  Manticore → Spider Cave route (`manticore-to-spider-v1`, source Manual `86a5ff4b…`, enter point
+  `00becd53…`, destination `b10e8651…`) now carries `existingAutoRunId/ArtifactSha256/Sha256`:
+  the first-ever producer `20261029-c7e-final-B6-r28r`'s own `Auto_1.zks` (`ede760c8…`, its
+  evidence artifact pinned). `ValidateKind` refuses the fields on every other case; the source
+  gate (`Get-KmcChunk7OwnedExistingAutoSource`) requires that producer to be an accepted
+  first-ever write of the same campaign, route and destination, never itself an overwrite.
+- **Authority.** `ReserveOwnedPairsAreaOverwrite` marks the admitted `Auto_1.zks` writable
+  (`AdmissionArea` = destination) and reserves staging `Auto_2.zks`; the plain Quick/Manual
+  replacement path refuses while an overwrite reservation is pending; the bootstrap allowlist
+  admits the pre-existing slot read-only beside the Manual. The launcher copies the admitted
+  bytes under their own leaf and records `existingAutoSha256` in `owner.json`.
+- **Scenario observations** (`evidence.areaOverwrite`, contract
+  `sprint1-area-auto-overwrite-v1`): the admitted slot is selected by the native
+  `GetNextAutoslot()` under capacity 1 (`ReferenceEquals` the admitted descriptor) before the
+  transition; the genuine area entry raises the Auto request; the replacement branch commits
+  exactly once at the existing leaf (`NativeMountedArchiveCommit` count +1, bytes changed,
+  staging `Auto_2.zks` absent); holds settle; both pairs retained.
+- **Readers.** `Test-KmcChunk7OwnedAreaOverwriteSelection/Overwrite`,
+  `Assert-KmcChunk7OwnedAreaOverwrite` (path identity, not spelling), admission inventory of
+  two descriptors; tests: authority 795/0, owner-seed area reader 71/0, owned source 337/0.
+- **Native.** 
+- **Cold.** `20261030-sprint1-r12-area-auto-overwrite-cold` **PASS** (`owner-seed-checkpoint-load`,
+  checkpoint = r11, separate process, 112 s wall): the cold load of the overwritten
+  `Auto_1.zks` (`15ac93fd…`, 740,629 B, area `b10e8651…`, campaign "Testy the Modless")
+  restored both mounted pairs (schema 3, generation 5, rules `crpg-transport-v1`) with the
+  restoration-entry observer validated before native mutation and no actions or
+  preparation granted (game 3/3, loads 1, writes 0). SAVE-02's required observations are
+  therefore all present: genuine event → native Auto request, existing slot selected under the
+  disposable capacity, replacement branch committed exactly once (not invoked by the
+  fixture), bytes at the existing slot with staging retired, holds settled, mounted
+  relationships retained, separate-process cold load, engine-shaped path condition.
+
+
+### UPG-01: the cause chain, decoded from the engine (no product repair yet)
+
+- The r09 Unity player log survived (`recovered-output_log.txt`, `197ea294…`, copied into
+  the r09 evidence with provenance): `Kingmaker.Player.PostLoad` → `Enumerable.Single`
+  "Sequence contains no matching element", inside the native `LoadRoutine`; KMC's
+  `TrackNativeLoad` only wraps and rethrows. No engine error line exists anywhere on disk.
+- IL decoded: `Player.PostLoad` resolves the main character's inventory with
+  `CrossSceneState.AllEntityData.Single(e => e.UniqueId == MainCharacter.UniqueId)`; the
+  main character (`b6628a77…`, first unit of `party.json`) is therefore absent after
+  `ThreadedGameLoader.DoLoad`. `CollectionsConverter.ReadJson` catches a per-element
+  exception, logs "Failed to deserialize collection element" through `UberDebug` and skips
+  the element; `BlueprintConverter.ReadJson` throws on an unknown guid. `UberDebug` writes
+  only to `UberLogger` sinks, and the shipped game persists none of them.
+- Ruled out: every stock/KMC blueprint guid the archive references is registered on this
+  build; DLC headers identical across the Oct-11/27/29 archives; engine assembly unchanged.
+  Open candidates: the product DLL (chunk7b vs chunk6d-preview.211) and UMM 0.33.2 (was
+  0.28.2) on the main-thread/threaded JSON interaction. The Aug-14 Working fixture fails the
+  same way on preview.96/.97, so this is not specific to the preview.211 Quick.
+- **Repair of the evidence gap** (product): `NativeEngineLogTail` (`UberLogger.ILogger`,
+  Warning/Error only, bounded 64 rows, forwards errors to the KMC log) registered for the life
+  of a runtime request and published as `engineLogTail` on every result path (completion,
+  no-save, six-pair exit) with a strict optional reader
+  (`Assert-KmcNativeEngineLogTail`, startup/engine-tail reader 61/0).
+- **Diagnostic load.** `20261030-sprint1-r10-upg01-p05-load-quick-logtail` **FAIL as r09** (87 s, batch
+  `sprint1:upgrade-1`, the same `Player.PostLoad` exception), but with the engine's channel
+  retained: 16 rows, and before the `Single` failure only the engine's own startup noise
+  (BugReportCanvas NRE, duplicate common AssetBundle loads), identical to the passing r11/r12
+  baseline. No "Failed to deserialize collection element" or "Failed to load blueprint" line
+  reached the sink, so the element drop is silent on that channel as well (worker-thread
+  logging is a plausible reason; not proven).
+- **Cause, classified: fixture/dependency mismatch.** The archive's `party.json` carries 14
+  `$type` members from the `CallOfTheWild` assembly: the main character `b6628a77…` holds six
+  Call of the Wild unit parts (`UnitPartConfusionControl`, `UnitPartSizeOverride`,
+  `UnitPartActivatableAbilityActionTypeModifier`, `FullAttackWatcherUnitPart`,
+  `UnitPartSanctuary`, `UnitPartFlying`), the companion `d17c8fd0…` three, the mount
+  `d79a4f6c…` none. The Aug-14 Working fixture `Manual_299` shows the identical pattern. Both
+  were written while Call of the Wild was loaded (the Oct-12 save and load ran on the live-clone
+  Mods overlay), and both fail only on the base-game-only staging whose Mods tree, like the
+  owner's current live tree, has no Call of the Wild assembly: the units whose parts cannot be
+  resolved are dropped from `CrossSceneState`, and `Player.PostLoad` fails on its first lookup.
+  Every KMC-referenced blueprint and KMC's own schema-2 metadata resolve; KMC touches no
+  entity data before `PostLoad` (`TrackNativeLoad` only wraps, `SelectLoad` reads only
+  `kmc-mounted-state`). Not a product migration defect; not an observer defect.
+- **Remaining action.** UPG-01's load → resave → separate-process cold load needs the
+  archive's dependency staged: a run whose staged Mods tree carries the owner's Call of the
+  Wild installation beside KMC (a retained snapshot of it or a reinstalled copy; the
+  base-game-only mode cannot carry it and the current suite pins an empty Mods digest). The
+  genuine archive is never edited. Owner note: any save made with Call of the Wild loaded
+  cannot load without it, regardless of KMC's version.
+
+
+### Workflow corrections
+
+- **Parameter-shape refusals precede budget admission** (`f4294828`). The harness case
+  "development-scoped WhatIf is refused without WhatIf" runs the launcher as a child that must
+  be refused. Under a sprint budget each such child was recorded as a *failed native attempt*
+  of the default batch `sprint1:batch1`; the third Candidate run therefore tripped the
+  two-equivalent-failure rule before the scoped-audit refusal and the case failed on the wrong
+  message (Candidate #1 of this iteration, 11/1). The scoped-audit, manual-review and
+  offline-cloud shape checks now run before `Request-KmcWorkflowAdmission`; the harness case
+  asserts that the refused children leave the budget record unchanged; the policy records the
+  rule. The two historical `sprint1:batch1` entries stay in the record as what they were.
+- Policy text now states the allowance adjustment mechanism (`allowanceMinutes` authoritative,
+  `allowanceAdjustments` with the authorizing assignment).
+
+### Test debt disclosed (not introduced here unless stated)
+
+- `scripts/chunk7/Test-Chunk7OwnedPairsAuthority.ps1` was 766/11 at the reviewed head
+  `ffd24b26` (764/0 at `main`): iteration 3's `4644a433` broke nine owner-seed setup cases
+  (fixture `Scope()` output name) and two rotation cases (repeated reservation expected a
+  refusal). Repaired here (`ownedPairsReplacementPending`, fixture scope); 795/0.
+- `scripts/chunk7/Test-Chunk7OwnerSeedAreaEvidence.ps1` was 50/3 at `main` (pre-sprint): the
+  cold builder lacked `checkpointCandidate` and `areaContinuationPlans`. Repaired; 71/0.
+- `scripts/chunk7/Test-Chunk7SixPairExitReader.ps1` is 3/22 at `main` `8aa44d3a` and here:
+  its retained fixture requests carry an older `productVersion` than `version.json`
+  ("Runtime request product version is not exact"). Reproduced at the root checkout
+  (12 s); not repaired (outside scope); the three source-pin cases, including the updated
+  exit field set, pass. Excluded from this iteration's Candidate selection for that reason.
+
+### Native batches `sprint1:area-overwrite-1` and `sprint1:upgrade-1`
+
+| Run | Selection | Result |
+| --- | --- | --- |
+| `20261030-sprint1-r11-area-auto-overwrite` | `chunk7-owned-two-pair-campaign` / `multi-area-autosave`, admitted Auto overwrite, `sprint1:area-overwrite-1` | PASS (114 s) |
+| `20261030-sprint1-r12-area-auto-overwrite-cold` | `owner-seed-checkpoint-load`, checkpoint r11, `sprint1:area-overwrite-1` | PASS (112 s) |
+| `20261030-sprint1-r10-upg01-p05-load-quick-logtail` | `persistence-p05-load` / `quick`, source `final211-p05-save-quick`, `sprint1:upgrade-1` | FAIL as r09; engine tail retained (87 s) |
+
+Each launch was preceded by its development-scoped WhatIf (PASS: 26 s, 25 s, 19 s). Package
+`…preview.98-sprint1l-diagnostic.zip` `3eec930a…`, suite `sprint1l-f4294828-20261030`
+`97bf6e99…`, DLL `bed87d75…` / MVID `846f1c80…` built at `f4294828`.
+
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 3 h 35 min |
+| Shared budget `sprint1`, cumulative | 100.98 of 135 min (this iteration 22.5 min: offline tiers about 14.2 min, native 5.6 min for three WhatIfs and three launches, imported packaging/suite/direct-run time 2.75 min) |
+| Real game launches this iteration | 3 launches: r11 PASS, r12 PASS, r10 FAIL (classified) |
+| Restoration outside the spend | the runs' own settlement only (suspended, excluded) |
+
+Offline tiers this iteration: Fast ×6 (#1 authority pre-existing failures, #2 area reader
+pre-existing failures, #3 source-gate pin collision, #4 PASS, #5 SixPairExitReader
+pre-existing, #6 startup wrapper count pin), Candidate ×2 (#1 harness budget interaction,
+#2 12/0); packages `sprint1k` (`912abfd5…`, superseded unused) and `sprint1l`
+(`3eec930a…`, same DLL `bed87d75…` / MVID `846f1c80…`); suite
+`sprint1l-f4294828-20261030` (`97bf6e99…`).
