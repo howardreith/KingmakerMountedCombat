@@ -4513,11 +4513,16 @@ try {
 
     Invoke-HarnessTest 'development-scoped WhatIf is refused without WhatIf and for manual review' {
         $scopedRunner = Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
+        $budgetId = if ([string]::IsNullOrWhiteSpace($env:KMC_WORKFLOW_BUDGET_ID)) { 'development' } else { $env:KMC_WORKFLOW_BUDGET_ID }
+        $budgetRecord = Join-Path (Get-KmcLabRoot) ('runtime-state\workflow-budgets\' + $budgetId + '.json')
+        $entriesBefore = if (Test-Path -LiteralPath $budgetRecord) { @((Get-Content -Raw -LiteralPath $budgetRecord | ConvertFrom-Json).entries).Count } else { 0 }
         $ErrorActionPreference = 'Continue'  # the refused child writes its refusal to stderr
         $native = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario mod-load-smoke -DevelopmentScopedAudit -RunId 'scoped-refusal-test' 2>&1 | Out-String)
         Assert-Test ($LASTEXITCODE -ne 0 -and $native.Contains('valid only together with -WhatIf')) 'the scoped audit was not refused on a native run'
         $review = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario manual-visual-review -DevelopmentScopedAudit -RunId 'scoped-refusal-test' -WhatIf 2>&1 | Out-String)
         Assert-Test ($LASTEXITCODE -ne 0 -and $review.Contains('refused for the manual-review scenario')) 'the scoped audit was not refused for manual review'
+        $entriesAfter = if (Test-Path -LiteralPath $budgetRecord) { @((Get-Content -Raw -LiteralPath $budgetRecord | ConvertFrom-Json).entries).Count } else { 0 }
+        Assert-Test ($entriesAfter -eq $entriesBefore) 'a parameter-shape refusal was recorded as a workflow budget attempt'
     }
 
     Invoke-HarnessTest 'development-scoped WhatIf keeps full content identity on exposed surfaces' {

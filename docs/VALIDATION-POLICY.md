@@ -72,7 +72,8 @@ KMC assembly checks default to Kingmaker; Wrath or Both must be selected explici
 `scripts/WorkflowBudget.ps1` keeps one cumulative sprint allowance (90 minutes by default; the record's `allowanceMinutes` is authoritative and any change is recorded in its `allowanceAdjustments` with the authorizing assignment, as the `sprint1` record's one-time 2026-10-30 adjustment to 135 minutes is;
 `KMC_WORKFLOW_BUDGET_ID`, record under the lab's `runtime-state\workflow-budgets`):
 Test-Tiers and the native launcher ask for admission before any validation, build,
-lock or launch and again before every further step (cumulative allowance, 30-minute
+lock or launch (a pure parameter-shape refusal, which needs no lab state, is decided first and
+is never an attempt) and again before every further step (cumulative allowance, 30-minute
 block ceiling, known oversized work refused rather than started); children inherit a
 parent's entry only after it is verified live, and a real native launch under such a parent
 is still one counted attempt of the batch (recorded under the parent, no spend of its own);
