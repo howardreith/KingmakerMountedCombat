@@ -1,4 +1,4 @@
-# Sprint 1 — saving reliability: PARTIAL, READY FOR FINAL REVIEW (2026-10-30, iteration 5)
+# Sprint 1 — saving reliability: PARTIAL, READY FOR FINAL REVIEW (2026-10-30, iteration 6)
 
 **SPRINT 1 PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** No merge, release or
 installation is selected. The one open item is the last step of UPG-01 (below); everything else in
@@ -14,14 +14,15 @@ spellings and never writes outside the owned isolated root.
 
 Review branch `codex/mounted-combat-sprint1-save-reliability`
 ([draft PR #6](https://github.com/howardreith/KingmakerMountedCombat/pull/6)), candidate
-`0.1.0-chunk7b-preview.98`. Current bytes: DLL `7f49f857…` / MVID `333b8676…` built at `53e48785`
-(package `…preview.98-sprint1n-diagnostic.zip` `2c04d648…`, suite `sprint1n-53e48785-20261030`
-`58775520…`); Candidate tier 9/0 on the sprint1m bytes (`2f8db203`) and Fast tier 4/0 on these, the
-only delta being the observer correction `53e48785`. The production save paths are unchanged since
-`4644a433`; every later commit is diagnostics, harness, readers or documentation. Evidence map,
-retained versus current: SAVE-01 and SAVE-03 ran on DLL `a680dd69…` (iteration 3, r06–r08, not rerun
-on later bytes), SAVE-02 on `bed87d75…` (iteration 4, r11/r12), UPG-01 on `7f49f857…` (iteration 5,
-r13-r2/r14-r2; the first pair r13/r14 on `2a0be4d8…`). Shared budget `sprint1`: 123.97 of 135 min.
+`0.1.0-chunk7b-preview.98`. Current bytes: DLL `3ada7451…` / MVID `d471c2e6…` built at `77f2d3c8`
+(package `…preview.98-sprint1o-diagnostic.zip` `819571a3…`, suite `sprint1o-77f2d3c8-20261030`
+`17d35245…`). Candidate tier 9/0 on the sprint1m bytes (`2f8db203`); the later deltas are observer
+code (`53e48785`, `77f2d3c8`), two archive-DTO derivation helpers and one harness classifier, covered by
+the affected offline checks (`Test-PersistenceData` 141 PASS, `Test-BaseGameIsolation` 119/0). The
+production save, restore and serialization paths are unchanged since `4644a433`. Evidence map, retained
+versus current: SAVE-01 and SAVE-03 ran on DLL `a680dd69…` (iteration 3, r06–r08), SAVE-02 on
+`bed87d75…` (iteration 4, r11/r12), the UPG-01 producer on `7f49f857…` (r13-r2), the UPG-01 consumer on
+`3ada7451…` (r15). Shared budget `sprint1`: 129.15 of 135 min.
 
 Dispositions:
 
@@ -31,30 +32,31 @@ Dispositions:
   over an admitted pre-existing `Auto_1.zks` through the replacement branch, exactly once; cold r12).
 - **SAVE-03 Manual overwrite: PASS natively** (r08; outer reader corrected and re-evaluated on the
   retained observations, original outer FAIL preserved).
-- **UPG-01: load and resave PASS natively; cold load of the resave not yet accepted.** The genuine
-  preview.211 mounted Quick (`83e92e1e…`) loaded under the current candidate with its actual serialized
-  dependencies, Call of the Wild 1.14.4c-2.1 and Craft Magic Items 2.1.0, staged from the Oct-12
-  producer's retained tree inside the owned transaction (never installed): the original main character
-  `b6628a77…` and mount `d79a4f6c…` resolved as the mounted pair, the world was controllable, one native
-  Manual resave landed as a new schema-3 archive in the same area and campaign, and the original archive
-  stayed byte-identical (r13 PASS, r13-r2 PASS on the final bytes, resave `Manual_1_KMC_P01.zks`
-  `dfaf00be…`). The separate-process cold load of that resave (r14, r14-r2) restored the mounted pair
-  natively (the first cold assertion passed on r14-r2 once the observer read the schema-3 member) but
-  the P05 scenario's Chunk-5-era counter expectation (exactly two semantic and one presentation
-  restore) failed on the resave, which carries one combat participation owner from the producer's own
-  scripted attack; the actual counter values are not in the evidence. Two consumer attempts failed in
-  batch `sprint1:upgrade-2` and the remaining allowance cannot fund the corrected build, suite,
-  producer and consumer cycle, so the chain stops here. r09/r10 remain retained as knowingly invalid
-  base-game-only configurations; nothing is claimed for other Call of the Wild versions or other saves.
+- **UPG-01: load and resave PASS natively; cold load of the resave restores correctly but its combat
+  continuation is not yet accepted.** The genuine preview.211 mounted Quick (`83e92e1e…`) loaded under
+  the candidate with Call of the Wild 1.14.4c-2.1 and Craft Magic Items 2.1.0 staged from the Oct-12
+  producer's retained tree (never installed) and resaved one schema-3 Manual (`Manual_1_KMC_P01.zks`
+  `dfaf00be…`, r13-r2). Correction to iteration 5: the restore counters WERE recorded on the retained
+  r14-r2 failure rows (semantics 3, presentation 1); the resave carries one pair, one participation owner
+  and three combat actors, so the schema-3 restore contract (one semantic restore per distinct saved
+  actor, one presentation per attached pair) expects exactly 3/1 and the old fixed `2 && 1` check was
+  wrong. The corrected consumer (r15, on `3ada7451…`, reusing the r13-r2 resave as its immutable input)
+  passed the derived counter check, actor identity, uniqueness, hotbar bindings, no-cast and the mounted
+  movement stage, then failed `native-ordinary-attack-delivered`: the resave had captured the producer's
+  still-active party combat (resaved right after its target was destroyed), the world restored in combat,
+  and after the rider's own attack rule the check's only failable term is the unexpected-pair-attack count
+  (the mount attacked on its own; deduced, not recorded). Product defect or fixture artifact is not yet
+  established. r09/r10 and r14/r14-r2 remain retained as failed attempts.
 - **PROC-01:** the bounded loop stays in force (Fast/Candidate tiers, the shared 135-minute `sprint1`
   record with its one recorded adjustment, batch and two-equivalent-failure rules, parameter-shape
-  refusals decided before admission).
+  refusals decided before admission). Also repaired this iteration: a dependency-folder write exception
+  that let a mismatching or orphaned UMM loader cache pass; four retained runs re-evaluated identical.
 
-**Exact remaining action for UPG-01** (about 7 budget minutes on a fresh allowance decision): make the
-P05 cold scenario record the actual `SemanticRestoreCount`/`PresentationRestoreCount` in its evidence
-and derive the expected semantic count from the archive's own actor snapshots (pairs plus participation
-owners); build once, package, freeze a suite, then rerun the producer and the consumer on that one DLL
-under a new batch (`sprint1:upgrade-3`).
+**Exact remaining action for UPG-01** (needs a fresh allowance decision; 5.85 min remain): record the
+rule probe's actual initiator, target and unexpected-pair counts on failure, then decide the cause with one
+native pair: either the producer resaves only after the engine has left combat (fixture artifact) or the
+restored RT combat participation must not leave the mount free to act on its own brain (product). About
+7–8 budget minutes for build, suite, producer and consumer.
 
 **Owner sanity check** (separate from engineering acceptance, on the owner's own installation with the
 mods they play with, the preview.98 package installed by the owner): load the reported save; QuickSave
@@ -63,8 +65,6 @@ the autosave slot updates; make a Manual save and reload it; reload the quicksav
 
 **Owner play/visual acceptance of Chunk 7 remains TODO.** Live installation restored exactly after every
 run: Mods tree empty as at intake, loader parameters and preferences exact, protected saves unchanged,
-no lock or game process.
-
-The [sprint report](docs/SPRINT1-SAVE-RELIABILITY-2026-10-29.md) holds identities, the native batch
-outcomes, cost, safety and the next checks. Prior Chunk 7 state:
+no lock or game process. The [sprint report](docs/SPRINT1-SAVE-RELIABILITY-2026-10-29.md) holds the
+identities, batch outcomes, cost and safety. Prior Chunk 7 state:
 [CURRENT before Sprint 1](docs/history/CURRENT-before-sprint1-2026-10-29.md).
