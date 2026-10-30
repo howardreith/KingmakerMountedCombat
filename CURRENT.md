@@ -1,30 +1,30 @@
-# Sprint 2 — exploration speed, doors and collision safety: ENGINEERING PARTIAL, READY FOR REVIEW (2026-10-30)
+# Sprint 2 — exploration speed, doors and collision safety: ENGINEERING COMPLETE, READY FOR FINAL REVIEW (2026-10-30)
 
-**SPRINT 2 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE PENDING.** No merge, release
-or installation is selected.
+**SPRINT 2 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** No merge, release or
+installation is selected.
 
-Review branch `codex/mounted-combat-sprint2-movement-doors` from `main` `05a9efd0` (the PR #6 merge, Sprint 1
-accepted). Candidate `0.1.0-chunk7b-preview.99` built at `5caeb275` (sprint2e): DLL `7cb519a4…`, MVID
-`a4531312…`, package `…preview.99-sprint2e-diagnostic.zip` `0031ae56…`, suite `sprint2e-5caeb275-20261030`
-`96537e39…`. Candidate tier 7/0; budget `sprint2` 22.83 of 90 min.
+Review branch `codex/mounted-combat-sprint2-movement-doors` from `main` `05a9efd0` (the PR #6 merge). HEAD `3ef8119f`
+(reader correction) over `63d83e2e` (product + diagnostics). Candidate `0.1.0-chunk7b-preview.100`: DLL `85542fbf…`,
+MVID `9d761c39…` (byte-identical in packages sprint2f `b915dba2…` / suite `sprint2f-63d83e2e-20261030` and sprint2g
+`6d29b6f8…` / suite `sprint2g-3ef8119f-20261030`). Candidate tier 7/0; reader tests 389/0; budget `sprint2` 46.13 of 90 min.
 
-- **DOOR-01: repaired and PASS natively** on the owner's Old Sycamore door seed (r04): one click from
-  18.7 m opens the door (the routed command no longer starts before the mount arrives, so the native
-  nine-second command interrupt no longer ends long approaches); a click while the mount carries an
-  ordinary move replaces that move natively instead of being refused.
-- **SPACE-01: repaired on representative geometry.** The approach targets the native map-object point with
-  the door's LOS object and the native range predicate; occupancy is revalidated after the door changes
-  state with a bounded nearby repath (never a transport). Both pairs stayed on the navmesh at the door;
-  the capture shows the pair outside the doorway. The owner's narrow dungeon door is NOT RUN (no fixture).
-- **MOVE-01: measured; no KMC clamp found.** Matched set on the same fixture: party-paced pair at the party
-  limit with a native walk gait (the engine selects Slow under 95% of a unit's own speed), pair alone
-  4.43 m/s, the same Horse unmounted 4.23 m/s, rider on foot 3.07 m/s. The roguelike surface is NOT RUN
-  (no fixture).
+- **DOOR-01: repaired and PASS natively.** One click opens a door from distance (r05: 17.8 m on the Old Sycamore seed;
+  r07: the dwarf dungeon door on the Working fixture); the routed command is never started while the mount moves, so the
+  native nine-second interrupt cannot end an approach; a click while the mount moves replaces the move; the native Stop
+  ends an approach cleanly; the stall clock follows the actual mode and movement opportunity, not the paired-activation
+  toggle.
+- **SPACE-01: repaired and PASS natively.** After the door's navmesh cut has landed, the pair's body footprint is sampled;
+  a footprint overlapping an obstacle is recovered through exactly one owned native move to a reachable body-clear point
+  (r05: 0.5 m, footprint clear afterwards), never a transport; on the dungeon door the settled footprint was clear and the
+  pair traversed the doorway both ways. Closing a toggling-cut door over the footprint is refused before any cost.
+- **MOVE-01: measured with the aligned sampler; no KMC clamp.** Party-paced pair 2.54 m/s at the native walk gait, pair
+  alone 4.17, Horse unmounted 4.33, rider on foot 3.04 (v1 figures 2–4 % higher). Native party pacing and the walk gait
+  under 95 % of own speed explain the report.
+- **Coverage limits:** the owner's own roguelike-surface and dungeon-floor saves were located and copied read-only
+  (`fixtures\owner-supplied\KMC_S2_*_CANDIDATE.*`) but are not admissible through the two-pair owner-seed contract; a
+  turn-based door control was not run natively. See the completion section of
+  [docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md](docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md).
 
-Details, batch, cost, restoration and the owner play checklist:
-[docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md](docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md). Sprint 1 state:
-[CURRENT before Sprint 2](docs/history/CURRENT-before-sprint2-2026-10-30.md).
-
-Live installation after every run: Mods tree empty as at intake, loader parameters and preferences exact,
-protected saves unchanged, no lock or game process, no candidate installed. Owner play acceptance of
-Sprint 1 and Sprint 2 remains separate.
+Live installation after every run: Mods tree empty as at intake, loader parameters and preferences exact, protected saves
+unchanged, profile root at its intake digest, no lock or game process, no candidate installed. Owner play acceptance of
+Sprint 1 and Sprint 2 remains separate. Sprint 1 state: [CURRENT before Sprint 2](docs/history/CURRENT-before-sprint2-2026-10-30.md).
