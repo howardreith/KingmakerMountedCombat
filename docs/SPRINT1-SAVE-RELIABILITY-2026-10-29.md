@@ -685,3 +685,145 @@ correction is grounded enough to launch.
 
 SAVE-01/02/03 evidence remains bound to `a680dd69…` and `bed87d75…` as recorded above; the production save, restore and
 serialization paths are unchanged since `4644a433`.
+
+## Iteration 7 — the r15 attack-continuation failure explained and resolved (2026-10-30, later)
+
+Scope: explain and resolve r15's `native-ordinary-attack-delivered` failure on the SAME r13-r2 resave with the same
+retained dependencies, without a producer rerun or a replacement input. Allowance: one explicit +15 min adjustment of
+the same `sprint1` record (135 → 150, forwarded mission; prior entries retained).
+
+### Corrections to the iteration-6 record
+
+- **Game-time scale.** Observation `gameTicks` are 100 ns ticks. The gap between `attack-dispatched` (434256900000) and
+  the failure row (434355570000) is 9.87 s of game time, not 98.7 s; likewise the producer's movement and attack took
+  1.1 s and 2.4 s, not 11 s and 24 s.
+- **The third saved combat actor.** `d17c8fd0…` is a party member of the genuine Quick (its party.json carries that
+  unit as the caster of its own features), not the producer's diagnostic target. The producer's target was
+  `5f0e3403…`, destroyed before the resave (its `usable-continuation-complete` row shows no target). The actor joined
+  the producer's party combat and was saved in combat, exactly as the player's own party would be.
+- **"The mount acted on its own brain" is withdrawn.** The mount's attack was a KMC pair command (below); the mount's
+  AI lease stayed disabled (engine field `m_AiEnabled` is serialized and the pair runtime re-asserts the lease).
+
+### Cause, established from retained evidence before any code change
+
+The UMM session log of the r15 process (`Kingmaker_Data\Managed\UnityModManager\Log.txt`, the r15 run accepted at its
+line 25) records, after "Saved mounted world restored all 1 attachments and 1 participation owners": "Mounted combat
+command accepted: action=MountPrimaryNatural; inputSurface=stock-hostile-click; … actorId=d79a4f6c… (the mount);
+commandOwner=d79a4f6c…", its terminal "result=Success; childAttacks=1", then "action=RiderMelee … result=Interrupt;
+childAttacks=1" (interrupted by the failure's cleanup). The stock hostile click is a PAIR command:
+`UnifiedMountedStockAttackPolicy.DecideNext` dispatches a ready rider first, otherwise a ready melee mount, and keeps a
+sticky intent that alternates the partner afterwards. The cold-loaded rider carried its saved Standard cooldown
+(5.07 s at load, 4.15 s at the click: restoration granted no action), so `riderHasStandardAction` was false and the
+mount's primary natural attack went first; the rider's own attack rule and roll followed once its cooldown cleared.
+`MountedCombatRuleProbe` counts a mount-initiated `RuleAttackWithWeapon` against the observed target as
+`UnexpectedPairAttackCount`, so the compound assertion failed on that term alone (its rider rule/roll/last-actor terms
+were satisfied by the rider's own attack). The producer never showed this because its rider had no debt at the click.
+Classification: a legal native event (pair-owned command, legitimate expenditure) with an observer that assumed a
+rider without restored debt. The in-combat resave is a supported player state; nothing about the input was changed.
+
+### Smallest observer correction and bounded provenance (`68094f1e`)
+
+- Stage 4 derives the expected first actor from the same readiness the policy reads at the click (rider/mount
+  `HasStandardAction`, rider weapon kind, active pair command) and records those inputs and cooldowns on
+  `attack-dispatched`.
+- Stage 5 retains exact-once delivery of the rider's attack (one rule, one roll, exact initiator and target), adds the
+  policy's order (`pair-stock-attack-order`: no other pair attack before a ready rider; exactly one mount primary
+  natural attack that is not an attack of opportunity, charge or AI action, with the mount's AI lease disabled, when the
+  rider was not ready), `pair-stock-attack-no-duplicate-dispatch`, `pair-stock-attack-expenditure` (the rider's Standard
+  spent at its attack; the mount's spent by its attack, never refunded) and `pair-authority-retained-through-attack`.
+  Damage is recorded, not required.
+- The probe records at most eight pair attack rules against the observed target (flags, weapon, the initiator's current
+  standard command identity with player/AI origin, pre/post Standard cooldown, roll result) plus the first expected and
+  first unexpected event; every observation row carries the current attack observation (probe counters, the target's
+  own first-incoming-attack snapshot, the controller's dispatch counters, a 1 s / 24-sample timeline), written before any
+  assertion and before cleanup, so a failure or timeout explains itself.
+- `MountedStockAttackPolicyTests` adds the restored-debt case (rider not ready, mount ready → DispatchMount; ready rider
+  → DispatchRider; both spent, ranged rider out of reach, active command → Wait). Fast tier 3/0 (components 914/0).
+
+### Native batch `sprint1:upgrade-3`, second attempt: the instrumented consumer r16
+
+| Run | Selection | Result |
+| --- | --- | --- |
+| `20261030-sprint1-r16-upg01-resave-cold-pair-order` | `persistence-p05-load` / `manual` `-UpgradeChain`, source r13-r2 resave `dfaf00be…`, deps staged, sprint1p `f6b21085…` (`68094f1e`) | FAIL (127 s): 19 assertions passed including the derived counter check, identity, hotbar, no-cast, movement and now `native-ordinary-attack-delivered`; failed `pair-stock-attack-order` on its "exactly one mount rule" term |
+
+What r16 recorded (`attack-dispatched` detail and the `attack` observation on the failure rows): rider Standard
+cooldown 4.10 s at the click, mount 0; policy decision `DispatchMount`; mount dispatches 0→1 at the click, rider 0.
+The mount's `MountedPairAttackCommand` (created by the player click, `AiAction` null, mount `IsAIEnabled` false,
+`IsAttackOfOpportunity` false, `IsCharge` false) approached from 8 to 3.6 units, then delivered ONE native full attack
+of two natural weapons: attack 0 of 2 at +3.5 s (weapon `5d7d23f5…`, Standard cooldown 0 before it) and attack 1 of 2
+at +6.6 s (weapon `767e6932…`, inside the running 2.09 s cooldown of the same action; mount Standard peaked at 4.63 s
+after the first attack: one expenditure). The pair command finished at about +8 s; the rider (Standard 0 since
++5 s) was then dispatched (`RiderMelee`, rider dispatches 1) and its own rule and roll landed at +9.6 s with its
+Standard cooldown set to 5.07 s. Target-side `IncomingAttackRuleCount` 3 and the probe's begin/end-paired records 3
+(two mount rules, one rider rule), while the DidTrigger-based `UnexpectedPairAttackCount` read 4: each mount rule's
+DidTrigger notification was delivered twice. No product code re-raises attack rules (Call of the Wild, which patches
+natural attacks, is loaded in this configuration); the duplicate is a notification, not an attack, and is not
+established further here. The failing term was my own "exactly one mount rule" expectation, which ignored that one
+native full attack carries `AttacksCount` rules; corrected in `1655511b` to count distinct rules against the first
+mount attack's declared count and attack numbers, from the same command, with one mount and one rider dispatch.
+The 9.6 s between the click and the rider's attack is the mount's own full-attack sequence occupying the pair
+command plus the rider's remaining cooldown; no timeout was changed.
+
+### Native batch `sprint1:upgrade-4`: the corrected consumer r17 completes the chain
+
+A third attempt of the same selection in `sprint1:upgrade-3` would have been refused; r16's per-rule records are the
+new discriminating observation (one native full attack of two natural attacks, duplicated notifications), so the
+corrected consumer ran under `sprint1:upgrade-4` (one selection).
+
+| Run | Selection | Result |
+| --- | --- | --- |
+| `20261030-sprint1-r17-upg01-resave-cold-pair-order-r2` | `persistence-p05-load` / `manual` `-UpgradeChain`, source r13-r2 resave `dfaf00be…`, deps staged, sprint1q `02558b81…` (`1655511b`) | PASS (123 s): 24 assertions, 0 failures; rows initial, movement, attack, `usable-continuation-complete`; no write; readers PASS |
+
+Sequence recorded on `attack-dispatched` and the `attack` observation of `attack-delivered`: rider Standard cooldown
+4.15 s at the click (restored debt), mount 0, policy `DispatchMount`; the mount's pair command (player click, no AI
+action, AI lease disabled) delivered one native full attack: attack 0 of 2 at +3.6 s (Hit) and attack 1 of 2 at
++6.7 s (Miss, inside the 2.10 s remaining cooldown of the same action; mount Standard peak 4.75 s); the rider's own
+rule and roll at +9.9 s (Miss; its Standard then 5.04 s). Distinct pair rules 3, target-side incoming rules 3,
+one mount and one rider dispatch, no duplicate dispatch; the DidTrigger notification count read 5 (recorded only).
+Damage 0 both times is a legitimate miss on a 1-HP target and was never required. The pair stayed Mounted with the
+same actors, the diagnostic target was destroyed and verified, and the run's cold process wrote nothing. Both input
+archives are unchanged (`83e92e1e…`, `dfaf00be…`), the live Mods tree was restored to its exact pre-run digest with the
+three byte-exact UMM caches as the only runtime writes, the working fixture was restored, and the engine tail shows the
+same three boot-time errors as every run before.
+
+**UPG-01 chain, complete and bound to its inputs:** genuine preview.211 Quick `83e92e1e…` → r13-r2 (DLL `7f49f857…`,
+`53e48785`) cold load with Call of the Wild 1.14.4c-2.1 (`4ebf8e1e…`) and Craft Magic Items 2.1.0 (`f7c06f32…`)
+staged from the retained tree, usable world, native resave `Manual_1_KMC_P01.zks` `dfaf00be…` → r17 (DLL
+`02558b81…`, `1655511b`) separate-process cold load of that resave with the same staged dependencies: counters 3/1,
+identity, uniqueness, hotbar, no-cast, mounted movement, the pair's attack in the product's own order, expenditure,
+pair authority, continuation and cleanup. The producer was not rerun on the consumer's bytes; the archive hash and the
+producer's completed restoration are what the `upgrade-resave-manual` source role pins. r14, r14-r2, r15 and r16
+remain retained as failed attempts with their original verdicts.
+
+### Identities and offline checks
+
+Packages `…preview.98-sprint1p-diagnostic.zip` `ef27742f…` (DLL `f6b21085…` / MVID `54a1976c…`, `68094f1e`, used by
+r16) and `…preview.98-sprint1q-diagnostic.zip` `93deddbb…` (DLL `02558b8180aa1a057fc40b7e65759e34ad07b353801502904ff983d3290a7570` /
+MVID `3f28f251-a92c-401b-b008-46f41841dc58`, `1655511b`, used by r17); suites `sprint1p-68094f1e-20261030`
+`1bc45a16…` and `sprint1q-1655511b-20261030` `97638780…`. One clean build per coherent change (`Package.ps1`, 47 s and
+28 s, `Validate-Package` 149 + 11 PASS each). Fast tier 3/0 on `68094f1e` (components 914/0 including the new policy
+case, `Validate-Source`); the `1655511b` delta is one observer check in `RuntimePersistenceScenario` and was compiled by
+its package build. The Candidate tier (9/0 on the sprint1m bytes) was not repeated: every delta since is observer,
+harness or documentation. The production save, restore and serialization paths are unchanged since `4644a433`.
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 1 h 15 min |
+| Shared budget `sprint1`, cumulative | 138.28 of 150 min after the one +15 adjustment (this iteration 9.1 min: Fast 0.7, two packages 1.25, two suites 2.4, two WhatIfs 0.8, two launches 4.2, reads 0.3) |
+| Real game launches this iteration | 2: r16 FAIL (observer term), r17 PASS |
+| Restoration outside the spend | the runs' own settlement only (suspended, excluded) |
+
+### Evidence map (final)
+
+| Item | DLL / build | Evidence |
+| --- | --- | --- |
+| SAVE-01 Quick overwrite ×2 + cold | `a680dd69…` (`4644a433`, sprint1i/j) | r06, r07 (iteration 3) |
+| SAVE-03 Manual overwrite | `a680dd69…` | r08 (game PASS; outer reader corrected, re-evaluated) |
+| SAVE-02 admitted Auto overwrite + cold | `bed87d75…` (`f4294828`, sprint1l) | r11, r12 (iteration 4) |
+| UPG-01 load → resave | `7f49f857…` (`53e48785`, sprint1n) | r13-r2 PASS (r13 on `2a0be4d8…`) |
+| UPG-01 cold load of the resave, full continuation | `02558b81…` (`1655511b`, sprint1q) | r17 PASS; r14/r14-r2/r15/r16 retained FAIL (observer) |
+| Dependency write classification | harness `77f2d3c8` | four retained runs re-evaluated identical; receipt `a4275bd3…` |
+
+**SPRINT 1 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.**
