@@ -559,3 +559,129 @@ DLL under `sprint1:upgrade-3` (about 7 budget minutes).
 The production save paths (`NativeArchiveReplacementPath`, `NativeMountedArchiveCommit`) are unchanged since
 `4644a433`; every later commit is diagnostics, harness, readers or documentation, so the earlier results stay
 valid for the current bytes without rerunning them.
+
+## Iteration 6 — the UPG-01 consumer corrected from the retained evidence; Sprint 1 closeout (2026-10-30, later)
+
+Scope: finish UPG-01 on PR #6 from the reviewed head `97540459` with one corrected separate-process
+consumer of the already-verified r13-r2 resave, repair one write-classification bypass, and close the sprint.
+No producer rerun, no new dependency search, no budget extension or new budget id.
+
+### Correction to the iteration-5 record: the counters were recorded
+
+Iteration 5 reported that the restore counters' actual values were "not in the evidence". That was wrong.
+`RuntimePersistenceScenario.Write` records `persistence.semantics`, `persistence.presentation` and
+`persistence.feedback` on every row, including `assertion-failed` and `scenario-failed`. The retained
+`runtime-evidence\20261030-sprint1-r14-upg01-deps-resave-cold-r2\persistence-observations.jsonl`
+(`d62bf194…`, the hash its `runtime-artifacts.json` records; source `53e48785`, DLL `7f49f857…`) holds two rows,
+both with `semantics 3, presentation 1` and feedback "Saved mounted world restored all 1 attachments and 1
+participation owners without Mount execution or new native preparation."; the assertion-failed row names
+`early-semantic-and-once-presentation` and the scenario-failed row carries the stack through `Check`/`Advance`.
+The iteration-5 wording is retained above as history; this section corrects it.
+
+### The expected graph, derived independently from the resave
+
+The r13-r2 resave `runtime-staging\persistence-20261030-sprint1-r13-upg01-deps-load-resave-r2\Saved Games\
+Manual_1_KMC_P01.zks` (full digest `dfaf00be3afe1f57ac8eccaa27af2daba7cf3a0329bda160da141878b8f41a78`, 856,711 B,
+the digest the r13-r2 `native-write-complete` row and the r14-r2 request both pin) carries one `kmc-mounted-state`
+member (schema 3): `Pairs` = 1 (rider `b6628a77…`, mount `d79a4f6c…`), `Participations` = 1 (owner = that
+pair, naming only those two actors), `Combat.Actors` = 3 (the rider, the mount and `d17c8fd0…`, the producer's
+own attack target). The schema-3 world restore (`MountedPersistenceService.World.RestoreArchiveActorAfterPostLoad`)
+restores one snapshot per distinct actor ID across `Combat.Actors[*].Native` and every pair's rider and mount,
+and `RestoreArchivePresentation` presents each attached pair once; participation owners add no actor. The distinct
+union is therefore 3 and the presentation count 1, exactly the recorded values. The failure was observer-only:
+the P05 cold branch still demanded a fixed `2 && 1` from the schema-2 era. No duplicate or missing restore occurred.
+
+### The smallest observer correction (`77f2d3c8`)
+
+- `MountedArchiveData.SemanticRestoreActorIds()` / `ExpectedPresentationRestoreCount` and the legacy
+  `MountedSaveData` equivalents derive the expectation from the archive (distinct ordinal union; legacy: combat
+  actors plus the saved rider and mount, presentation once when mounted); `MountedArchiveData.RestoreCountersMatch`
+  keeps exact equality. Derivation only: no restore, serialization or save path changed.
+- The P05 cold branch compares the recorded counters against that derivation, names the expected IDs in the
+  assertion label and writes the derivation with both actual values (`coldRestoreExpectation`) into the `initial`
+  row. The identity (`same-saved-native-actors`), uniqueness (`unique-native-actors`), hotbar and
+  no-cast (`cold-restoration-did-not-cast-mount`) checks are unchanged, as are the later movement, attack and
+  continuation stages.
+- Offline cases in `tests/Chunk7PersistenceTests.cs` (run by `scripts/Test-PersistenceData.ps1`, 56 + 85 PASS):
+  plain pair 2/1; pair actors also in combat with a participation owner 2/1; pair plus an extra combat actor 3/1
+  (the resave shape); two pairs 4/2 (the Chunk 7 two-pair expectation, unchanged); legacy mounted 2/1, legacy with
+  combat 3/1, unmounted legacy 0 presentation; missing, extra and duplicated counts refused.
+- External readers: the P05 load reader pins no counter; it requires `initial`, `movement-dispatched/completed`,
+  `attack-dispatched/delivered` and `usable-continuation-complete` with per-row identity. The P04, Chunk 6A and
+  Chunk 6B readers pin `Combat.Actors.Count`, which equals the distinct union only when every pair actor is also a
+  combat actor; they are outside this sprint and untouched.
+
+### Dependency cache classification bypass repaired (`77f2d3c8`)
+
+`Get-KmcModsRuntimeWriteClassification` accepted a UMM loader cache (`<name>.dll.<digits>.cache`) under a declared
+dependency folder through the generic folder exception whenever the byte-copy rule had refused it. Reproduced
+against the function at `97540459`: a cache with foreign bytes and an orphaned `Other.dll.5.cache` were both
+classified `dependency-runtime-write`. Now any leaf named after a DLL or ending in `.cache` (and Info.json) never
+reaches the exception; a cache passes only the byte-copy rule. `scripts/Test-BaseGameIsolation.ps1` adds byte-exact
+accepted, wrong hash refused, wrong length refused, orphaned/bare `.cache`/`.dll.bak` refused, changed staged cache
+and new executable refused with nested data writes still admitted (119/0). Reader-only re-evaluation of the four
+iteration-5 dependency runs (r13, r14, r13-r2, r14-r2) from their retained sidecars and staged-after trees:
+identical to the original classification (three byte-exact caches each, zero unexpected); receipt
+`analysis-cache\sprint1\write-classification-reevaluation-77f2d3c8.json` (`a4275bd3…`). No game run for this.
+
+### Identities
+
+Package `…preview.98-sprint1o-diagnostic.zip` `819571a3b70087eeeb702bac5cc387eea6fb71c3fe2851639e193cde3286e75b`
+(one clean build at `77f2d3c8`, 44 s; `Validate-Package` 149 + 11 PASS), DLL
+`3ada74513769508fe88f59c4f209f366d3c2dfe2a9bab402c5840ae729e52b09` / MVID `d471c2e6-6df5-4e17-8851-a8264a430ccd`,
+suite `sprint1o-77f2d3c8-20261030` `17d352455baef96b79e8fdd8ea16c7746c9444c976f36e15f85df92e4e1c8cb0` (90 s). The
+Candidate tier was not repeated: the delta from the sprint1m bytes (Candidate 9/0) is `53e48785` (observer) and
+`77f2d3c8` (observer derivation, two DTO helper methods, one harness classifier); the affected offline checks ran
+instead (`Test-PersistenceData` 141 PASS, `Test-BaseGameIsolation` 119/0). Producer and consumer identities stay
+distinct: the r13-r2 resave is reused as an immutable input, not re-executed on these bytes.
+
+### Native batch `sprint1:upgrade-3` (one consumer; no producer rerun)
+
+| Run | Selection | Result |
+| --- | --- | --- |
+| `20261030-sprint1-r15-upg01-resave-cold-corrected` | `persistence-p05-load` / `manual` `-UpgradeChain`, source r13-r2 resave `dfaf00be…`, deps staged, sprint1o `3ada7451…` | FAIL (115 s): `early-semantic-and-once-presentation` now PASSES (recorded 3/1 against derived 3/1, `archivePostLoadObserved` 3); identity, uniqueness, hotbar, no-cast and the movement stage pass (18 assertions); fails at `native-ordinary-attack-delivered` |
+
+WhatIf PASS (22 s). Three byte-exact UMM caches were the only runtime writes (zero unexpected), the live Mods tree
+was restored to its exact pre-run digest, the working fixture restored, both input archives unchanged, engine errors
+identical to the producer's boot noise, no game process or lock afterwards. The scenario cleanup also reported
+"Diagnostic target cleanup retained entity or faction residue" inside the run-owned isolated root (disposable).
+
+**Where UPG-01 now stops (first actual values, expected graph, failure window).** The consumer's `initial` row
+records `coldRestoreExpectation` = {view archive-member, schema 3, pairs 1, participations 1, combatActors 3,
+expected [`b6628a77…`, `d79a4f6c…`, `d17c8fd0…`] = 3, presentation 1, actual 3/1}. The world restored *in combat*:
+`partyCombat/riderCombat/mountCombat = true` from the first row, unlike the producer, whose cold load of the genuine
+Quick started outside combat. The resave had captured that state: the producer resaved immediately after destroying
+its attack target, while the engine's party combat was still active, so the archive carries three in-combat actors
+(rider, mount and the party member `d17c8fd0…` who had joined the combat) and `NativeCombatActorPersistence.RestoreActor`
+re-joins saved in-combat actors by design. The pair then moved normally (`normal-native-movement`,
+`transport-retains-pair-without-rider-move-tax` PASS) and the ordinary attack on a newly spawned hostile
+(`ae9b900b…`) was dispatched at game tick 434256900000; the assertion failed at tick 434355570000, about 98.7 s of game
+time later, with the target still at 1 HP, damage 0. Deduction from the recorded row and the probe source (not a
+recorded value): stage 5 runs only after a rider-initiated attack rule and a rider→target roll, both of which set the
+last initiator and target to the rider and the target, so the only term of `native-ordinary-attack-delivered` that
+can fail is `UnexpectedPairAttackCount == 0`, i.e. the mount itself attacked the target. Whether that is a product
+defect (restored RT combat participation leaves the mount free to act on its own native brain, violating pair-owned
+command authority after a cold load) or a fixture artifact (a transient in-combat resave the P05 continuation never
+anticipated) is not established; the probe's actual counts are not in the evidence. One consumer attempt has failed
+in `sprint1:upgrade-3`; the remaining allowance (5.85 min) cannot fund a producer-and-consumer cycle, and no smaller
+correction is grounded enough to launch.
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 1 h |
+| Shared budget `sprint1`, cumulative | 129.15 of 135 min (this iteration 5.18 min: offline checks 0.5, package 0.73, suite 1.5, WhatIf 0.37, launch 1.92, post-run reads 0.17) |
+| Real game launches this iteration | 1: r15 FAIL (after the corrected counter check passed) |
+| Restoration outside the spend | the run's own settlement only (suspended, excluded) |
+
+### Evidence map (iteration 6 delta)
+
+| Item | DLL / build | Evidence |
+| --- | --- | --- |
+| UPG-01 load → resave | `7f49f857…` (`53e48785`, sprint1n) | r13-r2 PASS (unchanged; reused as input) |
+| UPG-01 cold load of the resave | `3ada7451…` (`77f2d3c8`, sprint1o) | r15: restore, identity, counters, movement PASS; attack continuation FAIL (above). r14/r14-r2 retained FAIL (observer) |
+| Dependency write classification | harness `77f2d3c8` | four retained runs re-evaluated identical; receipt `a4275bd3…` |
+
+SAVE-01/02/03 evidence remains bound to `a680dd69…` and `bed87d75…` as recorded above; the production save, restore and
+serialization paths are unchanged since `4644a433`.
