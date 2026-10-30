@@ -332,7 +332,14 @@ $doorV4=New-DoorV4Fixture
 Check 'v4 door with unmounted control, endpoint neighbor, Stop control and clear settled footprints' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4) 'PASS'}
 Check 'v4 door with one completed owned recovery that left the footprint clear' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
     $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'
-    $o.RecoveryCandidatesEvaluated=3;$o.RecoveryCandidateReasons='admitted=1,footprint-blocked=2';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+    $o.RecoveryCandidatesEvaluated=3;$o.RecoveryCandidateReasons='admitted=1,footprint-blocked=2';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true
+    # The occupancy is recorded after the settlement: the recovered mount stands its recovery distance farther from the interaction point (r05 shape).
+    $copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.46;$copy.observations.door.interactions[1].occupancy.mountDistanceToDoor=2.46;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'v4 recovered pair standing beyond its recovery distance from the interaction point' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
+    $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'
+    $o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true
+    $copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.6;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'v3 occupancy keeps the exact interaction-radius bound' {$copy=Copy-TestValue $doorV3;$copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.3;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
 Check 'v4 door with the controls recorded as not applicable' {$copy=Copy-TestValue $doorV4;$d=$copy.observations.door
     $d.unmountedControl=[pscustomobject]@{applicable=$false;reason='no idle unmounted controllable party member within the scan radius'};$d.setupInteractions=$(if($d.fixture.originalOpen){2}else{1})+1
     $d.endpointNeighbor=[pscustomobject]@{applicable=$false;goalSearch=[pscustomobject]@{skipped='second pair already within the neighbor distance'};reason='no clear native goal near the door approach point for the second pair'}
