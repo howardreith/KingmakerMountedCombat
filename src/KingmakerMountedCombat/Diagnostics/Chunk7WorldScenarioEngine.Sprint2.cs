@@ -93,8 +93,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // Selection through the native selection manager, exactly as the player's own party selection.
             Game.Instance.IsPaused = true;
             var views = excluded.Where(u => u.View != null).Select(u => u.View).ToArray();
+            // A mounted pair is selected through its rider: the native selection manager projects the mount to the rider.
             if (selection == SpeedLegSelection.Party) SelectionManager.Instance.MultiSelect(views, false);
-            else Chunk7NativeFixture.Select(mover);
+            else Chunk7NativeFixture.Select(selection == SpeedLegSelection.SecondRiderAlone ? secondRider : mover);
             var selected = SelectionManager.Instance.SelectedUnits.ToArray();
             speedLeg["selectedIds"] = new JArray(selected.Select(u => u.UniqueId));
             Require(selected.Length >= 1 && (selection != SpeedLegSelection.Party || selected.Length >= 2),
