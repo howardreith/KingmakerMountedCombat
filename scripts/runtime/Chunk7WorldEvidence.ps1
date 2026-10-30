@@ -388,13 +388,18 @@ function Assert-KmcChunk7DoorV3Blocks($Door,$Fixture,[switch]$V4){
     } else { if($l.applicable-and$Door.interactions[1].clickWhileMoving-ne$false){throw 'Click-while-moving flag disagrees with its record.'}
         foreach($k in @('applicable','reason')){if($null-eq$m.PSObject.Properties[$k]){throw 'Door click-while-moving (not applicable) is missing '+$k+'.'}};if($m.reason-isnot[string]){throw 'Door click-while-moving reason is missing.'} }
 }
-function Assert-KmcChunk7DoorOccupancy($Occupancy,$Fixture){
+function Assert-KmcChunk7DoorOccupancy($Occupancy,$Fixture,$Outcome=$null){
     Assert-KmcExactProperties $Occupancy @('mountPosition','riderPosition','mountInsideNavmesh','riderInsideNavmesh','mountDistanceToApproachPoint','mountDistanceToDoor','doorOpen','cutEnabled','mountCanMove','mountCommandsEmpty') 'door occupancy'
     Assert-KmcChunk7DoorPoint $Occupancy.mountPosition 'occupancy mount position';Assert-KmcChunk7DoorPoint $Occupancy.riderPosition 'occupancy rider position'
     foreach($flag in @('mountInsideNavmesh','doorOpen','mountCanMove','mountCommandsEmpty')){Assert-KmcChunk7Boolean $Occupancy.$flag $true}
     foreach($flag in @('riderInsideNavmesh','cutEnabled')){if($Occupancy.$flag-isnot[bool]){throw 'Door occupancy flags must be native booleans.'}}
     foreach($field in @('mountDistanceToApproachPoint','mountDistanceToDoor')){if(-not(Test-KmcChunk7FiniteNumber $Occupancy.$field)-or$Occupancy.$field-lt0){throw 'Door occupancy distance is invalid.'}}
-    if($Occupancy.mountDistanceToApproachPoint-gt($Fixture.radius+0.01)){throw 'The pair did not remain within the native interaction radius after the door changed state.'}
+    # v4 (reader correction after r05, 2026-10-30): the occupancy is recorded after the owned settlement, so a completed
+    # recovery legitimately moved the mount by its recorded destination distance (at most the recovery radius) from the
+    # interaction point; v3 evidence has no recovery and keeps the exact interaction-radius bound.
+    $allowance=0.01
+    if($null-ne$Outcome-and$Outcome.RecoveryDisposition-ceq'Admitted'-and(Test-KmcChunk7FiniteNumber $Outcome.RecoveryDestinationDistance)-and$Outcome.RecoveryDestinationDistance-gt0-and$Outcome.RecoveryDestinationDistance-le2.5){$allowance+=[double]$Outcome.RecoveryDestinationDistance}
+    if($Occupancy.mountDistanceToApproachPoint-gt($Fixture.radius+$allowance)){throw 'The pair did not remain within the native interaction radius (plus its recorded recovery distance) after the door changed state.'}
 }
 # Sprint 2 (MOVE-01) speed legs: optional like the route-goal marker; evidence without the contract keeps its verdict.
 function Assert-KmcChunk7Sprint2Legs($Observations){
@@ -490,7 +495,7 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
         if($doorV3){$rowKeys+=@('clickWhileMoving','occupancy')}
         if($doorV4){$rowKeys+=@('movingPolls','startedWhileMoving','unstartedWhileMoving')}
         Assert-KmcExactProperties $v $rowKeys 'native mounted door input'
-        if($doorV3){if($v.clickWhileMoving-isnot[bool]){throw 'Door click-while-moving flag must be a native boolean.'};Assert-KmcChunk7DoorOccupancy $v.occupancy $f}
+        if($doorV3){if($v.clickWhileMoving-isnot[bool]){throw 'Door click-while-moving flag must be a native boolean.'};Assert-KmcChunk7DoorOccupancy $v.occupancy $f $(if($doorV4){$v.outcome}else{$null})}
         if($doorV4){
             # The routed command stayed unstarted on every poll on which the mount moved: the native nine-second
             # interrupt (started commands only) cannot apply to the approach, whatever its length.
