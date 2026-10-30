@@ -2,6 +2,7 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Compile Include="Diagnostics\Chunk7SmallFixtureSelection.cs" />
+    <Compile Include="Diagnostics\NativeEngineLogTail.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.ThirdHorse.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPair.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.SixPairSiblings.cs" />
@@ -178,6 +179,7 @@
     <Compile Include="Integration\RetainedNativeReentryPolicy.cs" />
     <Compile Include="Integration\NativeSaveEffectBoundary.cs" />
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
+    <Compile Include="Integration\NativeArchiveReplacementPath.cs" />
     <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\NativeSaveCommitOutcome.cs" />
     <Compile Include="Domain\OwnedWorkerTeardownPolicy.cs" />
@@ -328,6 +330,7 @@
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnedPairs.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.OwnerSeedCheckpoint.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.SlotRotation.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.ControlFacts.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.CurrentMigration.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.SixPair.cs" />

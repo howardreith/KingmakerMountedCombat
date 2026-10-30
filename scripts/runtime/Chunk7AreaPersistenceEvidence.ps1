@@ -21,6 +21,8 @@ function Assert-KmcChunk7AreaAutosave($Request,$Observation,$Archive) {
     Assert-KmcChunk7Boolean $row.duplicateReadyNoOp $true
     if(-not(Test-KmcExactJsonInteger $row.loadingTicks)-or$row.loadingTicks-le0-or$row.loadingTicks-gt100000){throw 'Native asynchronous area interval was not observed.'}
     if($Observation.nativeWrite.nativeType-cne'Auto'-or$Observation.nativeWrite.operation-cne'None'-or$Observation.nativeWrite.snapshotCount-ne1){throw 'Area case lacks one completed actual Auto save.'}
+    if(Test-KmcChunk7OwnedAreaOverwrite $Request){Assert-KmcChunk7OwnedAreaOverwrite $Request $Observation}
+    elseif($null-ne$Observation.PSObject.Properties['areaOverwrite']){throw 'A first-ever area Auto cannot carry an overwrite receipt.'}
     $base=$row.before;$seed=(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
     if($seed){Assert-KmcChunk7OwnerSeedAreaEntryObservation $Request $Observation.areaEntryPrerequisite}
     $phases=@(
@@ -219,19 +221,48 @@ function Assert-KmcChunk7OwnedAreaField($Request,$Observation){
  foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){if($used.Contains([int]$s.$key)){throw 'Owned area native save identity aliases a field/world owner.'};[void]$used.Add([int]$s.$key)}
  if($used.Count-ne$registry.Count-or@($registry|Where-Object{-not$used.Contains($_)}).Count-ne0){throw 'Owned area retention contains an unobserved object.'}
 }
+# Engine descriptor strings may mix separators under the engine-shaped isolated root; file identity, not spelling, is compared.
+function Assert-KmcChunk7SameArchivePath($Observed,$Expected,[string]$Description){
+ if($Observed-isnot[string]-or[string]::IsNullOrWhiteSpace($Observed)-or$Expected-isnot[string]-or[string]::IsNullOrWhiteSpace($Expected)-or[IO.Path]::GetFullPath($Observed)-cne[IO.Path]::GetFullPath($Expected)){throw ('Native path identity differs: '+$Description+'.')}
+}
+# Sprint 1 (SAVE-02): the genuine AfterEntry autosave overwrote the admitted pre-existing slot. The receipt
+# must pin the slot the fixture pre-seeded, prove the engine's own selector chose it under the one-slot
+# capacity, and show exactly one replacement commit landing new bytes at that leaf with the staging leaf gone.
+function Assert-KmcChunk7OwnedAreaOverwrite($Request,$Observation){
+ if($null-eq$Observation.PSObject.Properties['areaOverwrite']){throw 'Area overwrite producer lacks its overwrite receipt.'}
+ $o=$Observation.areaOverwrite;$s=$Request.ownedPairs;$w=$Observation.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $Request $Observation
+ Assert-KmcExactProperties $o @('contract','eventDispatch','existingRunId','existingArtifactSha256','existingSha256','existingLeaf','existingName','existingArea','existingFolderName','existingLength','previousSha256','stagingLeaf','stagingNumber','commitCountBefore','replacementFailuresBefore','replacementSiteInvokedDirectly','explicitSaveGameDispatches','preseededByFixture','existingLoaded','engineShapedRoot','nativeSlotCapacity','savedOfCategory','nextAutoslotIsExisting','requestedIsExistingSlot','commitCountAfter','commitRecorded','committedDestination','path','landedFolderName','sha256','length','bytesChanged','stagingAbsent','writtenIsNewDescriptor','requestedDescriptorRetired','holdsReleased','failedSaves','replacementFailures','nativeWrites') 'area overwrite receipt'
+ Assert-KmcBootstrapInventoryString $o.contract 'sprint1-area-auto-overwrite-v1'
+ if($o.eventDispatch-isnot[string]-or$o.eventDispatch-cnotlike'Game.LoadArea(enterPoint, AutoSaveMode.AfterEntry)*'){throw 'Area overwrite was not requested by the engine''s own after-entry autosave dispatch.'}
+ foreach($pair in @(@('existingRunId',$s.existingAutoRunId),@('existingArtifactSha256',$s.existingAutoArtifactSha256),@('existingSha256',$s.existingAutoSha256),@('previousSha256',$s.existingAutoSha256),@('existingLeaf',$leaf),@('existingLeaf','Auto_1.zks'),@('existingName',$w.nativeName),@('existingArea',$Request.persistenceAreaTarget.area),@('stagingLeaf','Auto_2.zks'),@('sha256',$w.sha256))){Assert-KmcBootstrapInventoryString $o.($pair[0]) $pair[1]}
+ if($o.sha256-ceq$o.previousSha256){throw 'Area overwrite left the pre-existing bytes at the slot.'}
+ foreach($flag in @('preseededByFixture','nextAutoslotIsExisting','requestedIsExistingSlot','commitRecorded','bytesChanged','stagingAbsent','writtenIsNewDescriptor','requestedDescriptorRetired','holdsReleased')){Assert-KmcChunk7Boolean $o.$flag $true}
+ foreach($flag in @('replacementSiteInvokedDirectly','existingLoaded')){Assert-KmcChunk7Boolean $o.$flag $false}
+ Assert-KmcChunk7Boolean $o.engineShapedRoot ($null-ne$Request.PSObject.Properties['engineShapedSaveRoot']-and$Request.engineShapedSaveRoot-eq$true)
+ Assert-KmcOrdinaryInteger $o.stagingNumber 2 2;Assert-KmcOrdinaryInteger $o.savedOfCategory 1 1;Assert-KmcOrdinaryInteger $o.explicitSaveGameDispatches 0 0;Assert-KmcOrdinaryInteger $o.nativeWrites 1 1
+ foreach($key in @('replacementFailuresBefore','replacementFailures','failedSaves')){Assert-KmcOrdinaryInteger $o.$key 0 0}
+ Assert-KmcOrdinaryInteger $o.commitCountBefore 0 ([int]::MaxValue);Assert-KmcOrdinaryInteger $o.commitCountAfter ([int]$o.commitCountBefore+1) ([int]$o.commitCountBefore+1)
+ if(-not(Test-KmcChunk7FiniteNumber $o.nativeSlotCapacity)-or[double]$o.nativeSlotCapacity-ne1.0){throw 'Area overwrite ran outside the disposable one-slot Auto capacity.'}
+ if(-not(Test-KmcExactJsonInteger $o.existingLength)-or$o.existingLength-le0-or-not(Test-KmcExactJsonInteger $o.length)-or$o.length-ne$w.length){throw 'Area overwrite archive lengths are invalid.'}
+ foreach($key in @('committedDestination','path','landedFolderName','existingFolderName')){Assert-KmcChunk7SameArchivePath $o.$key $w.path ('area overwrite '+$key)}
+}
 function Assert-KmcChunk7OwnedAreaSaveIdentity($Request,$Observation){
  $r=$Observation.areaTransfer;$a=$r.headerStarting.nativeSaveBoundary;$b=$r.headerStaged.nativeSaveBoundary;$c=$Observation.ownedOutputCompletion.areaSaveIdentity
  $properties=@('operation','requested','prepared','sourceDescriptor','requestedType','requestedName','preparedType','preparedName','preparedLeaf','preparedArea','preparedPath','completionCount','callbackCount','snapshotCount')
  foreach($v in @($a,$b)){Assert-KmcExactProperties $v $properties 'owned area native header';$ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $v.$key;if(-not$ids.Add([int]$v.$key)){throw 'Owned area save operation/request/copy/source identities alias.'}}
   foreach($key in @('requestedType','preparedType')){Assert-KmcBootstrapInventoryString $v.$key 'Auto'}
   foreach($key in @('requestedName','preparedName')){Assert-KmcBootstrapInventoryString $v.$key $Observation.nativeWrite.nativeName}
-  Assert-KmcBootstrapInventoryString $v.preparedLeaf (Get-KmcChunk7OwnedOutputLeaf $Request $Observation);Assert-KmcBootstrapInventoryString $v.preparedArea $Request.persistenceAreaTarget.area;Assert-KmcBootstrapInventoryString $v.preparedPath $Observation.nativeWrite.path
+  # An overwrite prepares its copy at the reserved staging leaf, which the engine's replacement then moves onto the output leaf.
+  $outputLeaf=Get-KmcChunk7OwnedOutputLeaf $Request $Observation;$overwrite=Test-KmcChunk7OwnedAreaOverwrite $Request
+  if($v.preparedLeaf-isnot[string]-or($v.preparedLeaf-cne$outputLeaf-and-not($overwrite-and$v.preparedLeaf-ceq'Auto_2.zks'))){throw 'Owned area prepared copy is neither the output leaf nor, for an overwrite, its reserved staging leaf.'}
+  Assert-KmcBootstrapInventoryString $v.preparedArea $Request.persistenceAreaTarget.area
+  Assert-KmcChunk7SameArchivePath $v.preparedPath (Join-Path (Split-Path -Parent $Observation.nativeWrite.path) $v.preparedLeaf) 'owned area prepared copy'
   foreach($key in @('completionCount','callbackCount')){Assert-KmcOrdinaryInteger $v.$key 0 0}
  }
  Assert-KmcOrdinaryInteger $a.snapshotCount 0 0;Assert-KmcOrdinaryInteger $b.snapshotCount 1 1
  foreach($key in $properties|Where-Object{$_-cne'snapshotCount'}){if((ConvertTo-KmcChunk7Canonical $a.$key)-cne(ConvertTo-KmcChunk7Canonical $b.$key)){throw 'Owned area staging replaced the captured native request or prepared copy.'}}
  Assert-KmcExactProperties $c @('operation','requested','prepared','completion','path','sourceDescriptor') 'owned area completed native save'
  $ids=[Collections.Generic.HashSet[int]]::new();foreach($key in @('operation','requested','prepared','completion','sourceDescriptor')){Assert-KmcManualSeedObjectIdentity $c.$key;if(-not$ids.Add([int]$c.$key)){throw 'Owned area completion identities alias.'};if($key-cne'completion'-and$c.$key-ne$a.$key){throw 'Owned area completion is not the captured native request/copy.'}}
- Assert-KmcBootstrapInventoryString $c.path $Observation.nativeWrite.path
+ Assert-KmcChunk7SameArchivePath $c.path $Observation.nativeWrite.path 'owned area completion'
  if($r.identityRetention.ids-isnot[Array]){throw 'Owned area completion has no retained observer.'};foreach($id in $ids){if($id-cnotin$r.identityRetention.ids){throw 'Owned area completion was not retained through worker settlement.'}}
 }

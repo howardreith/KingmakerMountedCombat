@@ -145,6 +145,21 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? ObserveWorkingDeserialization { get; set; }
         public bool ShouldSerializeObserveWorkingDeserialization() => ObserveWorkingDeserialization.HasValue;
 
+        // Opt-in for isolated persistence runs: the engine mints its archive paths from
+        // the isolated root spelled exactly as a player's Unity persistent data path
+        // (forward slashes joined with backslashes), so the run keeps the path condition
+        // a player has while every write stays inside the same owned isolated root.
+        public bool? EngineShapedSaveRoot { get; set; }
+        public bool ShouldSerializeEngineShapedSaveRoot() => EngineShapedSaveRoot.HasValue;
+
+        // Sprint 1 UPG-01: the genuine prior-version archive chain. The P05 Quick cold load of a
+        // retained older archive resaves one native Manual after its cold verification (the producer);
+        // the P05 Manual cold load of that output in a new process is the consumer. Explicit true only.
+        public bool? UpgradeChain { get; set; }
+        public bool ShouldSerializeUpgradeChain() => UpgradeChain.HasValue;
+        internal bool IsUpgradeResave => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "quick";
+        internal bool IsUpgradeConsumer => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "manual";
+
         // Private, guarded F11 measurement only. The native observer is not a
         // package member and ordinary requests cannot name or load native code.
         public F11NativeAllocationSelection F11AllocationProbe { get; set; }
@@ -247,7 +262,10 @@ namespace KingmakerMountedCombat.Diagnostics
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
             Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint, Chunk7OwnedPairsSelection.TombFixtureCheckpoint,
             Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint,
-            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint }, value) >= 0;
+            Chunk7OwnedPairsSelection.ManticoreManualColdCheckpoint,
+            Chunk7OwnedPairsSelection.RotationQuickCheckpoint, Chunk7OwnedPairsSelection.OverwriteManualCheckpoint }, value) >= 0;
+        // The owner-seed checkpoint pair's Quick slot cases: the first-ever Quick and the rotated one.
+        internal static bool IsChunk7QuickSlotCase(string value) => value == "multi-exploration-quick" || value == Chunk7OwnedPairsSelection.RotationQuickCheckpoint;
 
         internal string ExpectedChunk7ArchiveArea => PersistenceCase == Chunk7OwnedPairsSelection.TombFixtureCheckpoint ? Chunk7OwnedPairsSelection.TombFixtureArea :
             PersistenceCase == Chunk7OwnedPairsSelection.ThornRiverFixtureCheckpoint ? Chunk7OwnedPairsSelection.ThornRiverFixtureArea :
@@ -257,7 +275,7 @@ namespace KingmakerMountedCombat.Diagnostics
             (PersistenceCase == Chunk7OwnedPairsSelection.ManticoreFixtureCheckpoint ||
                 Chunk7OwnedPairsSelection.IsManticoreManualCold(PersistenceCase)) ? Chunk7OwnedPairsSelection.ManticoreFixtureArea : SelectedChunk7Fixture?.Area;
         internal string ExpectedNativeLoadType => (Scenario == Chunk7AcquiredManualSelection.Scenario && AcquiredManual?.Case == Chunk7AcquiredManualSelection.TwoOwnerCaseName && AcquiredManual.SourceMode == null || Scenario == Chunk7ManualSeedSelection.Scenario || Scenario == Chunk7BootstrapInventorySelection.Scenario || Scenario == Chunk7SmallCalibrationSelection.Scenario && SmallCalibration?.UsesColdManualField != true || Scenario == Chunk7OrdinaryFieldSelection.Scenario) ? "Auto" : SelectedChunk7Scenario == "chunk7-persistence-load" && PersistenceLoad != null && IsChunk7PersistenceCase(PersistenceCase) ?
-            (PersistenceCase == "multi-exploration-quick" ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
+            (IsChunk7QuickSlotCase(PersistenceCase) ? "Quick" : PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave" ? "Auto" : "Manual") :
             IsTransitionAutoCase(PersistenceCase) ? "Auto" :
             Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
@@ -285,6 +303,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 ManualSeed != null || BootstrapInventory != null || NativeBootstrap != null || AssistedFixture != null || AssistedColdInventory != null || SmallCalibration != null ||
                 OrdinaryField != null || OrdinaryAcquisition != null || Progression != null))
                 errors.Add("Working deserialization observation requires exact true on the unchanged qualified Working export request only.");
+            if (EngineShapedSaveRoot.HasValue && (EngineShapedSaveRoot != true || SchemaVersion != SaveBackedSchemaVersion ||
+                !(Scenario != null && Scenario.StartsWith("persistence-", StringComparison.Ordinal) || IsChunk7PersistenceScenario(Scenario) ||
+                    Scenario == "chunk7-owned-two-pair-campaign" || OwnedPairs != null)))
+                errors.Add("The engine-shaped save root is an explicit true opt-in for isolated persistence scenarios only.");
+            if (UpgradeChain.HasValue && (UpgradeChain != true || SchemaVersion != SaveBackedSchemaVersion ||
+                Scenario != "persistence-p05-load" || PersistenceLoad == null ||
+                (PersistenceCase != "quick" && PersistenceCase != "manual")))
+                errors.Add("The upgrade chain is an explicit true opt-in for the P05 Quick cold load that resaves (producer) and the P05 Manual cold load of that resave (consumer).");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
@@ -755,8 +781,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         PersistenceCase == "owned-schema2-pending-current-manual" ? "KMC_C7_SCHEMA2" :
                         OwnedPairs.IsCapitalArrivalCold(PersistenceCase) ? Chunk7OwnedPairsSelection.CapitalArrivalManualName :
                         OwnedPairs.IsOwnerSeedCheckpointLoad ? Chunk7OwnedPairsSelection.OwnerSeedCheckpointManualName : "KMC_C7_WORLD";
-                    var inputName = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
-                    var inputPattern = OwnedPairs.Cold ? (PersistenceCase == "multi-exploration-quick" ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
+                    var inputName = OwnedPairs.Cold ? (IsChunk7QuickSlotCase(PersistenceCase) || (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? PersistenceLoad.InternalName : coldManual) : Chunk7AcquiredManualSelection.OutputName;
+                    var inputPattern = OwnedPairs.Cold ? (IsChunk7QuickSlotCase(PersistenceCase) ? "^Quick_1\\.zks$" : (PersistenceCase == "multi-exploration-auto" || PersistenceCase == "multi-area-autosave") ? "^Auto_1\\.zks$" : "^Manual_[1-9][0-9]*_" + coldManual + "\\.zks$") : "^Manual_[1-9][0-9]*_KMC_C7_ACQUIRED_FIELD\\.zks$";
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad", inputName, inputPattern));
                     if (PersistenceCase == "multi-area-autosave" && PersistenceLoad.Area !=
                         (OwnedPairs.Cold ? PersistenceAreaTarget?.Area : OwnedPairs.SourceArea))
@@ -1041,7 +1067,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
                         campaignB ? "^Manual_302_KMC_B\\.zks$" :
                         p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
-                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
+                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" :
+                        IsUpgradeConsumer ? "^Manual_1_KMC_P01\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Cold native slot name is missing or oversized.");

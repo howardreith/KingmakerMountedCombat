@@ -3645,7 +3645,10 @@ function Enter-KmcModsTransaction {
         [string]$ObserverPackagePath,
         # F12 upgrade rehearsal only: a previous install's exact KMC-folder runtime files
         # (re-hashed, closed UMM cache shape) laid under the staged package files.
-        $KmcCarryFiles
+        $KmcCarryFiles,
+        # Sprint 1 UPG-01: explicitly retained foreign mod folders staged beside KMC (base-game mode only;
+        # verified by Read-KmcRetainedDependencySelection, recorded in the transaction state).
+        [AllowEmptyCollection()]$RetainedDependencies=@()
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
@@ -3655,6 +3658,7 @@ function Enter-KmcModsTransaction {
     elseif($null-ne$BaseGameDependencies){throw 'Base-game dependencies require the explicit base-game staging mode.'}
     if($coStaged-ne(-not[string]::IsNullOrEmpty($ObserverPackagePath))){throw 'Only the explicit normal-player co-staging mode takes, and requires, a second observer package.'}
     if(-not$coStaged-and@($KmcCarryFiles|Where-Object{$null-ne$_}).Count-ne0){throw 'Only the normal-player co-staging mode may carry a previous install''s KMC folder files.'}
+    if(-not$baseGameOnly-and@($RetainedDependencies|Where-Object{$null-ne$_}).Count-ne0){throw 'Only the explicit base-game staging mode may stage retained dependencies.'}
     $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if($baseGameOnly-and$fullLive-cne[string]$BaseGameDependencies.modsRoot){throw 'Base-game Mods root differs from the admitted loader layout.'}
@@ -3728,7 +3732,7 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source after cloning'
     $stagedKmcRoot = Join-Path $ready 'KingmakerMountedCombat'
     if($baseGameOnly){
-        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -KmcCarryFiles $KmcCarryFiles -Confirm:$false
+        New-KmcBaseGameReadyTree -StagingRun $stagingRun -CloneRoot $cloneRoot -ReadyRoot $ready -PackageModRoot $expectedRoot -Before $before -ObserverModRoot $observerModRoot -KmcCarryFiles $KmcCarryFiles -RetainedDependencies $RetainedDependencies -Confirm:$false
     }
     elseif (Test-Path -LiteralPath $stagedKmcRoot) {
         [void](Assert-KmcChildPath $stagedKmcRoot $stagingRun 'staged KMC replacement')
@@ -3775,6 +3779,8 @@ function Enter-KmcModsTransaction {
         $state.schemaVersion=4
         $state['baseGameDependencies']=$BaseGameDependencies
         $state['preservedClone']=$cloneRoot
+        $stagedDependencies=@($RetainedDependencies|Where-Object{$null-ne$_})
+        if($stagedDependencies.Count-ne0){$state['retainedDependencies']=@($stagedDependencies|ForEach-Object{[ordered]@{id=[string]$_.id;version=[string]$_.version;sourceRunId=[string]$_.sourceRunId;sourcePath=[string]$_.sourcePath;dllName=[string]$_.dllName;dllSha256=[string]$_.dllSha256;digest=[string]$_.digest;fileCount=[int]$_.fileCount}})}
         if($coStaged){$state['frozenObserverPackage']=$frozenObserverPackage;$state['observerPackageSha256']=$observerPackageHash}
         # Carried previous-install cache files are declared here so restoration can name
         # UMM's own removal of exactly these files (it deletes every '*.cache*' on a cache miss).
@@ -3821,7 +3827,7 @@ function Restore-KmcModsTransaction {
         if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'){$requiredState=@($requiredState+@('frozenObserverPackage','observerPackageSha256'))}
     }
     elseif ($schemaVersion -ne 2) { throw 'Transaction state schema is outside the historical and explicit base-game contracts.' }
-    $allowedState = @($requiredState + @('stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites','kmcCarriedFiles'))
+    $allowedState = @($requiredState + @('retainedDependencies','stagedAtUtc','stagedAfterDigest','stagedAfterFileCount','stagedAfterDirectoryCount','stagedAfterTotalBytes','stagedTreeChangedAtRuntime','restoredAtUtc','restoredDigest','stagedManifestSidecar','runtimeWritesClassified','runtimeExpectedWrites','runtimeUnexpectedWrites','kmcCarriedFiles'))
     $actualState = @($state.PSObject.Properties.Name)
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
@@ -3839,6 +3845,14 @@ function Restore-KmcModsTransaction {
         if($declaredCarry.Count-lt1-or$declaredCarry.Count-gt4){throw 'Declared carried KMC folder files are unbounded.'}
         foreach($c in $declaredCarry){Assert-KmcExactProperties $c @('name','length','sha256') 'declared carried KMC file'
             if([string]$c.name-cnotmatch'^KingmakerMountedCombat\.dll\.[0-9]{1,9}\.cache$'-or[string]$c.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A declared carried KMC file is outside the closed UMM cache shape.'}}
+    }
+    $declaredDependencies=@()
+    if($null-ne$state.PSObject.Properties['retainedDependencies']){
+        if($schemaVersion-ne4){throw 'Only the base-game state may declare retained dependencies.'}
+        $declaredDependencies=@($state.retainedDependencies)
+        if($declaredDependencies.Count-lt1-or$declaredDependencies.Count-gt4){throw 'Declared retained dependencies are unbounded.'}
+        foreach($d in $declaredDependencies){Assert-KmcExactProperties $d @('id','version','sourceRunId','sourcePath','dllName','dllSha256','digest','fileCount') 'declared retained dependency'
+            if([string]$d.id-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'-or[string]$d.id-in@('KingmakerMountedCombat','KmcRemovalObserver')-or[string]$d.dllName-cnotmatch'^[A-Za-z0-9._-]{1,120}\.dll$'-or[string]$d.dllSha256-cnotmatch'^[0-9a-f]{64}$'){throw 'A declared retained dependency is outside the closed shape.'}}
     }
     if ($schemaVersion -in @(3,4) -and ([string]$state.stagingMode -cnotin $allowedModes -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
@@ -3888,7 +3902,7 @@ function Restore-KmcModsTransaction {
             $classification = $null
             try {
                 $stagedEntries = Read-KmcModsStagedManifestSidecar $state $StagingRoot ([string]$Lock.RunId)
-                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged -CarriedFiles $declaredCarry
+                $classification = Get-KmcModsRuntimeWriteClassification -StagedEntries $stagedEntries -RuntimeManifest $runtimeStaged -CarriedFiles $declaredCarry -RetainedDependencies $declaredDependencies
             }
             catch {
                 $classification = [pscustomobject]@{ expected=@(); unexpected=@([pscustomobject]@{ change='sidecar-invalid'; kind='file'; path=[string]$state.stagedManifestSidecar; detail=$_.Exception.Message }) }
@@ -3946,8 +3960,16 @@ function Read-KmcModsStagedManifestSidecar {
 # KMC cache (same path and staged bytes) is the expected change 'removed-carried-cache'.
 function Get-KmcModsRuntimeWriteClassification {
     param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$StagedEntries,[Parameter(Mandatory = $true)]$RuntimeManifest,
-        [AllowEmptyCollection()][object[]]$CarriedFiles = @())
+        [AllowEmptyCollection()][object[]]$CarriedFiles = @(),
+        # Sprint 1 UPG-01: runtime writes confined to a declared retained dependency folder (its own settings/dumps)
+        # are that mod's expected behaviour; its assembly and Info.json are never expected to change.
+        [AllowEmptyCollection()][object[]]$RetainedDependencies = @())
     $carriedByPath = @{}
+    $dependencyRoots = @($RetainedDependencies | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_.id + '/' })
+    # Executable-derived paths never reach this exception: the assembly, Info.json, anything named after a DLL
+    # ('<name>.dll.<digits>.cache' and any other '<name>.dll.*') and any '*.cache'. A UMM loader cache is accepted
+    # only by the byte-copy rule below, so a mismatching or orphaned cache stays unexpected.
+    $isDependencyRuntimePath = { param([string]$Path) foreach ($root in $dependencyRoots) { if ($Path.StartsWith($root, [StringComparison]::Ordinal)) { $leaf = [IO.Path]::GetFileName($Path); return -not ($leaf -imatch '\.dll(\.|$)' -or $leaf -imatch '\.cache$' -or $leaf -ieq 'Info.json') } }; return $false }
     foreach ($c in @($CarriedFiles | Where-Object { $null -ne $_ })) { $carriedByPath[('file|KingmakerMountedCombat/' + [string]$c.name)] = $c }
     $staged = @{}; $runtime = @{}
     foreach ($entry in $StagedEntries) { $staged[('{0}|{1}' -f $entry.kind, $entry.path)] = $entry }
@@ -3965,7 +3987,9 @@ function Get-KmcModsRuntimeWriteClassification {
         }
         $after = $runtime[$key]
         if ([long]$after.length -ne [long]$before.length -or [string]$after.sha256 -cne [string]$before.sha256) {
-            $unexpected.Add([pscustomobject]@{ change='changed'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256; runtimeSha256=[string]$after.sha256 })
+            $changedRow = [pscustomobject]@{ change='changed'; kind=[string]$before.kind; path=[string]$before.path; stagedSha256=[string]$before.sha256; runtimeSha256=[string]$after.sha256 }
+            if ([string]$before.kind -ceq 'file' -and (& $isDependencyRuntimePath ([string]$before.path))) { $changedRow.change = 'dependency-runtime-change'; $expected.Add($changedRow) }
+            else { $unexpected.Add($changedRow) }
         }
     }
     foreach ($key in @($runtime.Keys | Sort-Object)) {
@@ -3980,7 +4004,9 @@ function Get-KmcModsRuntimeWriteClassification {
                 [long]$entry.length -eq [long]$runtimeDll.length -and [long]$entry.length -eq [long]$stagedDll.length
         }
         $row = [pscustomobject]@{ change='added'; kind=[string]$entry.kind; path=[string]$entry.path; runtimeSha256=[string]$entry.sha256 }
-        if ($isExpected) { $expected.Add($row) } else { $unexpected.Add($row) }
+        if ($isExpected) { $expected.Add($row) }
+        elseif (& $isDependencyRuntimePath ([string]$entry.path)) { $row.change = 'dependency-runtime-write'; $expected.Add($row) }
+        else { $unexpected.Add($row) }
     }
     return [pscustomobject]@{ expected=$expected.ToArray(); unexpected=$unexpected.ToArray() }
 }

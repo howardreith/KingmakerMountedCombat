@@ -49,6 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool Completed { get; private set; }
         internal RuntimeSubscenarioResult Result { get; private set; }
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
+        // Sprint 1 UPG-01: after the cold verification of the retained older Quick, one native Manual resave.
+        private bool UpgradeResaveCase => request.IsUpgradeResave;
         private int completedSlotWrites;
         private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" || ChargeLifecycleCase;
         private bool Cold => request.Scenario == "persistence-p07-load" || ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
@@ -115,19 +117,51 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
                     !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "required-policy");
+                JObject coldRestoreExpectation = null;
                 if (Cold)
                 {
-                    Check(persistence.LoadedData?.Mounted == true && relationship.State == RelationshipState.Mounted,
+                    // The saved pair is read from the migrated legacy DTO of a schema-1/2 archive, or
+                    // from the current schema-3 archive member (the UPG-01 resave consumer); the
+                    // observer never decides which format the product wrote.
+                    var legacy = persistence.LoadedData;
+                    var archiveData = persistence.LoadedArchiveData;
+                    var savedPair = archiveData != null && archiveData.Pairs != null && archiveData.Pairs.Length == 1 ? archiveData.Pairs[0] : null;
+                    var savedMounted = legacy != null ? legacy.Mounted : savedPair != null;
+                    var savedRiderId = legacy != null ? legacy.Rider?.Id : savedPair?.Rider?.Id;
+                    var savedMountId = legacy != null ? legacy.Mount?.Id : savedPair?.Mount?.Id;
+                    var savedSlots = (legacy != null ? legacy.Slots : archiveData?.Slots) ?? new SavedMountedSlot[0];
+                    Check(savedMounted && relationship.State == RelationshipState.Mounted,
                         "cold-pair-restored-from-archive: " + persistence.Feedback);
                     rider = relationship.Rider; mount = relationship.Mount;
-                    Check(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1,
-                        "early-semantic-and-once-presentation");
-                    Check(rider.UniqueId == persistence.LoadedData.Rider.Id && mount.UniqueId == persistence.LoadedData.Mount.Id,
+                    // The expected counters are derived from the archive the product restored (the current
+                    // member, or the legacy view when none is loaded): one semantic restore per distinct saved
+                    // actor across the combat snapshots and every attached pair's rider and mount (participation
+                    // owners add none) and one presentation restore per attached pair. Exact equality only; the
+                    // derivation and both actual values are recorded so a failure explains itself.
+                    var expectedActorIds = archiveData != null ? archiveData.SemanticRestoreActorIds() : legacy.SemanticRestoreActorIds();
+                    var expectedPresentation = archiveData != null ? archiveData.ExpectedPresentationRestoreCount : legacy.ExpectedPresentationRestoreCount;
+                    coldRestoreExpectation = new JObject
+                    {
+                        ["view"] = archiveData != null ? "archive-member" : "legacy",
+                        ["schema"] = archiveData != null ? archiveData.SchemaVersion : legacy.SchemaVersion,
+                        ["pairs"] = archiveData != null ? archiveData.Pairs.Length : (legacy.Mounted ? 1 : 0),
+                        ["participations"] = archiveData?.Participations?.Length,
+                        ["combatActors"] = (archiveData != null ? archiveData.Combat : legacy.Combat)?.Actors?.Length ?? 0,
+                        ["expectedSemanticIds"] = new JArray(expectedActorIds), ["expectedSemantic"] = expectedActorIds.Length,
+                        ["expectedPresentation"] = expectedPresentation,
+                        ["actualSemantic"] = persistence.SemanticRestoreCount, ["actualPresentation"] = persistence.PresentationRestoreCount,
+                        ["archivePostLoadObserved"] = persistence.ArchivePostLoadObservedCount
+                    };
+                    Check(MountedArchiveData.RestoreCountersMatch(expectedActorIds, expectedPresentation,
+                            persistence.SemanticRestoreCount, persistence.PresentationRestoreCount),
+                        "early-semantic-and-once-presentation: expected semantic " + expectedActorIds.Length + " [" +
+                        string.Join(",", expectedActorIds) + "] presentation " + expectedPresentation);
+                    Check(rider.UniqueId == savedRiderId && mount.UniqueId == savedMountId,
                         "same-saved-native-actors");
                     Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
                         game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1, "unique-native-actors");
                     var bindings = controls.CapturePersistentSlots();
-                    Check(bindings.Length == persistence.LoadedData.Slots.Length && persistence.LoadedData.Slots.All(
+                    Check(bindings.Length == savedSlots.Length && savedSlots.All(
                         s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
                         "cold-owned-hotbar-bindings");
                     Check(controls.NativeCastRequestCount == 0, "cold-restoration-did-not-cast-mount");
@@ -147,7 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 beforeControls = controls.CaptureSnapshot();
                 Check(beforeControls.ExactFactCount > 0 && beforeControls.DuplicateFactCount == 0 &&
                     !beforeControls.SerializationSuspended, "controls-present-once");
-                Write("initial");
+                Write("initial", coldRestoreExpectation == null ? null : new JObject { ["coldRestoreExpectation"] = coldRestoreExpectation });
                 if (Cold) { stage = 2; return; }
                 if (QueuedCase) { QueueNativeManualSaves(); stage = 1; return; }
                 if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
@@ -256,15 +290,65 @@ namespace KingmakerMountedCombat.Diagnostics
                 ruleProbe = new MountedCombatRuleProbe();
                 ruleProbe.Arm(rider, mount, rider, target);
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                // Derive the pair's first actor from the same native readiness the product's stock policy reads
+                // at this click; a rider carrying restored Standard debt is not ready and the mount goes first.
+                var riderReady = rider.HasStandardAction(); var mountReady = mount.HasStandardAction();
+                var riderWeapon = rider.Body?.PrimaryHand?.MaybeWeapon?.Blueprint;
+                var riderRanged = riderWeapon != null && riderWeapon.IsRanged;
+                var decision = UnifiedMountedStockAttackPolicy.DecideNext(true, true, combat.HasActiveCommand, false, riderReady, mountReady, riderRanged, false);
+                var riderCooldown = rider.CombatState?.Cooldown?.StandardAction ?? 0f; var mountCooldown = mount.CombatState?.Cooldown?.StandardAction ?? 0f;
+                expectMountFirst = decision == MountedStockAttackDecision.DispatchMount ||
+                    (decision == MountedStockAttackDecision.Wait && !riderRanged && mountCooldown < riderCooldown);
+                attackDispatch = new JObject
+                {
+                    ["riderHasStandardAction"] = riderReady, ["mountHasStandardAction"] = mountReady, ["riderRanged"] = riderRanged,
+                    ["riderStandardCooldown"] = riderCooldown, ["mountStandardCooldown"] = mountCooldown,
+                    ["policyDecision"] = decision.ToString(), ["expectedFirstActor"] = expectMountFirst ? "mount" : "rider",
+                    ["pairCommandActive"] = combat.HasActiveCommand, ["riderDispatchesBefore"] = combat.StockAttackRiderDispatchCount,
+                    ["mountDispatchesBefore"] = combat.StockAttackMountDispatchCount, ["targetId"] = target.UniqueId
+                };
+                attackTimeline = new JArray(); attackTimelineLastTicks = 0; mountStandardPeakAfterUnexpected = 0f;
                 using (var input = new NativeOrdinaryAttackInput(target)) Check(input.Click(), "ordinary-attack-input");
-                Write("attack-dispatched"); stage = 5; return;
+                SampleAttackTimeline(true);
+                Write("attack-dispatched", attackDispatch); stage = 5; return;
             }
             if (stage == 5)
             {
                 targetService.RefreshBidirectionalCombatMemoryLease();
+                SampleAttackTimeline(false);
                 if (ruleProbe.AttackRuleCount < 1 || ruleProbe.AttackRollCount < 1) return;
-                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetService.TargetId &&
-                    ruleProbe.UnexpectedPairAttackCount == 0, "native-ordinary-attack-delivered");
+                SampleAttackTimeline(true);
+                var targetId = targetService.TargetId;
+                var firstUnexpected = ruleProbe.FirstUnexpectedPairAttack;
+                var mountRules = ruleProbe.Events.Where(e => !e.Expected).ToArray();
+                // The rider's own ordinary attack: exactly one rule and one roll against the clicked target.
+                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetId &&
+                    ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1, "native-ordinary-attack-delivered");
+                // The pair order the product's policy decided at the click: no other pair attack before the rider's
+                // when the rider was ready; when it was not, exactly one native full attack by the mount (a pair-owned
+                // command created by the click, not an attack of opportunity, charge or AI action, the mount's AI lease
+                // still disabled) whose distinct rules are its declared attacks 0..n-1 and nothing more. Distinct rules
+                // are counted from the probe's begin/end-paired records; DidTrigger notifications are recorded only.
+                Check(expectMountFirst
+                    ? firstUnexpected != null && firstUnexpected.InitiatorId == mount.UniqueId && firstUnexpected.TargetId == targetId &&
+                        !firstUnexpected.IsAttackOfOpportunity && !firstUnexpected.IsCharge && !firstUnexpected.InitiatorAiEnabled &&
+                        firstUnexpected.CommandAiActionBlueprintId == null && firstUnexpected.CommandCreatedByPlayer == true &&
+                        firstUnexpected.IsFirstAttack && firstUnexpected.AttackNumber == 0 && firstUnexpected.AttacksCount >= 1 &&
+                        mountRules.Length == firstUnexpected.AttacksCount &&
+                        mountRules.All(e => e.InitiatorId == mount.UniqueId && e.TargetId == targetId && e.CommandType == firstUnexpected.CommandType &&
+                            e.AttacksCount == firstUnexpected.AttacksCount && !e.IsAttackOfOpportunity && !e.IsCharge) &&
+                        mountRules.Select(e => e.AttackNumber).SequenceEqual(Enumerable.Range(0, firstUnexpected.AttacksCount)) &&
+                        combat.StockAttackMountDispatchCount == 1 && combat.StockAttackRiderDispatchCount == 1
+                    : ruleProbe.UnexpectedPairAttackCount == 0 && mountRules.Length == 0 && combat.StockAttackRiderDispatchCount == 1,
+                    "pair-stock-attack-order");
+                Check(combat.StockAttackDuplicateDispatchCount == 0, "pair-stock-attack-no-duplicate-dispatch");
+                // Native expenditure, never refunded: the rider's Standard is spent at its own attack; when the mount
+                // went first its Standard was spent by that attack (observed after the rule or on the timeline).
+                Check((rider.CombatState?.Cooldown?.StandardAction ?? 0f) > 0f &&
+                    (!expectMountFirst || firstUnexpected.StandardCooldownAfter > 0f || mountStandardPeakAfterUnexpected > 0f),
+                    "pair-stock-attack-expenditure");
+                Check(relationship.State == RelationshipState.Mounted && relationship.Rider == rider && relationship.Mount == mount,
+                    "pair-authority-retained-through-attack");
                 Write("attack-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
                     ["rolls"] = ruleProbe.AttackRollCount, ["damage"] = ruleProbe.TotalDamage });
                 SelectionManager.Instance.Stop();
@@ -277,7 +361,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("usable-continuation-complete");
                 // A transition autosave must also still support an ordinary
                 // subsequent write from the world it actually restored.
-                if (AreaAutoColdCase)
+                if (AreaAutoColdCase || UpgradeResaveCase)
                 {
                     callback = false;
                     game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
@@ -293,6 +377,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 var saved = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
                 if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                if (UpgradeResaveCase)
+                {
+                    // Sprint 1 UPG-01: the current product writes the schema-3 archive member; the retained input
+                    // was older. The resave must carry the restored pair in the input's area and campaign and be
+                    // a new archive, never the input rewritten.
+                    var archive = NativeMountedSaveStorage.ReadArchive(saved.Saver);
+                    var pair = NativeMountedSaveFormat.CanRestore(archive) && archive.Data.Pairs.Length == 1 ? archive.Data.Pairs[0] : null;
+                    Check(pair != null && pair.Rider.Id == rider.UniqueId && pair.Mount.Id == mount.UniqueId &&
+                        archive.Data.AreaId == request.PersistenceLoad.Area && archive.Data.CampaignId == request.PersistenceLoad.GameId &&
+                        archive.Data.SchemaVersion == MountedArchiveData.Schema && persistence.SnapshotCount == 1 &&
+                        Hash(saved.FolderName) != request.PersistenceLoad.Sha256,
+                        "UPG01-cold-load-of-the-retained-archive-supports-a-native-resave");
+                    Write("native-write-complete", new JObject {
+                        ["ordinal"] = 1, ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName),
+                        ["length"] = new FileInfo(saved.FolderName).Length, ["nativeType"] = saved.Type.ToString(),
+                        ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString(),
+                        ["sourceSha256"] = request.PersistenceLoad.Sha256,
+                        ["snapshot"] = JObject.FromObject(archive.Data, MountedSaveCodec.CreateSerializer()) });
+                    Dispose();
+                    Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                        AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                    Completed = true;
+                    return;
+                }
                 var written = NativeMountedSaveStorage.Read(saved.Saver);
                 Check(written.Kind == MountedSaveReadKind.Current && written.Data.Mounted &&
                     written.Data.Rider.Id == rider.UniqueId && written.Data.Mount.Id == mount.UniqueId &&
@@ -433,6 +541,73 @@ namespace KingmakerMountedCombat.Diagnostics
             throw new InvalidOperationException("No native walkable destination exists for the owned P01 fixture.");
         }
 
+        // Sprint 1 UPG-01 (iteration 7): the stock hostile click is a PAIR command. Its first actor is decided by
+        // the product's own policy from native readiness at the click (a rider restored with Standard debt is not
+        // ready, so the mount's primary natural attack goes first). The expectation is derived from those inputs
+        // here, recorded with them, and the pair's attack rules are observed passively (probe events, the target's
+        // own first-incoming-attack snapshot, the controller's dispatch counters and a bounded timeline).
+        private JObject attackDispatch;
+        private JArray attackTimeline;
+        private long attackTimelineLastTicks;
+        private bool expectMountFirst;
+        private float mountStandardPeakAfterUnexpected;
+
+        private JObject AttackActorState(UnitEntityData unit)
+        {
+            var command = unit?.Commands?.Standard;
+            return unit == null ? null : new JObject
+            {
+                ["id"] = unit.UniqueId, ["hasStandardAction"] = unit.HasStandardAction(),
+                ["standardCooldown"] = unit.CombatState?.Cooldown?.StandardAction,
+                ["aiEnabled"] = unit.IsAIEnabled, ["commandsEmpty"] = unit.Commands?.Empty,
+                ["command"] = command?.GetType().Name, ["commandCreatedByPlayer"] = command?.CreatedByPlayer,
+                ["commandAiAction"] = command?.AiAction?.AssetGuid, ["commandStarted"] = command?.IsStarted,
+                ["commandActed"] = command?.IsActed, ["commandFinished"] = command?.IsFinished,
+                ["commandTarget"] = command?.TargetUnit?.UniqueId
+            };
+        }
+
+        private void SampleAttackTimeline(bool force)
+        {
+            if (ruleProbe == null || targetService?.Target == null || attackTimeline == null) return;
+            var ticks = Game.Instance?.TimeController?.GameTime.Ticks ?? 0;
+            if (!force && (attackTimeline.Count >= 24 || ticks - attackTimelineLastTicks < TimeSpan.TicksPerSecond)) return;
+            attackTimelineLastTicks = ticks;
+            if (ruleProbe.FirstUnexpectedPairAttack != null)
+                mountStandardPeakAfterUnexpected = Math.Max(mountStandardPeakAfterUnexpected, mount.CombatState?.Cooldown?.StandardAction ?? 0f);
+            attackTimeline.Add(new JObject
+            {
+                ["ticks"] = ticks, ["rider"] = AttackActorState(rider), ["mount"] = AttackActorState(mount),
+                ["mountTargetDistance"] = GeometryUtils.MechanicsDistance(mount.Position, targetService.Target.Position),
+                ["rules"] = ruleProbe.AttackRuleCount, ["rolls"] = ruleProbe.AttackRollCount, ["unexpected"] = ruleProbe.UnexpectedPairAttackCount,
+                ["pairRules"] = ruleProbe.ObservedPairRuleCount, ["activeCommand"] = combat.HasActiveCommand,
+                ["riderDispatches"] = combat.StockAttackRiderDispatchCount, ["mountDispatches"] = combat.StockAttackMountDispatchCount,
+                ["stockObservation"] = combat.LastStockAttackObservation, ["partyCombat"] = Game.Instance?.Player?.IsInCombat
+            });
+        }
+
+        private JObject CurrentAttackObservation()
+        {
+            if (ruleProbe == null) return null;
+            var serializer = MountedSaveCodec.CreateSerializer();
+            return new JObject
+            {
+                ["dispatch"] = attackDispatch, ["expectMountFirst"] = expectMountFirst,
+                ["rules"] = ruleProbe.AttackRuleCount, ["rolls"] = ruleProbe.AttackRollCount, ["damageRules"] = ruleProbe.DamageRuleCount,
+                ["unexpectedPairAttacks"] = ruleProbe.UnexpectedPairAttackCount, ["observedPairRules"] = ruleProbe.ObservedPairRuleCount,
+                ["lastInitiator"] = ruleProbe.LastInitiatorId, ["lastTarget"] = ruleProbe.LastTargetId,
+                ["lastResult"] = ruleProbe.LastAttackResult, ["lastHit"] = ruleProbe.LastAttackHit, ["totalDamage"] = ruleProbe.TotalDamage,
+                ["firstExpected"] = ruleProbe.FirstExpectedAttack == null ? null : JObject.FromObject(ruleProbe.FirstExpectedAttack, serializer),
+                ["firstUnexpected"] = ruleProbe.FirstUnexpectedPairAttack == null ? null : JObject.FromObject(ruleProbe.FirstUnexpectedPairAttack, serializer),
+                ["events"] = new JArray(ruleProbe.Events.Select(e => JObject.FromObject(e, serializer))),
+                ["targetIncomingRules"] = targetService?.IncomingAttackRuleCount, ["targetPreDispatchRules"] = targetService?.PreDispatchIncomingAttackRuleCount,
+                ["targetFirstIncoming"] = targetService?.FirstIncomingAttack == null ? null : JObject.FromObject(targetService.FirstIncomingAttack, serializer),
+                ["riderDispatches"] = combat.StockAttackRiderDispatchCount, ["mountDispatches"] = combat.StockAttackMountDispatchCount,
+                ["duplicateDispatches"] = combat.StockAttackDuplicateDispatchCount, ["stockObservation"] = combat.LastStockAttackObservation,
+                ["mountStandardPeakAfterUnexpected"] = mountStandardPeakAfterUnexpected, ["timeline"] = attackTimeline
+            };
+        }
+
         private void Check(bool condition, string label)
         {
             if (!condition) { Write("assertion-failed", new JObject { ["assertion"] = label }); throw new InvalidOperationException(label); }
@@ -475,6 +650,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["targetLife"] = targetLife == null ? null : JObject.FromObject(targetLife, MountedSaveCodec.CreateSerializer()) },
                 ["persistence"] = new JObject { ["semantics"] = persistence.SemanticRestoreCount,
                     ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback },
+                ["attack"] = CurrentAttackObservation(),
                 ["detail"] = detail
             };
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);

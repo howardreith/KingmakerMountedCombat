@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Domain { enum CleanupTrigger { Exception } enum
 namespace KingmakerMountedCombat.Diagnostics
 {
     sealed class RuntimeFixtureIdentity { }
+    sealed class NativeEngineLogTail { internal object Capture(){return null;} }
     sealed class RuntimeRequest { public const int SaveBackedSchemaVersion=2; public string RunId="synthetic",Scenario="chunk7-native-main-bootstrap",Branch="private",Commit="source",ProductVersion="test",TransactionToken="owned"; public RuntimeFixtureIdentity Fixture=new RuntimeFixtureIdentity(); public static bool IsMissionScenario(string x){return false;} }
     sealed class RuntimeSubscenarioResult { public string Name,Status;public int AssertionPassCount,AssertionFailCount;public IReadOnlyList<string> Errors; }
     sealed class RuntimeSaveAuthorization { public int BaselineLoadRequestCount,AuthorizedLoadCount,AuthorizedWriteCount=1,SuppressedWorkingWriteCount,UnauthorizedLoadCount,UnauthorizedWriteCount; public IDisposable Activate(RuntimeFixtureIdentity f,string p,bool w){return new Lease();} sealed class Lease:IDisposable{public void Dispose(){}} }
@@ -43,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int saveRequestCount=1,loadRequestCount,frameCount=1;private double elapsedSeconds=1;
         private Func<bool> movementExperimentProvider;private Func<string> relationshipStateProvider;
         private readonly RuntimeStartupTrace startupTrace=new RuntimeStartupTrace(Stopwatch.Frequency,()=>0L,()=>0,()=>true,()=>false);
+        private readonly NativeEngineLogTail engineLogTail=new NativeEngineLogTail();
         private object workingLoadObservation;
         private void PublishWorkingObservation(string status){throw new InvalidOperationException("Unexpected Working observer path in terminal fixture");}
         private Chunk7BootstrapDialogueObservation bootstrapDialogue;private RuntimeGameResultV2 result;private int finalizations,drains,publishes,providerReads,emergencyWrites;

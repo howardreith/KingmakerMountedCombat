@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem.Rules;
@@ -77,14 +79,17 @@ namespace KingmakerMountedCombat.Diagnostics
             LastTargetId = null;
             LastAttackResult = null;
             LastAttackHit = null;
+            events.Clear(); FirstExpectedAttack = null; FirstUnexpectedPairAttack = null; ObservedPairRuleCount = 0; pending = null;
         }
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
         {
+            BeginEvent(evt);
         }
 
         public void OnEventDidTrigger(RuleAttackWithWeapon evt)
         {
+            EndEvent(evt);
             if (!IsObservedTarget(evt?.Target))
             {
                 return;
@@ -179,6 +184,88 @@ namespace KingmakerMountedCombat.Diagnostics
                 UnexpectedPairAttackCount++;
             }
             return false;
+        }
+        // Sprint 1 UPG-01 (iteration 7): bounded, passive provenance of the pair's weapon-attack rules against
+        // the observed target. One record per rule (at most MaximumEvents), the first expected (rider) and the
+        // first unexpected (other pair member) kept separately; pre/post Standard cooldown of the initiator and
+        // its current standard command identity are read, never written. Nothing here changes any counter above.
+        internal const int MaximumEvents = 8;
+        private readonly List<MountedCombatRuleProbeEvent> events = new List<MountedCombatRuleProbeEvent>();
+        public IReadOnlyList<MountedCombatRuleProbeEvent> Events => events;
+        public MountedCombatRuleProbeEvent FirstExpectedAttack { get; private set; }
+        public MountedCombatRuleProbeEvent FirstUnexpectedPairAttack { get; private set; }
+        public int ObservedPairRuleCount { get; private set; }
+        private MountedCombatRuleProbeEvent pending;
+
+        private void BeginEvent(RuleAttackWithWeapon evt)
+        {
+            pending = null;
+            if (evt?.Initiator == null || !IsObservedTarget(evt.Target) || (evt.Initiator != rider && evt.Initiator != mount)) return;
+            pending = MountedCombatRuleProbeEvent.Capture(evt, evt.Initiator == expectedActor, ObservedPairRuleCount + 1);
+        }
+
+        private void EndEvent(RuleAttackWithWeapon evt)
+        {
+            var record = pending; pending = null;
+            if (record == null || evt?.Initiator == null) return;
+            record.Complete(evt);
+            ObservedPairRuleCount++;
+            if (record.Expected) { if (FirstExpectedAttack == null) FirstExpectedAttack = record; }
+            else if (FirstUnexpectedPairAttack == null) FirstUnexpectedPairAttack = record;
+            if (events.Count < MaximumEvents) events.Add(record);
+        }
+    }
+
+    internal sealed class MountedCombatRuleProbeEvent
+    {
+        public int Ordinal { get; private set; }
+        public bool Expected { get; private set; }
+        public string InitiatorId { get; private set; }
+        public string TargetId { get; private set; }
+        public long GameTicks { get; private set; }
+        public bool IsAttackOfOpportunity { get; private set; }
+        public bool IsFullAttack { get; private set; }
+        public bool IsCharge { get; private set; }
+        public bool IsFirstAttack { get; private set; }
+        public int AttackNumber { get; private set; }
+        public int AttacksCount { get; private set; }
+        public string WeaponBlueprintId { get; private set; }
+        public bool InitiatorAiEnabled { get; private set; }
+        public string CommandType { get; private set; }
+        public bool? CommandCreatedByPlayer { get; private set; }
+        public string CommandAiActionBlueprintId { get; private set; }
+        public bool? CommandIsStarted { get; private set; }
+        public bool? CommandIsActed { get; private set; }
+        public string CommandTargetId { get; private set; }
+        public float StandardCooldownBefore { get; private set; }
+        public float StandardCooldownAfter { get; private set; }
+        public string Result { get; private set; }
+        public bool? Hit { get; private set; }
+
+        internal static MountedCombatRuleProbeEvent Capture(RuleAttackWithWeapon evt, bool expected, int ordinal)
+        {
+            var initiator = evt.Initiator;
+            var command = initiator.Commands?.Standard;
+            return new MountedCombatRuleProbeEvent
+            {
+                Ordinal = ordinal, Expected = expected, InitiatorId = initiator.UniqueId, TargetId = evt.Target?.UniqueId,
+                GameTicks = Game.Instance?.TimeController?.GameTime.Ticks ?? 0,
+                IsAttackOfOpportunity = evt.IsAttackOfOpportunity, IsFullAttack = evt.IsFullAttack, IsCharge = evt.IsCharge,
+                IsFirstAttack = evt.IsFirstAttack, AttackNumber = evt.AttackNumber, AttacksCount = evt.AttacksCount,
+                WeaponBlueprintId = evt.Weapon?.Blueprint?.AssetGuid, InitiatorAiEnabled = initiator.IsAIEnabled,
+                CommandType = command?.GetType().Name, CommandCreatedByPlayer = command?.CreatedByPlayer,
+                CommandAiActionBlueprintId = command?.AiAction?.AssetGuid, CommandIsStarted = command?.IsStarted,
+                CommandIsActed = command?.IsActed, CommandTargetId = command?.TargetUnit?.UniqueId,
+                StandardCooldownBefore = initiator.CombatState?.Cooldown?.StandardAction ?? -1f,
+                StandardCooldownAfter = -1f
+            };
+        }
+
+        internal void Complete(RuleAttackWithWeapon evt)
+        {
+            StandardCooldownAfter = evt.Initiator.CombatState?.Cooldown?.StandardAction ?? -1f;
+            Result = evt.AttackRoll?.Result.ToString();
+            Hit = evt.AttackRoll?.IsHit;
         }
     }
 }

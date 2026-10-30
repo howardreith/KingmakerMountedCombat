@@ -838,14 +838,18 @@ function Assert-KmcExactObservedLoaderDependency($Assemblies,$Dependencies,[stri
         throw ('The exact installed loader contract was not pinned in both dependency and native observations: '+$Name)
     }
 }
-function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[switch]$PassThru) {
+function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[AllowEmptyCollection()][object[]]$RetainedDependencies=@(),[switch]$PassThru) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'runtime-loader-inventory'
     if($Artifact.status-cne'PASS'-or$Artifact.observations.capturedInNativeProcess-ne$true-or
         -not(Test-KmcExactJsonInteger $Artifact.observations.processId)-or$Artifact.observations.processId-le0){throw 'Live loader inventory is incomplete.'}
     Assert-KmcChunk7Boolean $Artifact.observations.capturedInNativeProcess $true
     $mods=@($Artifact.observations.modEntries)
     foreach($entry in $mods){Assert-KmcChunk7Boolean $entry.active $true;Assert-KmcChunk7Boolean $entry.enabled $true}
-    if($mods.Count-ne1-or$mods[0].id-cne'KingmakerMountedCombat'-or$mods[0].active-ne$true-or$mods[0].enabled-ne$true){throw 'Base-only run loaded another UMM entry or KMC was inactive/disabled.'}
+    # Sprint 1 UPG-01: explicitly retained dependencies are the only other admitted UMM entries, each active and enabled.
+    $retained=@($RetainedDependencies|Where-Object{$null-ne$_})
+    $expectedIds=@(@('KingmakerMountedCombat')+@($retained|ForEach-Object{[string]$_.id})|Sort-Object)
+    $actualIds=@($mods|ForEach-Object{[string]$_.id}|Sort-Object)
+    if(($actualIds-join '|')-cne($expectedIds-join '|')-or@($mods|Where-Object{$_.active-ne$true-or$_.enabled-ne$true}).Count-ne0){throw 'Base-only run loaded another UMM entry, missed a retained dependency, or an entry was inactive/disabled.'}
     $assemblies=@($Artifact.observations.loadedAssemblies)
     if($assemblies.Count-lt4-or$assemblies.Count-gt2048){throw 'Loaded assembly inventory is incomplete or outside the bounded contract.'}
     $managedRoot=[IO.Path]::GetFullPath((Join-Path $Dependencies.gameRoot 'Kingmaker_Data/Managed')).TrimEnd('\')
@@ -906,7 +910,12 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[swi
         }
         elseif(-not$directory.Equals($managedRoot,[StringComparison]::OrdinalIgnoreCase)-and
             -not$directory.Equals($loaderRoot,[StringComparison]::OrdinalIgnoreCase)) {
-            throw 'File-backed assembly is outside the exact installed Managed/UMM directories and staged KMC path.'
+            # Sprint 1 UPG-01: a retained dependency's own assembly, loaded from its staged folder or the loader's cache copy there.
+            $dependency=@($retained|Where-Object{$directory.Equals([IO.Path]::GetFullPath((Join-Path $Dependencies.modsRoot ([string]$_.id))).TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)})
+            if($dependency.Count-ne1){throw 'File-backed assembly is outside the exact installed Managed/UMM directories, the staged KMC path and the declared retained dependency folders.'}
+            $leaf=[IO.Path]::GetFileName($location);$dllName=[string]$dependency[0].dllName
+            $cacheMatch=[regex]::Match($leaf,'^'+[regex]::Escape($dllName)+'\.(0|[1-9][0-9]{0,4})\.cache$')
+            if(($leaf-cne$dllName-and-not$cacheMatch.Success)-or[string]$assembly.sha256-cne[string]$dependency[0].dllSha256){throw 'A retained dependency assembly differs from its declared staged bytes.'}
         }
     }
     $kmc=@($assemblies|Where-Object name -CEQ 'KingmakerMountedCombat')

@@ -41,6 +41,15 @@ param(
     # mod set. This mode stages KMC alone while retaining installed UMM/Harmony.
     [switch]$BaseGameOnly,
     [switch]$DevelopmentScopedAudit,
+    # Isolated persistence runs only: hand the engine the isolated root spelled exactly as a
+    # player's Unity persistent data path (forward slashes joined with backslashes), so the
+    # run keeps the player's path condition while every write stays in the same owned root.
+    [switch]$EngineShapedSaveRoot,
+    # Sprint 1 UPG-01: the genuine prior-version archive chain (the P05 Quick cold load that resaves one Manual; the P05
+    # Manual cold load of that resave in a new process). Base-game staging with the archive's retained dependencies only.
+    [switch]$UpgradeChain,
+    # Explicitly retained foreign mod folders (the archive's own serialized dependencies) staged beside KMC in base-game mode.
+    [string]$RetainedDependencySelectionPath,
     [switch]$ObserveWorkingDeserialization,
     [switch]$F11NativeAllocationProbe,
     [switch]$OwnerStockRemoval,
@@ -81,7 +90,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$')][string]$UpgradeCarrySourceRunId,
     # Shared by the three steps of one rehearsal; u2 and u3 require a passed u1 of the same id.
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')][string]$UpgradeRehearsalId,
-    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
+    [ValidateSet('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual','partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{32}$')][string[]]$PersistenceReplayAreaEnterPoints,
@@ -392,6 +401,36 @@ $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
 $runtimeEvidence=Join-Path $labRoot 'runtime-evidence'
+# Parameter-shape refusals depend on the request alone: they are decided before the budget is
+# asked, so a refused shape is never recorded as a native attempt of the sprint batch.
+$isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
+$isManualReview=[string]$Scenario -ceq 'manual-visual-review'
+# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
+if($DevelopmentScopedAudit){
+    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
+    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
+    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
+}
+if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
+if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
+    throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
+}
+# Shared sprint validation budget (scripts/WorkflowBudget.ps1): admission is decided here,
+# before source/package validation, continuity preflight, the WhatIf/ShouldProcess boundary,
+# Steam checks, evidence directories, locks, staging or launch, so every expensive phase is
+# inside the accounted interval and a refusal can never strand a transaction. A real launch
+# is also subject to the five-scenario batch rule. Work already running is never interrupted
+# by the budget; settlement/restoration is recorded separately.
+. (Join-Path $PSScriptRoot '..\WorkflowBudget.ps1')
+$workflowBatchKey=$Scenario+'/'+$(if([string]::IsNullOrWhiteSpace($PersistenceCase)){'-'}else{$PersistenceCase})
+$workflowAdmission=Request-KmcWorkflowAdmission -RepoRoot $repoRoot -Kind native `
+    -Selection ($workflowBatchKey+'/'+$(if($requestedWhatIf){'whatif'}else{'launch'})+'/'+$(if([string]::IsNullOrWhiteSpace($RunId)){'auto'}else{$RunId})) `
+    -EstimatedSeconds $(if($requestedWhatIf){$null}else{$TimeoutSeconds}) -Launch:(-not$requestedWhatIf) -BatchKey $workflowBatchKey
+$workflowHeartbeatAt=[DateTime]::UtcNow
+# Lifetime: a terminating error anywhere outside the transaction's own try/finally (an early
+# refusal, a WhatIf failure, the final verdict) still completes this entry and restores the
+# caller's context; the error itself propagates unchanged.
+trap { try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
 $f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
 $f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
 $f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
@@ -409,19 +448,13 @@ $liveMods=[string]$intake.requestedLayout.kingmakerModsRoot
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
-$isSaveBacked=[string]$Scenario -cne 'mod-load-smoke'
-$isManualReview=[string]$Scenario -ceq 'manual-visual-review'
-# Development-scoped WhatIf is opt-in, WhatIf-only and never a release/milestone proof.
-if($DevelopmentScopedAudit){
-    if(-not$requestedWhatIf){throw 'The development-scoped audit is valid only together with -WhatIf; native runs always keep every guard.'}
-    if($isManualReview){throw 'The development-scoped audit is refused for the manual-review scenario.'}
-    if([string]::IsNullOrEmpty($RunId)){throw 'The development-scoped audit requires an explicit -RunId so its run-owned paths are defined.'}
-}
-if($BaseGameOnly-and($isObserver-or$isManualReview)){throw 'Base-game compatibility is a separate automated selection, not a removal-observer or human-review mode.'}
 $baseGameDependencies=$null
 if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
-if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
-    throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'
+$retainedDependencies=@()
+if(-not[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){
+    if(-not$BaseGameOnly){throw 'Retained dependencies are staged only in the explicit base-game mode.'}
+    $retainedDependencies=@(Read-KmcRetainedDependencySelection $RetainedDependencySelectionPath)
+    Write-Host ('Retained dependencies selected (never installed; staged beside KMC in the owned transaction): '+(($retainedDependencies|ForEach-Object{$_.id+' '+$_.version+' dll='+$_.dllSha256.Substring(0,8)+' digest='+$_.digest.Substring(0,8)})-join ', '))
 }
 $legacyContinuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
@@ -542,6 +575,8 @@ if($isSaveBacked){
         -After $beforeSaves `
         -Description 'runtime preflight fixture-continuity save metadata'
 }
+# Preflight validation is done: measured point for the budget before the guarded boundary.
+try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
 $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
@@ -594,9 +629,11 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     if($DevelopmentScopedAudit){
         # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
         Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
+        Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
         return
     }
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
+    Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
     return
 }
 $WhatIfPreference=$false
@@ -647,9 +684,13 @@ $manualReadyHash=$null
 $manualReviewReady=$false
 $manualFailureObserved=$false
 $errors=New-Object 'System.Collections.Generic.List[string]'
+# Re-admission before the live transaction: preflight above may have consumed the allowance
+# or the block. A refusal here leaves no evidence directory, lock, staging or game.
+Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('transaction lock '+$workflowBatchKey)
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
+    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
         runId=$actualRunId
@@ -663,6 +704,11 @@ try{
         evidenceRoot=$evidenceRoot
     }
     if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
+    if($EngineShapedSaveRoot){if(-not$isSaveBacked){throw 'The engine-shaped save root applies to save-backed isolated runs only.'};$request['engineShapedSaveRoot']=$true}
+    if($UpgradeChain){
+        if($Scenario-cne'persistence-p05-load'-or$PersistenceCase-cnotin@('quick','manual')-or-not$BaseGameOnly-or[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){throw 'The upgrade chain is the P05 Quick cold load that resaves or the P05 Manual cold load of that resave, under base-game staging with the archive''s retained dependencies.'}
+        $request['upgradeChain']=$true
+    }
     if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
         contract='f11-native-allocation-v1';baseGameOnly=$true
         path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
@@ -957,6 +1003,10 @@ try{
                     # The no-pair archive a death run wrote, under its own name.
                     Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase -ArtifactRole death-manual
                 }
+                elseif($UpgradeChain-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+                    # Sprint 1 UPG-01: the Manual the upgrade producer resaved after its cold load of the retained Quick.
+                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase quick -ArtifactRole upgrade-resave-manual
+                }
                 else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase}
                 $copySource=$source.path;$copyDescriptor=$source.descriptor
                 # Copy the admitted immutable archive under one exact new leaf.
@@ -1012,10 +1062,29 @@ try{
             if((Get-KmcSha256 $copiedFixture)-cne[string]$copyDescriptor.sha256){
                 throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
             }
-            Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') ([ordered]@{
+            $ownerRecord=[ordered]@{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
-            })
+            }
+            if($UpgradeChain){$ownerRecord['upgradeChain']=$true}
+            if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$null-ne$ownedPairsSource.PSObject.Properties['existingAuto']){
+                # Sprint 1 (SAVE-02): the admitted pre-existing Auto slot, copied beside the Manual input
+                # under its own leaf so the genuine AfterEntry autosave overwrites it. Fixture preparation
+                # only: never loaded, relabelled or edited; its bytes are pinned by the selection.
+                $existing=$ownedPairsSource.existingAuto;$existingAutoCopy=Join-Path $isolatedSaves ([string]$existing.descriptor.fileName)
+                if(Test-Path -LiteralPath $existingAutoCopy){throw 'The pre-existing Auto slot leaf already exists in the isolated root.'}
+                Assert-KmcNotReparsePoint $existing.path 'pre-existing Auto source'
+                Assert-KmcNotHardLink $existing.path 'pre-existing Auto source'
+                Copy-Item -LiteralPath $existing.path -Destination $existingAutoCopy
+                $existingInfo=Get-Item -LiteralPath $existingAutoCopy
+                if($existingInfo.IsReadOnly){$existingInfo.IsReadOnly=$false}
+                [IO.File]::SetLastWriteTimeUtc($existingAutoCopy,([IO.File]::GetLastWriteTimeUtc($existing.path)))
+                if((Get-KmcSha256 $existingAutoCopy)-cne[string]$existing.descriptor.sha256-or[string]$existing.descriptor.sha256-cne[string]$request.ownedPairs.existingAutoSha256){
+                    throw 'Copied pre-existing Auto bytes differ from the admitted pin.'
+                }
+                $ownerRecord['existingAutoSha256']=[string]$existing.descriptor.sha256
+            }
+            Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') $ownerRecord
             if(Test-KmcChunk7SmallScenario $Scenario){if(Test-KmcChunk7SmallF09Case $request.smallCalibration){Copy-KmcChunk7SmallF09SourceArtifact $smallSource $profileRoot $lock}elseif(Test-KmcChunk7SmallManualCase $request.smallCalibration){Copy-KmcChunk7SmallManualSourceArtifact $smallSource $profileRoot $lock}else{Copy-KmcChunk7FieldSourceArtifact $smallSource $profileRoot $lock}}
             if(Test-KmcChunk7ProgressionScenario $Scenario){Copy-KmcChunk7ProgressionInputs $progressionSource $profileRoot $lock}
             if(Test-KmcChunk7FieldScenario $Scenario){Copy-KmcChunk7FieldSourceArtifact $fieldSource $profileRoot $lock}
@@ -1044,6 +1113,7 @@ try{
     if($BaseGameOnly){
         Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles
         $stageArguments['BaseGameDependencies']=$baseGameDependencies
+        if($retainedDependencies.Count-ne0){$stageArguments['RetainedDependencies']=$retainedDependencies}
     }
     # Exactly two packages: KMC and the external normal-player observer.
     if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
@@ -1070,10 +1140,12 @@ try{
     }
     if($BaseGameOnly){
         $baseGameStaged=$true
-        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;
+        $admissionReceipt=[ordered]@{schemaVersion=1;runId=$actualRunId;
             transactionToken=[string]$lock.Token;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencies=$baseGameDependencies;
             transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
-            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false})
+            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false}
+        if($retainedDependencies.Count-ne0){$admissionReceipt['retainedDependencies']=@($retainedDependencies|ForEach-Object{[ordered]@{id=$_.id;version=$_.version;sourceRunId=$_.sourceRunId;dllName=$_.dllName;dllSha256=$_.dllSha256;digest=$_.digest;fileCount=$_.fileCount}})}
+        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') $admissionReceipt
     }
     Write-KmcJsonAtomic $requestPath $request
     & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
@@ -1117,6 +1189,11 @@ try{
         # No KMC arguments at all: even a stray KMC assembly would stay inert.
         @('-applaunch','640820','-kmcObserverRequest',('"'+$observerRequestPath+'"'),'-kmcObserverToken',[string]$lock.Token,'-kmcObserverRequestSha256',(Get-KmcSha256 $observerRequestPath))
     }else{@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)}
+    # Re-admission immediately before the game starts: lock and staging time is inside the
+    # accounted interval. A refusal here propagates to this transaction's finally block, which
+    # restores the staged installation normally; a game or save worker is never interrupted.
+    Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('game launch '+$workflowBatchKey) -EstimatedSeconds $TimeoutSeconds
+    $workflowLaunchStarted=[DateTime]::UtcNow
     [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
@@ -1223,10 +1300,13 @@ try{
             if($process.HasExited){$processExited=$true;throw 'Kingmaker exited before committing its atomic game result.'}
             $all=@(Get-Process -Name Kingmaker -ErrorAction SilentlyContinue)
             if($all.Count-ne1-or$all[0].Id-ne$process.Id){throw 'Kingmaker process attribution changed during the run.'}
+            if(([DateTime]::UtcNow-$workflowHeartbeatAt).TotalSeconds-ge60){try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{};$workflowHeartbeatAt=[DateTime]::UtcNow}
             if(@(Get-KmcSuspiciousWindows).Count-ne0){throw 'Unexpected Steam/account UI appeared during the run.'}
             if([DateTimeOffset]::UtcNow-ge$deadline){throw 'Runtime game result timed out; Kingmaker is intentionally left running and restoration is blocked.'}
             Start-Sleep -Milliseconds 250
         }
+        # Measured launch-to-result duration of this selection, for later planning estimates.
+        try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('native launch '+$workflowBatchKey) -StepSeconds ([DateTime]::UtcNow-$workflowLaunchStarted).TotalSeconds}catch{}
         if($isNormalPlayer){
             & (Join-Path $repoRoot 'scripts\runtime\Test-KmcNormalPlayerResult.ps1') -ObserverResultPath $observerResultPath -RequestPath $requestPath -ObserverRequestPath $observerRequestPath -GameResultPath $gameResultPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt
             $gameResultHash=Get-KmcSha256 $gameResultPath
@@ -1255,7 +1335,7 @@ try{
             $inventoryManifest=Read-KmcJson $inventoryManifestPath
             $inventory=Read-KmcChunk7ManifestArtifact $request $inventoryManifest 'runtime-loader-inventory.json' 'runtime-loader-inventory'
             if($inventory.observations.processId-ne$process.Id){throw 'Loader inventory came from a different native process.'}
-            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies
+            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies -RetainedDependencies $retainedDependencies
             $baseGameNativeInventoryObserved=$true
             $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
         }
@@ -1476,6 +1556,11 @@ catch{
     }
 }
 finally{
+    # Settlement/restoration: the entry's clock is suspended here, because restoration is never
+    # skipped or shortened for a budget and is never charged to one. The entry stays pending:
+    # it completes only after the final evidence readers below decide the actual verdict.
+    try{Suspend-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{Write-Warning ('Workflow budget suspension failed: '+$_.Exception.Message)}
+    $workflowRestorationStarted=[DateTime]::UtcNow
     if($null-ne$process){
         try{
             $exitDeadline=[DateTimeOffset]::UtcNow.AddSeconds(30)
@@ -1590,14 +1675,16 @@ finally{
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
     }
     if($BaseGameOnly){
-        try{Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') ([ordered]@{
+        try{$isolationResult=[ordered]@{
             schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
             stageVerified=$baseGameStaged;dependenciesUnchanged=$baseGameDependenciesUnchanged;processExited=$processExited;
             modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;gameReportedPass=$gamePassed;
             transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});
             nativeInventoryObserved=$baseGameNativeInventoryObserved;runtimeLoaderInventorySha256=$baseGameNativeInventorySha256;
             nativeCompatibilityQualified=($gamePassed-and$baseGameNativeInventoryObserved-and$baseGameDependenciesUnchanged-and$modsRestored-and$saveProtection-and$processExited-and$errors.Count-eq0);
-            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})})}
+            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})}
+            if($retainedDependencies.Count-ne0){$isolationResult['retainedDependencies']=@($retainedDependencies|ForEach-Object{[ordered]@{id=$_.id;version=$_.version;sourceRunId=$_.sourceRunId;dllName=$_.dllName;dllSha256=$_.dllSha256;digest=$_.digest;fileCount=$_.fileCount}})}
+            Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') $isolationResult}
         catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
     }
     # The normal-player outer result binds its request (and so any u2/u3 carry source) by SHA-256;
@@ -1652,7 +1739,12 @@ finally{
             Write-KmcJsonAtomic $orchestrationPath $orchestration
         }catch{Write-Error ('Orchestration evidence update failed: '+$_.Exception.Message)}
     }
+    try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('restoration '+$Scenario+' '+$actualRunId) -StepSeconds ([DateTime]::UtcNow-$workflowRestorationStarted).TotalSeconds}catch{Write-Warning ('Workflow budget restoration record failed: '+$_.Exception.Message)}
+    # Restoration is settled; the final evidence readers below are ordinary metered validation.
+    try{Resume-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{Write-Warning ('Workflow budget resumption failed: '+$_.Exception.Message)}
 }
+# Every throw from here on reaches the script-scope trap above, which completes this run's
+# budget entry as failed: a late restoration or reader failure stays a failed native attempt.
 if(-not(Test-Path -LiteralPath $requestPath -PathType Leaf)-or-not(Test-Path -LiteralPath $finalResultPath -PathType Leaf)){
     throw "Runtime scenario failed before complete request/result evidence was written. Evidence: $evidenceRoot"
 }
@@ -1666,3 +1758,5 @@ else{
     if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Runtime scenario failed. Evidence: $finalResultPath"}
     Write-Host "Runtime scenario PASS: $finalResultPath"
 }
+# The actual final verdict is known only now: the entry completes with it, reader time included.
+Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed

@@ -101,6 +101,59 @@ Check 'exact KMC append with a forward LastUpdateCheck accepted' {Assert-KmcNati
 Check 'LastUpdateCheck-only forward change accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams $foreignMods '2026-10-17T13:00:00.0000000Z') -BaseGameOnly}
 Check 'KMC absent after a run without OnDestroy accepted (unchanged)' {Assert-KmcNativeUmmStartupDelta $ownerParams $ownerParams -BaseGameOnly}
 Check 'KMC absent after a ModParams rewrite without KMC accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams '') -BaseGameOnly}
+# Sprint 1 UPG-01: retained dependencies staged beside KMC gain default entries in the loader's own order.
+$cotwAppended="`n    <Mod Id=`"CallOfTheWild`" Enabled=`"true`"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>`n  "
+$cmiAppended="`n    <Mod Id=`"CraftMagicItems`" Enabled=`"true`"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>`n  "
+$depIds=@('CallOfTheWild','CraftMagicItems')
+Check 'retained dependencies: KMC kept, defaults appended' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>',($cotwAppended+$cmiAppended+'</ModParams>'))) -BaseGameOnly -StagedModIds $depIds}
+Check 'retained dependencies: loader load order (dependencies before the kept KMC entry)' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('<ModParams>',('<ModParams>'+$cotwAppended+$cmiAppended))) -BaseGameOnly -StagedModIds $depIds}
+Check 'retained dependencies: all three appended when the original had none' {Assert-KmcNativeUmmStartupDelta $ownerParams (New-OwnerParams ($cmiAppended+$kmcAppended+$cotwAppended)) -BaseGameOnly -StagedModIds $depIds}
+Check 'retained dependencies: unchanged parameters still accepted' {Assert-KmcNativeUmmStartupDelta $ownerParams $ownerParams -BaseGameOnly -StagedModIds $depIds}
+Reject 'retained dependencies: an undeclared third entry refused' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>',($cotwAppended+$cmiAppended+'<Mod Id="New" Enabled="true"/></ModParams>'))) -BaseGameOnly -StagedModIds $depIds}
+Reject 'retained dependencies: a disabled dependency entry refused' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>',($cotwAppended.Replace('Enabled="true"','Enabled="false"')+$cmiAppended+'</ModParams>'))) -BaseGameOnly -StagedModIds $depIds}
+Reject 'retained dependencies: appends without the staged declaration refused' {Assert-KmcNativeUmmStartupDelta $f.parameters ($reduced.Replace('</ModParams>',($cotwAppended+$cmiAppended+'</ModParams>'))) -BaseGameOnly}
+Check 'runtime write classification admits writes confined to a retained dependency folder' {
+    $staged=@([pscustomobject]@{kind='directory';path='CallOfTheWild';length=0;sha256=$null},[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=2;sha256=('b'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/loaded_blueprints.txt';length=1;sha256=('c'*64)})
+    $runtime=[pscustomobject]@{entries=@([pscustomobject]@{kind='directory';path='CallOfTheWild';length=0;sha256=$null},[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=2;sha256=('b'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/loaded_blueprints.txt';length=5;sha256=('d'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Settings.xml';length=4;sha256=('e'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('a'*64)})}
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime -RetainedDependencies @([pscustomobject]@{id='CallOfTheWild'})
+    Need (@($c.unexpected).Count-eq0) ('unexpected: '+(@($c.unexpected|ForEach-Object{$_.change+' '+$_.path})-join ','))
+    Need (@($c.expected|Where-Object change -CEQ 'dependency-runtime-change').Count-eq1-and@($c.expected|Where-Object change -CEQ 'dependency-runtime-write').Count-eq1-and@($c.expected|Where-Object change -CEQ 'added').Count-eq1) 'expected classes'
+}
+Check 'runtime write classification still refuses dependency assembly, Info.json and foreign writes' {
+    $staged=@([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=2;sha256=('b'*64)})
+    $runtime=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('f'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=9;sha256=('b'*64)},[pscustomobject]@{kind='file';path='Other/note.txt';length=1;sha256=('c'*64)})}
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime -RetainedDependencies @([pscustomobject]@{id='CallOfTheWild'})
+    Need (@($c.unexpected).Count-eq3-and@($c.expected).Count-eq0) 'three unexpected'
+    $none=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime
+    Need (@($none.unexpected).Count-eq3) 'without declaration'
+}
+# Sprint 1 iteration 6: a UMM loader cache in a dependency folder passes only the byte-copy rule, never the folder exception.
+$cacheStaged=@([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=2;sha256=('b'*64)})
+function New-CacheRuntime([object[]]$Added){[pscustomobject]@{entries=@($cacheStaged+$Added)}}
+$cacheDep=@([pscustomobject]@{id='CallOfTheWild'})
+Check 'dependency DLL cache: a byte-exact copy is accepted by the byte-copy rule alone' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.unexpected).Count-eq0-and@($c.expected).Count-eq1-and$c.expected[0].change-ceq'added'-and$c.expected[0].path-ceq'CallOfTheWild/CallOfTheWild.dll.1234.cache') 'byte-exact cache classified added'
+}
+Check 'dependency DLL cache: a copy whose bytes differ is refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('f'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq1-and$c.unexpected[0].change-ceq'added') 'mismatching cache unexpected'
+}
+Check 'dependency DLL cache: a copy whose length differs is refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=4;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq1) 'wrong-length cache unexpected'
+}
+Check 'dependency DLL cache: an orphaned cache, a bare .cache and a DLL-named stray are refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/Other.dll.5.cache';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/data.cache';length=1;sha256=('c'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.bak';length=3;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq3) ('three unexpected: '+(@($c.unexpected|ForEach-Object{$_.change+' '+$_.path})-join ','))
+}
+Check 'dependency DLL cache: a changed staged cache and a new executable are refused, data writes still admitted' {
+    $staged=@($cacheStaged+[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('a'*64)})
+    $runtime=[pscustomobject]@{entries=@($cacheStaged+[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('f'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Extra.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/dumps/trace.txt';length=1;sha256=('c'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Settings.xml';length=4;sha256=('e'*64)})}
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime -RetainedDependencies $cacheDep
+    Need (@($c.unexpected).Count-eq2-and@($c.unexpected|Where-Object change -CEQ 'changed').Count-eq1-and@($c.unexpected|Where-Object path -CEQ 'CallOfTheWild/Extra.dll').Count-eq1) ('unexpected: '+(@($c.unexpected|ForEach-Object{$_.change+' '+$_.path})-join ','))
+    Need (@($c.expected).Count-eq2-and@($c.expected|Where-Object change -CEQ 'dependency-runtime-write').Count-eq2) 'nested data writes admitted'
+}
 foreach($case in @(
     @('disabled KMC append',(New-OwnerParams $kmcAppended.Replace('Enabled="true"','Enabled="false"'))),
     @('foreign append beside KMC',(New-OwnerParams ($kmcAppended+'<Mod Id="New" Enabled="true"/>'))),
@@ -140,6 +193,41 @@ Check 'ready-tree WhatIf validates without mutating staging or actual fixture' {
 Reject 'ready tree outside its owned staging run rejected before creation' {New-KmcBaseGameReadyTree -StagingRun $preview -CloneRoot $previewClone -ReadyRoot (Join-Path $f.home 'outside') -PackageModRoot $previewPackage -Before $before -Confirm:$false}
 [IO.File]::WriteAllText((Join-Path $previewPackage 'Foreign.dll'),'foreign')
 Reject 'foreign package payload rejected before ready-tree creation' {New-KmcBaseGameReadyTree -StagingRun $preview -CloneRoot $previewClone -ReadyRoot (Join-Path $preview 'Mods-ready') -PackageModRoot $previewPackage -Before $before -Confirm:$false}
+# Sprint 1 UPG-01: retained foreign dependencies staged beside KMC in the ready tree.
+$depPreview=Join-Path $stage 'preview-deps';[void][IO.Directory]::CreateDirectory($depPreview)
+$depClone=Join-Path $depPreview 'Mods-live-clone';[void](Copy-KmcDirectoryTreeExact $f.mods $depClone)
+$depPackage=Join-Path $depPreview 'package-overlay/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory((Split-Path $depPackage));[void](Copy-KmcDirectoryTreeExact $packageSource $depPackage)
+$depSource=Join-Path $f.home 'retained/CallOfTheWild';[void][IO.Directory]::CreateDirectory((Join-Path $depSource 'Data'))
+[IO.File]::WriteAllText((Join-Path $depSource 'info.json'),'{"Id":"CallOfTheWild","Version":"1.14.4c-2.1","AssemblyName":"CallOfTheWild.dll"}')
+[IO.File]::WriteAllText((Join-Path $depSource 'CallOfTheWild.dll'),'retained dependency assembly')
+[IO.File]::WriteAllText((Join-Path $depSource 'CallOfTheWild.dll.10016.cache'),'stale loader cache')
+[IO.File]::WriteAllText((Join-Path $depSource 'Data/settings.json'),'{"a":1}')
+$depManifest=Get-KmcRetainedDependencyManifest $depSource
+$dep=[pscustomobject]@{id='CallOfTheWild';version='1.14.4c-2.1';sourceRunId='test';sourcePath=$depSource;dllName='CallOfTheWild.dll';dllSha256=(Get-KmcSha256 (Join-Path $depSource 'CallOfTheWild.dll'));digest=$depManifest.digest;fileCount=$depManifest.fileCount}
+Check 'retained dependency manifest excludes the loader cache and pins every other file' {Need ($depManifest.fileCount-eq3-and@($depManifest.excludedCacheFiles).Count-eq1-and$depManifest.excludedCacheFiles[0]-ceq'CallOfTheWild.dll.10016.cache') 'manifest shape'}
+Check 'ready tree stages the retained dependency beside KMC without its loader cache' {
+    New-KmcBaseGameReadyTree -StagingRun $depPreview -CloneRoot $depClone -ReadyRoot (Join-Path $depPreview 'Mods-ready') -PackageModRoot $depPackage -Before $before -RetainedDependencies @($dep) -Confirm:$false
+    $ready=Join-Path $depPreview 'Mods-ready'
+    $top=@(Get-ChildItem -LiteralPath $ready -Force|ForEach-Object Name|Sort-Object)
+    Need (($top-join '|')-ceq'CallOfTheWild|KingmakerMountedCombat') ('top-level set: '+($top-join '|'))
+    Need (-not(Test-Path -LiteralPath (Join-Path $ready 'CallOfTheWild/CallOfTheWild.dll.10016.cache'))) 'cache copied'
+    Need ((Get-KmcRetainedDependencyManifest (Join-Path $ready 'CallOfTheWild')).digest-ceq$dep.digest) 'staged digest'
+    Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $depClone) 'preserved clone'
+}
+foreach($fault in @(
+    @('a reserved id',{param($d)$d.id='KingmakerMountedCombat'}),
+    @('a changed assembly pin',{param($d)$d.dllSha256='0'*64}),
+    @('a changed folder digest',{param($d)$d.digest='1'*64}),
+    @('a source outside the lab',{param($d)$d.sourcePath='C:\Windows\Temp\CallOfTheWild'}))){
+    $script:faultName=$fault[0];$script:mutate=$fault[1]
+    Reject ('ready tree refuses a retained dependency with '+$script:faultName) {
+        $bad=$dep.PSObject.Copy();&$script:mutate $bad
+        $run=Join-Path $stage ('preview-fault-'+[Guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($run)
+        $clone=Join-Path $run 'Mods-live-clone';[void](Copy-KmcDirectoryTreeExact $f.mods $clone)
+        $pkg=Join-Path $run 'package-overlay/KingmakerMountedCombat';[void][IO.Directory]::CreateDirectory((Split-Path $pkg));[void](Copy-KmcDirectoryTreeExact $packageSource $pkg)
+        New-KmcBaseGameReadyTree -StagingRun $run -CloneRoot $clone -ReadyRoot (Join-Path $run 'Mods-ready') -PackageModRoot $pkg -Before $before -RetainedDependencies @($bad) -Confirm:$false
+    }
+}
 
 $lock=Open-KmcRuntimeLock $state 'base-only-positive'
 try{

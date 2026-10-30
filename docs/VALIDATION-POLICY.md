@@ -56,14 +56,36 @@ select a broad campaign for an ordinary checkpoint.
 .\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-Chunk6cCasting.ps1
 # After review, when freezing a native candidate, choose Candidate instead of Fast.
 .\scripts\Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker -Focused Test-Chunk6cCasting.ps1
-# Explicit milestone/final offline qualification only:
-.\scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker
+# Explicit milestone/final offline qualification only (the task must be named):
+.\scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker -QualificationTask 'chunk7 final'
+# Resolve the selection, prerequisites, artifact identity, impact map and remaining
+# allowance without building, running, locking or launching:
+.\scripts\Test-Tiers.ps1 -Plan -Tier Candidate -Focused chunk7\Test-Chunk7PersistenceEvidence.ps1
 ```
 
 Candidate contains Fast; never run both for unchanged inputs. Full forwards the
 assembly target, configuration and build choice through Test.ps1. Unsupported
 combinations are refused before expensive work. Selected scripts are deduplicated
-against the tier's built-in checks. Documentation or external-reader work may
+against the tier's built-in checks. `-Focused` accepts repository-relative paths
+inside `scripts\`; traversal, links and paths outside the tree are refused. Current
+KMC assembly checks default to Kingmaker; Wrath or Both must be selected explicitly.
+`scripts/WorkflowBudget.ps1` keeps one cumulative sprint allowance (90 minutes by default; the record's `allowanceMinutes` is authoritative and any change is recorded in its `allowanceAdjustments` with the authorizing assignment, as the `sprint1` record's one-time 2026-10-30 adjustment to 135 minutes is;
+`KMC_WORKFLOW_BUDGET_ID`, record under the lab's `runtime-state\workflow-budgets`):
+Test-Tiers and the native launcher ask for admission before any validation, build,
+lock or launch (a pure parameter-shape refusal, which needs no lab state, is decided first and
+is never an attempt) and again before every further step (cumulative allowance, 30-minute
+block ceiling, known oversized work refused rather than started); children inherit a
+parent's entry only after it is verified live, and a real native launch under such a parent
+is still one counted attempt of the batch (recorded under the parent, no spend of its own);
+a real native launch is subject to the batch rule (five distinct scenario/case selections
+per batch, two failed attempts per selection); the launcher re-admits before its live
+transaction and immediately before the game starts, suspends the entry's clock for
+settlement/restoration (never charged), meters the final readers, and completes the entry
+only at the final verdict, so a late restoration or reader failure stays a failed attempt;
+an interrupted entry with unknown spend blocks admission until
+`scripts/Reconcile-WorkflowBudget.ps1` records it; and an exhausted allowance refuses
+new work without ever shortening settlement or restoration. Isolated persistence runs
+may keep the player's archive-path spelling with the launcher's `-EngineShapedSaveRoot`. Documentation or external-reader work may
 invoke its relevant reader directly, without a product build.
 
 Package creation, suite freeze, launcher purity, the cross-feature native campaign

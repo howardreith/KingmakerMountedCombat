@@ -133,9 +133,40 @@ function Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource($Selection,[AllowNull()][
  $result=[ordered]@{path=$w.path;descriptor=$descriptor;artifactPath=$path;artifactSha256=$Selection.sourceArtifactSha256;artifactLength=[long]$file.Length;sourceRunId=$request.runId;ownerSeedDerived=$true;seed=$seed}
  if($combat){$consumer=Get-KmcChunk7OwnerSeedConsumerReceipt $Selection $Fixture $artifact $descriptor;foreach($key in $consumer.Keys){$result[$key]=$consumer[$key]}
   $result['candidates']=[pscustomobject][ordered]@{producer=$producerCandidate;consumer=$consumer.consumerCandidate;current=[pscustomobject][ordered]@{commit=$Candidate.commit;dllSha256=$Candidate.dllSha256;dllMvid=$Candidate.dllMvid};sameCandidate=(($producerCandidate.commit-ceq$Candidate.commit)-and($producerCandidate.dllSha256-ceq$Candidate.dllSha256)-and($producerCandidate.dllMvid-ceq$Candidate.dllMvid))}}
+ if($Selection.case-ceq'owner-seed-checkpoint-save'-and(Test-KmcChunk7OwnedAreaOverwriteSelection $Selection)){$result['existingAuto']=Get-KmcChunk7OwnedExistingAutoSource $Selection $PersistenceCase $Fixture $AreaTarget $descriptor}
  [pscustomobject]$result
 }
 # A receipt's own recorded candidate identity (later-candidate combat reuse); never the current one.
+# Sprint 1 (SAVE-02): the owner-seed area producer's admitted pre-existing Auto slot. It is the exact destination
+# Auto an accepted earlier first-ever producer of this same campaign, route and destination wrote (PASS receipts,
+# pinned evidence and archive bytes), still byte-identical in its retained run root. Fixture preparation only:
+# the archive is copied beside the Manual input, never loaded, relabelled or edited.
+function Get-KmcChunk7OwnedExistingAutoSource($Selection,[string]$PersistenceCase,$Fixture,$AreaTarget,$ManualDescriptor){
+ if($PersistenceCase-cne'multi-area-autosave'-or$Selection.case-cne'owner-seed-checkpoint-save'){throw 'Only the owner-seed area producer admits a pre-existing Auto slot.'}
+ foreach($key in @('existingAutoRunId','existingAutoArtifactSha256','existingAutoSha256')){if($null-eq$Selection.PSObject.Properties[$key]-or$Selection.$key-isnot[string]-or[string]::IsNullOrWhiteSpace($Selection.$key)){throw 'The pre-existing Auto slot requires its exact run and SHA256 pins.'}}
+ $set=Get-KmcChunk7OwnedReceiptSet $Selection.existingAutoRunId 'chunk7-persistence-evidence.json';$request=$set.request
+ Assert-KmcBootstrapInventoryString $request.scenario 'chunk7-owned-two-pair-campaign';Assert-KmcBootstrapInventoryString $request.ownedPairs.case 'owner-seed-checkpoint-save';Assert-KmcBootstrapInventoryString $request.persistenceCase 'multi-area-autosave'
+ if(Test-KmcChunk7OwnedAreaOverwriteSelection $request.ownedPairs){throw 'A pre-existing Auto slot must come from a first-ever area producer, not from another overwrite.'}
+ if((Test-KmcChunk7ManticoreReturnArea $request.ownedPairs)-ne(Test-KmcChunk7ManticoreReturnArea $Selection)){throw 'The pre-existing Auto producer used a different area route.'}
+ Assert-KmcBootstrapInventoryString $request.ownedPairs.sourceArea $Selection.sourceArea
+ if((ConvertTo-KmcChunk7Canonical $request.persistenceAreaTarget)-cne(ConvertTo-KmcChunk7Canonical $AreaTarget)){throw 'The pre-existing Auto was not written by this exact controlled native destination.'}
+ $producerCandidate=Get-KmcChunk7RecordedCandidate $request
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.existingAutoRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $request.ownedPairs.sourceArchiveSha256 1
+ Assert-KmcBootstrapInventoryString $set.owner.persistenceCase 'multi-area-autosave'
+ Assert-KmcChunk7OwnedAreaProfileRestoration $set $Selection.existingAutoRunId
+ Assert-KmcChunk7PersistenceArtifact $request $set.manifest 'PASS'
+ $artifact=Read-KmcChunk7ManifestArtifact $request $set.manifest 'chunk7-persistence-evidence.json' 'chunk7-persistence-evidence'
+ $path=Join-Path $set.root 'chunk7-persistence-evidence.json';$file=Get-Item -LiteralPath $path
+ if($file.Length-le0-or$file.Length-gt16MB-or$set.pins[$path]-cne$Selection.existingAutoArtifactSha256){throw 'The pre-existing Auto evidence differs from its explicit pin.'}
+ $w=$artifact.observations.nativeWrite;$leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations
+ if($leaf-cne'Auto_1.zks'-or$w.nativeType-cne'Auto'-or$w.sha256-cne$Selection.existingAutoSha256-or$w.archive.AreaId-cne$AreaTarget.area-or$w.archive.CampaignId-cne$ManualDescriptor.gameId){throw 'The pre-existing Auto is not the accepted destination Auto of this campaign.'}
+ $expected=Join-Path (Join-Path $set.profile 'Saved Games') $leaf
+ if($w.path-isnot[string]-or$w.path-cne$expected){throw 'The pre-existing Auto escaped its producer run root.'}
+ Assert-KmcNotReparsePoint $w.path 'pre-existing Auto';Assert-KmcNotHardLink $w.path 'pre-existing Auto'
+ if((Get-KmcSha256 $w.path)-cne$w.sha256){throw 'The pre-existing Auto bytes changed after qualification.'}
+ Assert-KmcChunk7OwnedReceiptPins $set
+ [pscustomobject][ordered]@{path=$w.path;descriptor=[pscustomobject][ordered]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long](Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks;gameId=$ManualDescriptor.gameId;gameName=$ManualDescriptor.gameName;area=$w.archive.AreaId};runId=$request.runId;artifactPath=$path;artifactSha256=$Selection.existingAutoArtifactSha256;artifactLength=[long]$file.Length;producerCandidate=$producerCandidate}
+}
 function Get-KmcChunk7RecordedCandidate($Request){
  if($Request.commit-isnot[string]-or$Request.commit-cnotmatch'\A[a-f0-9]{40}\z'-or$Request.dllSha256-isnot[string]-or$Request.dllSha256-cnotmatch'\A[a-f0-9]{64}\z'-or
     $Request.dllMvid-isnot[string]-or$Request.dllMvid-cnotmatch'\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z'){throw 'Qualified receipt does not record its exact candidate identity.'}
@@ -326,12 +357,14 @@ function Get-KmcChunk7ManticoreReturnSource($Selection,[string]$PersistenceCase,
  Assert-KmcChunk7ManticoreManualColdSource $cold $producer $artifact
  Assert-KmcChunk7OwnedReceiptPins $set
  Assert-KmcBootstrapInventoryString (Get-KmcDirectoryManifest $areaCustody.generatedPath).digest $areaCustody.generatedDigest
- [pscustomobject][ordered]@{path=$manual.path;descriptor=$manual.descriptor;artifactPath=$manual.artifactPath;
+ $result=[pscustomobject][ordered]@{path=$manual.path;descriptor=$manual.descriptor;artifactPath=$manual.artifactPath;
   artifactSha256=$manual.artifactSha256;artifactLength=$manual.artifactLength;sourceRunId=$manual.producerRunId;
   ownerSeedDerived=$true;manticoreManual=$true;parent=$manual.parent;seed=$manual.parent.seed;producerCandidate=$manual.candidate;
   acceptedColdRunId=$cold.runId;acceptedColdArtifactSha256=$Selection.checkpointSourceArtifactSha256;
   acceptedColdCandidate=$coldCandidate;currentCandidate=[pscustomobject][ordered]@{
    commit=$Candidate.commit;dllSha256=$Candidate.dllSha256;dllMvid=$Candidate.dllMvid}}
+ if(Test-KmcChunk7OwnedAreaOverwriteSelection $Selection){$result|Add-Member -NotePropertyName existingAuto -NotePropertyValue (Get-KmcChunk7OwnedExistingAutoSource $Selection $PersistenceCase $Fixture $AreaTarget $manual.descriptor)}
+ $result
 }
 # pinned by run and persistence-evidence hash, on its own recorded candidate. Its own source is
 # re-derived (Manual producer plus accepted consumer) and must be exactly the Manual it loaded; the
@@ -357,7 +390,7 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCheckpointSource($Selection,[AllowNull(
   Get-KmcChunk7ManticoreReturnSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget
  }else{Get-KmcChunk7OwnedPairsOwnerSeedDerivedSource $request.ownedPairs $sourceCase $Fixture $producerCandidate $AreaTarget}
  if((ConvertTo-KmcChunk7Canonical $request.persistenceLoad)-cne(ConvertTo-KmcChunk7Canonical $manual.descriptor)){throw 'Checkpoint producer did not load the exact owner-seed-derived Manual.'}
- Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 1
+ Assert-KmcChunk7OwnedSourceCompletion $set $Selection.checkpointSourceRunId 'chunk7-owned-two-pair-campaign' $Fixture $producerCandidate $Selection.sourceArchiveSha256 (Get-KmcChunk7OwnedWriteCount $request)
  Assert-KmcBootstrapInventoryString $set.owner.persistenceCase $sourceCase
  $areaCustody=$null
  if($PersistenceCase-ceq'multi-area-autosave'){

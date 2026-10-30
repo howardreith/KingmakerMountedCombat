@@ -61,6 +61,26 @@ Bad-Startup 'root matching singleton array' {Assert-KmcRuntimeStartupTrace @((Re
 Bad-Startup 'actual result assignment refuses null field' {$game=Read-Startup 'result-v2.json';$game.startupTrace=$null;. ([scriptblock]::Create($commonAssign[0].Extent.Text))}
 Good-Startup 'observational ordering failure retains valid prefix' {$value=Read-Startup 'partial.json';$value.orderingFailure=$true;Assert-KmcRuntimeStartupTrace $value}
 Good-Startup 'same native frame across callbacks allowed' {$value=Read-Startup 'full.json';foreach($row in $value.samples){$row.unityFrame=100};Assert-KmcRuntimeStartupTrace $value}
+function New-EngineTail([int]$observed,[int]$rows){$entries=@(if($rows-gt0){1..$rows|ForEach-Object{[pscustomobject]@{severity='Error';channel='Default';timeStamp=12.5;message=('row '+$_);callstack=@('Kingmaker.Player.PostLoad','System.Linq.Enumerable.Single')}}});[pscustomobject]@{contract='native-engine-log-tail-v1';capacity=64;observed=$observed;dropped=($observed-$rows);entries=$entries}}
+Good-Startup 'actual v2 result with engine log tail lists the optional field' {$game=Read-Startup 'result-v2.json';$game|Add-Member -NotePropertyName engineLogTail -NotePropertyValue (New-EngineTail 2 2);. ([scriptblock]::Create($commonAssign[0].Extent.Text));if(@($commonRequired|Where-Object{$_-ceq'engineLogTail'}).Count-ne1){throw 'Engine log tail field missing from actual result shape.'}}
+Good-Startup 'historical v2 result without engine log tail lists no such field' {$game=Read-Startup 'result-v2.json';. ([scriptblock]::Create($commonAssign[0].Extent.Text));if(@($commonRequired|Where-Object{$_-ceq'engineLogTail'}).Count-ne0){throw 'Historical shape changed.'}}
+Good-Startup 'empty engine log tail accepted' {Assert-KmcNativeEngineLogTail (New-EngineTail 0 0)}
+Good-Startup 'saturated engine log tail accounts for dropped rows' {Assert-KmcNativeEngineLogTail (New-EngineTail 70 64)}
+Bad-Startup 'actual result assignment refuses null engine log tail' {$game=Read-Startup 'result-v2.json';$game|Add-Member -NotePropertyName engineLogTail -NotePropertyValue $null;. ([scriptblock]::Create($commonAssign[0].Extent.Text))}
+$tailFaults=@(
+ [pscustomobject]@{label='engine tail contract';change={param($v)$v.contract='native-engine-log-tail-v2'}}
+ [pscustomobject]@{label='engine tail capacity';change={param($v)$v.capacity=65}}
+ [pscustomobject]@{label='engine tail dropped mismatch';change={param($v)$v.dropped=1}}
+ [pscustomobject]@{label='engine tail observed below rows';change={param($v)$v.observed=1}}
+ [pscustomobject]@{label='engine tail unknown root property';change={param($v)$v|Add-Member -NotePropertyName nativeLoadProven -NotePropertyValue $true}}
+ [pscustomobject]@{label='engine tail message severity';change={param($v)$v.entries[0].severity='Message'}}
+ [pscustomobject]@{label='engine tail unknown row property';change={param($v)$v.entries[0]|Add-Member -NotePropertyName handled -NotePropertyValue $true}}
+ [pscustomobject]@{label='engine tail callstack scalar';change={param($v)$v.entries[0].callstack='Kingmaker.Player.PostLoad'}}
+ [pscustomobject]@{label='engine tail oversized message';change={param($v)$v.entries[0].message=('m'*2001)}}
+ [pscustomobject]@{label='engine tail rows as one object';change={param($v)$v.entries=$v.entries[0]}}
+ [pscustomobject]@{label='engine tail too many rows';change={param($v)$v.observed=65;$v.dropped=0;$v.entries=@($v.entries)+@(1..63|ForEach-Object{$v.entries[0]})}}
+)
+foreach($case in $tailFaults){$selectedCase=$case;Bad-Startup $case.label {$value=New-EngineTail 2 2;& $selectedCase.change $value;Assert-KmcNativeEngineLogTail $value}}
 $changed=@($inputs|Where-Object{(Get-FileHash -LiteralPath $_.path -Algorithm SHA256).Hash.ToLowerInvariant()-cne$_.sha256})
 if($changed.Count-ne0){$script:startupFail++;Write-Output 'FAIL source inputs changed'}
 $receipt=[ordered]@{schemaVersion=1;kind='runtime-startup-evidence-actual';status=$(if($startupFail-eq0){'PASS'}else{'FAIL'});passed=$startupPass;failed=$startupFail;inputs=$inputs;changedInputs=$changed;source='Actual optional result common-fields assignment and strict startup helper; other complete game-result and native boundaries not executed';nativeInvoked=$false}

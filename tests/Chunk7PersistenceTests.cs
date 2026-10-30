@@ -375,6 +375,38 @@ public static class Chunk7PersistenceTests
             Reject(actorless.ToString(Formatting.None), "schema3 cannot invent a retained owner with no native actor obligation");
         }
         finally { NativeMountedSaveFormat.ArchiveNativeSupportEnabled = selectedNativeSupport; }
+        // Sprint 1 UPG-01 cold observer: the expected restore counters are derived from the archive, never fixed.
+        var plain = Archive(1); plain.Combat = null; plain.Participations = new SavedPairParticipation[0];
+        var plainIds = plain.SemanticRestoreActorIds();
+        Check(plainIds.Length == 2 && plainIds.Contains(plain.Pairs[0].Rider.Id) && plainIds.Contains(plain.Pairs[0].Mount.Id) &&
+            plain.ExpectedPresentationRestoreCount == 1, "cold expectation: a plain attached pair restores two actors and one presentation");
+        var inCombat = Archive(1);
+        Check(inCombat.Combat.Actors.Length == 2 && inCombat.Participations.Length == 1 && inCombat.SemanticRestoreActorIds().Length == 2 &&
+            inCombat.ExpectedPresentationRestoreCount == 1, "cold expectation: pair actors also present in combat and a participation owner count once");
+        var extra = Archive(1); var third = Actor();
+        extra.Combat.Actors = extra.Combat.Actors.Concat(new[] { CombatActor(third) }).ToArray();
+        var extraIds = extra.SemanticRestoreActorIds();
+        Check(extraIds.Length == 3 && extraIds.Contains(third.Id) && extra.ExpectedPresentationRestoreCount == 1,
+            "cold expectation: a pair plus an extra combat actor restores three actors and one presentation (the UPG-01 resave shape)");
+        var twoPairs = Archive(2);
+        Check(twoPairs.SemanticRestoreActorIds().Length == 4 && twoPairs.ExpectedPresentationRestoreCount == 2,
+            "cold expectation: two attached pairs restore four actors and two presentations");
+        Check(MountedArchiveData.RestoreCountersMatch(extraIds, 1, 3, 1) &&
+            !MountedArchiveData.RestoreCountersMatch(extraIds, 1, 2, 1) && !MountedArchiveData.RestoreCountersMatch(extraIds, 1, 4, 1) &&
+            !MountedArchiveData.RestoreCountersMatch(extraIds, 1, 3, 0) && !MountedArchiveData.RestoreCountersMatch(extraIds, 1, 3, 2) &&
+            !MountedArchiveData.RestoreCountersMatch(null, 1, 0, 1),
+            "cold expectation: exact equality refuses a missing, extra or duplicated semantic or presentation restore");
+        var legacy = Historical(); legacy.Combat = null;
+        Check(legacy.SemanticRestoreActorIds().Length == 2 && legacy.ExpectedPresentationRestoreCount == 1,
+            "cold expectation: a legacy mounted save without combat restores its rider and mount once");
+        var legacyCombat = Historical(); var legacyThird = Actor();
+        legacyCombat.Combat.Actors = legacyCombat.Combat.Actors.Concat(new[] { CombatActor(legacyThird) }).ToArray();
+        var legacyIds = legacyCombat.SemanticRestoreActorIds();
+        Check(legacyIds.Length == 3 && legacyIds.Contains(legacyThird.Id) && legacyCombat.ExpectedPresentationRestoreCount == 1,
+            "cold expectation: a legacy save counts its combat actors and pair actors once each");
+        var unmounted = Historical(); unmounted.Mounted = false; unmounted.Rider = null; unmounted.Mount = null;
+        Check(unmounted.SemanticRestoreActorIds().Length == 2 && unmounted.ExpectedPresentationRestoreCount == 0,
+            "cold expectation: an unmounted legacy combat save presents nothing");
         Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
     }
 }

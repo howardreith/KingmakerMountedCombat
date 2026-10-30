@@ -126,7 +126,7 @@ namespace KingmakerMountedCombat.Integration
             var temporary = type.GetProperty("TempFileFolder");
             if (name?.GetGetMethod()?.MetadataToken != 0x060001CF ||
                 temporary?.GetSetMethod()?.MetadataToken != 0x060001F2 ||
-                Path.GetDirectoryName((string)name.GetValue(zip, null)) != root)
+                Path.GetDirectoryName(Path.GetFullPath((string)name.GetValue(zip, null))) != root)
                 throw new InvalidOperationException("Native archive destination is outside its exact isolated root.");
             // Exact get_WriteStream (0600021E) chooses this folder or Name's
             // parent. Both are now the same authorized run-owned directory.

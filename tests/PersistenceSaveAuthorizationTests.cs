@@ -32,6 +32,39 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
             runner.Run("declared area transfer admits only its two exact endpoints", TransitionEndpoints);
             runner.Run("a declared foreign-campaign leaf admits only its own read-only identity", ForeignIdentity);
+            runner.Run("engine-shaped spellings of the owned root are admitted and other roots or relative paths are not", EngineShapedSpelling);
+        }
+
+        // The engine mints every archive path from Unity's forward-slash persistent data
+        // path joined with backslashes. An isolated run that hands the engine its root in
+        // that spelling must still be admitted for the same owned files, and nothing else.
+        private static void EngineShapedSpelling()
+        {
+            using (var files = new Files())
+            {
+                var guard = files.Guard(Entry("Manual"), Entry("Quick"));
+                var parent = KingmakerMountedCombat.Integration.NativeArchiveReplacementPath.EngineShapedParent(files.Root);
+                var observedRoot = Path.Combine(parent, "Saved Games");
+                TestRunner.True(parent.IndexOf('/') >= 0 && observedRoot.IndexOf('\\') >= 0 && observedRoot != files.Root &&
+                    Path.GetFullPath(observedRoot) == files.Root, "Fixture does not reproduce the engine's mixed-separator root.");
+                foreach (var type in new[] { "Manual", "Quick" })
+                {
+                    var target = files.Target(type);
+                    target.FullPath = Path.Combine(observedRoot, target.FileName);
+                    TestRunner.Equal<string>(null, guard.Validate(RuntimeSaveOperation.Write, target, observedRoot), "engine-shaped " + type);
+                }
+                var elsewhere = files.Target("Manual");
+                elsewhere.FullPath = Path.Combine(Path.Combine(parent, "Elsewhere"), elsewhere.FileName);
+                Reject(guard, elsewhere, observedRoot);
+                var rootRelative = files.Target("Manual");
+                rootRelative.FullPath = files.Root.Substring(2) + "\\" + rootRelative.FileName;
+                Reject(guard, rootRelative, observedRoot);
+                var driveRelative = files.Target("Manual");
+                driveRelative.FullPath = files.Root.Substring(0, 2) + driveRelative.FileName;
+                Reject(guard, driveRelative, observedRoot);
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, files.Target("Manual"), observedRoot.Replace("Saved Games", "Other Games")) != null,
+                    "An engine-shaped spelling of another root was accepted.");
+            }
         }
 
         // SaveRoutine sets Player.SavedInArea before PrepareSave copies it into

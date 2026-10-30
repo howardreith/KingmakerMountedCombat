@@ -110,6 +110,20 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool ValidOwner(string id, long generation) => MountedSaveData.ActorId(id) && generation > 0;
         private static void Require(bool condition, string message) => SaveStateValidation.Require(condition, message);
+
+        // Cold-load restore contract, derived from the archive itself so observers never guess it:
+        // the world restore (MountedPersistenceService.World) restores one native snapshot per
+        // distinct actor ID across the combat actor snapshots and every attached pair's rider and
+        // mount, and presents each attached pair once. Participation owners name those same actors
+        // and add no restoration of their own. Derivation only; the restore logic is unchanged.
+        internal string[] SemanticRestoreActorIds()
+            => (Combat?.Actors ?? new SavedCombatActor[0]).Select(a => a?.Native)
+                .Concat((Pairs ?? new SavedMountedPair[0]).SelectMany(p => new[] { p?.Rider, p?.Mount }))
+                .Where(a => a != null).Select(a => a.Id).Distinct(StringComparer.Ordinal).ToArray();
+        internal int ExpectedPresentationRestoreCount => Pairs?.Length ?? 0;
+        // Exact equality only: a missing, duplicated or extra restore of either kind is refused.
+        internal static bool RestoreCountersMatch(string[] expectedActorIds, int expectedPresentation, int semantic, int presentation)
+            => expectedActorIds != null && semantic == expectedActorIds.Length && presentation == expectedPresentation;
     }
 
     internal sealed class SavedMountedPair

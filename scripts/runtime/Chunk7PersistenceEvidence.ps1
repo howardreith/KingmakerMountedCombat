@@ -52,12 +52,18 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7CapitalArrivalEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual') }
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
+# Sprint 1 slot rotation: the owner-seed checkpoint producer overwrites its selected output through
+# ordinary saves (the QuickSave handler body, or SaveGame on the existing Manual). Writes after the
+# first are native replacement commits; the final bytes at the unchanged leaf are the receipt.
+function Get-KmcChunk7SlotRotationCases { @('multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
+function Test-KmcChunk7SlotRotationCase([string]$Case) { $Case -cin (Get-KmcChunk7SlotRotationCases) }
+function Get-KmcChunk7SlotRotationWrites([string]$Case) { if($Case-ceq'multi-exploration-rotation-quick'){return 3}; if($Case-ceq'multi-exploration-overwrite-manual'){return 2}; return 0 }
 function Test-KmcChunk7PersistenceScenario([string]$Scenario) { $Scenario -cin @('chunk7-persistence-save','chunk7-persistence-load') }
 function Get-KmcChunk7PersistenceRows {
     @('chunk7-persistence-save','chunk7-persistence-load','C7-persistence-two-native-mounts','C7-persistence-native-category-all-pair-archive',
       'C7-persistence-cold-all-pair-identity-and-no-prepare','C7-persistence-nonselected-mount-save-deferral','C7-persistence-owned-worker-cancel-drain','C7-persistence-three-native-loads','C7-persistence-three-native-area-transfers','C7-persistence-capital-arrival-retirement','C7-persistence-capital-arrival-native-manual','C7-persistence-capital-arrival-cold','C7-persistence-owned-schema1-source','C7-persistence-owner-seed-restored-start','C7-persistence-schema1-native-restoration','C7-persistence-schema1-native-resave','C7-persistence-schema2-native-resave','C7-persistence-native-continuation','C7-persistence-all-pair-area-before-autosave','C7-persistence-one-native-mount-legacy-source','C7-persistence-native-combat-continuation','C7-persistence-cleanup','C7-persistence-runtime','C7-persistence-interrupted','C7-persistence-owner-seed-derived-cold-identity','C7-persistence-current-migration-native-load','C7-persistence-current-migration-continuation','C7-persistence-real-entry-load-refusal','C7-persistence-manticore-fixture-native-manual','C7-persistence-tomb-door-fixture-native-manual','C7-persistence-thorn-river-door-fixture-native-manual','C7-persistence-manticore-manual-cold-identity',
-      'C7-persistence-six-native-mounts','C7-persistence-six-mounted-archive','C7-persistence-six-native-continuation')
+      'C7-persistence-six-native-mounts','C7-persistence-six-mounted-archive','C7-persistence-six-native-continuation','C7-persistence-native-slot-rotation')
 }
 function Get-KmcChunk7PersistenceType([string]$Case) {
     if($Case-cnotin(Get-KmcChunk7PersistenceCases)){throw 'Undeclared Chunk 7 native persistence case.'}
@@ -253,7 +259,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     } else {
         $type=Get-KmcChunk7PersistenceType $Request.persistenceCase
         Assert-KmcChunk7NativeCounters $o.nativeWrite @('snapshotCount')
-        if($o.nativeWrite.nativeType-cne$type-or$o.nativeWrite.operation-cne'None'-or$o.nativeWrite.snapshotCount-ne$(if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){2}else{1})-or
+        $rotation=(Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and$Request.ownedPairs.case-ceq'owner-seed-checkpoint-save'-and(Test-KmcChunk7SlotRotationCase $Request.persistenceCase)
+        if($o.nativeWrite.nativeType-cne$type-or$o.nativeWrite.operation-cne'None'-or$o.nativeWrite.snapshotCount-ne$(if($Request.persistenceCase-ceq'multi-owned-worker-cancel-manual'){2}elseif($rotation){Get-KmcChunk7SlotRotationWrites $Request.persistenceCase}else{1})-or
            $o.nativeWrite.sha256-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-KmcExactJsonInteger $o.nativeWrite.length)-or
            $o.nativeWrite.length-le0-or$o.nativeWrite.length-gt256MB){throw 'Native save category/completion identity differs.'}
         if($Request.persistenceCase-ceq'multi-area-autosave'){
@@ -263,9 +270,11 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         }else{
             Assert-KmcChunk7NativeCounters $o.saveRequested @('snapshotCount')
             if($o.saveRequested.nativeType-cne$type-or$o.saveRequested.snapshotCount-ne0){throw 'Explicit native save request differs.'}
-            Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback ($Request.persistenceCase-cne'multi-owned-worker-cancel-manual')
+            # The final bytes of a slot rotation are the handler-route overwrite's: no callback.
+            Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback ($Request.persistenceCase-cne'multi-owned-worker-cancel-manual'-and-not$rotation)
             Assert-KmcChunk7Boolean $o.saveRequested.nativeSaveAllowed $true
             Assert-KmcChunk7Boolean $o.saveRequested.newSlot $true
+            if($rotation){Assert-KmcChunk7SlotRotationEvidence $Request $o}
         }
         $inputs=@($o.inputs)
         # Owner-seed checkpoint producer: the verified restored mounted start replaces both native Mount inputs.

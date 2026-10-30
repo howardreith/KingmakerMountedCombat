@@ -59,6 +59,11 @@ namespace KingmakerMountedCombat.Diagnostics
                             RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
+                // Sprint 1 (SAVE-02): the owner-seed area producer's pre-existing Auto slot, pinned and
+                // read-only until its reservation marks it as the one replaceable output.
+                if (request.OwnedPairs?.IsAreaOverwrite(request.PersistenceCase) == true)
+                    entries.Add(new PersistenceSaveEntry { FileName = PersistenceSaveAuthorization.OwnerSeedAutoLeaf, InternalName = OwnedPairsOutputName(request),
+                        SaveType = "Auto", Area = request.ExpectedChunk7ArchiveArea, InitialSha256 = request.OwnedPairs.ExistingAutoSha256, Writable = false });
                 if (request.Scenario == Chunk7ManualDerivedSelection.Scenario)
                     entries.Add(new PersistenceSaveEntry { FileName = request.ManualDerived.NativeWriteLeaf,
                         InternalName = request.ManualDerived.SelectedOutputName, SaveType = "Manual", Area = fixture.Area, Writable = true });
@@ -116,7 +121,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // at 1 here rather than at the 300 a staged Working fixture
                 // produces. The declared leaf has to be the one the engine will
                 // actually choose, or PrepareSave rejects its own descriptor.
-                if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase))
+                // The UPG-01 resave shares the rule: its root holds just the retained Quick.
+                if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) || request.IsUpgradeResave)
                     entries.Add(new PersistenceSaveEntry {
                         FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
@@ -291,6 +297,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     NativePersistenceIsolation.Install(harmony);
                     NativePersistenceIsolation.Bind(authority);
+                    if (request.EngineShapedSaveRoot == true) NativePersistenceIsolation.EnableEngineShapedRoot();
                 }
                 catch { harmony.UnpatchAll(HarmonyId); throw; }
                 redirected = true;
@@ -299,7 +306,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
-            var expectedCount = request.Scenario == "persistence-p06-load" || request.OwnedPairs?.IsOwnerSeedLoadRefusal == true || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
+            var expectedCount = request.Scenario == "persistence-p06-load" || request.OwnedPairs?.IsOwnerSeedLoadRefusal == true || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ||
+                request.OwnedPairs?.IsAreaOverwrite(request.PersistenceCase) == true ? 2 : 1;
             if (saves.Length != expectedCount || saves.Any(save => (request.OwnedPairs != null || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario
                 ? authority.ValidateArchiveIdentity(Project(save), game.SaveManager.SavePath)
                 : authority.Validate(RuntimeSaveOperation.Load, Project(save), game.SaveManager.SavePath)) != null))
@@ -323,7 +331,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     !source.IsActuallySaved || !source.HasFileOnDisk || NativePersistenceIsolation.NativeSlotRotationEnabled || Game.Instance != game)
                     throw new InvalidOperationException("Inherited two-owner native inventory is not settled before campaign admission.");
                 // Owner-seed setup level-up Autos are reserved one at a time by the scenario, never at load.
-                if (request.OwnedPairs.WriteCount(request.PersistenceCase) > 0 && !request.OwnedPairs.IsOwnerSeed)
+                if (request.OwnedPairs.IsAreaOverwrite(request.PersistenceCase))
+                {
+                    var existing = saves.Single(save => save.FileName == PersistenceSaveAuthorization.OwnerSeedAutoLeaf);
+                    if (existing.Type != SaveInfo.SaveType.Auto || existing.OperationState != SaveInfo.StateType.None || !existing.IsActuallySaved ||
+                        !existing.HasFileOnDisk || existing.IsAutoLevelupSave || existing.GameId != source.GameId ||
+                        existing.Area?.AssetGuidThreadSafe != request.ExpectedChunk7ArchiveArea)
+                        throw new InvalidOperationException("The pre-existing Auto slot is not a settled archive of the fixture campaign in the declared destination.");
+                    authority.ReserveOwnedPairsAreaOverwrite(request, game, game.SaveManager, source, Project(source), existing, Project(existing),
+                        game.SaveManager.FindUnusedSaveNumber(SaveInfo.SaveType.Auto));
+                }
+                else if (request.OwnedPairs.WriteCount(request.PersistenceCase) > 0 && !request.OwnedPairs.IsOwnerSeed)
                 {
                     var type = OwnedPairsOutputType(request);
                     authority.ReserveOwnedPairsOutput(request, game, game.SaveManager, source, Project(source),

@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Diagnostics
     // save, and never restoration proof by itself (only a separate cold process can be).
     internal sealed partial class Chunk7WorldScenarioEngine
     {
+        // Engine descriptor strings may mix separators under the engine-shaped isolated
+        // root; file identity, not spelling, is what these assertions are about.
+        private static bool SameArchivePath(string left, string right) =>
+            !string.IsNullOrEmpty(left) && !string.IsNullOrEmpty(right) && Path.GetFullPath(left) == Path.GetFullPath(right);
         internal const string OwnerSeedManualRow = "C7-world-owner-seed-manual";
         internal const string OwnerSeedManualContract = "owner-seed-derived-manual-producer-v1";
         internal const string OwnerSeedManualReceiptContract = "owner-seed-derived-manual-v1";
@@ -138,7 +142,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // the list's object (observed in 20261018-c7b-world24-ownerseed-b3s1b-save); both must
                 // describe the same file. The list entry itself stays pinned to the reserved descriptor above.
                 var loaded = fixtureLoader.Descriptor;
-                if (loaded == null || loaded.FileName != seed.FileName || loaded.FolderName != seed.FolderName || loaded.Name != seed.Name || loaded.GameId != seed.GameId)
+                if (loaded == null || loaded.FileName != seed.FileName || !SameArchivePath(loaded.FolderName, seed.FolderName) || loaded.Name != seed.Name || loaded.GameId != seed.GameId)
                     failed.Add("notLoadedDescriptorFile(loadedIsNull=" + (loaded == null) + ")");
                 if (seed.FileName != input.FileName) failed.Add("fileName=" + seed.FileName);
                 if (seed.Name != input.InternalName) failed.Add("name=" + seed.Name);
@@ -187,7 +191,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     prepared.Name == (FourthHorseSetup ? Chunk7OwnedPairsSelection.FourthHorseManualName :
                         ThirdHorseManual ? Chunk7OwnedPairsSelection.SmallFixtureManualName : Chunk7OwnedPairsSelection.OwnerSeedManualName) &&
                     prepared.FileName == fixtureAuthority.OwnedPairsOutputLeaf &&
-                    !prepared.IsAutoLevelupSave && prepared.FolderName == Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf),
+                    !prepared.IsAutoLevelupSave && SameArchivePath(prepared.FolderName, Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf)),
                     "Owner-seed native Manual changed its requested descriptor, prepared copy, category, destination or path.");
                 manualHeaderOperation = operation; manualHeaderRequested = requested; manualHeaderPrepared = prepared;
                 manualHeaderStarting = ManualHeaderRow("native-header-starting", prepared);
@@ -241,7 +245,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var completion = persistence.LastCompletedSave; var manager = Game.Instance.SaveManager; var input = request.PersistenceLoad;
             Require(manualCallbacks == 1 && completion != null && persistence.CompletedSaveCount == 1 && completion.Sequence == manualSnapshotBefore + 1 &&
                 ReferenceEquals(completion.Requested, manualRequested) && ReferenceEquals(completion.Written, manualHeaderPrepared) &&
-                completion.Path == Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf) &&
+                SameArchivePath(completion.Path, Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf)) &&
                 fixtureAuthority.MatchesOwnedPairsPlan(true, false) && fixtureAuthority.AdmittedNativeLoadRequests == 1 &&
                 fixtureAuthority.AdmittedNativeWriteRequests == 1 && fixtureAuthorization.AuthorizedLoadCount == 1 &&
                 fixtureAuthorization.AuthorizedWriteCount == 1 && fixtureAuthorization.UnauthorizedWriteCount == 0 &&
@@ -280,6 +284,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(persistence.SnapshotCount == manualSnapshotBefore + 1 && controls.NativeCastRequestCount == manualCastBefore &&
                 !controls.SerializationSuspended && !persistence.SaveSuspended, "Native Manual replayed input or retained an owned serialization lease.");
             var path = Path.Combine(fixtureAuthority.Root, fixtureAuthority.OwnedPairsOutputLeaf); var file = new FileInfo(manualSaved.FolderName);
+            // (FileInfo.FullName is the canonical spelling; the engine's own string may mix separators under the engine-shaped root.)
             Require(file.FullName == path && file.Exists && file.Length > 0, "Owner-seed native Manual escaped its reserved run-root leaf.");
             var archive = JObject.FromObject(saved, MountedSaveCodec.CreateSerializer());
             evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["sha256"] = ManualHash(file.FullName), ["length"] = file.Length,
