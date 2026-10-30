@@ -1493,10 +1493,25 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            // Phase two: the admissible plan mutates exactly what it names, then the admission is re-decided.
+            // Phase two: the admissible plan mutates exactly what it names, then the admission is re-decided. An armed
+            // stock-attack intent yields to the door click (native: a new Standard replaces the attack); only the intent
+            // is cleared here, never the controller-wide cancel, so the recovery and mount-move branches below name
+            // their own replacements.
             if (HasStockAttackIntent)
             {
-                Cancel("door interaction replaced stock attack intent");
+                var dispatched = stockIntentCommand != null && ReferenceEquals(activeCommand, stockIntentCommand) ? activeCommand : null;
+                ClearStockAttackIntent("door interaction replaced stock attack intent", true);
+                ClearObservedStockRequest();
+                if (dispatched != null && !dispatched.ChargeMode)
+                {
+                    activeCommand = null;
+                    if (!dispatched.IsFinished)
+                    {
+                        pairedCommandScheduler.ObserveExternalInterrupt(dispatched, "door interaction replaced stock attack");
+                        dispatched.Interrupt();
+                    }
+                }
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
             }
             if (plan == MountedDoorAdmissionPlan.ReplaceRecovery)
             {
@@ -1509,6 +1524,8 @@ namespace KingmakerMountedCombat.Integration
                 var replaced = activeDoorInteraction;
                 activeDoorInteraction = null;
                 replaced?.Interrupt();
+                // The earlier approach's finished delegated move may still sit in the Move slot; sweep it before re-deciding.
+                if (mountCommands != null && mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
                 logger.Info("Mounted door interaction replaced an earlier door approach: door=" + exactDoor.name);
                 disposition = DecideDoorAdmission(mountCommands, exactDoor);
             }
@@ -1742,7 +1759,10 @@ namespace KingmakerMountedCombat.Integration
                 mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||
                 mountCommands.GetCommand(UnitCommand.CommandType.Swift) != null;
             return MountedDoorApproachPolicy.DecideAdmission(
-                HasActiveCommand || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending,
+                // A dispatched stock-attack intent is replaceable by a door click (native: a new Standard replaces the
+                // attack); it is interrupted in phase two of TryRouteMountedDoorInteraction, never here.
+                HasActiveCommand && !(HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) ||
+                HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending,
                 HasActiveDoorInteraction,
                 HasActiveDoorInteraction && ReferenceEquals(activeDoorInteraction.Door, exactDoor),
                 CombatController.IsInTurnBasedCombat(),
