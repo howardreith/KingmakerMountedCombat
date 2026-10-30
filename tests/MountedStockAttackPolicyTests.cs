@@ -28,6 +28,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
+            runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
             runner.Run("a click whose own Run carried another command leaves nothing to borrow", ClickBoundToItsOwnRun);
             runner.Run("an unbound click observation expires at the next frame's Run", StaleObservationExpires);
             runner.Run("two pairs keep separate click ownership across selection changes", ClickOwnershipIsPairLocal);
@@ -357,6 +358,22 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(Route(request, rider, target, click, 100), "The click's own command was refused.");
             TestRunner.True(!Route(request, rider, target, click, 100), "One click was admitted twice.");
             TestRunner.True(!Route(request, rider, target, sameTarget, 101), "A later proposal borrowed a consumed click.");
+        }
+
+        // Sprint 1 UPG-01 (r15): a cold-loaded rider carries its saved Standard cooldown; the same RT stock click
+        // that dispatches a ready rider first dispatches the ready mount instead, and waits when neither is ready.
+        private static void RestoredDebtRoutesMountFirst()
+        {
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, true, false, false), "Restored rider debt did not route the ready melee mount first.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, true, false, false), "A ready rider lost its first attack.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, false, false, false), "Two spent actors did not wait.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, true, true, false), "A ranged rider with its mount out of reach did not wait.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, true, false, false, true, false, false), "An active pair command did not wait.");
         }
 
         private static void ClickBoundToItsOwnRun()
