@@ -49,6 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool Completed { get; private set; }
         internal RuntimeSubscenarioResult Result { get; private set; }
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
+        // Sprint 1 UPG-01: after the cold verification of the retained older Quick, one native Manual resave.
+        private bool UpgradeResaveCase => request.IsUpgradeResave;
         private int completedSlotWrites;
         private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" || ChargeLifecycleCase;
         private bool Cold => request.Scenario == "persistence-p07-load" || ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
@@ -277,7 +279,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("usable-continuation-complete");
                 // A transition autosave must also still support an ordinary
                 // subsequent write from the world it actually restored.
-                if (AreaAutoColdCase)
+                if (AreaAutoColdCase || UpgradeResaveCase)
                 {
                     callback = false;
                     game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
@@ -293,6 +295,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 var saved = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
                 if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                if (UpgradeResaveCase)
+                {
+                    // Sprint 1 UPG-01: the current product writes the schema-3 archive member; the retained input
+                    // was older. The resave must carry the restored pair in the input's area and campaign and be
+                    // a new archive, never the input rewritten.
+                    var archive = NativeMountedSaveStorage.ReadArchive(saved.Saver);
+                    var pair = NativeMountedSaveFormat.CanRestore(archive) && archive.Data.Pairs.Length == 1 ? archive.Data.Pairs[0] : null;
+                    Check(pair != null && pair.Rider.Id == rider.UniqueId && pair.Mount.Id == mount.UniqueId &&
+                        archive.Data.AreaId == request.PersistenceLoad.Area && archive.Data.CampaignId == request.PersistenceLoad.GameId &&
+                        archive.Data.SchemaVersion == MountedArchiveData.Schema && persistence.SnapshotCount == 1 &&
+                        Hash(saved.FolderName) != request.PersistenceLoad.Sha256,
+                        "UPG01-cold-load-of-the-retained-archive-supports-a-native-resave");
+                    Write("native-write-complete", new JObject {
+                        ["ordinal"] = 1, ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName),
+                        ["length"] = new FileInfo(saved.FolderName).Length, ["nativeType"] = saved.Type.ToString(),
+                        ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString(),
+                        ["sourceSha256"] = request.PersistenceLoad.Sha256,
+                        ["snapshot"] = JObject.FromObject(archive.Data, MountedSaveCodec.CreateSerializer()) });
+                    Dispose();
+                    Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                        AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                    Completed = true;
+                    return;
+                }
                 var written = NativeMountedSaveStorage.Read(saved.Saver);
                 Check(written.Kind == MountedSaveReadKind.Current && written.Data.Mounted &&
                     written.Data.Rider.Id == rider.UniqueId && written.Data.Mount.Id == mount.UniqueId &&

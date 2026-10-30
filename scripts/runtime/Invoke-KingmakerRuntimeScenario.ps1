@@ -45,6 +45,11 @@ param(
     # player's Unity persistent data path (forward slashes joined with backslashes), so the
     # run keeps the player's path condition while every write stays in the same owned root.
     [switch]$EngineShapedSaveRoot,
+    # Sprint 1 UPG-01: the genuine prior-version archive chain (the P05 Quick cold load that resaves one Manual; the P05
+    # Manual cold load of that resave in a new process). Base-game staging with the archive's retained dependencies only.
+    [switch]$UpgradeChain,
+    # Explicitly retained foreign mod folders (the archive's own serialized dependencies) staged beside KMC in base-game mode.
+    [string]$RetainedDependencySelectionPath,
     [switch]$ObserveWorkingDeserialization,
     [switch]$F11NativeAllocationProbe,
     [switch]$OwnerStockRemoval,
@@ -445,6 +450,12 @@ $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $baseGameDependencies=$null
 if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
+$retainedDependencies=@()
+if(-not[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){
+    if(-not$BaseGameOnly){throw 'Retained dependencies are staged only in the explicit base-game mode.'}
+    $retainedDependencies=@(Read-KmcRetainedDependencySelection $RetainedDependencySelectionPath)
+    Write-Host ('Retained dependencies selected (never installed; staged beside KMC in the owned transaction): '+(($retainedDependencies|ForEach-Object{$_.id+' '+$_.version+' dll='+$_.dllSha256.Substring(0,8)+' digest='+$_.digest.Substring(0,8)})-join ', '))
+}
 $legacyContinuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
@@ -694,6 +705,10 @@ try{
     }
     if($ObserveWorkingDeserialization){$request['observeWorkingDeserialization']=$true}
     if($EngineShapedSaveRoot){if(-not$isSaveBacked){throw 'The engine-shaped save root applies to save-backed isolated runs only.'};$request['engineShapedSaveRoot']=$true}
+    if($UpgradeChain){
+        if($Scenario-cne'persistence-p05-load'-or$PersistenceCase-cnotin@('quick','manual')-or-not$BaseGameOnly-or[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){throw 'The upgrade chain is the P05 Quick cold load that resaves or the P05 Manual cold load of that resave, under base-game staging with the archive''s retained dependencies.'}
+        $request['upgradeChain']=$true
+    }
     if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
         contract='f11-native-allocation-v1';baseGameOnly=$true
         path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
@@ -988,6 +1003,10 @@ try{
                     # The no-pair archive a death run wrote, under its own name.
                     Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase -ArtifactRole death-manual
                 }
+                elseif($UpgradeChain-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+                    # Sprint 1 UPG-01: the Manual the upgrade producer resaved after its cold load of the retained Quick.
+                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase quick -ArtifactRole upgrade-resave-manual
+                }
                 else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase}
                 $copySource=$source.path;$copyDescriptor=$source.descriptor
                 # Copy the admitted immutable archive under one exact new leaf.
@@ -1047,6 +1066,7 @@ try{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario;persistenceCase=$PersistenceCase
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             }
+            if($UpgradeChain){$ownerRecord['upgradeChain']=$true}
             if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$null-ne$ownedPairsSource.PSObject.Properties['existingAuto']){
                 # Sprint 1 (SAVE-02): the admitted pre-existing Auto slot, copied beside the Manual input
                 # under its own leaf so the genuine AfterEntry autosave overwrites it. Fixture preparation
@@ -1093,6 +1113,7 @@ try{
     if($BaseGameOnly){
         Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles
         $stageArguments['BaseGameDependencies']=$baseGameDependencies
+        if($retainedDependencies.Count-ne0){$stageArguments['RetainedDependencies']=$retainedDependencies}
     }
     # Exactly two packages: KMC and the external normal-player observer.
     if($isNormalPlayer){$stageArguments['ObserverPackagePath']=$ObserverPackagePath}
@@ -1119,10 +1140,12 @@ try{
     }
     if($BaseGameOnly){
         $baseGameStaged=$true
-        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') ([ordered]@{schemaVersion=1;runId=$actualRunId;
+        $admissionReceipt=[ordered]@{schemaVersion=1;runId=$actualRunId;
             transactionToken=[string]$lock.Token;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencies=$baseGameDependencies;
             transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
-            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false})
+            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false}
+        if($retainedDependencies.Count-ne0){$admissionReceipt['retainedDependencies']=@($retainedDependencies|ForEach-Object{[ordered]@{id=$_.id;version=$_.version;sourceRunId=$_.sourceRunId;dllName=$_.dllName;dllSha256=$_.dllSha256;digest=$_.digest;fileCount=$_.fileCount}})}
+        Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') $admissionReceipt
     }
     Write-KmcJsonAtomic $requestPath $request
     & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
@@ -1312,7 +1335,7 @@ try{
             $inventoryManifest=Read-KmcJson $inventoryManifestPath
             $inventory=Read-KmcChunk7ManifestArtifact $request $inventoryManifest 'runtime-loader-inventory.json' 'runtime-loader-inventory'
             if($inventory.observations.processId-ne$process.Id){throw 'Loader inventory came from a different native process.'}
-            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies
+            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies -RetainedDependencies $retainedDependencies
             $baseGameNativeInventoryObserved=$true
             $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
         }
@@ -1652,14 +1675,16 @@ finally{
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
     }
     if($BaseGameOnly){
-        try{Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') ([ordered]@{
+        try{$isolationResult=[ordered]@{
             schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
             stageVerified=$baseGameStaged;dependenciesUnchanged=$baseGameDependenciesUnchanged;processExited=$processExited;
             modsRestored=$modsRestored;saveProtectionPassed=$saveProtection;gameReportedPass=$gamePassed;
             transactionStatePath=$modsTransactionStatePath;transactionStateSha256=$(if($null-ne$modsTransactionStatePath-and(Test-Path -LiteralPath $modsTransactionStatePath)){Get-KmcSha256 $modsTransactionStatePath}else{$null});
             nativeInventoryObserved=$baseGameNativeInventoryObserved;runtimeLoaderInventorySha256=$baseGameNativeInventorySha256;
             nativeCompatibilityQualified=($gamePassed-and$baseGameNativeInventoryObserved-and$baseGameDependenciesUnchanged-and$modsRestored-and$saveProtection-and$processExited-and$errors.Count-eq0);
-            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})})}
+            limitation=$(if($isNormalPlayer){'Request-free control under an external observer: exactly two active UMM entries (KMC and the observer) and both assembly identities are observed in-process; installed loader files are verified on disk; the complete loaded-assembly inventory is not observed.'}else{'Qualification is limited to this exact selected scenario and candidate. Loaded UMM entries and assembly identities are observed; broader gameplay is not inferred.'})}
+            if($retainedDependencies.Count-ne0){$isolationResult['retainedDependencies']=@($retainedDependencies|ForEach-Object{[ordered]@{id=$_.id;version=$_.version;sourceRunId=$_.sourceRunId;dllName=$_.dllName;dllSha256=$_.dllSha256;digest=$_.digest;fileCount=$_.fileCount}})}
+            Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-result.json') $isolationResult}
         catch{$errors.Add('Base-game isolation receipt failed: '+$_.Exception.Message)}
     }
     # The normal-player outer result binds its request (and so any u2/u3 carry source) by SHA-256;

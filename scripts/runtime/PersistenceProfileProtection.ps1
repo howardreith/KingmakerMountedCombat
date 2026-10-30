@@ -312,7 +312,7 @@ function Assert-KmcNativeUmmStartupDelta {
     param([string]$Before,[string]$After,[switch]$RemovalObserver,[switch]$BaseGameOnly,[switch]$WithObserver,[string[]]$StagedModIds)
     if($BaseGameOnly-and$RemovalObserver){throw 'Base-game and removal-observer settings authorities cannot be combined.'}
     if($WithObserver-and-not$BaseGameOnly){throw 'The co-staged observer authority exists only in the isolated base-game mode.'}
-    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver;return}
+    if($BaseGameOnly){Assert-KmcBaseGameUmmStartupDelta -Before $Before -After $After -WithObserver:$WithObserver -StagedDependencyIds @($StagedModIds|Where-Object{-not[string]::IsNullOrWhiteSpace($_)});return}
     [xml]$original=$Before;[xml]$current=$After
     # Unchanged parameters are the ordinary case now and the safest possible
     # outcome, so they pass on their own. This assertion was written when UMM
@@ -377,6 +377,15 @@ function Get-KmcRunStagedModIds([string]$RunId){
     # The staged tree must carry the observer itself; an empty or foreign id list would prune every entry.
     if($ids-cnotcontains'KmcRemovalObserver'){throw 'Staged Mods record lacks the removal observer.'}
     return ,$ids
+}
+# Sprint 1 UPG-01: the retained dependency ids a base-game transaction declared (durable state, never a caller's claim).
+function Get-KmcRunRetainedDependencyIds([string]$RunId){
+    $lab=Get-KmcLabRoot
+    $state=Read-KmcJson (Get-KmcTransactionStatePath (Join-Path $lab 'runtime-state') $RunId)
+    if([string]$state.runId-cne$RunId){throw 'Staged Mods record belongs to another run.'}
+    if($null-eq$state.PSObject.Properties['retainedDependencies']){return ,[string[]]@()}
+    if([int]$state.schemaVersion-ne4-or[string]$state.stagingMode-cnotin@('base-game-only-kmc','base-game-only-kmc-observer')){throw 'Retained dependencies belong only to a base-game staging record.'}
+    return ,[string[]]@($state.retainedDependencies|ForEach-Object{[string]$_.id})
 }
 # b210 c3: a native crash left the transaction prepared/staged, so profile recovery (which needs an otherwise-restored
 # transaction under the stale lock) could not run first, and after transaction recovery the lock is closed. The completed
@@ -486,7 +495,7 @@ function Restore-KmcPersistenceStartupSettings {
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
         if($RemovalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver -StagedModIds (Get-KmcRunStagedModIds ([string]$Lock.RunId))}
-        else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver}
+        else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -BaseGameOnly:$BaseGameOnly -WithObserver:$withObserver -StagedModIds $(if($BaseGameOnly){Get-KmcRunRetainedDependencyIds ([string]$Lock.RunId)}else{$null})}
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}

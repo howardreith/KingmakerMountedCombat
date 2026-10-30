@@ -152,6 +152,14 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? EngineShapedSaveRoot { get; set; }
         public bool ShouldSerializeEngineShapedSaveRoot() => EngineShapedSaveRoot.HasValue;
 
+        // Sprint 1 UPG-01: the genuine prior-version archive chain. The P05 Quick cold load of a
+        // retained older archive resaves one native Manual after its cold verification (the producer);
+        // the P05 Manual cold load of that output in a new process is the consumer. Explicit true only.
+        public bool? UpgradeChain { get; set; }
+        public bool ShouldSerializeUpgradeChain() => UpgradeChain.HasValue;
+        internal bool IsUpgradeResave => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "quick";
+        internal bool IsUpgradeConsumer => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "manual";
+
         // Private, guarded F11 measurement only. The native observer is not a
         // package member and ordinary requests cannot name or load native code.
         public F11NativeAllocationSelection F11AllocationProbe { get; set; }
@@ -299,6 +307,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 !(Scenario != null && Scenario.StartsWith("persistence-", StringComparison.Ordinal) || IsChunk7PersistenceScenario(Scenario) ||
                     Scenario == "chunk7-owned-two-pair-campaign" || OwnedPairs != null)))
                 errors.Add("The engine-shaped save root is an explicit true opt-in for isolated persistence scenarios only.");
+            if (UpgradeChain.HasValue && (UpgradeChain != true || SchemaVersion != SaveBackedSchemaVersion ||
+                Scenario != "persistence-p05-load" || PersistenceLoad == null ||
+                (PersistenceCase != "quick" && PersistenceCase != "manual")))
+                errors.Add("The upgrade chain is an explicit true opt-in for the P05 Quick cold load that resaves (producer) and the P05 Manual cold load of that resave (consumer).");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
@@ -1055,7 +1067,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
                         campaignB ? "^Manual_302_KMC_B\\.zks$" :
                         p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
-                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
+                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" :
+                        IsUpgradeConsumer ? "^Manual_1_KMC_P01\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Cold native slot name is missing or oversized.");
