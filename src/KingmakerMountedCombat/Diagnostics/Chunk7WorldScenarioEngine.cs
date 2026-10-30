@@ -271,9 +271,23 @@ namespace KingmakerMountedCombat.Diagnostics
                         doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount);
                         evidence["door"] = doorProbe.Evidence; doorProbe.Begin(); Next(40); break;
                     case 40:
-                        AssertBoth(); if (!doorProbe.Poll()) return;
+                        AssertBoth(); PumpDoorClearanceCapture(); if (!doorProbe.Poll()) return;
                         Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("door-complete"));
+                        // Sprint 2 (MOVE-01): the mounted speed legs run here, both pairs still mounted.
+                        if (OwnerSeed) { BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(41); break; }
                         Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
+                    case 41:
+                        AssertBoth(); if (!PollSpeedLeg()) return;
+                        BeginSpeedLeg("mounted-solo", SpeedLegSelection.SecondRiderAlone); Next(42); break;
+                    case 42:
+                        AssertBoth(); if (!PollSpeedLeg()) return;
+                        Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
+                    case 11:
+                        if (!PollSpeedLeg()) return;
+                        BeginSpeedLeg("rider-solo", SpeedLegSelection.SecondRiderAlone); Next(12); break;
+                    case 12:
+                        if (!PollSpeedLeg()) return;
+                        Pass("C7-world-sprint2-speed-legs"); cycle = 1; BeginCycle(); break;
                     case 8:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
                         Require(Mounted(secondRider, secondMount) && world.Registry.FindActive(secondRider).Id == secondOwner,
@@ -288,6 +302,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 10:
                         if (Mounted(secondRider, secondMount) || !InputSettled()) return;
                         FinishInput(); Pass("C7-world-independent-dismount");
+                        // Sprint 2 (MOVE-01): the unmounted comparison legs, the same Horse and rider on foot.
+                        if (OwnerSeed) { BeginSpeedLeg("horse-solo", SpeedLegSelection.SecondMountAlone); Next(11); break; }
                         cycle = 1; BeginCycle(); break;
                     case 20:
                         if (!CompleteMeasurement()) return;
@@ -869,7 +885,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!TryCleanup("captured native world", () => {
                 Require(nativeScope != null, "Captured native world authority is absent."); nativeScope.RequireCurrent();
             })) { RetainCleanup("Captured native world, area or actor identity changed."); return; }
-            if (!TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; }))
+            if (!TryCleanup("screenshots", () => { screenshots?.Dispose(); screenshots = null; doorClearanceShots?.Dispose(); doorClearanceShots = null; }))
             { RetainCleanup("The captured screenshot overlay lease has not restored."); return; }
             if (!TryCleanup("unpause for native drain", () => Game.Instance.IsPaused = false)) return;
             foreach (var command in issuedCommands.Where(x => x != null && !x.IsFinished))

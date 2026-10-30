@@ -59,6 +59,7 @@
     <Compile Include="TransformAttachmentSlotTests.cs" />
     <Compile Include="MountedPairOwnershipTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairRegistry.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorApproachPolicy.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
@@ -110,6 +111,7 @@
     <Compile Include="MountedRiderPoseTests.cs" />
     <Compile Include="MountedRiderGroundingPolicyTests.cs" />
     <Compile Include="MountedStabilizationPolicyTests.cs" />
+    <Compile Include="MountedDoorApproachPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
     <Compile Include="NativeShellBindingPolicyTests.cs" />
     <Compile Include="ModLoadSmokePolicyTests.cs" />
