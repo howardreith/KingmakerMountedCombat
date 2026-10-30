@@ -1,7 +1,7 @@
 # Sprint 2 — exploration speed, single-click doors and collision safety (2026-10-30)
 
 > **Completion iteration (same day, PR #7 follow-up): see [Completion iteration](#completion-iteration-2026-10-30-afternoon)
-> at the end of this file for the current disposition, identity and evidence. The first-iteration record below is kept as
+> and "Review-fix iteration" at the end of this file for the current disposition, identity and evidence. The first-iteration record below is kept as
 > written.**
 
 **Disposition (first iteration): SPRINT 2 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE PENDING.**
@@ -223,3 +223,61 @@ freezes and reader re-evaluations; 46.13 of 90 min at closeout (Candidate tier 3
 records, two packages, two suite freezes plus one failed freeze attempt, offline re-evaluations and the r07 profile
 diagnosis, all charged). Active work for this iteration about 3 h 50 min. Live state at closeout: Mods tree empty as at
 intake, no lock, no game process, no candidate installed, protected saves unchanged, profile root at its intake digest.
+
+### Review-fix iteration (same afternoon) and final disposition
+
+**Final disposition: SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** The
+"COMPLETE" wording above was written before the independent delta review and r08; it is superseded here. The three
+source gaps are closed and demonstrated natively, but the agreed list still carries NOT RUN rows (a turn-based door
+control; the owner's exact surface and door) and the last run on the final binary ended in an unrelated diagnostics step,
+so completion is not claimed.
+
+**Independent delta review** (one bounded read-only review of `05a9efd0..63d83e2e`, Integration + Domain) found eight
+items, all addressed in `4c57b5a8`: (1) the stall clock keyed on `IsStarted`, but a native `UnitMoveTo` travels
+unstarted, so the 4 s bound was unreachable; it now keys on the live delegated move owning the mount's Move slot, and a
+tick gap over 0.5 s (turn-based rounds) is re-sampled, never charged; (2) a turn-based recovery with paired activation off
+had nothing driving it; recovery is now admitted only when the unified turn coordinator drives the mount, and its clock
+follows the same mode/opportunity rule; (3) pair attack and mounted charge admission ignored a pending settlement; both
+now cancel it (one owner of the mount); (4) a door click cancelled the recovery before deciding admission; it now decides
+first and cancels only when it replaces the recovery or is admitted; (5) recovery cleanup could stop the agent while a
+foreign command held the slot; it now touches the agent only when the slot is ours or empty; (6) the rider-turn animation
+adapter lacked the recovery move (added as "door-recovery"); (7) a reentrant cancel during `Update` could null-dereference
+(local used); (8) settlement setup after the interaction could fail the native action, and `OnEnded` could throw into the
+native caller (both guarded). Component tests 934/0; Candidate tier 7/0 on the sprint2h bytes. Final identity: HEAD
+`b3f78482` (lab recovery fix) over `4c57b5a8`; DLL SHA-256
+`ee2f72a930808728bfd113ff1f70f865beaf7021ad0bcc018d1fc0aedbe50426`, MVID `ee7142af-86c6-4b95-9845-c48f71e59096`;
+packages sprint2h `b5168c84…` (suite `sprint2h-4c57b5a8-20261030`, freeze refused by r07's stale lock, unused) and
+sprint2i `91165cf5…` (suite `sprint2i-b3f78482-20261030` `f2235aaa…`, used by r08).
+
+**r07 stale lock.** The r07 transaction (phase `restored`, Mods and saves at their restored digests) left
+`runtime-state\active-transaction.lock` because the final profile-delta check threw. `Recover-KmcPersistenceProfile.ps1`
+refused with "Base-game UMM parameters changed beyond the native rewrite": its pre-check compared the loader parameters
+without the run's retained dependency ids although the restore step reads them from the durable Mods transaction state.
+The delta was verified to be exactly the admitted shape (entries `CallOfTheWild`, `CraftMagicItems`,
+`KingmakerMountedCombat` with a forward `LastUpdateCheck`; the only PlayerPrefs deltas Unity's session counter and id).
+One-line fix (`b3f78482`): the pre-check passes `Get-KmcRunRetainedDependencyIds`. Recovery then passed in stale-lock
+mode (`runtime-evidence\…r07…\profile-recovery.json`): loader parameters back at intake (`ca5d4022…`), lock released,
+profile digest `1a8f703d…`, Mods empty, no game process.
+
+**r08 `20261030-sprint2-r08-doors-speed-v4-fixed`** (sprint2i, batch `sprint2:completion-2`): game FAIL in the
+MEASURED phase, outer FAIL; evidence retained. The door probe v4 completed and passed its own assertions on the fixed
+binary: pair A one click from **25.6 m** (the 20 m setup goal was clear this time), unstarted on all 218 moving polls,
+interaction at 1.96 m with LOS after 3.33 game seconds, settled footprint 7/8 → one owned 0.5 m recovery, clear
+afterwards; pair B at 3.55 m during A's click, click-while-moving replaced its move, footprint 8/8 with no recovery;
+Stop control clean (Interrupt, no interaction, no pending settlement, 4 frames). Speed legs mounted-party 2.82 m/s
+(v1 2.84, Slow gait) and mounted-solo 4.55 (4.64) were measured; the run then failed in the first iteration's
+unchanged cycle step (`MoveOnClearRoute`: "No walkable native 2 m route goal for the unmounted-control move lies clear
+of every other unit's native avoidance footprint"), a layout consequence of the longer 20 m setup and the endpoint
+neighbor leaving the actors spread, not a product fault; the horse-solo and rider-solo legs were not reached (r05 holds
+the full matched set with the same sampler). A further attempt needs the probe to return pair A to its pre-setup start
+before the cycle; it was not made because the four-hour active ceiling was exceeded.
+
+**Outcome map (final).** DOOR-01: native PASS on both binaries (r05, r07; r08 door block); turn-based control NOT RUN
+natively. SPACE-01: native PASS on the representative dungeon door (r07) and with recovery/second pair/Stop (r05, r08
+door block); owner's exact door NOT RUN. MOVE-01: measured with the aligned sampler (r05 full set; r08 two legs); no KMC
+clamp; owner's surface NOT RUN. Lab: r07's profile classification of the engine `Areas\` cache remains a follow-up.
+
+**Cost.** Budget `sprint2` 58.35 of 90 min at closeout (every package, freeze, failed freeze, recovery and
+re-evaluation charged); active work about 4 h 50 min for this iteration, over the four-hour ceiling by the review-fix
+pass and the r07 recovery, which were judged necessary before a closeout. Live state: Mods tree empty, no lock, no game
+process, no candidate installed, protected saves unchanged, loader parameters and profile root at intake.
