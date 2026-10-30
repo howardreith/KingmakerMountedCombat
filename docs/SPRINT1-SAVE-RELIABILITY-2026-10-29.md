@@ -459,3 +459,103 @@ pre-existing, #6 startup wrapper count pin), Candidate ×2 (#1 harness budget in
 #2 12/0); packages `sprint1k` (`912abfd5…`, superseded unused) and `sprint1l`
 (`3eec930a…`, same DLL `bed87d75…` / MVID `846f1c80…`); suite
 `sprint1l-f4294828-20261030` (`97bf6e99…`).
+
+
+## Iteration 5 — UPG-01 with the archive's actual dependencies (2026-10-30, later)
+
+Assignment: finish UPG-01 on PR #6 with a dependency-matched fixture, through the normal native load,
+one native resave and a separate-process cold load of the resave; no new budget, no new sprint.
+
+### Dependency diagnosis made exact
+
+- Every entry of the genuine preview.211 Quick (`runtime-staging\persistence-final211-p05-save-quick\Saved
+  Games\Quick_1.zks`, `83e92e1ae1a38dda731a32aff6b4ff6ad424e5e5f6777f758db6832a8eb7122b`) was audited for
+  foreign `$type` members: `CallOfTheWild` (9 distinct unit parts; 14 in `party.json`, 29 and 4 in the two
+  area entries) and `CraftMagicItems` (one `List<CraftingProjectData>` in `party.json`). No other assembly.
+- The exact versions the archive was written with are retained in the Oct-12 producer's own staged tree
+  (`runtime-staging\final211-p05-save-quick\Mods-staged-after`): Call of the Wild 1.14.4c-2.1 (DLL
+  `4ebf8e1ed3e66ffed72ea33ea325595629423dacd5bffa23e3c9109144b26915`, 265 pinned files) and Craft Magic Items
+  2.1.0 (DLL `f7c06f32f18932e67bd8e36fa380bf593ec1e88a262c9f9ddb0812bc1d8b209a`, 20 pinned files). The other
+  mods present then (BagOfTricks, CheatMenu, KingmakerBuffPlanner, SkipIntro) contribute no serialized type.
+  Both mods write inside their own folders at runtime (`loaded_blueprints.txt`, `Settings.xml`, Oct-12 evidence).
+- r09/r10 were therefore knowingly invalid configurations (base-game-only staging, no dependency assembly) and
+  stay retained as such; no categorical claim about other Call of the Wild versions or other saves is made.
+
+### Fixture preparation (`2f8db203`)
+
+- Selection `analysis-cache\sprint1\retained-dependencies-final211.json` (contract
+  `retained-dependency-staging-v1`, sha `523d32dc…`): id, version, producer run, the retained folder path,
+  assembly name and bytes, cache-free folder digest and file count, computed from the retained bytes and
+  re-verified by `Read-KmcRetainedDependencySelection` (UMM identity, assembly bytes, digest).
+- Base-game staging may carry those folders beside KMC: `New-KmcBaseGameReadyTree -RetainedDependencies`
+  copies each folder into the owned ready tree, strips UMM assembly caches (the installed loader regenerates and
+  deletes them), re-verifies the digest; the transaction state records `retainedDependencies`; the isolation
+  receipts carry the set; the UMM startup delta admits their default entries in the loader's own order
+  (order-insensitive entry set); runtime writes confined to a dependency's own folder are classified
+  `dependency-runtime-write/change` (its assembly and Info.json never); the loaded-assembly inventory admits
+  exactly those assemblies by staged bytes. Nothing is installed; the live tree (empty) is restored exactly;
+  the suite keeps pinning the empty live Mods digest.
+- `persistence-p05-load -UpgradeChain`: case `quick` cold-loads the retained archive, then resaves one native
+  Manual (`Manual_1_KMC_P01.zks`: the only Manual number the engine can mint in that root), verified through the
+  current schema-3 archive member (pair, area, campaign, new bytes); case `manual` cold-loads that resave through
+  the source role `upgrade-resave-manual`. Readers: request flag and consumer leaf, expected write count,
+  `Assert-KmcUpgradeResaveEvidence`.
+- Offline: `Test-BaseGameIsolation.ps1` 114/0 (15 new cases), Candidate 9/0 on the packaged bytes
+  (`Test-Harness` 362 s on a busy machine).
+
+### Identities
+
+Package `…preview.98-sprint1n-diagnostic.zip` `2c04d648b246e2e482f737a104408578b2ee550bfee055c2f4b6a2f7f6cf9338`,
+DLL `7f49f857ac441d76bc78ed7f3c3cf36f7858b0278840cb4d0d361f4d2cc07f9f` / MVID `333b8676-43ee-4184-bb26-6e53c9334eb6`
+(built at `53e48785`, diagnostics-only C# change), suite `sprint1n-53e48785-20261030`
+`58775520d6b7ee7b8819b71e06613826337cfc0fa1edb337b616af6cdbc52f16`.
+
+### Native batch `sprint1:upgrade-2`
+
+
+| Run | Selection | Result |
+| --- | --- | --- |
+| `20261030-sprint1-r13-upg01-deps-load-resave` | `persistence-p05-load` / `quick` `-UpgradeChain`, genuine Quick `83e92e1e…`, deps staged, sprint1m `2a0be4d8…` | PASS (128 s): pair restored, world controllable, resave `d1e1f884…` |
+| `20261030-sprint1-r14-upg01-deps-resave-cold` | `persistence-p05-load` / `manual` `-UpgradeChain`, source r13 | FAIL (114 s): observer read the legacy schema-2 view (null for the schema-3 resave); native load and restoration complete |
+| `20261030-sprint1-r13-upg01-deps-load-resave-r2` | as r13 on sprint1n `7f49f857…` (observer corrected, `53e48785`) | PASS (120 s): resave `dfaf00be…`, 856,711 B |
+| `20261030-sprint1-r14-upg01-deps-resave-cold-r2` | as r14, source r13-r2 | FAIL (113 s): `cold-pair-restored-from-archive` passed (pair restored natively), `early-semantic-and-once-presentation` failed |
+
+Each launch was preceded by its development-scoped WhatIf (PASS, 27–29 s). In every run both
+dependencies were the only other UMM entries (active, enabled), their assemblies were loaded from the
+staged bytes, runtime writes were exactly the three UMM assembly caches, the live Mods tree was restored
+to its exact pre-run digest, and the engine channel showed no `Player.PostLoad` failure.
+
+**Where UPG-01 stops.** The product restored the mounted pair from its own schema-3 resave in a new
+process (r14-r2: relationship Mounted, saved rider/mount from the current archive member). The P05
+cold scenario, written for the schema-2 era, then requires exactly two semantic and one presentation
+restore; the resave carries one combat participation owner from the producer's own scripted attack
+(`Participations[0].State.RiderId/MountId` = the pair), and the counters' actual values are not in the
+evidence, so the expectation cannot be corrected blind. Two consumer attempts have failed in batch
+`sprint1:upgrade-2` (different assertions, the second after a code change), and the remaining allowance
+(11.03 min after imports) cannot fund the build, suite, producer and consumer cycle a corrected observer
+needs with any margin. Remaining action: record the counters in the evidence, derive the expected
+semantic count from the archive's actor snapshots, rebuild once and rerun producer and consumer on one
+DLL under `sprint1:upgrade-3` (about 7 budget minutes).
+
+### Cost (this iteration)
+
+| Item | Value |
+| --- | --- |
+| Active work | about 2 h 20 min |
+| Shared budget `sprint1`, cumulative | 123.97 of 135 min (this iteration 23.0 min: Candidate 6.93 + Fast 0.32, four WhatIfs 1.8, four launches 6.7, imported packaging/suites/direct runs 7.1) |
+| Real game launches this iteration | 4: r13 PASS, r14 FAIL, r13-r2 PASS, r14-r2 FAIL |
+| Restoration outside the spend | the runs' own settlement only (suspended, excluded) |
+
+### Evidence map (retained versus current)
+
+| Item | DLL / build | Evidence |
+| --- | --- | --- |
+| SAVE-01 Quick overwrite ×2 + cold | `a680dd69…` (`4644a433`, packages sprint1i/j) | r06, r07 (iteration 3) |
+| SAVE-03 Manual overwrite | `a680dd69…` | r08 (game PASS; outer reader corrected, re-evaluated) |
+| SAVE-02 admitted Auto overwrite + cold | `bed87d75…` (`f4294828`, sprint1l) | r11, r12 (iteration 4) |
+| UPG-01 load → resave → cold | `7f49f857…` (`53e48785`, sprint1n) | r13 and r13-r2 PASS (load, controllable world, resave); r14 and r14-r2 FAIL at the observer after the pair restored |
+| r09/r10 (invalid dependency configuration) | `bed87d75…` / earlier | retained FAIL, base-game-only |
+
+The production save paths (`NativeArchiveReplacementPath`, `NativeMountedArchiveCommit`) are unchanged since
+`4644a433`; every later commit is diagnostics, harness, readers or documentation, so the earlier results stay
+valid for the current bytes without rerunning them.
