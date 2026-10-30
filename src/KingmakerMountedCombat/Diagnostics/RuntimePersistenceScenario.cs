@@ -320,18 +320,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 SampleAttackTimeline(true);
                 var targetId = targetService.TargetId;
                 var firstUnexpected = ruleProbe.FirstUnexpectedPairAttack;
+                var mountRules = ruleProbe.Events.Where(e => !e.Expected).ToArray();
                 // The rider's own ordinary attack: exactly one rule and one roll against the clicked target.
                 Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetId &&
                     ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1, "native-ordinary-attack-delivered");
                 // The pair order the product's policy decided at the click: no other pair attack before the rider's
-                // when the rider was ready; exactly one mount primary natural attack (a pair-owned command, not an
-                // attack of opportunity, charge or AI action, with the mount's AI lease still disabled) when it was not.
+                // when the rider was ready; when it was not, exactly one native full attack by the mount (a pair-owned
+                // command created by the click, not an attack of opportunity, charge or AI action, the mount's AI lease
+                // still disabled) whose distinct rules are its declared attacks 0..n-1 and nothing more. Distinct rules
+                // are counted from the probe's begin/end-paired records; DidTrigger notifications are recorded only.
                 Check(expectMountFirst
-                    ? ruleProbe.UnexpectedPairAttackCount == 1 && firstUnexpected != null && firstUnexpected.InitiatorId == mount.UniqueId &&
-                        firstUnexpected.TargetId == targetId && !firstUnexpected.IsAttackOfOpportunity && !firstUnexpected.IsCharge &&
-                        !firstUnexpected.InitiatorAiEnabled && firstUnexpected.CommandAiActionBlueprintId == null &&
-                        combat.StockAttackMountDispatchCount >= 1 && combat.StockAttackRiderDispatchCount == 1
-                    : ruleProbe.UnexpectedPairAttackCount == 0 && combat.StockAttackRiderDispatchCount == 1,
+                    ? firstUnexpected != null && firstUnexpected.InitiatorId == mount.UniqueId && firstUnexpected.TargetId == targetId &&
+                        !firstUnexpected.IsAttackOfOpportunity && !firstUnexpected.IsCharge && !firstUnexpected.InitiatorAiEnabled &&
+                        firstUnexpected.CommandAiActionBlueprintId == null && firstUnexpected.CommandCreatedByPlayer == true &&
+                        firstUnexpected.IsFirstAttack && firstUnexpected.AttackNumber == 0 && firstUnexpected.AttacksCount >= 1 &&
+                        mountRules.Length == firstUnexpected.AttacksCount &&
+                        mountRules.All(e => e.InitiatorId == mount.UniqueId && e.TargetId == targetId && e.CommandType == firstUnexpected.CommandType &&
+                            e.AttacksCount == firstUnexpected.AttacksCount && !e.IsAttackOfOpportunity && !e.IsCharge) &&
+                        mountRules.Select(e => e.AttackNumber).SequenceEqual(Enumerable.Range(0, firstUnexpected.AttacksCount)) &&
+                        combat.StockAttackMountDispatchCount == 1 && combat.StockAttackRiderDispatchCount == 1
+                    : ruleProbe.UnexpectedPairAttackCount == 0 && mountRules.Length == 0 && combat.StockAttackRiderDispatchCount == 1,
                     "pair-stock-attack-order");
                 Check(combat.StockAttackDuplicateDispatchCount == 0, "pair-stock-attack-no-duplicate-dispatch");
                 // Native expenditure, never refunded: the rider's Standard is spent at its own attack; when the mount
