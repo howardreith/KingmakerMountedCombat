@@ -117,6 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
                     !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "required-policy");
+                JObject coldRestoreExpectation = null;
                 if (Cold)
                 {
                     // The saved pair is read from the migrated legacy DTO of a schema-1/2 archive, or
@@ -132,8 +133,29 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(savedMounted && relationship.State == RelationshipState.Mounted,
                         "cold-pair-restored-from-archive: " + persistence.Feedback);
                     rider = relationship.Rider; mount = relationship.Mount;
-                    Check(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1,
-                        "early-semantic-and-once-presentation");
+                    // The expected counters are derived from the archive the product restored (the current
+                    // member, or the legacy view when none is loaded): one semantic restore per distinct saved
+                    // actor across the combat snapshots and every attached pair's rider and mount (participation
+                    // owners add none) and one presentation restore per attached pair. Exact equality only; the
+                    // derivation and both actual values are recorded so a failure explains itself.
+                    var expectedActorIds = archiveData != null ? archiveData.SemanticRestoreActorIds() : legacy.SemanticRestoreActorIds();
+                    var expectedPresentation = archiveData != null ? archiveData.ExpectedPresentationRestoreCount : legacy.ExpectedPresentationRestoreCount;
+                    coldRestoreExpectation = new JObject
+                    {
+                        ["view"] = archiveData != null ? "archive-member" : "legacy",
+                        ["schema"] = archiveData != null ? archiveData.SchemaVersion : legacy.SchemaVersion,
+                        ["pairs"] = archiveData != null ? archiveData.Pairs.Length : (legacy.Mounted ? 1 : 0),
+                        ["participations"] = archiveData?.Participations?.Length,
+                        ["combatActors"] = (archiveData != null ? archiveData.Combat : legacy.Combat)?.Actors?.Length ?? 0,
+                        ["expectedSemanticIds"] = new JArray(expectedActorIds), ["expectedSemantic"] = expectedActorIds.Length,
+                        ["expectedPresentation"] = expectedPresentation,
+                        ["actualSemantic"] = persistence.SemanticRestoreCount, ["actualPresentation"] = persistence.PresentationRestoreCount,
+                        ["archivePostLoadObserved"] = persistence.ArchivePostLoadObservedCount
+                    };
+                    Check(MountedArchiveData.RestoreCountersMatch(expectedActorIds, expectedPresentation,
+                            persistence.SemanticRestoreCount, persistence.PresentationRestoreCount),
+                        "early-semantic-and-once-presentation: expected semantic " + expectedActorIds.Length + " [" +
+                        string.Join(",", expectedActorIds) + "] presentation " + expectedPresentation);
                     Check(rider.UniqueId == savedRiderId && mount.UniqueId == savedMountId,
                         "same-saved-native-actors");
                     Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
@@ -159,7 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 beforeControls = controls.CaptureSnapshot();
                 Check(beforeControls.ExactFactCount > 0 && beforeControls.DuplicateFactCount == 0 &&
                     !beforeControls.SerializationSuspended, "controls-present-once");
-                Write("initial");
+                Write("initial", coldRestoreExpectation == null ? null : new JObject { ["coldRestoreExpectation"] = coldRestoreExpectation });
                 if (Cold) { stage = 2; return; }
                 if (QueuedCase) { QueueNativeManualSaves(); stage = 1; return; }
                 if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }

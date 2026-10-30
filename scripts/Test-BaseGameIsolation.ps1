@@ -127,6 +127,33 @@ Check 'runtime write classification still refuses dependency assembly, Info.json
     $none=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime
     Need (@($none.unexpected).Count-eq3) 'without declaration'
 }
+# Sprint 1 iteration 6: a UMM loader cache in a dependency folder passes only the byte-copy rule, never the folder exception.
+$cacheStaged=@([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Info.json';length=2;sha256=('b'*64)})
+function New-CacheRuntime([object[]]$Added){[pscustomobject]@{entries=@($cacheStaged+$Added)}}
+$cacheDep=@([pscustomobject]@{id='CallOfTheWild'})
+Check 'dependency DLL cache: a byte-exact copy is accepted by the byte-copy rule alone' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.unexpected).Count-eq0-and@($c.expected).Count-eq1-and$c.expected[0].change-ceq'added'-and$c.expected[0].path-ceq'CallOfTheWild/CallOfTheWild.dll.1234.cache') 'byte-exact cache classified added'
+}
+Check 'dependency DLL cache: a copy whose bytes differ is refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('f'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq1-and$c.unexpected[0].change-ceq'added') 'mismatching cache unexpected'
+}
+Check 'dependency DLL cache: a copy whose length differs is refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=4;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq1) 'wrong-length cache unexpected'
+}
+Check 'dependency DLL cache: an orphaned cache, a bare .cache and a DLL-named stray are refused' {
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $cacheStaged -RuntimeManifest (New-CacheRuntime @([pscustomobject]@{kind='file';path='CallOfTheWild/Other.dll.5.cache';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/data.cache';length=1;sha256=('c'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.bak';length=3;sha256=('a'*64)})) -RetainedDependencies $cacheDep
+    Need (@($c.expected).Count-eq0-and@($c.unexpected).Count-eq3) ('three unexpected: '+(@($c.unexpected|ForEach-Object{$_.change+' '+$_.path})-join ','))
+}
+Check 'dependency DLL cache: a changed staged cache and a new executable are refused, data writes still admitted' {
+    $staged=@($cacheStaged+[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('a'*64)})
+    $runtime=[pscustomobject]@{entries=@($cacheStaged+[pscustomobject]@{kind='file';path='CallOfTheWild/CallOfTheWild.dll.1234.cache';length=3;sha256=('f'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Extra.dll';length=3;sha256=('a'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/dumps/trace.txt';length=1;sha256=('c'*64)},[pscustomobject]@{kind='file';path='CallOfTheWild/Settings.xml';length=4;sha256=('e'*64)})}
+    $c=Get-KmcModsRuntimeWriteClassification -StagedEntries $staged -RuntimeManifest $runtime -RetainedDependencies $cacheDep
+    Need (@($c.unexpected).Count-eq2-and@($c.unexpected|Where-Object change -CEQ 'changed').Count-eq1-and@($c.unexpected|Where-Object path -CEQ 'CallOfTheWild/Extra.dll').Count-eq1) ('unexpected: '+(@($c.unexpected|ForEach-Object{$_.change+' '+$_.path})-join ','))
+    Need (@($c.expected).Count-eq2-and@($c.expected|Where-Object change -CEQ 'dependency-runtime-write').Count-eq2) 'nested data writes admitted'
+}
 foreach($case in @(
     @('disabled KMC append',(New-OwnerParams $kmcAppended.Replace('Enabled="true"','Enabled="false"'))),
     @('foreign append beside KMC',(New-OwnerParams ($kmcAppended+'<Mod Id="New" Enabled="true"/>'))),
