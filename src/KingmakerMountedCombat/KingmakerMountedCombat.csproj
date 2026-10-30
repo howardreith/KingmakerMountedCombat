@@ -157,6 +157,7 @@
   <ItemGroup>
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
+    <Compile Include="Domain\MountedDoorApproachPolicy.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
     <Compile Include="Domain\PairedActivationSnapshot.cs" />
     <Compile Include="Domain\ScopedEnumerator.cs" />
@@ -443,6 +444,7 @@
     <Compile Include="Diagnostics\DoorReturnGoalPolicy.cs" />
     <Compile Include="Diagnostics\GroundGoalFootprintPolicy.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.RouteGoal.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs" />
     <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />

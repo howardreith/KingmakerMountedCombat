@@ -45,15 +45,27 @@ namespace KingmakerMountedCombat.Diagnostics
         private double stageStarted;
         private Vector3 firstStart, interactionStart, returnGoal;
         private MountedDoorInteractionCommand command;
-        private UnitMoveTo returnMove;
-        private JObject row, returnRecord;
+        private UnitMoveTo returnMove, setupMove, lateralMove;
+        private JObject row, returnRecord, longApproach, clickWhileMoving;
+        private int lateralMovingFrames;
         // v2 (F4 r30): the first pair returns to a goal clear of every other unit's native avoidance footprint
         // (DoorReturnGoalPolicy), recorded with its search and outcome before any assertion on it.
-        internal const string Contract = "two-pair-native-door-click-selection-change-v2";
+        // v3 (Sprint 2, DOOR-01/SPACE-01): the first pair's click starts from a searched long approach (a native
+        // ground move away from the door first, recorded in longApproach); the second pair's click is given
+        // while its mount is still carrying out an ordinary ground move (clickWhileMoving); every interaction
+        // records the pair's navmesh occupancy after the door changed state; the outcome carries the command's
+        // approach progress and occupancy fields; approach starts are at least one, not exactly one.
+        internal const string Contract = "two-pair-native-door-click-selection-change-v3";
+        private const float LongApproachDistanceMetres = 12f;
+        private const float LateralMoveDistanceMetres = 6f;
         private readonly JObject evidence = new JObject();
         internal bool Completed { get; private set; }
         internal JObject Evidence => evidence;
         internal UnitCommand[] IssuedCommands => commands.ToArray();
+        internal int CompletedInteractions { get; private set; }
+        internal Vector3? DoorPosition => door == null ? (Vector3?)null : door.transform.position;
+        internal float DoorRadius => door == null ? 0f : Radius(door);
+        private Vector3 ApproachPoint => door.MapObject != null ? door.MapObject.transform.position : door.transform.position;
 
         internal Chunk7NativeDoorProbe(MountedWorldService world, Chunk7NativeWorldScope scope,
             UnitEntityData firstRider, UnitEntityData firstMount, UnitEntityData secondRider, UnitEntityData secondMount)
@@ -98,9 +110,82 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["hasDialog"] = facts.HasDialog, ["dataPresent"] = facts.DataPresent,
                 ["viewTriggerCount"] = facts.ViewTriggerCount, ["viewTriggerActions"] = facts.ViewTriggerActions };
             firstStart = mounts[0].Position; ObserveCut("captured");
+            evidence["approach"] = new JObject { ["approachPoint"] = Point(ApproachPoint),
+                ["nativeTargetNode"] = Point(Kingmaker.View.ObstacleAnalyzer.GetNearestNode(door.transform.position).clampedPosition),
+                ["losObjectId"] = door.transform.GetInstanceID(), ["mapObjectIsDoorObject"] = door.MapObject == null || door.MapObject.gameObject == door.gameObject };
+            longApproach = new JObject { ["applicable"] = false }; evidence["longApproach"] = longApproach;
+            clickWhileMoving = new JObject { ["applicable"] = false }; evidence["clickWhileMoving"] = clickWhileMoving;
             // A closed door is already in its input state; only an open one is closed as setup.
             if (originalOpen) CloseForInput();
-            Next(1);
+            Next(5);
+        }
+
+        // Sprint 2: a bounded read-only search for a native ground goal at a distance from the mover, in a preferred
+        // direction and its bearings, walkable within 0.5 m of the request, reachable by the navmesh trace, outside
+        // the door approach by the given margin and clear of every other unit's avoidance footprint.
+        private Vector3 SearchClearGoal(UnitEntityData mover, UnitEntityData carried, Vector3 direction, float distance, float doorMargin, JObject record, out bool found)
+        {
+            found = false; var start = mover.Position; direction.y = 0f;
+            if (direction.sqrMagnitude < 1e-4f) direction = Vector3.forward; direction = direction.normalized;
+            var candidates = new JArray(); record["start"] = Point(start); record["direction"] = Point(direction); record["distance"] = distance;
+            record["candidates"] = candidates; record["selectedIndex"] = -1;
+            var moverCorpulence = mover.View.AgentASP.Corpulence;
+            var others = Game.Instance.State.Units.Where(u => u != null && u.IsInState && u.View?.AgentASP != null && !ReferenceEquals(u, mover) &&
+                !ReferenceEquals(u, carried) && Distance(u.Position, start) <= 30f).Take(256).ToArray();
+            var goal = start; var offsets = new[] { 0f, 30f, -30f, 60f, -60f, 90f, -90f, 120f, -120f, 150f, -150f, 180f };
+            for (var i = 0; i < offsets.Length && !found; i++)
+            {
+                var requested = start + Quaternion.Euler(0f, offsets[i], 0f) * direction * distance;
+                var nearest = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(requested);
+                var walkable = nearest.node != null && nearest.node.Walkable;
+                var candidate = new JObject { ["index"] = i, ["bearingOffset"] = offsets[i], ["requested"] = Point(requested), ["walkable"] = walkable };
+                var reason = "no-walkable-native-node";
+                if (walkable)
+                {
+                    var clamped = nearest.clampedPosition;
+                    var clampResidual = Distance(requested, clamped);
+                    var traceResidual = Distance(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, clamped), clamped);
+                    var doorDistance = Distance(clamped, ApproachPoint);
+                    var slack = double.PositiveInfinity;
+                    foreach (var other in others) slack = Math.Min(slack, Distance(clamped, other.Position) - (moverCorpulence + other.View.AgentASP.Corpulence + 0.5f));
+                    candidate["clamped"] = Point(clamped); candidate["clampResidual"] = clampResidual; candidate["traceResidual"] = traceResidual;
+                    candidate["doorDistance"] = doorDistance; candidate["minimumSlack"] = slack;
+                    reason = clampResidual > 0.5f ? "clamp-residual" : traceResidual > 0.5f ? "trace-unreachable" :
+                        doorDistance <= Radius(door) + doorMargin ? "inside-door-approach" : doorDistance > ScanRadius ? "outside-door-scan-radius" :
+                        slack < 0d ? "blocked-by-unit" : "admitted";
+                    if (reason == "admitted") { goal = clamped; found = true; }
+                }
+                candidate["reason"] = reason; candidates.Add(candidate);
+            }
+            record["selectedIndex"] = found ? candidates.Count - 1 : -1;
+            return goal;
+        }
+
+        private UnitMoveTo IssueGroundMove(int pair, Vector3 goal)
+        {
+            Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(riders[pair]);
+            UnitMoveTo move = null;
+            try { ClickGroundHandler.MoveSelectedUnitsToPoint(goal, false); }
+            finally
+            {
+                move = mounts[pair].Commands.Move;
+                if (move != null && !commands.Contains(move)) commands.Add(move);
+            }
+            Require(move != null && ReferenceEquals(move.Executor, mounts[pair]) && move.CreatedByPlayer, "Native ground click did not bind the pair's mount.");
+            Chunk7NativeFixture.Select(riders[1 - pair]); Game.Instance.IsPaused = false;
+            return move;
+        }
+
+        private JObject Occupancy(int pair)
+        {
+            var mount = mounts[pair]; var rider = riders[pair];
+            return new JObject { ["mountPosition"] = Point(mount.Position), ["riderPosition"] = Point(rider.Position),
+                ["mountInsideNavmesh"] = Kingmaker.View.ObstacleAnalyzer.IsPointInsideNavMesh(mount.Position),
+                ["riderInsideNavmesh"] = Kingmaker.View.ObstacleAnalyzer.IsPointInsideNavMesh(rider.Position),
+                ["mountDistanceToApproachPoint"] = Distance(mount.Position, ApproachPoint),
+                ["mountDistanceToDoor"] = Distance(mount.Position, door.transform.position),
+                ["doorOpen"] = door.GetState(), ["cutEnabled"] = cut.enabled,
+                ["mountCanMove"] = mount.Descriptor.State.CanMove, ["mountCommandsEmpty"] = mount.Commands.Empty };
         }
 
         // The exact qualifying-door query Begin uses, as a read-only bounded scan: no
@@ -223,9 +308,49 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(Time.realtimeSinceStartup - stageStarted <= 30, "Native door phase exceeded thirty seconds: " + stage);
             switch (stage)
             {
+                case 5:
+                    // Sprint 2 long approach: the first pair first moves away from the door through an ordinary ground
+                    // click, so its door click covers a meaningful native approach (accelerated-gait length when the
+                    // fixture allows it). Recorded before any assertion; not applicable when no clear goal exists.
+                    if (!Settled(false)) return false;
+                    {
+                        var search = new JObject(); longApproach["goalSearch"] = search;
+                        var away = mounts[0].Position - ApproachPoint;
+                        var goal = SearchClearGoal(mounts[0], riders[0], away, LongApproachDistanceMetres, 0.5f, search, out var found);
+                        if (!found) { longApproach["reason"] = "no clear native goal away from the door"; Next(1); break; }
+                        longApproach["applicable"] = true; longApproach["goal"] = Point(goal); longApproach["startDistanceToDoor"] = Distance(mounts[0].Position, ApproachPoint);
+                        setupMove = IssueGroundMove(0, goal); longApproach["setupCommand"] = Id(setupMove);
+                        Next(6);
+                    }
+                    break;
+                case 6:
+                    if (!setupMove.IsFinished || mounts[0].View.AgentASP.IsReallyMoving || !actors.All(Chunk7NativeFixture.Idle)) return false;
+                    longApproach["setupResult"] = setupMove.Result.ToString(); longApproach["setupEnd"] = Point(mounts[0].Position);
+                    longApproach["distanceToDoorAfterSetup"] = Distance(mounts[0].Position, ApproachPoint);
+                    firstStart = mounts[0].Position; Next(1); break;
+                case 7:
+                    // Sprint 2 click while moving: the second pair's mount is given an ordinary ground move, and the door
+                    // is clicked while that move is still running. The accepted click must replace the move.
+                    if (!Settled(false)) return false;
+                    {
+                        var search = new JObject(); clickWhileMoving["goalSearch"] = search;
+                        var lateral = Vector3.Cross(Vector3.up, (ApproachPoint - mounts[1].Position).normalized);
+                        var goal = SearchClearGoal(mounts[1], riders[1], lateral, LateralMoveDistanceMetres, 0.5f, search, out var found);
+                        if (!found) { clickWhileMoving["reason"] = "no clear lateral native goal"; Next(1); break; }
+                        clickWhileMoving["goal"] = Point(goal); lateralMove = IssueGroundMove(1, goal); clickWhileMoving["moveCommand"] = Id(lateralMove);
+                        lateralMovingFrames = 0; Next(8);
+                    }
+                    break;
+                case 8:
+                    if (lateralMove.IsFinished) { clickWhileMoving["reason"] = "the lateral move finished before the mount was observed moving"; Next(1); break; }
+                    if (!mounts[1].View.AgentASP.IsReallyMoving) return false;
+                    if (++lateralMovingFrames < 3) return false;
+                    clickWhileMoving["applicable"] = true; clickWhileMoving["mountPositionAtClick"] = Point(mounts[1].Position);
+                    clickWhileMoving["moveRunningAtClick"] = !lateralMove.IsFinished;
+                    ObserveCut("input-ready-" + pairIndex); BeginInput(true); Next(2); break;
                 case 1:
                     if (!Settled(false)) return false;
-                    ObserveCut("input-ready-" + pairIndex); BeginInput(); Next(2); break;
+                    ObserveCut("input-ready-" + pairIndex); BeginInput(false); Next(2); break;
                 case 2:
                     if (!FinishInput()) return false;
                     if (!Settled(true) || !actors.All(Chunk7NativeFixture.Idle)) return false;
@@ -241,7 +366,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(returnMove.Result == UnitCommand.ResultType.Success && Distance(mounts[0].Position, returnGoal) <= 1.25f,
                         "First pair did not finish its native return movement to its clear return goal before the second interaction: " +
                         returnMove.Result + ", " + Distance(mounts[0].Position, returnGoal).ToString("F3") + " m from the goal.");
-                    pairIndex = 1; CloseForInput(); Next(1); break;
+                    pairIndex = 1; CloseForInput(); Next(7); break;
                 case 4:
                     if (!Drain()) return false;
                     Completed = true; evidence["completed"] = true; return true;
@@ -260,11 +385,16 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["setupInteractions"] = (int)evidence["setupInteractions"] + 1; settledFrame = -1;
         }
 
-        private void BeginInput()
+        private void BeginInput(bool mountMoving)
         {
             RequirePairs(); RequireDoor();
-            Require(actors.All(Chunk7NativeFixture.Idle) && !door.GetState() && door.CanInteract(), "Door click preconditions changed.");
             var rider = riders[pairIndex]; var mount = mounts[pairIndex]; var other = riders[1 - pairIndex];
+            // Click while moving (Sprint 2): the active pair's mount is still carrying out its ordinary ground move;
+            // every other actor is idle.
+            Require(actors.Where(a => !mountMoving || !ReferenceEquals(a, mount) && !ReferenceEquals(a, rider)).All(Chunk7NativeFixture.Idle) &&
+                !door.GetState() && door.CanInteract(), "Door click preconditions changed.");
+            if (mountMoving) Require(lateralMove != null && !lateralMove.IsFinished && ReferenceEquals(mount.Commands.Move, lateralMove) &&
+                mount.View.AgentASP.IsReallyMoving, "The click-while-moving mount is not carrying out its ordinary move.");
             Require(Distance(mount.Position, door.transform.position) > Radius(door) + 0.5f,
                 "Mounted door input must start outside native immediate interaction range.");
             Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(rider);
@@ -286,6 +416,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["commandObject"] = Id(command), ["executorId"] = command.Executor.UniqueId,
                 ["distanceBefore"] = Distance(interactionStart, door.transform.position), ["radius"] = Radius(door),
                 ["selectionAfterInput"] = other.UniqueId, ["accepted"] = accepted, ["unrelatedIdleAtInput"] = true };
+            row["clickWhileMoving"] = mountMoving;
+            if (mountMoving)
+            {
+                // The accepted click replaced the mount's running move natively: that move is finished and the
+                // pair's new approach owns the slot.
+                clickWhileMoving["moveFinishedAtAdmission"] = lateralMove.IsFinished; clickWhileMoving["moveResult"] = lateralMove.Result.ToString();
+                clickWhileMoving["replacedMoveCount"] = world.ForActor(rider).Combat.DoorInteractionReplacedMountMoveCount;
+                Require(lateralMove.IsFinished, "The door click did not replace the mount's running ordinary move.");
+            }
             interactions.Add(row); Chunk7NativeFixture.Select(other); Game.Instance.IsPaused = false;
         }
 
@@ -304,15 +443,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["InteractionCount"] = outcome.InteractionCount, ["DelegatedMoveStartCount"] = outcome.DelegatedMoveStartCount,
                 ["DelegatedMoveTickCount"] = outcome.DelegatedMoveTickCount, ["DoorStateChanged"] = outcome.DoorStateChanged,
                 ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
-                ["TerminalReason"] = outcome.TerminalReason };
+                ["TerminalReason"] = outcome.TerminalReason,
+                ["ApproachesWithoutProgress"] = outcome.ApproachesWithoutProgress, ["ApproachElapsedGameSeconds"] = outcome.ApproachElapsedGameSeconds,
+                ["DistanceAtInteraction"] = outcome.DistanceAtInteraction, ["LineOfSightAtInteraction"] = outcome.LineOfSightAtInteraction,
+                ["OccupancyInsideNavmesh"] = outcome.OccupancyInsideNavmesh, ["OccupancyRecovery"] = outcome.OccupancyRecovery,
+                ["OccupancyNearestNodeDistance"] = outcome.OccupancyNearestNodeDistance };
             row["terminal"] = command.IsFinished;
             row["distanceMoved"] = Distance(interactionStart, mounts[pairIndex].Position);
+            // Sprint 2 (SPACE-01): the pair's logical occupancy after the door changed state, recorded before the assertion.
+            row["occupancy"] = Occupancy(pairIndex);
             Require(outcome != null && outcome.Result == "Success" && outcome.RiderId == riders[pairIndex].UniqueId &&
-                outcome.MountId == mounts[pairIndex].UniqueId && outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1 &&
+                outcome.MountId == mounts[pairIndex].UniqueId && outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount >= 1 &&
                 outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored && door.GetState() &&
                 Distance(interactionStart, mounts[pairIndex].Position) >= 0.5f,
                 "Captured native door input did not prove one approach, one interaction and restored mount movement.");
+            Require(outcome.DistanceAtInteraction <= Radius(door) + 0.01f && outcome.LineOfSightAtInteraction,
+                "The interaction was not delivered from inside the native proximity radius with line of sight to the door.");
+            // The mount is the pair's logical footprint; the carried rider's entity position sits at saddle height and is recorded only.
+            Require(outcome.OccupancyInsideNavmesh == true && outcome.OccupancyRecovery == "none" && (bool)row["occupancy"]["mountInsideNavmesh"],
+                "The pair left the navmesh at the door state change: " + row["occupancy"].ToString(Newtonsoft.Json.Formatting.None));
             row["ownerContinuity"] = true; row["unrelatedIdleAtCompletion"] = true;
+            CompletedInteractions++;
             return true;
         }
 

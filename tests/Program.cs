@@ -604,6 +604,7 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderPoseTests.Register(runner);
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
+            MountedDoorApproachPolicyTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
             NativeShellBindingPolicyTests.Register(runner);
             RelationshipCommandEvidenceTests.Register(runner);

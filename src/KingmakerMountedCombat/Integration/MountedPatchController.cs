@@ -614,6 +614,15 @@ namespace KingmakerMountedCombat.Integration
                 // The pair command owns its mount Move slot and drives it through
                 // the existing native/off-executor movement paths. Running the
                 // base approach too would stop that move or start rider navigation.
+                // The mounted door command approaches the same way while unstarted (Sprint 2): the
+                // mount's delegated move replaces the rider's native approach, and the native action
+                // controller starts the command only once CanStart reports the pair in range.
+                var door = __instance as MountedDoorInteractionCommand;
+                if (door != null)
+                {
+                    door.TickMountedApproach();
+                    return false;
+                }
                 return !(__instance is MountedPairAttackCommand);
             }
 
