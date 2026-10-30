@@ -287,7 +287,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         BeginSpeedLeg("rider-solo", SpeedLegSelection.SecondRiderAlone); Next(12); break;
                     case 12:
                         if (!PollSpeedLeg()) return;
-                        Pass("C7-world-sprint2-speed-legs"); cycle = 1; BeginCycle(); break;
+                        // The legs are observations under the existing rows (the world evidence reader validates them); no new row name.
+                        cycle = 1; BeginCycle(); break;
                     case 8:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
                         Require(Mounted(secondRider, secondMount) && world.Registry.FindActive(secondRider).Id == secondOwner,
