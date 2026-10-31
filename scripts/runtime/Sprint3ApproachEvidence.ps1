@@ -33,6 +33,8 @@ function Assert-KmcSprint3TrapRow($Row,[string]$Rider,[string]$Mount) {
    foreach($leg in @($e.explorationLegs)){
    if($leg.ordered -eq $true -and [double]$leg.destinationToTrap -lt 3.5){ throw 'S3 trap: an exploration leg was ordered onto the trap' }
    if($leg.ordered -eq $true -and [int]$leg.reorders -gt 3){ throw 'S3 trap: an exploration leg was re-ordered beyond its bound' }
+   if(@($leg.doors).Count -gt 2){ throw 'S3 trap: an exploration leg clicked more doors than its bound' }
+   foreach($door in @($leg.doors)){ if([string]$door.inputPath -cne 'ClickMapObjectHandler.OnClick' -or $door.openBefore -ne $false){ throw 'S3 trap: a door on an exploration leg was not opened through one ordinary click on a closed door' } }
    # Fixture setup bound: at most one Perception rank on the disposable rider, only when the saved rolls had consumed the pair's ranks.
    if(Test-KmcSprint3Prop $leg 'perceptionRank'){
     $g=$leg.perceptionRank

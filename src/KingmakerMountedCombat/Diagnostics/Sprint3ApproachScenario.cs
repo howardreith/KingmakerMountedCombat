@@ -261,7 +261,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["active"] = t.TrapActive, ["perceptionPassed"] = t.Data?.IsPerceptionCheckPassed, ["revealed"] = t.Data?.IsRevealed,
             ["inGame"] = t.Data?.IsInGame, ["interactable"] = t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()),
             ["perceptionRadius"] = t.PerceptionCheckComponent == null ? (float?)null : t.PerceptionCheckComponent.Radius,
-            ["perceptionDc"] = t.PerceptionCheckComponent == null ? (int?)null : t.PerceptionCheckComponent.DC };
+            ["perceptionDc"] = t.PerceptionCheckComponent == null ? (int?)null : t.PerceptionCheckComponent.DC,
+            ["reachable"] = Sprint3PathPossible(horse.Position, t.transform.position), ["inFogOfWar"] = t.Data?.IsInFogOfWar };
 
         private TrapObjectView[] s3TrapCandidates;
         private int s3TrapCandidateIndex, s3TrapDiscoveryFrames;
@@ -373,22 +374,80 @@ namespace KingmakerMountedCombat.Diagnostics
             return true;
         }
         private Vector3 s3TrapLegPoint;
+        private StandardDoor s3TrapDoor;
+        private const int Sprint3TrapDoorLimit = 2;
+        private const float Sprint3TrapDoorScanMetres = 12f;
+
+        // The native graph's own connectivity test between the mount's node and a point (A* area ids): a closed door's
+        // navmesh cut or a separate island makes a partial path whose walk ends short (r12: both legs settled at the
+        // same spot, the trap still in fog, every re-order a no-op).
+        private bool? Sprint3PathPossible(Vector3 from, Vector3 to)
+        {
+            if (global::AstarPath.active == null) return null;
+            var a = global::AstarPath.active.GetNearest(from).node; var b = global::AstarPath.active.GetNearest(to).node;
+            if (a == null || b == null) return null;
+            return Pathfinding.PathUtilities.IsPathPossible(a, b);
+        }
+
+        // The nearest closed door one ordinary click could open (the Sprint 2 door predicate; nothing is mutated here).
+        private StandardDoor FindSprint3ClosedDoor(float radius)
+        {
+            var mounts = new[] { horse };
+            return (UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0])
+                .Where(d => d != null && !d.IsOpen && HorizontalDistance(d.transform.position, horse.Position) <= radius)
+                .Where(d => { var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(d, mounts); return facts.Active && facts.DataPresent && facts.ClosedClickable; })
+                .OrderBy(d => HorizontalDistance(d.transform.position, horse.Position)).FirstOrDefault();
+        }
 
         // A leg that settled short of its point (r08: 2.5 m and 20 m short) is re-ordered through the same ordinary ground
-        // click, a bounded number of times; the pair's command surfaces at each settle are recorded for attribution.
+        // click, a bounded number of times; when the point is cut off from the mount's node, the nearest closed clickable
+        // door is clicked once (the ordinary map-object click the Sprint 2 mounted door route serves) and the leg is
+        // re-ordered after the door opened. The pair's command surfaces at each settle are recorded for attribution.
         private bool ReorderSprint3TrapLeg(JObject leg)
         {
             var remaining = HorizontalDistance(horse.Position, s3TrapLegPoint);
+            var reachable = Sprint3PathPossible(horse.Position, s3TrapLegPoint);
             var settles = (JArray)leg["settles"];
             settles.Add(new JObject { ["frame"] = Time.frameCount, ["distanceToPoint"] = remaining, ["distanceToTrap"] = HorizontalDistance(s3Trap.transform.position, horse.Position),
+                ["pointReachable"] = reachable, ["trapInFog"] = s3Trap.Data.IsInFogOfWar, ["doorPending"] = s3TrapDoor != null, ["doorOpen"] = s3TrapDoor?.IsOpen,
                 ["riderPosition"] = CapturePosition(rider.Position), ["mountPosition"] = CapturePosition(horse.Position),
                 ["mountCommands"] = CaptureCastingCommandSurface(horse), ["riderCommands"] = CaptureCastingCommandSurface(rider),
-                ["rejectionCodes"] = Sprint3State()["rejectionCodes"]?.DeepClone() });
-            if (remaining <= Sprint3TrapLegShortMetres || (int)leg["reorders"] >= Sprint3TrapLegReorderLimit) return false;
+                ["rejectionCodes"] = Sprint3State()["rejectionCodes"]?.DeepClone(), ["doorOutcome"] = Sprint3DoorOutcome() });
+            var doors = (JArray)(leg["doors"] ?? (leg["doors"] = new JArray()));
+            if (s3TrapDoor != null)
+            {
+                var opened = s3TrapDoor.IsOpen;
+                var record = (JObject)doors[doors.Count - 1];
+                record["openAfter"] = opened; record["distanceAfter"] = HorizontalDistance(s3TrapDoor.transform.position, horse.Position);
+                record["reachableAfter"] = Sprint3PathPossible(horse.Position, s3TrapLegPoint);
+                s3TrapDoor = null;
+                if (!opened) return false;
+            }
+            else if (remaining <= Sprint3TrapLegShortMetres) return false;
+            else if (reachable == false)
+            {
+                if (doors.Count >= Sprint3TrapDoorLimit) return false;
+                var door = FindSprint3ClosedDoor(Sprint3TrapDoorScanMetres);
+                if (door == null) { leg["noDoor"] = "the point is cut off from the mount's node and no closed clickable door stands within " + Sprint3TrapDoorScanMetres + " m"; return false; }
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                var clicked = new ClickMapObjectHandler().OnClick(door.gameObject, door.transform.position, 0, false, false);
+                doors.Add(new JObject { ["name"] = door.name, ["position"] = CapturePosition(door.transform.position), ["distance"] = HorizontalDistance(door.transform.position, horse.Position),
+                    ["openBefore"] = door.IsOpen, ["notInCombat"] = door.NotInCombat, ["clicked"] = clicked, ["frame"] = Time.frameCount, ["inputPath"] = "ClickMapObjectHandler.OnClick" });
+                if (!clicked) return false;
+                s3TrapDoor = door; return true;
+            }
+            if ((int)leg["reorders"] >= Sprint3TrapLegReorderLimit) return false;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ClickGroundHandler.MoveSelectedUnitsToPoint(s3TrapLegPoint, false);
             leg["reorders"] = (int)leg["reorders"] + 1;
             return true;
+        }
+
+        private JToken Sprint3DoorOutcome()
+        {
+            var outcome = combat.LastDoorInteractionOutcome;
+            return outcome == null ? null : new JObject { ["result"] = outcome.Result, ["terminalReason"] = outcome.TerminalReason,
+                ["doorStateChanged"] = outcome.DoorStateChanged, ["interactions"] = outcome.InteractionCount, ["moveStarts"] = outcome.DelegatedMoveStartCount };
         }
 
         // The pair returns to where the row began through one ordinary ground order before the row finishes, so the
@@ -413,7 +472,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Active traps nearest first. Discovery (the native Perception roll) and the fog reveal are native facts the
                 // pair's own exploration legs supply; the fixture's saved discovery state does not survive its load (r06).
                 s3TrapCandidates = all.Where(t => t.TrapActive && t.Interactions.Any(i => i is DisableTrapInteractionComponent))
-                    .OrderBy(t => HorizontalDistance(t.transform.position, horse.Position)).Take(Sprint3TrapCandidateLimit).ToArray();
+                    .OrderByDescending(t => Sprint3PathPossible(horse.Position, t.transform.position) == true)
+                    .ThenBy(t => HorizontalDistance(t.transform.position, horse.Position)).Take(Sprint3TrapCandidateLimit).ToArray();
                 if (s3TrapCandidates.Length == 0) { FailSprint3Row("No active trap with a disarm interaction exists in the loaded fixture area."); return; }
                 var discovered = s3TrapCandidates.FirstOrDefault(t => t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
                     t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) && HorizontalDistance(t.transform.position, horse.Position) >= 4f);
