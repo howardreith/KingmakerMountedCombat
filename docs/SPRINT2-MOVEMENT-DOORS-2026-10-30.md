@@ -471,3 +471,138 @@ With a new explicit allowance selected by the owner (each launch needs at least 
 admission; two launches plus their restoration): run `r11` then `r12` through the wrapper routes `owner-surface` and
 `two-pair-tb` against package sprint2l and suite `sprint2l-dd02ebfc-20261031`, read the results with the committed
 readers, and only then decide ENGINEERING COMPLETE. No source change is needed for that step.
+
+## Fifth iteration (2026-10-31, morning): acceptance contracts corrected; both remaining routes run natively; neither outcome demonstrated
+
+**Disposition: SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** The two
+acceptance-contract defects named by the review of `adecb147` are fixed and independently reviewed, both routes were
+executed natively against the corrected contracts, and both ended in a recorded native observation rather than a PASS:
+the owner-surface party-paced leg is interrupted by a native event the retained data cannot name (twice, identically), and
+the only qualifying door on the retained owner seed is natively flagged `NotInCombat`, so no turn-based door control is
+possible on it. No PASS was manufactured; every failed and refused attempt is retained.
+
+### Authorization and budget
+
+The owner forwarded the review of PR #7 at `adecb147` (2026-10-31) with one explicit adjustment of the same `sprint2`
+record, 90 to 120 minutes (recorded in the record's `adjustments` list at 83.27 spent; not a reset, no new budget id, no
+further extension). The guard's launch estimate (the 600 s outer timeout) and all other timeouts were kept.
+
+### Identity
+
+Commits over `adecb147`: `fdf69f65` (corrections A and B), `c74ab7b7` (review blocker), `4efe4158` (speed legs v4 after
+r13) and `e76f02f4` (build fix). Diagnostics only (engine speed-leg partial, turn-based door probe, readers, tests); no
+production routing, cost, admission or settlement code changed; the r09/r10 evidence on DLL `809573ad…` (sprint2k) is
+retained unchanged. Candidates (all packaged, suite-frozen and WhatIf-qualified; Mods digest `e3b0c442…`, the empty tree):
+
+| Candidate | Commit | DLL SHA-256 / MVID | Package SHA-256 | Suite |
+| --- | --- | --- | --- | --- |
+| sprint2m | `fdf69f65` | `17be0d631af49114102025d14ee079ddcec997a09c2864c16dc9f4053962b293` / `2bea245a-a6ae-4e15-b241-9d380047933a` | `0700ea67ba7671b6851af91468d52885227d7571c4ed131d11d81428dbdbdb9a` | `sprint2m-fdf69f65-20261031` `f72dfa89…` (superseded before launch) |
+| sprint2n | `c74ab7b7` | `3f8cd7765c61d0f671f6c789eab79d94ebb5cfbf0a8ca77597d6e77c7dca91f2` / `3efead4b-07f2-4990-8995-7ac75b9a1b4a` | `8fcc85b7c0165f1227436bd06392339f0965c7187721960c94c8c1df113b1263` | `sprint2n-c74ab7b7-20261031` `f15974bb2c3e6fb63459d8420e7e466e17d6f0ca5e55ce212d8df87493cb1d97` (r13, r14) |
+| sprint2o | `e76f02f4` | `38a48eb3e7344a27c24d860b98458827e7eaeea9adbb815bd6c417edd1b39fd4` / `ea00f915-eefb-44d5-b37a-cc3a8c133dcd` | `1e6d008aef9e163b39ab9212a9a045096c5c00cfe185ebd0b1fbd0eef073ca1d` | `sprint2o-e76f02f4-20261031` `fab33665a46cbd459ccc93879428c87d70b45d3800f25a0ce5bf7c455df31d7d` (r16) |
+
+### Correction A: the owner-surface reader matches mount-owned movement
+
+Mounted ground input is routed to the mount (`GroundCommandPrefix` → `RouteGroundCommand`); the retained r09 legs show
+a mounted pair with the Horse as its only mover, no rider Move row, and the mounted riders' stock agent disabled. The
+previous reader demanded a rider mover row in both mounted legs and its fixture fabricated one (commands 702/705). Now:
+
+- Speed legs contract `sprint2-speed-legs/v3` (`v4` adds the end state, below): every applicable leg records `carried`
+  rows, one per moving mount with an active Mounted owner, read passively: rider/mount/owner ids and generation,
+  relationship state, the rider's own Move slot at the click and at the end (`riderNewMoveCommand` stays false unless a
+  new player Move appears on the rider), its stock agent state, its position offset to the mount at start/end/maximum,
+  its own sampled path and whether the same owner/generation/mount held through every poll. Nothing moves the rider.
+- `Assert-KmcChunk7SpeedLegCarried` (shared, v3+): each carried row names a mover in the mount role, the rider is never
+  itself a mover, offset ≤ 1.0 m (observed natively 0.23–0.47 m), path ≥ half the mount's, attached throughout, stock
+  agent disabled, no new rider Move; every mount-role mover carries exactly one rider. v2 legs (r09) stay accepted.
+- `Assert-KmcChunk7OwnerSurfaceSpeedEvidence`: requires v3+; mounted legs have the Horse in the mount role, no rider
+  mover row, exactly one carried row for the owner's rider on its Horse under the same owner/generation as the mounted
+  window; the mounted-solo leg moves the Horse alone; the unmounted legs move exactly their one actor (Horse as the
+  owner's pet, rider on foot) and carry nobody; every mover is in the roster and its own executor. Primary movers
+  Horse/Horse/Horse/rider, area, roster, zero writes, inputs and cleanup checks are unchanged.
+- Fixtures use the producer's real shape (r09); refusals: an independent rider Move on either mounted leg, a mounted leg
+  carrying nobody, another horse, another actor/owner/generation, detachment, leaving the Horse, no travel, a new rider
+  Move, the stock agent enabled, the solo leg moving another actor, an unmounted leg reporting a carried rider, a
+  foreign executor, a foreign roster actor, v2 legs on the surface.
+
+Confirmed natively (r13, r16): the Horse was the pair's only mover of the mounted-party leg; the carried rider had no
+Move command of its own, its stock agent was disabled, it stayed 0.47 m from the Horse and travelled 7.6 m beside it.
+
+### Correction B: turn-based acceptance tests the movement contract through settlement
+
+Contract `owner-seed-turn-based-door-control-v2`, movement-cost contract `paired-approach-charged-to-own-mount-move/v1`
+(the accepted Chunk 7 checkpoint rule: a rider's turn-based approach is native movement charged once to its own mount's
+Move, equal to the allocation's movement time, inside the six-second budget; the rider keeps its own Move).
+
+- Probe: a third cooldown boundary `cooldownsAtActionEnd` (first poll after the routed command finished), the rider
+  turn's movement and remaining time there, the mount position and distance travelled, the pair's own allocation
+  observation (`MountedCombatController.LastPairedMovementObservation`, parsed into `allocation`), the command result;
+  movement stays observed through the owned settlement/recovery window (`settlementPolls`, `settlementMovingPolls`,
+  `settlementOffTurnMovingPolls`, `turnChangedDuringSettlement`); a `movementCost` object relates the raw rows; the
+  in-game Requires mirror the reader. `scope` labels state that the off-turn click proves cross-pair isolation (not the
+  same controller's pending-recovery preservation, which stays offline coverage) and that zero stalls is not a native
+  exhaustion/off-turn wait exercise.
+- Reader: recomputes every delta from the raw rows (a fabricated delta object is refused); requires the allocation
+  observation; mount Move charge > 0 for real travel, ≤ allocation time + 0.05 and equal to it when no five-foot step,
+  mount Move ≤ 6.001 at the action end, allocation ledger equal to the native cooldown, rider Move unchanged (no
+  transport tax), rider Standard +6 exactly once at the action end ([5.5, 6.05]), mount Standard untouched, second pair
+  untouched; afterwards no increase of the mount's Move and no movement unless the settlement admitted one owned
+  recovery, no re-spend of the Standard, no off-turn or turn-changing movement during settlement.
+- Review blocker (`c74ab7b7`): native turn-based GameTime does not advance inside a turn (the retained TB allocation
+  trace `20261018-c7b-world33-ownerseed-b6s3-tbrider` holds constant ticks across a whole rider turn, 158 and 213
+  events at one tick value, and jumps only at turn boundaries), so the first version's "charge ≤ elapsed game seconds"
+  bound would have refused a correct run; it was removed before any launch. Game-seconds figures remain recorded data.
+
+The movement-cost contract was not exercised natively: r14 refused before the encounter (below).
+
+### Offline verification and review
+
+Compile clean; `Test-Sprint2OwnerSurfaceAndTurnBasedReaders` 133/0 (was 91); `Test-Chunk7WorldEvidence` 413/0 (was
+395; v3 and v4 fixtures and their refusals); `Validate-Source` 149/0. One bounded independent read-only delta review of
+`fdf69f65` (twelve findings: the blocker above, two minor, nine verified-fine items including the observation ownership
+of the allocation string through `CanMoveInTurnBased` → `TryOverrideMountTurnMovement` → `TickMountMovement`, the
+action-end boundary, the parser, field parity, C# 7.3 legality, the v2 path and the r09 shape).
+
+### Native execution
+
+| Run | Candidate / batch | WhatIf | Native result |
+| --- | --- | --- | --- |
+| r13 `20261031-sprint2-r13-owner-surface-speed` | sprint2n / `sprint2:completion-5` | PASS | Game FAIL (79 s). Rows `C7-world-fixture` PASS, `C7-world-owner-surface-mount` PASS (the owner's `Manual_301_After_mounting` loaded through the missing-metadata path, one load, zero writes; the pre-owned pair `121dc2f0…`/`fb764728…` bound exactly; ordinary native Mount, one active owner), `C7-world-runtime` FAIL at the first leg, `C7-world-cleanup` PASS (pair preserved, no save). Mounted-party leg: selection Akasa, Leinna and the rider (projected to the Horse); all three movers ended `Interrupt` at the same game time (3.96 s), 1.2–1.5 m short of the one admitted goal, after climbing 1.0–1.7 m toward a goal recorded at the start height; the Horse stood still about 1.7 s before the common interrupt. Horse: path 6.69 m, effective 2.93 m/s (party pace limit 3.048 m/s, Slow gait, no acceleration, own modified speed 5.08 m/s); carried rider exactly as designed. |
+| r14 `20261031-sprint2-r14-doors-tb-control` | sprint2n / `sprint2:completion-5` | PASS | Game FAIL (88 s). Rows fixture, owner-seed-setup, two-native-mounts and selection-routing (the real-time door probe, released door) PASS; `C7-world-runtime` FAIL at the turn-based stage's encounter admission: the Old Sycamore `TavernDoor` reports `NotInCombat = true` (recorded on the fixture row before any encounter: open, enabled, static cut, radius 2.0, restrictions 0); the door had been closed as fixture preparation and was restored exactly (open, enabled, cut, unlock); cleanup PASS. No encounter, target, initiative or AI lease was created. |
+| r15 `20261031-sprint2-r15-owner-surface-speed-level` | sprint2o / `sprint2:completion-5` | PASS | Launch refused at admission by the native batch guard ("refuses a third equivalent attempt": the batch key is the scenario, and r13 and r14 both failed under it). Retained; no game process. |
+| r16 `20261031-sprint2-r16-owner-surface-speed-level` | sprint2o / `sprint2:completion-5b` | PASS | Game FAIL (38 s), identical to r13: the same admitted goal (the v4 level filter saw rise 0.0 at every sample because `ObstacleAnalyzer.GetNearestNode` keeps the requested height), the same three `Interrupt` results at the same game time (3.98 s), end state `Default`, unpaused, not in combat, not loading, same area. Cleanup PASS, restoration exact. |
+
+Interpretation of the owner-surface data: the party-paced segment that did run (6.7 m) shows the Horse carrying the
+owner's rider at 2.92–2.93 m/s against the native party-pace limit of 3.048 m/s in the Slow gait, the same shape as r09's
+party-paced leg (2.69 m/s on the door seed) and the native pacing rule (party pace = slowest selected member's run speed;
+Slow gait under 95 % of own speed); no KMC speed clamp or routing deficit is visible in that segment. The mounted-solo,
+Horse-alone and rider-alone legs on the owner's surface were never reached, so the matched comparison on the owner's
+surface is NOT DEMONSTRATED and MOVE-01 is not closed on it; r09's four legs on the door seed stand as before.
+
+Both failures are recorded observations, not product discrepancies that this sprint can attribute: the interrupting event
+is not a dialog, cutscene, load or combat (end state), and it hit two unmounted members and the Horse at the same instant;
+the `NotInCombat` flag is the game's own door data.
+
+### Causal blockers and exact remaining actions
+
+1. Owner-surface MOVE-01: two equivalent failures (r13, r16) and no observation that discriminates a fix; a third attempt
+   is not admitted. Remaining action, on a new explicit allowance: a run-scoped observation of the interrupting event
+   (an owned callback on the leg units' `UnitMoveTo.Interrupt`/`UnitCommands.InterruptMove` callers, or retention of the
+   game log for the run), then a route choice grounded in it (terrain height by physics raycast rather than the navmesh
+   node, the party leg after the solo legs from a different start, or an owner save on an open level surface).
+2. Turn-based door control: the only qualifying door on the retained owner seed is natively `NotInCombat`; the TB stage
+   refuses it before any encounter, as designed. Remaining action: a door seed whose nearest qualifying door permits
+   combat interaction (or a TB-selected scan predicate `!NotInCombat`, once a door inventory proves such a door lies
+   within the 28 m scan radius), then r14's route again on a new explicit allowance. The r10 dwarf-dungeon door belongs to
+   the traversal-core scenario, which has no turn-based stage.
+
+### Cost and state
+
+Budget `sprint2` 105.87 of 120 min (remaining 14.13, unused: no further launch is admitted by the equivalent-failure
+rule, and the four-hour active ceiling is near). This iteration charged 22.6 min: compile and reader regressions 5.2;
+package and suite sprint2m 6.7; blocker fix, package and suite sprint2n 1.5; v4 tests, failed package attempt, package
+and suite sprint2o 2.4; six WhatIfs 2.0; launches r13 1.9, r14 1.9, r16 1.1. Entries 67; batches `sprint2:completion-5`
+(r13, r14 failed; r15 refused) and `sprint2:completion-5b` (r16 failed). Active work this iteration about 3 h 30 min.
+
+Live state after the last restoration: Mods tree empty (digest `e3b0c442…` before every launch), profile bytes restored
+exactly on r13, r14 and r16, profile `Areas\` empty, no lock, no game process; the owner's originals
+`Manual_301_After_mounting.zks` (`1fda72b1…`, 2026-08-28) and `Auto_1121.zks` untouched; no candidate installed.
