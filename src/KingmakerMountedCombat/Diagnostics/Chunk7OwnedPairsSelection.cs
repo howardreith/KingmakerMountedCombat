@@ -37,6 +37,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool? TurnBasedDoor { get; set; }
         public bool ShouldSerializeTurnBasedDoor() => TurnBasedDoor != null;
         internal bool TurnBasedDoorSelected => IsOwnerSeed && TurnBasedDoor == true;
+        // Finishing mission 2026-10-31: the same opt-in on the owner-surface case runs the single-pair turn-based door stage
+        // (the pre-owned pair, the shared combat-usable door selection, no speed legs) instead of the speed legs.
+        internal bool OwnerSurfaceDoorSelected => IsOwnerSurfaceSpeed && TurnBasedDoor == true;
         // Owner-seed-derived combat (batch 3 scenarios 3-5): a disposable copy of the
         // owner-seed-derived Manual, cold-loaded with both pairs restored mounted. The
         // producer pins are Source*, the ACCEPTED cold consumer receipt is Checkpoint*.
@@ -449,8 +452,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var charge = ChargeSeedError(checkpoint);
             var level6 = SeedId == Level6SeedId || SeedSha256 == Level6SeedSha256 ? Level6SeedRefusal : null;
             var mounted6 = Mounted6SeedError(checkpoint);
-            var turnBased = TurnBasedDoor == null ? null : IsOwnerSeed && TurnBasedDoor == true ? null :
-                "Turn-based door control is an explicit true opt-in for owner-seed exploration only.";
+            var turnBased = TurnBasedDoor == null ? null : (IsOwnerSeed || IsOwnerSurfaceSpeed) && TurnBasedDoor == true ? null :
+                "Turn-based door control is an explicit true opt-in for owner-seed exploration or the owner-surface pre-owned pair only.";
             if (charge == null && level6 == null && mounted6 == null && turnBased == null) return errors;
             var all = new List<string>(errors);
             if (charge != null) all.Add(charge);

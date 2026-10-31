@@ -938,9 +938,12 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     Assert-KmcChunk7OwnedPairsDescriptor $Request
     if(-not(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){throw 'Owner-surface speed evidence belongs only to its own selection.'}
     $s=$Request.ownedPairs;$o=$Observations;$d=$Request.persistenceLoad;$rider=[string]$s.riderAId;$horse=[string]$s.mountAId
-    foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','ownerSeedSetup','ownerSeed','door','routeGoalContract','routeGoalSearches','failurePhase','setupComplete')){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface evidence cannot carry '+$key+'.')}}
+    # Door mode (finishing mission 2026-10-31): the explicit opt-in runs the single-pair turn-based door stage instead of the speed legs.
+    $doorMode=Test-KmcChunk7OwnedPairsTurnBasedDoor $Request
+    foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','ownerSeedSetup','ownerSeed','routeGoalContract','routeGoalSearches','failurePhase','setupComplete')+$(if($doorMode){@()}else{@('door','turnBasedDoor')})){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface evidence cannot carry '+$key+'.')}}
     foreach($key in @('cycles','measurements','movements','cycleInputs','groundInputs')){if($null-eq$o.PSObject.Properties[$key]-or@($o.$key).Count-ne0){throw ('Owner-surface speed runs no '+$key+'.')}}
-    $u=$o.ownerSurface;Assert-KmcExactProperties $u (Get-KmcChunk7OwnerSurfaceFields) 'owner-surface pre-owned pair identity'
+    $u=$o.ownerSurface;Assert-KmcExactProperties $u ((Get-KmcChunk7OwnerSurfaceFields)+$(if($null-ne$u.PSObject.Properties['doorStage']){@('doorStage')}else{@()})) 'owner-surface pre-owned pair identity'
+    if($null-ne$u.PSObject.Properties['doorStage']){Assert-KmcChunk7Boolean $u.doorStage $doorMode}elseif($doorMode){throw 'Owner-surface door mode requires the doorStage flag.'}
     Assert-KmcBootstrapInventoryString $u.contract 'owner-surface-pre-owned-pair-speed-v1'
     foreach($pair in @(@('seedId',$s.seedId),@('seedSha256',$s.seedSha256),@('riderId',$rider),@('horseId',$horse),@('profileId','medium-humanoid-horse-v1'),@('horseBlueprint','4016c7db400ab721ff125aef9e65e202'),@('loadedArchiveKind','Missing'),@('area',$d.area),@('gameName',$d.gameName),@('gameId',$d.gameId))){Assert-KmcBootstrapInventoryString $u.($pair[0]) $pair[1]}
     if($u.horseFeatureSourceGuid-isnot[string]-or$u.horseFeatureSourceGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Owner-surface Horse feature source is not a blueprint id.'}
@@ -949,7 +952,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     Assert-KmcChunk7Boolean $u.nativeLoadVerifiedByHost $true
     Assert-KmcOrdinaryGuid $u.selectionChangeActorId;if($u.selectionChangeActorId-cnotin@($s.partyIds)){throw 'Owner-surface selection change actor is outside the field roster.'}
     Assert-KmcChunk7ExactIds @(@($u.partyIds)|ForEach-Object{[pscustomobject]@{id=$_}}) @($s.partyIds)
-    Assert-KmcOrdinaryInteger $u.legsCompleted 4 4;Assert-KmcOrdinaryInteger $u.legsApplicable 4 4
+    $legCount=$(if($doorMode){0}else{4});Assert-KmcOrdinaryInteger $u.legsCompleted $legCount $legCount;Assert-KmcOrdinaryInteger $u.legsApplicable $legCount $legCount
     $q=$u.preOwnedPair
     Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'owner pre-owned pair facts'
     Assert-KmcBootstrapInventoryString $q.riderId $rider;Assert-KmcBootstrapInventoryString $q.horseId $horse
@@ -974,13 +977,35 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             [string]::IsNullOrEmpty($v.shellControl)-or-not$shells.Add([string]$v.shellControl)-or$v.generationAtInit-lt0-or$v.selectionAfterInput-cnotin$selectionActors){throw 'Owner-surface native input command/shell/selection identity differs.'}
         Assert-KmcChunk7Resources $v.resourcesBefore $v.resourcesAfter $actors}
     # Ownership windows: unmounted at start, exactly one active owner while mounted, none afterwards.
-    foreach($pair in @(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))){
+    $windows=$(if($doorMode){@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('turn-based-door-complete',1),@('owner-surface-dismounted',0),@('owner-surface-door-complete',0))}else{@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))})
+    foreach($pair in $windows){
         $w=@($o.snapshots|Where-Object label -CEQ $pair[0]);if($w.Count-ne1){throw ('Owner-surface window missing: '+$pair[0])}
         $active=@($w[0].owners|Where-Object state -CEQ 'Active');if($active.Count-ne$pair[1]){throw ('Owner-surface window '+$pair[0]+' has '+$active.Count+' active owners.')}
         foreach($owner in $w[0].owners){Assert-KmcChunk7WorldCounters $owner @('generation')}
         if($pair[1]-eq1){$a=$active[0];[Guid]$id=[Guid]::Empty
             if(-not[Guid]::TryParse([string]$a.ownerId,[ref]$id)-or$a.relationshipState-cne'Mounted'-or$a.generation-lt1-or-not(Test-KmcChunk7OwnerActorMatch $a.riderId $rider)-or-not(Test-KmcChunk7OwnerActorMatch $a.mountId $horse)){throw 'Owner-surface active owner is not the owner pair.'}}
     }
+    $mountedOwner=@(@($o.snapshots|Where-Object label -CEQ 'owner-surface-mounted')[0].owners|Where-Object state -CEQ 'Active')
+    $tbCommands=@()
+    if($doorMode){
+    # Door mode: no speed legs; the shared selection chose a combat-usable qualifying door from the Horse's position and the
+    # single-pair turn-based door stage ran on it (the reader's single-pair mode is told by the one mount).
+    foreach($key in @('speedLegs','speedLegContract','speedLegsAccepted','speedLegInterruptions','speedLegInterruptObserver','doorInventory')){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface door mode runs no speed legs ('+$key+').')}}
+    $dd=$o.door;if($null-eq$dd){throw 'Owner-surface door mode recorded no door selection.'}
+    if($null-ne$dd.PSObject.Properties['applicable']-and$dd.applicable-eq$false){throw 'Owner-surface door mode found no combat-usable qualifying door: the turn-based door control did not run.'}
+    Assert-KmcExactProperties $dd @('applicable','requiredCombatUsable','candidatesScanned','radius','mounts','selected') 'owner-surface door selection'
+    Assert-KmcChunk7Boolean $dd.applicable $true;Assert-KmcChunk7Boolean $dd.requiredCombatUsable $true;Assert-KmcOrdinaryInteger $dd.candidatesScanned 1 100000
+    if(-not(Test-KmcChunk7FiniteNumber $dd.radius)-or[double]$dd.radius-ne28.0){throw 'Owner-surface door scan radius differs.'}
+    if($dd.mounts-isnot[Array]-or$dd.mounts.Count-ne1-or$dd.mounts[0].id-cne$horse){throw 'Owner-surface door selection was not taken from the owner''s Horse.'}
+    Assert-KmcChunk7NativeDoorRows @($dd.selected) $dd.mounts 1 'owner-surface selected door' -CurrentOnly
+    Assert-KmcChunk7Boolean $dd.selected.eligible $true;Assert-KmcChunk7Boolean $dd.selected.notInCombat $false
+    if($null-eq$o.PSObject.Properties['turnBasedDoor']){throw 'Owner-surface door mode recorded no turn-based door stage.'}
+    Assert-KmcChunk7TurnBasedDoorEvidence $Request $o.turnBasedDoor ([pscustomobject]@{fixture=[pscustomobject]@{name=$dd.selected.name}}) $mountedOwner @($rider) @($horse)
+    $tb=$o.turnBasedDoor
+    if($tb.setup.applicable){$tbCommands+=@([string]$tb.setup.command)}
+    $tbCommands+=@([string]$tb.interaction.commandObject)
+    if($tb.control.applicable){$tbCommands+=@([string]$tb.control.commandObject)}
+    } else {
     # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
     if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
     if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
@@ -998,7 +1023,6 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
         if(@($inv.rows|Where-Object{$null-eq$_.PSObject.Properties['notInCombat']}).Count-ne0){throw 'Owner-surface door inventory rows lack the combat-usability flag.'}}
     $legs=@($o.speedLegs);if($legs.Count-ne4){throw 'Owner-surface speed requires all four aligned legs.'}
     $primary=@($horse,$horse,$horse,$rider)
-    $mountedOwner=@(@($o.snapshots|Where-Object label -CEQ 'owner-surface-mounted')[0].owners|Where-Object state -CEQ 'Active')
     for($i=0;$i-lt4;$i++){$leg=$legs[$i]
         if(-not$leg.applicable){throw ('Owner-surface leg '+$leg.label+' was not applicable on this surface; the comparison is incomplete.')}
         if($leg.primaryMoverId-cne$primary[$i]){throw ('Owner-surface leg '+$leg.label+' measured another mover.')}
@@ -1022,6 +1046,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             if($i-eq3-and($riderRows.Count-ne1-or$riderRows[0].role-cne'on-foot')){throw 'The rider-solo leg did not move the rider on foot.'}
         }}
     if(@($legs[0].selectedIds).Count-lt2){throw 'The party-paced leg did not select the party.'}
+    }
     # Cleanup: the owner's pair is preserved (never removed), no save written, settings and selection restored.
     $c=$o.cleanup
     foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','ownerSurfacePairPreserved')){Assert-KmcChunk7Boolean $c.$field $true}
@@ -1038,8 +1063,8 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     foreach($field in @('owners','activePairs','frame','gameTicks')){if(-not(Test-KmcExactJsonInteger $admission.$field)-or$admission.$field-lt0){throw 'Fact-removal admission counter is missing or mistyped.'}}
     if($admission.owners-ne0-or$admission.activePairs-ne0-or$admission.commands-isnot[Array]){throw 'Owner-surface admission ran before settled ownership.'}
     foreach($field in @('preparationPending','serializationBusy','pendingNativeWrites')){Assert-KmcChunk7Boolean $admission.$field $false}
-    $legCommands=@();foreach($leg in $legs){foreach($mv in @($leg.movers)){$legCommands+=@([string]$mv.commandObject)}}
-    Assert-KmcChunk7ExactIds $admission.commands @(@($rows|ForEach-Object{[string]$_.commandObject})+$legCommands) 'commandObject'
+    $legCommands=@();if(-not$doorMode){foreach($leg in $legs){foreach($mv in @($leg.movers)){$legCommands+=@([string]$mv.commandObject)}}}
+    Assert-KmcChunk7ExactIds $admission.commands @(@($rows|ForEach-Object{[string]$_.commandObject})+$legCommands+$tbCommands) 'commandObject'
     foreach($command in $admission.commands){Assert-KmcChunk7WorldInt32 $command.commandObject;Assert-KmcChunk7Boolean $command.finished $true;Assert-KmcChunk7Boolean $command.processEnded $true}
 }
 # Sprint 2 (DOOR-01 / SPACE-01 in native turn-based combat): the explicit opt-in stage on owner-seed exploration. The real
@@ -1061,7 +1086,12 @@ function Assert-KmcChunk7TurnBasedRejection($Row,[string]$Label,[string]$SecondR
 }
 function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[string[]]$Riders,[string[]]$Mounts){
     $t=$Turn;if($null-eq$t){throw 'Turn-based door evidence is missing.'}
-    Assert-KmcExactProperties $t @('contract','scope','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed') 'turn-based door control'
+    # Single-pair mode (finishing mission 2026-10-31): one mounted pair; the cross-pair off-turn rows are recorded not applicable,
+    # the second-pair cooldown roles are null and the initiative inputs name the two pair actors. The reader is told by $Mounts.
+    $single=@($Mounts).Count-eq1
+    $tbKeys=@('contract','scope','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed')
+    if($null-ne$t.PSObject.Properties['pairs']){$tbKeys+='pairs';Assert-KmcOrdinaryInteger $t.pairs $(if($single){1}else{2}) $(if($single){1}else{2})}elseif($single){throw 'Single-pair turn-based door evidence must declare its pair count.'}
+    Assert-KmcExactProperties $t $tbKeys 'turn-based door control'
     # v3 (review 2026-10-31): the shared door selection required combat usability before any preparation and the outcome
     # carries the supervision clock's operational seconds (Assert-KmcChunk7DoorSettlement bounds them); otherwise v2.
     if($t.contract-cnotin@('owner-seed-turn-based-door-control-v2','owner-seed-turn-based-door-control-v3')){throw 'Turn-based door control contract differs.'}
@@ -1076,10 +1106,11 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     $sc=$t.scope;Assert-KmcExactProperties $sc @('offTurnRejection','stallClassification','movementCost') 'turn-based door scope labels'
     if($sc.offTurnRejection-isnot[string]-or$sc.offTurnRejection-cnotlike'cross-pair-isolation:*not native proof*'-or$sc.stallClassification-isnot[string]-or$sc.stallClassification-cnotlike'*not a native exercise*'){throw 'Turn-based door scope labels overstate the off-turn or stall evidence.'}
     Assert-KmcBootstrapInventoryString $sc.movementCost 'paired-approach-charged-to-own-mount-move/v1'
-    $first=$Riders[0];$second=$Riders[1];$firstMount=$Mounts[0];$secondMount=$Mounts[1]
+    $first=$Riders[0];$second=$(if($single){$null}else{$Riders[1]});$firstMount=$Mounts[0];$secondMount=$(if($single){$null}else{$Mounts[1]})
     $f=$t.fixture;Assert-KmcExactProperties $f @('name','object','position','approachPoint','radius','originalOpen','originalEnabled','originalCut','cutMode','notInCombat','disableOnOpen','restrictionCount','originalAlreadyUnlocked') 'turn-based door fixture'
     Assert-KmcBootstrapInventoryString $f.name $Door.fixture.name
-    if($f.cutMode-cne$Door.fixture.cutMode-or$f.originalOpen-ne$Door.fixture.originalOpen-or$f.originalCut-ne$Door.fixture.originalCut){throw 'The turn-based stage captured a different door state than the real-time probe released.'}
+    # The real-time probe's released state is compared when that probe ran; the single-pair stage selects its door directly.
+    if($null-ne$Door.fixture.PSObject.Properties['cutMode']-and($f.cutMode-cne$Door.fixture.cutMode-or$f.originalOpen-ne$Door.fixture.originalOpen-or$f.originalCut-ne$Door.fixture.originalCut)){throw 'The turn-based stage captured a different door state than the real-time probe released.'}
     Assert-KmcChunk7Boolean $f.notInCombat $false;Assert-KmcOrdinaryInteger $f.restrictionCount 0 0
     if(-not(Test-KmcChunk7FiniteNumber $f.radius)-or$f.radius-le0){throw 'Turn-based door radius is invalid.'}
     Assert-KmcOrdinaryInteger $t.setupInteractions 0 3
@@ -1091,9 +1122,9 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     Assert-KmcBootstrapInventoryString $e.contract 'owner-seed-turn-based-door-encounter-v1';Assert-KmcBootstrapInventoryString $e.basis 'owner-seed-disposable-copy-turn-based-door'
     Assert-KmcBootstrapInventoryString $e.seedSha256 $Request.ownedPairs.seedSha256;Assert-KmcChunk7Boolean $e.turnBasedAtStart $true
     Assert-KmcOrdinaryGuid $e.targetId;Assert-KmcOrdinaryInteger $e.roundAtStart 1 1000
-    $order=@($e.nativeInitialOrder);if($order.Count-lt3-or$order-cnotcontains$first-or$order-cnotcontains$second-or$order-cnotcontains$e.targetId){throw 'Native initiative order lacks both riders and the target.'}
-    if([Array]::IndexOf($order,$first)-ge[Array]::IndexOf($order,$second)){throw 'The rider-first arrangement did not place the first rider before the second.'}
-    if(@($e.initiativeInputs).Count-ne4){throw 'Initiative inputs must name the four pair actors.'}
+    $order=@($e.nativeInitialOrder);if($order.Count-lt2-or$order-cnotcontains$first-or$order-cnotcontains$e.targetId-or(-not$single-and($order.Count-lt3-or$order-cnotcontains$second))){throw 'Native initiative order lacks the rider(s) and the target.'}
+    if(-not$single-and[Array]::IndexOf($order,$first)-ge[Array]::IndexOf($order,$second)){throw 'The rider-first arrangement did not place the first rider before the second.'}
+    if(@($e.initiativeInputs).Count-ne$(if($single){2}else{4})){throw 'Initiative inputs must name every pair actor.'}
     # Every observed native roster turn belongs to a rider, the target or an unmounted member; never a mounted partner.
     $turns=@($t.turns);if($turns.Count-lt1){throw 'No native turn was observed.'}
     foreach($row in $turns){if($row.isMount-ne$false-or$row.actorId-cin@($firstMount,$secondMount)){throw 'A mounted partner received an independent native roster turn.'}}
@@ -1104,15 +1135,24 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     if($rt.status-cnotin@('Preparing','Acting')-and$rt.acting-ne$true){throw 'The rider turn was not ready for input.'}
     if(-not(Test-KmcChunk7FiniteNumber $rt.distanceToApproachPoint)-or$rt.distanceToApproachPoint-le$f.radius+0.5){throw 'The rider turn began inside the door''s immediate range.'}
     # Off-turn input before the click and during the live approach: refused, nothing mutated, the live operation intact.
+    if($single){
+        # No second pair exists: both off-turn rows are recorded not applicable (cross-pair isolation stays offline coverage and the retained two-pair rows).
+        foreach($pair in @(@($t.rejectionBeforeClick,'before-first-pair-click'),@($t.rejectionDuringApproach,'during-first-pair-approach'))){$row=$pair[0]
+            Assert-KmcExactProperties $row @('label','applicable','reason') ('single-pair turn-based rejection '+$pair[1]);Assert-KmcBootstrapInventoryString $row.label $pair[1];Assert-KmcChunk7Boolean $row.applicable $false
+            if($row.reason-isnot[string]-or$row.reason-cnotlike'single pair:*'){throw 'Single-pair turn-based rejection row lacks its reason.'}}
+        if($sc.offTurnRejection-cnotlike'*not exercised in this run (single pair*'){throw 'Single-pair turn-based scope must say the off-turn refusal was not exercised.'}
+    } else {
     Assert-KmcChunk7TurnBasedRejection $t.rejectionBeforeClick 'before-first-pair-click' $second $secondMount $false
     Assert-KmcChunk7TurnBasedRejection $t.rejectionDuringApproach 'during-first-pair-approach' $second $secondMount $true
+    }
     # The one on-turn interaction.
     $i=$t.interaction
     Assert-KmcExactProperties $i @('riderId','mountId','ownerId','generation','accepted','commandObject','executorId','round','turn','distanceBefore','radius','cooldownsAtClick','timeMovedAtClick','selectionAfterInput','feedback','rejectionCodes',
         'cooldownsAtActionEnd','timeMovedAtActionEnd','remainingTimeAtActionEnd','mountPositionAtActionEnd','distanceMovedAtActionEnd','movementObservationAtActionEnd','allocation','commandResult','commandActed',
         'outcome','terminal','distanceMoved','doorOpenAfter','cooldownsAfter','timeMovedAfter','maximumTimeMovedWhileLive','livePolls','movingPolls','offTurnMovingPolls','startedWhileMoving','unstartedWhileMoving','turnChangedWhileLive','turnStillRiderAfter','roundAfter','mountPositionAfter','mountInsideNavmesh',
         'settlementPolls','settlementMovingPolls','settlementOffTurnMovingPolls','turnChangedDuringSettlement','cooldownDeltas','movementCost') 'turn-based door interaction'
-    Assert-KmcBootstrapInventoryString $i.riderId $first;Assert-KmcBootstrapInventoryString $i.mountId $firstMount;Assert-KmcBootstrapInventoryString $i.executorId $first;Assert-KmcBootstrapInventoryString $i.selectionAfterInput $second
+    Assert-KmcBootstrapInventoryString $i.riderId $first;Assert-KmcBootstrapInventoryString $i.mountId $firstMount;Assert-KmcBootstrapInventoryString $i.executorId $first
+    if($single){Assert-KmcOrdinaryGuid $i.selectionAfterInput;if($i.selectionAfterInput-cin@($first,$firstMount)){throw 'The single-pair selection after input stayed on a pair actor.'}}else{Assert-KmcBootstrapInventoryString $i.selectionAfterInput $second}
     $owner=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $first});if($owner.Count-ne1-or[string]$i.ownerId-cne[string]$owner[0].ownerId-or$i.generation-ne$owner[0].generation){throw 'The turn-based interaction belongs to another owner or generation.'}
     Assert-KmcChunk7WorldInt32 $i.commandObject;Assert-KmcChunk7Boolean $i.accepted $true;Assert-KmcChunk7Boolean $i.terminal $true;Assert-KmcChunk7Boolean $i.doorOpenAfter $true
     foreach($key in @('startedWhileMoving','turnChangedWhileLive')){Assert-KmcChunk7Boolean $i.$key $false}
@@ -1133,7 +1173,9 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     # interaction, nothing is refunded afterwards beyond native decay, and no unowned movement follows the action.
     $ck=$i.cooldownsAtClick;$ac=$i.cooldownsAtActionEnd;$af=$i.cooldownsAfter
     foreach($row in @($ck,$ac,$af)){if($null-eq$row){throw 'A turn-based cooldown boundary row is missing.'}
-        foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $row.$role.$key)-or$row.$role.$key-lt0){throw ('Turn-based cooldown row '+$role+'.'+$key+' is not finite and nonnegative.')}}
+        foreach($role in @('rider','mount','secondRider','secondMount')){
+            if($single-and$role-clike'second*'){if($null-ne$row.$role){throw 'Single-pair turn-based cooldown rows must leave the second-pair roles null.'};continue}
+            foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $row.$role.$key)-or$row.$role.$key-lt0){throw ('Turn-based cooldown row '+$role+'.'+$key+' is not finite and nonnegative.')}}
             if(-not(Test-KmcExactJsonInteger $row.$role.gameTicks)-or$row.$role.gameTicks-lt0){throw 'Turn-based cooldown row lacks its game ticks.'}}}
     $approach=([double]$ac.rider.gameTicks-[double]$ck.rider.gameTicks)/1e7;$settle=([double]$af.rider.gameTicks-[double]$ac.rider.gameTicks)/1e7
     if($approach-lt0-or$settle-lt0){throw 'Turn-based cooldown boundaries are out of order.'}
@@ -1173,10 +1215,12 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     if($recovered){if([double]$af.mount.move-gt6.001-or$i.settlementMovingPolls-lt1){throw 'The owned recovery move left the budget or was never observed moving.'}}
     elseif($afterMove-gt0.01-or$i.settlementMovingPolls-ne0){throw 'The mount moved or was charged after the door action without an admitted owned recovery.'}
     $dl=$i.cooldownDeltas
-    foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $dl.$role.$key)-or[Math]::Abs([double]$dl.$role.$key-([double]$af.$role.$key-[double]$ck.$role.$key))-gt0.0005){throw ('Turn-based cooldown delta differs from its raw rows: '+$role+'.'+$key)}}}
+    foreach($role in @('rider','mount','secondRider','secondMount')){if($single-and$role-clike'second*'){continue}
+        foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $dl.$role.$key)-or[Math]::Abs([double]$dl.$role.$key-([double]$af.$role.$key-[double]$ck.$role.$key))-gt0.0005){throw ('Turn-based cooldown delta differs from its raw rows: '+$role+'.'+$key)}}}
     foreach($pair in @(@('rider','swift'),@('mount','swift'),@('mount','standard'))){if([Math]::Abs([double]$dl.($pair[0]).($pair[1]))-gt0.01){throw ('Turn-based door interaction changed an unrelated first-pair cooldown: '+$pair[0]+'.'+$pair[1])}}
     if($dl.rider.standard-le0.5-or$dl.rider.standard-gt6.05){throw 'The rider''s Standard action was not spent exactly once by the turn-based door interaction.'}
-    foreach($role in @('secondRider','secondMount')){foreach($key in @('standard','move','swift')){if([Math]::Abs([double]$dl.$role.$key)-gt0.01){throw 'The second pair''s native cooldowns changed during the first pair''s door interaction.'}}}
+    if($single){foreach($role in @('secondRider','secondMount')){if($null-ne$dl.$role){throw 'Single-pair turn-based cooldown deltas must leave the second-pair roles null.'}}}
+    else{foreach($role in @('secondRider','secondMount')){foreach($key in @('standard','move','swift')){if([Math]::Abs([double]$dl.$role.$key)-gt0.01){throw 'The second pair''s native cooldowns changed during the first pair''s door interaction.'}}}}
     # The native control (an unmounted member's own stock click on its earlier turn) when the initiative order offered one.
     $k=$t.control;if($k.applicable-isnot[bool]){throw 'Turn-based control applicability must be a native boolean.'}
     if($k.applicable){Assert-KmcChunk7Boolean $k.routedByKmc $false;Assert-KmcChunk7WorldInt32 $k.commandObject;if($k.commandType-cne'Kingmaker.UnitLogic.Commands.UnitInteractWithObject'-or$k.result-cne'Success'-or$k.doorOpenAfter-ne$true){throw 'The native control did not open the door through its stock interaction.'}
@@ -1186,7 +1230,7 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     Assert-KmcChunk7Boolean $t.encounterEnd.targetRemoved $true
     $sr=$t.servicesReleased;foreach($key in @('initiativeRestored','aiLeaseRestored','targetServiceDisposed','realTimeModeReselected')){Assert-KmcChunk7Boolean $sr.$key $true}
     $ac=$t.afterCombat;foreach($key in @('turnBased','playerInCombat','controllerInitialized')){Assert-KmcChunk7Boolean $ac.$key $false};Assert-KmcChunk7Boolean $ac.actorsIdle $true
-    $pairs=@($ac.pairs);if($pairs.Count-ne2){throw 'After-combat pair rows missing.'}
+    $pairs=@($ac.pairs);if($pairs.Count-ne$(if($single){1}else{2})){throw 'After-combat pair rows missing.'}
     foreach($p in $pairs){foreach($key in @('retainedPairCommands','activeDoorInteraction','pendingSettlement')){Assert-KmcChunk7Boolean $p.$key $false};Assert-KmcChunk7Boolean $p.mounted $true}
     $rs=$t.restoration;Assert-KmcExactProperties $rs @('exact','commandsSettled','open','enabled','cutEnabled','observedAlreadyUnlockedBeforeRestore','alreadyUnlocked') 'turn-based door restoration'
     Assert-KmcChunk7Boolean $rs.exact $true;Assert-KmcChunk7Boolean $rs.commandsSettled $true

@@ -2008,7 +2008,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
                     ? OwnerSeedDerivedBasis : null;
             // Owner-seed exploration with the explicit turn-based door opt-in: the admitted input is exactly the seed's run copy.
-            if (selection.TurnBasedDoorSelected)
+            // (The owner-surface pre-owned pair's single-pair door stage admits the same basis on its own seed's run copy.)
+            if (selection.TurnBasedDoorSelected || selection.OwnerSurfaceDoorSelected)
                 return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SeedSha256 ? OwnerSeedTurnBasedDoorBasis : null;
             // The owner-seed setup and cold-consumer kinds never spawn a combat target; the checkpoint
             // consumer binds its producer's saved target read-only, and exploration checkpoints have none.

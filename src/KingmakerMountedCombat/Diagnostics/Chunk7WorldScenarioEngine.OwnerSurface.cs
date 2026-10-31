@@ -22,6 +22,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string OwnerSurfaceLegsRow = "C7-world-owner-surface-legs";
         private const double OwnerSurfaceTotalSeconds = 360, OwnerSurfaceStepSeconds = 60;
         private bool OwnerSurfaceSpeed => request.OwnedPairs?.IsOwnerSurfaceSpeed == true;
+        // Finishing mission 2026-10-31: the explicit opt-in runs the single-pair turn-based door stage on the owner's pre-owned
+        // pair (shared combat-usable door selection first, no speed legs, dismount, cleanup) instead of the speed legs.
+        private bool OwnerSurfaceDoorSelected => OwnerSurfaceSpeed && request.OwnedPairs?.OwnerSurfaceDoorSelected == true;
         private JObject ownerSurface;
         private UnitEntityData ownerSurfaceOther;
 
@@ -63,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["preOwnedPair"] = PreOwnedRow(facts), ["fixtureSetupOnly"] = false, ["acquisitionProof"] = false, ["producerAncestry"] = false,
                 ["nativeLoadVerifiedByHost"] = true, ["loadedArchiveKind"] = persistence.LoadedArchiveKind?.ToString(),
                 ["loadedArchiveCanRestore"] = persistence.LoadedArchiveCanRestore, ["mutations"] = "none: no build, grant, level, XP, item, money or save",
-                ["secondPair"] = false, ["selectionChangeActorId"] = ownerSurfaceOther.UniqueId,
+                ["secondPair"] = false, ["selectionChangeActorId"] = ownerSurfaceOther.UniqueId, ["doorStage"] = selection.OwnerSurfaceDoorSelected,
                 ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe, ["gameName"] = input.GameName, ["gameId"] = game.Player.GameId,
                 ["partyIds"] = new JArray(originalParty.Select(u => u.UniqueId)) };
             evidence["ownerSurface"] = ownerSurface;
@@ -107,9 +110,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void UpdateOwnerSurface()
         {
-            Require(clock.Elapsed.TotalSeconds <= OwnerSurfaceTotalSeconds && clock.Elapsed.TotalSeconds - stepStarted <= OwnerSurfaceStepSeconds,
+            // The turn-based door stage (step 210) carries its own native encounter and the probe's 240 s bound.
+            Require(clock.Elapsed.TotalSeconds <= OwnerSurfaceTotalSeconds && clock.Elapsed.TotalSeconds - stepStarted <= (step == 210 ? 240 : OwnerSurfaceStepSeconds),
                 "Bounded owner-surface speed deadline at step " + step + ".");
-            Require(!Game.Instance.Player.IsInCombat, "Owner-surface speed unexpectedly entered combat.");
+            Require(step == 210 || !Game.Instance.Player.IsInCombat, "Owner-surface speed unexpectedly entered combat.");
             if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
             switch (step)
             {
@@ -126,7 +130,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     secondOwner = world.Registry.FindActive(secondRider).Id; FinishInput();
                     Require(world.Registry.ActiveCount == 1, "The owner's single pair produced more than one active owner.");
                     Pass(OwnerSurfaceMountRow); snapshots.Add(CaptureWorld("owner-surface-mounted"));
+                    if (OwnerSurfaceDoorSelected) { BeginOwnerSurfaceDoor(); Next(210); break; }
                     BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(202); break;
+                case 210:
+                    RequireOwnerSurfaceMounted(); if (!PollTurnBasedDoor()) return;
+                    Pass(TurnBasedDoorRow); snapshots.Add(CaptureWorld("turn-based-door-complete"));
+                    Input(secondRider, secondRider, controls.DismountAbility, "dismount-owner-pair", ownerSurfaceOther); Next(211); break;
+                case 211:
+                    if (Mounted(secondRider, secondMount) || !InputSettled()) return;
+                    FinishInput(); RequireOwnerSurfacePair();
+                    snapshots.Add(CaptureWorld("owner-surface-dismounted"));
+                    ownerSurface["legsCompleted"] = 0; ownerSurface["legsApplicable"] = 0;
+                    snapshots.Add(CaptureWorld("owner-surface-door-complete"));
+                    BeginCleanup(); break;
                 case 202:
                     RequireOwnerSurfaceMounted(); if (!PollSpeedLeg()) return;
                     BeginSpeedLeg("mounted-solo", SpeedLegSelection.SecondRiderAlone); Next(203); break;
@@ -152,6 +168,30 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup(); break;
                 default: throw new InvalidOperationException("Unknown owner-surface speed step " + step + ".");
             }
+        }
+
+        // The single-pair turn-based door stage: the shared selection requires a combat-usable qualifying door (NotInCombat
+        // false) within the scan radius of the Horse BEFORE any preparation or encounter; an absence fails the row here with
+        // the read-only inventory. The probe then runs with the one pre-owned pair; the selection after inputs goes to the
+        // declared other party member.
+        private void BeginOwnerSurfaceDoor()
+        {
+            Require(turnBasedDoor == null && OwnerSurfaceDoorSelected, "The owner-surface door stage runs once on the explicit opt-in.");
+            var mounts = new[] { secondMount };
+            var door = Chunk7NativeDoorProbe.FindQualifyingDoor(mounts, true, out var scanned);
+            if (door == null)
+            {
+                evidence["door"] = Chunk7NativeDoorProbe.NotApplicable(mounts, true);
+                Require(false, "No combat-usable qualifying door (StandardDoor.NotInCombat false) lies within the 28 m scan radius of the owner's Horse on this surface: " +
+                    "the turn-based door control is not possible here; the read-only door inventory is recorded under door.rows (no preparation, no encounter).");
+            }
+            var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, mounts);
+            evidence["door"] = new JObject { ["applicable"] = true, ["requiredCombatUsable"] = true, ["candidatesScanned"] = scanned, ["radius"] = Chunk7NativeDoorProbe.ScanRadius,
+                ["mounts"] = new JArray(mounts.Select(m => new JObject { ["id"] = m.UniqueId, ["position"] = Point(m.Position) })), ["selected"] = facts.Row(door) };
+            turnBasedDoor = new Chunk7TurnBasedDoorProbe(world, nativeScope, request, logger, SelectNativeMode, door, secondRider, secondMount, null, null, originalParty)
+                { SelectionActor = ownerSurfaceOther };
+            evidence["turnBasedDoor"] = turnBasedDoor.Evidence;
+            turnBasedDoor.Begin();
         }
 
         private void RequireOwnerSurfaceMounted()
