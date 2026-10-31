@@ -26,7 +26,12 @@ namespace KingmakerMountedCombat.Integration
         public string TerminalReason { get; set; }
         // Sprint 2 additions: the approach's own progress record and the post-interaction occupancy check.
         public int ApproachesWithoutProgress { get; set; }
+        // Observed campaign GameTime across the approach (frozen inside a turn-based turn: 0 there by native design).
         public float ApproachElapsedGameSeconds { get; set; }
+        // Review 2026-10-31: the supervision clock's elapsed seconds across the approach (MountedDoorOperationalClock:
+        // the engine's per-frame gameplay timestep on the frames the command was ticked). This is what the native
+        // re-approach cooldown and the stall bound are measured in; it is not a movement charge.
+        public float ApproachElapsedOperationalSeconds { get; set; }
         public float DistanceAtInteraction { get; set; }
         public bool LineOfSightAtInteraction { get; set; }
         public bool? OccupancyInsideNavmesh { get; set; }
@@ -36,7 +41,10 @@ namespace KingmakerMountedCombat.Integration
         // MountedDoorOccupancySettlement after the native action ended, on the same outcome instance.
         public bool PreventionRefused { get; set; }
         public bool OccupancySettled { get; set; }
+        // Observed campaign GameTime across the settlement wait (frozen inside a turn-based turn).
         public float OccupancySettleGameSeconds { get; set; }
+        // The settlement wait's own operational seconds (the bound MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit applies to this).
+        public float OccupancySettleOperationalSeconds { get; set; }
         public float MountCorpulence { get; set; }
         public bool? FootprintClear { get; set; }
         public int FootprintRingInside { get; set; }
@@ -90,9 +98,13 @@ namespace KingmakerMountedCombat.Integration
         private int delegatedMoveStartCount;
         private int delegatedMoveTickCount;
         private readonly MountedDoorApproachLifecycle lifecycle = new MountedDoorApproachLifecycle();
+        // Review 2026-10-31: the approach lifecycle is driven by the operational clock, not by campaign GameTime, which
+        // the native turn-based controller rewinds to the turn's start on every frame of an acting turn.
+        private readonly MountedDoorOperationalClock operationalClock = new MountedDoorOperationalClock();
         private Vector3 lastSampledMountPosition;
         private bool mountPositionSampled;
-        private float approachElapsedGameSeconds;
+        private float approachElapsedGameSeconds, approachElapsedOperationalSeconds;
+        private double? approachBeganGameSeconds;
         private bool approachSatisfied;
         private bool terminalReported;
         private bool mountMoveSlotRestored = true;
@@ -198,9 +210,12 @@ namespace KingmakerMountedCombat.Integration
                 var live = delegatedMove != null && !delegatedMove.IsFinished;
                 var owned = live && mount.Commands != null && ReferenceEquals(mount.Commands.GetCommand(CommandType.Move), delegatedMove);
                 var turnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+                // The supervision clock advances by the engine's own gameplay timestep on each frame this command is
+                // ticked (the native action controller ticks it unpaused; turn-based: on the rider's acting turn only).
+                var operationalSeconds = operationalClock.Observe(Time.frameCount, Game.Instance.IsPaused ? 0f : Game.Instance.TimeController.GameDeltaTime);
                 var action = lifecycle.Tick(new MountedDoorApproachObservation
                 {
-                    NowSeconds = GameTime.TotalSeconds,
+                    NowSeconds = operationalSeconds,
                     InRange = IsMountWithinDoorRange(),
                     Move = delegatedMove == null ? MountedDoorApproachMoveState.None : delegatedMove.IsFinished ? MountedDoorApproachMoveState.Finished : MountedDoorApproachMoveState.Live,
                     MoveResult = delegatedMove != null && delegatedMove.IsFinished ? delegatedMove.Result.ToString() : null,
@@ -213,7 +228,8 @@ namespace KingmakerMountedCombat.Integration
                 {
                     case MountedDoorApproachAction.Satisfied:
                         StopDelegatedMove();
-                        approachElapsedGameSeconds = lifecycle.ElapsedSeconds;
+                        approachElapsedOperationalSeconds = lifecycle.ElapsedSeconds;
+                        approachElapsedGameSeconds = approachBeganGameSeconds.HasValue ? (float)Math.Max(0d, GameTime.TotalSeconds - approachBeganGameSeconds.Value) : 0f;
                         // Prevention before the native action starts (no cost is spent on an unstarted command): closing a
                         // door whose cut is written on state changes while the pair's footprint overlaps that cut would
                         // embed the pair when the cut lands; the click is refused with the reason instead.
@@ -226,6 +242,7 @@ namespace KingmakerMountedCombat.Integration
                         approachSatisfied = true;
                         return;
                     case MountedDoorApproachAction.BeginMove:
+                        if (!approachBeganGameSeconds.HasValue) approachBeganGameSeconds = GameTime.TotalSeconds;
                         BeginDelegatedMove();
                         return;
                     case MountedDoorApproachAction.Retry:
@@ -475,9 +492,13 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             terminalReported = true;
-            if (approachElapsedGameSeconds <= 0f && lifecycle.BeganAt.HasValue)
+            if (approachElapsedOperationalSeconds <= 0f && lifecycle.BeganAt.HasValue)
             {
-                approachElapsedGameSeconds = (float)(GameTime.TotalSeconds - lifecycle.BeganAt.Value);
+                approachElapsedOperationalSeconds = (float)Math.Max(0d, operationalClock.Seconds - lifecycle.BeganAt.Value);
+            }
+            if (approachElapsedGameSeconds <= 0f && approachBeganGameSeconds.HasValue)
+            {
+                approachElapsedGameSeconds = (float)Math.Max(0d, GameTime.TotalSeconds - approachBeganGameSeconds.Value);
             }
             outcome.Result = Result.ToString();
             outcome.RiderId = rider.UniqueId;
@@ -491,6 +512,7 @@ namespace KingmakerMountedCombat.Integration
             outcome.TerminalReason = terminalReason;
             outcome.ApproachesWithoutProgress = lifecycle.ApproachesWithoutProgress;
             outcome.ApproachElapsedGameSeconds = approachElapsedGameSeconds;
+            outcome.ApproachElapsedOperationalSeconds = approachElapsedOperationalSeconds;
             outcome.DistanceAtInteraction = distanceAtInteraction;
             outcome.LineOfSightAtInteraction = lineOfSightAtInteraction;
             outcome.OccupancyInsideNavmesh = occupancyInsideNavmesh;

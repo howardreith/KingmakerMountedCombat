@@ -82,12 +82,17 @@ namespace KingmakerMountedCombat.Integration
         private readonly bool turnBasedRecoveryDrivenNatively;
         private readonly Func<bool> movementOpportunity;
         private readonly TimeSpan began;
-        private readonly MountedDoorSettlementLifecycle lifecycle = new MountedDoorSettlementLifecycle(MountedDoorOccupancyPolicy.SettleGameSecondsLimit);
+        private readonly MountedDoorSettlementLifecycle lifecycle = new MountedDoorSettlementLifecycle(MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit);
+        // Review 2026-10-31: the settlement wait and the recovery stall are measured by the operational clock (the
+        // engine's gameplay timestep on the frames this settlement was ticked), never by campaign GameTime, which the
+        // native turn-based controller rewinds to the turn's start on every frame of an acting turn. The wait is a
+        // bounded operational wait independent of any movement opportunity; the recovery stall keeps its opportunity gate.
+        private readonly MountedDoorOperationalClock operationalClock = new MountedDoorOperationalClock();
         private int phase;
         private UnitMoveTo recoveryMove;
         private Vector3 lastSampledPosition;
         private bool positionSampled;
-        private TimeSpan lastSampleGameTime;
+        private double lastSampleOperationalSeconds;
         private float stalledSeconds;
 
         internal MountedDoorOccupancySettlement(
@@ -128,6 +133,7 @@ namespace KingmakerMountedCombat.Integration
             if (IsFinished) return;
             try
             {
+                operationalClock.Observe(Time.frameCount, Game.Instance.IsPaused ? 0f : Game.Instance.TimeController.GameDeltaTime);
                 if (!PairIntact())
                 {
                     EndRecoveryMove();
@@ -166,7 +172,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void WaitForSettledNavmesh()
         {
-            var elapsed = (GameTime - began).TotalSeconds;
+            var elapsed = operationalClock.Seconds;
             var settled = MountedDoorOccupancyPolicy.NavmeshSettled(
                 door.GetState() == expectedDoorOpen,
                 cut != null && cut.RequiresUpdate(),
@@ -175,7 +181,8 @@ namespace KingmakerMountedCombat.Integration
             var step = lifecycle.Observe(settled, Math.Max(0d, elapsed), Time.frameCount);
             if (step == MountedDoorSettlementStep.Waiting) return;
             outcome.OccupancySettled = lifecycle.Settled;
-            outcome.OccupancySettleGameSeconds = (float)lifecycle.ElapsedSeconds;
+            outcome.OccupancySettleOperationalSeconds = (float)lifecycle.ElapsedSeconds;
+            outcome.OccupancySettleGameSeconds = (float)Math.Max(0d, (GameTime - began).TotalSeconds);
             if (step == MountedDoorSettlementStep.Unresolved)
             {
                 // Review correction A: the graph never confirmed inside the bound. Nothing is sampled or searched and no
@@ -186,7 +193,7 @@ namespace KingmakerMountedCombat.Integration
                 outcome.FootprintClear = null;
                 outcome.OccupancyInsideNavmesh = null;
                 logger.Warning("Mounted door occupancy unresolved: the door's navmesh change did not settle within " +
-                    MountedDoorOccupancyPolicy.SettleGameSecondsLimit + " game seconds; mountId=" + mount.UniqueId +
+                    MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit + " operational seconds; mountId=" + mount.UniqueId +
                     "; no footprint sample, no recovery (the interaction result is recorded separately).");
                 Finish();
                 return;
@@ -300,18 +307,19 @@ namespace KingmakerMountedCombat.Integration
         {
             var move = recoveryMove;
             var owned = mount.Commands != null && mount.Commands.GetCommand(UnitCommand.CommandType.Move) == move;
-            var now = GameTime;
+            var now = operationalClock.Seconds;
             var position = mount.Position;
             if (!positionSampled)
             {
-                positionSampled = true; lastSampledPosition = position; lastSampleGameTime = now;
+                positionSampled = true; lastSampledPosition = position; lastSampleOperationalSeconds = now;
             }
             else
             {
-                var elapsed = (float)(now - lastSampleGameTime).TotalSeconds;
-                lastSampleGameTime = now;
-                // The same clock rule as the approach: real time counts stillness; turn-based combat only on frames the
-                // native movement override admitted the mount; a pause or a tick gap is re-sampled, never charged.
+                var elapsed = (float)(now - lastSampleOperationalSeconds);
+                lastSampleOperationalSeconds = now;
+                // The same clock rule as the approach, on the operational clock: real time counts stillness; turn-based
+                // combat only on frames the native movement override admitted the mount; a pause, an off-turn frame or an
+                // oversized step is re-sampled, never charged.
                 var clockRuns = MountedDoorApproachPolicy.StallClockRuns(owned && !move.IsFinished, Game.Instance.IsPaused,
                     CombatController.IsInTurnBasedCombat(), movementOpportunity == null || movementOpportunity());
                 if (MountedFootprintProbe.Horizontal(position, lastSampledPosition) >= MountedDoorOccupancyPolicy.DisplacementEpsilonMetres)

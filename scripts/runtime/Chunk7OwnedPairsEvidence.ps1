@@ -907,7 +907,11 @@ function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
  # (every retained not-applicable artifact scanned zero doors); any observed door requires
  # the deciding rows, so a door too close is never read as no door.
  $legacy=$null-eq$Door.PSObject.Properties['rows']
- Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')}) 'not-applicable native door'
+ # Review 2026-10-31: a turn-based selection records that it required combat usability (requiredCombatUsable true) and its
+ # rows carry the native flag; such a scan is not applicable when every eligible door is NotInCombat.
+ $combat=$null-ne$Door.PSObject.Properties['requiredCombatUsable']
+ Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')+$(if($combat){@('requiredCombatUsable')}else{@()})}) 'not-applicable native door'
+ if($combat){Assert-KmcChunk7Boolean $Door.requiredCombatUsable $true;if($legacy){throw 'A combat-usability scan requires its rows.'}}
  Assert-KmcChunk7Boolean $Door.applicable $false
  if($Door.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($Door.reason)-or$Door.reason.Length-gt512){throw 'Not-applicable door lacks its observed reason.'}
  Assert-KmcOrdinaryInteger $Door.candidatesScanned 0 100000
@@ -927,7 +931,9 @@ function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
   if($drift-gt0.5){throw 'Not-applicable door scan was not taken where the pair movement ended.'}
  }
  Assert-KmcChunk7NativeDoorRows $Door.rows $Door.mounts ([int]$Door.candidatesScanned) 'not-applicable door scan' -CurrentOnly
- if(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
+ if($combat){if(@($Door.rows|Where-Object{$null-eq$_.PSObject.Properties['notInCombat']}).Count-ne0){throw 'A combat-usability scan row lacks the native flag.'}
+  if(@($Door.rows|Where-Object{$_.eligible-and-not$_.notInCombat}).Count-ne0){throw 'A not-applicable combat-usability scan contains a combat-usable qualifying door.'}}
+ elseif(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
 }
 function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}

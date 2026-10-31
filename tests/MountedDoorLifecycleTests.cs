@@ -4,11 +4,20 @@ using KingmakerMountedCombat.Domain;
 namespace KingmakerMountedCombat.Tests
 {
     // Sprint 2 review corrections A and B and the nine-second timer regression, driven offline with controlled time.
-    // These are OFFLINE lifecycle regressions: the clock values are simulated game seconds, not a native route.
+    // These are OFFLINE lifecycle regressions: the clock values are simulated seconds, not a native route.
+    // Review 2026-10-31 (turn-based clock): the four "operational clock" cases hold the campaign clock constant, as the
+    // native turn-based controller does inside an acting turn, and drive the lifecycles through MountedDoorOperationalClock
+    // with the engine's per-frame gameplay timestep. They are offline controlled-time evidence, not a claim of native time.
     internal static class MountedDoorLifecycleTests
     {
+        private const float FrameSeconds = 1f / 60f;
+
         public static void Register(TestRunner runner)
         {
+            runner.Run("door operational clock: frozen campaign time, the retry cooldown and the no-progress bound elapse on ticked frames", OperationalClockRetryUnderFrozenCampaignTime);
+            runner.Run("door operational clock: a live move with opportunity and no displacement stalls under frozen campaign time", OperationalClockStallUnderFrozenCampaignTime);
+            runner.Run("door operational clock: paused, off-turn and exhausted-movement frames charge nothing and resuming charges no gap", OperationalClockControlsChargeNothing);
+            runner.Run("door operational clock: a pending navmesh update becomes Unresolved within its operational bound under frozen campaign time", OperationalClockSettlementUnresolvedUnderFrozenCampaignTime);
             runner.Run("door settlement evaluates only after the delayed graph settles for two frames", SettlementDelayedThenSettled);
             runner.Run("door settlement deadline with a pending cut awards nothing even when a sample would be clear", SettlementDeadlineClearSampleUnresolved);
             runner.Run("door settlement deadline issues no recovery even when a candidate would be admitted", SettlementDeadlineCandidateUnresolved);
@@ -17,6 +26,116 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("door admission plan replaces exactly once and retains the same door", AdmissionPlanReplacementAndRetention);
             runner.Run("door approach stays unstarted across the nine-second boundary and satisfies once at arrival (offline)", ApproachCrossesNineSecondsUnstarted);
             runner.Run("door approach retries after a finished move, bounds retries by progress and times out a genuine stall", ApproachRetryStallAndExhaustion);
+        }
+
+        // The campaign clock of a turn-based acting turn: rewound to the turn's start on every frame (constant).
+        private const double FrozenCampaignSeconds = 100d;
+
+        private static MountedDoorApproachObservation Tick(MountedDoorOperationalClock clock, ref int frame, MountedDoorApproachMoveState move,
+            float distance, float displacement, bool clockRuns = true, float gameplayDelta = FrameSeconds)
+        {
+            var now = clock.Observe(frame++, gameplayDelta);
+            return Obs(now, move, distance, displacement, false, clockRuns);
+        }
+
+        private static void OperationalClockRetryUnderFrozenCampaignTime()
+        {
+            // OFFLINE: campaign time stays at 100 s throughout (never read by the lifecycle); the operational clock advances by
+            // the gameplay timestep on each ticked frame, so the native 0.2-0.6 s re-approach cooldown and the no-progress
+            // bound both elapse. With campaign time as the basis (the former defect) the retry scheduled at 100.4 s never came.
+            var clock = new MountedDoorOperationalClock(); var life = new MountedDoorApproachLifecycle(); var frame = 1;
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 10f, 0f)), "No first move.");
+            TestRunner.Equal(MountedDoorApproachAction.Retry, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Finished, 6f, 0f)), "A finished move outside range was not retried.");
+            var retryAfterFrames = 0;
+            for (var i = 1; i <= 120 && retryAfterFrames == 0; i++)
+            {
+                var action = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 6f, 0f));
+                if (action == MountedDoorApproachAction.BeginMove) retryAfterFrames = i;
+                else TestRunner.Equal(MountedDoorApproachAction.Wait, action, "The cooldown produced another action.");
+            }
+            // ReapproachSample 0.5 -> 0.4 s cooldown = 24 frames of 1/60 s; the bound admits the native 0.2-0.6 s range.
+            TestRunner.True(retryAfterFrames >= 12 && retryAfterFrames <= 37, "The retry did not begin after the native cooldown measured in operational seconds (frames: " + retryAfterFrames + ").");
+            TestRunner.True(life.MoveStarts == 2 && life.ApproachesWithoutProgress == 0 && Math.Abs(FrozenCampaignSeconds - 100d) < 1e-9, "Progress was not credited or campaign time moved.");
+            // Genuine no-progress retries stay bounded under the same frozen campaign time.
+            var exhausted = false;
+            for (var attempt = 0; attempt < 4 && !exhausted; attempt++)
+            {
+                exhausted = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Finished, 6f, 0f)) == MountedDoorApproachAction.Exhausted;
+                if (exhausted) break;
+                var action = MountedDoorApproachAction.Wait;
+                for (var i = 0; i < 120 && action == MountedDoorApproachAction.Wait; i++) action = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 6f, 0f));
+                TestRunner.Equal(MountedDoorApproachAction.BeginMove, action, "Retry " + attempt + " never began on ticked frames.");
+            }
+            TestRunner.True(exhausted && life.ExhaustedReason != null && life.ApproachesWithoutProgress == 3, "Approaches without progress were not bounded under frozen campaign time.");
+            TestRunner.True(clock.Seconds > 0.6d && clock.ObservedFrames == frame - 1 && clock.SkippedSteps == 0, "The operational clock did not account its ticked frames exactly.");
+        }
+
+        private static void OperationalClockStallUnderFrozenCampaignTime()
+        {
+            // OFFLINE: a live move with movement opportunity (StallClockRuns true) and no displacement; campaign time frozen.
+            var clock = new MountedDoorOperationalClock(); var life = new MountedDoorApproachLifecycle(); var frame = 1;
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 10f, 0f)), "No first move.");
+            var action = MountedDoorApproachAction.Wait; var frames = 0;
+            while (action == MountedDoorApproachAction.Wait && frames < 10 * 60) { action = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f)); frames++; }
+            TestRunner.Equal(MountedDoorApproachAction.Stalled, action, "A still mount under a live approach never stalled when campaign time was frozen.");
+            TestRunner.True(clock.Seconds > MountedDoorApproachPolicy.StalledSecondsLimit && clock.Seconds < MountedDoorApproachPolicy.StalledSecondsLimit + 0.2d,
+                "The stall did not fire at its operational bound (" + clock.Seconds.ToString("F2") + " s).");
+            // The first approach end is the progress baseline (ApproachesWithoutProgress 0, BestDistance recorded); the stall counter resets.
+            TestRunner.True(life.ApproachesWithoutProgress == 0 && life.BestDistance == 10f && life.StalledSeconds == 0f &&
+                life.LastApproachEnd != null && life.LastApproachEnd.StartsWith("stalled for", StringComparison.Ordinal), "The stall was not recorded as one approach end.");
+            // The next stall at the same distance counts as no progress, still on the operational clock.
+            var retried = MountedDoorApproachAction.Wait; frames = 0;
+            while (retried == MountedDoorApproachAction.Wait && frames < 10 * 60) { retried = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 10f, 0f)); frames++; }
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, retried, "The stalled approach was not retried after the cooldown.");
+            action = MountedDoorApproachAction.Wait; frames = 0;
+            while (action == MountedDoorApproachAction.Wait && frames < 10 * 60) { action = life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f)); frames++; }
+            TestRunner.True(action == MountedDoorApproachAction.Stalled && life.ApproachesWithoutProgress == 1, "A second stall at the same distance was not counted as no progress.");
+        }
+
+        private static void OperationalClockControlsChargeNothing()
+        {
+            var clock = new MountedDoorOperationalClock(); var life = new MountedDoorApproachLifecycle(); var frame = 1;
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.None, 10f, 0f)), "No first move.");
+            // Paused frames: the engine's gameplay timestep is zero; nothing accrues.
+            var before = clock.Seconds;
+            for (var i = 0; i < 60; i++) TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f, false, 0f)), "A paused frame acted.");
+            TestRunner.True(clock.Seconds == before && life.StalledSeconds == 0f, "Paused frames were charged.");
+            // Off-turn: the command is not ticked at all; the clock sees no frame. Modelled by skipping 20 s of frames.
+            frame += 20 * 60;
+            // Exhausted movement on the acting turn: ticked, the clock advances, but there is no movement opportunity.
+            for (var i = 0; i < 20 * 60; i++) TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f, false)), "A frame without movement opportunity stalled.");
+            TestRunner.True(life.StalledSeconds == 0f && clock.Seconds > 19.9d, "Frames without movement opportunity accrued stall time, or the clock stopped.");
+            // Resuming with opportunity: stillness is charged from the last re-sample (the previous frame) onward, one frame per
+            // frame, never the 20 s of frames the command was not ticked nor the frames without opportunity.
+            TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f)), "The resume frame acted.");
+            TestRunner.True(life.StalledSeconds <= FrameSeconds + 1e-6f, "The resume frame charged the waiting gap (" + life.StalledSeconds + ").");
+            TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(Tick(clock, ref frame, MountedDoorApproachMoveState.Live, 10f, 0f)), "The second resumed frame acted.");
+            TestRunner.True(life.StalledSeconds > FrameSeconds - 1e-6f && life.StalledSeconds <= 2f * FrameSeconds + 1e-6f, "Resumed stillness was not charged frame by frame (" + life.StalledSeconds + ").");
+            // The clock itself: a repeated frame adds nothing; a non-finite, negative or oversized step is skipped, never charged.
+            var seconds = clock.Seconds; var frames = clock.ObservedFrames;
+            clock.Observe(frame - 1, FrameSeconds);
+            TestRunner.True(clock.Seconds == seconds && clock.ObservedFrames == frames, "A repeated frame was charged.");
+            clock.Observe(frame++, float.NaN); clock.Observe(frame++, -1f); clock.Observe(frame++, 5f);
+            TestRunner.True(clock.Seconds == seconds && clock.SkippedSteps == 1 && clock.ObservedFrames == frames + 3, "An invalid or oversized step was charged.");
+            TestRunner.True(MountedDoorApproachPolicy.StallClockRuns(true, false, true, false) == false && MountedDoorApproachPolicy.StallClockRuns(true, true, false, true) == false &&
+                MountedDoorApproachPolicy.StallClockRuns(true, false, true, true) && MountedDoorApproachPolicy.StallClockRuns(true, false, false, false), "The stall gate changed.");
+        }
+
+        private static void OperationalClockSettlementUnresolvedUnderFrozenCampaignTime()
+        {
+            // OFFLINE: the door's graph update stays pending; campaign time frozen; the settlement wait is measured by the
+            // operational clock and ends Unresolved at its bound: no sample, no search, no move.
+            var clock = new MountedDoorOperationalClock(); var frame = 1;
+            var life = new MountedDoorSettlementLifecycle(MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit);
+            var step = MountedDoorSettlementStep.Waiting; var frames = 0;
+            while (step == MountedDoorSettlementStep.Waiting && frames < 20 * 60) { var now = clock.Observe(frame, FrameSeconds); step = life.Observe(false, now, frame); frame++; frames++; }
+            TestRunner.Equal(MountedDoorSettlementStep.Unresolved, step, "The pending graph update never reached the settlement's operational bound under frozen campaign time.");
+            TestRunner.True(clock.Seconds > MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit && clock.Seconds < MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit + 0.1d && frames < 200,
+                "The settlement bound fired at the wrong operational time (" + clock.Seconds.ToString("F2") + " s over " + frames + " frames).");
+            var sampled = 0; var searched = 0;
+            var verdict = MountedDoorSettlementLifecycle.Resolve(step, () => { sampled++; return new MountedFootprintSample(true, 8, 8, 8); }, () => { searched++; return true; }, true, true, true);
+            TestRunner.True(sampled == 0 && searched == 0 && !verdict.MoveAuthorized && !verdict.CollisionSafe && verdict.Disposition == MountedDoorRecoveryDisposition.Unresolved,
+                "An unresolved settlement under frozen campaign time sampled, searched or authorized a move.");
         }
 
         private static void SettlementDelayedThenSettled()

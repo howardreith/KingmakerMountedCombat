@@ -61,7 +61,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // carries the owned post-interaction settlement (settled cut, body footprint, recovery disposition); the
         // first pair's third click is stopped through the native Stop surface mid-approach (stopControl), proving
         // no leaked child command and no pending settlement; the long approach searches the farthest clear goal.
-        internal const string Contract = "two-pair-native-door-click-selection-change-v4";
+        // v5 (review 2026-10-31, turn-based clock): the outcome carries the supervision clock's elapsed seconds beside the
+        // observed campaign seconds (ApproachElapsedOperationalSeconds, OccupancySettleOperationalSeconds); the campaign
+        // figures keep their meaning (frozen inside a turn-based turn by native design), the bounds apply to the operational ones.
+        internal const string Contract = "two-pair-native-door-click-selection-change-v5";
+        // Review 2026-10-31: a turn-based selection requires the probe's door to be combat-usable (shared selection predicate).
+        internal bool RequireCombatUsableDoor { get; set; }
         private static readonly float[] LongApproachDistancesMetres = { 26f, 20f, 12f };
         private const float EndpointNeighborMarginMetres = 1.5f;
         // v2 (F4 r30): the first pair returns to a goal clear of every other unit's native avoidance footprint
@@ -101,8 +106,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             Require(stage == 0 && !captured, "Door probe may begin only once.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door probe requires idle native actors.");
-            door = FindQualifyingDoor(mounts, out _);
-            Require(door != null, "No bounded open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; exact door fixture is required.");
+            door = FindQualifyingDoor(mounts, RequireCombatUsableDoor, out _);
+            Require(door != null, RequireCombatUsableDoor
+                ? "No bounded combat-usable (NotInCombat false) open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; the turn-based door control needs one."
+                : "No bounded open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; exact door fixture is required.");
             cut = door.GetComponentInChildren<NavmeshCut>();
             doorObject = door.gameObject; doorTransform = door.transform;
             var facts = DoorFacts.Capture(door, mounts);
@@ -263,12 +270,16 @@ namespace KingmakerMountedCombat.Diagnostics
         // could click. A door whose cut the door never writes (static) qualifies too. Every door
         // must be unrestricted and carry no door-view trigger actions (see DoorFacts).
         internal const float ScanRadius = 28f;
-        internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned)
+        internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, out int candidatesScanned) => FindQualifyingDoor(mounts, false, out candidatesScanned);
+
+        // Review 2026-10-31: a turn-based selection requires combat usability (StandardDoor.NotInCombat false) in the
+        // shared selection itself, before any real-time preparation or encounter; the flag is read, never written.
+        internal static StandardDoor FindQualifyingDoor(UnitEntityData[] mounts, bool requireCombatUsable, out int candidatesScanned)
         {
             var candidates = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
             candidatesScanned = candidates.Length;
             return candidates
-                .Where(d => d != null && DoorFacts.Capture(d, mounts).Eligible)
+                .Where(d => d != null && (requireCombatUsable ? DoorFacts.Capture(d, mounts).CombatUsable : DoorFacts.Capture(d, mounts).Eligible))
                 .OrderByDescending(d => d.DisableNavmeshCutWhenOpen).ThenByDescending(d => d.GetState())
                 .ThenBy(d => mounts.Sum(m => Distance(m.Position, d.transform.position))).FirstOrDefault();
         }
@@ -278,7 +289,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal sealed class DoorFacts
         {
             internal bool Active, Open, DisableCutWhenOpen, CutPresent, Interactable, AvailableInteractions,
-                Revealed, HasVisibleTrap, TrapActive, AlreadyUnlocked, HasDialog, DataPresent, ViewTriggerActions;
+                Revealed, HasVisibleTrap, TrapActive, AlreadyUnlocked, HasDialog, DataPresent, ViewTriggerActions, NotInCombat;
             internal int RestrictionCount, ViewTriggerCount;
             internal float Radius;
             internal float[] MountDistances;
@@ -295,6 +306,9 @@ namespace KingmakerMountedCombat.Diagnostics
             internal bool Eligible => Active && DataPresent && CutPresent && RestrictionCount == 0 &&
                 !ViewTriggerActions && (Open || ClosedClickable) &&
                 MountDistances.All(distance => distance > Radius + 0.5f && distance <= ScanRadius);
+            // The native InteractionComponent.CanInteract refuses a NotInCombat door while the player is in combat; a
+            // turn-based door control needs a qualifying door without that flag (the game's own door data, never edited).
+            internal bool CombatUsable => Eligible && !NotInCombat;
 
             internal static DoorFacts Capture(StandardDoor door, UnitEntityData[] mounts)
             {
@@ -314,7 +328,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     DataPresent = data != null, AlreadyUnlocked = data != null && data.AlreadyUnlocked,
                     RestrictionCount = restrictions, ViewTriggerCount = triggers.Length,
                     ViewTriggerActions = triggers.Any(t => HasActions(t.OpenActions) || HasActions(t.CloseActions) || HasActions(t.RestrictedActions)),
-                    HasDialog = door.Dialog != null, Radius = Chunk7NativeDoorProbe.Radius(door),
+                    HasDialog = door.Dialog != null, Radius = Chunk7NativeDoorProbe.Radius(door), NotInCombat = door.NotInCombat,
                     MountDistances = mounts.Select(m => Distance(m.Position, door.transform.position)).ToArray()
                 };
             }
@@ -324,11 +338,13 @@ namespace KingmakerMountedCombat.Diagnostics
             internal JObject Row(StandardDoor door) => new JObject { ["name"] = door.name, ["position"] = Point(door.transform.position),
                 ["active"] = Active, ["open"] = Open, ["disableCutWhenOpen"] = DisableCutWhenOpen,
                 ["cutPresent"] = CutPresent, ["proximityRadius"] = Radius,
-                ["mountDistances"] = new JArray(MountDistances[0], MountDistances[1]),
+                ["mountDistances"] = new JArray(MountDistances.Cast<object>().ToArray()),
                 ["interactable"] = Interactable, ["availableInteractions"] = AvailableInteractions, ["revealed"] = Revealed,
                 ["hasVisibleTrap"] = HasVisibleTrap, ["trapActive"] = TrapActive, ["alreadyUnlocked"] = AlreadyUnlocked,
                 ["restrictionCount"] = RestrictionCount, ["hasDialog"] = HasDialog, ["dataPresent"] = DataPresent,
-                ["viewTriggerCount"] = ViewTriggerCount, ["viewTriggerActions"] = ViewTriggerActions, ["eligible"] = Eligible };
+                ["viewTriggerCount"] = ViewTriggerCount, ["viewTriggerActions"] = ViewTriggerActions, ["eligible"] = Eligible,
+                // Review 2026-10-31: the native combat-usability flag beside eligibility (inventory for a turn-based door selection).
+                ["notInCombat"] = NotInCombat };
         }
 
         // Nearest-first bounded rows of every present door, by the same predicate.
@@ -338,27 +354,34 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The observed absence of a qualifying door, with the rows that decided it, so a door
         // too close to the pairs is distinguishable from no door at all.
-        internal static JObject NotApplicable(UnitEntityData[] mounts)
+        internal static JObject NotApplicable(UnitEntityData[] mounts) => NotApplicable(mounts, false);
+
+        internal static JObject NotApplicable(UnitEntityData[] mounts, bool requireCombatUsable)
         {
             var present = (UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0]).Where(d => d != null).ToArray();
             Require(present.Length <= 100000, "Native door scan exceeded its read-only bound.");
             var rows = ScanRows(mounts, present);
-            Require(rows.All(r => !(bool)r["eligible"]), "A qualifying door exists; the door step is applicable.");
-            return new JObject { ["applicable"] = false,
-                ["reason"] = "No open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
+            Require(rows.All(r => !(bool)r["eligible"] || (requireCombatUsable && (bool)r["notInCombat"])), "A qualifying door exists; the door step is applicable.");
+            var record = new JObject { ["applicable"] = false,
+                ["reason"] = requireCombatUsable
+                    ? "No combat-usable (NotInCombat false) open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius; the turn-based door control is not possible on this seed."
+                    : "No open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
                 ["candidatesScanned"] = present.Length, ["radius"] = ScanRadius,
                 ["mounts"] = new JArray(mounts.Select(m => new JObject { ["id"] = m.UniqueId, ["position"] = Point(m.Position) })),
                 ["truncated"] = present.Length > 32, ["rows"] = rows };
+            if (requireCombatUsable) record["requiredCombatUsable"] = true;
+            return record;
         }
 
         // Read-only area-fixture inventory. This does not acquire, close or click a
         // door, and it cannot turn an absent fixture into door qualification.
         internal static JObject CaptureAreaDoorInventory(UnitEntityData[] mounts, string boundary = "before-first-continuation")
         {
-            if (boundary != "before-first-continuation" && boundary != "after-fixture-remount")
+            // Review 2026-10-31: "owner-surface-start" is the single-pair read-only inventory of the owner's surface area.
+            if (boundary != "before-first-continuation" && boundary != "after-fixture-remount" && boundary != "owner-surface-start")
                 throw new ArgumentException("Door inventory boundary is not declared.", nameof(boundary));
-            Require(mounts != null && mounts.Length == 2 && mounts.All(m => m?.View?.AgentASP != null),
-                "Door inventory requires the two live mounted movement actors.");
+            Require(mounts != null && mounts.Length >= 1 && mounts.Length <= 2 && mounts.All(m => m?.View?.AgentASP != null),
+                "Door inventory requires the live mounted movement actors.");
             var doors = UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0];
             Require(doors.Length <= 100000, "Native door inventory exceeded its read-only bound.");
             var present = doors.Where(d => d != null).ToArray();
@@ -705,12 +728,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
                 ["TerminalReason"] = outcome.TerminalReason,
                 ["ApproachesWithoutProgress"] = outcome.ApproachesWithoutProgress, ["ApproachElapsedGameSeconds"] = outcome.ApproachElapsedGameSeconds,
+                // v5: the supervision clock's elapsed seconds (the cooldown/stall basis) beside the observed campaign seconds.
+                ["ApproachElapsedOperationalSeconds"] = outcome.ApproachElapsedOperationalSeconds,
                 ["DistanceAtInteraction"] = outcome.DistanceAtInteraction, ["LineOfSightAtInteraction"] = outcome.LineOfSightAtInteraction,
                 ["OccupancyInsideNavmesh"] = outcome.OccupancyInsideNavmesh, ["OccupancyRecovery"] = outcome.OccupancyRecovery,
                 ["OccupancyNearestNodeDistance"] = outcome.OccupancyNearestNodeDistance,
                 // v4: the owned settlement's fields, written on the same outcome after the native action ended.
                 ["PreventionRefused"] = outcome.PreventionRefused, ["OccupancySettled"] = outcome.OccupancySettled,
-                ["OccupancySettleGameSeconds"] = outcome.OccupancySettleGameSeconds, ["MountCorpulence"] = outcome.MountCorpulence,
+                ["OccupancySettleGameSeconds"] = outcome.OccupancySettleGameSeconds, ["OccupancySettleOperationalSeconds"] = outcome.OccupancySettleOperationalSeconds,
+                ["MountCorpulence"] = outcome.MountCorpulence,
                 ["FootprintClear"] = outcome.FootprintClear, ["FootprintRingInside"] = outcome.FootprintRingInside, ["FootprintRingReachable"] = outcome.FootprintRingReachable,
                 ["RecoveryDisposition"] = outcome.RecoveryDisposition, ["RecoveryTerminal"] = outcome.RecoveryTerminal,
                 ["RecoveryCandidatesEvaluated"] = outcome.RecoveryCandidatesEvaluated, ["RecoveryCandidateReasons"] = outcome.RecoveryCandidateReasons,

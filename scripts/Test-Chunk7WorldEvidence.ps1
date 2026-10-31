@@ -401,6 +401,24 @@ $v4Mutations=@(
  @('v4 Stop command excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1832)})
 )
 foreach($mutation in $v4Mutations){$copy=Copy-TestValue $doorV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v5 door (review 2026-10-31, turn-based clock): the outcome carries the supervision clock's operational seconds beside the observed
+# campaign seconds; the settlement bound applies to the operational figure; in real time the two approach figures agree.
+function New-DoorV5Fixture(){
+    $copy=Copy-TestValue $doorV4;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v5'
+    for($i=0;$i-lt2;$i++){$o=$d.interactions[$i].outcome;$o|Add-Member ApproachElapsedOperationalSeconds 3.45;$o|Add-Member OccupancySettleOperationalSeconds 0.05}
+    return $copy
+}
+$doorV5=New-DoorV5Fixture
+Check 'v5 door with the operational supervision seconds' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV5) 'PASS'}
+Check 'v5 door whose campaign settle seconds are frozen while the operational wait is bounded' {$v=Copy-TestValue $doorV5;$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=0.0;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+$v5Mutations=@(
+ @('v5 outcome in the v4 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('ApproachElapsedOperationalSeconds')}),
+ @('v4 outcome carrying the v5 operational seconds',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change-v4'}),
+ @('v5 operational settlement exceeded its bound',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleOperationalSeconds=4.0}),
+ @('v5 operational approach seconds negative',{param($v)$v.observations.door.interactions[1].outcome.ApproachElapsedOperationalSeconds=-1.0}),
+ @('v5 real-time approach whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.ApproachElapsedOperationalSeconds=9.0})
+)
+foreach($mutation in $v5Mutations){$copy=Copy-TestValue $doorV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 # Sprint 2 (MOVE-01) speed legs: optional, recorded with their contract; the primary mover must complete a measured native route.
 function New-SpeedLegsFixture(){
     $copy=Copy-TestValue $doorV3;$o=$copy.observations
@@ -481,8 +499,35 @@ $legV4Mutations=@(
  @('v3 speed leg carrying the v4 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v3'})
 )
 foreach($mutation in $legV4Mutations){$copy=Copy-TestValue $speedLegsV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
-Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v4"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v4 reader.'}
-    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v4"'){throw 'Speed leg contract differs from the v4 reader.'}
+# v5 speed legs (review 2026-10-31): a failed leg is recorded and the sequence continues for diagnosis; the aggregate acceptance and
+# the run-scoped interrupt observation (first native interrupt of each issued speed-leg Move, with callers) are recorded.
+function New-SpeedLegsV5Fixture(){
+    $copy=Copy-TestValue $speedLegsV4;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v5'
+    $o.speedLegs[0]|Add-Member accepted $true;$o.speedLegs[0]|Add-Member interruptRecords 0
+    $o|Add-Member speedLegsAccepted $true;$o|Add-Member speedLegInterruptions @()
+    $o|Add-Member speedLegInterruptObserver ([pscustomobject]@{scope='first native UnitCommand.Interrupt of each issued speed-leg Move command, recorded before cleanup with its callers; interrupts of other commands and every cleanup-phase interrupt are counted by phase only';method='Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt';token='060027AC';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';callerCapture='one System.Diagnostics.StackTrace per recorded interrupt (method names only, no per-frame tracing)';recordLimit=8;counts=[pscustomobject]@{}})
+    return $copy
+}
+function New-TestInterrupt([string]$Label,[string]$MoverId,[int]$Command){[pscustomobject]@{phase='speed-leg';legLabel=$Label;moverId=$MoverId;role='on-foot';commandObject=$Command;frame=5000;gameTicks=20000000L;gameSecondsSinceClick=3.9;wallSecondsSinceClick=4.1;commandStarted=$true;commandActed=$false;commandFinishedBefore=$false;resultBefore='None';position=(New-TestPoint 1 0 0);target=(New-TestPoint 9 0 0);flatDistanceToTarget=1.3;pathLengthSoFar=7.0;agent=[pscustomobject]@{enabled=$true;isReallyMoving=$true;wantsToMove=$true;pathFailed=$false;nearTheEnd=$false;speed=3.0;hasPath=$true;pathError=$false;pathDone=$true;pathVectorCount=12};gameMode='Default';paused=$false;inCombat=$false;unitInCombat=$false;turnBased=$false;loading=$false;area='x';unitCanMove=$true;unitCanAct=$true;callers='Kingmaker.UnitLogic.Commands.UnitCommands.InterruptMove < Kingmaker.Controllers.Units.UnitMoveController.Tick';callersTruncated=$false;nearbyMapObjects=@()}}
+$speedLegsV5=New-SpeedLegsV5Fixture
+Check 'Sprint 2 v5 speed legs with the aggregate acceptance and the interrupt observer' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV5) 'PASS'}
+Check 'Sprint 2 v5 speed legs with a recorded interrupt of a non-primary mover' {$v=Copy-TestValue $speedLegsV5;$mv=Copy-TestValue $v.observations.speedLegs[0].movers[0];$mv.id=$first;$mv.role='on-foot';$mv.executorId=$first;$mv.commandObject=1822;$mv.result='Interrupt';$v.observations.speedLegs[0].movers+=@($mv);$v.observations.speedLegs[0].endState.results|Add-Member $first 'Interrupt'
+    $v.observations.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1822;finished=$true;hasExecutionProcess=$false;processEnded=$true});$v.observations.speedLegs[0].interruptRecords=1;$v.observations.speedLegInterruptions=@((New-TestInterrupt 'mounted-party' $first 1822));Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+$legV5Mutations=@(
+ @('v5 speed leg not accepted',{param($v)$v.observations.speedLegs[0].accepted=$false}),
+ @('v5 speed leg carrying a retained failure',{param($v)$v.observations.speedLegs[0]|Add-Member failure 'The speed leg''s primary mover did not complete a native route of meaningful length: mounted-party'}),
+ @('v5 aggregate acceptance false',{param($v)$v.observations.speedLegsAccepted=$false}),
+ @('v5 legs without the interrupt observer',{param($v)$v.observations.PSObject.Properties.Remove('speedLegInterruptObserver')}),
+ @('v5 interrupt observer on another method',{param($v)$v.observations.speedLegInterruptObserver.method='Kingmaker.UnitLogic.Commands.UnitCommands.InterruptMove'}),
+ @('v5 interrupt record count differing from the records',{param($v)$v.observations.speedLegs[0].interruptRecords=1}),
+ @('v5 interrupt record without its callers',{param($v)$v.observations.speedLegs[0].interruptRecords=1;$r=New-TestInterrupt 'mounted-party' $horse 1820;$r.PSObject.Properties.Remove('callers');$v.observations.speedLegInterruptions=@($r)}),
+ @('v4 speed leg carrying the v5 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v4'}),
+ @('v5 speed leg in the v4 shape',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('accepted')})
+)
+foreach($mutation in $legV5Mutations){$copy=Copy-TestValue $speedLegsV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v5"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v5 reader.'}
+    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v5"'){throw 'Speed leg contract differs from the v5 reader.'}
+    $turnBased=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7TurnBasedDoorProbe.cs'));if($turnBased-cnotmatch'Contract = "owner-seed-turn-based-door-control-v3"'){throw 'Turn-based door contract differs from the v3 reader.'}
     $sampler=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs'));if($sampler-cnotmatch'Contract = "aligned-interval/v2"'){throw 'Speed leg sampler contract differs from the v2 reader.'}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
     foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
