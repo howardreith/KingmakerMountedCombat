@@ -82,7 +82,7 @@ function New-S3Artifact([string]$scenario,$rows){
    items=@([pscustomobject]@{disposed=$true;slotRestored=$true;noOwnedItemResident=$true})}}}
 }
 $rt=New-S3Artifact 'sprint3-approach-rt' @((New-S3TrapRow),(New-S3FriendlyRow $false),(New-S3FriendlyRow $true),(New-S3HostileRow),(New-S3RangedRow))
-$tb=New-S3Artifact 'sprint3-approach-tb' @((New-S3TbRow $false),(New-S3TbRow $true))
+$tb=New-S3Artifact 'sprint3-approach-tb' @((New-S3TbRow $true),(New-S3TbRow $false))
 function Accept($artifact,[string]$scenario){Assert-KmcSprint3ApproachEvidence -Request ([pscustomobject]@{scenario=$scenario}) -Artifact $artifact -Status 'PASS'}
 function Reject($artifact,[string]$scenario,[string]$why){$refused=$false;try{Accept $artifact $scenario}catch{$refused=$true};Check $refused $why}
 Accept $rt 'sprint3-approach-rt';Check $true 'complete real-time Sprint 3 envelope accepted'
@@ -129,11 +129,11 @@ $r=Copy-S3 $rt;$r.observations.sprint3Approach.riderThieveryBaseAfter=4;Reject $
 $r=Copy-S3 $rt;$r.observations.sprint3Approach.castTrace.faults=1;Reject $r 'sprint3-approach-rt' 'faulted casting trace refused'
 $r=Copy-S3 $rt;$r.rows=@($r.rows[0],$r.rows[1],$r.rows[2],$r.rows[3]);$r.subscenarioPassCount=4;Reject $r 'sprint3-approach-rt' 'missing registered row refused'
 $r=Copy-S3 $rt;$r.status='FAIL';$r.errors=@('x');$r.subscenarioFailCount=1;Reject $r 'sprint3-approach-rt' 'failed producer envelope cannot become PASS'
-$r=Copy-S3 $tb;$r.rows[1].evidence.summary.nativeApproachEndSignalled=$false;Reject $r 'sprint3-approach-tb' 'insufficient-movement row without the native approach-end rule refused'
-$r=Copy-S3 $tb;$r.rows[1].evidence.secondTurn.heldCharge=$false;Reject $r 'sprint3-approach-tb' 'charge lost across the turn boundary refused'
-$r=Copy-S3 $tb;$r.rows[1].evidence.recipientPlacement.distanceAfter=10.0;Reject $r 'sprint3-approach-tb' 'insufficient-movement row with the recipient within one turn refused'
-$r=Copy-S3 $tb;$r.rows[0].evidence.rowTurnActor=$mount;Reject $r 'sprint3-approach-tb' 'cast issued off the rider''s turn refused'
-$r=Copy-S3 $tb;$r.rows[0].evidence.costEvents=@();Reject $r 'sprint3-approach-tb' 'turn-based row without the rider''s native Standard cost refused'
-$r=Copy-S3 $tb;$r.rows[0].evidence.inputCount=2;Reject $r 'sprint3-approach-tb' 'turn-based friendly row needing two inputs refused'
+$r=Copy-S3 $tb;$r.rows[0].evidence.summary.nativeApproachEndSignalled=$false;Reject $r 'sprint3-approach-tb' 'insufficient-movement row without the native approach-end rule refused'
+$r=Copy-S3 $tb;$r.rows[0].evidence.secondTurn.heldCharge=$false;Reject $r 'sprint3-approach-tb' 'charge lost across the turn boundary refused'
+$r=Copy-S3 $tb;$r.rows[0].evidence.recipientPlacement.distanceAfter=10.0;Reject $r 'sprint3-approach-tb' 'insufficient-movement row with the recipient within one turn refused'
+$r=Copy-S3 $tb;$r.rows[1].evidence.rowTurnActor=$mount;Reject $r 'sprint3-approach-tb' 'cast issued off the rider''s turn refused'
+$r=Copy-S3 $tb;$r.rows[1].evidence.costEvents=@();Reject $r 'sprint3-approach-tb' 'turn-based row without the rider''s native Standard cost refused'
+$r=Copy-S3 $tb;$r.rows[1].evidence.inputCount=2;Reject $r 'sprint3-approach-tb' 'turn-based friendly row needing two inputs refused'
 Reject $rt 'sprint3-approach-tb' 'real-time envelope under the turn-based scenario refused'
 Write-Host ('Sprint 3 reader checks passed: '+$passed)

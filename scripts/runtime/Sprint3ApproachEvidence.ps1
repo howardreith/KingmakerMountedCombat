@@ -2,7 +2,7 @@
 # Native C# emits observations; this module owns their interpretation. No file access, staging or native writes.
 Set-StrictMode -Version Latest
 function Get-KmcSprint3ApproachCases([string]$Scenario) {
- if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-touch-friendly','S3-tb-insufficient-movement') }
+ if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-insufficient-movement','S3-tb-touch-friendly') }
  @('S3-trap-disarm','S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant')
 }
 function Test-KmcSprint3Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }

@@ -35,7 +35,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const int Sprint3SchemaVersion = 47;
         internal static readonly string[] Sprint3RealTimeCases = { "S3-trap-disarm", "S3-touch-friendly-distant",
             "S3-touch-held-charge", "S3-touch-hostile", "S3-ranged-distant" };
-        internal static readonly string[] Sprint3TurnBasedCases = { "S3-tb-touch-friendly", "S3-tb-insufficient-movement" };
+        // The insufficient-movement row runs first: its recipient is placed beyond one turn's pair movement before the
+        // encounter (a recipient's own in-combat move reaches only its budget, r10: 15.7 m against a 24.4 m allowance).
+        internal static readonly string[] Sprint3TurnBasedCases = { "S3-tb-insufficient-movement", "S3-tb-touch-friendly" };
         private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : Sprint3RealTimeCases;
         private string Sprint3Case => Sprint3Cases[s3CaseIndex];
         private const float Sprint3FriendlyDistantMetres = 12f, Sprint3FriendlyHeldMetres = 6f, Sprint3HostileSpawnMetres = 8f,
@@ -216,7 +218,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (caseNeedsCombat && target == null)
                 {
                     if (!Sprint3Settled()) return;
-                    if (CastingTb && s3Recipient != null && !PlaceSprint3Recipient(Sprint3TurnBasedFriendlyMetres)) return;
+                    if (CastingTb && s3Recipient != null && !PlaceSprint3Recipient(horse.CombatSpeedMps * 6f + 8f)) return;
                     if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(CastingTb);
                     if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                     if (CastingTb && pairedAutomaticEndProbe == null) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
@@ -465,7 +467,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 var record = new JObject { ["requestedDistance"] = distance, ["distanceBefore"] = current };
                 if (Math.Abs(current - distance) > 1.5f)
                 {
-                    var destination = FindWalkablePoint(horse.Position, distance, 1f, p => HorizontalDistance(p, horse.Position) >= distance - 1f);
+                    // A long placement (beyond one turn's pair movement) takes the nearest walkable bearing the fixture area
+                    // offers at the requested distance or a little short of it; the row later checks the actual distance.
+                    Vector3 destination; var tolerance = distance > 12f ? 2f : 1f;
+                    try { destination = FindWalkablePoint(horse.Position, distance, tolerance, p => HorizontalDistance(p, horse.Position) >= distance - tolerance); }
+                    catch (InvalidOperationException) when (distance > 12f)
+                    {
+                        destination = FindWalkablePoint(horse.Position, distance - 4f, 3f, p => HorizontalDistance(p, horse.Position) >= distance - 7f);
+                        record["fallbackDistance"] = distance - 4f;
+                    }
                     SelectionManager.Instance.SelectUnit(s3Recipient.View, true, true, false);
                     ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
                     SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
@@ -670,21 +680,30 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s3Recipient == null) { FailSprint3Row("The fixture party has no eligible recipient besides the pair."); return; }
             if (s3Step == 0)
             {
-                // The insufficient-movement case moves the recipient beyond one turn's pair movement on the recipient's own
-                // turn through its ordinary ground order; the rider's row begins on the next rider turn.
+                // The insufficient-movement row (first) uses the recipient placed before the encounter, beyond one turn's pair
+                // movement; the friendly row (second) repositions the recipient on the recipient's own turn through its ordinary
+                // ground order within its own budget. The rider's row begins on the next rider turn.
+                var allowance = horse.CombatSpeedMps * 6f;
                 if (insufficientCase && s3Facts["recipientPlacement"] == null)
                 {
+                    var placement = (JObject)(CastingMeasurement["recipientPlacement"]?.DeepClone() ?? new JObject { ["ordered"] = false });
+                    placement["distanceAtRow"] = HorizontalDistance(s3Recipient.Position, horse.Position);
+                    s3Facts["recipientPlacement"] = placement;
+                    if ((float)placement["distanceAtRow"] <= allowance + 1f)
+                    { FailSprint3Row("The fixture area offered no placement beyond one turn's pair movement (" + ((float)placement["distanceAtRow"]).ToString("F1") + " m against " + allowance.ToString("F1") + " m)."); return; }
+                }
+                if (!insufficientCase && s3Facts["recipientPlacement"] == null)
+                {
                     if (turn?.Unit != s3Recipient) { EndCastingNativeTurn(turn); return; }
-                    var distance = horse.CombatSpeedMps * 6f + 8f;
-                    var destination = FindWalkablePoint(horse.Position, distance, 2f, p => HorizontalDistance(p, horse.Position) >= distance - 2f);
+                    var destination = FindWalkablePoint(horse.Position, Sprint3TurnBasedFriendlyMetres, 1.5f, p => HorizontalDistance(p, horse.Position) >= Sprint3TurnBasedFriendlyMetres - 1.5f);
                     SelectionManager.Instance.SelectUnit(s3Recipient.View, true, true, false);
                     ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
                     SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                    s3Facts["recipientPlacement"] = new JObject { ["requestedDistance"] = distance, ["destination"] = CapturePosition(destination),
+                    s3Facts["recipientPlacement"] = new JObject { ["requestedDistance"] = Sprint3TurnBasedFriendlyMetres, ["destination"] = CapturePosition(destination),
                         ["distanceBefore"] = HorizontalDistance(s3Recipient.Position, horse.Position), ["recipientTurn"] = true };
                     s3RecipientTurn = turn; return;
                 }
-                if (insufficientCase && ReferenceEquals(turn, s3RecipientTurn))
+                if (!insufficientCase && ReferenceEquals(turn, s3RecipientTurn))
                 {
                     if (!s3Recipient.Commands.Empty || s3Recipient.View?.AgentASP?.IsReallyMoving == true) return;
                     ((JObject)s3Facts["recipientPlacement"])["distanceAfter"] = HorizontalDistance(s3Recipient.Position, horse.Position);
