@@ -49,6 +49,10 @@ namespace KingmakerMountedCombat.Integration
         private MountedDoorInteractionCommand activeDoorInteraction;
         // Sprint 2 (SPACE-01): the owned post-interaction occupancy settlement of the last door click.
         private MountedDoorOccupancySettlement pendingDoorSettlement;
+        // Sprint 3 (TRAP-01, SPELL-01): the mount's delegated approach for the rider's own unstarted native
+        // command (spell/item/touch delivery, discovered-trap interaction). One per pair; released when that
+        // command ends or is replaced, or when the pair's ownership ends.
+        private MountedCarriedApproach carriedApproach;
         // The last frame on which the native turn movement override admitted the mount with budget left.
         private int mountMovementOpportunityFrame = -1;
         private UnitMoveTo activeRiderTurnGroundMove;
@@ -99,7 +103,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HasRetainedPairCommands => HasChargeOwnership || activeCommand != null ||
             finishedCommandPendingSweep != null || activeDoorInteraction != null || pendingDoorSettlement != null || activeRiderTurnGroundMove != null ||
-            riderTurnGroundMoveAdmissionPending || HasStockAttackIntent;
+            riderTurnGroundMoveAdmissionPending || HasStockAttackIntent || HasLiveCarriedApproach;
+
+        public bool HasLiveCarriedApproach => carriedApproach != null && carriedApproach.IsLive;
+
+        internal bool HasLiveCarriedApproachMove => carriedApproach != null && carriedApproach.HasLiveDelegatedMove;
 
         internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
         {
@@ -141,7 +149,7 @@ namespace KingmakerMountedCombat.Integration
             activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished ||
             activeCommand?.DelegatedMove != null && !activeCommand.DelegatedMove.IsFinished ||
             activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished ||
-            pendingDoorSettlement?.RecoveryMove != null;
+            pendingDoorSettlement?.RecoveryMove != null || HasLiveCarriedApproachMove;
 
         internal bool OwnsExactUnifiedMountCommand(UnitCommand command)
         {
@@ -157,7 +165,7 @@ namespace KingmakerMountedCombat.Integration
             return ReferenceEquals(commands.GetCommand(command.Type), command) &&
                 (OwnsExactUnifiedMountCommand(command) || ReferenceEquals(command, activeRiderTurnGroundMove) ||
                  ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove) ||
-                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove));
+                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove) || ReferenceEquals(command, carriedApproach?.DelegatedMove));
         }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
@@ -249,6 +257,11 @@ namespace KingmakerMountedCombat.Integration
                 move = pendingDoorSettlement.RecoveryMove;
                 source = "door-recovery";
             }
+            else if (carriedApproach?.DelegatedMove != null && !carriedApproach.DelegatedMove.IsFinished)
+            {
+                move = carriedApproach.DelegatedMove;
+                source = "carried-approach";
+            }
 
             var commands = relationship.Mount?.Commands;
             return move != null && move.Executor == relationship.Mount && commands != null &&
@@ -292,6 +305,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeCommand.ObservePreStartInterrupt();
             }
+            // The carried command ends through its own native API (Stop, a replacement order, a lost target, the
+            // approach-exhausted interrupt): the mount's delegated move is released with it, nothing else is touched.
+            if (carriedApproach != null && ReferenceEquals(command, carriedApproach.Command))
+            {
+                ReleaseCarriedApproach("carried command interrupted");
+            }
             if (!ReferenceEquals(command, observedNativeMountTurnMove) ||
                 !string.Equals(LastNativeMountTurnMoveInterruptSource, "<not-interrupted>", StringComparison.Ordinal))
             {
@@ -329,7 +348,7 @@ namespace KingmakerMountedCombat.Integration
             var turnIsOpen = turn != null &&
                 (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing);
             var independentMountTurn = turnIsOpen && turn.Unit == mount &&
-                activeCommand == null && activeDoorInteraction == null && activeRiderTurnGroundMove == null;
+                activeCommand == null && activeDoorInteraction == null && activeRiderTurnGroundMove == null && !HasLiveCarriedApproach;
             var delegatedRiderTurn = turnIsOpen && turn.Unit == rider &&
                 ReferenceEquals(command, activeRiderTurnGroundMove);
             var pathPoints = agent?.Path?.vectorPath;
@@ -853,6 +872,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeDoorInteraction = null;
             }
+            // A carried command that ended natively without an interrupt (acted and finished) releases its driver here.
+            if (carriedApproach != null && !carriedApproach.IsLive)
+            {
+                ReleaseCarriedApproach("carried command ended");
+            }
             var settlement = pendingDoorSettlement;
             if (settlement != null)
             {
@@ -908,6 +932,7 @@ namespace KingmakerMountedCombat.Integration
                 pairedCommandScheduler.ObserveExternalInterrupt(command, reason);
                 command.Interrupt();
             }
+            ReleaseCarriedApproach(reason);
             var doorInteraction = activeDoorInteraction;
             activeDoorInteraction = null;
             if (doorInteraction != null && !doorInteraction.IsFinished)
@@ -1260,8 +1285,9 @@ namespace KingmakerMountedCombat.Integration
             result = false;
             var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
             // The door's occupancy recovery move is driven exactly like its approach: on the rider's acting turn.
+            // The carried approach's delegated move is admitted exactly like the door approach: on the rider's acting turn.
             var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished ||
-                pendingDoorSettlement?.RecoveryMove != null;
+                pendingDoorSettlement?.RecoveryMove != null || HasLiveCarriedApproachMove;
             var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
             if (disposed || !attackApproachActive && !doorApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
@@ -1472,8 +1498,11 @@ namespace KingmakerMountedCombat.Integration
                 turn != null && turn.Status == TurnController.TurnStatus.Preparing,
                 turn != null && turn.IsActing);
             var disposition = DecideDoorAdmission(mountCommands, exactDoor);
-            var busyOnlyWithOwnRecovery = pendingDoorSettlement?.RecoveryMove != null && mountCommands != null &&
-                ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), pendingDoorSettlement.RecoveryMove) &&
+            // The pair's own recovery move or its carried approach move is the only kind of busy Move slot a door click
+            // may replace (native: the rider's new Standard replaces its pending cast; the pair's movement follows it).
+            var ownMountMove = pendingDoorSettlement?.RecoveryMove != null ? (UnitCommand)pendingDoorSettlement.RecoveryMove : carriedApproach?.DelegatedMove;
+            var busyOnlyWithOwnRecovery = ownMountMove != null && mountCommands != null &&
+                ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), ownMountMove) &&
                 mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
                 mountCommands.GetCommand(UnitCommand.CommandType.Swift) == null && mountCommands.Queue.Count == 0;
             var plan = MountedDoorApproachPolicy.PlanAdmission(disposition, busyOnlyWithOwnRecovery, turnAdmissible);
@@ -1517,6 +1546,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 DoorInteractionReplacedRecoveryCount++;
                 CancelPendingDoorSettlement("replaced by a new door click");
+                ReleaseCarriedApproach("replaced by a door click");
+                if (mountCommands != null && mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
                 disposition = DecideDoorAdmission(mountCommands, exactDoor);
             }
             if (plan == MountedDoorAdmissionPlan.ReplaceActiveDoor || disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
@@ -1733,6 +1764,136 @@ namespace KingmakerMountedCombat.Integration
         internal long DoorInteractionReplacedMountMoveCount { get; private set; }
 
         internal long DoorInteractionRetainedClickCount { get; private set; }
+
+        // Sprint 3 (TRAP-01, SPELL-01): the last released carried approach and its counters.
+        internal MountedCarriedApproachOutcome LastCarriedApproachOutcome { get; private set; }
+
+        internal long CarriedApproachBindCount { get; private set; }
+
+        internal long CarriedApproachReleaseCount { get; private set; }
+
+        internal long CarriedApproachExhaustedCount { get; private set; }
+
+        internal string LastCarriedApproachObservation { get; private set; } = "not-observed";
+
+        // Called from the TickApproaching prefix for every unstarted native command. Returns true when the mount
+        // approaches for the rider's own command this tick and the native rider approach must be skipped; false
+        // leaves the native code untouched (not a carried command, the command is in range, or another pair
+        // operation owns the mount, in which case the command waits natively exactly as before).
+        internal bool TryTickCarriedApproach(UnitCommand command, bool relationshipControlShell)
+        {
+            if (disposed || command == null) return false;
+            var ability = command as UnitUseAbility;
+            var interaction = command as UnitInteractWithObject;
+            var kind = ability != null
+                ? MountedCarriedCommandKind.Ability
+                : interaction != null && command.GetType() == typeof(UnitInteractWithObject) && interaction.Interaction is DisableTrapInteractionComponent
+                    ? MountedCarriedCommandKind.TrapInteraction
+                    : MountedCarriedCommandKind.None;
+            var chargeShell = ability != null &&
+                (string.Equals(ability.Spell?.Blueprint?.AssetGuid, NativeMountedControlService.MountedChargeAbilityGuid, StringComparison.Ordinal) ||
+                 OwnsChargeNativeAction(ability));
+            var disposition = MountedCarriedApproachPolicy.Decide(
+                relationship.State == RelationshipState.Mounted,
+                command.Executor != null && command.Executor == relationship.Rider,
+                command.IsStarted,
+                command.IsFinished,
+                kind,
+                relationshipControlShell,
+                chargeShell,
+                command.AiAction != null,
+                Kingmaker.Controllers.Clicks.PointerController.SimulatingClick);
+            if (disposition != MountedCarriedApproachDisposition.Carry) return false;
+            if (carriedApproach != null && !ReferenceEquals(carriedApproach.Command, command))
+            {
+                ReleaseCarriedApproach("replaced by another rider command");
+            }
+            if (carriedApproach == null)
+            {
+                // Another pair operation owns the mount: the native command waits unstarted, as it did before this
+                // sprint, until that operation ends; nothing is cancelled on its behalf.
+                if (HasActiveCommand || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending || HasActiveDoorInteraction ||
+                    pendingDoorSettlement?.RecoveryMove != null)
+                {
+                    LastCarriedApproachObservation = "deferred: another pair operation owns the mount";
+                    return false;
+                }
+                // A settlement still sampling the last door click yields to the pair's new movement intent.
+                CancelPendingDoorSettlement("superseded by a carried approach");
+                carriedApproach = new MountedCarriedApproach(relationship, relationship.Rider, relationship.Mount, command, kind, logger, HandleCarriedApproachTerminal)
+                {
+                    NativePartnerMovement = settings.EnablePairedActivation,
+                    MovementOpportunity = () => MountMovementOpportunityRecently
+                };
+                unifiedTurn.RememberPairedMovementInput();
+                CarriedApproachBindCount++;
+                LastCarriedApproachOutcome = null;
+                LastFeedback = MountedCarriedApproachPolicy.Feedback(kind, MountDisplayName);
+                LastCarriedApproachObservation = "bound: " + command.GetType().Name;
+                logger.Info("Mounted carried approach bound: kind=" + kind + "; command=" + command.GetType().Name +
+                    "; riderId=" + relationship.Rider.UniqueId + "; mountId=" + relationship.Mount.UniqueId +
+                    "; target=" + (command.TargetUnit?.UniqueId ?? interaction?.Interaction?.name ?? "<point>") +
+                    "; approachRadius=" + command.ApproachRadius.ToString("F2", CultureInfo.InvariantCulture) + ".");
+            }
+            return carriedApproach.Tick();
+        }
+
+        // Called from the UnitCommands.Run prefix before any routing. Native Run replaces the rider's running command
+        // of the same slot and interrupts its other unstarted commands; a new order for the mount is the pair's new
+        // movement intent. Either way the carried approach is released and the carried command is left to its own
+        // native replacement (rider request) or interrupted with the reason (mount request).
+        internal void ObservePairCommandRequest(UnitCommands container, UnitCommand command)
+        {
+            if (disposed || carriedApproach == null || container == null || command == null) return;
+            var riderRequest = ReferenceEquals(container, relationship.Rider?.Commands);
+            var mountRequest = ReferenceEquals(container, relationship.Mount?.Commands);
+            if (MountedCarriedApproachPolicy.ReleasesOnRiderRequest(carriedApproach.IsLive, riderRequest, ReferenceEquals(command, carriedApproach.Command)))
+            {
+                ReleaseCarriedApproach("rider command request");
+                return;
+            }
+            if (mountRequest && carriedApproach.IsLive && !ReferenceEquals(command, carriedApproach.DelegatedMove))
+            {
+                var carried = carriedApproach.Command;
+                ReleaseCarriedApproach("mount command request");
+                if (carried != null && !carried.IsFinished && !carried.IsStarted) carried.Interrupt();
+            }
+        }
+
+        private void ReleaseCarriedApproach(string reason)
+        {
+            var releasing = carriedApproach;
+            if (releasing == null) return;
+            carriedApproach = null;
+            CarriedApproachReleaseCount++;
+            releasing.Release(reason);
+        }
+
+        private void HandleCarriedApproachTerminal(MountedCarriedApproach approach, MountedCarriedApproachOutcome outcome)
+        {
+            LastCarriedApproachOutcome = outcome;
+            if (ReferenceEquals(carriedApproach, approach)) carriedApproach = null;
+            if (outcome.TerminalReason != null && !outcome.Satisfied)
+            {
+                CarriedApproachExhaustedCount++;
+                LastFeedback = MountedCarriedApproachPolicy.ExhaustedFeedback(
+                    outcome.Kind == MountedCarriedCommandKind.TrapInteraction.ToString() ? MountedCarriedCommandKind.TrapInteraction : MountedCarriedCommandKind.Ability,
+                    MountDisplayName, outcome.TerminalReason);
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.NoPath };
+            }
+            LastCarriedApproachObservation = "released: " + outcome.Result + "; satisfied=" + outcome.Satisfied;
+            logger.Info("Mounted carried approach terminal: kind=" + outcome.Kind + "; command=" + outcome.CommandType +
+                "; result=" + outcome.Result + "; satisfied=" + outcome.Satisfied +
+                "; moveStarts=" + outcome.DelegatedMoveStartCount + "; replans=" + outcome.ReplanCount +
+                "; withoutProgress=" + outcome.ApproachesWithoutProgress +
+                "; nativeApproachEndSignalled=" + outcome.NativeApproachEndSignalled +
+                "; trapSafePoint=" + outcome.TrapSafePointApplied +
+                "; distance=" + outcome.DistanceAtSatisfaction.ToString("F2", CultureInfo.InvariantCulture) +
+                "; los=" + outcome.LineOfSightAtSatisfaction +
+                "; operationalSeconds=" + outcome.ApproachElapsedOperationalSeconds.ToString("F2", CultureInfo.InvariantCulture) +
+                "; slotRestored=" + outcome.MountMoveSlotRestored +
+                "; reason=" + (outcome.TerminalReason ?? "<none>") + ".");
+        }
 
         internal long DoorInteractionReplacedRecoveryCount { get; private set; }
 

@@ -162,6 +162,8 @@
     <Compile Include="Domain\MountedDoorSettlementLifecycle.cs" />
     <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />
     <Compile Include="Integration\MountedDoorOccupancySettlement.cs" />
+    <Compile Include="Domain\MountedCarriedApproachPolicy.cs" />
+    <Compile Include="Integration\MountedCarriedApproach.cs" />
     <Compile Include="Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
     <Compile Include="Domain\PairedActivationSnapshot.cs" />

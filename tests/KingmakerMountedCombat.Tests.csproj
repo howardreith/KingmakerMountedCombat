@@ -65,6 +65,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorSettlementLifecycle.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorApproachLifecycle.cs" />
     <Compile Include="MountedDoorLifecycleTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCarriedApproachPolicy.cs" />
+    <Compile Include="MountedCarriedApproachPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="SpeedLegSamplerTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
