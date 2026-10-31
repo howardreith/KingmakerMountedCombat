@@ -217,7 +217,7 @@ function Assert-KmcMatchedPoolArtifact($Request,$Manifest,[string]$Status) {
     if(Test-KmcChunk7SixPairStress $Request){if($present.Count-ne0){throw 'Six-pair stress embeds its distinct fifteen-window measurement, never the two-pair sidecar.'};return}
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){if($present.Count-ne0){throw 'Another scenario supplied matched-pool observations.'};return}
     # These bounded native setup cases measure no mounted movement pool.
-    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request))){if($present.Count-ne0){throw 'A bounded native setup case cannot supply matched-pool observations.'};return}
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and((Test-KmcChunk7OwnedPairsSeedManual $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request)-or(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request))){if($present.Count-ne0){throw 'A bounded native setup case cannot supply matched-pool observations.'};return}
     if($present.Count-eq0-and$Status-cne'PASS'){return}
     $artifact=Read-KmcChunk7ManifestArtifact $Request $Manifest $leaf $kind
     $world=Read-KmcChunk7ManifestArtifact $Request $Manifest 'chunk7-world-evidence.json' 'chunk7-world-evidence'

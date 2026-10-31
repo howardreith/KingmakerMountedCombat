@@ -1384,7 +1384,7 @@ try{
             $verifiedOwnedSource=Get-KmcChunk7OwnedPairsSource $request.ownedPairs $PersistenceCase $fixturePayload $manifest $(if($PersistenceCase-ceq'multi-area-autosave'-or(Test-KmcChunk7CapitalArrivalCase $PersistenceCase)){$request.persistenceAreaTarget}else{$null})
             if((ConvertTo-KmcChunk7Canonical $verifiedOwnedSource)-cne(ConvertTo-KmcChunk7Canonical $ownedPairsSource)){throw 'Inherited two-owner source lineage changed during native execution.'}
             $seedManualRun=Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]$request)
-            if((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))-or$seedManualRun){
+            if((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))-or(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed ([pscustomobject]$request))-or$seedManualRun){
                 # Owner seed (exploration or Manual producer): the placed record is the honest seed-source record and the seed copy is never written.
                 $seedRecord=Read-KmcJson (Join-Path $profileRoot 'owned-two-pair-source.json')
                 if($seedRecord.kind-cne'kmc-owner-seed-source'-or$seedRecord.seedId-cne$request.ownedPairs.seedId-or$seedRecord.registrySha256-cne$verifiedOwnedSource.registrySha256-or
@@ -1430,7 +1430,7 @@ try{
             }
             $nativeLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Filter '*.zks' -File|ForEach-Object Name)
             $writes=Get-KmcChunk7OwnedWriteCount $request
-            if(Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request)){
+            if((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]$request))-or(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed ([pscustomobject]$request))){
                 # Owner seed: zero writes (the native game has no level-up autosave), so only the seed copy remains: no Auto_1 or any other entry.
                 $allLeaves=@(Get-ChildItem -LiteralPath $isolatedSaves -Force|ForEach-Object Name)
                 Assert-KmcChunk7OwnerSeedFinalSaveRoot ([pscustomobject]$request) $allLeaves
