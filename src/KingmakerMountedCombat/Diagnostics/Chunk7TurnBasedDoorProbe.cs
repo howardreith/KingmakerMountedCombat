@@ -33,7 +33,13 @@ namespace KingmakerMountedCombat.Diagnostics
     // writes resources, forces turn state or edits the door's flags.
     internal sealed class Chunk7TurnBasedDoorProbe
     {
-        internal const string Contract = "owner-seed-turn-based-door-control-v1";
+        // v2 (review correction B): the movement cost is related to the installed paired contract (a rider's turn-based
+        // approach is native movement charged to its own mount's Move budget, the rider keeps its own Move), through the
+        // action-end boundary, the pair's own allocation observation and the settlement/recovery window.
+        internal const string Contract = "owner-seed-turn-based-door-control-v2";
+        internal const string MovementCostContract = "paired-approach-charged-to-own-mount-move/v1";
+        internal const string OffTurnScope = "cross-pair-isolation: pair B's click during pair A's turn is refused and mutates nothing; not native proof that a rejected click preserves the same controller's own pending recovery (offline coverage)";
+        internal const string StallScope = "ApproachesWithoutProgress == 0 on a continuously acting turn; not a native exercise of an exhausted or off-turn movement wait (offline coverage)";
         internal const string Row = "C7-world-turn-based-door";
         private const float ApproachStandoffMetres = 5f;
         private const float TargetOffsetMetres = 3.5f;
@@ -71,7 +77,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool modeSelected, initiativeApplied, aiAcquired, encounterEnded, servicesReleased, controlPending, controlPrepPending;
         private Vector3 interactionStart;
         private int movingPolls, offTurnMovingPolls, livePolls;
-        private bool startedWhileMoving, turnChangedWhileLive;
+        private int settlementPolls, settlementMovingPolls, settlementOffTurnMovingPolls;
+        private bool startedWhileMoving, turnChangedWhileLive, actionEndObserved, turnChangedDuringSettlement;
         private float maximumTimeMoved;
         private TurnController interactionTurn, endedRiderTurn;
         private int roundAtClick;
@@ -93,6 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
             owners = riders.Select(world.Registry.FindActive).ToArray();
             generations = owners.Select(x => x == null ? -1 : x.Generation).ToArray();
             evidence["contract"] = Contract; evidence["turns"] = turns; evidence["endedTurns"] = endedTurns; evidence["setupInteractions"] = 0;
+            evidence["scope"] = new JObject { ["offTurnRejection"] = OffTurnScope, ["stallClassification"] = StallScope, ["movementCost"] = MovementCostContract };
         }
 
         private Vector3 ApproachPoint => door.MapObject != null ? door.MapObject.transform.position : door.transform.position;
@@ -342,6 +350,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ReferenceEquals(command.Executor, riders[0]) && pair.HasActiveDoorInteraction,
                 "The rider's own-turn click did not admit exactly the pair's door command: " + pair.LastFeedback);
             movingPolls = 0; offTurnMovingPolls = 0; livePolls = 0; startedWhileMoving = false; turnChangedWhileLive = false; maximumTimeMoved = turn.TimeMoved;
+            settlementPolls = 0; settlementMovingPolls = 0; settlementOffTurnMovingPolls = 0; actionEndObserved = false; turnChangedDuringSettlement = false;
             Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
         }
 
@@ -406,7 +415,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 { rejectionDuring = ClickOffTurn("during-first-pair-approach"); evidence["rejectionDuringApproach"] = rejectionDuring; }
                 return false;
             }
-            if (pair.HasActiveDoorInteraction || pair.HasPendingDoorSettlement || !mounts[0].Commands.Empty || mounts[0].View.AgentASP.IsReallyMoving) return false;
+            // The action-end boundary: the first poll after the native action finished (the Standard was spent on the
+            // interaction; the approach travel is over). Raw cooldowns, the rider turn's movement time and the pair's own
+            // allocation observation are recorded here, before any settlement time passes.
+            if (!actionEndObserved)
+            {
+                actionEndObserved = true;
+                interaction["cooldownsAtActionEnd"] = Cooldowns();
+                interaction["timeMovedAtActionEnd"] = turn != null && turn.Unit == riders[0] ? (JToken)turn.TimeMoved : null;
+                interaction["remainingTimeAtActionEnd"] = turn != null && turn.Unit == riders[0] ? (JToken)turn.GetRemainingTime() : null;
+                interaction["mountPositionAtActionEnd"] = Point(mounts[0].Position); interaction["distanceMovedAtActionEnd"] = Distance(interactionStart, mounts[0].Position);
+                var observation = pair.LastPairedMovementObservation;
+                interaction["movementObservationAtActionEnd"] = observation; interaction["allocation"] = ParseMovementObservation(observation);
+                interaction["commandResult"] = command.Result.ToString(); interaction["commandActed"] = command.IsActed;
+            }
+            // The settlement/recovery window: movement legality stays observed until the owned post-action lifecycle has
+            // finished and the mount is idle; no off-turn movement may hide here.
+            if (pair.HasActiveDoorInteraction || pair.HasPendingDoorSettlement || !mounts[0].Commands.Empty || mounts[0].View.AgentASP.IsReallyMoving)
+            {
+                settlementPolls++;
+                if (turn != null && turn.Unit == riders[0]) maximumTimeMoved = Math.Max(maximumTimeMoved, turn.TimeMoved);
+                if (!ReferenceEquals(turn, interactionTurn)) turnChangedDuringSettlement = true;
+                if (mounts[0].View.AgentASP.IsReallyMoving) { settlementMovingPolls++; if (turn == null || turn.Unit != riders[0]) settlementOffTurnMovingPolls++; }
+                return false;
+            }
             if (!Settled(door.GetState())) return false;
             var outcome = pair.LastDoorInteractionOutcome;
             interaction["outcome"] = Chunk7NativeDoorProbe.OutcomeRow(outcome);
@@ -417,7 +449,12 @@ namespace KingmakerMountedCombat.Diagnostics
             interaction["turnChangedWhileLive"] = turnChangedWhileLive; interaction["turnStillRiderAfter"] = turn != null && turn.Unit == riders[0];
             interaction["roundAfter"] = Controller.RoundNumber; interaction["mountPositionAfter"] = Point(mounts[0].Position);
             interaction["mountInsideNavmesh"] = Kingmaker.View.ObstacleAnalyzer.IsPointInsideNavMesh(mounts[0].Position);
+            interaction["settlementPolls"] = settlementPolls; interaction["settlementMovingPolls"] = settlementMovingPolls;
+            interaction["settlementOffTurnMovingPolls"] = settlementOffTurnMovingPolls; interaction["turnChangedDuringSettlement"] = turnChangedDuringSettlement;
             interaction["cooldownDeltas"] = CooldownDeltas((JObject)interaction["cooldownsAtClick"], (JObject)interaction["cooldownsAfter"]);
+            var cost = MovementCost((JObject)interaction["cooldownsAtClick"], (JObject)interaction["cooldownsAtActionEnd"], (JObject)interaction["cooldownsAfter"],
+                interaction["allocation"] as JObject, outcome?.RecoveryDisposition);
+            interaction["movementCost"] = cost;
             Require(outcome != null && outcome.Result == "Success" && outcome.RiderId == riders[0].UniqueId && outcome.MountId == mounts[0].UniqueId &&
                 outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount >= 1 && outcome.DoorStateChanged && outcome.MountMoveSlotRestored && door.GetState() &&
                 (double)interaction["distanceMoved"] >= 0.5d,
@@ -427,13 +464,70 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(outcome.ApproachesWithoutProgress == 0 && !turnChangedWhileLive && offTurnMovingPolls == 0 && (bool)interaction["unstartedWhileMoving"],
                 "The mount moved off the rider's turn, the command started while moving, or a legal lack of movement was classified as a stall.");
             var deltas = (JObject)interaction["cooldownDeltas"];
-            // Native spending: the rider's Standard action is spent exactly once by the interaction (never refunded); the mount
-            // spends no Standard action; no cooldown of either actor decreases across the click (no refund).
-            Require((double)deltas["rider"]["standard"] > 0.5d && (double)deltas["rider"]["standard"] <= 6.05d && Math.Abs((double)deltas["mount"]["standard"]) <= 0.01d &&
-                new[] { "standard", "move", "swift" }.All(k => (double)deltas["rider"][k] >= -0.01d && (double)deltas["mount"][k] >= -0.01d),
-                "Native action spending across the turn-based door interaction differs from exactly-once rider Standard spending: " + deltas.ToString(Newtonsoft.Json.Formatting.None));
+            // Native spending at the action end: the rider's Standard action is spent exactly once by the interaction (+6 in
+            // turn-based combat, at most one frame of decay before this boundary); the mount spends no Standard action; the
+            // second pair's cooldowns are untouched; nothing of the first pair increases afterwards except an owned recovery move.
+            Require((double)cost["riderStandardDelta"] >= 5.5d && (double)cost["riderStandardDelta"] <= 6.05d && Math.Abs((double)cost["mountStandardDelta"]) <= 0.01d &&
+                new[] { "secondRider", "secondMount" }.All(r => new[] { "standard", "move", "swift" }.All(k => Math.Abs((double)deltas[r][k]) <= 0.01d)),
+                "Native action spending across the turn-based door interaction differs from exactly-once rider Standard spending: " + cost.ToString(Newtonsoft.Json.Formatting.None));
+            // Movement cost (paired contract): real travel is charged once to the mount's own Move budget, never more than the
+            // game time that passed or the pair's allocation time, never to the rider; nothing is refunded afterwards beyond
+            // native decay, and no unowned movement follows the action.
+            Require((bool)cost["lawful"], "Turn-based paired approach movement cost differs from the installed paired contract: " + cost.ToString(Newtonsoft.Json.Formatting.None));
+            Require(settlementOffTurnMovingPolls == 0 && !turnChangedDuringSettlement, "The mount moved off the rider's turn, or the turn changed, during the owned settlement window.");
             Require(rejectionDuring != null, "The second pair's off-turn click during the live approach was not exercised (the approach ended before the mount was observed moving twice).");
             return true;
+        }
+
+        // The pair's own allocation observation ("mountMove=a->b;mountTime=t;mountStepMetres=s;nativePrepared=p;round=r;physicalDelta=x->y").
+        private static JObject ParseMovementObservation(string observation)
+        {
+            if (string.IsNullOrEmpty(observation) || !observation.StartsWith("mountMove=", StringComparison.Ordinal)) return null;
+            try
+            {
+                var fields = observation.Split(';').Select(x => x.Split(new[] { '=' }, 2)).Where(x => x.Length == 2).ToDictionary(x => x[0], x => x[1], StringComparer.Ordinal);
+                var move = fields["mountMove"].Split(new[] { "->" }, StringSplitOptions.None); var physical = fields["physicalDelta"].Split(new[] { "->" }, StringSplitOptions.None);
+                return new JObject { ["mountMoveBefore"] = Single(move[0]), ["mountMoveAfter"] = Single(move[1]), ["mountTime"] = Single(fields["mountTime"]),
+                    ["mountStepMetres"] = Single(fields["mountStepMetres"]), ["nativePrepared"] = bool.Parse(fields["nativePrepared"]), ["round"] = int.Parse(fields["round"], System.Globalization.CultureInfo.InvariantCulture),
+                    ["physicalDeltaRequested"] = Single(physical[0]), ["physicalDeltaAllowed"] = Single(physical[1]) };
+            }
+            catch (Exception) { return null; }
+        }
+        private static float Single(string value)
+        {
+            float parsed;
+            if (float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed)) return parsed;
+            return float.Parse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture);
+        }
+
+        // The movement-cost relation of the installed paired contract (Chunk 7 checkpoint rule, accepted natively): a rider's
+        // turn-based approach is native movement charged to its own mount's Move budget (delta equal to the allocation's
+        // movement time, inside the six-second budget, with real displacement); the rider keeps its own Move. Settlement may
+        // only decay cooldowns (bounded by elapsed game time) unless one owned recovery move is admitted.
+        private static JObject MovementCost(JObject atClick, JObject atActionEnd, JObject after, JObject allocation, string recoveryDisposition)
+        {
+            double Ticks(JObject row) => (double)(long)row["rider"]["gameTicks"];
+            var approachSeconds = (Ticks(atActionEnd) - Ticks(atClick)) / 1e7; var settlementSeconds = (Ticks(after) - Ticks(atActionEnd)) / 1e7;
+            var mountCharge = (double)atActionEnd["mount"]["move"] - (double)atClick["mount"]["move"];
+            var riderMoveDelta = (double)atActionEnd["rider"]["move"] - (double)atClick["rider"]["move"];
+            var riderStandardDelta = (double)atActionEnd["rider"]["standard"] - (double)atClick["rider"]["standard"];
+            var mountStandardDelta = (double)atActionEnd["mount"]["standard"] - (double)atClick["mount"]["standard"];
+            var mountMoveAfterSettlement = (double)after["mount"]["move"] - (double)atActionEnd["mount"]["move"];
+            var riderStandardAfterSettlement = (double)after["rider"]["standard"] - (double)atActionEnd["rider"]["standard"];
+            var allocationTime = allocation == null ? (double?)null : (double)allocation["mountTime"];
+            var stepMetres = allocation == null ? 0d : (double)allocation["mountStepMetres"];
+            var recovered = recoveryDisposition == MountedDoorRecoveryDisposition.Admitted.ToString();
+            var decayBound = 1.1d * settlementSeconds + 0.01d;
+            var lawful = mountCharge > 0.01d && mountCharge <= approachSeconds + 0.05d && (double)atActionEnd["mount"]["move"] <= 6.001d &&
+                Math.Abs(riderMoveDelta) <= 0.01d && (double)atActionEnd["rider"]["move"] <= 0.01d &&
+                allocationTime.HasValue && mountCharge <= allocationTime.Value + 0.05d && (stepMetres > 0d || Math.Abs(mountCharge - allocationTime.Value) <= 0.05d) &&
+                Math.Abs((double)allocation["mountMoveAfter"] - (double)atActionEnd["mount"]["move"]) <= 0.05d &&
+                mountMoveAfterSettlement >= -decayBound && (recovered ? (double)after["mount"]["move"] <= 6.001d : mountMoveAfterSettlement <= 0.01d) &&
+                riderStandardAfterSettlement >= -decayBound && riderStandardAfterSettlement <= 0.01d;
+            return new JObject { ["contract"] = MovementCostContract, ["approachGameSeconds"] = approachSeconds, ["settlementGameSeconds"] = settlementSeconds,
+                ["mountMoveCharge"] = mountCharge, ["riderMoveDelta"] = riderMoveDelta, ["riderStandardDelta"] = riderStandardDelta, ["mountStandardDelta"] = mountStandardDelta,
+                ["mountMoveAfterSettlement"] = mountMoveAfterSettlement, ["riderStandardAfterSettlement"] = riderStandardAfterSettlement,
+                ["allocationTime"] = allocationTime, ["allocationStepMetres"] = stepMetres, ["recoveryAdmitted"] = recovered, ["decayBound"] = decayBound, ["lawful"] = lawful };
         }
 
         private bool EndRiderTurnAndEncounter()
