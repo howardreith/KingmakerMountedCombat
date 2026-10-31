@@ -5311,7 +5311,7 @@ try {
         & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $validPackage
     }
     foreach ($sizeCase in @(
-        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=8MB},
+        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=9MB},
         @{name='Info';leaf='Info.json';limit=4MB}
     )) {
         Invoke-HarnessTest ("package validator retains the {0} entry size boundary" -f $sizeCase.name) {
