@@ -1,51 +1,42 @@
-# Sprint 1 resume record (2026-10-30, iteration 7)
+# Sprint 2 resume record (2026-10-31, seventh iteration)
 
-Machine: DESKTOP-SRJJ623. Worktree
-`C:\Dev\KingmakerMountedCombatLab\worktrees\sprint1-save-reliability`, branch
-`codex/mounted-combat-sprint1-save-reliability` (the request validator requires the
-`codex/mounted-combat-` prefix). The root repository stays on `main` with the frozen
-preview.96 `bin\Release` DLL untouched.
+Machine: DESKTOP-SRJJ623. Worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\sprint2-movement-doors`,
+branch `codex/mounted-combat-sprint2-movement-doors` (the request validator requires the
+`codex/mounted-combat-` prefix). The root repository stays on `main` `05a9efd0` with its frozen
+`bin\Release` DLL untouched.
 
 ## Custody
 
-No native game, executor, transaction or lock remains. Retained under `runtime-evidence`
-(iterations 1–6 as the previous records listed) plus iteration 7's
-`20261030-sprint1-r16-upg01-resave-cold-pair-order` (FAIL on `f6b21085…` at `pair-stock-attack-order`,
-my "exactly one mount rule" term; its `attack` observation records the whole sequence) and
-`20261030-sprint1-r17-upg01-resave-cold-pair-order-r2` (PASS on `02558b81…`: the complete UPG-01
-consumer with 24 assertions, no write, readers PASS). Their isolated roots under
-`runtime-staging\persistence-20261030-sprint1-r1{6,7}-*` hold the r13-r2 resave copy (unchanged).
-Immutable inputs: genuine Quick `83e92e1e…` (`runtime-staging\persistence-final211-p05-save-quick`),
-r13-r2 resave `dfaf00be3afe1f57ac8eccaa27af2daba7cf3a0329bda160da141878b8f41a78` (856,711 B), dependency
-selection `analysis-cache\sprint1\retained-dependencies-final211.json` (`523d32dc…`). Current package
-`…preview.98-sprint1q-diagnostic.zip` (`93deddbb…`, DLL `02558b81…`, MVID `3f28f251…`, built at
-`1655511b`), suite `sprint1q-1655511b-20261030` (`97638780…`); sprint1p (`f6b21085…`, r16), sprint1o
-(`3ada7451…`, r15) and sprint1n (`7f49f857…`, r13-r2/r14-r2) retained. Shared budget record
-`runtime-state\workflow-budgets\sprint1.json`: 138.28 of 150 min, 108 entries, two recorded allowance
-adjustments (+45, +15), batches `sprint1:upgrade-3` (r15, r16 failed) and `sprint1:upgrade-4` (r17 PASS).
-The r16/r17 UMM session log (`Kingmaker_Data\Managed\UnityModManager\Log.txt`) is overwritten by the
-next game session; the attributing lines are quoted in the sprint report.
+No native game, executor, transaction or lock remains. Retained under `runtime-evidence`: r01..r08, r09/r10 (PASS on
+`809573ad…`), r13/r14/r16, r17..r21 (sixth iteration; r21 accepted natively, re-evaluated PASS by reader `d1667bcd`),
+r22 (`20261031-sprint2-r22-traversal-core-dungeon-door-clock`, PASS on sprint2v: the real-time door exercise of the
+corrected clock) and r23 (`20261031-sprint2-r23-owner-dungeon-door-tb-single-pair`, refused before load: autosave type
+`Auto` against the authority's `Manual` pin). Immutable inputs: the owner seeds in `fixtures\owner-supplied\`
+(Old Sycamore `90789101…`, surface `1fda72b1…`, dungeon floor `4c1db37e…` registered as
+`KMC_S2_DUNGEON_FLOOR_CANDIDATE`, type `Auto`), the `KMC_AUTOMATION_WORKING` fixture with retained dependencies
+`analysis-cache\sprint1\retained-dependencies-final211.json`. Candidate sprint2v (`3ad92495`, suite
+`sprint2v-3ad92495-20261031`); sprint2u's artifact name is taken by the oversize refusal and must not be reused. Budget
+record `runtime-state\workflow-budgets\sprint2.json`: allowance 160 (adjustments +30, +20, +20), 143.58 spent, 103
+entries, batches `sprint2:completion-1` to `-7-tb`.
 
 ## Next action
 
-1. Final review of PR #6 (head of this branch); then the owner's own sanity check with the preview.98
-   package on their reported save (CURRENT.md); owner play acceptance stays separate. No merge,
-   release or installation is part of this workflow.
-2. If a later product candidate is cut: new package and suite (the suite pins package, DLL, MVID and
-   commit); the Quick/Manual rows (r06–r08) ran on `a680dd69…`, SAVE-02 on `bed87d75…`, the UPG-01
-   producer on `7f49f857…` and its consumer on `02558b81…`; rerun only what a changed production path
-   affects (the save, restore and serialization paths are unchanged since `4644a433`).
-3. Known, not in scope: the probe's DidTrigger-based `UnexpectedPairAttackCount` received duplicated
-   notifications for the mount's natural attack rules (4 and 5 for 2 rules) in the Call of the Wild
-   configuration; distinct rules are counted from the begin/end-paired records, the notification count
-   is recorded only. The P04, Chunk 6A and 6B readers pin `Combat.Actors.Count` as the semantic
-   expectation (equal to the derived distinct union only when every pair actor is also a combat actor).
-   `scripts/chunk7/Test-Chunk7SixPairExitReader.ps1` is 3/22 at `main` (fixture requests carry an older
-   `productVersion` than `version.json`).
-4. Tooling facts: a WMI-started chain wrapper must carry its own env and writes a UTF-16 log
-   (`tr -d '\0'` before `grep`); observation `gameTicks` are 100-ns ticks; use absolute Windows paths
-   with .NET and PowerShell from the tool shell; Bash tool commands beyond about 60 lines are truncated;
-   no `python` on this machine (use perl); `Test-Tiers.ps1` records under budget `development` unless
-   `KMC_WORKFLOW_BUDGET_ID` is set (import the duration otherwise).
+1. Final review of draft PR #7 (disposition PARTIAL). Owner play acceptance stays separate. No merge, release or
+   installation is part of this workflow.
+2. Turn-based door control is the only outcome not demonstrated. Required input: an owner-made **Manual** save on a
+   floor or area where a revealed, interactable door with `StandardDoor.NotInCombat` false stands within 28 m of the
+   mounted pair (not the dwarf dungeon door class; not Old Sycamore's tavern door). Then: register it in
+   `scripts/runtime/Chunk7OwnerSeedRegistry.json` (type `Manual`), copy `analysis-cache\sprint2\owner-surface-dungeon-door-tb.json`
+   with its seed and party identities, add the route to the launch wrapper (`owner-surface-door` pattern) and run; the
+   stage selects the door itself and refuses early with the inventory when none qualifies. If the owner prefers the
+   existing autosave, the alternative is a deliberate decision to admit native type `Auto` in
+   `PersistenceSaveAuthorization`'s owner-seed pins (a persistence safety contract; not changed here).
+3. Any launch needs a new explicit allowance (16.42 min remain; a launch needs its 600 s outer timeout at admission)
+   and its own declared batch id.
+4. Tooling facts: the package manifest binds the exact HEAD (a docs commit also invalidates a WhatIf against an older
+   package); `Package.ps1` refuses a diagnostic DLL above 8 MiB (the assembly is exactly at the bound: trim literals or
+   split the qualification assembly before adding more diagnostics); suite freeze in-process with `-Confirm:$false`;
+   package/suite charged as imported `kind=other` entries; the wrapper's `*>` logs are UTF-16; the batch guard keys on
+   the scenario.
 
-Prior Chunk 7 resume: [AUTONOMOUS-RESUME before Sprint 1](docs/history/AUTONOMOUS-RESUME-before-sprint1-2026-10-29.md).
+Prior records: [AUTONOMOUS-RESUME before Sprint 2](docs/history/AUTONOMOUS-RESUME-before-sprint2-2026-10-30.md).

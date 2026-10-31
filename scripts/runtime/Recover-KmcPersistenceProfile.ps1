@@ -63,7 +63,9 @@ if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
     }
 }
 if($removalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver -StagedModIds (Get-KmcRunStagedModIds $RunId)}
-else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver}
+# Sprint 2 (r07 recovery): a base-game transaction that staged retained dependencies rewrote their loader entries too; the
+# ids come from the run's own durable Mods transaction state (Get-KmcRunRetainedDependencyIds), exactly as the restore step reads them.
+else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver -StagedModIds $(if($baseGameOnly){Get-KmcRunRetainedDependencyIds $RunId}else{$null})}
 if($dryRun-or-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return

@@ -27,6 +27,19 @@ namespace KingmakerMountedCombat.Diagnostics
         public const string OwnerSeedLoadCase = "owner-seed-persistence-load";
         public const string OwnerSeedManualName = "KMC_C7_SEED_WORLD";
         internal const string OwnerSeedCheckpoint = "multi-exploration-manual";
+        // Sprint 2 (MOVE-01 on the owner's surface): a disposable copy of the owner's own registered save whose one
+        // pre-owned pair (rider A and the KMC Horse it already owns) is bound exactly; nothing is built, granted,
+        // levelled or acquired, no second pair exists, no save is written. Only the aligned speed legs run.
+        public const string OwnerSurfaceSpeedCase = "owner-surface-speed";
+        internal bool IsOwnerSurfaceSpeed => Case == OwnerSurfaceSpeedCase;
+        // Sprint 2 (DOOR-01 in turn-based combat): explicit true opt-in on owner-seed exploration only; the stage runs
+        // after the real-time door probe with the project's diagnostic target in the selected turn-based mode.
+        public bool? TurnBasedDoor { get; set; }
+        public bool ShouldSerializeTurnBasedDoor() => TurnBasedDoor != null;
+        internal bool TurnBasedDoorSelected => IsOwnerSeed && TurnBasedDoor == true;
+        // Finishing mission 2026-10-31: the same opt-in on the owner-surface case runs the single-pair turn-based door stage
+        // (the pre-owned pair, the shared combat-usable door selection, no speed legs) instead of the speed legs.
+        internal bool OwnerSurfaceDoorSelected => IsOwnerSurfaceSpeed && TurnBasedDoor == true;
         // Owner-seed-derived combat (batch 3 scenarios 3-5): a disposable copy of the
         // owner-seed-derived Manual, cold-loaded with both pairs restored mounted. The
         // producer pins are Source*, the ACCEPTED cold consumer receipt is Checkpoint*.
@@ -349,7 +362,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool CrossCandidateAllowedFor(string checkpoint) => CrossCandidateAllowed || IsOwnerSeedDerivedLoad &&
             (checkpoint == "multi-exploration-three-loads-manual" || IsManticoreManualCold(checkpoint));
         internal const int MaximumSetupLevelupWrites = 2;
-        internal string[] PairIds => SixPairLineage ? SixPairRoles : new[] { RiderAId, MountAId, RiderBId, MountBId };
+        internal string[] PairIds => SixPairLineage ? SixPairRoles : IsOwnerSurfaceSpeed ? new[] { RiderAId, MountAId } : new[] { RiderAId, MountAId, RiderBId, MountBId };
         internal string RuntimeScenario
         {
             get
@@ -359,6 +372,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     case "exploration": return "chunk7-two-pair-exploration";
                     case OwnerSeedCase: return "chunk7-two-pair-exploration";
                     case OwnerSeedManualCase: return "chunk7-two-pair-exploration";
+                    case OwnerSurfaceSpeedCase: return "chunk7-two-pair-exploration";
                     case OwnerSeedLoadCase: return "chunk7-persistence-load";
                     case OwnerSeedLoadRefusalCase: return "chunk7-persistence-load";
                     case OwnerSeedRealtimeCase: return "chunk7-two-pair-realtime-core";
@@ -438,11 +452,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var charge = ChargeSeedError(checkpoint);
             var level6 = SeedId == Level6SeedId || SeedSha256 == Level6SeedSha256 ? Level6SeedRefusal : null;
             var mounted6 = Mounted6SeedError(checkpoint);
-            if (charge == null && level6 == null && mounted6 == null) return errors;
+            var turnBased = TurnBasedDoor == null ? null : (IsOwnerSeed || IsOwnerSurfaceSpeed) && TurnBasedDoor == true ? null :
+                "Turn-based door control is an explicit true opt-in for owner-seed exploration or the owner-surface pre-owned pair only.";
+            if (charge == null && level6 == null && mounted6 == null && turnBased == null) return errors;
             var all = new List<string>(errors);
             if (charge != null) all.Add(charge);
             if (level6 != null) all.Add(level6);
             if (mounted6 != null) all.Add(mounted6);
+            if (turnBased != null) all.Add(turnBased);
             return all;
         }
         internal const string Mounted6LineageRefusal = "KMC_C7_MOUNTED6_SEED is admitted only along its own lineage (exact registered identity): the Manual producer, its multi-exploration-manual cold consumer, owner-seed prepared casting and owner-seed attack modes.";
@@ -473,6 +490,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new[] { "Only the exact owner-seed checkpoint area pair admits the distinct Manticore return route." };
             if (DeclaresExistingAuto && !IsAreaOverwrite(checkpoint))
                 return new[] { "Only the owner-seed area autosave producer admits a pre-existing Auto slot." };
+            if (IsOwnerSurfaceSpeed) return ValidateOwnerSurfaceSpeed(scenario, runId, checkpoint);
             if (OwnerSeedSetup) return ValidateOwnerSeed(scenario, runId, checkpoint);
             if (IsOwnerSeedDerivedLoad) return ValidateOwnerSeedDerivedLoad(scenario, runId, checkpoint);
             if (IsOwnerSeedLoadRefusal)
@@ -636,6 +654,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 !Hash(CheckpointSourceArtifactSha256) || CheckpointSourceArtifactSha256 == SourceArtifactSha256 ||
                 CheckpointSourceArtifactSha256 == SourceArchiveSha256)
                 errors.Add("Only the Medium cold consumer carries a distinct completed mounted-checkpoint producer pin.");
+            return errors;
+        }
+        // Static owner-surface validation: one registered owner save, exactly its pre-owned rider A and the KMC Horse it
+        // already owns (both members of the loaded field roster), no second pair, no producer, checkpoint, companion,
+        // assistance or area pins, base-only staging, one native load and zero native writes.
+        private IReadOnlyList<string> ValidateOwnerSurfaceSpeed(string scenario, string runId, string checkpoint)
+        {
+            var errors = new List<string>();
+            if (scenario != Scenario) errors.Add("Owner-surface speed requires its exact closed native campaign family.");
+            if (SourceRunId != null || SourceArtifactSha256 != null || SourceArchiveSha256 != null || CheckpointSourceRunId != null ||
+                CheckpointSourceArtifactSha256 != null || RiderBId != null || MountBId != null || SourceArea != null || CompanionId != null ||
+                XpAssistance != null || ColdReceiptSha256 != null || AreaRoute != null || DeclaresExistingAuto)
+                errors.Add("Owner-surface speed has no producer, checkpoint, second-pair, area, companion, assistance or existing-slot pins.");
+            if (!Run(SeedId) || SeedId == runId) errors.Add("An exact registered owner seed identity is required.");
+            if (!Hash(SeedSha256)) errors.Add("An exact owner seed SHA256 is required.");
+            if (!Chunk7ManualDerivedSelection.NativeId(RiderAId) || !Chunk7ManualDerivedSelection.NativeId(MountAId) ||
+                string.Equals(RiderAId, MountAId, StringComparison.Ordinal))
+                errors.Add("The owner's rider and its pre-owned KMC Horse must be two distinct observed native IDs.");
+            if (PartyIds == null || PartyIds.Length < 2 || PartyIds.Length > 8 ||
+                !PartyIds.All(Chunk7ManualDerivedSelection.NativeId) || PartyIds.Distinct(StringComparer.Ordinal).Count() != PartyIds.Length ||
+                !PartyIds.Contains(RiderAId) || !PartyIds.Contains(MountAId))
+                errors.Add("The bounded full native field roster must contain the owner's rider and its Horse once.");
+            if (checkpoint != null) errors.Add("Owner-surface speed cannot select a persistence checkpoint.");
+            if (!BaseGameOnly || ExpectedNativeLoadCount != 1 || ExpectedNativeWriteCount != 0)
+                errors.Add("Owner-surface speed requires base-only staging, one native load and zero native writes.");
             return errors;
         }
         // Static owner-seed validation. Rider size, petless state, eligibility and the
