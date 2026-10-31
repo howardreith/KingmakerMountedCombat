@@ -379,3 +379,95 @@ two WhatIfs, two launches, local test runs, all charged). Active work for this i
 Mods tree empty, no lock, no game process, no candidate installed, protected saves unchanged, loader parameters and
 profile root (including `Areas\`) at intake. Original verdicts retained: r05 outer FAIL (+ offline re-evaluation), r07
 outer FAIL (+ recovery receipt), r08 FAIL.
+
+## Fourth iteration (2026-10-31, early morning): the two missing acceptance routes implemented; native runs refused by the exhausted allowance
+
+**Disposition: SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** The two
+agreed NOT RUN rows now have their complete native routes (adapter, selection, launcher dispatch, readers, tests), both
+pass the guarded WhatIf qualification, and neither was launched: the `sprint2` allowance (no extension or new budget id
+was selected) refuses a launch whose outer timeout (600 s) exceeds the remaining minutes. This section supersedes the
+"Still NOT RUN" contracts above with executable routes and names the exact remaining cause.
+
+### Identity
+
+Commit `dd02ebfc` over `edeceabd` (diagnostics, readers, registry, tests; no production movement/admission/settlement
+change). Product `0.1.0-chunk7b-preview.100`, DLL SHA-256 `70bbf16732099f64210366bd19c3b4bb9d2ec4761d7eec8239769e947560a134`,
+MVID `8d8eeecb-8099-42d4-9dd7-63650903c461`, package `KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint2l-diagnostic.zip`
+SHA-256 `fc9252a0434ff4a1bf8d2c6e343bf9444521ba75eb83749e05753d9224aae60a`, suite `sprint2l-dd02ebfc-20261031`
+SHA-256 `da7bdb194833d46ab8e84306374f92126281d94f5df6197cb173b70afee71408`. The r09/r10 evidence on DLL `809573ad…`
+(sprint2k) is retained unchanged; the sprint2l delta is diagnostics-only (the two new routes, shared door-probe helpers,
+the row registry, the combat-target basis for the opt-in, the request validator's descriptor branch for the new case).
+
+### Route 1: MOVE-01 on the owner's surface (`owner-surface-speed`)
+
+- Input: the owner's own `Manual_301_After_mounting.zks` (header name "After mounting", game "Akasa"
+  `48a4bec2…`, area `DungeonStartHub_Roguelike` `c49315fe…`, Endless), registered as `KMC_S2_ROGUELIKE_SURFACE_CANDIDATE`
+  in `scripts/runtime/Chunk7OwnerSeedRegistry.json` from the pinned master (`1fda72b1…`, 596816 bytes) and intake record
+  (`eb30c543…`); the master is copied, never loaded. Selection `analysis-cache\sprint2\owner-surface-speed.json`
+  (rider `121dc2f0…`, Horse `fb764728…`, four-member field roster, base-only, one load, zero writes). Call of the Wild
+  1.14.4c-2.1 and Craft Magic Items 2.1.0 are staged from the retained Sprint 1 bytes
+  (`analysis-cache\sprint1\retained-dependencies-final211.json`) because the save serializes Call of the Wild unit parts.
+- Engine mode (`Chunk7WorldScenarioEngine.OwnerSurface.cs`): the save loads through the supported missing-metadata
+  path (no KMC archive member, nothing restored); the one pre-owned reciprocal pair is bound exactly (nothing built,
+  granted, levelled, acquired or saved; no second pair); ordinary native Mount; the four aligned speed legs
+  (`sprint2-speed-legs/v2`: mounted with the party, mounted alone, Horse alone, rider on foot) on that surface; ordinary
+  native Dismount; the shared cleanup preserves the owner's pet, writes no matched pool and records
+  `ownerSurfacePairPreserved`. Rows `C7-world-owner-surface-mount`, `C7-world-owner-surface-legs`.
+- Reader `Assert-KmcChunk7OwnerSurfaceSpeedEvidence` (PASS only when all four legs ran on the surface, the primary
+  mover per leg is the Horse/Horse/Horse/rider, the pair is preserved, zero writes, exact roster).
+
+### Route 2: DOOR-01 / SPACE-01 in native turn-based combat (`turnBasedDoor` opt-in)
+
+- Selection `analysis-cache\sprint2\owner-seed-exploration-door-open-tb.json` = the r09 selection plus
+  `"turnBasedDoor": true` (owner-seed exploration only; the Manual producer and every other kind refuse it).
+- Stage (`Chunk7TurnBasedDoorProbe`, engine step 45) after the real-time door probe released the door and before the
+  speed legs, both pairs mounted: door lease captured and closed as fixture preparation; the first pair's bounded
+  ordinary move to a clear goal 5 m outside the door radius; the project's diagnostic target spawned in the selected
+  turn-based mode with the accepted rider-first initiative inputs and AI lease (basis
+  `owner-seed-disposable-copy-turn-based-door`); other party turns ended through the native End Turn binding; an
+  unmounted member's own stock click as the native cost control when its turn comes first; on the first rider's acting
+  turn the second pair's off-turn click (expected refused, nothing mutated), the first rider's click (routed command,
+  approach on the rider's turn only, one interaction from inside the radius with line of sight), a second off-turn click
+  while the approach is live (the live command and delegated move must be intact), cooldowns of all four actors before
+  and after (rider Standard spent exactly once in (0.5, 6.05] s, mount Standard unchanged, no refund anywhere),
+  `ApproachesWithoutProgress == 0`, no off-turn mount movement; the encounter ends by removing the target; initiative,
+  AI lease and the real-time mode selection restored; the door lease restored exactly; cleanup never dismounts a pair
+  inside a live encounter. A door flagged `NotInCombat` refuses before any encounter (legitimate native refusal,
+  recorded). Row `C7-world-turn-based-door`; reader `Assert-KmcChunk7TurnBasedDoorEvidence`.
+
+### Offline verification and review
+
+Compile clean (five passes while fixing), `Validate-Source` 149/0, new `scripts/Test-Sprint2OwnerSurfaceAndTurnBasedReaders.ps1`
+91/0, `Test-Chunk7WorldEvidence` 395/0, `Test-Chunk7OwnedPairsEvidence` 1481/0, `Test-Chunk7OwnedPairsWiring` 261/0,
+`Test-PersistenceAreasIsolationSelection` 7/0. One bounded independent read-only review of the delta before the commit
+found five items, all fixed in `dd02ebfc`: the request validator's descriptor branch did not admit the new case (would
+have refused the run before any native input); the capability row's `workingSha256`/`ownerSeedSha256` shape for the
+new mode; cleanup could dismount pairs inside a live encounter on the stage's failure path; a pending native control
+must complete before the rider's turn is admitted; the engine's 360 s bound sits under the host's 420 s.
+
+### Native admission
+
+| Run | Route | WhatIf (development-scoped) | Launch |
+| --- | --- | --- | --- |
+| r11 `20261031-sprint2-r11-owner-surface-speed` | owner-surface (two-pair campaign scenario, CotW+CMI staged) | PASS | refused by the budget guard |
+| r12 `20261031-sprint2-r12-doors-tb-control` | two-pair door seed with the turn-based opt-in | PASS | not requested (same refusal applies) |
+
+The r11 launch was refused at admission, before Steam checks, locks, staging or any game process: "Workflow budget
+refuses oversized work: native chunk7-owned-two-pair-campaign/-/launch/… is known to take about 10 min and only 7.03 min
+remain". The estimate is the run's outer timeout (600 s), not the observed launch durations (1.8 to 2.9 min); the
+mission selects no extension, reset or new budget id, so no launch can be admitted. Nothing was weakened to proceed.
+
+### Cost and state
+
+Budget `sprint2` 83.27 of 90 min (this iteration: offline compile and reader regressions 7.0, package sprint2l and the
+review-fix compile 0.8, suite freeze 1.6, two WhatIfs 0.6; 54 entries, batch `sprint2:completion-4` holds only the two
+WhatIfs). Active work this iteration about 3 h 10 min. Live state verified after the refusal: Mods tree empty, loader
+parameters at intake (`ca5d4022…`), profile `Areas\` empty, no lock, no game process, the owner's originals
+`Manual_301_After_mounting.zks` (`1fda72b1…`, 2026-08-28) and `Auto_1121.zks` (`4c1db37e…`, 2026-09-05) untouched.
+
+### Exact remaining step
+
+With a new explicit allowance selected by the owner (each launch needs at least its 600 s outer timeout remaining at
+admission; two launches plus their restoration): run `r11` then `r12` through the wrapper routes `owner-surface` and
+`two-pair-tb` against package sprint2l and suite `sprint2l-dd02ebfc-20261031`, read the results with the committed
+readers, and only then decide ENGINEERING COMPLETE. No source change is needed for that step.
