@@ -24,7 +24,7 @@ function New-S3TrapRow{
  $e|Add-Member thievery ([pscustomobject]@{baseBefore=0;baseGranted=4;granted=$true;mountBase=0})
  $e|Add-Member trapAfter ([pscustomobject]@{active=$false;distanceToRider=0.9})
  $e|Add-Member trapAtClick ([pscustomobject]@{active=$true;perceptionPassed=$true;revealed=$true;distance=9.8})
- $e|Add-Member explorationLegs @([pscustomobject]@{ordered=$true;destinationToTrap=6.1;perceptionBefore=$false;outcome='discovered';perceptionChecks=@([pscustomobject]@{actor=$rider;trap='trap-1';dc=15;d20=14;passed=$true});reorders=1;perceptionRank=[pscustomobject]@{allowedBefore=$false;granted=$true;riderBaseBefore=4;riderBaseAfter=5;allowedAfter=$true}})
+ $e|Add-Member explorationLegs @([pscustomobject]@{ordered=$true;destinationToTrap=6.1;perceptionBefore=$false;outcome='discovered';perceptionChecks=@([pscustomobject]@{actor=$rider;trap='trap-1';dc=15;d20=14;passed=$true});reorders=1;doors=@([pscustomobject]@{name='Door';inputPath='ClickMapObjectHandler.OnClick';openBefore=$false;openAfter=$true;clicked=$true});perceptionRank=[pscustomobject]@{allowedBefore=$false;granted=$true;riderBaseBefore=4;riderBaseAfter=5;allowedAfter=$true}})
  $e.trapEvents=[pscustomobject]@{events=@([pscustomobject]@{kind='skill-check';actor=$rider;stat='SkillThievery';dc=20;d20=19;rollResult=25;passed=$true},[pscustomobject]@{kind='disarm-success';actor=$rider;trap='trap-1'})}
  $row
 }
@@ -130,6 +130,8 @@ $r=Copy-S3 $rt;$r.observations.sprint3Approach.riderPerceptionBaseAfter=5;Reject
 $r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].perceptionRank.riderBaseAfter=6;Reject $r 'sprint3-approach-rt' 'Perception fixture grant beyond one rank refused'
 $r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].perceptionRank.allowedBefore=$true;Reject $r 'sprint3-approach-rt' 'Perception fixture grant while a native roll was already allowed refused'
 $r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].reorders=4;Reject $r 'sprint3-approach-rt' 'exploration leg re-ordered beyond its bound refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].doors=@($r.rows[0].evidence.explorationLegs[0].doors[0],$r.rows[0].evidence.explorationLegs[0].doors[0],$r.rows[0].evidence.explorationLegs[0].doors[0]);Reject $r 'sprint3-approach-rt' 'exploration leg with more door clicks than its bound refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].doors[0].openBefore=$true;Reject $r 'sprint3-approach-rt' 'door click on an already open door refused'
 $r=Copy-S3 $tb;$r.rows[0].evidence.secondTurnEnd.heldTouch=[pscustomobject]@{blueprint='touch'};Reject $r 'sprint3-approach-tb' 'held charge after the re-delivery turn refused'
 $r=Copy-S3 $rt;$r.observations.sprint3Approach.castTrace.faults=1;Reject $r 'sprint3-approach-rt' 'faulted casting trace refused'
 $r=Copy-S3 $rt;$r.rows=@($r.rows[0],$r.rows[1],$r.rows[2],$r.rows[3]);$r.subscenarioPassCount=4;Reject $r 'sprint3-approach-rt' 'missing registered row refused'
