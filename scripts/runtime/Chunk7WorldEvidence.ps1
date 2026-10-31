@@ -4,6 +4,7 @@ Set-StrictMode -Version Latest
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
       'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual','C7-f09-fourth-horse-native-setup','C7-f09-fourth-horse-native-manual',
+      'C7-world-owner-surface-mount','C7-world-owner-surface-legs','C7-world-turn-based-door',
       'C7-six-native-mounts','C7-six-selection-routing','C7-six-cycles','C7-six-sampling')
 }
 function Assert-KmcChunk7FourthHorseZeroWrite($Observations){
@@ -844,6 +845,179 @@ function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$Ac
     if((Get-KmcChunk7Subscriptions $Window.before.subscriptions)-cne(Get-KmcChunk7Subscriptions $Window.after.subscriptions)){throw 'Quiet window grew or lost native subscriptions.'}
 }
 
+# Sprint 2 (MOVE-01 on the owner's surface): the pre-owned single-pair speed mode. A disposable copy of the owner's own
+# registered save loads through the missing-metadata path; the one pre-owned pair is bound exactly (nothing built, granted,
+# levelled or acquired; no second pair; zero writes); the ordinary native Mount, the four aligned speed legs, the ordinary
+# native Dismount and cleanup are the whole observation. Every leg must have run on this surface for the row to PASS.
+function Get-KmcChunk7OwnerSurfaceFields {@('contract','seedId','seedSha256','riderId','horseId','profileId','horseBlueprint','horseFeatureSourceGuid','preOwnedPair','fixtureSetupOnly','acquisitionProof','producerAncestry','nativeLoadVerifiedByHost','loadedArchiveKind','loadedArchiveCanRestore','mutations','secondPair','selectionChangeActorId','area','gameName','gameId','partyIds','legsCompleted','legsApplicable')}
+function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
+    Assert-KmcChunk7OwnedPairsDescriptor $Request
+    if(-not(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){throw 'Owner-surface speed evidence belongs only to its own selection.'}
+    $s=$Request.ownedPairs;$o=$Observations;$d=$Request.persistenceLoad;$rider=[string]$s.riderAId;$horse=[string]$s.mountAId
+    foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','ownerSeedSetup','ownerSeed','door','routeGoalContract','routeGoalSearches','failurePhase','setupComplete')){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface evidence cannot carry '+$key+'.')}}
+    foreach($key in @('cycles','measurements','movements','cycleInputs','groundInputs')){if($null-eq$o.PSObject.Properties[$key]-or@($o.$key).Count-ne0){throw ('Owner-surface speed runs no '+$key+'.')}}
+    $u=$o.ownerSurface;Assert-KmcExactProperties $u (Get-KmcChunk7OwnerSurfaceFields) 'owner-surface pre-owned pair identity'
+    Assert-KmcBootstrapInventoryString $u.contract 'owner-surface-pre-owned-pair-speed-v1'
+    foreach($pair in @(@('seedId',$s.seedId),@('seedSha256',$s.seedSha256),@('riderId',$rider),@('horseId',$horse),@('profileId','medium-humanoid-horse-v1'),@('horseBlueprint','4016c7db400ab721ff125aef9e65e202'),@('loadedArchiveKind','Missing'),@('area',$d.area),@('gameName',$d.gameName),@('gameId',$d.gameId))){Assert-KmcBootstrapInventoryString $u.($pair[0]) $pair[1]}
+    if($u.horseFeatureSourceGuid-isnot[string]-or$u.horseFeatureSourceGuid-cnotmatch'^[a-f0-9]{32}$'){throw 'Owner-surface Horse feature source is not a blueprint id.'}
+    if($u.mutations-isnot[string]-or$u.mutations-cnotlike'none:*'){throw 'Owner-surface speed must declare no mutation.'}
+    foreach($key in @('fixtureSetupOnly','acquisitionProof','producerAncestry','loadedArchiveCanRestore','secondPair')){Assert-KmcChunk7Boolean $u.$key $false}
+    Assert-KmcChunk7Boolean $u.nativeLoadVerifiedByHost $true
+    Assert-KmcOrdinaryGuid $u.selectionChangeActorId;if($u.selectionChangeActorId-cnotin@($s.partyIds)){throw 'Owner-surface selection change actor is outside the field roster.'}
+    Assert-KmcChunk7ExactIds @(@($u.partyIds)|ForEach-Object{[pscustomobject]@{id=$_}}) @($s.partyIds)
+    Assert-KmcOrdinaryInteger $u.legsCompleted 4 4;Assert-KmcOrdinaryInteger $u.legsApplicable 4 4
+    $q=$u.preOwnedPair
+    Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'owner pre-owned pair facts'
+    Assert-KmcBootstrapInventoryString $q.riderId $rider;Assert-KmcBootstrapInventoryString $q.horseId $horse
+    foreach($key in @('petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank')){Assert-KmcChunk7Boolean $q.$key $true}
+    foreach($key in @('characterLevel','rangerLevel','experience','readyLevel')){Assert-KmcOrdinaryInteger $q.$key 0 1000000000}
+    $c=$o.capability;Assert-KmcExactProperties $c @('archiveNativeEnabled','nativeWriterSchema','nativePairCapacity','workingSha256','inheritedManualSha256','ownerSeedSha256') 'owner-surface capability'
+    Assert-KmcChunk7Boolean $c.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $c @('nativeWriterSchema','nativePairCapacity')
+    if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-surface capability differs or claims Working/inherited provenance.'}
+    Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
+    Assert-KmcChunk7ExactIds @($o.partyBefore) @($s.partyIds)
+    $r=@($o.partyBefore|Where-Object id -CEQ $rider);$m=@($o.partyBefore|Where-Object id -CEQ $horse)
+    if($r.Count-ne1-or$m.Count-ne1-or$r[0].petId-cne$horse-or$m[0].masterId-cne$rider-or$m[0].blueprint-cne'4016c7db400ab721ff125aef9e65e202'){throw 'The owner pair is not the reciprocal pre-owned KMC Horse pair in the loaded roster.'}
+    $actors=@($rider,$horse);$selectionActors=@($rider,$horse,[string]$u.selectionChangeActorId)|Select-Object -Unique
+    # Inputs: exactly the ordinary native Mount and Dismount of the owner's pair (the resources windows name the two pair actors).
+    $inputSpecs=@(@('mount-owner-pair',$rider,$horse,'f053faad986631688defa003cd7bda0e'),@('dismount-owner-pair',$rider,$rider,'3af2b81f4d72bbb30501fa730fcdf36e'))
+    $rows=@($o.inputs);if($rows.Count-ne2){throw 'Owner-surface speed issues exactly two native relationship inputs.'}
+    $commands=New-Object 'Collections.Generic.HashSet[long]';$shells=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    for($i=0;$i-lt2;$i++){$v=$rows[$i];$sp=$inputSpecs[$i]
+        Assert-KmcChunk7WorldCounters $v @('nativeCastDelta','nativeRefusalDelta','generationAtInit');Assert-KmcChunk7WorldInt32 $v.commandObject
+        Assert-KmcChunk7Boolean $v.clicked $true;Assert-KmcChunk7Boolean $v.shellTerminal $true;Assert-KmcChunk7Boolean $v.processTerminal $true;Assert-KmcChunk7Boolean $v.explorationResourcesConserved $true
+        if($v.label-cne$sp[0]-or$v.casterId-cne$sp[1]-or$v.targetId-cne$sp[2]-or$v.abilityGuid-cne$sp[3]-or$v.nativeCastDelta-ne1-or$v.nativeRefusalDelta-ne0-or$v.commandObject-eq0-or-not$commands.Add([long]$v.commandObject)-or
+            [string]::IsNullOrEmpty($v.shellControl)-or-not$shells.Add([string]$v.shellControl)-or$v.generationAtInit-lt0-or$v.selectionAfterInput-cnotin$selectionActors){throw 'Owner-surface native input command/shell/selection identity differs.'}
+        Assert-KmcChunk7Resources $v.resourcesBefore $v.resourcesAfter $actors}
+    # Ownership windows: unmounted at start, exactly one active owner while mounted, none afterwards.
+    foreach($pair in @(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))){
+        $w=@($o.snapshots|Where-Object label -CEQ $pair[0]);if($w.Count-ne1){throw ('Owner-surface window missing: '+$pair[0])}
+        $active=@($w[0].owners|Where-Object state -CEQ 'Active');if($active.Count-ne$pair[1]){throw ('Owner-surface window '+$pair[0]+' has '+$active.Count+' active owners.')}
+        foreach($owner in $w[0].owners){Assert-KmcChunk7WorldCounters $owner @('generation')}
+        if($pair[1]-eq1){$a=$active[0];[Guid]$id=[Guid]::Empty
+            if(-not[Guid]::TryParse([string]$a.ownerId,[ref]$id)-or$a.relationshipState-cne'Mounted'-or$a.generation-lt1-or-not(Test-KmcChunk7OwnerActorMatch $a.riderId $rider)-or-not(Test-KmcChunk7OwnerActorMatch $a.mountId $horse)){throw 'Owner-surface active owner is not the owner pair.'}}
+    }
+    # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
+    if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
+    Assert-KmcChunk7Sprint2Legs $o
+    $legs=@($o.speedLegs);if($legs.Count-ne4){throw 'Owner-surface speed requires all four aligned legs.'}
+    $primary=@($horse,$horse,$horse,$rider)
+    for($i=0;$i-lt4;$i++){$leg=$legs[$i]
+        if(-not$leg.applicable){throw ('Owner-surface leg '+$leg.label+' was not applicable on this surface; the comparison is incomplete.')}
+        if($leg.primaryMoverId-cne$primary[$i]){throw ('Owner-surface leg '+$leg.label+' measured another mover.')}
+        Assert-KmcBootstrapInventoryString $leg.environment.area $d.area
+        $roles=@($leg.movers|Where-Object{$_.id-ceq$leg.primaryMoverId})[0].role
+        $expectedRole=if($i-le1){'mount'}elseif($i-eq2){'pet'}else{'on-foot'};if($roles-cne$expectedRole){throw ('Owner-surface leg '+$leg.label+' primary mover role differs: '+$roles)}
+        if($i-le1-and@($leg.movers|Where-Object{$_.id-ceq$rider-and$_.role-ceq'rider'}).Count-ne1){throw ('Owner-surface mounted leg '+$leg.label+' did not carry the rider.')}}
+    if(@($legs[0].selectedIds).Count-lt2){throw 'The party-paced leg did not select the party.'}
+    # Cleanup: the owner's pair is preserved (never removed), no save written, settings and selection restored.
+    $c=$o.cleanup
+    foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','ownerSurfacePairPreserved')){Assert-KmcChunk7Boolean $c.$field $true}
+    foreach($field in @('horseRemoved','inheritedPetsPreserved','nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','nativeSaveWritten')){Assert-KmcChunk7Boolean $c.$field $false}
+    foreach($field in @('combatOrPersistenceProof','thirdUnrelatedActorProven')){Assert-KmcChunk7Boolean $o.$field $false}
+    foreach($field in @('pauseBefore','pauseAfter','movementBefore','movementAfter','pairedBefore','pairedAfter')){if($c.$field-isnot[bool]){throw 'Restored native settings require actual booleans.'}}
+    Assert-KmcChunk7ExactIds @($c.partyAfter) @($s.partyIds)
+    $pr=@($c.partyAfter|Where-Object id -CEQ $rider);$pm=@($c.partyAfter|Where-Object id -CEQ $horse)
+    if($pr.Count-ne1-or$pm.Count-ne1-or$pr[0].petId-cne$horse-or$pm[0].masterId-cne$rider){throw 'The owner pair lost its reciprocal custody by cleanup.'}
+    if(($c.selectionBefore-join'|')-cne($c.selectionAfter-join'|')-or$c.pauseBefore-ne$c.pauseAfter-or$c.movementBefore-ne$c.movementAfter-or$c.pairedBefore-ne$c.pairedAfter){throw 'Settings/selection restoration differs.'}
+    if(@($c.world.owners|Where-Object state -CNE 'Retired').Count-ne0-or@($c.pairBoundaries).Count-lt1){throw 'World cleanup left retained ownership.'}
+    foreach($pair in $c.pairBoundaries){if($pair.state-cne'Unmounted'-or$pair.residueAbsent-ne$true-or$pair.ownerPresent-ne$false){throw 'Pair cleanup incomplete.'}}
+    $admission=$o.factRemovalAdmission
+    foreach($field in @('owners','activePairs','frame','gameTicks')){if(-not(Test-KmcExactJsonInteger $admission.$field)-or$admission.$field-lt0){throw 'Fact-removal admission counter is missing or mistyped.'}}
+    if($admission.owners-ne0-or$admission.activePairs-ne0-or$admission.commands-isnot[Array]){throw 'Owner-surface admission ran before settled ownership.'}
+    foreach($field in @('preparationPending','serializationBusy','pendingNativeWrites')){Assert-KmcChunk7Boolean $admission.$field $false}
+    $legCommands=@();foreach($leg in $legs){foreach($mv in @($leg.movers)){$legCommands+=@([string]$mv.commandObject)}}
+    Assert-KmcChunk7ExactIds $admission.commands @(@($rows|ForEach-Object{[string]$_.commandObject})+$legCommands) 'commandObject'
+    foreach($command in $admission.commands){Assert-KmcChunk7WorldInt32 $command.commandObject;Assert-KmcChunk7Boolean $command.finished $true;Assert-KmcChunk7Boolean $command.processEnded $true}
+}
+# Sprint 2 (DOOR-01 / SPACE-01 in native turn-based combat): the explicit opt-in stage on owner-seed exploration. The real
+# turn, the refused off-turn clicks (before and during the live approach) that mutate nothing, the one on-turn interaction
+# from inside the native range, the rider's exactly-once Standard spending with no refund and no mount Standard spend, no
+# off-turn mount movement, no stall classification, the encounter's end, the released leases and the exact door restoration.
+function Get-KmcChunk7TurnBasedRejectionFields {@('label','riderId','mountId','accepted','doorCommandCreated','secondPairDoorInteraction','feedback','rejectionCodes','kmcWrongTurnObserved','retainedClickCountBefore','retainedClickCountAfter','commandsBefore','commandsAfter','turnUnchanged','firstPairLiveBefore','firstPairCommandIntact')}
+function Assert-KmcChunk7TurnBasedRejection($Row,[string]$Label,[string]$SecondRider,[string]$SecondMount,[bool]$LiveBefore){
+    Assert-KmcExactProperties $Row (Get-KmcChunk7TurnBasedRejectionFields) ('turn-based off-turn rejection '+$Label)
+    Assert-KmcBootstrapInventoryString $Row.label $Label;Assert-KmcBootstrapInventoryString $Row.riderId $SecondRider;Assert-KmcBootstrapInventoryString $Row.mountId $SecondMount
+    foreach($key in @('doorCommandCreated','secondPairDoorInteraction')){Assert-KmcChunk7Boolean $Row.$key $false}
+    foreach($key in @('turnUnchanged','firstPairCommandIntact')){Assert-KmcChunk7Boolean $Row.$key $true}
+    Assert-KmcChunk7Boolean $Row.firstPairLiveBefore $LiveBefore
+    if($Row.accepted-isnot[bool]-or$Row.kmcWrongTurnObserved-isnot[bool]){throw 'Turn-based rejection flags must be native booleans.'}
+    if($Row.rejectionCodes-isnot[Array]){throw 'Turn-based rejection codes must be recorded.'}
+    if(($Row.commandsBefore|ConvertTo-Json -Depth 8 -Compress)-cne($Row.commandsAfter|ConvertTo-Json -Depth 8 -Compress)){throw 'The refused off-turn click changed the second pair''s native command slots.'}
+    Assert-KmcOrdinaryInteger $Row.retainedClickCountBefore 0 100000;Assert-KmcOrdinaryInteger $Row.retainedClickCountAfter 0 100000
+    if($Row.retainedClickCountAfter-ne$Row.retainedClickCountBefore){throw 'The refused off-turn click was counted as a retained same-door click.'}
+}
+function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[string[]]$Riders,[string[]]$Mounts){
+    $t=$Turn;if($null-eq$t){throw 'Turn-based door evidence is missing.'}
+    Assert-KmcExactProperties $t @('contract','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed') 'turn-based door control'
+    Assert-KmcBootstrapInventoryString $t.contract 'owner-seed-turn-based-door-control-v1';Assert-KmcChunk7Boolean $t.completed $true
+    $first=$Riders[0];$second=$Riders[1];$firstMount=$Mounts[0];$secondMount=$Mounts[1]
+    $f=$t.fixture;Assert-KmcExactProperties $f @('name','object','position','approachPoint','radius','originalOpen','originalEnabled','originalCut','cutMode','notInCombat','disableOnOpen','restrictionCount','originalAlreadyUnlocked') 'turn-based door fixture'
+    Assert-KmcBootstrapInventoryString $f.name $Door.fixture.name
+    if($f.cutMode-cne$Door.fixture.cutMode-or$f.originalOpen-ne$Door.fixture.originalOpen-or$f.originalCut-ne$Door.fixture.originalCut){throw 'The turn-based stage captured a different door state than the real-time probe released.'}
+    Assert-KmcChunk7Boolean $f.notInCombat $false;Assert-KmcOrdinaryInteger $f.restrictionCount 0 0
+    if(-not(Test-KmcChunk7FiniteNumber $f.radius)-or$f.radius-le0){throw 'Turn-based door radius is invalid.'}
+    Assert-KmcOrdinaryInteger $t.setupInteractions 0 3
+    # The stage's native geometry setup (recorded; not applicable when the pair already stood at the standoff).
+    if($t.setup.applicable-isnot[bool]){throw 'Turn-based setup applicability must be a native boolean.'}
+    if($t.setup.applicable){Assert-KmcChunk7WorldInt32 $t.setup.command;if($t.setup.result-cne'Success'){throw 'The turn-based setup move did not complete.'}}
+    if(-not(Test-KmcChunk7FiniteNumber $t.setup.distanceToApproachPointBeforeEncounter)-or$t.setup.distanceToApproachPointBeforeEncounter-le$f.radius+0.5){throw 'The first pair did not start the turn-based approach outside the door''s immediate range.'}
+    $e=$t.encounter
+    Assert-KmcBootstrapInventoryString $e.contract 'owner-seed-turn-based-door-encounter-v1';Assert-KmcBootstrapInventoryString $e.basis 'owner-seed-disposable-copy-turn-based-door'
+    Assert-KmcBootstrapInventoryString $e.seedSha256 $Request.ownedPairs.seedSha256;Assert-KmcChunk7Boolean $e.turnBasedAtStart $true
+    Assert-KmcOrdinaryGuid $e.targetId;Assert-KmcOrdinaryInteger $e.roundAtStart 1 1000
+    $order=@($e.nativeInitialOrder);if($order.Count-lt3-or$order-cnotcontains$first-or$order-cnotcontains$second-or$order-cnotcontains$e.targetId){throw 'Native initiative order lacks both riders and the target.'}
+    if([Array]::IndexOf($order,$first)-ge[Array]::IndexOf($order,$second)){throw 'The rider-first arrangement did not place the first rider before the second.'}
+    if(@($e.initiativeInputs).Count-ne4){throw 'Initiative inputs must name the four pair actors.'}
+    # Every observed native roster turn belongs to a rider, the target or an unmounted member; never a mounted partner.
+    $turns=@($t.turns);if($turns.Count-lt1){throw 'No native turn was observed.'}
+    foreach($row in $turns){if($row.isMount-ne$false-or$row.actorId-cin@($firstMount,$secondMount)){throw 'A mounted partner received an independent native roster turn.'}}
+    if(@($turns|Where-Object actorId -CEQ $first).Count-lt1){throw 'The first rider never received a native turn.'}
+    foreach($row in @($t.endedTurns)){Assert-KmcBootstrapInventoryString $row.api 'Game.PauseBind (native End Turn binding)';if($row.actorId-cin@($firstMount,$secondMount)){throw 'A mount turn was ended.'}}
+    # The rider's acting turn: recorded before any input.
+    $rt=$t.riderTurn;Assert-KmcExactProperties $rt @('round','turn','status','acting','timeMoved','remainingTime','cooldowns','mountPosition','distanceToApproachPoint','surprised') 'turn-based rider turn'
+    if($rt.status-cnotin@('Preparing','Acting')-and$rt.acting-ne$true){throw 'The rider turn was not ready for input.'}
+    if(-not(Test-KmcChunk7FiniteNumber $rt.distanceToApproachPoint)-or$rt.distanceToApproachPoint-le$f.radius+0.5){throw 'The rider turn began inside the door''s immediate range.'}
+    # Off-turn input before the click and during the live approach: refused, nothing mutated, the live operation intact.
+    Assert-KmcChunk7TurnBasedRejection $t.rejectionBeforeClick 'before-first-pair-click' $second $secondMount $false
+    Assert-KmcChunk7TurnBasedRejection $t.rejectionDuringApproach 'during-first-pair-approach' $second $secondMount $true
+    # The one on-turn interaction.
+    $i=$t.interaction
+    Assert-KmcExactProperties $i @('riderId','mountId','ownerId','generation','accepted','commandObject','executorId','round','turn','distanceBefore','radius','cooldownsAtClick','timeMovedAtClick','selectionAfterInput','feedback','rejectionCodes','outcome','terminal','distanceMoved','doorOpenAfter','cooldownsAfter','timeMovedAfter','maximumTimeMovedWhileLive','livePolls','movingPolls','offTurnMovingPolls','startedWhileMoving','unstartedWhileMoving','turnChangedWhileLive','turnStillRiderAfter','roundAfter','mountPositionAfter','mountInsideNavmesh','cooldownDeltas') 'turn-based door interaction'
+    Assert-KmcBootstrapInventoryString $i.riderId $first;Assert-KmcBootstrapInventoryString $i.mountId $firstMount;Assert-KmcBootstrapInventoryString $i.executorId $first;Assert-KmcBootstrapInventoryString $i.selectionAfterInput $second
+    $owner=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $first});if($owner.Count-ne1-or[string]$i.ownerId-cne[string]$owner[0].ownerId-or$i.generation-ne$owner[0].generation){throw 'The turn-based interaction belongs to another owner or generation.'}
+    Assert-KmcChunk7WorldInt32 $i.commandObject;Assert-KmcChunk7Boolean $i.accepted $true;Assert-KmcChunk7Boolean $i.terminal $true;Assert-KmcChunk7Boolean $i.doorOpenAfter $true
+    foreach($key in @('startedWhileMoving','turnChangedWhileLive')){Assert-KmcChunk7Boolean $i.$key $false}
+    foreach($key in @('unstartedWhileMoving','mountInsideNavmesh')){Assert-KmcChunk7Boolean $i.$key $true}
+    Assert-KmcOrdinaryInteger $i.movingPolls 1 100000;Assert-KmcOrdinaryInteger $i.offTurnMovingPolls 0 0;Assert-KmcOrdinaryInteger $i.livePolls 1 1000000
+    if($i.round-ne$rt.round){throw 'The interaction was issued on another round than the observed rider turn.'}
+    if(-not(Test-KmcChunk7FiniteNumber $i.distanceBefore)-or$i.distanceBefore-le$i.radius+0.5-or-not(Test-KmcChunk7FiniteNumber $i.distanceMoved)-or$i.distanceMoved-lt0.5){throw 'The turn-based approach did not start outside the native range or did not move the mount.'}
+    $oc=$i.outcome;if($null-eq$oc){throw 'Turn-based interaction outcome is missing.'}
+    if($oc.Result-cne'Success'-or$oc.RiderId-cne$first-or$oc.MountId-cne$firstMount-or$oc.InteractionCount-ne1-or$oc.DelegatedMoveStartCount-lt1-or$oc.DoorStateChanged-ne$true-or$oc.MountMoveSlotRestored-ne$true){throw 'The turn-based door command did not prove one approach, one interaction and restored mount movement.'}
+    if(-not(Test-KmcChunk7FiniteNumber $oc.DistanceAtInteraction)-or$oc.DistanceAtInteraction-gt$i.radius+0.01-or$oc.LineOfSightAtInteraction-ne$true){throw 'The turn-based interaction was not delivered from inside the native radius with line of sight.'}
+    Assert-KmcOrdinaryInteger $oc.ApproachesWithoutProgress 0 0
+    Assert-KmcChunk7DoorSettlement $oc
+    # Native spending: the rider's Standard spent exactly once (never refunded), the mount's Standard untouched, no cooldown of either refunded.
+    $dl=$i.cooldownDeltas
+    foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $dl.$role.$key)-or$dl.$role.$key-lt-0.01){throw ('Turn-based door interaction refunded a native cooldown: '+$role+'.'+$key)}}}
+    if($dl.rider.standard-le0.5-or$dl.rider.standard-gt6.05){throw 'The rider''s Standard action was not spent exactly once by the turn-based door interaction.'}
+    if([Math]::Abs([double]$dl.mount.standard)-gt0.01){throw 'The mount spent a Standard action on the rider''s door interaction.'}
+    foreach($role in @('secondRider','secondMount')){foreach($key in @('standard','move','swift')){if([Math]::Abs([double]$dl.$role.$key)-gt0.01){throw 'The second pair''s native cooldowns changed during the first pair''s door interaction.'}}}
+    # The native control (an unmounted member's own stock click on its earlier turn) when the initiative order offered one.
+    $k=$t.control;if($k.applicable-isnot[bool]){throw 'Turn-based control applicability must be a native boolean.'}
+    if($k.applicable){Assert-KmcChunk7Boolean $k.routedByKmc $false;Assert-KmcChunk7WorldInt32 $k.commandObject;if($k.commandType-cne'Kingmaker.UnitLogic.Commands.UnitInteractWithObject'-or$k.result-cne'Success'-or$k.doorOpenAfter-ne$true){throw 'The native control did not open the door through its stock interaction.'}
+        if($k.actorId-cin@($first,$second,$firstMount,$secondMount)){throw 'The native control must be an unmounted member outside both pairs.'}}
+    elseif($k.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($k.reason)){throw 'A not-applicable native control must say why.'}
+    # The encounter ended by removing the target; every lease released; the pairs mounted, idle and without retained commands.
+    Assert-KmcChunk7Boolean $t.encounterEnd.targetRemoved $true
+    $sr=$t.servicesReleased;foreach($key in @('initiativeRestored','aiLeaseRestored','targetServiceDisposed','realTimeModeReselected')){Assert-KmcChunk7Boolean $sr.$key $true}
+    $ac=$t.afterCombat;foreach($key in @('turnBased','playerInCombat','controllerInitialized')){Assert-KmcChunk7Boolean $ac.$key $false};Assert-KmcChunk7Boolean $ac.actorsIdle $true
+    $pairs=@($ac.pairs);if($pairs.Count-ne2){throw 'After-combat pair rows missing.'}
+    foreach($p in $pairs){foreach($key in @('retainedPairCommands','activeDoorInteraction','pendingSettlement')){Assert-KmcChunk7Boolean $p.$key $false};Assert-KmcChunk7Boolean $p.mounted $true}
+    $rs=$t.restoration;Assert-KmcExactProperties $rs @('exact','commandsSettled','open','enabled','cutEnabled','observedAlreadyUnlockedBeforeRestore','alreadyUnlocked') 'turn-based door restoration'
+    Assert-KmcChunk7Boolean $rs.exact $true;Assert-KmcChunk7Boolean $rs.commandsSettled $true
+    if($rs.open-ne$f.originalOpen-or$rs.enabled-ne$f.originalEnabled-or$rs.cutEnabled-ne$f.originalCut-or$rs.alreadyUnlocked-ne$f.originalAlreadyUnlocked){throw 'The turn-based door lease did not restore the door exactly.'}
+}
 function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-world-evidence'
     if((Get-KmcChunk7SelectedScenario $Request)-cne'chunk7-two-pair-exploration'){throw 'Chunk 7 world evidence under another scenario.'}
@@ -861,6 +1035,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     }
     # Owner-seed-derived Manual producer: setup, two native Mounts and its one native Manual only.
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsSeedManual $Request)){Assert-KmcChunk7OwnerSeedManualWorldEvidence $Request $Artifact.observations;return}
+    # Sprint 2 (MOVE-01 on the owner's surface): the pre-owned single-pair speed mode has its own evidence shape.
+    if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){Assert-KmcChunk7OwnerSurfaceSpeedEvidence $Request $Artifact.observations;return}
     $o=$Artifact.observations;$owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario;$seed=$owned-and(Test-KmcChunk7OwnedPairsOwnerSeed $Request)
     if($seed){
         # Owner-seed kind: the disclosed fixture setup supplies both Horses; no inherited or Working provenance.
@@ -930,6 +1106,15 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     $doorAfter=@($o.snapshots|Where-Object label -CEQ 'door-complete')
     if($doorAfter.Count-ne1-or@($doorAfter[0].owners).Count-ne2){throw 'Two-pair door completion window missing.'}
     }
+    # Sprint 2 (DOOR-01 turn-based): the explicit opt-in stage follows the real-time door probe with both pairs mounted.
+    $turnBasedSelected=$seed-and(Test-KmcChunk7OwnedPairsTurnBasedDoor $Request)
+    if($turnBasedSelected){
+        if(-not$doorTested){throw 'The turn-based door stage requires the real-time door probe to have run on the same door.'}
+        Assert-KmcChunk7TurnBasedDoorEvidence $Request $o.turnBasedDoor $o.door $owners @($first,$second) @($mammoth,$horse)
+        $tbAfter=@($o.snapshots|Where-Object label -CEQ 'turn-based-door-complete')
+        if($tbAfter.Count-ne1-or@($tbAfter[0].owners|Where-Object state -CEQ 'Active').Count-ne2){throw 'Turn-based door completion window missing or a pair lost its owner.'}
+        foreach($owner in $owners){$same=@($tbAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'The turn-based door stage changed captured ownership.'}}
+    }elseif($null-ne$o.PSObject.Properties['turnBasedDoor']-or@($o.snapshots|Where-Object label -CEQ 'turn-based-door-complete').Count-ne0){throw 'Turn-based door evidence belongs only to its explicit selection.'}
     if($doorTested){foreach($owner in $owners){$same=@($doorAfter[0].owners|Where-Object ownerId -CEQ $owner.ownerId);if($same.Count-ne1-or$same[0].generation-ne$owner.generation-or$same[0].riderId-cne$owner.riderId-or$same[0].mountId-cne$owner.mountId-or$same[0].state-cne'Active'){throw 'Door work changed captured ownership.'}}}
     $split=@($o.snapshots|Where-Object label -CEQ 'first-dismounted-second-retained')
     if($split.Count-ne1){throw 'Independent native Dismount window missing.'}
@@ -1014,6 +1199,8 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         if($null-ne$o.door.PSObject.Properties['layoutRestore']){foreach($m in @($o.door.layoutRestore.moves)){if($m.applicable){$doorCommands+=@([string]$m.command)}}}
     }
     $legCommands=@();if($null-ne$o.PSObject.Properties['speedLegs']){foreach($leg in @($o.speedLegs)){if($leg.applicable){foreach($mv in @($leg.movers)){$legCommands+=@([string]$mv.commandObject)}}}}
+    # The turn-based door stage's issued native commands: its setup move, the native control's interaction and the rider's door command.
+    if($turnBasedSelected){$t=$o.turnBasedDoor;if($t.setup.applicable){$legCommands+=@([string]$t.setup.command)};if($t.control.applicable){$legCommands+=@([string]$t.control.commandObject)};$legCommands+=@([string]$t.interaction.commandObject)}
     Assert-KmcChunk7ExactIds $admission.commands @(@($issued|ForEach-Object{[string]$_.commandObject})+$doorCommands+$legCommands) 'commandObject'
     $settledCommandIds=[Collections.Generic.HashSet[long]]::new()
     foreach($command in $admission.commands){
@@ -1052,7 +1239,7 @@ function Assert-KmcChunk7WorldArtifact($Request,$Manifest,[string]$Status) {
     Assert-KmcChunk7WorldEvidence $Request $artifact $Status
     if($artifact.status-ceq'PASS') {
         $shots=@($Manifest.artifacts|Where-Object{$_.relativePath-ceq'movement-visuals/chunk7-two-pair-mounted.png'-and$_.kind-ceq'screenshot'})
-        if((Test-KmcChunk7SixPairStress $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request)){if($shots.Count-ne0){throw 'The selected fixture case cannot claim a two-pair mounted screenshot.'}}
+        if((Test-KmcChunk7SixPairStress $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorse $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthHorse $Request)-or(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){if($shots.Count-ne0){throw 'The selected fixture case cannot claim a two-pair mounted screenshot.'}}
         elseif($shots.Count-ne1){throw 'Two-pair screenshot is not immutably manifested.'}
     }
 }

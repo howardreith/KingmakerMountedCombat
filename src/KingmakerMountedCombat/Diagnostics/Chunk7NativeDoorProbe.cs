@@ -79,6 +79,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal int CompletedInteractions { get; private set; }
         internal Vector3? DoorPosition => door == null ? (Vector3?)null : door.transform.position;
         internal float DoorRadius => door == null ? 0f : Radius(door);
+        // The exact door this probe captured and released; the turn-based control reuses the same door after Drain.
+        internal StandardDoor Door => restored ? door : null;
         private Vector3 ApproachPoint => door.MapObject != null ? door.MapObject.transform.position : door.transform.position;
 
         internal Chunk7NativeDoorProbe(MountedWorldService world, Chunk7NativeWorldScope scope,
@@ -184,7 +186,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // direction and its bearings, walkable within 0.5 m of the request, reachable by the navmesh trace, outside
         // the door approach by the given margin and clear of every other unit's avoidance footprint.
         private Vector3 SearchClearGoal(UnitEntityData mover, UnitEntityData carried, Vector3 direction, float distance, float doorMargin, JObject record, out bool found,
-            float maximumDoorDistance = float.PositiveInfinity)
+            float maximumDoorDistance = float.PositiveInfinity) =>
+            SearchClearGoalNear(mover, carried, direction, distance, doorMargin, record, out found, ApproachPoint, Radius(door), maximumDoorDistance);
+
+        // The same bounded read-only search for a caller that names the door's approach point and radius (the turn-based control).
+        internal static Vector3 SearchClearGoalNear(UnitEntityData mover, UnitEntityData carried, Vector3 direction, float distance, float doorMargin, JObject record, out bool found,
+            Vector3 approachPoint, float doorRadius, float maximumDoorDistance = float.PositiveInfinity)
         {
             found = false; var start = mover.Position; direction.y = 0f;
             if (direction.sqrMagnitude < 1e-4f) direction = Vector3.forward; direction = direction.normalized;
@@ -206,13 +213,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     var clamped = nearest.clampedPosition;
                     var clampResidual = Distance(requested, clamped);
                     var traceResidual = Distance(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, clamped), clamped);
-                    var doorDistance = Distance(clamped, ApproachPoint);
+                    var doorDistance = Distance(clamped, approachPoint);
                     var slack = double.PositiveInfinity;
                     foreach (var other in others) slack = Math.Min(slack, Distance(clamped, other.Position) - (moverCorpulence + other.View.AgentASP.Corpulence + 0.5f));
                     candidate["clamped"] = Point(clamped); candidate["clampResidual"] = clampResidual; candidate["traceResidual"] = traceResidual;
                     candidate["doorDistance"] = doorDistance; candidate["minimumSlack"] = slack;
                     reason = clampResidual > 0.5f ? "clamp-residual" : traceResidual > 0.5f ? "trace-unreachable" :
-                        doorDistance <= Radius(door) + doorMargin ? "inside-door-approach" : doorDistance > ScanRadius ? "outside-door-scan-radius" :
+                        doorDistance <= doorRadius + doorMargin ? "inside-door-approach" : doorDistance > ScanRadius ? "outside-door-scan-radius" :
                         doorDistance > maximumDoorDistance ? "beyond-neighbor-distance" :
                         slack < 0d ? "blocked-by-unit" : "admitted";
                     if (reason == "admitted") { goal = clamped; found = true; }
@@ -268,7 +275,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The one door predicate shared by the probe, the inventory and the not-applicable scan.
         // Every member is the installed 2.1.7b public contract; nothing here mutates the door.
-        private sealed class DoorFacts
+        internal sealed class DoorFacts
         {
             internal bool Active, Open, DisableCutWhenOpen, CutPresent, Interactable, AvailableInteractions,
                 Revealed, HasVisibleTrap, TrapActive, AlreadyUnlocked, HasDialog, DataPresent, ViewTriggerActions;
@@ -663,23 +670,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // Explicit members: bare JObject.FromObject in the game uses the global JsonConvert.DefaultSettings
             // and serialized this outcome as an empty {"$id":"1"} shell (batch192c). Recorded before the
             // assertion, so a refused interaction keeps its native outcome.
-            row["outcome"] = outcome == null ? null : new JObject { ["Result"] = outcome.Result, ["RiderId"] = outcome.RiderId, ["MountId"] = outcome.MountId,
-                ["InteractionCount"] = outcome.InteractionCount, ["DelegatedMoveStartCount"] = outcome.DelegatedMoveStartCount,
-                ["DelegatedMoveTickCount"] = outcome.DelegatedMoveTickCount, ["DoorStateChanged"] = outcome.DoorStateChanged,
-                ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
-                ["TerminalReason"] = outcome.TerminalReason,
-                ["ApproachesWithoutProgress"] = outcome.ApproachesWithoutProgress, ["ApproachElapsedGameSeconds"] = outcome.ApproachElapsedGameSeconds,
-                ["DistanceAtInteraction"] = outcome.DistanceAtInteraction, ["LineOfSightAtInteraction"] = outcome.LineOfSightAtInteraction,
-                ["OccupancyInsideNavmesh"] = outcome.OccupancyInsideNavmesh, ["OccupancyRecovery"] = outcome.OccupancyRecovery,
-                ["OccupancyNearestNodeDistance"] = outcome.OccupancyNearestNodeDistance,
-                // v4: the owned settlement's fields, written on the same outcome after the native action ended.
-                ["PreventionRefused"] = outcome.PreventionRefused, ["OccupancySettled"] = outcome.OccupancySettled,
-                ["OccupancySettleGameSeconds"] = outcome.OccupancySettleGameSeconds, ["MountCorpulence"] = outcome.MountCorpulence,
-                ["FootprintClear"] = outcome.FootprintClear, ["FootprintRingInside"] = outcome.FootprintRingInside, ["FootprintRingReachable"] = outcome.FootprintRingReachable,
-                ["RecoveryDisposition"] = outcome.RecoveryDisposition, ["RecoveryTerminal"] = outcome.RecoveryTerminal,
-                ["RecoveryCandidatesEvaluated"] = outcome.RecoveryCandidatesEvaluated, ["RecoveryCandidateReasons"] = outcome.RecoveryCandidateReasons,
-                ["RecoveryDestinationDistance"] = outcome.RecoveryDestinationDistance, ["FootprintClearAfterRecovery"] = outcome.FootprintClearAfterRecovery,
-                ["RecoveryCancelReason"] = outcome.RecoveryCancelReason };
+            row["outcome"] = OutcomeRow(outcome);
             row["terminal"] = command.IsFinished;
             row["distanceMoved"] = Distance(interactionStart, mounts[pairIndex].Position);
             // Sprint 2 (SPACE-01): the pair's logical occupancy after the door changed state, recorded before the assertion.
@@ -702,6 +693,29 @@ namespace KingmakerMountedCombat.Diagnostics
             row["ownerContinuity"] = true; row["unrelatedIdleAtCompletion"] = true;
             CompletedInteractions++;
             return true;
+        }
+
+        // Explicit members: bare JObject.FromObject in the game uses the global JsonConvert.DefaultSettings and serialized this
+        // outcome as an empty {"$id":"1"} shell (batch192c). Shared with the turn-based control.
+        internal static JObject OutcomeRow(MountedDoorInteractionOutcome outcome)
+        {
+            return outcome == null ? null : new JObject { ["Result"] = outcome.Result, ["RiderId"] = outcome.RiderId, ["MountId"] = outcome.MountId,
+                ["InteractionCount"] = outcome.InteractionCount, ["DelegatedMoveStartCount"] = outcome.DelegatedMoveStartCount,
+                ["DelegatedMoveTickCount"] = outcome.DelegatedMoveTickCount, ["DoorStateChanged"] = outcome.DoorStateChanged,
+                ["RiderPathSuppressed"] = outcome.RiderPathSuppressed, ["MountMoveSlotRestored"] = outcome.MountMoveSlotRestored,
+                ["TerminalReason"] = outcome.TerminalReason,
+                ["ApproachesWithoutProgress"] = outcome.ApproachesWithoutProgress, ["ApproachElapsedGameSeconds"] = outcome.ApproachElapsedGameSeconds,
+                ["DistanceAtInteraction"] = outcome.DistanceAtInteraction, ["LineOfSightAtInteraction"] = outcome.LineOfSightAtInteraction,
+                ["OccupancyInsideNavmesh"] = outcome.OccupancyInsideNavmesh, ["OccupancyRecovery"] = outcome.OccupancyRecovery,
+                ["OccupancyNearestNodeDistance"] = outcome.OccupancyNearestNodeDistance,
+                // v4: the owned settlement's fields, written on the same outcome after the native action ended.
+                ["PreventionRefused"] = outcome.PreventionRefused, ["OccupancySettled"] = outcome.OccupancySettled,
+                ["OccupancySettleGameSeconds"] = outcome.OccupancySettleGameSeconds, ["MountCorpulence"] = outcome.MountCorpulence,
+                ["FootprintClear"] = outcome.FootprintClear, ["FootprintRingInside"] = outcome.FootprintRingInside, ["FootprintRingReachable"] = outcome.FootprintRingReachable,
+                ["RecoveryDisposition"] = outcome.RecoveryDisposition, ["RecoveryTerminal"] = outcome.RecoveryTerminal,
+                ["RecoveryCandidatesEvaluated"] = outcome.RecoveryCandidatesEvaluated, ["RecoveryCandidateReasons"] = outcome.RecoveryCandidateReasons,
+                ["RecoveryDestinationDistance"] = outcome.RecoveryDestinationDistance, ["FootprintClearAfterRecovery"] = outcome.FootprintClearAfterRecovery,
+                ["RecoveryCancelReason"] = outcome.RecoveryCancelReason };
         }
 
         private void BeginReturn()
@@ -838,7 +852,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequireDoor() => Require(door != null && ReferenceEquals(door.gameObject, doorObject) &&
             ReferenceEquals(door.transform, doorTransform) && ReferenceEquals(door.GetComponentInChildren<NavmeshCut>(), cut) &&
             door.isActiveAndEnabled && door.gameObject.activeInHierarchy, "Captured native door/view/cut was replaced or left its area.");
-        private bool Settled(bool open)
+        private bool Settled(bool open) => DoorSettled(door, cut, open, cutToggles, originalCut, ref settledFrame);
+
+        // The settled-door predicate shared with the turn-based control: native open state, animation, cut and graph updates.
+        internal static bool DoorSettled(StandardDoor door, NavmeshCut cut, bool open, bool cutToggles, bool originalCut, ref int settledFrame)
         {
             var flags = BindingFlags.Instance | BindingFlags.NonPublic;
             var playableField = typeof(StandardDoor).GetField("m_Playable", flags);
