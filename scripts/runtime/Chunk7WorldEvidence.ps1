@@ -468,6 +468,8 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
         if($legsV5){
             # A PASS verdict needs every applicable leg accepted; a leg that failed carries its retained reason and is never waived.
             Assert-KmcChunk7Boolean $leg.accepted $true
+            # v6: a bearing refused at nine metres may be admitted at seven or five; the recorded distance is the admitted meaningful length.
+            if(-not(Test-KmcChunk7FiniteNumber $leg.distance)-or$leg.distance-lt5-or$leg.distance-gt9){throw ('Sprint 2 speed leg '+$leg.label+' distance is outside the meaningful five-to-nine-metre range.')}
             if($null-ne$leg.PSObject.Properties['failure']){throw ('Sprint 2 speed leg '+$leg.label+' records a failure: '+$leg.failure)}
             Assert-KmcOrdinaryInteger $leg.interruptRecords 0 8
             if($leg.interruptRecords-ne@(@($Observations.speedLegInterruptions)|Where-Object{$_.legLabel-ceq$leg.label}).Count){throw ('Sprint 2 speed leg '+$leg.label+' interrupt record count differs from the observer records.')}}

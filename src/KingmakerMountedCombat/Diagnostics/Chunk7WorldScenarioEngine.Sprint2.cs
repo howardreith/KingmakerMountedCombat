@@ -55,6 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private const int SpeedLegInterruptRecordLimit = 8;
         private const float SpeedLegLevelToleranceMetres = 0.5f;
         internal const float SpeedLegDistanceMetres = 9f;
+        // v6 (r19): the preferred length first, then the shorter meaningful lengths on the same bearing; five metres is the floor.
+        private static readonly float[] SpeedLegDistancesMetres = { SpeedLegDistanceMetres, 7f, 5f };
         private const float SpeedLegClampResidualMetres = 0.5f;
         private const float SpeedLegDoorClearanceMetres = 1.5f;
         private const double SpeedLegWallSecondsLimit = 40d;
@@ -419,14 +421,21 @@ namespace KingmakerMountedCombat.Diagnostics
             var startInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start);
             var startNodeHeight = startInfo.node != null ? (float)startInfo.node.position.y * 0.001f : start.y;
             search["startNodeHeight"] = startNodeHeight; search["heightBasis"] = SpeedLegHeightBasis;
+            // v6 (r19): the hub surface is cramped; a bearing refused at the preferred nine metres is tried at the shorter meaningful
+            // lengths before the next bearing. The admitted length becomes the leg's recorded distance (never below five metres).
             for (var i = 0; i < SpeedLegBearingOffsets.Length && !found; i++)
             {
                 var heading = Quaternion.Euler(0f, SpeedLegBearingOffsets[i], 0f) * direction;
-                var requested = start + heading * SpeedLegDistanceMetres;
+                var candidate = new JObject { ["index"] = i, ["bearingOffset"] = SpeedLegBearingOffsets[i] };
+                var reason = "no-walkable-native-node"; var tried = new JArray();
+                foreach (var distance in SpeedLegDistancesMetres)
+                {
+                tried.Add(distance);
+                var requested = start + heading * distance;
                 var nearest = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(requested);
                 var walkable = nearest.node != null && nearest.node.Walkable;
-                var candidate = new JObject { ["index"] = i, ["bearingOffset"] = SpeedLegBearingOffsets[i], ["requested"] = Point(requested), ["walkable"] = walkable };
-                var reason = "no-walkable-native-node";
+                candidate["requested"] = Point(requested); candidate["walkable"] = walkable; candidate["distance"] = distance;
+                reason = "no-walkable-native-node";
                 if (walkable)
                 {
                     // v6: the goal sits on the navmesh node's own height; the clamped position's height is the requested one.
@@ -444,7 +453,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // v4/v6: the navmesh height sampled every 1.5 m along the heading must stay level with the start (no stairs
                     // or ledge); v6 reads the node's own height (v4 read clampedPosition, which keeps the requested height).
                     var heights = new JArray(); var level = true;
-                    for (var s = 1.5f; s <= SpeedLegDistanceMetres + 0.01f; s += 1.5f)
+                    for (var s = 1.5f; s <= distance + 0.01f; s += 1.5f)
                     {
                         var sampleInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start + heading * s);
                         var sampleWalkable = sampleInfo.node != null && sampleInfo.node.Walkable;
@@ -456,9 +465,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     candidate["heights"] = heights; candidate["level"] = level;
                     reason = clampResidual > SpeedLegClampResidualMetres ? "clamp-residual" : traceResidual > SpeedLegClampResidualMetres ? "trace-unreachable" :
                         doorDistance <= doorRadius + SpeedLegDoorClearanceMetres ? "inside-door-approach" : slack < 0d ? "blocked-by-unit" : !level ? "elevation-change" : "admitted";
-                    if (reason == "admitted") { goal = clamped; found = true; }
+                    if (reason == "admitted") { goal = clamped; found = true; speedLeg["distance"] = distance; }
                 }
-                candidate["reason"] = reason; candidates.Add(candidate);
+                if (found) break;
+                }
+                candidate["distancesTried"] = tried; candidate["reason"] = reason; candidates.Add(candidate);
             }
             search["selectedIndex"] = found ? candidates.Count - 1 : -1;
             return goal;
