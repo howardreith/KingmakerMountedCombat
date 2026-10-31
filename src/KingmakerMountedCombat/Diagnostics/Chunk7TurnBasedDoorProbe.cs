@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Contract = "owner-seed-turn-based-door-control-v3";
         internal const string MovementCostContract = "paired-approach-charged-to-own-mount-move/v1";
         internal const string OffTurnScope = "cross-pair-isolation: pair B's click during pair A's turn is refused and mutates nothing; not native proof that a rejected click preserves the same controller's own pending recovery (offline coverage)";
+        internal const string SinglePairOffTurnScope = "cross-pair-isolation: not exercised in this run (single pair, no second pair); not native proof of any off-turn refusal here (offline coverage and the retained two-pair rows)";
         internal const string StallScope = "ApproachesWithoutProgress == 0 on a continuously acting turn; not a native exercise of an exhausted or off-turn movement wait (offline coverage)";
         internal const string Row = "C7-world-turn-based-door";
         private const float ApproachStandoffMetres = 5f;
@@ -96,15 +97,27 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             this.world = world; this.scope = scope; this.request = request; this.logger = logger; this.selectMode = selectMode;
             this.door = door; this.originalParty = originalParty;
-            Require(door != null, "The turn-based door control requires the exact door the real-time probe released.");
+            Require(door != null, "The turn-based door control requires the exact selected combat-usable door.");
+            Require((secondRider == null) == (secondMount == null), "A second pair needs both its rider and its mount.");
             cut = door.GetComponentInChildren<NavmeshCut>(); doorObject = door.gameObject; doorTransform = door.transform;
-            riders = new[] { firstRider, secondRider }; mounts = new[] { firstMount, secondMount };
-            actors = new[] { firstRider, firstMount, secondRider, secondMount };
+            // Single-pair mode (finishing mission 2026-10-31): one existing mounted pair is sufficient for the positive native
+            // cost/clock interaction; the cross-pair off-turn rows are recorded not applicable and stay offline/r14-era coverage.
+            riders = secondRider == null ? new[] { firstRider } : new[] { firstRider, secondRider };
+            mounts = secondMount == null ? new[] { firstMount } : new[] { firstMount, secondMount };
+            actors = riders.SelectMany((r, i) => new[] { r, mounts[i] }).ToArray();
             owners = riders.Select(world.Registry.FindActive).ToArray();
             generations = owners.Select(x => x == null ? -1 : x.Generation).ToArray();
-            evidence["contract"] = Contract; evidence["turns"] = turns; evidence["endedTurns"] = endedTurns; evidence["setupInteractions"] = 0;
-            evidence["scope"] = new JObject { ["offTurnRejection"] = OffTurnScope, ["stallClassification"] = StallScope, ["movementCost"] = MovementCostContract };
+            evidence["contract"] = Contract; evidence["pairs"] = riders.Length; evidence["turns"] = turns; evidence["endedTurns"] = endedTurns; evidence["setupInteractions"] = 0;
+            evidence["scope"] = new JObject { ["offTurnRejection"] = SinglePair ? SinglePairOffTurnScope : OffTurnScope, ["stallClassification"] = StallScope, ["movementCost"] = MovementCostContract };
         }
+
+        private bool SinglePair => riders.Length == 1;
+        // The actor selected after each pair input (the second pair's rider when there are two pairs; the declared other party member otherwise).
+        internal UnitEntityData SelectionActor { get; set; }
+        private void SelectAfterInput() => Chunk7NativeFixture.Select(SinglePair ? SelectionActor : riders[1]);
+        private UnitEntityData[] AiActors => SinglePair ? new[] { riders[0], mounts[0] } : new[] { riders[0], mounts[0], riders[1] };
+        private static JObject NotApplicableRejection(string label) => new JObject { ["label"] = label, ["applicable"] = false,
+            ["reason"] = "single pair: no second pair exists in this run; the cross-pair off-turn refusal stays offline coverage and the retained two-pair rows (r14)" };
 
         private Vector3 ApproachPoint => door.MapObject != null ? door.MapObject.transform.position : door.transform.position;
         private float Radius => door.ProximityRadius > 0f ? door.ProximityRadius : 4f;
@@ -113,6 +126,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Begin()
         {
             Require(stage == 0 && !leaseCaptured, "The turn-based door control may begin only once.");
+            Require(!SinglePair || SelectionActor != null && !actors.Contains(SelectionActor), "Single-pair turn-based door control needs a declared other party member for the selection after inputs.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Turn-based door control requires idle native actors.");
             RequireDoor();
             var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, mounts);
@@ -184,7 +198,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["pendingSettlement"] = world.ForActor(r).Combat.HasPendingDoorSettlement, ["mounted"] = Mounted(i) })),
                         ["cooldowns"] = Cooldowns() };
                     evidence["afterCombat"] = afterCombat;
-                    Require(riders.All(r => !world.ForActor(r).Combat.HasRetainedPairCommands) && Mounted(0) && Mounted(1),
+                    Require(riders.All(r => !world.ForActor(r).Combat.HasRetainedPairCommands) && Enumerable.Range(0, riders.Length).All(Mounted),
                         "A pair retained a command or settlement after the native encounter ended.");
                     Next(11); break;
                 case 11:
@@ -213,7 +227,7 @@ namespace KingmakerMountedCombat.Diagnostics
             finally { setupMove = mounts[0].Commands.Move; if (setupMove != null && !commands.Contains(setupMove)) commands.Add(setupMove); }
             Require(setupMove != null && ReferenceEquals(setupMove.Executor, mounts[0]) && setupMove.CreatedByPlayer, "Native ground click did not bind the first pair's mount.");
             setup["command"] = Id(setupMove);
-            Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
+            SelectAfterInput(); Game.Instance.IsPaused = false;
             Next(2);
         }
 
@@ -243,20 +257,22 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(position.HasValue, "Diagnostic target placement refused at every bounded candidate.");
             // Rider-first arrangement (the accepted combat cases' initiative inputs), restored at release.
             foreach (var actor in actors) initiativeBefore.Add(actor, actor.Stats.Initiative.BaseValue);
-            riders[0].Stats.Initiative.BaseValue = 80; mounts[0].Stats.Initiative.BaseValue = -80; riders[1].Stats.Initiative.BaseValue = 40; mounts[1].Stats.Initiative.BaseValue = -40;
+            riders[0].Stats.Initiative.BaseValue = 80; mounts[0].Stats.Initiative.BaseValue = -80;
+            if (!SinglePair) { riders[1].Stats.Initiative.BaseValue = 40; mounts[1].Stats.Initiative.BaseValue = -40; }
             initiativeApplied = true;
             encounter["initiativeInputs"] = new JArray(actors.Select(actor => new JObject { ["actorId"] = actor.UniqueId, ["before"] = initiativeBefore[actor],
                 ["input"] = actor.Stats.Initiative.BaseValue, ["outsideCombat"] = !actor.IsInCombat }));
             var ai = typeof(UnitEntityData).GetField("m_AiEnabled", Flags);
             Require(ai != null && ai.FieldType == typeof(bool), "Exact native AI observation contract differs.");
+            var aiActors = AiActors;
             pairAi = new ScopedDiagnosticAiLease<UnitEntityData>(u => u.UniqueId,
-                u => (ReferenceEquals(u, riders[0]) || ReferenceEquals(u, mounts[0]) || ReferenceEquals(u, riders[1])) && u.IsInState && u.Group == riders[0].Group,
+                u => aiActors.Any(a => ReferenceEquals(a, u)) && u.IsInState && u.Group == riders[0].Group,
                 u => u.Commands.Empty, u => (bool)ai.GetValue(u), u => u.IsAIEnabled, (u, value) => u.IsAIEnabled = value);
-            pairAi.Acquire(new[] { riders[0], mounts[0], riders[1] }); aiAcquired = true;
+            pairAi.Acquire(aiActors); aiAcquired = true;
             selectMode(true); modeSelected = true;
             Require(!Game.Instance.Player.IsInCombat, "Selected turn-based mode must be set before native encounter setup.");
             targetService = new DiagnosticCombatTargetService(logger, true);
-            target = targetService.Spawn(riders[0], mounts[0], position.Value, request.RunId + ":turn-based-door-target", true, true, false, new[] { riders[1], mounts[1] });
+            target = targetService.Spawn(riders[0], mounts[0], position.Value, request.RunId + ":turn-based-door-target", true, true, false, SinglePair ? null : new[] { riders[1], mounts[1] });
             scope.Track(target);
             Require(targetService.PrepareForPlayerClick(target) && targetService.QueueBidirectionalCombatMemory(riders[0], target),
                 "Native diagnostic target placement/visibility/combat memory was refused.");
@@ -300,7 +316,7 @@ namespace KingmakerMountedCombat.Diagnostics
             control["commandObject"] = Id(controlCommand); control["routedByKmc"] = controlCommand is MountedDoorInteractionCommand;
             control["distanceBefore"] = Distance(start, ApproachPoint); control["round"] = Controller.RoundNumber; control["turn"] = Id(turn);
             control["cooldownsBefore"] = before; control["timeMovedBefore"] = turn.TimeMoved;
-            Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
+            SelectAfterInput(); Game.Instance.IsPaused = false;
             if (!accepted || !(controlCommand is UnitInteractWithObject) || controlCommand is MountedDoorInteractionCommand || !ReferenceEquals(controlCommand.Executor, controlActor))
             { control["reason"] = "the native click did not admit a stock interaction command on the unmounted member in turn-based combat"; return; }
             control["applicable"] = true; control.Remove("reason"); controlPending = true;
@@ -329,8 +345,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["timeMoved"] = turn.TimeMoved, ["remainingTime"] = turn.GetRemainingTime(), ["cooldowns"] = Cooldowns(), ["mountPosition"] = Point(mounts[0].Position),
                 ["distanceToApproachPoint"] = Distance(mounts[0].Position, ApproachPoint), ["surprised"] = Controller.IsSurprised(riders[0]) };
             evidence["riderTurn"] = riderTurn;
-            // Off-turn input first: the second pair's rider clicks the door during the first rider's turn.
-            rejectionBefore = ClickOffTurn("before-first-pair-click"); evidence["rejectionBeforeClick"] = rejectionBefore;
+            // Off-turn input first: the second pair's rider clicks the door during the first rider's turn (two pairs only).
+            rejectionBefore = SinglePair ? NotApplicableRejection("before-first-pair-click") : ClickOffTurn("before-first-pair-click"); evidence["rejectionBeforeClick"] = rejectionBefore;
             Require(Controller.CurrentTurn == turn && turn.Unit == riders[0], "The refused off-turn click changed the native turn.");
             // The first pair's own click on its acting turn.
             Game.Instance.IsPaused = true; Chunk7NativeFixture.Select(riders[0]);
@@ -346,7 +362,7 @@ namespace KingmakerMountedCombat.Diagnostics
             interaction = new JObject { ["riderId"] = riders[0].UniqueId, ["mountId"] = mounts[0].UniqueId, ["ownerId"] = owners[0].Id.ToString(), ["generation"] = generations[0],
                 ["accepted"] = accepted, ["commandObject"] = Id(command), ["executorId"] = command?.Executor?.UniqueId, ["round"] = roundAtClick, ["turn"] = Id(turn),
                 ["distanceBefore"] = Distance(interactionStart, door.transform.position), ["radius"] = Radius, ["cooldownsAtClick"] = Cooldowns(),
-                ["timeMovedAtClick"] = turn.TimeMoved, ["selectionAfterInput"] = riders[1].UniqueId, ["feedback"] = pair.LastFeedback,
+                ["timeMovedAtClick"] = turn.TimeMoved, ["selectionAfterInput"] = (SinglePair ? SelectionActor : riders[1]).UniqueId, ["feedback"] = pair.LastFeedback,
                 ["rejectionCodes"] = new JArray(pair.LastRejectionCodes.Select(c => c.ToString())) };
             evidence["interaction"] = interaction;
             Require(accepted && command != null && ReferenceEquals(command.Rider, riders[0]) && ReferenceEquals(command.Mount, mounts[0]) &&
@@ -354,7 +370,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The rider's own-turn click did not admit exactly the pair's door command: " + pair.LastFeedback);
             movingPolls = 0; offTurnMovingPolls = 0; livePolls = 0; startedWhileMoving = false; turnChangedWhileLive = false; maximumTimeMoved = turn.TimeMoved;
             settlementPolls = 0; settlementMovingPolls = 0; settlementOffTurnMovingPolls = 0; actionEndObserved = false; turnChangedDuringSettlement = false;
-            Chunk7NativeFixture.Select(riders[1]); Game.Instance.IsPaused = false;
+            SelectAfterInput(); Game.Instance.IsPaused = false;
         }
 
         // The second pair's rider clicks the door while the first rider owns the turn: the ordinary handler is used, and
@@ -415,7 +431,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 // The second rejection: an off-turn click while the first pair's approach is live and the mount has moved.
                 if (rejectionDuring == null && movingPolls >= 2 && !command.IsStarted && turn != null && turn.Unit == riders[0])
-                { rejectionDuring = ClickOffTurn("during-first-pair-approach"); evidence["rejectionDuringApproach"] = rejectionDuring; }
+                { rejectionDuring = SinglePair ? NotApplicableRejection("during-first-pair-approach") : ClickOffTurn("during-first-pair-approach"); evidence["rejectionDuringApproach"] = rejectionDuring; }
                 return false;
             }
             // The action-end boundary: the first poll after the native action finished (the Standard was spent on the
@@ -471,13 +487,14 @@ namespace KingmakerMountedCombat.Diagnostics
             // turn-based combat, at most one frame of decay before this boundary); the mount spends no Standard action; the
             // second pair's cooldowns are untouched; nothing of the first pair increases afterwards except an owned recovery move.
             Require((double)cost["riderStandardDelta"] >= 5.5d && (double)cost["riderStandardDelta"] <= 6.05d && Math.Abs((double)cost["mountStandardDelta"]) <= 0.01d &&
-                new[] { "secondRider", "secondMount" }.All(r => new[] { "standard", "move", "swift" }.All(k => Math.Abs((double)deltas[r][k]) <= 0.01d)),
+                (SinglePair || new[] { "secondRider", "secondMount" }.All(r => new[] { "standard", "move", "swift" }.All(k => Math.Abs((double)deltas[r][k]) <= 0.01d))),
                 "Native action spending across the turn-based door interaction differs from exactly-once rider Standard spending: " + cost.ToString(Newtonsoft.Json.Formatting.None));
             // Movement cost (paired contract): real travel is charged once to the mount's own Move budget, never more than the
             // game time that passed or the pair's allocation time, never to the rider; nothing is refunded afterwards beyond
             // native decay, and no unowned movement follows the action.
             Require((bool)cost["lawful"], "Turn-based paired approach movement cost differs from the installed paired contract: " + cost.ToString(Newtonsoft.Json.Formatting.None));
             Require(settlementOffTurnMovingPolls == 0 && !turnChangedDuringSettlement, "The mount moved off the rider's turn, or the turn changed, during the owned settlement window.");
+            if (SinglePair && rejectionDuring == null) { rejectionDuring = NotApplicableRejection("during-first-pair-approach"); evidence["rejectionDuringApproach"] = rejectionDuring; }
             Require(rejectionDuring != null, "The second pair's off-turn click during the live approach was not exercised (the approach ended before the mount was observed moving twice).");
             return true;
         }
@@ -563,7 +580,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (servicesReleased) return;
             targetService?.Dispose(); targetService = null; target = null;
             if (initiativeApplied) { foreach (var entry in initiativeBefore) entry.Key.Stats.Initiative.BaseValue = entry.Value; initiativeApplied = false; }
-            if (aiAcquired && pairAi != null && !pairAi.LastRestoreVerified) { pairAi.ReassertAfterNativeReset(new[] { riders[0], mounts[0], riders[1] }); pairAi.Restore(new[] { riders[0], mounts[0], riders[1] }); }
+            if (aiAcquired && pairAi != null && !pairAi.LastRestoreVerified) { pairAi.ReassertAfterNativeReset(AiActors); pairAi.Restore(AiActors); }
             aiAcquired = false;
             if (modeSelected) { selectMode(false); modeSelected = false; }
             servicesReleased = true;
@@ -591,7 +608,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!mounts.Contains(turn.Unit), "A mounted partner received an independent native roster turn.");
         }
 
-        private JObject Cooldowns() => new JObject { ["rider"] = Cooldowns(riders[0]), ["mount"] = Cooldowns(mounts[0]), ["secondRider"] = Cooldowns(riders[1]), ["secondMount"] = Cooldowns(mounts[1]) };
+        private JObject Cooldowns() => new JObject { ["rider"] = Cooldowns(riders[0]), ["mount"] = Cooldowns(mounts[0]),
+            ["secondRider"] = SinglePair ? null : Cooldowns(riders[1]), ["secondMount"] = SinglePair ? null : Cooldowns(mounts[1]) };
         private static JObject Cooldowns(UnitEntityData actor) => new JObject { ["id"] = actor.UniqueId, ["standard"] = actor.CombatState.Cooldown.StandardAction,
             ["move"] = actor.CombatState.Cooldown.MoveAction, ["swift"] = actor.CombatState.Cooldown.SwiftAction, ["prepared"] = actor.CombatState.Prepared,
             ["reactions"] = actor.CombatState.AttackOfOpportunityCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks };
@@ -599,7 +617,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var result = new JObject();
             foreach (var role in new[] { "rider", "mount", "secondRider", "secondMount" })
-                result[role] = new JObject { ["standard"] = (double)after[role]["standard"] - (double)before[role]["standard"],
+                result[role] = before[role] == null || before[role].Type == JTokenType.Null || after[role] == null || after[role].Type == JTokenType.Null ? null :
+                    new JObject { ["standard"] = (double)after[role]["standard"] - (double)before[role]["standard"],
                     ["move"] = (double)after[role]["move"] - (double)before[role]["move"], ["swift"] = (double)after[role]["swift"] - (double)before[role]["swift"] };
             return result;
         }

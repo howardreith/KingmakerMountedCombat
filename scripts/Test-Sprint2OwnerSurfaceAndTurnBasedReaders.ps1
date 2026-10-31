@@ -29,9 +29,13 @@ $surfaceSelectionFaults=@(
     @('a native write',{param($s)$s.expectedNativeWriteCount=1}),
     @('two native loads',{param($s)$s.expectedNativeLoadCount=2}),
     @('not base-only',{param($s)$s.baseGameOnly=$false}),
-    @('turn-based opt-in on the surface case',{param($s)$s|Add-Member turnBasedDoor $true}),
+    @('turn-based opt-in false on the surface case',{param($s)$s|Add-Member turnBasedDoor $false}),
+    @('turn-based opt-in as text on the surface case',{param($s)$s|Add-Member turnBasedDoor 'true'}),
     @('malformed seed hash',{param($s)$s.seedSha256='zz'}))
 foreach($fault in $surfaceSelectionFaults){Reject ('owner-surface selection '+$fault[0]) {$r=New-SurfaceRequest;& $fault[1] $r.ownedPairs;Assert-KmcChunk7OwnedPairsSelection $r}}
+# Finishing mission 2026-10-31: the explicit true opt-in on the surface case selects the single-pair turn-based door stage.
+Check 'owner-surface selection with the turn-based door opt-in' {$r=New-SurfaceRequest;$r.ownedPairs|Add-Member turnBasedDoor $true;Assert-KmcChunk7OwnedPairsSelection $r;if(-not(Test-KmcChunk7OwnedPairsTurnBasedDoor $r)){throw 'flag'}}
+Check 'owner-surface selection without the opt-in is not turn-based' {$r=New-SurfaceRequest;if(Test-KmcChunk7OwnedPairsTurnBasedDoor $r){throw 'flag'}}
 Reject 'owner-surface selection with a checkpoint' {$r=New-SurfaceRequest;$r|Add-Member persistenceCase 'multi-exploration-manual';Assert-KmcChunk7OwnedPairsSelection $r}
 
 # --- Turn-based door opt-in on the owner-seed exploration selection -------------------------------------------------
@@ -246,6 +250,57 @@ $surfaceFaults=@(
     @('capability claims Working provenance',{param($v)$v.capability.workingSha256='5'*64}),
     @('legs applicable count wrong',{param($v)$v.ownerSurface.legsApplicable=3}))
 foreach($fault in $surfaceFaults){Reject ('owner-surface evidence '+$fault[0]) {$v=Copy-TestValue $surface;& $fault[1] $v;Assert-KmcChunk7OwnerSurfaceSpeedEvidence $surfaceRequest $v}}
+# --- Single-pair turn-based door stage on the owner surface (finishing mission 2026-10-31) -----------------------------------
+function CoolSetSingle([double]$RiderStandard,[double]$MountMove,[long]$Ticks=10000000){[pscustomobject]@{rider=(Cool $RiderStandard 0.0 $Ticks);mount=(Cool 0.0 $MountMove $Ticks);secondRider=$null;secondMount=$null}}
+function DeltaSingle([double]$RiderStandard,[double]$MountMove){[pscustomobject]@{rider=[pscustomobject]@{standard=$RiderStandard;move=0.0;swift=0.0};mount=[pscustomobject]@{standard=0.0;move=$MountMove;swift=0.0};secondRider=$null;secondMount=$null}}
+function NotApplicableRejection([string]$Label){[pscustomobject]@{label=$Label;applicable=$false;reason='single pair: no second pair exists in this run; the cross-pair off-turn refusal stays offline coverage and the retained two-pair rows (r14)'}}
+$tbSingle=Copy-TestValue $tb
+$tbSingle|Add-Member pairs 1
+$tbSingle.scope.offTurnRejection='cross-pair-isolation: not exercised in this run (single pair, no second pair); not native proof of any off-turn refusal here (offline coverage and the retained two-pair rows)'
+$tbSingle.turns=@([pscustomobject]@{actorId=$rider;round=1;turn=501;stage=5;isPairRider=$true;isMount=$false;isTarget=$false},[pscustomobject]@{actorId=$other;round=1;turn=502;stage=5;isPairRider=$false;isMount=$false;isTarget=$false})
+$tbSingle.endedTurns=@([pscustomobject]@{label='before-rider-turn';actorId=$other;round=1;turn=502;api='Game.PauseBind (native End Turn binding)'})
+$tbSingle.fixture.name='dwarf_dungeon_door_01'
+$tbSingle.encounter.initiativeInputs=@(1,2|ForEach-Object{[pscustomobject]@{actorId='a';before=0;input=0;outsideCombat=$true}});$tbSingle.encounter.nativeInitialOrder=@($rider,$other,$target);$tbSingle.encounter.partyInCombat=@($rider);$tbSingle.encounter.seedSha256=$seedSha;$tbSingle.encounter.cooldownsBeforeEncounter=(CoolSetSingle 0 0)
+$tbSingle.riderTurn.cooldowns=(CoolSetSingle 0 0)
+$tbSingle.rejectionBeforeClick=(NotApplicableRejection 'before-first-pair-click');$tbSingle.rejectionDuringApproach=(NotApplicableRejection 'during-first-pair-approach')
+$i1=$tbSingle.interaction;$i1.riderId=$rider;$i1.mountId=$horse;$i1.ownerId='33333333-3333-4333-8333-333333333333';$i1.generation=1;$i1.executorId=$rider;$i1.selectionAfterInput=$other
+$i1.cooldownsAtClick=(CoolSetSingle 0 0);$i1.cooldownsAtActionEnd=(CoolSetSingle 6.0 1.3);$i1.cooldownsAfter=(CoolSetSingle 6.0 1.3);$i1.cooldownDeltas=(DeltaSingle 6.0 1.3);$i1.outcome.RiderId=$rider;$i1.outcome.MountId=$horse
+$tbSingle.afterCombat.pairs=@([pscustomobject]@{riderId=$rider;mountId=$horse;retainedPairCommands=$false;activeDoorInteraction=$false;pendingSettlement=$false;mounted=$true});$tbSingle.afterCombat.cooldowns=(CoolSetSingle 0 0)
+$surfaceOwners=@([pscustomobject]@{ownerId='33333333-3333-4333-8333-333333333333';riderId=(ConvertTo-OwnerKey $rider);mountId=(ConvertTo-OwnerKey $horse);generation=1;state='Active';relationshipState='Mounted'})
+$doorStub=[pscustomobject]@{fixture=[pscustomobject]@{name='dwarf_dungeon_door_01'}}
+Check 'single-pair turn-based door evidence admitted' {Assert-KmcChunk7TurnBasedDoorEvidence $surfaceRequest (Copy-TestValue $tbSingle) $doorStub $surfaceOwners @($rider) @($horse)}
+$tbSingleFaults=@(
+    @('pair count missing',{param($v)$v.PSObject.Properties.Remove('pairs')}),
+    @('two-pair rejection row on a single pair',{param($v)$v.rejectionBeforeClick=(Rejection 'before-first-pair-click' $false)}),
+    @('second-pair cooldowns fabricated',{param($v)$v.interaction.cooldownsAtClick=(CoolSet 0 0)}),
+    @('selection stayed on the pair',{param($v)$v.interaction.selectionAfterInput=$rider}),
+    @('scope claims the off-turn refusal',{param($v)$v.scope.offTurnRejection=$tb.scope.offTurnRejection}),
+    @('four initiative inputs on a single pair',{param($v)$v.encounter.initiativeInputs=$tb.encounter.initiativeInputs}),
+    @('two after-combat pairs on a single pair',{param($v)$v.afterCombat.pairs=$tb.afterCombat.pairs}))
+foreach($fault in $tbSingleFaults){Reject ('single-pair turn-based door '+$fault[0]) {$v=Copy-TestValue $tbSingle;& $fault[1] $v;Assert-KmcChunk7TurnBasedDoorEvidence $surfaceRequest $v $doorStub $surfaceOwners @($rider) @($horse)}}
+# The owner-surface evidence in door mode: no legs, the shared combat-usable selection, the single-pair stage, the dismount.
+$selectedDoor=[pscustomobject]@{name='dwarf_dungeon_door_01';position=[pscustomobject]@{x=6.0;y=0.0;z=0.0};active=$true;open=$true;disableCutWhenOpen=$true;cutPresent=$true;proximityRadius=2.0;mountDistances=@(6.0);interactable=$true;availableInteractions=$true;revealed=$true;hasVisibleTrap=$false;trapActive=$false;alreadyUnlocked=$true;restrictionCount=0;hasDialog=$false;dataPresent=$true;viewTriggerCount=0;viewTriggerActions=$false;eligible=$true;notInCombat=$false}
+function New-DoorSurfaceRequest{$r=New-SurfaceRequest;$r.ownedPairs|Add-Member turnBasedDoor $true;return $r}
+$surfaceDoor=Copy-TestValue $surface
+foreach($key in @('speedLegContract','speedLegs','speedLegsAccepted','speedLegInterruptions','speedLegInterruptObserver','doorInventory')){$surfaceDoor.PSObject.Properties.Remove($key)}
+$surfaceDoor.ownerSurface|Add-Member doorStage $true;$surfaceDoor.ownerSurface.legsCompleted=0;$surfaceDoor.ownerSurface.legsApplicable=0
+$surfaceDoor|Add-Member door ([pscustomobject]@{applicable=$true;requiredCombatUsable=$true;candidatesScanned=3;radius=28.0;mounts=@([pscustomobject]@{id=$horse;position=[pscustomobject]@{x=0.0;y=0.0;z=0.0}});selected=(Copy-TestValue $selectedDoor)})
+$surfaceDoor|Add-Member turnBasedDoor (Copy-TestValue $tbSingle)
+$surfaceDoor.snapshots=@([pscustomobject]@{label='owner-surface-start';owners=@()},[pscustomobject]@{label='owner-surface-mounted';owners=@((Copy-TestValue $ownerA))},[pscustomobject]@{label='turn-based-door-complete';owners=@((Copy-TestValue $ownerA))},[pscustomobject]@{label='owner-surface-dismounted';owners=@()},[pscustomobject]@{label='owner-surface-door-complete';owners=@()})
+$surfaceDoor.factRemovalAdmission.commands=@(@(801,802,601,602)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
+Check 'owner-surface door-mode evidence admitted' {Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-DoorSurfaceRequest) (Copy-TestValue $surfaceDoor)}
+$surfaceDoorFaults=@(
+    @('speed legs present in door mode',{param($v)$v|Add-Member speedLegs @()}),
+    @('door not combat-usable',{param($v)$v.door.selected.notInCombat=$true}),
+    @('no combat-usable door found',{param($v)$v.door=[pscustomobject]@{applicable=$false;reason='none';candidatesScanned=3;radius=28.0;mounts=$v.door.mounts;truncated=$false;rows=@();requiredCombatUsable=$true}}),
+    @('door stage flag false',{param($v)$v.ownerSurface.doorStage=$false}),
+    @('legs claimed in door mode',{param($v)$v.ownerSurface.legsCompleted=4}),
+    @('turn-based stage missing',{param($v)$v.PSObject.Properties.Remove('turnBasedDoor')}),
+    @('door selected from another actor',{param($v)$v.door.mounts[0].id=$pet2}),
+    @('admission missing the door command',{param($v)$v.factRemovalAdmission.commands=@($v.factRemovalAdmission.commands|Where-Object commandObject -NE 602)}),
+    @('door window without the owner',{param($v)$v.snapshots[2].owners=@()}),
+    @('door-mode evidence under the speed selection',{param($v)Assert-KmcChunk7OwnerSurfaceSpeedEvidence $surfaceRequest $v}))
+foreach($fault in $surfaceDoorFaults){Reject ('owner-surface door-mode evidence '+$fault[0]) {$v=Copy-TestValue $surfaceDoor;& $fault[1] $v;Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-DoorSurfaceRequest) $v}}
 Check 'owner-surface and turn-based rows registered' {$rows=Get-KmcChunk7WorldRows;foreach($row in @('C7-world-owner-surface-mount','C7-world-owner-surface-legs','C7-world-turn-based-door')){if($rows-cnotcontains$row){throw $row}}}
 Check 'new scripts parse' {foreach($file in @('runtime/Chunk7WorldEvidence.ps1','runtime/Chunk7OwnedPairsEvidence.ps1','runtime/Chunk7OwnedPairsFixtures.ps1','runtime/Chunk7MatchedPoolEvidence.ps1','runtime/Invoke-KingmakerRuntimeScenario.ps1')){$syntax=$null;$tokens=$null;[void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $file),[ref]$tokens,[ref]$syntax);if(@($syntax).Count-ne0){throw ($file+': '+$syntax[0].Message)}}}
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0; synthetic reader contracts only, no native qualification')
