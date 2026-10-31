@@ -430,15 +430,18 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
     if($marker-ne$legs){throw 'Sprint 2 speed leg contract and legs must be recorded together.'}
     if(-not$marker){return}
     # v2 (Sprint 2 completion): the motion interval is aligned to the path (SpeedLegSampler) and the v1 figure is kept beside it.
-    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2')){throw 'Sprint 2 speed leg contract differs.'}
-    $legsV2=$Observations.speedLegContract-ceq'sprint2-speed-legs/v2'
+    # v3 (Sprint 2 completion, review correction A): mounted ground input is routed to the mount, so a carried rider has no
+    # locomotion command of its own; each leg records its carried riders passively (owner, own Move slot, path, attachment).
+    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3')){throw 'Sprint 2 speed leg contract differs.'}
+    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3');$legsV3=$Observations.speedLegContract-ceq'sprint2-speed-legs/v3'
     $rows=@($Observations.speedLegs);if($rows.Count-lt1-or$rows.Count-gt4){throw 'Sprint 2 speed legs are missing or unbounded.'}
     $expected=@('mounted-party','mounted-solo','horse-solo','rider-solo')
     for($i=0;$i-lt$rows.Count;$i++){$leg=$rows[$i]
         if($leg.label-cne$expected[$i]){throw ('Sprint 2 speed leg order differs at '+$i+'.')}
         if($leg.applicable-isnot[bool]){throw 'Sprint 2 speed leg applicability must be a native boolean.'}
         if(-not$leg.applicable){Assert-KmcExactProperties $leg @('label','selection','primaryMoverId','distance','applicable','goalSearch','reason') 'speed leg (not applicable)';continue}
-        Assert-KmcExactProperties $leg @('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds') 'speed leg'
+        $legKeys=@('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds');if($legsV3){$legKeys+='carried'}
+        Assert-KmcExactProperties $leg $legKeys 'speed leg'
         Assert-KmcChunk7GoalSearchShape $leg.goalSearch ('speed leg '+$leg.label)
         if(@($leg.selectedIds).Count-lt1-or($leg.label-ceq'mounted-party'-and@($leg.selectedIds).Count-lt2)){throw 'Sprint 2 speed leg selection is empty or not a party.'}
         if(-not(Test-KmcChunk7FiniteNumber $leg.gameSeconds)-or$leg.gameSeconds-le0){throw 'Sprint 2 speed leg game time is invalid.'}
@@ -459,7 +462,31 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
                 elseif($null-ne$mv.firstMotionGameSeconds){throw 'Sprint 2 speed leg mover that never moved reports a first motion.'}}}
         $p=$primary[0]
         if($p.result-cne'Success'-or$p.pathLength-lt($leg.distance*0.5)-or$p.effectiveSpeedMps-le0-or$p.movingSamples-lt1){throw ('Sprint 2 speed leg '+$leg.label+' did not complete a measured native route.')}
+        if($legsV3){Assert-KmcChunk7SpeedLegCarried $leg $movers}
     }
+}
+# v3: every mover in the mount role carries exactly one recorded rider; a carried rider is proven from pair ownership and
+# passive position evidence (its stock agent disabled, no new Move command of its own, attached through the leg, its own
+# sampled path beside the mount's), never from a second locomotion command.
+function Assert-KmcChunk7SpeedLegCarried($Leg,$Movers){
+    if($Leg.carried-isnot[Array]){throw ('Sprint 2 speed leg '+$Leg.label+' carried riders must be recorded as an array.')}
+    $carried=@($Leg.carried)
+    foreach($c in $carried){
+        Assert-KmcExactProperties $c @('riderId','mountId','ownerId','generation','relationshipState','riderMoveCommandAtClick','riderNewMoveCommand','riderAgentEnabled','start','startOffsetToMount','end','endOffsetToMount','maximumOffsetToMount','pathLength','attachedThroughout','riderMoveCommandAtEnd','riderCommandsEmptyAtEnd') ('speed leg '+$Leg.label+' carried rider')
+        Assert-KmcOrdinaryGuid $c.riderId;Assert-KmcOrdinaryGuid $c.mountId;Assert-KmcOrdinaryGuid $c.ownerId;Assert-KmcOrdinaryInteger $c.generation 1 1000000000
+        if($c.relationshipState-cne'Mounted'){throw ('Sprint 2 speed leg '+$Leg.label+' carried rider was not in the Mounted relationship state.')}
+        foreach($field in @('startOffsetToMount','endOffsetToMount','maximumOffsetToMount','pathLength')){if(-not(Test-KmcChunk7FiniteNumber $c.$field)-or$c.$field-lt0){throw ('Sprint 2 speed leg carried rider '+$field+' is invalid.')}}
+        foreach($field in @('riderMoveCommandAtClick','riderMoveCommandAtEnd')){if(-not(Test-KmcExactJsonInteger $c.$field)){throw 'Sprint 2 speed leg carried rider Move slot identity is mistyped.'}}
+        foreach($point in @($c.start,$c.end)){foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $point.$axis)){throw 'Sprint 2 speed leg carried rider position is nonfinite.'}}}
+        Assert-KmcChunk7Boolean $c.riderNewMoveCommand $false;Assert-KmcChunk7Boolean $c.riderAgentEnabled $false;Assert-KmcChunk7Boolean $c.attachedThroughout $true
+        if($c.riderCommandsEmptyAtEnd-isnot[bool]){throw 'Sprint 2 speed leg carried rider command state must be a native boolean.'}
+        $mount=@($Movers|Where-Object{$_.id-ceq$c.mountId-and$_.role-ceq'mount'});if($mount.Count-ne1){throw ('Sprint 2 speed leg '+$Leg.label+' carried rider names a mount that is not a mover in the mount role.')}
+        if(@($Movers|Where-Object{$_.id-ceq$c.riderId}).Count-ne0){throw ('Sprint 2 speed leg '+$Leg.label+' carried rider also carries its own locomotion command; mounted ground input is routed to the mount.')}
+        if($c.maximumOffsetToMount-gt1.0-or$c.endOffsetToMount-gt1.0){throw ('Sprint 2 speed leg '+$Leg.label+' carried rider left its mount.')}
+        if($mount[0].pathLength-gt0-and$c.pathLength-lt$mount[0].pathLength*0.5){throw ('Sprint 2 speed leg '+$Leg.label+' carried rider did not travel with its mount.')}
+    }
+    foreach($mv in @($Movers|Where-Object role -CEQ 'mount')){if(@($carried|Where-Object mountId -CEQ $mv.id).Count-ne1){throw ('Sprint 2 speed leg '+$Leg.label+' mover in the mount role carries no recorded rider.')}}
+    if(@($carried|ForEach-Object riderId|Select-Object -Unique).Count-ne$carried.Count){throw 'Sprint 2 speed leg records a carried rider twice.'}
 }
 
 function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@('b6628a77-4962-47a4-a17c-88d9836fc9d5','d17c8fd0-6627-40c4-bf9a-024cf001c1f7')) {
@@ -899,16 +926,33 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     }
     # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
     if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
+    if($o.speedLegContract-cne'sprint2-speed-legs/v3'){throw 'Owner-surface speed requires the v3 speed legs (carried riders recorded from pair ownership).'}
     Assert-KmcChunk7Sprint2Legs $o
     $legs=@($o.speedLegs);if($legs.Count-ne4){throw 'Owner-surface speed requires all four aligned legs.'}
     $primary=@($horse,$horse,$horse,$rider)
+    $mountedOwner=@(@($o.snapshots|Where-Object label -CEQ 'owner-surface-mounted')[0].owners|Where-Object state -CEQ 'Active')
     for($i=0;$i-lt4;$i++){$leg=$legs[$i]
         if(-not$leg.applicable){throw ('Owner-surface leg '+$leg.label+' was not applicable on this surface; the comparison is incomplete.')}
         if($leg.primaryMoverId-cne$primary[$i]){throw ('Owner-surface leg '+$leg.label+' measured another mover.')}
         Assert-KmcBootstrapInventoryString $leg.environment.area $d.area
-        $roles=@($leg.movers|Where-Object{$_.id-ceq$leg.primaryMoverId})[0].role
+        $movers=@($leg.movers);$roles=@($movers|Where-Object{$_.id-ceq$leg.primaryMoverId})[0].role
         $expectedRole=if($i-le1){'mount'}elseif($i-eq2){'pet'}else{'on-foot'};if($roles-cne$expectedRole){throw ('Owner-surface leg '+$leg.label+' primary mover role differs: '+$roles)}
-        if($i-le1-and@($leg.movers|Where-Object{$_.id-ceq$rider-and$_.role-ceq'rider'}).Count-ne1){throw ('Owner-surface mounted leg '+$leg.label+' did not carry the rider.')}}
+        foreach($mv in $movers){if($mv.id-cnotin@($s.partyIds)-or$mv.executorId-cne$mv.id){throw ('Owner-surface leg '+$leg.label+' moved an actor outside the owner roster or through another executor.')}}
+        $riderRows=@($movers|Where-Object id -CEQ $rider);$horseRows=@($movers|Where-Object id -CEQ $horse);$carried=@($leg.carried)
+        if($i-le1){
+            # Mounted legs: the ground click is routed to the Horse; the rider has no locomotion command of its own and is
+            # proven carried from pair ownership and its position beside the Horse (Assert-KmcChunk7SpeedLegCarried).
+            if($riderRows.Count-ne0){throw ('Owner-surface mounted leg '+$leg.label+' carries an independent rider locomotion command; mounted ground input is routed to the Horse.')}
+            if($horseRows.Count-ne1-or$horseRows[0].role-cne'mount'){throw ('Owner-surface mounted leg '+$leg.label+' did not move the Horse as the pair''s mount.')}
+            if($carried.Count-ne1-or$carried[0].riderId-cne$rider-or$carried[0].mountId-cne$horse){throw ('Owner-surface mounted leg '+$leg.label+' did not carry the owner''s rider on its Horse.')}
+            if($mountedOwner.Count-ne1-or[string]$carried[0].ownerId-cne[string]$mountedOwner[0].ownerId-or$carried[0].generation-ne$mountedOwner[0].generation){throw ('Owner-surface mounted leg '+$leg.label+' was carried under another owner or generation than the mounted window.')}
+            if($i-eq1-and$movers.Count-ne1){throw 'The mounted-solo leg must move the Horse alone.'}
+        }else{
+            if($carried.Count-ne0){throw ('Owner-surface unmounted leg '+$leg.label+' reports a carried rider.')}
+            if($movers.Count-ne1){throw ('Owner-surface solo leg '+$leg.label+' moved more than its one actor.')}
+            if($i-eq2-and($horseRows.Count-ne1-or$horseRows[0].role-cne'pet')){throw 'The horse-solo leg did not move the unmounted Horse as the owner''s pet.'}
+            if($i-eq3-and($riderRows.Count-ne1-or$riderRows[0].role-cne'on-foot')){throw 'The rider-solo leg did not move the rider on foot.'}
+        }}
     if(@($legs[0].selectedIds).Count-lt2){throw 'The party-paced leg did not select the party.'}
     # Cleanup: the owner's pair is preserved (never removed), no save written, settings and selection restored.
     $c=$o.cleanup
@@ -949,8 +993,13 @@ function Assert-KmcChunk7TurnBasedRejection($Row,[string]$Label,[string]$SecondR
 }
 function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[string[]]$Riders,[string[]]$Mounts){
     $t=$Turn;if($null-eq$t){throw 'Turn-based door evidence is missing.'}
-    Assert-KmcExactProperties $t @('contract','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed') 'turn-based door control'
-    Assert-KmcBootstrapInventoryString $t.contract 'owner-seed-turn-based-door-control-v1';Assert-KmcChunk7Boolean $t.completed $true
+    Assert-KmcExactProperties $t @('contract','scope','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed') 'turn-based door control'
+    Assert-KmcBootstrapInventoryString $t.contract 'owner-seed-turn-based-door-control-v2';Assert-KmcChunk7Boolean $t.completed $true
+    # v2 scope labels: the off-turn click proves cross-pair isolation (not the same controller's pending-recovery preservation,
+    # which stays offline coverage); zero stalls on a continuously acting turn is not an exhaustion/off-turn wait exercise.
+    $sc=$t.scope;Assert-KmcExactProperties $sc @('offTurnRejection','stallClassification','movementCost') 'turn-based door scope labels'
+    if($sc.offTurnRejection-isnot[string]-or$sc.offTurnRejection-cnotlike'cross-pair-isolation:*not native proof*'-or$sc.stallClassification-isnot[string]-or$sc.stallClassification-cnotlike'*not a native exercise*'){throw 'Turn-based door scope labels overstate the off-turn or stall evidence.'}
+    Assert-KmcBootstrapInventoryString $sc.movementCost 'paired-approach-charged-to-own-mount-move/v1'
     $first=$Riders[0];$second=$Riders[1];$firstMount=$Mounts[0];$secondMount=$Mounts[1]
     $f=$t.fixture;Assert-KmcExactProperties $f @('name','object','position','approachPoint','radius','originalOpen','originalEnabled','originalCut','cutMode','notInCombat','disableOnOpen','restrictionCount','originalAlreadyUnlocked') 'turn-based door fixture'
     Assert-KmcBootstrapInventoryString $f.name $Door.fixture.name
@@ -983,7 +1032,10 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     Assert-KmcChunk7TurnBasedRejection $t.rejectionDuringApproach 'during-first-pair-approach' $second $secondMount $true
     # The one on-turn interaction.
     $i=$t.interaction
-    Assert-KmcExactProperties $i @('riderId','mountId','ownerId','generation','accepted','commandObject','executorId','round','turn','distanceBefore','radius','cooldownsAtClick','timeMovedAtClick','selectionAfterInput','feedback','rejectionCodes','outcome','terminal','distanceMoved','doorOpenAfter','cooldownsAfter','timeMovedAfter','maximumTimeMovedWhileLive','livePolls','movingPolls','offTurnMovingPolls','startedWhileMoving','unstartedWhileMoving','turnChangedWhileLive','turnStillRiderAfter','roundAfter','mountPositionAfter','mountInsideNavmesh','cooldownDeltas') 'turn-based door interaction'
+    Assert-KmcExactProperties $i @('riderId','mountId','ownerId','generation','accepted','commandObject','executorId','round','turn','distanceBefore','radius','cooldownsAtClick','timeMovedAtClick','selectionAfterInput','feedback','rejectionCodes',
+        'cooldownsAtActionEnd','timeMovedAtActionEnd','remainingTimeAtActionEnd','mountPositionAtActionEnd','distanceMovedAtActionEnd','movementObservationAtActionEnd','allocation','commandResult','commandActed',
+        'outcome','terminal','distanceMoved','doorOpenAfter','cooldownsAfter','timeMovedAfter','maximumTimeMovedWhileLive','livePolls','movingPolls','offTurnMovingPolls','startedWhileMoving','unstartedWhileMoving','turnChangedWhileLive','turnStillRiderAfter','roundAfter','mountPositionAfter','mountInsideNavmesh',
+        'settlementPolls','settlementMovingPolls','settlementOffTurnMovingPolls','turnChangedDuringSettlement','cooldownDeltas','movementCost') 'turn-based door interaction'
     Assert-KmcBootstrapInventoryString $i.riderId $first;Assert-KmcBootstrapInventoryString $i.mountId $firstMount;Assert-KmcBootstrapInventoryString $i.executorId $first;Assert-KmcBootstrapInventoryString $i.selectionAfterInput $second
     $owner=@($Owners|Where-Object{Test-KmcChunk7OwnerActorMatch $_.riderId $first});if($owner.Count-ne1-or[string]$i.ownerId-cne[string]$owner[0].ownerId-or$i.generation-ne$owner[0].generation){throw 'The turn-based interaction belongs to another owner or generation.'}
     Assert-KmcChunk7WorldInt32 $i.commandObject;Assert-KmcChunk7Boolean $i.accepted $true;Assert-KmcChunk7Boolean $i.terminal $true;Assert-KmcChunk7Boolean $i.doorOpenAfter $true
@@ -997,11 +1049,57 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     if(-not(Test-KmcChunk7FiniteNumber $oc.DistanceAtInteraction)-or$oc.DistanceAtInteraction-gt$i.radius+0.01-or$oc.LineOfSightAtInteraction-ne$true){throw 'The turn-based interaction was not delivered from inside the native radius with line of sight.'}
     Assert-KmcOrdinaryInteger $oc.ApproachesWithoutProgress 0 0
     Assert-KmcChunk7DoorSettlement $oc
-    # Native spending: the rider's Standard spent exactly once (never refunded), the mount's Standard untouched, no cooldown of either refunded.
+    # Native spending and movement cost (v2, review correction B). Raw cooldown rows at three boundaries: the click, the
+    # action end (first poll after the native action finished) and after the owned settlement. The recorded deltas must be
+    # the raw differences; the installed paired contract decides: a rider's turn-based approach is native movement charged
+    # once to its own mount's Move budget (equal to the pair's allocation movement time, never more than the game time that
+    # passed, inside the six-second budget), the rider keeps its own Move, the Standard is spent exactly once (+6) at the
+    # interaction, nothing is refunded afterwards beyond native decay, and no unowned movement follows the action.
+    $ck=$i.cooldownsAtClick;$ac=$i.cooldownsAtActionEnd;$af=$i.cooldownsAfter
+    foreach($row in @($ck,$ac,$af)){if($null-eq$row){throw 'A turn-based cooldown boundary row is missing.'}
+        foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $row.$role.$key)-or$row.$role.$key-lt0){throw ('Turn-based cooldown row '+$role+'.'+$key+' is not finite and nonnegative.')}}
+            if(-not(Test-KmcExactJsonInteger $row.$role.gameTicks)-or$row.$role.gameTicks-lt0){throw 'Turn-based cooldown row lacks its game ticks.'}}}
+    $approach=([double]$ac.rider.gameTicks-[double]$ck.rider.gameTicks)/1e7;$settle=([double]$af.rider.gameTicks-[double]$ac.rider.gameTicks)/1e7
+    if($approach-lt0-or$settle-lt0){throw 'Turn-based cooldown boundaries are out of order.'}
+    if(-not(Test-KmcChunk7FiniteNumber $i.distanceMovedAtActionEnd)-or$i.distanceMovedAtActionEnd-lt0.5){throw 'The mount had not travelled by the action end.'}
+    foreach($key in @('timeMovedAtActionEnd','remainingTimeAtActionEnd')){if($null-ne$i.$key-and(-not(Test-KmcChunk7FiniteNumber $i.$key)-or$i.$key-lt0)){throw ('Turn-based '+$key+' is invalid.')}}
+    foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $i.mountPositionAtActionEnd.$axis)){throw 'Turn-based action-end mount position is nonfinite.'}}
+    if($i.commandResult-cne'Success'){throw 'The routed door command did not end in native Success.'};Assert-KmcChunk7Boolean $i.commandActed $true
+    $mc=$i.movementCost;Assert-KmcExactProperties $mc @('contract','approachGameSeconds','settlementGameSeconds','mountMoveCharge','riderMoveDelta','riderStandardDelta','mountStandardDelta','mountMoveAfterSettlement','riderStandardAfterSettlement','allocationTime','allocationStepMetres','recoveryAdmitted','decayBound','lawful') 'turn-based movement cost'
+    Assert-KmcBootstrapInventoryString $mc.contract 'paired-approach-charged-to-own-mount-move/v1';Assert-KmcChunk7Boolean $mc.lawful $true
+    $charge=[double]$ac.mount.move-[double]$ck.mount.move
+    $raw=@(@('mountMoveCharge',$charge),@('riderMoveDelta',([double]$ac.rider.move-[double]$ck.rider.move)),@('riderStandardDelta',([double]$ac.rider.standard-[double]$ck.rider.standard)),@('mountStandardDelta',([double]$ac.mount.standard-[double]$ck.mount.standard)),
+        @('mountMoveAfterSettlement',([double]$af.mount.move-[double]$ac.mount.move)),@('riderStandardAfterSettlement',([double]$af.rider.standard-[double]$ac.rider.standard)),@('approachGameSeconds',$approach),@('settlementGameSeconds',$settle))
+    foreach($pair in $raw){if(-not(Test-KmcChunk7FiniteNumber $mc.($pair[0]))-or[Math]::Abs([double]$mc.($pair[0])-[double]$pair[1])-gt0.0005){throw ('Turn-based movement cost '+$pair[0]+' differs from the raw cooldown rows.')}}
+    # The pair's own allocation observation (the installed paired movement accounting) at the action end.
+    if($i.movementObservationAtActionEnd-isnot[string]-or$i.movementObservationAtActionEnd-cnotlike'mountMove=*'){throw 'The pair''s own movement allocation observation is missing: the approach was not accounted through the paired movement contract.'}
+    $al=$i.allocation;if($null-eq$al){throw 'The pair''s movement allocation observation did not parse.'}
+    Assert-KmcExactProperties $al @('mountMoveBefore','mountMoveAfter','mountTime','mountStepMetres','nativePrepared','round','physicalDeltaRequested','physicalDeltaAllowed') 'turn-based movement allocation'
+    foreach($field in @('mountMoveBefore','mountMoveAfter','mountTime','mountStepMetres','physicalDeltaRequested','physicalDeltaAllowed')){if(-not(Test-KmcChunk7FiniteNumber $al.$field)-or$al.$field-lt0){throw ('Turn-based movement allocation '+$field+' is invalid.')}}
+    if($al.nativePrepared-isnot[bool]){throw 'Turn-based movement allocation preparation flag must be a native boolean.'};Assert-KmcOrdinaryInteger $al.round 1 1000
+    if([Math]::Abs([double]$mc.allocationTime-[double]$al.mountTime)-gt0.0005-or[Math]::Abs([double]$mc.allocationStepMetres-[double]$al.mountStepMetres)-gt0.0005){throw 'Turn-based movement cost allocation figures differ from the allocation observation.'}
+    # The contract itself, on the raw values.
+    if($charge-le0.01){throw 'Free transport: the mount travelled on the rider''s turn but no Move time was charged.'}
+    if($charge-gt$approach+0.05){throw 'Excess movement charge: more Move time than game time passed during the approach.'}
+    if([double]$ac.mount.move-gt6.001){throw 'The mount''s Move cooldown exceeded one turn''s six-second budget.'}
+    if([Math]::Abs([double]$ac.rider.move-[double]$ck.rider.move)-gt0.01-or[double]$ac.rider.move-gt0.01){throw 'Rider transport tax: the carried rider''s own Move was charged for the mount''s approach.'}
+    if($charge-gt[double]$al.mountTime+0.05){throw 'Double movement charge: the mount''s Move delta exceeds the allocation''s movement time.'}
+    if([double]$al.mountStepMetres-le0-and[Math]::Abs($charge-[double]$al.mountTime)-gt0.05){throw 'The mount''s Move charge differs from the allocation''s movement time.'}
+    if([Math]::Abs([double]$al.mountMoveAfter-[double]$ac.mount.move)-gt0.05){throw 'The allocation ledger differs from the mount''s native Move cooldown at the action end.'}
+    $standard=[double]$ac.rider.standard-[double]$ck.rider.standard
+    if($standard-lt5.5-or$standard-gt6.05){throw 'The rider''s Standard action was not spent exactly once (+6) at the turn-based door interaction.'}
+    if([Math]::Abs([double]$ac.mount.standard-[double]$ck.mount.standard)-gt0.01){throw 'The mount spent a Standard action on the rider''s door interaction.'}
+    $decay=1.1*$settle+0.01;$afterMove=[double]$af.mount.move-[double]$ac.mount.move;$afterStandard=[double]$af.rider.standard-[double]$ac.rider.standard
+    if($afterMove-lt-$decay-or$afterStandard-lt-$decay){throw 'A native cooldown was refunded after the turn-based door action beyond native decay.'}
+    if($afterStandard-gt0.01){throw 'The rider''s Standard was spent again after the door action.'}
+    $recovered=$oc.RecoveryDisposition-ceq'Admitted';if($mc.recoveryAdmitted-ne$recovered){throw 'Turn-based movement cost recovery flag differs from the settlement outcome.'}
+    Assert-KmcOrdinaryInteger $i.settlementPolls 0 1000000;Assert-KmcOrdinaryInteger $i.settlementMovingPolls 0 1000000;Assert-KmcOrdinaryInteger $i.settlementOffTurnMovingPolls 0 0;Assert-KmcChunk7Boolean $i.turnChangedDuringSettlement $false
+    if($recovered){if([double]$af.mount.move-gt6.001-or$i.settlementMovingPolls-lt1){throw 'The owned recovery move left the budget or was never observed moving.'}}
+    elseif($afterMove-gt0.01-or$i.settlementMovingPolls-ne0){throw 'The mount moved or was charged after the door action without an admitted owned recovery.'}
     $dl=$i.cooldownDeltas
-    foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $dl.$role.$key)-or$dl.$role.$key-lt-0.01){throw ('Turn-based door interaction refunded a native cooldown: '+$role+'.'+$key)}}}
+    foreach($role in @('rider','mount','secondRider','secondMount')){foreach($key in @('standard','move','swift')){if(-not(Test-KmcChunk7FiniteNumber $dl.$role.$key)-or[Math]::Abs([double]$dl.$role.$key-([double]$af.$role.$key-[double]$ck.$role.$key))-gt0.0005){throw ('Turn-based cooldown delta differs from its raw rows: '+$role+'.'+$key)}}}
+    foreach($pair in @(@('rider','swift'),@('mount','swift'),@('mount','standard'))){if([Math]::Abs([double]$dl.($pair[0]).($pair[1]))-gt0.01){throw ('Turn-based door interaction changed an unrelated first-pair cooldown: '+$pair[0]+'.'+$pair[1])}}
     if($dl.rider.standard-le0.5-or$dl.rider.standard-gt6.05){throw 'The rider''s Standard action was not spent exactly once by the turn-based door interaction.'}
-    if([Math]::Abs([double]$dl.mount.standard)-gt0.01){throw 'The mount spent a Standard action on the rider''s door interaction.'}
     foreach($role in @('secondRider','secondMount')){foreach($key in @('standard','move','swift')){if([Math]::Abs([double]$dl.$role.$key)-gt0.01){throw 'The second pair''s native cooldowns changed during the first pair''s door interaction.'}}}
     # The native control (an unmounted member's own stock click on its earlier turn) when the initiative order offered one.
     $k=$t.control;if($k.applicable-isnot[bool]){throw 'Turn-based control applicability must be a native boolean.'}

@@ -10,6 +10,7 @@ using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -24,7 +25,11 @@ namespace KingmakerMountedCombat.Diagnostics
     // nine-metre route is recorded as not applicable rather than forced.
     internal sealed partial class Chunk7WorldScenarioEngine
     {
-        internal const string SpeedLegContract = "sprint2-speed-legs/v2";
+        // v3 (Sprint 2 completion, review correction A): a mounted rider issues no locomotion command of its own (the
+        // ground click is routed to its mount), so each leg records the carried riders passively: the owner, the rider's
+        // own Move slot at the click (no new player command), its sampled path beside the mount and its attachment
+        // through the leg. Nothing moves the rider and no mover row is fabricated for it.
+        internal const string SpeedLegContract = "sprint2-speed-legs/v3";
         internal const float SpeedLegDistanceMetres = 9f;
         private const float SpeedLegClampResidualMetres = 0.5f;
         private const float SpeedLegDoorClearanceMetres = 1.5f;
@@ -47,9 +52,23 @@ namespace KingmakerMountedCombat.Diagnostics
             internal string FinalMovementType;
         }
 
+        // v3: a rider carried by a moving mount, observed only (owner identity, its own Move slot, its position beside the mount).
+        private sealed class SpeedLegCarried
+        {
+            internal UnitEntityData Rider, Mount;
+            internal object Owner;
+            internal long Generation;
+            internal JObject Record;
+            internal readonly SpeedLegSampler Sampler = new SpeedLegSampler();
+            internal UnitMoveTo RiderMoveAtClick;
+            internal bool AttachedThroughout = true;
+            internal double MaximumOffset;
+        }
+
         private JArray speedLegs;
         private JObject speedLeg;
         private List<SpeedLegMover> speedLegMovers;
+        private List<SpeedLegCarried> speedLegCarried;
         private double speedLegStartedWall;
         private TimeSpan speedLegStartedGame;
         private Vector3 speedLegStart, speedLegGoal, speedLegPreviousStart;
@@ -82,7 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!found)
             {
                 speedLeg["reason"] = "No walkable nine-metre route clear of other units and the door lies in any bearing; this leg is not applicable on this fixture.";
-                speedLegSkipped = true; speedLegMovers = new List<SpeedLegMover>();
+                speedLegSkipped = true; speedLegMovers = new List<SpeedLegMover>(); speedLegCarried = new List<SpeedLegCarried>();
                 logger.Info("Sprint 2 speed leg " + label + " skipped: no clear route.");
                 return;
             }
@@ -128,6 +147,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 speedLegMovers.Add(speedMover);
             }
             speedLeg["movers"] = new JArray(speedLegMovers.Select(m => m.Record));
+            // v3: every rider carried by a moving mount, observed from pair ownership; the rider's own Move slot is read, never written.
+            speedLegCarried = new List<SpeedLegCarried>();
+            foreach (var m in speedLegMovers)
+            {
+                var owner = world.Registry.FindActive(m.Unit);
+                if (owner == null || !ReferenceEquals(owner.Mount, m.Unit) || owner.Rider == null || owner.Boundary.State != RelationshipState.Mounted) continue;
+                var rider = owner.Rider;
+                UnitMoveTo riderMoveBefore; before.TryGetValue(rider, out riderMoveBefore);
+                var riderMove = rider.Commands.Move;
+                var offset = Vector3.Distance(Flat(rider.Position), Flat(m.Unit.Position));
+                var carried = new SpeedLegCarried { Rider = rider, Mount = m.Unit, Owner = owner, Generation = owner.Generation, RiderMoveAtClick = riderMove, MaximumOffset = offset,
+                    Record = new JObject { ["riderId"] = rider.UniqueId, ["mountId"] = m.Unit.UniqueId, ["ownerId"] = owner.Id.ToString(), ["generation"] = owner.Generation,
+                        ["relationshipState"] = owner.Boundary.State.ToString(), ["riderMoveCommandAtClick"] = Id(riderMove),
+                        ["riderNewMoveCommand"] = riderMove != null && !ReferenceEquals(riderMove, riderMoveBefore) && riderMove.CreatedByPlayer,
+                        ["riderAgentEnabled"] = rider.View?.AgentASP != null && rider.View.AgentASP.enabled,
+                        ["start"] = Point(rider.Position), ["startOffsetToMount"] = offset } };
+                carried.Sampler.Observe(speedLegStartedGame.TotalSeconds, rider.Position.x, rider.Position.z);
+                speedLegCarried.Add(carried);
+            }
+            speedLeg["carried"] = new JArray(speedLegCarried.Select(c => c.Record));
             Require(speedLegMovers.Any(m => ReferenceEquals(m.Unit, mover)), "The native ground click did not move the speed leg's primary mover.");
             speedLeg["applicable"] = true;
             speedLegStartedWall = clock.Elapsed.TotalSeconds;
@@ -137,7 +176,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool PollSpeedLeg()
         {
             Require(speedLeg != null && speedLegMovers != null, "No speed leg is running.");
-            if (speedLegSkipped) { speedLeg = null; speedLegMovers = null; return true; }
+            if (speedLegSkipped) { speedLeg = null; speedLegMovers = null; speedLegCarried = null; return true; }
             Require(clock.Elapsed.TotalSeconds - speedLegStartedWall <= SpeedLegWallSecondsLimit, "Speed leg exceeded its wall-clock bound: " + speedLeg["label"]);
             var now = Game.Instance.TimeController.GameTime;
             var allDone = true;
@@ -158,7 +197,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 m.FinalMovementType = m.Move.MovementType.ToString();
                 if (!m.Move.IsFinished || agent == null || agent.IsReallyMoving) allDone = false;
             }
+            foreach (var c in speedLegCarried)
+            {
+                c.Sampler.Observe(now.TotalSeconds, c.Rider.Position.x, c.Rider.Position.z);
+                c.MaximumOffset = Math.Max(c.MaximumOffset, Vector3.Distance(Flat(c.Rider.Position), Flat(c.Mount.Position)));
+                var owner = world.Registry.FindActive(c.Rider);
+                if (owner == null || !ReferenceEquals(owner, c.Owner) || owner.Generation != c.Generation || !ReferenceEquals(owner.Mount, c.Mount) ||
+                    owner.Boundary.State != RelationshipState.Mounted || !ReferenceEquals(world.Registry.FindActive(c.Mount), owner)) c.AttachedThroughout = false;
+                var riderMove = c.Rider.Commands.Move;
+                if (riderMove != null && !ReferenceEquals(riderMove, c.RiderMoveAtClick) && riderMove.CreatedByPlayer) c.Record["riderNewMoveCommand"] = true;
+            }
             if (!allDone) return false;
+            foreach (var c in speedLegCarried)
+            {
+                var r = c.Record;
+                r["end"] = Point(c.Rider.Position); r["endOffsetToMount"] = Vector3.Distance(Flat(c.Rider.Position), Flat(c.Mount.Position));
+                r["maximumOffsetToMount"] = c.MaximumOffset; r["pathLength"] = c.Sampler.PathLength; r["attachedThroughout"] = c.AttachedThroughout;
+                r["riderMoveCommandAtEnd"] = Id(c.Rider.Commands.Move); r["riderCommandsEmptyAtEnd"] = c.Rider.Commands.Empty;
+            }
             var legGameSeconds = (now - speedLegStartedGame).TotalSeconds;
             speedLeg["gameSeconds"] = legGameSeconds;
             foreach (var m in speedLegMovers)
@@ -188,7 +244,7 @@ namespace KingmakerMountedCombat.Diagnostics
             logger.Info("Sprint 2 speed leg " + speedLeg["label"] + ": primary effective " + ((double)primary.Record["effectiveSpeedMps"]).ToString("F2") +
                 " m/s (v1 interval " + primary.Sampler.UnalignedEffectiveSpeed.ToString("F2") + ") over " + primary.Sampler.PathLength.ToString("F2") +
                 " m; gaits=" + primary.Record["gaits"].ToString(Newtonsoft.Json.Formatting.None));
-            speedLeg = null; speedLegMovers = null;
+            speedLeg = null; speedLegMovers = null; speedLegCarried = null;
             return true;
         }
 
