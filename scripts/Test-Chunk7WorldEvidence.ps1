@@ -464,8 +464,25 @@ $legV3Mutations=@(
  @('v2 speed leg carrying the v3 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v2'})
 )
 foreach($mutation in $legV3Mutations){$copy=Copy-TestValue $speedLegsV3;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v4 speed legs: the native state at the leg's end classifies an interrupted leg (r13 on the owner's surface).
+function New-SpeedLegsV4Fixture(){
+    $copy=Copy-TestValue $speedLegsV3;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v4'
+    $results=[pscustomobject]@{};$results|Add-Member $horse 'Success'
+    $o.speedLegs[0]|Add-Member endState ([pscustomobject]@{gameMode='Default';paused=$false;inCombat=$false;loading=$false;area='x';results=$results})
+    return $copy
+}
+$speedLegsV4=New-SpeedLegsV4Fixture
+Check 'Sprint 2 v4 speed legs with the recorded end state' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV4) 'PASS'}
+$legV4Mutations=@(
+ @('v4 speed leg without its end state',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('endState')}),
+ @('v4 speed leg ending in a dialog',{param($v)$v.observations.speedLegs[0].endState.gameMode='Dialog'}),
+ @('v4 speed leg ending in another area',{param($v)$v.observations.speedLegs[0].endState.area='y'}),
+ @('v4 speed leg end-state result differing from the mover',{param($v)$v.observations.speedLegs[0].endState.results.$horse='Interrupt'}),
+ @('v3 speed leg carrying the v4 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v3'})
+)
+foreach($mutation in $legV4Mutations){$copy=Copy-TestValue $speedLegsV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v4"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v4 reader.'}
-    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v3"'){throw 'Speed leg contract differs from the v3 reader.'}
+    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v4"'){throw 'Speed leg contract differs from the v4 reader.'}
     $sampler=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs'));if($sampler-cnotmatch'Contract = "aligned-interval/v2"'){throw 'Speed leg sampler contract differs from the v2 reader.'}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
     foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
