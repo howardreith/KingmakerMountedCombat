@@ -536,6 +536,9 @@ namespace KingmakerMountedCombat.Integration
                 if (PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 var combat = PatchBridge.CombatFor(__instance);
+                // Sprint 3: a new order for the rider or its mount releases the pair's carried approach before native
+                // Run replaces or interrupts the carried command itself.
+                combat?.ObservePairCommandRequest(__instance, cmd);
                 if (combat != null && !combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
                     return false;
@@ -623,7 +626,21 @@ namespace KingmakerMountedCombat.Integration
                     door.TickMountedApproach();
                     return false;
                 }
-                return !(__instance is MountedPairAttackCommand);
+                if (__instance is MountedPairAttackCommand) return false;
+                // Sprint 3 (TRAP-01, SPELL-01): the rider's own unstarted native ability or discovered-trap interaction is
+                // approached by the mount. The driver runs the engine's own OnTickApproaching first and skips only the
+                // native rider approach; in range it returns false and the native code starts the command as usual.
+                var carrier = PatchBridge.CombatFor(__instance?.Executor);
+                if (carrier != null && carrier.TryTickCarriedApproach(__instance, IsRelationshipControlShell(__instance))) return false;
+                return true;
+            }
+
+            private static bool IsRelationshipControlShell(UnitCommand command)
+            {
+                var controls = PatchBridge.NativeControls;
+                return controls != null &&
+                    (controls.OwnsUnsettledRelationshipShell(command) ||
+                     controls.IsPlayerOnlyRelationshipControl((command as UnitUseAbility)?.Spell));
             }
 
             internal static bool MountedAttackTargetPrefix(UnitAttack __instance, ref bool __result)
