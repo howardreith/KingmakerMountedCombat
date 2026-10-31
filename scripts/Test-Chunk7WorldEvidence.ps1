@@ -260,7 +260,291 @@ $returnMutations=@(
  @('unknown door contract',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change-v3'})
 )
 foreach($mutation in $returnMutations){$copy=Copy-TestValue $returnF4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
-Check 'door probe writes the v2 contract the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v2"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v2 reader.'}
+# v3 door (Sprint 2, DOOR-01/SPACE-01): the long approach, click-while-moving and occupancy records on top of the v2 return.
+function New-TestPoint([double]$X,[double]$Y,[double]$Z){return [pscustomobject]@{x=$X;y=$Y;z=$Z}}
+function New-TestGoalSearch($Start,$Direction,[double]$Distance,$Clamped,[double]$DoorDistance){
+    return [pscustomobject]@{start=$Start;direction=$Direction;distance=$Distance;selectedIndex=0;candidates=@([pscustomobject]@{index=0;bearingOffset=0.0;requested=(Copy-TestValue $Clamped);walkable=$true;clamped=$Clamped;clampResidual=0.0;traceResidual=0.0;doorDistance=$DoorDistance;minimumSlack=5.0;reason='admitted'})}
+}
+function New-DoorV3Fixture(){
+    $copy=Copy-TestValue $returnF3;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v3'
+    $d|Add-Member approach ([pscustomobject]@{approachPoint=(New-TestPoint 10 0 0);nativeTargetNode=(New-TestPoint 9.5 0 0);losObjectId=-4242;mapObjectIsDoorObject=$true})
+    $d|Add-Member longApproach ([pscustomobject]@{applicable=$true;goalSearch=(New-TestGoalSearch (New-TestPoint 0 0 0) (New-TestPoint -1 0 0) 12.0 (New-TestPoint -12 0 0) 22.0);goal=(New-TestPoint -12 0 0);startDistanceToDoor=8.0;setupCommand=1810;setupResult='Success';setupEnd=(New-TestPoint -12 0 0);distanceToDoorAfterSetup=22.0})
+    $d.interactions[0].distanceBefore=22.0;$d.interactions[0].distanceMoved=19.0
+    $d|Add-Member clickWhileMoving ([pscustomobject]@{applicable=$true;goalSearch=(New-TestGoalSearch (New-TestPoint 8 0 0) (New-TestPoint 0 0 1) 6.0 (New-TestPoint 8 0 6) 6.3);goal=(New-TestPoint 8 0 6);moveCommand=1811;mountPositionAtClick=(New-TestPoint 8 0 1);moveRunningAtClick=$true;moveFinishedAtAdmission=$true;moveResult='Interrupt';replacedMoveCount=1})
+    for($i=0;$i-lt2;$i++){$v=$d.interactions[$i];$v|Add-Member clickWhileMoving ($i-eq1)
+        $v|Add-Member occupancy ([pscustomobject]@{mountPosition=(New-TestPoint 8.2 0 0);riderPosition=(New-TestPoint 8.2 1.2 0);mountInsideNavmesh=$true;riderInsideNavmesh=$false;mountDistanceToApproachPoint=1.8;mountDistanceToDoor=1.8;doorOpen=$true;cutEnabled=$false;mountCanMove=$true;mountCommandsEmpty=$true})
+        $o=$v.outcome;$o|Add-Member ApproachesWithoutProgress 0;$o|Add-Member ApproachElapsedGameSeconds 3.5;$o|Add-Member DistanceAtInteraction 1.8;$o|Add-Member LineOfSightAtInteraction $true
+        $o|Add-Member OccupancyInsideNavmesh $true;$o|Add-Member OccupancyRecovery 'none';$o|Add-Member OccupancyNearestNodeDistance 0.0}
+    $copy.observations.factRemovalAdmission.commands+=@((1810..1811)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
+    return $copy
+}
+$doorV3=New-DoorV3Fixture
+Check 'v3 door with long approach, click while moving and navmesh occupancy' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV3) 'PASS'}
+Check 'v3 door with the long approach and click-while-moving recorded as not applicable' {$copy=Copy-TestValue $doorV3;$d=$copy.observations.door
+    $d.longApproach=[pscustomobject]@{applicable=$false;goalSearch=$d.longApproach.goalSearch;reason='no clear native goal away from the door'};$d.interactions[0].distanceBefore=8.0;$d.interactions[0].distanceMoved=6.0
+    $d.clickWhileMoving=[pscustomobject]@{applicable=$false;goalSearch=$d.clickWhileMoving.goalSearch;reason='no clear lateral native goal'};$d.interactions[1].clickWhileMoving=$false
+    $copy.observations.factRemovalAdmission.commands=@($copy.observations.factRemovalAdmission.commands|Where-Object{$_.commandObject-notin@(1810,1811)});Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'v3 door retrying one finished approach natively' {$copy=Copy-TestValue $doorV3;$copy.observations.door.interactions[0].outcome.DelegatedMoveStartCount=2;$copy.observations.door.interactions[0].outcome.ApproachesWithoutProgress=1;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+$v3Mutations=@(
+ @('v3 contract in the v2 shape',{param($v)foreach($k in @('approach','longApproach','clickWhileMoving')){$v.observations.door.PSObject.Properties.Remove($k)}}),
+ @('v3 without its approach record',{param($v)$v.observations.door.PSObject.Properties.Remove('approach')}),
+ @('v3 approach without the native LOS object',{param($v)$v.observations.door.approach.losObjectId=0}),
+ @('v3 interaction in the v2 row shape',{param($v)$v.observations.door.interactions[0].PSObject.Properties.Remove('occupancy')}),
+ @('v3 outcome in the v2 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('OccupancyRecovery')}),
+ @('v3 mount off the navmesh after the door opened',{param($v)$v.observations.door.interactions[0].occupancy.mountInsideNavmesh=$false}),
+ @('v3 outcome left the navmesh',{param($v)$v.observations.door.interactions[1].outcome.OccupancyInsideNavmesh=$false}),
+ @('v3 outcome needed an occupancy repath',{param($v)$v.observations.door.interactions[1].outcome.OccupancyRecovery='repath'}),
+ @('v3 interaction outside the proximity radius',{param($v)$v.observations.door.interactions[0].outcome.DistanceAtInteraction=2.5}),
+ @('v3 interaction without line of sight',{param($v)$v.observations.door.interactions[0].outcome.LineOfSightAtInteraction=$false}),
+ @('v3 approach exhausted without progress',{param($v)$v.observations.door.interactions[0].outcome.ApproachesWithoutProgress=3}),
+ @('v3 approach restarted beyond the bound',{param($v)$v.observations.door.interactions[0].outcome.DelegatedMoveStartCount=5}),
+ @('v3 occupancy outside the interaction radius',{param($v)$v.observations.door.interactions[0].occupancy.mountDistanceToApproachPoint=2.6}),
+ @('v3 long approach not farther from the door',{param($v)$v.observations.door.longApproach.distanceToDoorAfterSetup=5.0;$v.observations.door.interactions[0].distanceBefore=5.0}),
+ @('v3 long approach disagreeing with the first click',{param($v)$v.observations.door.interactions[0].distanceBefore=10.0}),
+ @('v3 long approach setup move failed',{param($v)$v.observations.door.longApproach.setupResult='Interrupt'}),
+ @('v3 click while moving not replacing the move',{param($v)$v.observations.door.clickWhileMoving.moveFinishedAtAdmission=$false}),
+ @('v3 click while moving with the move still owned',{param($v)$v.observations.door.clickWhileMoving.moveResult='Success'}),
+ @('v3 click while moving without the controller replacement',{param($v)$v.observations.door.clickWhileMoving.replacedMoveCount=0}),
+ @('v3 click flag disagreeing with its record',{param($v)$v.observations.door.interactions[1].clickWhileMoving=$false}),
+ @('v3 goal search continuing past an admitted candidate',{param($v)$s=$v.observations.door.longApproach.goalSearch;$s.candidates=@($s.candidates[0],(Copy-TestValue $s.candidates[0]));$s.candidates[1].index=1;$s.selectedIndex=1}),
+ @('v3 setup move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1810)}),
+ @('v3 lateral move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1811)})
+)
+foreach($mutation in $v3Mutations){$copy=Copy-TestValue $doorV3;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v4 door (Sprint 2 completion): unmounted control, endpoint neighbor, Stop control, unstarted-while-moving samples and the
+# owned settlement (settled cut, body footprint, recovery) on top of v3. Built independently of the reader.
+function New-TestOccupancy([double]$Distance){[pscustomobject]@{mountPosition=(New-TestPoint 8.2 0 0);riderPosition=(New-TestPoint 8.2 1.2 0);mountInsideNavmesh=$true;riderInsideNavmesh=$false;mountDistanceToApproachPoint=$Distance;mountDistanceToDoor=$Distance;doorOpen=$true;cutEnabled=$false;mountCanMove=$true;mountCommandsEmpty=$true}}
+function New-DoorV4Fixture(){
+    $copy=Copy-TestValue $doorV3;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v4'
+    $d.longApproach|Add-Member requestedDistances @(26.0,20.0)
+    $d.setupInteractions=$(if($d.fixture.originalOpen){2}else{1})+2
+    $d|Add-Member unmountedControl ([pscustomobject]@{applicable=$true;actorId='8265f8cf-0969-4ec7-a266-2448de91c8c4';accepted=$true;commandType='Kingmaker.UnitLogic.Commands.UnitInteractWithObject';commandObject=1830;distanceBefore=9.0;routedByKmc=$false;result='Success';doorOpenAfter=$true;distanceAfter=1.5;actorInsideNavmesh=$true})
+    $d|Add-Member endpointNeighbor ([pscustomobject]@{applicable=$true;goalSearch=(New-TestGoalSearch (New-TestPoint 20 0 0) (New-TestPoint -1 0 0) 7.0 (New-TestPoint 13 0 0) 3.3);goal=(New-TestPoint 13 0 0);moveCommand=1831;moveResult='Success';positionAtFirstClick=(New-TestPoint 13 0 0);distanceToApproachPointAtFirstClick=3.3;occupancyAfterFirstInteraction=(New-TestOccupancy 3.3)})
+    $d|Add-Member stopControl ([pscustomobject]@{applicable=$true;commandObject=1832;distanceBefore=14.0;mountPositionAtStop=(New-TestPoint -5 0 0);commandStartedAtStop=$false;distanceMovedAtStop=2.5;stopFrame=5000;commandResult='Interrupt';doorOpenAfter=$false;interactionCount=0;outcomeResult='Interrupt';mountMoveSlotRestored=$true;mountCommandsEmpty=$true;riderCommandsEmpty=$true;pendingSettlement=$false;framesToSettle=4;mountPositionAfter=(New-TestPoint -5 0 0)})
+    for($i=0;$i-lt2;$i++){$v=$d.interactions[$i];$v|Add-Member movingPolls 40;$v|Add-Member startedWhileMoving $false;$v|Add-Member unstartedWhileMoving $true
+        $o=$v.outcome;$o|Add-Member PreventionRefused $false;$o|Add-Member OccupancySettled $true;$o|Add-Member OccupancySettleGameSeconds 0.05;$o|Add-Member MountCorpulence 0.9
+        $o|Add-Member FootprintClear $true;$o|Add-Member FootprintRingInside 8;$o|Add-Member FootprintRingReachable 8;$o|Add-Member RecoveryDisposition 'NotNeeded';$o|Add-Member RecoveryTerminal 'None'
+        $o|Add-Member RecoveryCandidatesEvaluated 0;$o|Add-Member RecoveryCandidateReasons '';$o|Add-Member RecoveryDestinationDistance ([double]::NaN);$o|Add-Member FootprintClearAfterRecovery $null;$o|Add-Member RecoveryCancelReason $null}
+    $copy.observations.factRemovalAdmission.commands+=@((1830..1832)|ForEach-Object{[pscustomobject]@{commandObject=$_;finished=$true;hasExecutionProcess=$false;processEnded=$true}})
+    return $copy
+}
+$doorV4=New-DoorV4Fixture
+# v4 layout restore (r08 correction): optional block; each pair's ordinary move back toward its pre-setup start.
+function New-DoorV4LayoutFixture(){
+    $copy=Copy-TestValue $doorV4;$d=$copy.observations.door
+    $moveA=[pscustomobject]@{pair=0;preSetupStart=(New-TestPoint 0 0 0);positionBefore=(New-TestPoint -12 0 0);distanceToStartBefore=12.0;goalSearch=(New-TestGoalSearch (New-TestPoint -12 0 0) (New-TestPoint 1 0 0) 12.0 (New-TestPoint -0.5 0 0) 10.5);goal=(New-TestPoint -0.5 0 0);command=1840;applicable=$true;positionAfter=(New-TestPoint -0.5 0 0);distanceToStartAfter=0.5;result='Success'}
+    $moveB=[pscustomobject]@{pair=1;preSetupStart=(New-TestPoint 8 0 0);positionBefore=(New-TestPoint 8.4 0 0);distanceToStartBefore=0.4;applicable=$false;reason='already within 1.5 m of the pre-setup start';positionAfter=(New-TestPoint 8.4 0 0);distanceToStartAfter=0.4}
+    $d|Add-Member layoutRestore ([pscustomobject]@{applicable=$true;moves=@($moveA,$moveB)})
+    $copy.observations.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1840;finished=$true;hasExecutionProcess=$false;processEnded=$true})
+    return $copy
+}
+$doorV4Layout=New-DoorV4LayoutFixture
+Check 'v4 door with the layout restored toward the pre-setup starts' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4Layout) 'PASS'}
+$layoutMutations=@(
+ @('v4 layout restore move failed',{param($v)$v.observations.door.layoutRestore.moves[0].result='Interrupt'}),
+ @('v4 layout restore ending farther from the start',{param($v)$v.observations.door.layoutRestore.moves[0].distanceToStartAfter=13.0}),
+ @('v4 layout restore applicability disagreeing with its moves',{param($v)$v.observations.door.layoutRestore.applicable=$false}),
+ @('v4 layout restore with one move only',{param($v)$v.observations.door.layoutRestore.moves=@($v.observations.door.layoutRestore.moves[0])}),
+ @('v4 layout restore move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1840)})
+)
+foreach($mutation in $layoutMutations){$copy=Copy-TestValue $doorV4Layout;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'v4 door with unmounted control, endpoint neighbor, Stop control and clear settled footprints' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV4) 'PASS'}
+Check 'v4 door with one completed owned recovery that left the footprint clear' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
+    $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'
+    $o.RecoveryCandidatesEvaluated=3;$o.RecoveryCandidateReasons='admitted=1,footprint-blocked=2';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true
+    # The occupancy is recorded after the settlement: the recovered mount stands its recovery distance farther from the interaction point (r05 shape).
+    $copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.46;$copy.observations.door.interactions[1].occupancy.mountDistanceToDoor=2.46;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'v4 recovered pair standing beyond its recovery distance from the interaction point' {$copy=Copy-TestValue $doorV4;$o=$copy.observations.door.interactions[1].outcome
+    $o.FootprintClear=$false;$o.FootprintRingInside=7;$o.FootprintRingReachable=7;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath'
+    $o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true
+    $copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.6;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Reject 'v3 occupancy keeps the exact interaction-radius bound' {$copy=Copy-TestValue $doorV3;$copy.observations.door.interactions[1].occupancy.mountDistanceToApproachPoint=2.3;Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+Check 'v4 door with the controls recorded as not applicable' {$copy=Copy-TestValue $doorV4;$d=$copy.observations.door
+    $d.unmountedControl=[pscustomobject]@{applicable=$false;reason='no idle unmounted controllable party member within the scan radius'};$d.setupInteractions=$(if($d.fixture.originalOpen){2}else{1})+1
+    $d.endpointNeighbor=[pscustomobject]@{applicable=$false;goalSearch=[pscustomobject]@{skipped='second pair already within the neighbor distance'};reason='no clear native goal near the door approach point for the second pair'}
+    $d.stopControl=[pscustomobject]@{applicable=$false;reason='the first pair stands inside the door''s immediate range'}
+    $copy.observations.factRemovalAdmission.commands=@($copy.observations.factRemovalAdmission.commands|Where-Object{$_.commandObject-notin@(1830,1831,1832)});Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}
+$v4Mutations=@(
+ @('v4 contract in the v3 shape',{param($v)foreach($k in @('unmountedControl','endpointNeighbor','stopControl')){$v.observations.door.PSObject.Properties.Remove($k)}}),
+ @('v4 interaction in the v3 row shape',{param($v)$v.observations.door.interactions[0].PSObject.Properties.Remove('unstartedWhileMoving')}),
+ @('v4 outcome in the v3 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('FootprintClear')}),
+ @('v4 command started while the mount moved',{param($v)$v.observations.door.interactions[0].startedWhileMoving=$true;$v.observations.door.interactions[0].unstartedWhileMoving=$false}),
+ @('v4 mount never observed moving',{param($v)$v.observations.door.interactions[1].movingPolls=0}),
+ @('v4 prevention refused the interaction',{param($v)$v.observations.door.interactions[0].outcome.PreventionRefused=$true}),
+ @('v4 settlement never settled',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettled=$false}),
+ @('v4 settlement exceeded its bound',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=4.0}),
+ @('v4 footprint not clear without recovery',{param($v)$v.observations.door.interactions[0].outcome.FootprintClear=$false;$v.observations.door.interactions[0].outcome.FootprintRingReachable=7}),
+ @('v4 clear footprint reporting a recovery',{param($v)$v.observations.door.interactions[0].outcome.OccupancyRecovery='repath'}),
+ @('v4 footprint unrecoverable',{param($v)$o=$v.observations.door.interactions[0].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Unrecoverable';$o.OccupancyRecovery='unrecoverable'}),
+ @('v4 recovery interrupted',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Interrupted';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$false}),
+ @('v4 recovery replaced by another order',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Replaced';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$true}),
+ @('v4 recovery destination beyond the recovery radius',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=2.6;$o.FootprintClearAfterRecovery=$true}),
+ @('v4 recovery leaving the footprint blocked',{param($v)$o=$v.observations.door.interactions[1].outcome;$o.FootprintClear=$false;$o.RecoveryDisposition='Admitted';$o.RecoveryTerminal='Completed';$o.OccupancyRecovery='repath';$o.RecoveryCandidatesEvaluated=1;$o.RecoveryCandidateReasons='admitted=1';$o.RecoveryDestinationDistance=0.5;$o.FootprintClearAfterRecovery=$false}),
+ @('v4 settlement cancelled',{param($v)$v.observations.door.interactions[0].outcome.RecoveryCancelReason='ground command'}),
+ @('v4 unmounted control routed by KMC',{param($v)$v.observations.door.unmountedControl.routedByKmc=$true}),
+ @('v4 unmounted control not the native interaction',{param($v)$v.observations.door.unmountedControl.commandType='KingmakerMountedCombat.Integration.MountedDoorInteractionCommand'}),
+ @('v4 unmounted control by a declared rider',{param($v)$v.observations.door.unmountedControl.actorId=$first}),
+ @('v4 unmounted control that did not open the door',{param($v)$v.observations.door.unmountedControl.doorOpenAfter=$false}),
+ @('v4 setup closes not accounting for the unmounted control',{param($v)$v.observations.door.setupInteractions=$v.observations.door.setupInteractions-1}),
+ @('v4 endpoint neighbor inside the door approach',{param($v)$v.observations.door.endpointNeighbor.distanceToApproachPointAtFirstClick=2.3}),
+ @('v4 endpoint neighbor far from the door',{param($v)$v.observations.door.endpointNeighbor.distanceToApproachPointAtFirstClick=6.0}),
+ @('v4 endpoint neighbor off the navmesh after the first interaction',{param($v)$v.observations.door.endpointNeighbor.occupancyAfterFirstInteraction.mountInsideNavmesh=$false}),
+ @('v4 endpoint neighbor move failed',{param($v)$v.observations.door.endpointNeighbor.moveResult='Interrupt'}),
+ @('v4 Stop control command started at the stop',{param($v)$v.observations.door.stopControl.commandStartedAtStop=$true}),
+ @('v4 Stop control that interacted',{param($v)$v.observations.door.stopControl.interactionCount=1}),
+ @('v4 Stop control leaving a pending settlement',{param($v)$v.observations.door.stopControl.pendingSettlement=$true}),
+ @('v4 Stop control leaving a mount command',{param($v)$v.observations.door.stopControl.mountCommandsEmpty=$false}),
+ @('v4 Stop control ending as success',{param($v)$v.observations.door.stopControl.commandResult='Success'}),
+ @('v4 long approach requesting beyond the click bound',{param($v)$v.observations.door.longApproach.requestedDistances=@(40.0)}),
+ @('v4 control command excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1830)}),
+ @('v4 neighbor move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1831)}),
+ @('v4 Stop command excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1832)})
+)
+foreach($mutation in $v4Mutations){$copy=Copy-TestValue $doorV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v5 door (review 2026-10-31, turn-based clock): the outcome carries the supervision clock's operational seconds beside the observed
+# campaign seconds; the settlement bound applies to the operational figure; in real time the two approach figures agree.
+function New-DoorV5Fixture(){
+    $copy=Copy-TestValue $doorV4;$d=$copy.observations.door;$d.contract='two-pair-native-door-click-selection-change-v5'
+    for($i=0;$i-lt2;$i++){$o=$d.interactions[$i].outcome;$o|Add-Member ApproachElapsedOperationalSeconds 3.45;$o|Add-Member OccupancySettleOperationalSeconds 0.05}
+    return $copy
+}
+$doorV5=New-DoorV5Fixture
+Check 'v5 door with the operational supervision seconds' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV5) 'PASS'}
+$v5Mutations=@(
+ @('v5 outcome in the v4 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('ApproachElapsedOperationalSeconds')}),
+ @('v4 outcome carrying the v5 operational seconds',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change-v4'}),
+ @('v5 operational settlement exceeded its bound',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleOperationalSeconds=4.0}),
+ @('v5 operational approach seconds negative',{param($v)$v.observations.door.interactions[1].outcome.ApproachElapsedOperationalSeconds=-1.0}),
+ @('v5 real-time approach whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.ApproachElapsedOperationalSeconds=9.0}),
+ @('v5 real-time settlement whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=2.0})
+)
+foreach($mutation in $v5Mutations){$copy=Copy-TestValue $doorV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# Sprint 2 (MOVE-01) speed legs: optional, recorded with their contract; the primary mover must complete a measured native route.
+function New-SpeedLegsFixture(){
+    $copy=Copy-TestValue $doorV3;$o=$copy.observations
+    $mover=[pscustomobject]@{id=$horse;role='mount';commandObject=1820;executorId=$horse;speedLimitAtClick=3.048;movementTypeAtClick='Normal';start=(New-TestPoint 0 0 0);end=(New-TestPoint 9 0 0);result='Success';pathLength=9.0;motionGameSeconds=3.0;effectiveSpeedMps=3.0;samples=100;movingSamples=90;meanAgentSpeedMps=3.0;maximumAgentSpeedMps=3.1;meanEntitySpeedMps=3.0;maximumEntitySpeedMps=3.0;gaits=[pscustomobject]@{Slow=90};accelerated=$false;movementTypeAtEnd='Normal';goalResidual=0.2;factsAfter=[pscustomobject]@{id=$horse}}
+    $leg=[pscustomobject]@{label='mounted-party';selection='Party';primaryMoverId=$horse;distance=9.0;applicable=$true;goalSearch=(New-TestGoalSearch (New-TestPoint 0 0 0) (New-TestPoint 1 0 0) 9.0 (New-TestPoint 9 0 0) 12.0);start=(New-TestPoint 0 0 0);goal=(New-TestPoint 9 0 0);environment=[pscustomobject]@{area='x'};selectedIds=@($first,$second);factsBeforeClick=@([pscustomobject]@{id=$horse});movers=@($mover);gameSeconds=3.2}
+    $skipped=[pscustomobject]@{label='mounted-solo';selection='SecondRiderAlone';primaryMoverId=$horse;distance=9.0;applicable=$false;goalSearch=(New-TestGoalSearch (New-TestPoint 9 0 0) (New-TestPoint -1 0 0) 9.0 (New-TestPoint 0 0 0) 10.0);reason='no clear route'}
+    $o|Add-Member speedLegContract 'sprint2-speed-legs/v1';$o|Add-Member speedLegs @($leg,$skipped)
+    $o.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1820;finished=$true;hasExecutionProcess=$false;processEnded=$true})
+    return $copy
+}
+$speedLegs=New-SpeedLegsFixture
+Check 'Sprint 2 speed legs with one measured party leg and one not-applicable leg' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegs) 'PASS'}
+$legMutations=@(
+ @('speed legs without their contract',{param($v)$v.observations.PSObject.Properties.Remove('speedLegContract')}),
+ @('speed leg contract without legs',{param($v)$v.observations.PSObject.Properties.Remove('speedLegs')}),
+ @('speed legs out of order',{param($v)$v.observations.speedLegs[0].label='mounted-solo'}),
+ @('speed leg primary mover failed',{param($v)$v.observations.speedLegs[0].movers[0].result='Interrupt'}),
+ @('speed leg primary mover too short',{param($v)$v.observations.speedLegs[0].movers[0].pathLength=2.0}),
+ @('speed leg primary mover not sampled moving',{param($v)$v.observations.speedLegs[0].movers[0].movingSamples=0}),
+ @('speed leg mover in an unknown role',{param($v)$v.observations.speedLegs[0].movers[0].role='camera'}),
+ @('speed leg move excluded from the fact-removal fence',{param($v)$v.observations.factRemovalAdmission.commands=@($v.observations.factRemovalAdmission.commands|Where-Object commandObject -NE 1820)})
+)
+foreach($mutation in $legMutations){$copy=Copy-TestValue $speedLegs;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v2 speed legs (Sprint 2 completion): the aligned motion interval and the v1 figure beside it.
+function New-SpeedLegsV2Fixture(){
+    $copy=Copy-TestValue $speedLegs;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v2'
+    $mv=$o.speedLegs[0].movers[0];$mv|Add-Member samplingContract 'aligned-interval/v2';$mv|Add-Member firstMotionGameSeconds 0.1;$mv|Add-Member unalignedMotionGameSeconds 2.9;$mv|Add-Member effectiveSpeedMpsUnaligned 3.1
+    return $copy
+}
+$speedLegsV2=New-SpeedLegsV2Fixture
+Check 'Sprint 2 v2 speed legs with the aligned interval' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV2) 'PASS'}
+$legV2Mutations=@(
+ @('v2 speed leg in the v1 mover shape',{param($v)$v.observations.speedLegs[0].movers[0].PSObject.Properties.Remove('samplingContract')}),
+ @('v2 speed leg with another sampling contract',{param($v)$v.observations.speedLegs[0].movers[0].samplingContract='aligned-interval/v1'}),
+ @('v2 speed leg aligned interval shorter than the v1 interval',{param($v)$v.observations.speedLegs[0].movers[0].unalignedMotionGameSeconds=3.5}),
+ @('v2 speed leg first motion before the click',{param($v)$v.observations.speedLegs[0].movers[0].firstMotionGameSeconds=-0.5}),
+ @('v1 speed leg carrying v2 fields',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v1'})
+)
+foreach($mutation in $legV2Mutations){$copy=Copy-TestValue $speedLegsV2;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v3 speed legs (Sprint 2 completion, review correction A): the carried rider is recorded from pair ownership and position,
+# never as a second locomotion command (the retained r09 shape: the mount is the only mover of a mounted pair).
+function New-SpeedLegsV3Fixture(){
+    $copy=Copy-TestValue $speedLegsV2;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v3'
+    $carried=[pscustomobject]@{riderId=$second;mountId=$horse;ownerId='44444444-4444-4444-8444-444444444444';generation=2;relationshipState='Mounted';riderMoveCommandAtClick=0;riderNewMoveCommand=$false;riderAgentEnabled=$false;start=(New-TestPoint 0.3 1.4 0);startOffsetToMount=0.3;end=(New-TestPoint 9.2 1.4 0);endOffsetToMount=0.25;maximumOffsetToMount=0.4;pathLength=8.9;attachedThroughout=$true;riderMoveCommandAtEnd=0;riderCommandsEmptyAtEnd=$true}
+    $o.speedLegs[0]|Add-Member carried @($carried)
+    return $copy
+}
+$speedLegsV3=New-SpeedLegsV3Fixture
+Check 'Sprint 2 v3 speed legs with the carried rider recorded from ownership' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV3) 'PASS'}
+$legV3Mutations=@(
+ @('v3 speed leg without the carried record',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('carried')}),
+ @('v3 speed leg whose moving mount carries no rider',{param($v)$v.observations.speedLegs[0].carried=@()}),
+ @('v3 carried rider that also carries its own Move command',{param($v)$mv=Copy-TestValue $v.observations.speedLegs[0].movers[0];$mv.id=$second;$mv.role='rider';$mv.executorId=$second;$mv.commandObject=1821;$v.observations.speedLegs[0].movers+=@($mv);$v.observations.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1821;finished=$true;hasExecutionProcess=$false;processEnded=$true})}),
+ @('v3 carried rider with a new player Move command',{param($v)$v.observations.speedLegs[0].carried[0].riderNewMoveCommand=$true}),
+ @('v3 carried rider with its stock agent enabled',{param($v)$v.observations.speedLegs[0].carried[0].riderAgentEnabled=$true}),
+ @('v3 carried rider detached during the leg',{param($v)$v.observations.speedLegs[0].carried[0].attachedThroughout=$false}),
+ @('v3 carried rider left its mount',{param($v)$v.observations.speedLegs[0].carried[0].endOffsetToMount=3.0}),
+ @('v3 carried rider that did not travel',{param($v)$v.observations.speedLegs[0].carried[0].pathLength=1.0}),
+ @('v3 carried rider on another mount',{param($v)$v.observations.speedLegs[0].carried[0].mountId=$mammoth}),
+ @('v3 carried rider not mounted',{param($v)$v.observations.speedLegs[0].carried[0].relationshipState='Mounting'}),
+ @('v2 speed leg carrying the v3 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v2'})
+)
+foreach($mutation in $legV3Mutations){$copy=Copy-TestValue $speedLegsV3;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v4 speed legs: the native state at the leg's end classifies an interrupted leg (r13 on the owner's surface).
+function New-SpeedLegsV4Fixture(){
+    $copy=Copy-TestValue $speedLegsV3;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v4'
+    $results=[pscustomobject]@{};$results|Add-Member $horse 'Success'
+    $o.speedLegs[0]|Add-Member endState ([pscustomobject]@{gameMode='Default';paused=$false;inCombat=$false;loading=$false;area='x';results=$results})
+    return $copy
+}
+$speedLegsV4=New-SpeedLegsV4Fixture
+Check 'Sprint 2 v4 speed legs with the recorded end state' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV4) 'PASS'}
+$legV4Mutations=@(
+ @('v4 speed leg without its end state',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('endState')}),
+ @('v4 speed leg ending in a dialog',{param($v)$v.observations.speedLegs[0].endState.gameMode='Dialog'}),
+ @('v4 speed leg ending in another area',{param($v)$v.observations.speedLegs[0].endState.area='y'}),
+ @('v4 speed leg end-state result differing from the mover',{param($v)$v.observations.speedLegs[0].endState.results.$horse='Interrupt'}),
+ @('v3 speed leg carrying the v4 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v3'})
+)
+foreach($mutation in $legV4Mutations){$copy=Copy-TestValue $speedLegsV4;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+# v5 speed legs (review 2026-10-31): a failed leg is recorded and the sequence continues for diagnosis; the aggregate acceptance and
+# the run-scoped interrupt observation (first native interrupt of each issued speed-leg Move, with callers) are recorded.
+function New-SpeedLegsV5Fixture(){
+    $copy=Copy-TestValue $speedLegsV4;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v5'
+    $o.speedLegs[0]|Add-Member accepted $true;$o.speedLegs[0]|Add-Member interruptRecords 0
+    $o|Add-Member speedLegsAccepted $true;$o|Add-Member speedLegInterruptions @()
+    $o|Add-Member speedLegInterruptObserver ([pscustomobject]@{scope='first native UnitCommand.Interrupt of each issued speed-leg Move command, recorded before cleanup with its callers; interrupts of other commands and every cleanup-phase interrupt are counted by phase only';method='Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt';token='060027AC';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';callerCapture='one System.Diagnostics.StackTrace per recorded interrupt (method names only, no per-frame tracing)';recordLimit=8;counts=[pscustomobject]@{}})
+    return $copy
+}
+function New-TestInterrupt([string]$Label,[string]$MoverId,[int]$Command){[pscustomobject]@{phase='speed-leg';legLabel=$Label;moverId=$MoverId;role='on-foot';commandObject=$Command;frame=5000;gameTicks=20000000L;gameSecondsSinceClick=3.9;wallSecondsSinceClick=4.1;commandStarted=$true;commandActed=$false;commandFinishedBefore=$false;resultBefore='None';position=(New-TestPoint 1 0 0);target=(New-TestPoint 9 0 0);flatDistanceToTarget=1.3;pathLengthSoFar=7.0;agent=[pscustomobject]@{enabled=$true;isReallyMoving=$true;wantsToMove=$true;pathFailed=$false;nearTheEnd=$false;speed=3.0;hasPath=$true;pathError=$false;pathDone=$true;pathVectorCount=12};gameMode='Default';paused=$false;inCombat=$false;unitInCombat=$false;turnBased=$false;loading=$false;area='x';unitCanMove=$true;unitCanAct=$true;callers='Kingmaker.UnitLogic.Commands.UnitCommands.InterruptMove < Kingmaker.Controllers.Units.UnitMoveController.Tick';callersTruncated=$false;nearbyMapObjects=@()}}
+$speedLegsV5=New-SpeedLegsV5Fixture
+Check 'Sprint 2 v5 speed legs with the aggregate acceptance and the interrupt observer' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV5) 'PASS'}
+Check 'Sprint 2 v5 speed legs with a recorded interrupt of a non-primary mover' {$v=Copy-TestValue $speedLegsV5;$mv=Copy-TestValue $v.observations.speedLegs[0].movers[0];$mv.id=$first;$mv.role='on-foot';$mv.executorId=$first;$mv.commandObject=1822;$mv.result='Interrupt';$v.observations.speedLegs[0].movers+=@($mv);$v.observations.speedLegs[0].endState.results|Add-Member $first 'Interrupt'
+    $v.observations.factRemovalAdmission.commands+=@([pscustomobject]@{commandObject=1822;finished=$true;hasExecutionProcess=$false;processEnded=$true});$v.observations.speedLegs[0].interruptRecords=1;$v.observations.speedLegInterruptions=@((New-TestInterrupt 'mounted-party' $first 1822));Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+$legV5Mutations=@(
+ @('v5 speed leg not accepted',{param($v)$v.observations.speedLegs[0].accepted=$false}),
+ @('v5 speed leg carrying a retained failure',{param($v)$v.observations.speedLegs[0]|Add-Member failure 'The speed leg''s primary mover did not complete a native route of meaningful length: mounted-party'}),
+ @('v5 aggregate acceptance false',{param($v)$v.observations.speedLegsAccepted=$false}),
+ @('v5 legs without the interrupt observer',{param($v)$v.observations.PSObject.Properties.Remove('speedLegInterruptObserver')}),
+ @('v5 interrupt observer on another method',{param($v)$v.observations.speedLegInterruptObserver.method='Kingmaker.UnitLogic.Commands.UnitCommands.InterruptMove'}),
+ @('v5 interrupt record count differing from the records',{param($v)$v.observations.speedLegs[0].interruptRecords=1}),
+ @('v5 interrupt record without its callers',{param($v)$v.observations.speedLegs[0].interruptRecords=1;$r=New-TestInterrupt 'mounted-party' $horse 1820;$r.PSObject.Properties.Remove('callers');$v.observations.speedLegInterruptions=@($r)}),
+ @('v4 speed leg carrying the v5 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v4'}),
+ @('v5 speed leg in the v4 shape',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('accepted')}),
+ @('v5 speed leg below the meaningful five-metre floor',{param($v)$v.observations.speedLegs[0].distance=3.0;$v.observations.speedLegs[0].movers[0].pathLength=3.0})
+)
+foreach($mutation in $legV5Mutations){$copy=Copy-TestValue $speedLegsV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'Sprint 2 v5 speed leg admitted at a shorter meaningful length' {$v=Copy-TestValue $speedLegsV5;$v.observations.speedLegs[0].distance=5.0;$v.observations.speedLegs[0].movers[0].pathLength=5.0;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+# v6 speed legs (r17 causal result): the goal search records the navmesh node height basis (r21 shape).
+function New-SpeedLegsV6Fixture(){
+    $copy=Copy-TestValue $speedLegsV5;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v6'
+    foreach($leg in $o.speedLegs){$leg.goalSearch|Add-Member startNodeHeight 0.914;$leg.goalSearch|Add-Member heightBasis 'navmesh node centre height (GetNearestNode node.position.y*0.001, the game''s own height-check basis); clampedPosition keeps the requested height'}
+    return $copy
+}
+$speedLegsV6=New-SpeedLegsV6Fixture
+Check 'Sprint 2 v6 speed legs with the navmesh height basis' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV6) 'PASS'}
+$legV6Mutations=@(
+ @('v6 speed leg without the height basis',{param($v)$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('heightBasis');$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('startNodeHeight')}),
+ @('v6 speed leg with the basis but no start node height',{param($v)$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('startNodeHeight')}),
+ @('v6 speed leg with another height basis',{param($v)$v.observations.speedLegs[0].goalSearch.heightBasis='clampedPosition'})
+)
+foreach($mutation in $legV6Mutations){$copy=Copy-TestValue $speedLegsV6;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v5"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v5 reader.'}
+    $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v6"'){throw 'Speed leg contract differs from the v6 reader.'}
+    $turnBased=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7TurnBasedDoorProbe.cs'));if($turnBased-cnotmatch'Contract = "owner-seed-turn-based-door-control-v3"'){throw 'Turn-based door contract differs from the v3 reader.'}
+    $sampler=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs'));if($sampler-cnotmatch'Contract = "aligned-interval/v2"'){throw 'Speed leg sampler contract differs from the v2 reader.'}
     $policy=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\DoorReturnGoalPolicy.cs'))
     foreach($pattern in @('Contract = "door-return-goal-clear-of-units/v1"','ClearanceMargin = 0.5f','MaximumClampResidual = 0.1f','MaximumTraceResidual = 0.05f','UnitConsiderationRadius = 11f','MaximumUnits = 256','RingRadii = { 0.5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f, 5f }','BearingsPerRing = 16')){if(-not$policy.Contains($pattern)){throw ('Door return policy constant changed without the reader: '+$pattern)}}}
 # v2 route moves (F5 hardening): each fixed 2 m move goes to the first route candidate (declared direction first, then

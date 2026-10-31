@@ -11,6 +11,7 @@ function Get-KmcChunk7SelectedScenario($Request){
   'six-horse-mounted-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-exploration'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-save'{'chunk7-two-pair-exploration'}
+  'owner-surface-speed'{'chunk7-two-pair-exploration'}
   'owner-seed-persistence-load'{'chunk7-persistence-load'}
   'owner-seed-realtime-core'{'chunk7-two-pair-realtime-core'}
   'owner-seed-combat-rider-first'{'chunk7-two-pair-combat-rider-first'}
@@ -47,6 +48,8 @@ function Get-KmcChunk7SelectedScenario($Request){
 function Get-KmcChunk7OwnedWriteCount($Request){
  # Owner seed: zero writes. The installed game registers no LevelUpAutoSaveController, so setup makes no level-up Auto.
  if(Test-KmcChunk7OwnedPairsOwnerSeed $Request){return 0}
+ # Owner-surface speed (Sprint 2): the owner's own save copy, one pre-owned pair, nothing built and nothing written.
+ if(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request){return 0}
  # Owner-seed-derived Manual producer: exactly its one measured Manual; its cold consumer: none.
  if(Test-KmcChunk7OwnedPairsSeedManual $Request){return 1}
  if((Test-KmcChunk7OwnedPairsSmallSave $Request)-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave $Request)-or(Test-KmcChunk7OwnedPairsFourthSave $Request)-or(Test-KmcChunk7OwnedPairsMediumSave $Request)-or(Test-KmcChunk7SixPairSave $Request)){return 1}
@@ -95,6 +98,33 @@ function Get-KmcChunk7OwnedPairsCase($Request){
 # measured Manual; the consumer cold-loads exactly that Manual in a separate process. Both are
 # labelled owner-seed-derived; neither is acquired or ordinary ancestry.
 function Test-KmcChunk7OwnedPairsSeedManual($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-seed-persistence-save'}
+# Sprint 2 (MOVE-01 on the owner's surface): a disposable copy of the owner's own registered save whose one pre-owned pair
+# (rider A and the KMC Horse it already owns) is bound exactly; no second pair, no build, no assistance, zero native writes.
+function Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'owner-surface-speed'}
+function Test-KmcChunk7OwnedPairsTurnBasedDoor($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
+ if(-not(Test-KmcChunk7OwnedPairsOwnerSeed $Request)-and-not(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){return $false};$s=$Request.ownedPairs
+ if($s-is[Collections.IDictionary]){$s=[pscustomobject]$s}
+ $null-ne$s.PSObject.Properties['turnBasedDoor']-and$s.turnBasedDoor-is[bool]-and$s.turnBasedDoor
+}
+function Assert-KmcChunk7OwnerSurfaceSpeedSelection($Request,$Selection,$Checkpoint){
+ $s=$Selection
+ # Finishing mission 2026-10-31: the explicit true opt-in runs the single-pair turn-based door stage instead of the speed legs.
+ $surfaceFields=@('case','seedId','seedSha256','riderAId','mountAId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount')
+ if($null-ne$s.PSObject.Properties['turnBasedDoor']){if($s.turnBasedDoor-isnot[bool]-or-not$s.turnBasedDoor){throw 'Turn-based door control on the owner surface is an explicit true opt-in.'};$surfaceFields+='turnBasedDoor'}
+ Assert-KmcExactProperties $s $surfaceFields 'owner-surface speed selection'
+ if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-surface run identity is malformed.'}
+ if($s.seedId-isnot[string]-or$s.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.seedId-ceq$Request.runId){throw 'Owner-surface speed requires an exact registered owner seed identity.'}
+ if($s.seedSha256-isnot[string]-or$s.seedSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner-surface speed requires its exact seed SHA256.'}
+ Assert-KmcOrdinaryGuid $s.riderAId;Assert-KmcOrdinaryGuid $s.mountAId
+ if($s.riderAId-ceq$s.mountAId){throw 'The owner rider and its pre-owned Horse must be distinct actors.'}
+ if($s.partyIds-isnot[Array]-or$s.partyIds.Count-lt2-or$s.partyIds.Count-gt8){throw 'Owner-surface field roster must be bounded.'}
+ $party=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal);foreach($id in $s.partyIds){Assert-KmcOrdinaryGuid $id;if(-not$party.Add($id)){throw 'Owner-surface roster repeats an actor.'}}
+ foreach($id in @($s.riderAId,$s.mountAId)){if(-not$party.Contains($id)){throw 'The owner rider and its Horse must be members of the selected field roster.'}}
+ if($null-ne$Checkpoint){throw 'Owner-surface speed cannot select a persistence checkpoint.'}
+ Assert-KmcChunk7Boolean $s.baseGameOnly $true;Assert-KmcOrdinaryInteger $s.expectedNativeLoadCount 1 1
+ if(($s.expectedNativeWriteCount-isnot[int]-and$s.expectedNativeWriteCount-isnot[long])-or$s.expectedNativeWriteCount-ne0){throw 'Owner-surface speed selects zero native writes.'}
+}
 function Test-KmcChunk7OwnedPairsSmallSave($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-save'}
 function Test-KmcChunk7OwnedPairsSmallLoad($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-persistence-load'}
 function Test-KmcChunk7OwnedPairsSmallThirdHorse($Request){(Get-KmcChunk7OwnedPairsCase $Request)-ceq'small-fixture-third-horse-setup'}
@@ -238,6 +268,11 @@ function Assert-KmcChunk7OwnerSeedPairsSelection($Request,$Selection,$Checkpoint
  # Only the mounted6 Manual producer pins rider A's pre-owned native KMC Horse (mountAId); every other owner seed is petless.
  $preOwned=$manual-and(Test-KmcChunk7Mounted6Selection $s)
  $fields=@('case','seedId','seedSha256','riderAId','riderBId','partyIds','xpAssistance','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount');if($preOwned){$fields+='mountAId'}
+ # Sprint 2: the turn-based door stage is an explicit true opt-in on owner-seed exploration only (never the Manual producer).
+ if($null-ne$s.PSObject.Properties['turnBasedDoor']){
+  if($manual-or$s.turnBasedDoor-isnot[bool]-or-not$s.turnBasedDoor){throw 'Turn-based door control is an explicit true opt-in for owner-seed exploration only.'}
+  $fields+='turnBasedDoor'
+ }
  Assert-KmcExactProperties $s $fields 'owner-seed two-pair selection'
  if($preOwned){$m6=Get-KmcChunk7Mounted6Seed;if($s.riderAId-cne$m6.riderAId-or$s.mountAId-cne$m6.horseId-or@($s.partyIds)-cnotcontains$m6.horseId){throw 'The mounted6 Manual producer pins exactly rider A and its pre-owned native KMC Horse, a member of the selected field roster.'}}
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-seed consumer run identity is malformed.'}
@@ -312,6 +347,7 @@ function Assert-KmcChunk7OwnedPairsSelection($Request){
  Assert-KmcChunk7NoLevel6SeedBinding $s
  Assert-KmcChunk7ChargeSeedBinding $s $checkpoint
  Assert-KmcChunk7Mounted6SeedBinding $s $checkpoint
+ if(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request){Assert-KmcChunk7OwnerSurfaceSpeedSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedSetup $Request){Assert-KmcChunk7OwnerSeedPairsSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedLoad $Request){Assert-KmcChunk7OwnerSeedDerivedLoadSelection $Request $s $checkpoint;return}
  if(Test-KmcChunk7OwnedPairsSeedDerivedCombat $Request){Assert-KmcChunk7OwnerSeedDerivedCombatSelection $Request $s $checkpoint;return}
@@ -353,7 +389,7 @@ function Assert-KmcChunk7OwnedPairsDescriptor($Request){
  if(-not(Test-KmcChunk7OwnedPairsScenario $Request.scenario)){throw 'Inherited descriptor belongs to the exact separate family.'}
  if(-not(Test-KmcChunk7LoadRefusal $Request)-and$null-ne$Request.PSObject.Properties['loadRefusalDerivationSha256']-and$null-ne$Request.loadRefusalDerivationSha256){throw 'Only the exact refusal request carries refusal provenance.'}
  $d=$Request.persistenceLoad;Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'inherited native descriptor'
- if(Test-KmcChunk7OwnedPairsSeedSetup $Request){
+ if((Test-KmcChunk7OwnedPairsSeedSetup $Request)-or(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){
   # Registry-supplied exact names, admitted generically as the cold owner-seed kind does; an
   # owner-seed-derived Manual is never re-admitted as an owner seed.
   if($d.internalName-isnot[string]-or$d.internalName-cnotmatch(Get-KmcChunk7OwnerSeedNamePattern)-or$d.internalName-cin@('KMC_C7_ASSISTED_FIXTURE',(Get-KmcChunk7OwnerSeedManualName))){throw 'Owner seed internal name is malformed or impersonates the producer fixture.'}
@@ -874,7 +910,11 @@ function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
  # (every retained not-applicable artifact scanned zero doors); any observed door requires
  # the deciding rows, so a door too close is never read as no door.
  $legacy=$null-eq$Door.PSObject.Properties['rows']
- Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')}) 'not-applicable native door'
+ # Review 2026-10-31: a turn-based selection records that it required combat usability (requiredCombatUsable true) and its
+ # rows carry the native flag; such a scan is not applicable when every eligible door is NotInCombat.
+ $combat=$null-ne$Door.PSObject.Properties['requiredCombatUsable']
+ Assert-KmcExactProperties $Door $(if($legacy){@('applicable','reason','candidatesScanned','radius')}else{@('applicable','reason','candidatesScanned','radius','mounts','truncated','rows')+$(if($combat){@('requiredCombatUsable')}else{@()})}) 'not-applicable native door'
+ if($combat){Assert-KmcChunk7Boolean $Door.requiredCombatUsable $true;if($legacy){throw 'A combat-usability scan requires its rows.'}}
  Assert-KmcChunk7Boolean $Door.applicable $false
  if($Door.reason-isnot[string]-or[string]::IsNullOrWhiteSpace($Door.reason)-or$Door.reason.Length-gt512){throw 'Not-applicable door lacks its observed reason.'}
  Assert-KmcOrdinaryInteger $Door.candidatesScanned 0 100000
@@ -894,7 +934,9 @@ function Assert-KmcChunk7DoorNotApplicable($Door,$Owners,$Movements){
   if($drift-gt0.5){throw 'Not-applicable door scan was not taken where the pair movement ended.'}
  }
  Assert-KmcChunk7NativeDoorRows $Door.rows $Door.mounts ([int]$Door.candidatesScanned) 'not-applicable door scan' -CurrentOnly
- if(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
+ if($combat){if(@($Door.rows|Where-Object{$null-eq$_.PSObject.Properties['notInCombat']}).Count-ne0){throw 'A combat-usability scan row lacks the native flag.'}
+  if(@($Door.rows|Where-Object{$_.eligible-and-not$_.notInCombat}).Count-ne0){throw 'A not-applicable combat-usability scan contains a combat-usable qualifying door.'}}
+ elseif(@($Door.rows|Where-Object{$_.eligible}).Count-ne0){throw 'A not-applicable door scan contains a qualifying door.'}
 }
 function Assert-KmcChunk7OwnerSeedCleanup($Cleanup,[bool]$Manual=$false){
  foreach($field in @('pairResidueAbsent','controlsSettled','settingsAndSelectionRestored','nativeProcessesSettled','cleanupCustodySettled','setupCompleted','ownerSeedSetupPetsPreserved','setupStateUnchangedAfterBoundary','setupRetainedInMemoryOnly')){Assert-KmcChunk7Boolean $Cleanup.$field $true}

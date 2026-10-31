@@ -121,6 +121,40 @@
       "masterPath": "fixtures/owner-supplied/KMC_C7_MOUNTED6_SEED.master.zks",
       "intakePath": "fixtures/owner-supplied/KMC_C7_MOUNTED6_SEED.intake01.json",
       "intakeSha256": "f4e8afd3c24868c4d6a372bdbdad846d0799d093713715f1874aaedafe93f6d1"
+    },
+    {
+      "seedId": "KMC_S2_ROGUELIKE_SURFACE_CANDIDATE",
+      "sha256": "1fda72b1f10d7f1373b11971b52b44e8e8de3ce14797515706e892dfd1dcce0a",
+      "length": 596816,
+      "internalName": "After mounting",
+      "fileName": "Manual_301_After_mounting.zks",
+      "type": "Manual",
+      "compatibilityVersion": 1,
+      "gameId": "48a4bec2-a553-4f01-a722-ceacbe389d44",
+      "gameName": "Akasa",
+      "area": "c49315fe499f0e5468af6f19242499a2",
+      "campaignDlc": "Endless",
+      "dlc": ["Tieflings", "Varnhold", "Endless", "Arcane"],
+      "masterPath": "fixtures/owner-supplied/KMC_S2_ROGUELIKE_SURFACE_CANDIDATE.master.zks",
+      "intakePath": "fixtures/owner-supplied/KMC_S2_ROGUELIKE_SURFACE_CANDIDATE.intake01.json",
+      "intakeSha256": "eb30c54362e3985a7a02a98e9c194b9879fc7a01a2fa8f910b013108e091b3c7"
+    },
+    {
+      "seedId": "KMC_S2_DUNGEON_FLOOR_CANDIDATE",
+      "sha256": "4c1db37ecdb774204df8049d9209286f19607ee9660372ecd49017043098fa7a",
+      "length": 292196,
+      "internalName": "Autosave1",
+      "fileName": "Auto_1121.zks",
+      "type": "Auto",
+      "compatibilityVersion": 1,
+      "gameId": "48a4bec2-a553-4f01-a722-ceacbe389d44",
+      "gameName": "Akasa",
+      "area": "63de91df2e72a6d41917f8f2d8765375",
+      "campaignDlc": "Endless",
+      "dlc": ["Tieflings", "Varnhold", "Endless", "Arcane"],
+      "masterPath": "fixtures/owner-supplied/KMC_S2_DUNGEON_FLOOR_CANDIDATE.master.zks",
+      "intakePath": "fixtures/owner-supplied/KMC_S2_DUNGEON_FLOOR_CANDIDATE.intake01.json",
+      "intakeSha256": "704c3e09a266561ef13c50810bc04461c179a5d87bf139ba3abd0628be76de12"
     }
   ]
 }

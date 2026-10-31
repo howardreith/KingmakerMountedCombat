@@ -47,6 +47,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly ObservedPlayerAttackRequest<UnitEntityData, UnitCommand> observedStockRequest =
             new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private MountedDoorInteractionCommand activeDoorInteraction;
+        // Sprint 2 (SPACE-01): the owned post-interaction occupancy settlement of the last door click.
+        private MountedDoorOccupancySettlement pendingDoorSettlement;
+        // The last frame on which the native turn movement override admitted the mount with budget left.
+        private int mountMovementOpportunityFrame = -1;
         private UnitMoveTo activeRiderTurnGroundMove;
         private MountedPairOwner<UnitEntityData, GameMountedRelationshipService> groundMoveOwner;
         private UnitMoveTo observedNativeMountTurnMove;
@@ -89,8 +93,12 @@ namespace KingmakerMountedCombat.Integration
 
         public bool HasActiveCommand => activeCommand != null && !activeCommand.IsFinished;
 
+        public bool HasPendingDoorSettlement => pendingDoorSettlement != null && !pendingDoorSettlement.IsFinished;
+
+        internal bool MountMovementOpportunityRecently => mountMovementOpportunityFrame >= 0 && Time.frameCount - mountMovementOpportunityFrame <= 2;
+
         internal bool HasRetainedPairCommands => HasChargeOwnership || activeCommand != null ||
-            finishedCommandPendingSweep != null || activeDoorInteraction != null || activeRiderTurnGroundMove != null ||
+            finishedCommandPendingSweep != null || activeDoorInteraction != null || pendingDoorSettlement != null || activeRiderTurnGroundMove != null ||
             riderTurnGroundMoveAdmissionPending || HasStockAttackIntent;
 
         internal bool PreservesApproachParent(UnitCommands commands, UnitCommand.CommandType type, bool interruptPaired)
@@ -132,7 +140,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool HasExactMountMovement =>
             activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished ||
             activeCommand?.DelegatedMove != null && !activeCommand.DelegatedMove.IsFinished ||
-            activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished;
+            activeDoorInteraction?.DelegatedMove != null && !activeDoorInteraction.DelegatedMove.IsFinished ||
+            pendingDoorSettlement?.RecoveryMove != null;
 
         internal bool OwnsExactUnifiedMountCommand(UnitCommand command)
         {
@@ -147,7 +156,8 @@ namespace KingmakerMountedCombat.Integration
             var commands = relationship.Mount.Commands;
             return ReferenceEquals(commands.GetCommand(command.Type), command) &&
                 (OwnsExactUnifiedMountCommand(command) || ReferenceEquals(command, activeRiderTurnGroundMove) ||
-                 ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove));
+                 ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove) ||
+                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove));
         }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
@@ -233,6 +243,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 move = activeDoorInteraction.DelegatedMove;
                 source = "door-approach";
+            }
+            else if (pendingDoorSettlement?.RecoveryMove != null)
+            {
+                move = pendingDoorSettlement.RecoveryMove;
+                source = "door-recovery";
             }
 
             var commands = relationship.Mount?.Commands;
@@ -767,6 +782,7 @@ namespace KingmakerMountedCombat.Integration
                     LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
+                CancelPendingDoorSettlement("pair attack admitted");
                 activeCommand = command;
                 unifiedTurn.RememberPairedMovementInput();
                 LastOutcome = null;
@@ -837,6 +853,20 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeDoorInteraction = null;
             }
+            var settlement = pendingDoorSettlement;
+            if (settlement != null)
+            {
+                settlement.Tick();
+                if (settlement.IsFinished)
+                {
+                    var settled = settlement.Outcome;
+                    logger.Info("Mounted door occupancy settled: mountId=" + settled.MountId + "; settled=" + settled.OccupancySettled +
+                        " (" + settled.OccupancySettleGameSeconds.ToString("F2") + " s); footprintClear=" + settled.FootprintClear +
+                        "; recovery=" + settled.RecoveryDisposition + "/" + settled.RecoveryTerminal +
+                        "; footprintClearAfter=" + settled.FootprintClearAfterRecovery + "; slotRestored=" + settled.MountMoveSlotRestored);
+                    if (ReferenceEquals(pendingDoorSettlement, settlement)) pendingDoorSettlement = null;
+                }
+            }
             DriveRiderTurnGroundMovement();
             SweepRiderTurnGroundMovement();
             if (activeCommand != null && activeCommand.IsFinished)
@@ -884,6 +914,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 doorInteraction.Interrupt();
             }
+            var settlement = pendingDoorSettlement;
+            pendingDoorSettlement = null;
+            settlement?.Cancel(reason);
             CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
             relationship.Runtime.CancelMountMovement();
@@ -1226,7 +1259,9 @@ namespace KingmakerMountedCombat.Integration
         {
             result = false;
             var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
-            var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished;
+            // The door's occupancy recovery move is driven exactly like its approach: on the rider's acting turn.
+            var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished ||
+                pendingDoorSettlement?.RecoveryMove != null;
             var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
             if (disposed || !attackApproachActive && !doorApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
@@ -1266,6 +1301,9 @@ namespace KingmakerMountedCombat.Integration
             }
             unifiedTurn.TickMountMovement(turn, ref deltaTime);
             result = deltaTime > 0f;
+            // The mount's legitimate movement opportunity this frame: admitted on the rider's acting turn with
+            // movement budget left. The door approach's stall clock counts stillness only on such frames.
+            if (result) mountMovementOpportunityFrame = Time.frameCount;
             // At zero remaining time use the native denial branch. Because the
             // mount is not CurrentTurn, it cannot be charged twice there; native
             // CanMoveInTurnBased completes/interrupts its path with the installed
@@ -1419,43 +1457,100 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
-            if (HasStockAttackIntent)
-            {
-                Cancel("door interaction replaced stock attack intent");
-            }
-
-            if (HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
-                riderTurnGroundMoveAdmissionPending)
-            {
-                LastFeedback = "Mounted door interaction rejected: another pair command is active.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
-                logger.Info(LastFeedback);
-                return false;
-            }
-
+            // Sprint 2 (DOOR-01): native replacement semantics. A click on the door already being approached keeps
+            // the accepted command; a click on another door replaces it; the mount's ordinary real-time player move
+            // yields to the door approach exactly as a native unit's own move yields to its new Standard command.
+            // Review correction B: two phases. Phase one evaluates every gate (turn/mode, admission disposition,
+            // whether the busy Move slot is only the pair's own recovery) WITHOUT touching the existing operation;
+            // only an admissible plan mutates, in phase two, and installs the new command. A forbidden click cancels
+            // nothing: no stock intent, no active door, no recovery, no mount move.
             var mountCommands = relationship.Mount?.Commands;
-            if (mountCommands == null || !mountCommands.Empty || mountCommands.Queue.Count != 0)
-            {
-                LastFeedback = "Mounted door interaction rejected: " + MountDisplayName +
-                    " is busy; wait for its current command to finish.";
-                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
-                logger.Info(LastFeedback);
-                return false;
-            }
-
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            if (!MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
+            var turnAdmissible = MountedInteractionRoutingPolicy.CanAdmitInCurrentTurn(
                 CombatController.IsInTurnBasedCombat(),
                 turn?.Unit == relationship.Rider,
                 turn != null && turn.Status == TurnController.TurnStatus.Preparing,
-                turn != null && turn.IsActing))
+                turn != null && turn.IsActing);
+            var disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            var busyOnlyWithOwnRecovery = pendingDoorSettlement?.RecoveryMove != null && mountCommands != null &&
+                ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), pendingDoorSettlement.RecoveryMove) &&
+                mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
+                mountCommands.GetCommand(UnitCommand.CommandType.Swift) == null && mountCommands.Queue.Count == 0;
+            var plan = MountedDoorApproachPolicy.PlanAdmission(disposition, busyOnlyWithOwnRecovery, turnAdmissible);
+            if (plan == MountedDoorAdmissionPlan.RejectWrongTurn)
             {
                 LastFeedback = "Open an approached door during the rider's turn.";
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongTurn };
-                logger.Info("Rejected mounted door interaction: " + LastFeedback);
+                logger.Info("Rejected mounted door interaction (nothing replaced): " + LastFeedback);
+                return false;
+            }
+            if (!MountedDoorApproachPolicy.PlanMutates(plan))
+            {
+                LastFeedback = MountedDoorApproachPolicy.Feedback(disposition, MountDisplayName);
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                if (plan == MountedDoorAdmissionPlan.RetainSameDoor) DoorInteractionRetainedClickCount++;
+                logger.Info(LastFeedback);
                 return false;
             }
 
+            // Phase two: the admissible plan mutates exactly what it names, then the admission is re-decided. An armed
+            // stock-attack intent yields to the door click (native: a new Standard replaces the attack); only the intent
+            // is cleared here, never the controller-wide cancel, so the recovery and mount-move branches below name
+            // their own replacements.
+            if (HasStockAttackIntent)
+            {
+                var dispatched = stockIntentCommand != null && ReferenceEquals(activeCommand, stockIntentCommand) ? activeCommand : null;
+                ClearStockAttackIntent("door interaction replaced stock attack intent", true);
+                ClearObservedStockRequest();
+                if (dispatched != null && !dispatched.ChargeMode)
+                {
+                    activeCommand = null;
+                    if (!dispatched.IsFinished)
+                    {
+                        pairedCommandScheduler.ObserveExternalInterrupt(dispatched, "door interaction replaced stock attack");
+                        dispatched.Interrupt();
+                    }
+                }
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            }
+            if (plan == MountedDoorAdmissionPlan.ReplaceRecovery)
+            {
+                DoorInteractionReplacedRecoveryCount++;
+                CancelPendingDoorSettlement("replaced by a new door click");
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            }
+            if (plan == MountedDoorAdmissionPlan.ReplaceActiveDoor || disposition == MountedDoorAdmissionDisposition.ReplaceActiveDoor)
+            {
+                var replaced = activeDoorInteraction;
+                activeDoorInteraction = null;
+                replaced?.Interrupt();
+                // The earlier approach's finished delegated move may still sit in the Move slot; sweep it before re-deciding.
+                if (mountCommands != null && mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
+                logger.Info("Mounted door interaction replaced an earlier door approach: door=" + exactDoor.name);
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            }
+            if (disposition == MountedDoorAdmissionDisposition.ReplaceMountMovement)
+            {
+                var mountMove = mountCommands.GetCommand(UnitCommand.CommandType.Move);
+                mountMove?.Interrupt();
+                if (mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
+                relationship.Mount.View?.StopMoving();
+                DoorInteractionReplacedMountMoveCount++;
+                logger.Info("Mounted door interaction replaced the " + MountDisplayName + " player move: door=" + exactDoor.name +
+                    "; slotIdle=" + (mountCommands.Empty && mountCommands.Queue.Count == 0));
+                disposition = DecideDoorAdmission(mountCommands, exactDoor);
+            }
+            if (disposition != MountedDoorAdmissionDisposition.Admit)
+            {
+                // Fail closed after a replacement that did not free the pair: reported, nothing further replaced.
+                LastFeedback = MountedDoorApproachPolicy.Feedback(disposition, MountDisplayName);
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.AlreadyActiveCommand };
+                logger.Warning("Mounted door interaction replacement did not free the pair: plan=" + plan + "; " + LastFeedback);
+                return false;
+            }
+
+            // Admitted: a settlement still waiting on the previous click (no move yet) is superseded by this one.
+            CancelPendingDoorSettlement("superseded by a new door click");
             var routed = new MountedDoorInteractionCommand(
                 relationship,
                 relationship.Rider,
@@ -1464,6 +1559,7 @@ namespace KingmakerMountedCombat.Integration
                 logger,
                 HandleDoorInteractionTerminal);
             routed.NativePartnerMovement = settings.EnablePairedActivation;
+            routed.MovementOpportunity = () => MountMovementOpportunityRecently;
             activeDoorInteraction = routed;
             unifiedTurn.RememberPairedMovementInput();
             LastDoorInteractionOutcome = null;
@@ -1634,6 +1730,48 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal long DoorInteractionReplacedMountMoveCount { get; private set; }
+
+        internal long DoorInteractionRetainedClickCount { get; private set; }
+
+        internal long DoorInteractionReplacedRecoveryCount { get; private set; }
+
+        // The settlement yields to any admitted pair command (door click, pair attack, charge): one owner of the mount.
+        private void CancelPendingDoorSettlement(string reason)
+        {
+            var yielding = pendingDoorSettlement;
+            pendingDoorSettlement = null;
+            if (yielding != null && !yielding.IsFinished) yielding.Cancel(reason);
+        }
+
+        internal long DoorOccupancyRecoveryCount { get; private set; }
+
+        private MountedDoorAdmissionDisposition DecideDoorAdmission(UnitCommands mountCommands, StandardDoor exactDoor)
+        {
+            if (mountCommands == null)
+            {
+                return MountedDoorAdmissionDisposition.RejectMountBusy;
+            }
+            var mountMove = mountCommands.GetCommand(UnitCommand.CommandType.Move);
+            var mountMoveIsPlayerMove = mountMove is UnitMoveTo && mountMove.CreatedByPlayer &&
+                !(mountMove is MountedDoorApproachMove) && !mountMove.IsFinished;
+            var otherSlotOccupied = mountCommands.Standard != null ||
+                mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||
+                mountCommands.GetCommand(UnitCommand.CommandType.Swift) != null;
+            return MountedDoorApproachPolicy.DecideAdmission(
+                // A dispatched stock-attack intent is replaceable by a door click (native: a new Standard replaces the
+                // attack); it is interrupted in phase two of TryRouteMountedDoorInteraction, never here.
+                HasActiveCommand && !(HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) ||
+                HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending,
+                HasActiveDoorInteraction,
+                HasActiveDoorInteraction && ReferenceEquals(activeDoorInteraction.Door, exactDoor),
+                CombatController.IsInTurnBasedCombat(),
+                mountMove != null,
+                mountMoveIsPlayerMove,
+                otherSlotOccupied,
+                mountCommands.Queue.Count == 0);
+        }
+
         private void HandleDoorInteractionTerminal(
             MountedDoorInteractionCommand command,
             MountedDoorInteractionOutcome outcome)
@@ -1642,6 +1780,14 @@ namespace KingmakerMountedCombat.Integration
             if (activeDoorInteraction == command)
             {
                 activeDoorInteraction = null;
+            }
+            if (outcome.Settlement != null && !outcome.Settlement.IsFinished)
+            {
+                // The native action ended; the controller now owns the settlement (and any recovery move) until it
+                // reports a terminal result on this same outcome, or Stop/retarget/dismount/area change cancels it.
+                CancelPendingDoorSettlement("superseded by a later door interaction");
+                pendingDoorSettlement = outcome.Settlement;
+                DoorOccupancyRecoveryCount++;
             }
             LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString() &&
                 outcome.InteractionCount == 1 && outcome.DoorStateChanged
@@ -1654,6 +1800,8 @@ namespace KingmakerMountedCombat.Integration
                 "; doorStateChanged=" + outcome.DoorStateChanged +
                 "; riderPathSuppressed=" + outcome.RiderPathSuppressed +
                 "; mountMoveSlotRestored=" + outcome.MountMoveSlotRestored +
+                "; preventionRefused=" + outcome.PreventionRefused +
+                "; settlementPending=" + (outcome.Settlement != null && !outcome.Settlement.IsFinished) +
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; feedback=" + LastFeedback);
         }

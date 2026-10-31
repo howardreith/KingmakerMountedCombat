@@ -672,7 +672,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Scenario == Chunk7OwnedPairsSelection.Scenario)
             {
                 if (PersistenceLoad == null || OwnedPairs == null) errors.Add("Inherited pairs require their exact qualified native input descriptor.");
-                else if (OwnedPairs.OwnerSeedSetup)
+                else if (OwnedPairs.OwnerSeedSetup || OwnedPairs.IsOwnerSurfaceSpeed)
                 {
                     // Registry-supplied exact owner-seed names, admitted generically as in the
                     // cold owner-seed kind; never the producer fixture identity and never an
@@ -1501,6 +1501,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "chunk7-two-pair-exploration", "C7-world-fixture", "C7-world-native-acquisition", "C7-world-owner-seed-setup", "C7-world-two-native-mounts",
             "C7-world-selection-routing", "C7-world-independent-dismount", "C7-world-cycles", "C7-world-sampling", "C7-world-cleanup", "C7-world-runtime", "C7-world-visual", "C7-world-interrupted",
             "C7-world-owner-seed-manual", "C7-small-third-horse-native-setup", "C7-small-third-horse-native-manual", "C7-f09-fourth-horse-native-setup", "C7-f09-fourth-horse-native-manual",
+            "C7-world-owner-surface-mount", "C7-world-owner-surface-legs", "C7-world-turn-based-door",
             "C7-six-native-mounts", "C7-six-selection-routing", "C7-six-cycles", "C7-six-sampling",
             "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",
@@ -1989,6 +1990,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string WorkingBasis = "exact-working-fixture";
         internal const string AcquiredOwnedBasis = "owned-acquired-field-copy";
         internal const string OwnerSeedDerivedBasis = "owner-seed-derived-disposable-copy";
+        // Sprint 2 (DOOR-01 turn-based): the owner-seed exploration run copy itself, when its selection opts into the
+        // turn-based door stage (the Sprint 2 completion mission selects one native turn-based door control).
+        internal const string OwnerSeedTurnBasedDoorBasis = "owner-seed-disposable-copy-turn-based-door";
         internal const string OwnerApproval = "docs/CHUNK7-OWNER-DIRECTIVES-2026-10-16.md, Owner decisions on the combat slice (October 17, 2026): combat target approved";
         // Null forbids the target; any other value is the exact admitted basis.
         internal static string Basis(RuntimeRequest request, string workingSha256, bool fixtureAdmitted)
@@ -2003,9 +2007,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SourceArchiveSha256 &&
                     request.PersistenceLoad.Sha256 != selection.SeedSha256 && request.PersistenceLoad.InternalName == Chunk7OwnedPairsSelection.OwnerSeedManualName
                     ? OwnerSeedDerivedBasis : null;
+            // Owner-seed exploration with the explicit turn-based door opt-in: the admitted input is exactly the seed's run copy.
+            // (The owner-surface pre-owned pair's single-pair door stage admits the same basis on its own seed's run copy.)
+            if (selection.TurnBasedDoorSelected || selection.OwnerSurfaceDoorSelected)
+                return request.PersistenceLoad != null && request.PersistenceLoad.Sha256 == selection.SeedSha256 ? OwnerSeedTurnBasedDoorBasis : null;
             // The owner-seed setup and cold-consumer kinds never spawn a combat target; the checkpoint
             // consumer binds its producer's saved target read-only, and exploration checkpoints have none.
-            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad || selection.IsOwnerSeedLoadRefusal) return null;
+            if (selection.OwnerSeedSetup || selection.IsOwnerSeedDerivedLoad || selection.IsOwnerSeedCheckpointSave || selection.IsOwnerSeedCheckpointLoad || selection.IsOwnerSeedLoadRefusal || selection.IsOwnerSurfaceSpeed) return null;
             return AcquiredOwnedBasis;
         }
     }

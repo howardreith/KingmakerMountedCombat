@@ -74,7 +74,10 @@ function Assert-KmcChunk7OwnerSeedEntry($Entry){
  Assert-KmcAssistedObjectValue $Entry @('seedId','sha256','length','internalName','fileName','type','compatibilityVersion','gameId','gameName','area','campaignDlc','dlc','masterPath','intakePath','intakeSha256') 'owner seed registry entry'
  if($Entry.seedId-isnot[string]-or$Entry.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner seed registry identity is malformed.'}
  foreach($key in @('sha256','intakeSha256')){if($Entry.$key-isnot[string]-or$Entry.$key-cnotmatch'^[a-f0-9]{64}$'){throw 'Owner seed registry hash is malformed.'}}
- Assert-KmcOrdinaryInteger $Entry.length 1 268435456;Assert-KmcOrdinaryInteger $Entry.compatibilityVersion 1 1;Assert-KmcBootstrapInventoryString $Entry.type 'Manual'
+ Assert-KmcOrdinaryInteger $Entry.length 1 268435456;Assert-KmcOrdinaryInteger $Entry.compatibilityVersion 1 1
+ # Owner-approved seeds are the owner's own Manual saves or, since the finishing mission of 2026-10-31, an owner-identified
+ # autosave copied as a read-only master (KMC_S2_DUNGEON_FLOOR_CANDIDATE); either is only ever loaded as a disposable run copy.
+ if($Entry.type-isnot[string]-or$Entry.type-cnotin@('Manual','Auto')){throw 'Owner seed registry save type must be Manual or Auto.'}
  if($Entry.internalName-isnot[string]-or$Entry.internalName-cnotmatch(Get-KmcChunk7OwnerSeedNamePattern)-or$Entry.internalName-ceq'KMC_C7_ASSISTED_FIXTURE'){throw 'Owner seed registry internal name is malformed or impersonates the producer fixture.'}
  if($Entry.fileName-isnot[string]-or$Entry.fileName-cnotmatch'^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}\.zks$'-or$Entry.fileName.EndsWith('_KMC_C7_ASSISTED_FIXTURE.zks',[StringComparison]::Ordinal)){throw 'Owner seed registry file name is malformed or impersonates the producer fixture.'}
  Assert-KmcOrdinaryGuid $Entry.gameId;Assert-KmcAssistedGuid32 $Entry.area
