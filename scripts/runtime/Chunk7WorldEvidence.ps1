@@ -440,9 +440,9 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
     # v5 (review 2026-10-31): a failed leg is recorded (accepted false, failure) and the later legs continue for diagnosis; the
     # aggregate speedLegsAccepted stays false until every applicable leg is accepted; the first native interrupt of each issued
     # speed-leg Move is observed before cleanup (speedLegInterruptions) through the declared run-scoped observer.
-    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')){throw 'Sprint 2 speed leg contract differs.'}
-    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5');$legsV3=$Observations.speedLegContract-cin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')
-    $legsV4=$Observations.speedLegContract-cin@('sprint2-speed-legs/v4','sprint2-speed-legs/v5');$legsV5=$Observations.speedLegContract-ceq'sprint2-speed-legs/v5'
+    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6')){throw 'Sprint 2 speed leg contract differs.'}
+    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6');$legsV3=$Observations.speedLegContract-cin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6')
+    $legsV4=$Observations.speedLegContract-cin@('sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6');$legsV5=$Observations.speedLegContract-cin@('sprint2-speed-legs/v5','sprint2-speed-legs/v6')
     foreach($key in @('speedLegsAccepted','speedLegInterruptions','speedLegInterruptObserver')){if(($null-ne$Observations.PSObject.Properties[$key])-ne$legsV5){throw ('Sprint 2 speed legs '+$key+' belongs to the v5 contract exactly.')}}
     if($legsV5){
         Assert-KmcChunk7Boolean $Observations.speedLegsAccepted $true
@@ -975,11 +975,11 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     }
     # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
     if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
-    if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
+    if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5','sprint2-speed-legs/v6')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
     Assert-KmcChunk7Sprint2Legs $o
     # Review 2026-10-31 (v5 legs): the one bounded read-only door inventory of the owner's surface area, taken at the start
     # from the Horse's position (the combat-usability flag beside eligibility). Nothing was acquired, closed or clicked.
-    if(($null-ne$o.PSObject.Properties['doorInventory'])-ne($o.speedLegContract-ceq'sprint2-speed-legs/v5')){throw 'Owner-surface door inventory belongs to the v5 legs exactly.'}
+    if(($null-ne$o.PSObject.Properties['doorInventory'])-ne($o.speedLegContract-cin@('sprint2-speed-legs/v5','sprint2-speed-legs/v6'))){throw 'Owner-surface door inventory belongs to the v5 legs exactly.'}
     if($null-ne$o.PSObject.Properties['doorInventory']){$inv=$o.doorInventory
         Assert-KmcExactProperties $inv @('boundary','candidateCount','rowLimit','radius','mounts','truncated','rows','interactionTested') 'owner-surface door inventory'
         Assert-KmcBootstrapInventoryString $inv.boundary 'owner-surface-start';Assert-KmcOrdinaryInteger $inv.candidateCount 0 100000;Assert-KmcOrdinaryInteger $inv.rowLimit 32 32

@@ -43,7 +43,15 @@ namespace KingmakerMountedCombat.Diagnostics
         // the later legs continue for diagnosis and the aggregate speedLegsAccepted stays false until every applicable leg
         // is accepted; the first native UnitCommand.Interrupt of each issued speed-leg Move is observed before cleanup
         // (actor, command, callers, mode, position, native path status, nearby map objects) through a run-scoped hook.
-        internal const string SpeedLegContract = "sprint2-speed-legs/v5";
+        // v6 (r17 causal result, 2026-10-31): every party mover was interrupted by the native path-completion chain
+        // (UnitMovementAgent.TickMovement > CompleteMovement > InterruptMovement > UnitEntityView.OnMovementInterrupted >
+        // UnitCommand.Interrupt) at the end of a two-vertex path that ended 1.2-1.5 m short of a goal recorded 1.7 m BELOW the
+        // raised surface: GetNearestNode's clampedPosition keeps the requested height, so the goal was a point under the
+        // navmesh and the nearest node to it (in 3D) lay short of it. The goal and the level samples now take the navmesh
+        // node's own height (node.position.y / 1000, the basis of the game's own GetNearestNode height check); nothing is
+        // raycast and no terrain rule is changed. The v5 "heights" of r17 are retained with the v4 limitation.
+        internal const string SpeedLegContract = "sprint2-speed-legs/v6";
+        private const string SpeedLegHeightBasis = "navmesh node centre height (GetNearestNode node.position.y*0.001, the game's own height-check basis); clampedPosition keeps the requested height";
         private const int SpeedLegInterruptRecordLimit = 8;
         private const float SpeedLegLevelToleranceMetres = 0.5f;
         internal const float SpeedLegDistanceMetres = 9f;
@@ -407,6 +415,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var others = Game.Instance.State.Units.Where(u => u != null && u.IsInState && u.View?.AgentASP != null && !movingSet.Contains(u) &&
                 Vector3.Distance(Flat(u.Position), Flat(start)) <= 30f).Take(256).ToArray();
             var doorPoint = doorProbe != null ? doorProbe.DoorPosition : null; var doorRadius = doorProbe != null ? doorProbe.DoorRadius : 0f;
+            // v6: heights come from the navmesh node itself; the start's own node height is the level reference.
+            var startInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start);
+            var startNodeHeight = startInfo.node != null ? (float)startInfo.node.position.y * 0.001f : start.y;
+            search["startNodeHeight"] = startNodeHeight; search["heightBasis"] = SpeedLegHeightBasis;
             for (var i = 0; i < SpeedLegBearingOffsets.Length && !found; i++)
             {
                 var heading = Quaternion.Euler(0f, SpeedLegBearingOffsets[i], 0f) * direction;
@@ -417,7 +429,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var reason = "no-walkable-native-node";
                 if (walkable)
                 {
-                    var clamped = nearest.clampedPosition;
+                    // v6: the goal sits on the navmesh node's own height; the clamped position's height is the requested one.
+                    var nodeHeight = (float)nearest.node.position.y * 0.001f;
+                    var clamped = new Vector3(nearest.clampedPosition.x, nodeHeight, nearest.clampedPosition.z);
+                    candidate["clampedHeight"] = nearest.clampedPosition.y; candidate["nodeHeight"] = nodeHeight;
                     var clampResidual = Vector3.Distance(Flat(requested), Flat(clamped));
                     var traceResidual = Vector3.Distance(Flat(Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(start, clamped)), Flat(clamped));
                     var doorDistance = doorPoint.HasValue ? Vector3.Distance(Flat(clamped), Flat(doorPoint.Value)) : float.PositiveInfinity;
@@ -426,14 +441,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         slack = Math.Min(slack, Vector3.Distance(Flat(clamped), Flat(other.Position)) - (moverCorpulence + other.View.AgentASP.Corpulence + 0.5f));
                     candidate["clamped"] = Point(clamped); candidate["clampResidual"] = clampResidual; candidate["traceResidual"] = traceResidual;
                     candidate["doorDistance"] = doorDistance; candidate["minimumSlack"] = slack;
-                    // v4: the navmesh height sampled every 1.5 m along the heading must stay level with the start (no stairs or ledge).
+                    // v4/v6: the navmesh height sampled every 1.5 m along the heading must stay level with the start (no stairs
+                    // or ledge); v6 reads the node's own height (v4 read clampedPosition, which keeps the requested height).
                     var heights = new JArray(); var level = true;
                     for (var s = 1.5f; s <= SpeedLegDistanceMetres + 0.01f; s += 1.5f)
                     {
                         var sampleInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start + heading * s);
                         var sampleWalkable = sampleInfo.node != null && sampleInfo.node.Walkable;
-                        var rise = sampleWalkable ? sampleInfo.clampedPosition.y - start.y : float.NaN;
-                        heights.Add(new JObject { ["along"] = s, ["walkable"] = sampleWalkable, ["rise"] = sampleWalkable ? (JToken)rise : null });
+                        var sampleHeight = sampleWalkable ? (float)sampleInfo.node.position.y * 0.001f : float.NaN;
+                        var rise = sampleWalkable ? sampleHeight - startNodeHeight : float.NaN;
+                        heights.Add(new JObject { ["along"] = s, ["walkable"] = sampleWalkable, ["nodeHeight"] = sampleWalkable ? (JToken)sampleHeight : null, ["rise"] = sampleWalkable ? (JToken)rise : null });
                         if (!sampleWalkable || Math.Abs(rise) > SpeedLegLevelToleranceMetres) level = false;
                     }
                     candidate["heights"] = heights; candidate["level"] = level;
