@@ -375,6 +375,26 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private Vector3 s3TrapLegPoint;
         private StandardDoor s3TrapDoor;
+        private MapObjectView s3TrapSecret;
+        private UnitCommand s3TrapSecretCommand;
+        private int s3TrapSecretRuleOffset;
+
+        // The nearest map object whose interaction is the native skill-check (a secret passage), usable by one ordinary
+        // click right now; its facts are recorded whether or not it is usable (attribution).
+        private MapObjectView FindSprint3SecretPassage(float radius, JObject leg)
+        {
+            var candidates = (UnityEngine.Object.FindObjectsOfType<MapObjectView>() ?? new MapObjectView[0])
+                .Where(m => m != null && !(m is TrapObjectView) && m.Interactions.Any(i => i is InteractionSkillCheck) && HorizontalDistance(m.transform.position, horse.Position) <= radius)
+                .OrderBy(m => HorizontalDistance(m.transform.position, horse.Position)).ToArray();
+            leg["secretPassages"] = new JArray(candidates.Select(m => { var check = m.Interactions.OfType<InteractionSkillCheck>().First(); return new JObject {
+                ["name"] = m.name, ["distance"] = HorizontalDistance(m.transform.position, horse.Position), ["skill"] = check.Skill.ToString(), ["dc"] = check.DC,
+                ["canInteract"] = check.CanInteract(), ["availableInteractions"] = ClickMapObjectHandler.HasAvailableInteractions(m.gameObject),
+                ["inFogOfWar"] = m.Data?.IsInFogOfWar, ["revealed"] = m.Data?.IsRevealed, ["perceptionPassed"] = m.Data?.IsPerceptionCheckPassed,
+                ["perceptionRadius"] = m.PerceptionCheckComponent == null ? (float?)null : m.PerceptionCheckComponent.Radius,
+                ["perceptionDc"] = m.PerceptionCheckComponent == null ? (int?)null : m.PerceptionCheckComponent.DC,
+                ["riderRollAllowed"] = m.Data?.IsPerceptionRollAllowed(rider), ["mountRollAllowed"] = m.Data?.IsPerceptionRollAllowed(horse) }; }));
+            return candidates.FirstOrDefault(m => m.Interactions.OfType<InteractionSkillCheck>().First().CanInteract() && ClickMapObjectHandler.HasAvailableInteractions(m.gameObject));
+        }
         private const int Sprint3TrapDoorLimit = 2;
         private const float Sprint3TrapDoorScanMetres = 12f;
 
@@ -423,6 +443,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 s3TrapDoor = null;
                 if (!opened) return false;
             }
+            else if (s3TrapSecret != null)
+            {
+                // The native skill-check interaction ran (or was refused) on the secret passage; the graph tells whether it opened.
+                var record = (JObject)doors[doors.Count - 1];
+                var after = Sprint3PathPossible(horse.Position, s3TrapLegPoint);
+                record["reachableAfter"] = after; record["openAfter"] = after == true; record["distanceAfter"] = HorizontalDistance(s3TrapSecret.transform.position, horse.Position);
+                record["canInteractAfter"] = s3TrapSecret.Interactions.OfType<InteractionSkillCheck>().FirstOrDefault()?.CanInteract();
+                record["command"] = Sprint3Command(s3TrapSecretCommand); record["checkEvents"] = s3TrapObserver.EventsSince(s3TrapSecretRuleOffset);
+                s3TrapSecret = null; s3TrapSecretCommand = null;
+                if (after != true) return false;
+            }
             else if (remaining <= Sprint3TrapLegShortMetres) return false;
             else if (reachable == false)
             {
@@ -430,9 +461,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 var door = FindSprint3ClosedDoor(Sprint3TrapDoorScanMetres);
                 if (door == null)
                 {
-                    leg["noDoor"] = "the point is cut off from the mount's node and no closed clickable door stands within " + Sprint3TrapDoorScanMetres + " m";
-                    leg["obstacleInventory"] = Sprint3ObstacleInventory(s3TrapLegPoint);
-                    return false;
+                    // r15: the cut-off room's only way in was a secret passage 1.5 m from the settle (a MapObjectView whose
+                    // interaction is the native InteractionSkillCheck); one ordinary click lets the engine roll its own check.
+                    var secret = FindSprint3SecretPassage(6f, leg);
+                    if (secret == null)
+                    {
+                        leg["noDoor"] = "the point is cut off from the mount's node and no closed clickable door or usable secret passage stands within " + Sprint3TrapDoorScanMetres + " m";
+                        leg["obstacleInventory"] = Sprint3ObstacleInventory(s3TrapLegPoint);
+                        return false;
+                    }
+                    var check = secret.Interactions.OfType<InteractionSkillCheck>().First();
+                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    s3TrapSecretRuleOffset = s3TrapObserver.EventCount;
+                    var secretClicked = new ClickMapObjectHandler().OnClick(secret.gameObject, secret.transform.position, 0, false, false);
+                    s3TrapSecretCommand = rider.Commands.Standard;
+                    doors.Add(new JObject { ["kind"] = "secret-passage", ["name"] = secret.name, ["position"] = CapturePosition(secret.transform.position),
+                        ["distance"] = HorizontalDistance(secret.transform.position, horse.Position), ["skill"] = check.Skill.ToString(), ["dc"] = check.DC,
+                        ["openBefore"] = false, ["clicked"] = secretClicked, ["frame"] = Time.frameCount, ["inputPath"] = "ClickMapObjectHandler.OnClick",
+                        ["admitted"] = Sprint3Command(s3TrapSecretCommand) });
+                    if (!secretClicked) return false;
+                    s3TrapSecret = secret; return true;
                 }
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 var clicked = new ClickMapObjectHandler().OnClick(door.gameObject, door.transform.position, 0, false, false);
@@ -970,6 +1018,8 @@ namespace KingmakerMountedCombat.Diagnostics
             internal int Disarms => events.Count(e => ((string)e["kind"]).StartsWith("disarm-", StringComparison.Ordinal) && (string)e["caseId"] == caseId);
             internal void BeginCase(string value) { caseId = value; }
             internal JObject Capture() => new JObject { ["events"] = events.DeepClone() };
+            internal int EventCount => events.Count;
+            internal JArray EventsSince(int offset) => new JArray(events.Skip(Math.Max(0, offset)).Select(e => e.DeepClone()));
             // The party's native Perception rolls against one trap (PartyPerceptionController: one roll per moving character per rank).
             internal JArray PerceptionChecks(string trapId) => new JArray(events.Where(e => (string)e["kind"] == "perception-check" &&
                 (trapId == null || (string)e["trap"] == trapId)).Select(e => e.DeepClone()));
@@ -985,8 +1035,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     p["d20"] = (int)evt.D20; p["rollResult"] = evt.RollResult; p["statValue"] = evt.StatValue; p["passed"] = evt.IsPassed;
                     return;
                 }
-                if (evt.Initiator != rider || evt.StatType != StatType.SkillThievery) return;
-                var e = Record("skill-check", evt.Initiator); e["stat"] = evt.StatType.ToString(); e["dc"] = evt.DC; e["d20"] = (int)evt.D20;
+                if (evt.Initiator != rider) return;
+                // "skill-check" stays the trap row's Trickery count; any other rider check (a secret passage) is "rider-check".
+                var e = Record(evt.StatType == StatType.SkillThievery ? "skill-check" : "rider-check", evt.Initiator); e["stat"] = evt.StatType.ToString(); e["dc"] = evt.DC; e["d20"] = (int)evt.D20;
                 e["rollResult"] = evt.RollResult; e["statValue"] = evt.StatValue; e["passed"] = evt.IsPassed;
             }
             public void HandleDisarmTrapSuccess(UnitEntityData unit, TrapObjectView trap) { var e = Record("disarm-success", unit); e["trap"] = trap?.UniqueId; }
