@@ -285,7 +285,11 @@ function Assert-KmcChunk7Measurements($Rows) {
 # that decided it; the producer's first admitted candidate is the goal.
 function Assert-KmcChunk7GoalSearchShape($Search,[string]$Label){
     if($null-eq$Search){throw ($Label+' goal search is missing.')}
-    Assert-KmcExactProperties $Search @('start','direction','distance','candidates','selectedIndex') ($Label+' goal search')
+    # Speed legs v6: the search records the navmesh height basis (the start node's own height and the basis statement); both or neither.
+    $v6=$null-ne$Search.PSObject.Properties['startNodeHeight']-or$null-ne$Search.PSObject.Properties['heightBasis']
+    Assert-KmcExactProperties $Search (@('start','direction','distance','candidates','selectedIndex')+$(if($v6){@('startNodeHeight','heightBasis')}else{@()})) ($Label+' goal search')
+    if($v6){if(-not(Test-KmcChunk7FiniteNumber $Search.startNodeHeight)){throw ($Label+' goal search start node height is nonfinite.')}
+        if($Search.heightBasis-isnot[string]-or$Search.heightBasis-cnotlike'navmesh node centre height*'){throw ($Label+' goal search height basis differs.')}}
     Assert-KmcChunk7DoorPoint $Search.start ($Label+' search start');Assert-KmcChunk7DoorPoint $Search.direction ($Label+' search direction')
     if(-not(Test-KmcChunk7FiniteNumber $Search.distance)-or$Search.distance-le0){throw ($Label+' goal search distance is invalid.')}
     if($Search.candidates-isnot[Array]-or$Search.candidates.Count-lt1-or$Search.candidates.Count-gt12){throw ($Label+' goal search candidates are missing or unbounded.')}
@@ -479,6 +483,8 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
             if($es.area-isnot[string]-or$es.area-cne[string]$leg.environment.area){throw ('Sprint 2 speed leg '+$leg.label+' ended in another area.')}
             foreach($mv in @($leg.movers)){if([string]$es.results.($mv.id)-cne[string]$mv.result){throw ('Sprint 2 speed leg '+$leg.label+' end-state result differs from the mover row.')}}}
         Assert-KmcChunk7GoalSearchShape $leg.goalSearch ('speed leg '+$leg.label)
+        # v6: the goal and the level samples stand on the navmesh node height; the search must say so.
+        if($Observations.speedLegContract-ceq'sprint2-speed-legs/v6'-and$null-eq$leg.goalSearch.PSObject.Properties['heightBasis']){throw ('Sprint 2 v6 speed leg '+$leg.label+' goal search lacks its navmesh height basis.')}
         if(@($leg.selectedIds).Count-lt1-or($leg.label-ceq'mounted-party'-and@($leg.selectedIds).Count-lt2)){throw 'Sprint 2 speed leg selection is empty or not a party.'}
         if(-not(Test-KmcChunk7FiniteNumber $leg.gameSeconds)-or$leg.gameSeconds-le0){throw 'Sprint 2 speed leg game time is invalid.'}
         $movers=@($leg.movers);if($movers.Count-lt1){throw 'Sprint 2 speed leg has no movers.'}
