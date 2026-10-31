@@ -432,16 +432,22 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
     # v2 (Sprint 2 completion): the motion interval is aligned to the path (SpeedLegSampler) and the v1 figure is kept beside it.
     # v3 (Sprint 2 completion, review correction A): mounted ground input is routed to the mount, so a carried rider has no
     # locomotion command of its own; each leg records its carried riders passively (owner, own Move slot, path, attachment).
-    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3')){throw 'Sprint 2 speed leg contract differs.'}
-    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3');$legsV3=$Observations.speedLegContract-ceq'sprint2-speed-legs/v3'
+    # v4: the goal search refuses routes whose sampled navmesh height leaves the start level, and the native state at the leg's end is recorded.
+    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4')){throw 'Sprint 2 speed leg contract differs.'}
+    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4');$legsV3=$Observations.speedLegContract-cin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4');$legsV4=$Observations.speedLegContract-ceq'sprint2-speed-legs/v4'
     $rows=@($Observations.speedLegs);if($rows.Count-lt1-or$rows.Count-gt4){throw 'Sprint 2 speed legs are missing or unbounded.'}
     $expected=@('mounted-party','mounted-solo','horse-solo','rider-solo')
     for($i=0;$i-lt$rows.Count;$i++){$leg=$rows[$i]
         if($leg.label-cne$expected[$i]){throw ('Sprint 2 speed leg order differs at '+$i+'.')}
         if($leg.applicable-isnot[bool]){throw 'Sprint 2 speed leg applicability must be a native boolean.'}
         if(-not$leg.applicable){Assert-KmcExactProperties $leg @('label','selection','primaryMoverId','distance','applicable','goalSearch','reason') 'speed leg (not applicable)';continue}
-        $legKeys=@('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds');if($legsV3){$legKeys+='carried'}
+        $legKeys=@('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds');if($legsV3){$legKeys+='carried'};if($legsV4){$legKeys+='endState'}
         Assert-KmcExactProperties $leg $legKeys 'speed leg'
+        if($legsV4){$es=$leg.endState;Assert-KmcExactProperties $es @('gameMode','paused','inCombat','loading','area','results') 'speed leg end state'
+            if($es.gameMode-isnot[string]-or$es.gameMode-cne'Default'){throw ('Sprint 2 speed leg '+$leg.label+' ended outside the default game mode: '+$es.gameMode)}
+            foreach($key in @('paused','inCombat','loading')){Assert-KmcChunk7Boolean $es.$key $false}
+            if($es.area-isnot[string]-or$es.area-cne[string]$leg.environment.area){throw ('Sprint 2 speed leg '+$leg.label+' ended in another area.')}
+            foreach($mv in @($leg.movers)){if([string]$es.results.($mv.id)-cne[string]$mv.result){throw ('Sprint 2 speed leg '+$leg.label+' end-state result differs from the mover row.')}}}
         Assert-KmcChunk7GoalSearchShape $leg.goalSearch ('speed leg '+$leg.label)
         if(@($leg.selectedIds).Count-lt1-or($leg.label-ceq'mounted-party'-and@($leg.selectedIds).Count-lt2)){throw 'Sprint 2 speed leg selection is empty or not a party.'}
         if(-not(Test-KmcChunk7FiniteNumber $leg.gameSeconds)-or$leg.gameSeconds-le0){throw 'Sprint 2 speed leg game time is invalid.'}
@@ -926,7 +932,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     }
     # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
     if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
-    if($o.speedLegContract-cne'sprint2-speed-legs/v3'){throw 'Owner-surface speed requires the v3 speed legs (carried riders recorded from pair ownership).'}
+    if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
     Assert-KmcChunk7Sprint2Legs $o
     $legs=@($o.speedLegs);if($legs.Count-ne4){throw 'Owner-surface speed requires all four aligned legs.'}
     $primary=@($horse,$horse,$horse,$rider)

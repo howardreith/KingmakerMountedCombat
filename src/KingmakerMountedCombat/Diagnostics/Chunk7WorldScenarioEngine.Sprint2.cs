@@ -29,7 +29,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // ground click is routed to its mount), so each leg records the carried riders passively: the owner, the rider's
         // own Move slot at the click (no new player command), its sampled path beside the mount and its attachment
         // through the leg. Nothing moves the rider and no mover row is fabricated for it.
-        internal const string SpeedLegContract = "sprint2-speed-legs/v3";
+        // v4 (r13 observation on the owner's surface: every selected mover was interrupted together after climbing about
+        // 1 to 1.7 m toward a goal recorded at the start height): a candidate route is admitted only when the navmesh
+        // height sampled along the heading stays level with the start, and the native state at the leg's end (game mode,
+        // pause, combat, loading, area) is recorded so an interrupted leg is classified rather than guessed.
+        internal const string SpeedLegContract = "sprint2-speed-legs/v4";
+        private const float SpeedLegLevelToleranceMetres = 0.5f;
         internal const float SpeedLegDistanceMetres = 9f;
         private const float SpeedLegClampResidualMetres = 0.5f;
         private const float SpeedLegDoorClearanceMetres = 1.5f;
@@ -208,6 +213,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (riderMove != null && !ReferenceEquals(riderMove, c.RiderMoveAtClick) && riderMove.CreatedByPlayer) c.Record["riderNewMoveCommand"] = true;
             }
             if (!allDone) return false;
+            // v4: the native state when the last mover settled, recorded before any assertion (classifies an interrupt).
+            speedLeg["endState"] = new JObject { ["gameMode"] = Game.Instance.CurrentMode.ToString(), ["paused"] = Game.Instance.IsPaused,
+                ["inCombat"] = Game.Instance.Player.IsInCombat, ["loading"] = LoadingProcess.Instance.IsLoadingInProcess,
+                ["area"] = Game.Instance.CurrentlyLoadedArea?.AssetGuid, ["results"] = new JObject(speedLegMovers.Select(m => new JProperty(m.Unit.UniqueId, m.Move.Result.ToString()))) };
             foreach (var c in speedLegCarried)
             {
                 var r = c.Record;
@@ -297,8 +306,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         slack = Math.Min(slack, Vector3.Distance(Flat(clamped), Flat(other.Position)) - (moverCorpulence + other.View.AgentASP.Corpulence + 0.5f));
                     candidate["clamped"] = Point(clamped); candidate["clampResidual"] = clampResidual; candidate["traceResidual"] = traceResidual;
                     candidate["doorDistance"] = doorDistance; candidate["minimumSlack"] = slack;
+                    // v4: the navmesh height sampled every 1.5 m along the heading must stay level with the start (no stairs or ledge).
+                    var heights = new JArray(); var level = true;
+                    for (var s = 1.5f; s <= SpeedLegDistanceMetres + 0.01f; s += 1.5f)
+                    {
+                        var sampleInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start + heading * s);
+                        var sampleWalkable = sampleInfo.node != null && sampleInfo.node.Walkable;
+                        var rise = sampleWalkable ? sampleInfo.clampedPosition.y - start.y : float.NaN;
+                        heights.Add(new JObject { ["along"] = s, ["walkable"] = sampleWalkable, ["rise"] = sampleWalkable ? (JToken)rise : null });
+                        if (!sampleWalkable || Math.Abs(rise) > SpeedLegLevelToleranceMetres) level = false;
+                    }
+                    candidate["heights"] = heights; candidate["level"] = level;
                     reason = clampResidual > SpeedLegClampResidualMetres ? "clamp-residual" : traceResidual > SpeedLegClampResidualMetres ? "trace-unreachable" :
-                        doorDistance <= doorRadius + SpeedLegDoorClearanceMetres ? "inside-door-approach" : slack < 0d ? "blocked-by-unit" : "admitted";
+                        doorDistance <= doorRadius + SpeedLegDoorClearanceMetres ? "inside-door-approach" : slack < 0d ? "blocked-by-unit" : !level ? "elevation-change" : "admitted";
                     if (reason == "admitted") { goal = clamped; found = true; }
                 }
                 candidate["reason"] = reason; candidates.Add(candidate);
