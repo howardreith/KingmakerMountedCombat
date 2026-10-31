@@ -30,7 +30,16 @@ function Assert-KmcSprint3TrapRow($Row,[string]$Rider,[string]$Mount) {
  # Discovery is native: the trap must have passed the party's own Perception roll and be revealed when it is clicked.
  if(-not (Test-KmcSprint3Prop $e 'trapAtClick') -or $e.trapAtClick.perceptionPassed -ne $true -or $e.trapAtClick.revealed -ne $true -or $e.trapAtClick.active -ne $true){ throw 'S3 trap: the clicked trap was not natively discovered, revealed and active' }
  if(Test-KmcSprint3Prop $e 'explorationLegs'){
-  foreach($leg in @($e.explorationLegs)){ if($leg.ordered -eq $true -and [double]$leg.destinationToTrap -lt 3.5){ throw 'S3 trap: an exploration leg was ordered onto the trap' } }
+   foreach($leg in @($e.explorationLegs)){
+   if($leg.ordered -eq $true -and [double]$leg.destinationToTrap -lt 3.5){ throw 'S3 trap: an exploration leg was ordered onto the trap' }
+   if($leg.ordered -eq $true -and [int]$leg.reorders -gt 3){ throw 'S3 trap: an exploration leg was re-ordered beyond its bound' }
+   # Fixture setup bound: at most one Perception rank on the disposable rider, only when the saved rolls had consumed the pair's ranks.
+   if(Test-KmcSprint3Prop $leg 'perceptionRank'){
+    $g=$leg.perceptionRank
+    if($g.granted -eq $true -and ($g.allowedBefore -ne $false -or [int]$g.riderBaseAfter -ne ([int]$g.riderBaseBefore+1) -or $g.allowedAfter -ne $true)){ throw 'S3 trap: the Perception fixture rank exceeded one rank or was granted while a native roll was already allowed' }
+    if($g.granted -ne $true -and [int]$g.riderBaseAfter -ne [int]$g.riderBaseBefore){ throw 'S3 trap: the rider Perception rank changed without a recorded grant' }
+   }
+  }
   $last=@($e.explorationLegs)[-1]
   if([string]$last.outcome -cne 'discovered' -or $last.perceptionBefore -eq $true){ throw 'S3 trap: the last exploration leg did not end in a native discovery of a previously undiscovered trap' }
   if(@($last.perceptionChecks).Count -lt 1 -or @($last.perceptionChecks | Where-Object { $_.passed -eq $true }).Count -lt 1){ throw 'S3 trap: no passed native Perception roll was observed for the discovered trap' }
@@ -124,6 +133,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
   if($e.redeliver.resolvedToHeldTouch -ne $true){ throw 'S3 tb insufficient: the next-turn click did not resolve to the held touch' }
   if([double]$e.recipientPlacement.distanceAfter -le [double]$e.allowanceMetres){ throw 'S3 tb insufficient: the recipient was within one turn''s pair movement' }
   if(-not (Test-KmcSprint3Prop $e 'firstTurnEnd') -or $null -eq $e.firstTurnEnd.heldTouch){ throw 'S3 tb insufficient: the charge was not held at the first turn end' }
+  if((Test-KmcSprint3Prop $e 'secondTurnEnd') -and $null -ne $e.secondTurnEnd.heldTouch){ throw 'S3 tb insufficient: the charge was still held after the re-delivery turn' }
  } else {
   if([int]$e.inputCount -ne 1){ throw 'S3 tb friendly: more than one ordinary input was needed' }
   if([double]$e.cast.distanceMountToTarget -lt 5){ throw 'S3 tb friendly: the recipient was not beyond touch range' }
@@ -162,5 +172,7 @@ function Assert-KmcSprint3ApproachEvidence {
  if($o.final.riderCommandsEmpty -ne $true -or $o.final.mountCommandsEmpty -ne $true -or $o.final.processesSettled -ne $true -or $o.final.nativeAbilitiesPending -ne $false -or $o.final.projectilesPending -ne $false){ throw 'Sprint 3 final native state is not settled' }
  foreach($item in @($o.items)){ if($item.disposed -ne $true -or $item.slotRestored -ne $true -or $item.noOwnedItemResident -ne $true){ throw 'Sprint 3 disposable native item ownership remains' } }
  if([int]$o.riderThieveryBaseAfter -ne [int]$o.riderThieveryBaseBefore){ throw 'Sprint 3 rider Trickery fixture rank was not restored' }
+ if((Test-KmcSprint3Prop $o 'riderPerceptionBaseAfter') -and [int]$o.riderPerceptionBaseAfter -ne [int]$o.riderPerceptionBaseBefore){ throw 'Sprint 3 rider Perception fixture rank was not restored' }
+ if((Test-KmcSprint3Prop $o 'perceptionRestored') -and $o.perceptionRestored -ne $true){ throw 'Sprint 3 rider Perception fixture rank restoration was not confirmed' }
  if($Status -ceq 'PASS' -and $Artifact.status -cne 'PASS'){ throw 'Sprint 3 failed native observation cannot be promoted' }
 }

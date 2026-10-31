@@ -48,8 +48,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private TrapObjectView s3Trap;
         private UnitCommand s3Command;
         private Vector3 s3MountStart, s3RiderStart;
-        private bool s3Stopped, s3SecondInputSent, s3CarriedSeen, s3ReleasedSeen, s3TrickeryGranted;
-        private int s3TrickeryBefore;
+        private bool s3Stopped, s3SecondInputSent, s3CarriedSeen, s3ReleasedSeen, s3TrickeryGranted, s3PerceptionGranted;
+        private int s3TrickeryBefore, s3PerceptionBefore;
         private float s3MountTravelled;
         private Vector3 s3LastMountSample;
         private Sprint3TrapObserver s3TrapObserver;
@@ -72,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rider"] = rider.UniqueId, ["mount"] = horse.UniqueId, ["mountBlueprint"] = horse.Blueprint.AssetGuid,
                 ["cases"] = new JArray(Sprint3Cases), ["initialPrepared"] = CastingPreparedInventory(), ["snapshots"] = new JArray(),
                 ["riderLevel"] = rider.Descriptor.Progression.CharacterLevel, ["riderSpeedMps"] = rider.CurrentSpeedMps,
-                ["mountCombatSpeedMps"] = horse.CombatSpeedMps, ["riderThieveryBaseBefore"] = rider.Stats.SkillThievery.BaseValue,
+                ["mountCombatSpeedMps"] = horse.CombatSpeedMps, ["riderThieveryBaseBefore"] = rider.Stats.SkillThievery.BaseValue, ["riderPerceptionBaseBefore"] = rider.Stats.SkillPerception.BaseValue,
                 ["policy"] = "Ordinary native inputs; the product's carried approach moves the mount; stock Kingmaker owns every check, cast, charge, roll, spend and effect." };
             castingOriginalSlots = new NativeCastingOriginalSlots(rider, castingTrace);
             // Only the CLW scroll stack: the 6C quicken rod would spend its own charge on every memorized cast (r02).
@@ -297,7 +297,31 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!fog && horse.HasMotionThisTick && HorizontalDistance(horse.Position, s3Trap.transform.position) < radius)
                 sampling["mountMovingInRadius"] = (int)sampling["mountMovingInRadius"] + 1;
         }
-        private const int Sprint3TrapCandidateLimit = 2, Sprint3TrapDiscoveryWaitFrames = 90;
+        private const int Sprint3TrapCandidateLimit = 2, Sprint3TrapDiscoveryWaitFrames = 90, Sprint3TrapLegReorderLimit = 3;
+        // The native radius test is a 3D distance (PartyPerceptionController: DistanceTo(transform.position)); the carried
+        // rider sits about 1.6 m above the mount's ground, so the leg ends three metres inside the radius (r08: a leg that
+        // settled 7.9 m from an 8 m trap never put the rider inside it).
+        private const float Sprint3TrapLegInsideRadiusMetres = 3f, Sprint3TrapLegShortMetres = 2f;
+
+        // Fixture setup on the disposable rider only, before a leg: the native controller allows one Perception roll per
+        // character per rank (StaticEntityData.LastPerceptionRollRank persists in the save). When the fixture's saved
+        // rolls already consumed the pair's current ranks against this trap, one Perception rank on the rider re-opens
+        // exactly one native roll; the roll, DC and result stay native and the rank is restored at cleanup.
+        private void EnsureSprint3PerceptionRollAllowed(TrapObjectView trap, JObject leg)
+        {
+            var data = trap.Data;
+            var allowed = new[] { rider, horse }.Any(u => Game.Instance.Player.ControllableCharacters.Contains(u) && data.IsPerceptionRollAllowed(u));
+            var grant = new JObject { ["allowedBefore"] = allowed, ["riderBaseBefore"] = rider.Stats.SkillPerception.BaseValue, ["granted"] = false };
+            if (!allowed)
+            {
+                if (!s3PerceptionGranted) { s3PerceptionBefore = rider.Stats.SkillPerception.BaseValue; s3PerceptionGranted = true; }
+                rider.Stats.SkillPerception.BaseValue = rider.Stats.SkillPerception.BaseValue + 1;
+                grant["granted"] = true;
+            }
+            grant["riderBaseAfter"] = rider.Stats.SkillPerception.BaseValue; grant["riderModifiedAfter"] = rider.Stats.SkillPerception.ModifiedValue;
+            grant["allowedAfter"] = data.IsPerceptionRollAllowed(rider);
+            leg["perceptionRank"] = grant;
+        }
 
         // Begins the pair's ordinary exploration leg toward the current candidate: one ground order to a route point that
         // is inside the trap's native perception radius, outside its trigger zone and at least four metres short of it. The
@@ -330,7 +354,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var legs = (JArray)(s3Facts["explorationLegs"] ?? (s3Facts["explorationLegs"] = new JArray()));
             var leg = new JObject { ["candidate"] = Sprint3TrapFacts(s3Trap), ["perceptionRadius"] = radius };
             legs.Add(leg);
-            var approach = FindSprint3TrapApproachPoint(s3Trap, Math.Max(4f, radius - 2.5f));
+            var approach = FindSprint3TrapApproachPoint(s3Trap, Math.Max(4f, radius - Sprint3TrapLegInsideRadiusMetres));
             if (!approach.HasValue) { leg["skipped"] = "no walkable point inside the perception radius outside the trigger zone"; return false; }
             var legPoint = approach.Value;
             var path = Pathfinding.ABPath.Construct(horse.Position, legPoint);
@@ -338,11 +362,32 @@ namespace KingmakerMountedCombat.Diagnostics
             var length = path.error ? float.PositiveInfinity : path.GetTotalLength();
             leg["routeError"] = path.error; leg["routeLength"] = length;
             if (path.error || length > Sprint3PathLengthBoundMetres) { leg["skipped"] = "no bounded native route"; return false; }
+            leg["nativeGatesAtStart"] = Sprint3TrapGates(s3Trap);
+            EnsureSprint3PerceptionRollAllowed(s3Trap, leg);
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ClickGroundHandler.MoveSelectedUnitsToPoint(legPoint, false);
             leg["destination"] = CapturePosition(legPoint); leg["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position); leg["ordered"] = true;
             leg["perceptionBefore"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedBefore"] = s3Trap.Data.IsRevealed;
-            s3TrapDiscoveryFrames = 0;
+            leg["reorders"] = 0; leg["settles"] = new JArray();
+            s3TrapLegPoint = legPoint; s3TrapDiscoveryFrames = 0;
+            return true;
+        }
+        private Vector3 s3TrapLegPoint;
+
+        // A leg that settled short of its point (r08: 2.5 m and 20 m short) is re-ordered through the same ordinary ground
+        // click, a bounded number of times; the pair's command surfaces at each settle are recorded for attribution.
+        private bool ReorderSprint3TrapLeg(JObject leg)
+        {
+            var remaining = HorizontalDistance(horse.Position, s3TrapLegPoint);
+            var settles = (JArray)leg["settles"];
+            settles.Add(new JObject { ["frame"] = Time.frameCount, ["distanceToPoint"] = remaining, ["distanceToTrap"] = HorizontalDistance(s3Trap.transform.position, horse.Position),
+                ["riderPosition"] = CapturePosition(rider.Position), ["mountPosition"] = CapturePosition(horse.Position),
+                ["mountCommands"] = CaptureCastingCommandSurface(horse), ["riderCommands"] = CaptureCastingCommandSurface(rider),
+                ["rejectionCodes"] = Sprint3State()["rejectionCodes"]?.DeepClone() });
+            if (remaining <= Sprint3TrapLegShortMetres || (int)leg["reorders"] >= Sprint3TrapLegReorderLimit) return false;
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(s3TrapLegPoint, false);
+            leg["reorders"] = (int)leg["reorders"] + 1;
             return true;
         }
 
@@ -384,6 +429,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ObserveSprint3TrapMotion(leg);
                 if (!Sprint3Settled()) { s3StableFrames = 0; return; }
                 if (++s3StableFrames < 10) return;
+                if (s3TrapDiscoveryFrames == 0 && !s3Trap.Data.IsPerceptionCheckPassed && ReorderSprint3TrapLeg(leg)) { s3StableFrames = 0; ResetLeafClock(); return; }
                 leg["distanceAfter"] = HorizontalDistance(s3Trap.transform.position, horse.Position);
                 leg["perceptionAfter"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedAfter"] = s3Trap.Data.IsRevealed;
                 leg["perceptionChecks"] = s3TrapObserver.PerceptionChecks(s3Trap.UniqueId);
@@ -728,10 +774,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turn?.Unit == rider && (live != null && !live.IsFinished || horse.View?.AgentASP?.IsReallyMoving == true || !rider.Commands.Empty)) return;
                 if (turn?.Unit == rider && ReferenceEquals(turn, s3RowTurn))
                 {
-                    s3Facts["firstTurnEnd"] = Sprint3State();
-                    s3Facts["firstTurnEvents"] = castingTrace.EventsSince(s3EventOffset);
+                    // The first rider turn ends here; after the next-turn re-delivery the same step ends the second turn
+                    // and the row is judged (r11: re-entering the held-charge step a turn after the delivery failed the row).
+                    s3Facts[s3SecondInputSent ? "secondTurnEnd" : "firstTurnEnd"] = Sprint3State();
+                    s3Facts[s3SecondInputSent ? "secondTurnEvents" : "firstTurnEvents"] = castingTrace.EventsSince(s3EventOffset);
                     EndCastingNativeTurn(turn);
-                    s3Step = insufficientCase ? 2 : 3; ResetLeafClock(); return;
+                    s3Step = insufficientCase && !s3SecondInputSent ? 2 : 3; ResetLeafClock(); return;
                 }
                 if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
                 return;
@@ -794,6 +842,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.Stats.SkillThievery.BaseValue = s3TrickeryBefore;
                 CastingMeasurement["thieveryRestored"] = rider.Stats.SkillThievery.BaseValue == s3TrickeryBefore;
                 s3TrickeryGranted = false;
+            }
+            if (s3PerceptionGranted)
+            {
+                rider.Stats.SkillPerception.BaseValue = s3PerceptionBefore;
+                CastingMeasurement["perceptionRestored"] = rider.Stats.SkillPerception.BaseValue == s3PerceptionBefore;
+                CastingMeasurement["riderPerceptionBaseAfter"] = rider.Stats.SkillPerception.BaseValue;
+                s3PerceptionGranted = false;
             }
             if (!DrainCastingFixture()) return false;
             if (s3Rules != null) { CastingMeasurement["ruleTrace"] = s3Rules.Capture(); s3Rules.Dispose(); s3Rules = null; }

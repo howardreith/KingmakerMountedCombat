@@ -24,7 +24,7 @@ function New-S3TrapRow{
  $e|Add-Member thievery ([pscustomobject]@{baseBefore=0;baseGranted=4;granted=$true;mountBase=0})
  $e|Add-Member trapAfter ([pscustomobject]@{active=$false;distanceToRider=0.9})
  $e|Add-Member trapAtClick ([pscustomobject]@{active=$true;perceptionPassed=$true;revealed=$true;distance=9.8})
- $e|Add-Member explorationLegs @([pscustomobject]@{ordered=$true;destinationToTrap=6.1;perceptionBefore=$false;outcome='discovered';perceptionChecks=@([pscustomobject]@{actor=$rider;trap='trap-1';dc=15;d20=14;passed=$true})})
+ $e|Add-Member explorationLegs @([pscustomobject]@{ordered=$true;destinationToTrap=6.1;perceptionBefore=$false;outcome='discovered';perceptionChecks=@([pscustomobject]@{actor=$rider;trap='trap-1';dc=15;d20=14;passed=$true});reorders=1;perceptionRank=[pscustomobject]@{allowedBefore=$false;granted=$true;riderBaseBefore=4;riderBaseAfter=5;allowedAfter=$true}})
  $e.trapEvents=[pscustomobject]@{events=@([pscustomobject]@{kind='skill-check';actor=$rider;stat='SkillThievery';dc=20;d20=19;rollResult=25;passed=$true},[pscustomobject]@{kind='disarm-success';actor=$rider;trap='trap-1'})}
  $row
 }
@@ -68,7 +68,7 @@ function New-S3TbRow([bool]$insufficient){
   $e.carriedOutcomes=@((New-S3Carried 'Ability' 0),(New-S3Carried 'Ability' 2.0));$e.carriedOutcomes[0].nativeApproachEndSignalled=$true;$e.carriedOutcomes[0].satisfied=$false
   $e|Add-Member summary ([pscustomobject]@{nativeApproachEndSignalled=$true;secondInput=$true});$e|Add-Member secondTurn ([pscustomobject]@{heldCharge=$true})
   $e|Add-Member redeliver ([pscustomobject]@{resolvedToHeldTouch=$true;clicked=$true});$e|Add-Member recipientPlacement ([pscustomobject]@{distanceAfter=36.0});$e|Add-Member allowanceMetres 27.4
-  $e|Add-Member firstTurnEnd ([pscustomobject]@{heldTouch=[pscustomobject]@{blueprint='touch'}});$e.inputCount=2
+  $e|Add-Member firstTurnEnd ([pscustomobject]@{heldTouch=[pscustomobject]@{blueprint='touch'}});$e|Add-Member secondTurnEnd ([pscustomobject]@{heldTouch=$null});$e.inputCount=2
  }
  $e.events=$events
  $row
@@ -76,7 +76,7 @@ function New-S3TbRow([bool]$insufficient){
 function New-S3Artifact([string]$scenario,$rows){
  [pscustomobject]@{schemaVersion=47;status='PASS';errors=@();rows=$rows;subscenarioPassCount=@($rows).Count;subscenarioFailCount=0
   observations=[pscustomobject]@{riderId=$rider;horseId=$mount;sprint3Approach=[pscustomobject]@{contract='native-mounted-carried-approach-v1';mode=$(if($scenario.EndsWith('-tb')){'TB'}else{'RT'});mounted=$true;rider=$rider;mount=$mount;mountBlueprint='e7aa96d15a45238438ae4cfb476f6bb9'
-   cases=@(Get-KmcSprint3ApproachCases $scenario);riderLevel=4;recipient=[pscustomobject]@{id=$recipient};riderThieveryBaseBefore=0;riderThieveryBaseAfter=0
+   cases=@(Get-KmcSprint3ApproachCases $scenario);riderLevel=4;recipient=[pscustomobject]@{id=$recipient};riderThieveryBaseBefore=0;riderThieveryBaseAfter=0;riderPerceptionBaseBefore=4;riderPerceptionBaseAfter=4;perceptionRestored=$true
    castTrace=[pscustomobject]@{faults=0;dropped=0;identityRegistry=[pscustomobject]@{faults=0;released=$true}}
    final=[pscustomobject]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true;nativeAbilitiesPending=$false;projectilesPending=$false}
    items=@([pscustomobject]@{disposed=$true;slotRestored=$true;noOwnedItemResident=$true})}}}
@@ -126,6 +126,11 @@ $r=Copy-S3 $rt;$r.rows[4].evidence.hostileRetreat.distanceAfter=6.0;Reject $r 's
 $r=Copy-S3 $rt;$r.rows[0].evidence.carriedOutcomes[0].slotRestored=$false;Reject $r 'sprint3-approach-rt' 'mount Move slot not restored refused'
 $r=Copy-S3 $rt;$r.rows[0].evidence.carriedOutcomes[0].terminalReason='exhausted';Reject $r 'sprint3-approach-rt' 'carried approach fault refused'
 $r=Copy-S3 $rt;$r.observations.sprint3Approach.riderThieveryBaseAfter=4;Reject $r 'sprint3-approach-rt' 'unrestored rider Trickery fixture rank refused'
+$r=Copy-S3 $rt;$r.observations.sprint3Approach.riderPerceptionBaseAfter=5;Reject $r 'sprint3-approach-rt' 'unrestored rider Perception fixture rank refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].perceptionRank.riderBaseAfter=6;Reject $r 'sprint3-approach-rt' 'Perception fixture grant beyond one rank refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].perceptionRank.allowedBefore=$true;Reject $r 'sprint3-approach-rt' 'Perception fixture grant while a native roll was already allowed refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].reorders=4;Reject $r 'sprint3-approach-rt' 'exploration leg re-ordered beyond its bound refused'
+$r=Copy-S3 $tb;$r.rows[0].evidence.secondTurnEnd.heldTouch=[pscustomobject]@{blueprint='touch'};Reject $r 'sprint3-approach-tb' 'held charge after the re-delivery turn refused'
 $r=Copy-S3 $rt;$r.observations.sprint3Approach.castTrace.faults=1;Reject $r 'sprint3-approach-rt' 'faulted casting trace refused'
 $r=Copy-S3 $rt;$r.rows=@($r.rows[0],$r.rows[1],$r.rows[2],$r.rows[3]);$r.subscenarioPassCount=4;Reject $r 'sprint3-approach-rt' 'missing registered row refused'
 $r=Copy-S3 $rt;$r.status='FAIL';$r.errors=@('x');$r.subscenarioFailCount=1;Reject $r 'sprint3-approach-rt' 'failed producer envelope cannot become PASS'
