@@ -269,31 +269,60 @@ namespace KingmakerMountedCombat.Diagnostics
         // is inside the trap's native perception radius, outside its trigger zone and at least four metres short of it. The
         // native PartyPerceptionController rolls each moving character's Perception once per trap (one roll per rank);
         // the row never sets the discovery flag itself. Returns false with the row failed when no bounded route exists.
+        // A walkable navmesh point about the requested distance from the trap, outside its trigger zone: the pair's own
+        // walk to it crosses the perception radius while moving, which is when the native controller rolls. Null when
+        // no bearing around the trap offers one (r07: the trap's nearest navmesh node lay 12 m off its transform).
+        private Vector3? FindSprint3TrapApproachPoint(TrapObjectView trap, float distance)
+        {
+            if (global::AstarPath.active == null) return null;
+            var zone = trap.ScriptZoneTrigger; var origin = trap.transform.position; Vector3? best = null; var bestError = float.PositiveInfinity;
+            for (var index = 0; index < 32; index++)
+            {
+                var direction = Quaternion.Euler(0f, index * 11.25f, 0f) * Vector3.forward;
+                var nearest = global::AstarPath.active.GetNearest(origin + direction * distance);
+                if (nearest.node == null || !nearest.node.Walkable) continue;
+                var point = nearest.clampedPosition; var actual = HorizontalDistance(origin, point);
+                if (actual < 3.5f || (zone != null && zone.ContainsPosition(point))) continue;
+                var error = Math.Abs(actual - distance);
+                if (error < bestError) { bestError = error; best = point; }
+            }
+            return best;
+        }
+
         private bool BeginSprint3TrapLeg()
         {
             s3Trap = s3TrapCandidates[s3TrapCandidateIndex];
-            var path = Pathfinding.ABPath.Construct(horse.Position, Kingmaker.View.ObstacleAnalyzer.GetNearestNode(s3Trap.transform.position).clampedPosition);
+            var radius = s3Trap.PerceptionCheckComponent == null ? 6f : s3Trap.PerceptionCheckComponent.Radius;
+            var legs = (JArray)(s3Facts["explorationLegs"] ?? (s3Facts["explorationLegs"] = new JArray()));
+            var leg = new JObject { ["candidate"] = Sprint3TrapFacts(s3Trap), ["perceptionRadius"] = radius };
+            legs.Add(leg);
+            var approach = FindSprint3TrapApproachPoint(s3Trap, Math.Max(4f, radius - 2.5f));
+            if (!approach.HasValue) { leg["skipped"] = "no walkable point inside the perception radius outside the trigger zone"; return false; }
+            var legPoint = approach.Value;
+            var path = Pathfinding.ABPath.Construct(horse.Position, legPoint);
             global::AstarPath.StartPath(path); global::AstarPath.WaitForPath(path);
             var length = path.error ? float.PositiveInfinity : path.GetTotalLength();
-            var legs = (JArray)(s3Facts["explorationLegs"] ?? (s3Facts["explorationLegs"] = new JArray()));
-            var leg = new JObject { ["candidate"] = Sprint3TrapFacts(s3Trap), ["routeError"] = path.error, ["routeLength"] = length };
-            legs.Add(leg);
+            leg["routeError"] = path.error; leg["routeLength"] = length;
             if (path.error || length > Sprint3PathLengthBoundMetres) { leg["skipped"] = "no bounded native route"; return false; }
-            var radius = s3Trap.PerceptionCheckComponent == null ? 6f : s3Trap.PerceptionCheckComponent.Radius;
-            var shortBy = Math.Max(4f, Math.Min(radius - 1.5f, 8f));
-            var points = path.vectorPath; var fromEnd = 0f; var legPoint = points[0]; var zone = s3Trap.ScriptZoneTrigger;
-            for (var i = points.Count - 1; i > 0; i--)
-            {
-                fromEnd += Vector3.Distance(points[i], points[i - 1]);
-                if (fromEnd >= shortBy && (zone == null || !zone.ContainsPosition(points[i - 1]))) { legPoint = points[i - 1]; break; }
-            }
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             ClickGroundHandler.MoveSelectedUnitsToPoint(legPoint, false);
-            leg["destination"] = CapturePosition(legPoint); leg["shortBy"] = shortBy; leg["perceptionRadius"] = radius;
-            leg["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position); leg["ordered"] = true;
+            leg["destination"] = CapturePosition(legPoint); leg["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position); leg["ordered"] = true;
             leg["perceptionBefore"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedBefore"] = s3Trap.Data.IsRevealed;
             s3TrapDiscoveryFrames = 0;
             return true;
+        }
+
+        // The pair returns to where the row began through one ordinary ground order before the row finishes, so the
+        // party stays together for the later rows and the tranche cleanup (r07: a 46 m walk-back overran it).
+        private bool s3TrapVerdict; private string s3TrapDetail; private Vector3 s3TrapOrigin;
+        private void BeginSprint3TrapReturn(bool passed, string detail)
+        {
+            s3TrapVerdict = passed; s3TrapDetail = detail;
+            if (!Sprint3Settled() || HorizontalDistance(horse.Position, s3TrapOrigin) < 2f) { FinishSprint3Row(passed, detail); return; }
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(s3TrapOrigin, false);
+            s3Facts["returnLeg"] = new JObject { ["origin"] = CapturePosition(s3TrapOrigin), ["distance"] = HorizontalDistance(horse.Position, s3TrapOrigin), ["ordered"] = true };
+            s3StableFrames = 0; s3Step = 20; ResetLeafClock();
         }
 
         private void TickSprint3Trap()
@@ -309,6 +338,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (s3TrapCandidates.Length == 0) { FailSprint3Row("No active trap with a disarm interaction exists in the loaded fixture area."); return; }
                 var discovered = s3TrapCandidates.FirstOrDefault(t => t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
                     t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) && HorizontalDistance(t.transform.position, horse.Position) >= 4f);
+                s3TrapOrigin = horse.Position;
                 if (discovered != null) { s3Trap = discovered; s3Step = 11; return; }
                 s3TrapCandidateIndex = 0;
                 if (!BeginSprint3TrapLeg()) { FailSprint3Row("The nearest trap has no bounded native route from the fixture pair."); return; }
@@ -329,7 +359,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     leg["outcome"] = "not discovered natively";
                     if (++s3TrapCandidateIndex >= s3TrapCandidates.Length || !BeginSprint3TrapLeg())
-                    { FailSprint3Row("No trap was discovered natively by the party's own Perception within the bounded exploration legs."); return; }
+                    {
+                        s3Facts["failure"] = "No trap was discovered natively by the party's own Perception within the bounded exploration legs.";
+                        BeginSprint3TrapReturn(false, (string)s3Facts["failure"]); return;
+                    }
                     s3StableFrames = 0; ResetLeafClock(); return;
                 }
                 leg["outcome"] = "discovered";
@@ -363,6 +396,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!clicked || s3Command == null) { FailSprint3Row("The ordinary trap click did not admit a native UnitInteractWithObject on the rider."); return; }
                 s3Step = 1; ResetLeafClock(); return;
             }
+            if (s3Step == 20)
+            {
+                if (!Sprint3Settled()) { s3StableFrames = 0; return; }
+                if (++s3StableFrames < 10) return;
+                ((JObject)s3Facts["returnLeg"])["distanceAfter"] = HorizontalDistance(horse.Position, s3TrapOrigin);
+                FinishSprint3Row(s3TrapVerdict, s3TrapDetail); return;
+            }
             if (s3Command != null && !s3Command.IsFinished) return;
             if (!Sprint3Settled()) { s3StableFrames = 0; return; }
             if (++s3StableFrames < 10) return;
@@ -372,7 +412,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["distanceToRider"] = HorizontalDistance(s3Trap.transform.position, rider.Position) };
             var passed = s3Command != null && s3Command.IsActed && s3Command.Result == UnitCommand.ResultType.Success && s3CarriedSeen &&
                 s3MountTravelled >= 1f && check == 1 && disarm == 1;
-            FinishSprint3Row(passed, passed ? "Ordinary trap click: mount approach, one native rider Trickery check, native disarm outcome."
+            // The row's verdict is fixed here; the pair's return to the row origin runs before the row is reported.
+            s3Facts["command"] = Sprint3Command(s3Command); s3Facts["carriedSeenAtJudge"] = s3CarriedSeen; s3Facts["mountTravelledAtJudge"] = s3MountTravelled;
+            BeginSprint3TrapReturn(passed, passed ? "Ordinary trap click: mount approach, one native rider Trickery check, native disarm outcome."
                 : "Trap row incomplete: acted=" + s3Command?.IsActed + "; result=" + s3Command?.Result + "; carried=" + s3CarriedSeen +
                   "; travelled=" + s3MountTravelled.ToString("F2") + "; checks=" + check + "; disarmEvents=" + disarm + ".");
         }
