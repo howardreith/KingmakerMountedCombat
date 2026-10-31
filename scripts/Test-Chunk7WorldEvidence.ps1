@@ -410,13 +410,13 @@ function New-DoorV5Fixture(){
 }
 $doorV5=New-DoorV5Fixture
 Check 'v5 door with the operational supervision seconds' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $doorV5) 'PASS'}
-Check 'v5 door whose campaign settle seconds are frozen while the operational wait is bounded' {$v=Copy-TestValue $doorV5;$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=0.0;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
 $v5Mutations=@(
  @('v5 outcome in the v4 shape',{param($v)$v.observations.door.interactions[0].outcome.PSObject.Properties.Remove('ApproachElapsedOperationalSeconds')}),
  @('v4 outcome carrying the v5 operational seconds',{param($v)$v.observations.door.contract='two-pair-native-door-click-selection-change-v4'}),
  @('v5 operational settlement exceeded its bound',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleOperationalSeconds=4.0}),
  @('v5 operational approach seconds negative',{param($v)$v.observations.door.interactions[1].outcome.ApproachElapsedOperationalSeconds=-1.0}),
- @('v5 real-time approach whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.ApproachElapsedOperationalSeconds=9.0})
+ @('v5 real-time approach whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.ApproachElapsedOperationalSeconds=9.0}),
+ @('v5 real-time settlement whose operational and campaign seconds disagree',{param($v)$v.observations.door.interactions[0].outcome.OccupancySettleGameSeconds=2.0})
 )
 foreach($mutation in $v5Mutations){$copy=Copy-TestValue $doorV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 # Sprint 2 (MOVE-01) speed legs: optional, recorded with their contract; the primary mover must complete a measured native route.

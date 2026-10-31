@@ -66,11 +66,17 @@ namespace KingmakerMountedCombat.Domain
         public bool StallClockRuns { get; set; }
         // One uniform sample in [0, 1] for the native re-approach cooldown.
         public float ReapproachSample { get; set; }
+        // Turn-based combat only: an opaque token identifying the acting turn this tick belongs to (null in real time).
+        // An approach that ended on a turn is re-attempted on a later turn, never on the same one: the mount's movement
+        // allocation for the turn is spent or the route failed, and the native re-approach cooldown (campaign time,
+        // frozen inside a turn) defers the native rider approach the same way. Nothing here grants or spends movement.
+        public object TurnToken { get; set; }
     }
 
     public sealed class MountedDoorApproachLifecycle
     {
         private double nextApproachAt = double.NegativeInfinity;
+        private object approachEndedOnTurn;
         private double lastStallSampleAt = double.NaN;
         private bool stallSampled;
         private float stalledSeconds;
@@ -99,13 +105,16 @@ namespace KingmakerMountedCombat.Domain
             switch (o.Move)
             {
                 case MountedDoorApproachMoveState.None:
+                    // Turn-based: the turn on which the last approach ended never re-attempts; a later turn does.
+                    if (approachEndedOnTurn != null && o.TurnToken != null && ReferenceEquals(approachEndedOnTurn, o.TurnToken)) return MountedDoorApproachAction.Wait;
                     if (o.NowSeconds < nextApproachAt) return MountedDoorApproachAction.Wait;
+                    approachEndedOnTurn = null;
                     MoveStarts++;
                     if (!BeganAt.HasValue) BeganAt = o.NowSeconds;
                     ResetStall();
                     return MountedDoorApproachAction.BeginMove;
                 case MountedDoorApproachMoveState.Finished:
-                    return RecordApproachEnd("ended outside range (" + (o.MoveResult ?? "unknown") + ")", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample)
+                    return RecordApproachEnd("ended outside range (" + (o.MoveResult ?? "unknown") + ")", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample, o.TurnToken)
                         ? MountedDoorApproachAction.Exhausted : MountedDoorApproachAction.Retry;
                 default:
                     return ObserveStall(o);
@@ -137,14 +146,16 @@ namespace KingmakerMountedCombat.Domain
             {
                 return MountedDoorApproachAction.Wait;
             }
-            return RecordApproachEnd("stalled for " + stalledSeconds.ToString("F1") + " operational seconds", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample)
+            return RecordApproachEnd("stalled for " + stalledSeconds.ToString("F1") + " operational seconds", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample, o.TurnToken)
                 ? MountedDoorApproachAction.Exhausted : MountedDoorApproachAction.Stalled;
         }
 
-        // True when the approach is exhausted; otherwise the next approach is scheduled after the native cooldown.
-        private bool RecordApproachEnd(string why, float distance, double now, float reapproachSample)
+        // True when the approach is exhausted; otherwise the next approach is scheduled after the native cooldown
+        // (and, in turn-based combat, no earlier than a later turn).
+        private bool RecordApproachEnd(string why, float distance, double now, float reapproachSample, object turnToken)
         {
             LastApproachEnd = why;
+            approachEndedOnTurn = turnToken;
             if (MountedDoorApproachPolicy.ApproachProgressed(BestDistance, distance, MountedDoorApproachPolicy.ProgressEpsilonMetres))
             {
                 BestDistance = distance;

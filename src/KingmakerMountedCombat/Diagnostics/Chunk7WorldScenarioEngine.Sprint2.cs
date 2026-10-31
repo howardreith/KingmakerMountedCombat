@@ -84,6 +84,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JArray speedLegs;
         private JObject speedLeg;
         private readonly List<string> speedLegFailures = new List<string>();
+        private readonly List<UnitCommand> speedLegInterruptedCommands = new List<UnitCommand>();
         private JArray speedLegInterruptions;
         private JObject speedLegInterruptSummary;
         private SpeedLegInterruptObserver speedLegInterruptObserver;
@@ -283,6 +284,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ((float)primary.Record["goalResidual"]).ToString("F2") + " m).";
                 speedLeg["failure"] = failure; speedLegFailures.Add(failure);
                 logger.Warning("Sprint 2 speed leg " + speedLeg["label"] + " NOT accepted (later legs continue for diagnosis only): " + failure);
+                // Later legs continue only on a quiet default surface: a leg ended by a dialog, cutscene, pause, load or
+                // combat stops the sequence here (no input is issued inside such a mode).
+                var es = (JObject)speedLeg["endState"];
+                var quiet = (string)es["gameMode"] == "Default" && !(bool)es["paused"] && !(bool)es["inCombat"] && !(bool)es["loading"];
+                if (!quiet) { speedLeg["continuationStopped"] = "the leg ended outside the quiet default mode: " + es.ToString(Newtonsoft.Json.Formatting.None); RequireSpeedLegsAccepted(); }
             }
             else
             {
@@ -312,6 +318,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var legLabel = speedLeg != null && speedLegMovers != null ? (string)speedLeg["label"] : null;
             var phase = cleanupStarted ? "cleanup" : legLabel != null ? "speed-leg" : "between-legs";
             var mover = cleanupStarted || speedLegMovers == null ? null : speedLegMovers.FirstOrDefault(m => ReferenceEquals(m.Move, command));
+            // Only the FIRST interrupt of a mover's command is described; a repeated Interrupt on the same command is counted.
+            if (mover != null && speedLegInterruptedCommands.Any(x => ReferenceEquals(x, command))) { mover = null; phase += ":repeat"; }
+            else if (mover != null) speedLegInterruptedCommands.Add(command);
             var kind = mover != null ? "leg-mover" : issuedCommands.Any(x => ReferenceEquals(x, command)) ? "issued-command" : "other";
             var key = phase + ":" + kind;
             var count = speedLegInterruptSummary[key];
@@ -496,6 +505,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const int InterruptToken = 0x060027AC;
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
         private static Action<UnitCommand> active;
+        private static SpeedLegInterruptObserver current;
         private readonly HarmonyInstance harmony;
         private readonly MethodInfo target;
         private bool disposed;
@@ -503,10 +513,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal SpeedLegInterruptObserver(Action<UnitCommand> observer)
         {
             if (observer == null) throw new ArgumentNullException(nameof(observer));
-            if (active != null) throw new InvalidOperationException("One speed-leg interrupt observer may be installed at a time.");
+            // A stale observer (an engine whose disposal was interrupted) is removed before a new one is installed.
+            var stale = current; if (stale != null) stale.Dispose();
             target = typeof(UnitCommand).GetMethods(Flags).SingleOrDefault(m => m.MetadataToken == InterruptToken);
             if (target == null || target.Name != "Interrupt") throw new MissingMethodException(typeof(UnitCommand).FullName, InterruptToken.ToString("X8"));
-            active = observer;
+            active = observer; current = this;
             harmony = HarmonyInstance.Create(HarmonyId);
             harmony.Patch(target, new HarmonyMethod(typeof(SpeedLegInterruptObserver).GetMethod(nameof(Before), Flags)) { prioritiy = Priority.First });
         }
@@ -548,7 +559,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
-            disposed = true; active = null;
+            disposed = true;
+            if (ReferenceEquals(current, this)) { active = null; current = null; }
             harmony.UnpatchAll(HarmonyId);
         }
     }
