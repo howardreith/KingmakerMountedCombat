@@ -428,7 +428,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (doors.Count >= Sprint3TrapDoorLimit) return false;
                 var door = FindSprint3ClosedDoor(Sprint3TrapDoorScanMetres);
-                if (door == null) { leg["noDoor"] = "the point is cut off from the mount's node and no closed clickable door stands within " + Sprint3TrapDoorScanMetres + " m"; return false; }
+                if (door == null)
+                {
+                    leg["noDoor"] = "the point is cut off from the mount's node and no closed clickable door stands within " + Sprint3TrapDoorScanMetres + " m";
+                    leg["obstacleInventory"] = Sprint3ObstacleInventory(s3TrapLegPoint);
+                    return false;
+                }
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 var clicked = new ClickMapObjectHandler().OnClick(door.gameObject, door.transform.position, 0, false, false);
                 doors.Add(new JObject { ["name"] = door.name, ["position"] = CapturePosition(door.transform.position), ["distance"] = HorizontalDistance(door.transform.position, horse.Position),
@@ -448,6 +453,41 @@ namespace KingmakerMountedCombat.Diagnostics
             var outcome = combat.LastDoorInteractionOutcome;
             return outcome == null ? null : new JObject { ["result"] = outcome.Result, ["terminalReason"] = outcome.TerminalReason,
                 ["doorStateChanged"] = outcome.DoorStateChanged, ["interactions"] = outcome.InteractionCount, ["moveStarts"] = outcome.DelegatedMoveStartCount };
+        }
+        // Attribution only (r13: every trap cut off from the mount's node, no closed clickable door within 12 m): the
+        // native graph areas of the mount's and the point's nodes, every door and map object near the settle with the
+        // Sprint 2 door predicate's own facts, and the graph connectivity from each controllable party member.
+        private JObject Sprint3ObstacleInventory(Vector3 point)
+        {
+            var inventory = new JObject();
+            try
+            {
+                var graph = global::AstarPath.active;
+                if (graph != null)
+                {
+                    var mountNode = graph.GetNearest(horse.Position).node; var pointNode = graph.GetNearest(point).node;
+                    inventory["mountNode"] = mountNode == null ? null : new JObject { ["area"] = mountNode.Area, ["walkable"] = mountNode.Walkable, ["position"] = CapturePosition((Vector3)mountNode.position) };
+                    inventory["pointNode"] = pointNode == null ? null : new JObject { ["area"] = pointNode.Area, ["walkable"] = pointNode.Walkable, ["position"] = CapturePosition((Vector3)pointNode.position) };
+                    inventory["graphs"] = graph.graphs?.Length;
+                }
+                var mounts = new[] { horse };
+                inventory["doors"] = new JArray((UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0])
+                    .Where(d => d != null && HorizontalDistance(d.transform.position, horse.Position) <= 30f)
+                    .OrderBy(d => HorizontalDistance(d.transform.position, horse.Position))
+                    .Select(d => { var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(d, mounts); return new JObject {
+                        ["name"] = d.name, ["position"] = CapturePosition(d.transform.position), ["distance"] = HorizontalDistance(d.transform.position, horse.Position),
+                        ["open"] = d.IsOpen, ["active"] = facts.Active, ["dataPresent"] = facts.DataPresent, ["interactable"] = facts.Interactable, ["availableInteractions"] = facts.AvailableInteractions,
+                        ["revealed"] = facts.Revealed, ["restrictions"] = facts.RestrictionCount, ["cutPresent"] = facts.CutPresent, ["notInCombat"] = facts.NotInCombat,
+                        ["hasDialog"] = facts.HasDialog, ["closedClickable"] = facts.ClosedClickable, ["inFogOfWar"] = d.GetComponentInParent<MapObjectView>()?.Data?.IsInFogOfWar }; }));
+                inventory["mapObjects"] = new JArray((UnityEngine.Object.FindObjectsOfType<MapObjectView>() ?? new MapObjectView[0])
+                    .Where(m => m != null && !(m is TrapObjectView) && !m.Interactions.Any(i => i is StandardDoor) && HorizontalDistance(m.transform.position, horse.Position) <= 20f)
+                    .OrderBy(m => HorizontalDistance(m.transform.position, horse.Position)).Take(24)
+                    .Select(m => new JObject { ["name"] = m.name, ["type"] = m.GetType().Name, ["distance"] = HorizontalDistance(m.transform.position, horse.Position),
+                        ["inFogOfWar"] = m.Data?.IsInFogOfWar, ["interactions"] = new JArray(m.Interactions.Select(i => i.GetType().Name)) }));
+                inventory["partyReach"] = new JArray(Game.Instance.Player.ControllableCharacters.Select(u => new JObject { ["id"] = u.UniqueId, ["reachable"] = Sprint3PathPossible(u.Position, point) }));
+            }
+            catch (Exception exception) { inventory["error"] = exception.ToString(); }
+            return inventory;
         }
 
         // The pair returns to where the row began through one ordinary ground order before the row finishes, so the
@@ -801,7 +841,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!insufficientCase && s3Facts["recipientPlacement"] == null)
                 {
                     if (turn?.Unit != s3Recipient) { EndCastingNativeTurn(turn); return; }
-                    var destination = FindWalkablePoint(horse.Position, Sprint3TurnBasedFriendlyMetres, 1.5f, p => HorizontalDistance(p, horse.Position) >= Sprint3TurnBasedFriendlyMetres - 1.5f);
+                    // The point must share the mount's graph area (r14: a point on the cut-off island left the recipient 3.7 m away).
+                    var destination = FindWalkablePoint(horse.Position, Sprint3TurnBasedFriendlyMetres, 1.5f, p => HorizontalDistance(p, horse.Position) >= Sprint3TurnBasedFriendlyMetres - 1.5f && Sprint3PathPossible(horse.Position, p) == true);
                     SelectionManager.Instance.SelectUnit(s3Recipient.View, true, true, false);
                     ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
                     SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
