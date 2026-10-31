@@ -263,6 +263,38 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private TrapObjectView[] s3TrapCandidates;
         private int s3TrapCandidateIndex, s3TrapDiscoveryFrames;
+
+        // The native PartyPerceptionController's own gates for one trap (observation only): fog, line of sight, the one
+        // roll per character per rank, the recorded ranks and the party's Perception values.
+        private JObject Sprint3TrapGates(TrapObjectView trap)
+        {
+            var data = trap.Data; var units = new[] { rider, horse, s3Recipient }.Where(u => u != null).ToArray();
+            return new JObject {
+                ["inFogOfWar"] = data.IsInFogOfWar, ["perceptionPassed"] = data.IsPerceptionCheckPassed, ["revealed"] = data.IsRevealed,
+                ["lastPerceptionRollRankEntries"] = data.LastPerceptionRollRank?.Count ?? 0,
+                ["units"] = new JArray(units.Select(u => new JObject { ["id"] = u.UniqueId, ["rollAllowed"] = data.IsPerceptionRollAllowed(u),
+                    ["hasLos"] = u.HasLOS(trap.transform), ["distance"] = HorizontalDistance(u.Position, trap.transform.position),
+                    ["perceptionBase"] = u.Stats.SkillPerception.BaseValue, ["perceptionModified"] = u.Stats.SkillPerception.ModifiedValue,
+                    ["controllable"] = Game.Instance.Player.ControllableCharacters.Contains(u), ["motionThisTick"] = u.HasMotionThisTick })) };
+        }
+
+        // Per-frame sampling during a leg: how many ticks each party member spent moving inside the perception radius with
+        // the trap out of fog (the native roll condition), so a missing roll is attributable.
+        private void ObserveSprint3TrapMotion(JObject leg)
+        {
+            if (s3Trap == null) return;
+            var radius = s3Trap.PerceptionCheckComponent == null ? 6f : s3Trap.PerceptionCheckComponent.Radius;
+            var sampling = (JObject)(leg["motionSampling"] ?? (leg["motionSampling"] = new JObject { ["frames"] = 0, ["riderMovingInRadius"] = 0, ["mountMovingInRadius"] = 0, ["fogFrames"] = 0, ["riderLosFrames"] = 0 }));
+            sampling["frames"] = (int)sampling["frames"] + 1;
+            var fog = s3Trap.Data.IsInFogOfWar; if (fog) sampling["fogFrames"] = (int)sampling["fogFrames"] + 1;
+            if (!fog && rider.HasMotionThisTick && HorizontalDistance(rider.Position, s3Trap.transform.position) < radius)
+            {
+                sampling["riderMovingInRadius"] = (int)sampling["riderMovingInRadius"] + 1;
+                if (rider.HasLOS(s3Trap.transform)) sampling["riderLosFrames"] = (int)sampling["riderLosFrames"] + 1;
+            }
+            if (!fog && horse.HasMotionThisTick && HorizontalDistance(horse.Position, s3Trap.transform.position) < radius)
+                sampling["mountMovingInRadius"] = (int)sampling["mountMovingInRadius"] + 1;
+        }
         private const int Sprint3TrapCandidateLimit = 2, Sprint3TrapDiscoveryWaitFrames = 90;
 
         // Begins the pair's ordinary exploration leg toward the current candidate: one ground order to a route point that
@@ -347,11 +379,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s3Step == 10)
             {
                 var legs = (JArray)s3Facts["explorationLegs"]; var leg = (JObject)legs[legs.Count - 1];
+                ObserveSprint3TrapMotion(leg);
                 if (!Sprint3Settled()) { s3StableFrames = 0; return; }
                 if (++s3StableFrames < 10) return;
                 leg["distanceAfter"] = HorizontalDistance(s3Trap.transform.position, horse.Position);
                 leg["perceptionAfter"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedAfter"] = s3Trap.Data.IsRevealed;
                 leg["perceptionChecks"] = s3TrapObserver.PerceptionChecks(s3Trap.UniqueId);
+                leg["nativeGatesAtArrival"] = Sprint3TrapGates(s3Trap);
                 var usable = s3Trap.Data.IsPerceptionCheckPassed && s3Trap.Data.IsRevealed && s3Trap.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract());
                 // The native rolls happen on moving ticks inside the radius; a bounded still wait lets a late reveal settle.
                 if (!usable && ++s3TrapDiscoveryFrames < Sprint3TrapDiscoveryWaitFrames) { s3StableFrames = 10; return; }
