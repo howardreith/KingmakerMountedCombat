@@ -716,3 +716,73 @@ Live state after the last restoration: Mods tree empty, profile `Areas\` empty, 
 `baselineImmutable`, `workingRestored` and `saveWriteAllowlistPassed` true on r17 to r21, no lock, no game process; the
 owner's originals (`Manual_301_After_mounting.zks` `1fda72b1…`, the Old Sycamore seed `90789101…`) untouched; no
 candidate installed. Retained unchanged: r09/r10 (PASS on `809573ad…`), r13/r14/r16 (FAIL), r15 (refused).
+
+## Seventh iteration (2026-10-31, evening): finishing mission, native door validation on the corrected clock
+
+Owner-forwarded mission (review of PR #7 at `6f5a2ca7`): MOVE-01 and the operational-clock source are accepted; the
+remaining gate is native door validation on the corrected production code (real-time interaction/settlement and a
+supported turn-based interaction). One explicit +20 minute adjustment (140 to 160) was recorded on the same `sprint2`
+record (`adjustments[2]`, 2026-10-31T17:45:58Z, spent 130.73 at the adjustment; the recording script left the allowance
+field at 140 for twenty minutes and it was aligned to 160 at 18:04Z with a note on the adjustment entry).
+
+### Bounded fixture resolution (offline first, then one inspection)
+| Candidate | Door facts | Predicate preventing turn-based use | Kind |
+| --- | --- | --- | --- |
+| `KMC_AUTOMATION_WORKING` (Endless dungeon floor `9d1278a2…`, r07/r10 traversal fixture) | `DoorHolder/dwarf_dungeon_door_01`, toggling cut, the only qualifying door; its `NotInCombat` flag was never inventoried | Inferred `NotInCombat` true: the Chunk 6A obstruction case closed this same open toggling-cut door in combat and native `InteractionComponent.CanInteract` refused it (docs/CHUNK6A-COMBAT-MOUNT.md, CM02); no retained row carries the flag, so this is an inference from the retained refusal, not a measured flag | native door data (inferred) |
+| `KMC_C7_DOOR_SEED_OLD_SYCAMORE_OPEN` (Old Sycamore, r18 inventory with the flag) | `TavernDoor` eligible, `NotInCombat` true, 6.5/9.3 m; `RootsDoor` one restriction, `NotInCombat` true, 40 m; `MiteYardDoor` `NotInCombat` false, closed, unrevealed, not interactable, 94 m | No combat-usable qualifying door within 28 m; the one `NotInCombat`-false door is 94 m away, unrevealed and not interactable (an ordinary approach would have to cross the mite-infested yard; not attempted) | native door data (measured, r18) |
+| `KMC_S2_DUNGEON_FLOOR_CANDIDATE` (owner's `Auto_1121.zks`, Endless floor `63de91df…`, same party as the surface save, 30 StandardDoor references of the dwarf dungeon class) | Not inventoried: the run refused before the area was loaded | Adapter limitation: the persistence isolation authority pins every owner-seed input to native save type `Manual` (`PersistenceSaveAuthorization`: "Native save name, type, campaign or area differs from the run contract"); the copied autosave enumerates as type `Auto`, so r23 refused at the isolated enumeration check before any load. The registry now admits the entry (type `Auto`) but the authority pins were deliberately NOT loosened (strict persistence guards) | adapter / safety guard |
+
+Nothing in the installed scene data can be read offline for `NotInCombat` (scene bundle data), so the flags come from
+retained in-game rows only.
+
+### Changes (commits `43c10412`, `3ad92495`; no production code changed)
+- Owner-surface single-pair turn-based door stage: the explicit `turnBasedDoor` opt-in on the `owner-surface-speed`
+  selection runs, after the native Mount, the shared combat-usable door selection (`FindQualifyingDoor(mounts,
+  requireCombatUsable)` from the Horse's position, before any preparation or encounter; an absence fails the row with
+  the inventory), then `Chunk7TurnBasedDoorProbe` with ONE pair (second pair null: cross-pair off-turn rows recorded not
+  applicable, second-pair cooldown roles null, initiative inputs for the two pair actors, selection after inputs on the
+  declared other party member), then the native Dismount and cleanup; no speed legs. `RuntimeProtocol.Basis` admits the
+  same combat-target basis on the seed's run copy. Readers: owner-surface door mode and turn-based single-pair mode,
+  fixtures and refusals (focused readers 168/0, world 437/0, components 947/0, Validate-Source 149/0).
+- The owner's autosave `Auto_1121.zks` registered as `KMC_S2_DUNGEON_FLOOR_CANDIDATE` (type `Auto`; the registry
+  validator admits `Manual` or `Auto` for owner-identified read-only masters). The persistence authority's `Manual`
+  pins were left untouched (see the matrix), so the entry is registered but not loadable through the current authority.
+- Message literals in the diagnostics shortened: the diagnostic assembly reached the package validator's 8 MiB entry
+  bound (8,390,144 bytes, refused as sprint2u); the bound is unchanged; the trimmed assembly is exactly 8,388,608 bytes.
+- Candidate sprint2v (`3ad92495`): DLL `39a1006c69925d1e3f47b71c76d6e65fb27de8522c4737f2afc9271215437483`, MVID
+  `df69c928-ccae-46a3-a6a6-c0f9df5711d5`, package `1115d2bca4ea1a194013582041aa1ab6a6d05d96a91d483e9ef5edf4b0b21424`,
+  suite `sprint2v-3ad92495-20261031` sha `78733e87468df31939f8c7581d2478f1ba0421851a309fdb2ea3b37d3eea6456`. The first
+  WhatIf of the real-time route against sprint2t was refused (the package manifest binds the exact HEAD, and the docs
+  commit `6f5a2ca7` had moved it), so the real-time run also waited for this candidate.
+
+### Native runs (WhatIf PASS for both; Mods tree empty before and after; profile, protected saves and the owner's originals restored exactly)
+| Run | Candidate / batch | Result |
+| --- | --- | --- |
+| r23 `20261031-sprint2-r23-owner-dungeon-door-tb-single-pair` | sprint2v / `sprint2:completion-7-tb` | Game FAIL before any load (108 s): `PersistenceIsolationBootstrap` "Isolated native enumeration differs from the single copied fixture": the copied `Auto_1121.zks` enumerates natively as type `Auto` while the owner-seed authority entry is pinned `Manual`. No area loaded, no door touched, no evidence beyond the refusal; cleanup PASS, restoration flags true. The dungeon floor's doors remain uninventoried. |
+| r22 `20261031-sprint2-r22-traversal-core-dungeon-door-clock` | sprint2v / `sprint2:completion-7` | **PASS natively on the corrected clock**: `chunk4-traversal-core` on the Working fixture, rows `mounted-distance-door-interaction` 59/0, `mounted-pair-doorway` 62/0, `mounted-pair-turns-and-corners` 76/0, `mounted-pair-party-formation` 60/0 (257 assertions, 173 s). The routed mounted door click from distance on `DoorHolder/dwarf_dungeon_door_01` (toggling cut) approached, interacted once, settled the navmesh (door-traversal readiness 0.088 s, five settled path replacements, no path error), traversed the doorway and the native closed-door stop/return control passed, with the pair idle and usable afterwards. This is the real-time door interaction/settlement evidence on the corrected production clock (same route as r09/r10's r10, now on `39a1006c…`). The chunk 4 evidence shape records cooldowns, paths and residuals but not the door command's operational-second fields, so the in-turn clock figures themselves have no native record yet. |
+
+### Outcome
+- Real-time door interaction and settlement on the corrected production clock: **demonstrated** (r22).
+- Supported turn-based door interaction on the corrected clock: **not demonstrated**. The single-pair stage is built and
+  offline-verified, but no retained copy supplies a loadable save with a combat-usable door: the Working fixture's door
+  class is inferred `NotInCombat` (Chunk 6A refusal), Old Sycamore's only such door is 94 m away and unrevealed (r18),
+  and the owner's dungeon-floor autosave cannot pass the persistence authority's `Manual` pin (r23). Justified external
+  input: an owner-made **Manual** save (any name) on a floor or area where a revealed, interactable door with
+  `StandardDoor.NotInCombat` false stands within 28 m of the mounted pair (candidates: a floor of the owner's Endless
+  run with a non-dwarf door class, or Old Sycamore with the party moved to the Mite yard door and the fog revealed).
+  Register it in `scripts/runtime/Chunk7OwnerSeedRegistry.json`, point a copy of
+  `analysis-cache\sprint2\owner-surface-dungeon-door-tb.json` at it and run route `owner-surface-door`; the gate selects
+  the door itself and refuses early with the inventory when none qualifies.
+
+### Cost and state
+Budget `sprint2` 143.58 of 160 min (adjustments +30, +20, +20 on the one record; remaining 16.42). This mission charged
+12.85 min over 11 entries: five Fast tiers 6.4 (three failed on fixture/reader shape before the code was right), the
+refused sprint2u package and the sprint2v package/suite 3.3, three WhatIfs (one refused on the stale HEAD binding) 1.1,
+launches r23 1.5 and r22 2.9. Batches `sprint2:completion-7-tb` (r23 failed) and `sprint2:completion-7` (r22 PASS). Active
+work about 55 min.
+
+Live state after the last restoration: Mods tree empty, profile `Areas\` empty, restoration flags true on r22 and r23,
+no lock, no game process; the owner's originals `Manual_301_After_mounting.zks` (`1fda72b1…`) and `Auto_1121.zks`
+(`4c1db37e…`, 2026-09-05T12:28:20Z) untouched; no candidate installed. Retained unchanged: r09/r10 (PASS on
+`809573ad…`), r13/r14/r16, r17, r19, r20 (FAIL), r15 (refused), r18 (gate refusal), r21 (PASS natively, FAIL verdict,
+re-evaluated PASS by `d1667bcd`).
