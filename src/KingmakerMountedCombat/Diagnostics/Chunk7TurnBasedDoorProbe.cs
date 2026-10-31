@@ -36,7 +36,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // v2 (review correction B): the movement cost is related to the installed paired contract (a rider's turn-based
         // approach is native movement charged to its own mount's Move budget, the rider keeps its own Move), through the
         // action-end boundary, the pair's own allocation observation and the settlement/recovery window.
-        internal const string Contract = "owner-seed-turn-based-door-control-v2";
+        // v3 (review 2026-10-31, turn-based clock): the shared door selection required combat usability before any
+        // preparation, and the outcome carries the supervision clock's operational seconds (retry cooldown, stall and
+        // settlement bounds are measured on it; campaign GameTime is frozen inside an acting turn by native design).
+        internal const string Contract = "owner-seed-turn-based-door-control-v3";
         internal const string MovementCostContract = "paired-approach-charged-to-own-mount-move/v1";
         internal const string OffTurnScope = "cross-pair-isolation: pair B's click during pair A's turn is refused and mutates nothing; not native proof that a rejected click preserves the same controller's own pending recovery (offline coverage)";
         internal const string StallScope = "ApproachesWithoutProgress == 0 on a continuously acting turn; not a native exercise of an exhausted or off-turn movement wait (offline coverage)";

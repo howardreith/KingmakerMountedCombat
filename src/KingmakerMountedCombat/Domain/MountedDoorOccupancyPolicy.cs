@@ -83,10 +83,12 @@ namespace KingmakerMountedCombat.Domain
         public static readonly float[] RecoveryRings = { 0.5f, 1.0f, 1.5f, 2.0f, 2.5f };
         public const int RecoveryBearings = 16;
         public static int RecoveryCandidateCount => RecoveryRings.Length * RecoveryBearings;
-        // Game seconds the settlement waits for the door's navmesh change; past it the settlement ends Unresolved
-        // (MountedDoorSettlementLifecycle): no sample, no search, no move on an unconfirmed graph.
-        public const float SettleGameSecondsLimit = 3f;
-        // Game seconds a running recovery move may hold the mount still before it is interrupted.
+        // Operational seconds (MountedDoorOperationalClock: the engine's per-frame gameplay timestep on the frames the
+        // settlement was ticked, never campaign GameTime, which is frozen inside a turn-based turn) the settlement waits
+        // for the door's navmesh change; past it the settlement ends Unresolved (MountedDoorSettlementLifecycle): no
+        // sample, no search, no move on an unconfirmed graph. This wait is independent of any movement opportunity.
+        public const float SettleOperationalSecondsLimit = 3f;
+        // Operational seconds a running recovery move may hold the mount still (with movement opportunity) before it is interrupted.
         public const float RecoveryStallSecondsLimit = 4f;
         public const float DisplacementEpsilonMetres = 0.02f;
 

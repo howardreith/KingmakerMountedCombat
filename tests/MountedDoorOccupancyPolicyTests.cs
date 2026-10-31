@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!MountedDoorOccupancyPolicy.NavmeshSettled(true, false, true, true), "A queued graph update counted as settled.");
             TestRunner.True(!MountedDoorOccupancyPolicy.NavmeshSettled(true, false, false, false), "The tile update frame itself counted as settled.");
             TestRunner.True(!MountedDoorOccupancyPolicy.NavmeshSettled(false, false, false, true), "A door not yet in its expected state counted as settled.");
-            TestRunner.Equal(3f, MountedDoorOccupancyPolicy.SettleGameSecondsLimit, "The settle bound changed.");
+            TestRunner.Equal(3f, MountedDoorOccupancyPolicy.SettleOperationalSecondsLimit, "The settle bound changed.");
         }
 
         private static MountedDoorRecoveryCandidateFacts Facts(bool walkable = true, float clamp = 0f, float trace = 0f, bool sameArea = true,

@@ -23,8 +23,40 @@ namespace KingmakerMountedCombat.Domain
         Exhausted
     }
 
+    // Sprint 2 (review 2026-10-31, turn-based clock). The supervision clock behind the door approach, the settlement wait
+    // and the recovery stall. Native turn-based GameTime is rewound to the turn's start on every frame of an acting turn
+    // (CombatController.TickTime), so a cooldown or a stall bound measured in campaign seconds never elapses inside a
+    // turn: a finished approach scheduled "0.4 s later" waited forever, a still mount accrued no stall time, a pending
+    // graph update could not reach the settlement deadline. This clock accumulates the engine's own per-frame gameplay
+    // timestep (TimeController.GameDeltaTime: zero while paused or outside gameplay modes, the movement timestep inside
+    // a turn) on exactly the frames the supervised operation was ticked. It measures supervision only: it never
+    // advances game time, grants movement, refunds anything or is itself a movement charge, and a frame the operation
+    // was not ticked (off-turn, paused) adds nothing, so resuming never charges the waiting gap.
+    public sealed class MountedDoorOperationalClock
+    {
+        private int lastFrame = int.MinValue;
+
+        public double Seconds { get; private set; }
+        public int ObservedFrames { get; private set; }
+        public int SkippedSteps { get; private set; }
+
+        // One observation per frame; a repeated observation in the same frame adds nothing. A non-finite, non-positive
+        // or oversized step (an engine hitch, a resumed process) is skipped, never charged.
+        public double Observe(int frame, float gameplayDeltaSeconds)
+        {
+            if (frame == lastFrame) return Seconds;
+            lastFrame = frame;
+            ObservedFrames++;
+            if (float.IsNaN(gameplayDeltaSeconds) || float.IsInfinity(gameplayDeltaSeconds) || gameplayDeltaSeconds <= 0f) return Seconds;
+            if (gameplayDeltaSeconds > MountedDoorApproachPolicy.MaximumTickGapSeconds) { SkippedSteps++; return Seconds; }
+            Seconds += gameplayDeltaSeconds;
+            return Seconds;
+        }
+    }
+
     public sealed class MountedDoorApproachObservation
     {
+        // Operational seconds (MountedDoorOperationalClock), never campaign GameTime.
         public double NowSeconds { get; set; }
         public bool InRange { get; set; }
         public MountedDoorApproachMoveState Move { get; set; }
@@ -95,7 +127,7 @@ namespace KingmakerMountedCombat.Domain
                 stalledSeconds = 0f;
                 return MountedDoorApproachAction.Wait;
             }
-            // A gap longer than one tick (turn-based rounds) is re-sampled, never charged.
+            // A step longer than one tick is re-sampled, never charged (the operational clock produces none; a guard).
             if (elapsed > MountedDoorApproachPolicy.MaximumTickGapSeconds)
             {
                 return MountedDoorApproachAction.Wait;
@@ -105,7 +137,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 return MountedDoorApproachAction.Wait;
             }
-            return RecordApproachEnd("stalled for " + stalledSeconds.ToString("F1") + " game seconds", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample)
+            return RecordApproachEnd("stalled for " + stalledSeconds.ToString("F1") + " operational seconds", o.DistanceToPoint, o.NowSeconds, o.ReapproachSample)
                 ? MountedDoorApproachAction.Exhausted : MountedDoorApproachAction.Stalled;
         }
 

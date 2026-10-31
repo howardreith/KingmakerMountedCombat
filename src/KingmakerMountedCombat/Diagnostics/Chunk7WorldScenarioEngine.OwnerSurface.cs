@@ -117,6 +117,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (CombatController.IsInTurnBasedCombat() || !Actors().All(Idle)) return;
                     RequireOwnerSurfacePair();
                     snapshots.Add(CaptureWorld("owner-surface-start"));
+                    // Review 2026-10-31: one bounded read-only door inventory of the owner's surface area (combat-usability
+                    // flag beside eligibility); nothing is acquired, closed or clicked.
+                    evidence["doorInventory"] = Chunk7NativeDoorProbe.CaptureAreaDoorInventory(new[] { secondMount }, "owner-surface-start");
                     Input(secondRider, secondMount, controls.MountAbility, "mount-owner-pair", ownerSurfaceOther); Next(201); break;
                 case 201:
                     if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
@@ -143,6 +146,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     RequireOwnerSurfacePair();
                     ownerSurface["legsCompleted"] = speedLegs == null ? 0 : speedLegs.Count;
                     ownerSurface["legsApplicable"] = speedLegs == null ? 0 : speedLegs.Count(leg => (bool)leg["applicable"]);
+                    // v5: every leg ran (a failed leg continues the sequence for diagnosis); the row passes only when all were accepted.
+                    RequireSpeedLegsAccepted();
                     Pass(OwnerSurfaceLegsRow); snapshots.Add(CaptureWorld("owner-surface-legs-complete"));
                     BeginCleanup(); break;
                 default: throw new InvalidOperationException("Unknown owner-surface speed step " + step + ".");

@@ -302,7 +302,11 @@ function Assert-KmcChunk7GoalSearchShape($Search,[string]$Label){
 function Get-KmcChunk7DoorSettlementKeys {@('PreventionRefused','OccupancySettled','OccupancySettleGameSeconds','MountCorpulence','FootprintClear','FootprintRingInside','FootprintRingReachable','RecoveryDisposition','RecoveryTerminal','RecoveryCandidatesEvaluated','RecoveryCandidateReasons','RecoveryDestinationDistance','FootprintClearAfterRecovery','RecoveryCancelReason')}
 function Assert-KmcChunk7DoorSettlement($Outcome){
     Assert-KmcChunk7Boolean $Outcome.PreventionRefused $false;Assert-KmcChunk7Boolean $Outcome.OccupancySettled $true
-    if(-not(Test-KmcChunk7FiniteNumber $Outcome.OccupancySettleGameSeconds)-or$Outcome.OccupancySettleGameSeconds-lt0-or$Outcome.OccupancySettleGameSeconds-gt3.5){throw 'Door settlement time is invalid or exceeded its bound.'}
+    # v5 outcomes bound the settlement wait on its operational seconds (campaign GameTime is frozen inside a turn-based turn and is
+    # recorded as observed); earlier outcomes carry only the campaign figure, which was the wait's basis then.
+    $operational=$null-ne$Outcome.PSObject.Properties['OccupancySettleOperationalSeconds']
+    if(-not(Test-KmcChunk7FiniteNumber $Outcome.OccupancySettleGameSeconds)-or$Outcome.OccupancySettleGameSeconds-lt0-or(-not$operational-and$Outcome.OccupancySettleGameSeconds-gt3.5)){throw 'Door settlement time is invalid or exceeded its bound.'}
+    if($operational-and(-not(Test-KmcChunk7FiniteNumber $Outcome.OccupancySettleOperationalSeconds)-or$Outcome.OccupancySettleOperationalSeconds-lt0-or$Outcome.OccupancySettleOperationalSeconds-gt3.5)){throw 'Door settlement operational time is invalid or exceeded its bound.'}
     if(-not(Test-KmcChunk7FiniteNumber $Outcome.MountCorpulence)-or$Outcome.MountCorpulence-le0-or$Outcome.MountCorpulence-gt3){throw 'Door settlement mount corpulence is invalid.'}
     Assert-KmcOrdinaryInteger $Outcome.FootprintRingInside 0 8;Assert-KmcOrdinaryInteger $Outcome.FootprintRingReachable 0 8;Assert-KmcOrdinaryInteger $Outcome.RecoveryCandidatesEvaluated 0 80
     if($Outcome.FootprintClear-isnot[bool]-or$Outcome.RecoveryDisposition-isnot[string]-or$Outcome.RecoveryTerminal-isnot[string]-or$Outcome.RecoveryCandidateReasons-isnot[string]){throw 'Door settlement fields are mistyped.'}
@@ -433,8 +437,25 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
     # v3 (Sprint 2 completion, review correction A): mounted ground input is routed to the mount, so a carried rider has no
     # locomotion command of its own; each leg records its carried riders passively (owner, own Move slot, path, attachment).
     # v4: the goal search refuses routes whose sampled navmesh height leaves the start level, and the native state at the leg's end is recorded.
-    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4')){throw 'Sprint 2 speed leg contract differs.'}
-    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4');$legsV3=$Observations.speedLegContract-cin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4');$legsV4=$Observations.speedLegContract-ceq'sprint2-speed-legs/v4'
+    # v5 (review 2026-10-31): a failed leg is recorded (accepted false, failure) and the later legs continue for diagnosis; the
+    # aggregate speedLegsAccepted stays false until every applicable leg is accepted; the first native interrupt of each issued
+    # speed-leg Move is observed before cleanup (speedLegInterruptions) through the declared run-scoped observer.
+    if($Observations.speedLegContract-cnotin@('sprint2-speed-legs/v1','sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')){throw 'Sprint 2 speed leg contract differs.'}
+    $legsV2=$Observations.speedLegContract-cin@('sprint2-speed-legs/v2','sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5');$legsV3=$Observations.speedLegContract-cin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')
+    $legsV4=$Observations.speedLegContract-cin@('sprint2-speed-legs/v4','sprint2-speed-legs/v5');$legsV5=$Observations.speedLegContract-ceq'sprint2-speed-legs/v5'
+    foreach($key in @('speedLegsAccepted','speedLegInterruptions','speedLegInterruptObserver')){if(($null-ne$Observations.PSObject.Properties[$key])-ne$legsV5){throw ('Sprint 2 speed legs '+$key+' belongs to the v5 contract exactly.')}}
+    if($legsV5){
+        Assert-KmcChunk7Boolean $Observations.speedLegsAccepted $true
+        $ob=$Observations.speedLegInterruptObserver;Assert-KmcExactProperties $ob @('scope','method','token','moduleMvid','callerCapture','recordLimit','counts') 'speed leg interrupt observer'
+        if($ob.scope-isnot[string]-or$ob.scope-cnotlike'first native UnitCommand.Interrupt of each issued speed-leg Move command*'-or$ob.method-cne'Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt'-or$ob.token-cne'060027AC'){throw 'Sprint 2 speed leg interrupt observer scope or target differs.'}
+        Assert-KmcOrdinaryInteger $ob.recordLimit 8 8
+        if($Observations.speedLegInterruptions-isnot[Array]){throw 'Sprint 2 speed leg interruptions must be recorded as an array.'}
+        foreach($ir in @($Observations.speedLegInterruptions)){
+            if($null-ne$ir.PSObject.Properties['observerError']){Assert-KmcExactProperties $ir @('legLabel','moverId','commandObject','observerError') 'speed leg interrupt (observer error)';continue}
+            Assert-KmcExactProperties $ir @('phase','legLabel','moverId','role','commandObject','frame','gameTicks','gameSecondsSinceClick','wallSecondsSinceClick','commandStarted','commandActed','commandFinishedBefore','resultBefore','position','target','flatDistanceToTarget','pathLengthSoFar','agent','gameMode','paused','inCombat','unitInCombat','turnBased','loading','area','unitCanMove','unitCanAct','callers','callersTruncated','nearbyMapObjects') 'speed leg interrupt'
+            if($ir.callers-isnot[string]-or$ir.callersTruncated-isnot[bool]-or$ir.phase-cne'speed-leg'){throw 'Sprint 2 speed leg interrupt lacks its caller chain or phase.'}
+            Assert-KmcOrdinaryGuid $ir.moverId;Assert-KmcChunk7WorldInt32 $ir.commandObject}
+    }
     $rows=@($Observations.speedLegs);if($rows.Count-lt1-or$rows.Count-gt4){throw 'Sprint 2 speed legs are missing or unbounded.'}
     $expected=@('mounted-party','mounted-solo','horse-solo','rider-solo')
     for($i=0;$i-lt$rows.Count;$i++){$leg=$rows[$i]
@@ -442,7 +463,14 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
         if($leg.applicable-isnot[bool]){throw 'Sprint 2 speed leg applicability must be a native boolean.'}
         if(-not$leg.applicable){Assert-KmcExactProperties $leg @('label','selection','primaryMoverId','distance','applicable','goalSearch','reason') 'speed leg (not applicable)';continue}
         $legKeys=@('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds');if($legsV3){$legKeys+='carried'};if($legsV4){$legKeys+='endState'}
+        if($legsV5){$legKeys+=@('accepted','interruptRecords');if($null-ne$leg.PSObject.Properties['failure']){$legKeys+='failure'}}
         Assert-KmcExactProperties $leg $legKeys 'speed leg'
+        if($legsV5){
+            # A PASS verdict needs every applicable leg accepted; a leg that failed carries its retained reason and is never waived.
+            Assert-KmcChunk7Boolean $leg.accepted $true
+            if($null-ne$leg.PSObject.Properties['failure']){throw ('Sprint 2 speed leg '+$leg.label+' records a failure: '+$leg.failure)}
+            Assert-KmcOrdinaryInteger $leg.interruptRecords 0 8
+            if($leg.interruptRecords-ne@(@($Observations.speedLegInterruptions)|Where-Object{$_.legLabel-ceq$leg.label}).Count){throw ('Sprint 2 speed leg '+$leg.label+' interrupt record count differs from the observer records.')}}
         if($legsV4){$es=$leg.endState;Assert-KmcExactProperties $es @('gameMode','paused','inCombat','loading','area','results') 'speed leg end state'
             if($es.gameMode-isnot[string]-or$es.gameMode-cne'Default'){throw ('Sprint 2 speed leg '+$leg.label+' ended outside the default game mode: '+$es.gameMode)}
             foreach($key in @('paused','inCombat','loading')){Assert-KmcChunk7Boolean $es.$key $false}
@@ -499,8 +527,11 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     # v3 (Sprint 2): the long approach, click-while-moving and occupancy records are required together with the contract.
     # v4 (Sprint 2 completion): the unmounted control, the endpoint neighbor, the Stop control, the unstarted-while-moving
     # samples and the owned settlement fields (settled cut, body footprint, recovery) on top of v3.
-    $doorV4=$Door.contract-ceq'two-pair-native-door-click-selection-change-v4'
-    $doorV3=$Door.contract-cin@('two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4')
+    # v5 (review 2026-10-31, turn-based clock): the outcome carries the supervision clock's elapsed operational seconds beside
+    # the observed campaign seconds; the settlement bound applies to the operational figure (campaign time is frozen inside a turn).
+    $doorV5=$Door.contract-ceq'two-pair-native-door-click-selection-change-v5'
+    $doorV4=$Door.contract-cin@('two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')
+    $doorV3=$Door.contract-cin@('two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')
     $doorKeys=@('contract','interactions','setupInteractions','cutObservations','fixture','firstPairReturn','restoration','completed')
     if($doorV3){$doorKeys+=@('approach','longApproach','clickWhileMoving')}
     if($doorV4){$doorKeys+=@('unmountedControl','endpointNeighbor','stopControl');if($null-ne$Door.PSObject.Properties['layoutRestore']){$doorKeys+=@('layoutRestore')}}
@@ -508,8 +539,8 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
     # v1 (through F4): the first pair returned to its captured start. v2 (F4 r30 correction): it returns to a goal
     # clear of every other unit's native avoidance footprint, recorded with its search (Assert-KmcChunk7DoorReturnV2).
     # Old evidence keeps its v1 path and verdict.
-    if($Door.contract-cnotin@('two-pair-native-door-click-selection-change','two-pair-native-door-click-selection-change-v2','two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4')-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
-    $doorV2=$Door.contract-cin@('two-pair-native-door-click-selection-change-v2','two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4')
+    if($Door.contract-cnotin@('two-pair-native-door-click-selection-change','two-pair-native-door-click-selection-change-v2','two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')-or$Door.interactions-isnot[Array]-or$Door.interactions.Count-ne2){throw 'Exactly two captured native door interactions required.'}
+    $doorV2=$Door.contract-cin@('two-pair-native-door-click-selection-change-v2','two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')
     Assert-KmcChunk7Boolean $Door.completed $true
     Assert-KmcChunk7WorldCounters $Door @('setupInteractions')
     $f=$Door.fixture
@@ -567,7 +598,12 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
         $outcomeKeys=@('Result','RiderId','MountId','InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount','DoorStateChanged','RiderPathSuppressed','MountMoveSlotRestored','TerminalReason')
         if($doorV3){$outcomeKeys+=@('ApproachesWithoutProgress','ApproachElapsedGameSeconds','DistanceAtInteraction','LineOfSightAtInteraction','OccupancyInsideNavmesh','OccupancyRecovery','OccupancyNearestNodeDistance')}
         if($doorV4){$outcomeKeys+=Get-KmcChunk7DoorSettlementKeys}
+        if($doorV5){$outcomeKeys+=@('ApproachElapsedOperationalSeconds','OccupancySettleOperationalSeconds')}
         Assert-KmcExactProperties $o $outcomeKeys 'native door terminal outcome'
+        if($doorV5){foreach($field in @('ApproachElapsedOperationalSeconds','OccupancySettleOperationalSeconds')){if(-not(Test-KmcChunk7FiniteNumber $o.$field)-or$o.$field-lt0){throw ('Door outcome '+$field+' is invalid.')}}
+            # Real time: the supervision clock and the campaign clock run together (both the engine's per-frame gameplay timestep), so
+            # the two approach figures agree closely; a half second admits ticks the action controller skipped around the start and end.
+            if([Math]::Abs([double]$o.ApproachElapsedOperationalSeconds-[double]$o.ApproachElapsedGameSeconds)-gt0.5){throw 'Real-time door approach: the operational and campaign elapsed seconds disagree.'}}
         Assert-KmcChunk7WorldCounters $o @('InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount')
         # v3: the command retries a finished approach natively (bounded by progress), so approach starts are at least one.
         $approachStartsAdmitted=if($doorV3){$o.DelegatedMoveStartCount-ge1-and$o.DelegatedMoveStartCount-le4}else{$o.DelegatedMoveStartCount-eq1}
@@ -798,6 +834,11 @@ function Test-KmcChunk7DoorGate($Value,[switch]$Fixture){
 function Assert-KmcChunk7NativeDoorRows($Rows,$Mounts,[int]$CandidateCount,[string]$Label,[switch]$CurrentOnly){
     if($Rows-isnot[Array]-or$Rows.Count-ne[Math]::Min(32,$CandidateCount)){throw ($Label+' rows do not match the bounded native candidate count.')}
     $base=@('name','position','active','open','disableCutWhenOpen','cutPresent','proximityRadius','mountDistances')
+    # Review 2026-10-31: a current row may carry the native combat-usability flag (notInCombat) beside eligibility; one or
+    # two mounted actors decide the distances (the owner-surface inventory has one).
+    $mountCount=@($Mounts).Count;if($mountCount-lt1-or$mountCount-gt2){throw ($Label+' inventory needs one or two mounted actors.')}
+    $flagged=@($Rows|Where-Object{$null-ne$_.PSObject.Properties['notInCombat']}).Count
+    if($flagged-ne0-and$flagged-ne$Rows.Count){throw ($Label+' inventory mixes rows with and without the combat-usability flag.')}
     # One shape per inventory. A legacy row (no clickability flags) is admitted only when it is
     # ineligible whatever those flags would say, so it can never hide a qualifying closed door.
     $legacyRows=@($Rows|Where-Object{$null-eq$_.PSObject.Properties['revealed']}).Count
@@ -806,18 +847,19 @@ function Assert-KmcChunk7NativeDoorRows($Rows,$Mounts,[int]$CandidateCount,[stri
     foreach($row in $Rows){
         $legacy=$legacyRows-ne0
         if($legacy-and$CurrentOnly){throw ($Label+' row lacks its clickability flags.')}
-        Assert-KmcExactProperties $row $(if($legacy){$base+@('eligible')}else{$base+(Get-KmcChunk7DoorClickFields)+@('eligible')}) $Label
+        Assert-KmcExactProperties $row $(if($legacy){$base+@('eligible')}else{$base+(Get-KmcChunk7DoorClickFields)+@('eligible')+$(if($flagged-ne0){@('notInCombat')}else{@()})}) $Label
+        if($flagged-ne0-and$row.notInCombat-isnot[bool]){throw ($Label+' combat-usability flag is not Boolean.')}
         if($row.name-isnot[string]-or[string]::IsNullOrWhiteSpace($row.name)-or$row.name.Length-gt256-or
-           $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne2-or
+           $row.mountDistances-isnot[Array]-or$row.mountDistances.Count-ne$mountCount-or
            -not(Test-KmcChunk7FiniteNumber $row.proximityRadius)-or[double]$row.proximityRadius-le0){throw ($Label+' identity or radius is malformed.')}
         foreach($axis in @('x','y','z')){if(-not(Test-KmcChunk7FiniteNumber $row.position.$axis)){throw ($Label+' position is nonfinite.')}}
-        for($i=0;$i-lt2;$i++){
+        for($i=0;$i-lt$mountCount;$i++){
             $start=$Mounts[$i].position
             $distance=[Math]::Sqrt([Math]::Pow([double]$start.x-[double]$row.position.x,2)+[Math]::Pow([double]$start.z-[double]$row.position.z,2))
             if(-not(Test-KmcChunk7FiniteNumber $row.mountDistances[$i])-or
                [Math]::Abs($distance-[double]$row.mountDistances[$i])-gt0.001){throw ($Label+' distance differs from mounted actor geometry.')}
         }
-        $sum=[double]$row.mountDistances[0]+[double]$row.mountDistances[1]
+        $sum=0.0;foreach($d in $row.mountDistances){$sum+=[double]$d}
         if($sum+0.001-lt$prior){throw ($Label+' inventory is not nearest-first.')};$prior=$sum
         foreach($key in @('active','open','disableCutWhenOpen','cutPresent','eligible')){if($row.$key-isnot[bool]){throw ($Label+' state is not Boolean.')}}
         $distancesOk=@($row.mountDistances|Where-Object{[double]$_-le[double]$row.proximityRadius+0.5-or[double]$_-gt28.0}).Count-eq0
@@ -932,8 +974,19 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     }
     # The four aligned legs on this surface: mounted with the party, mounted alone, the Horse alone, the rider on foot.
     if($null-eq$o.PSObject.Properties['speedLegs']){throw 'Owner-surface speed recorded no speed legs.'}
-    if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
+    if($o.speedLegContract-cnotin@('sprint2-speed-legs/v3','sprint2-speed-legs/v4','sprint2-speed-legs/v5')){throw 'Owner-surface speed requires the v3 or later speed legs (carried riders recorded from pair ownership).'}
     Assert-KmcChunk7Sprint2Legs $o
+    # Review 2026-10-31 (v5 legs): the one bounded read-only door inventory of the owner's surface area, taken at the start
+    # from the Horse's position (the combat-usability flag beside eligibility). Nothing was acquired, closed or clicked.
+    if(($null-ne$o.PSObject.Properties['doorInventory'])-ne($o.speedLegContract-ceq'sprint2-speed-legs/v5')){throw 'Owner-surface door inventory belongs to the v5 legs exactly.'}
+    if($null-ne$o.PSObject.Properties['doorInventory']){$inv=$o.doorInventory
+        Assert-KmcExactProperties $inv @('boundary','candidateCount','rowLimit','radius','mounts','truncated','rows','interactionTested') 'owner-surface door inventory'
+        Assert-KmcBootstrapInventoryString $inv.boundary 'owner-surface-start';Assert-KmcOrdinaryInteger $inv.candidateCount 0 100000;Assert-KmcOrdinaryInteger $inv.rowLimit 32 32
+        if(-not(Test-KmcChunk7FiniteNumber $inv.radius)-or[double]$inv.radius-ne28.0){throw 'Owner-surface door inventory radius differs.'}
+        Assert-KmcChunk7Boolean $inv.truncated ($inv.candidateCount-gt32);Assert-KmcChunk7Boolean $inv.interactionTested $false
+        if($inv.mounts-isnot[Array]-or$inv.mounts.Count-ne1-or$inv.mounts[0].id-cne$horse){throw 'Owner-surface door inventory was not taken from the owner''s Horse.'}
+        Assert-KmcChunk7NativeDoorRows $inv.rows $inv.mounts ([int]$inv.candidateCount) 'owner-surface door inventory' -CurrentOnly
+        if(@($inv.rows|Where-Object{$null-eq$_.PSObject.Properties['notInCombat']}).Count-ne0){throw 'Owner-surface door inventory rows lack the combat-usability flag.'}}
     $legs=@($o.speedLegs);if($legs.Count-ne4){throw 'Owner-surface speed requires all four aligned legs.'}
     $primary=@($horse,$horse,$horse,$rider)
     $mountedOwner=@(@($o.snapshots|Where-Object label -CEQ 'owner-surface-mounted')[0].owners|Where-Object state -CEQ 'Active')
@@ -1000,7 +1053,11 @@ function Assert-KmcChunk7TurnBasedRejection($Row,[string]$Label,[string]$SecondR
 function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[string[]]$Riders,[string[]]$Mounts){
     $t=$Turn;if($null-eq$t){throw 'Turn-based door evidence is missing.'}
     Assert-KmcExactProperties $t @('contract','scope','turns','endedTurns','setupInteractions','fixture','setup','control','encounter','riderTurn','rejectionBeforeClick','interaction','rejectionDuringApproach','encounterEnd','servicesReleased','afterCombat','restoration','completed') 'turn-based door control'
-    Assert-KmcBootstrapInventoryString $t.contract 'owner-seed-turn-based-door-control-v2';Assert-KmcChunk7Boolean $t.completed $true
+    # v3 (review 2026-10-31): the shared door selection required combat usability before any preparation and the outcome
+    # carries the supervision clock's operational seconds (Assert-KmcChunk7DoorSettlement bounds them); otherwise v2.
+    if($t.contract-cnotin@('owner-seed-turn-based-door-control-v2','owner-seed-turn-based-door-control-v3')){throw 'Turn-based door control contract differs.'}
+    Assert-KmcChunk7Boolean $t.completed $true
+    if($t.contract-ceq'owner-seed-turn-based-door-control-v3'-and($null-eq$t.interaction.outcome.PSObject.Properties['ApproachElapsedOperationalSeconds']-or$null-eq$t.interaction.outcome.PSObject.Properties['OccupancySettleOperationalSeconds'])){throw 'A v3 turn-based door outcome lacks its operational seconds.'}
     # v2 scope labels: the off-turn click proves cross-pair isolation (not the same controller's pending-recovery preservation,
     # which stays offline coverage); zero stalls on a continuously acting turn is not an exhaustion/off-turn wait exercise.
     $sc=$t.scope;Assert-KmcExactProperties $sc @('offTurnRejection','stallClassification','movementCost') 'turn-based door scope labels'
@@ -1291,12 +1348,12 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     $doorCommands=if($doorTested){@($o.door.interactions|ForEach-Object{[string]$_.commandObject})+@([string]$o.door.firstPairReturn.command)}else{@()}
     # v3 door (Sprint 2): the long-approach setup move and the click-while-moving lateral move are issued native commands
     # of the probe; the speed legs' ground moves are issued by the scenario. All are retained for the removal admission.
-    if($doorTested-and$o.door.contract-cin@('two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4')){
+    if($doorTested-and$o.door.contract-cin@('two-pair-native-door-click-selection-change-v3','two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')){
         if($o.door.longApproach.applicable){$doorCommands+=@([string]$o.door.longApproach.setupCommand)}
         if($o.door.clickWhileMoving.applicable){$doorCommands+=@([string]$o.door.clickWhileMoving.moveCommand)}
     }
     # v4: the unmounted control's native interaction, the endpoint neighbor's move and the Stop control's door command.
-    if($doorTested-and$o.door.contract-ceq'two-pair-native-door-click-selection-change-v4'){
+    if($doorTested-and$o.door.contract-cin@('two-pair-native-door-click-selection-change-v4','two-pair-native-door-click-selection-change-v5')){
         if($o.door.unmountedControl.applicable){$doorCommands+=@([string]$o.door.unmountedControl.commandObject)}
         if($o.door.endpointNeighbor.applicable){$doorCommands+=@([string]$o.door.endpointNeighbor.moveCommand)}
         if($null-ne$o.door.stopControl.PSObject.Properties['commandObject']){$doorCommands+=@([string]$o.door.stopControl.commandObject)}

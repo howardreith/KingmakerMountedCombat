@@ -264,14 +264,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 7:
                         AssertBoth(); if (!MovementSettled()) return;
                         Pass("C7-world-selection-routing"); snapshots.Add(CaptureWorld("movement-complete"));
-                        if (OwnerSeed && Chunk7NativeDoorProbe.FindQualifyingDoor(new[] { firstMount, secondMount }, out _) == null)
+                        // Review 2026-10-31: the turn-based selection requires a combat-usable door (NotInCombat false) in the
+                        // shared selection, before any real-time preparation or encounter; an absence is reported with the
+                        // inventory and fails the turn-based row here instead of rediscovering the flag after a whole stage.
+                        if (OwnerSeed && Chunk7NativeDoorProbe.FindQualifyingDoor(new[] { firstMount, secondMount }, TurnBasedDoorSelected, out _) == null)
                         {
                             // Owner-seed kind only: an observed absence of a qualifying door is
                             // recorded as not applicable; door behaviour is never claimed as tested.
-                            evidence["door"] = Chunk7NativeDoorProbe.NotApplicable(new[] { firstMount, secondMount });
+                            evidence["door"] = Chunk7NativeDoorProbe.NotApplicable(new[] { firstMount, secondMount }, TurnBasedDoorSelected);
+                            Require(!TurnBasedDoorSelected, "No combat-usable qualifying door (StandardDoor.NotInCombat false) lies within the 28 m scan radius of both mounts: " +
+                                "the selected turn-based door control is not possible on this seed; the read-only door inventory is recorded under door.rows (no real-time preparation, no encounter).");
                             Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
                         }
-                        doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount);
+                        doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount) { RequireCombatUsableDoor = TurnBasedDoorSelected };
                         evidence["door"] = doorProbe.Evidence; doorProbe.Begin(); Next(40); break;
                     case 40:
                         AssertBoth(); PumpDoorClearanceCapture(); if (!doorProbe.Poll()) return;
@@ -297,6 +302,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 12:
                         if (!PollSpeedLeg()) return;
                         // The legs are observations under the existing rows (the world evidence reader validates them); no new row name.
+                        // v5: a failed leg fails here, after every leg ran for diagnosis (nothing is waived).
+                        RequireSpeedLegsAccepted();
                         cycle = 1; BeginCycle(); break;
                     case 8:
                         if (Mounted(firstRider, firstMount) || !InputSettled()) return;
@@ -1068,6 +1075,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (disposed) return;
             if (!DrainForHost()) throw new InvalidOperationException("World fixture retains native cleanup and requires owner polling.");
             disposed = true;
+            DisposeSpeedLegInterruptObserver();
         }
     }
 }

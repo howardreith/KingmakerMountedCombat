@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using Harmony12;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
@@ -11,8 +13,10 @@ using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.View.MapObjects;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -34,7 +38,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // 1 to 1.7 m toward a goal recorded at the start height): a candidate route is admitted only when the navmesh
         // height sampled along the heading stays level with the start, and the native state at the leg's end (game mode,
         // pause, combat, loading, area) is recorded so an interrupted leg is classified rather than guessed.
-        internal const string SpeedLegContract = "sprint2-speed-legs/v4";
+        // v5 (review 2026-10-31): the v4 "level" samples measured nothing (GetNearestNode keeps the requested height) and are
+        // retained with that limitation; a failed leg no longer aborts the sequence: it is recorded (accepted=false, failure),
+        // the later legs continue for diagnosis and the aggregate speedLegsAccepted stays false until every applicable leg
+        // is accepted; the first native UnitCommand.Interrupt of each issued speed-leg Move is observed before cleanup
+        // (actor, command, callers, mode, position, native path status, nearby map objects) through a run-scoped hook.
+        internal const string SpeedLegContract = "sprint2-speed-legs/v5";
+        private const int SpeedLegInterruptRecordLimit = 8;
         private const float SpeedLegLevelToleranceMetres = 0.5f;
         internal const float SpeedLegDistanceMetres = 9f;
         private const float SpeedLegClampResidualMetres = 0.5f;
@@ -73,6 +83,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JArray speedLegs;
         private JObject speedLeg;
+        private readonly List<string> speedLegFailures = new List<string>();
+        private JArray speedLegInterruptions;
+        private JObject speedLegInterruptSummary;
+        private SpeedLegInterruptObserver speedLegInterruptObserver;
         private List<SpeedLegMover> speedLegMovers;
         private List<SpeedLegCarried> speedLegCarried;
         private double speedLegStartedWall;
@@ -84,7 +98,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginSpeedLeg(string label, SpeedLegSelection selection)
         {
-            if (speedLegs == null) { speedLegs = new JArray(); evidence["speedLegContract"] = SpeedLegContract; evidence["speedLegs"] = speedLegs; }
+            if (speedLegs == null)
+            {
+                speedLegs = new JArray(); evidence["speedLegContract"] = SpeedLegContract; evidence["speedLegs"] = speedLegs; evidence["speedLegsAccepted"] = false;
+                // v5: the run-scoped interrupt observation, installed once before the first leg and removed with the engine.
+                speedLegInterruptions = new JArray(); speedLegInterruptSummary = new JObject();
+                speedLegInterruptObserver = new SpeedLegInterruptObserver(ObserveNativeInterrupt);
+                evidence["speedLegInterruptions"] = speedLegInterruptions;
+                evidence["speedLegInterruptObserver"] = speedLegInterruptObserver.Describe(SpeedLegInterruptRecordLimit, speedLegInterruptSummary);
+            }
             Require(speedLeg == null && speedLegMovers == null, "A speed leg is already running.");
             Require(!Game.Instance.Player.IsInCombat, "Speed legs require exploration.");
             var mover = selection == SpeedLegSelection.SecondMountAlone ? secondMount : secondMount != null && Mounted(secondRider, secondMount) ? secondMount : secondRider;
@@ -249,13 +271,101 @@ namespace KingmakerMountedCombat.Diagnostics
                 r["factsAfter"] = CaptureSpeedFacts(m.Unit);
             }
             var primary = speedLegMovers.First(m => (string)m.Record["id"] == (string)speedLeg["primaryMoverId"]);
-            Require(primary.Move.Result == UnitCommand.ResultType.Success && primary.Sampler.PathLength >= SpeedLegDistanceMetres * 0.5f,
-                "The speed leg's primary mover did not complete a native route of meaningful length: " + speedLeg["label"]);
-            logger.Info("Sprint 2 speed leg " + speedLeg["label"] + ": primary effective " + ((double)primary.Record["effectiveSpeedMps"]).ToString("F2") +
-                " m/s (v1 interval " + primary.Sampler.UnalignedEffectiveSpeed.ToString("F2") + ") over " + primary.Sampler.PathLength.ToString("F2") +
-                " m; gaits=" + primary.Record["gaits"].ToString(Newtonsoft.Json.Formatting.None));
+            // v5: a failed leg is recorded and the sequence continues for diagnosis; the aggregate acceptance stays false
+            // (RequireSpeedLegsAccepted at the end of the sequence) and the failed leg is never waived.
+            var accepted = primary.Move.Result == UnitCommand.ResultType.Success && primary.Sampler.PathLength >= SpeedLegDistanceMetres * 0.5f;
+            speedLeg["accepted"] = accepted;
+            speedLeg["interruptRecords"] = speedLegInterruptions == null ? 0 : speedLegInterruptions.Count(r => (string)r["legLabel"] == (string)speedLeg["label"]);
+            if (!accepted)
+            {
+                var failure = "The speed leg's primary mover did not complete a native route of meaningful length: " + speedLeg["label"] +
+                    " (result " + primary.Move.Result + ", path " + primary.Sampler.PathLength.ToString("F2") + " m, goal residual " +
+                    ((float)primary.Record["goalResidual"]).ToString("F2") + " m).";
+                speedLeg["failure"] = failure; speedLegFailures.Add(failure);
+                logger.Warning("Sprint 2 speed leg " + speedLeg["label"] + " NOT accepted (later legs continue for diagnosis only): " + failure);
+            }
+            else
+            {
+                logger.Info("Sprint 2 speed leg " + speedLeg["label"] + ": primary effective " + ((double)primary.Record["effectiveSpeedMps"]).ToString("F2") +
+                    " m/s (v1 interval " + primary.Sampler.UnalignedEffectiveSpeed.ToString("F2") + ") over " + primary.Sampler.PathLength.ToString("F2") +
+                    " m; gaits=" + primary.Record["gaits"].ToString(Newtonsoft.Json.Formatting.None));
+            }
             speedLeg = null; speedLegMovers = null; speedLegCarried = null;
             return true;
+        }
+
+        // v5: the aggregate acceptance of the leg sequence, decided once after the last leg. A failed leg fails the row
+        // here with every retained failure; nothing is waived because later legs ran.
+        private void RequireSpeedLegsAccepted()
+        {
+            var accepted = speedLegs != null && speedLegs.Count >= 1 && speedLegFailures.Count == 0;
+            if (speedLegs != null) evidence["speedLegsAccepted"] = accepted;
+            Require(accepted, speedLegs == null ? "No speed leg was recorded." :
+                "Speed legs not accepted (" + speedLegFailures.Count + " failed leg(s); the later legs ran for diagnosis only): " + string.Join(" | ", speedLegFailures.ToArray()));
+        }
+
+        // v5: the first native UnitCommand.Interrupt of each issued speed-leg Move, observed before cleanup. Interrupts of
+        // other commands, and every interrupt during cleanup, are counted by phase only (no stack). Observation only.
+        private void ObserveNativeInterrupt(UnitCommand command)
+        {
+            if (command == null || speedLegInterruptSummary == null) return;
+            var legLabel = speedLeg != null && speedLegMovers != null ? (string)speedLeg["label"] : null;
+            var phase = cleanupStarted ? "cleanup" : legLabel != null ? "speed-leg" : "between-legs";
+            var mover = cleanupStarted || speedLegMovers == null ? null : speedLegMovers.FirstOrDefault(m => ReferenceEquals(m.Move, command));
+            var kind = mover != null ? "leg-mover" : issuedCommands.Any(x => ReferenceEquals(x, command)) ? "issued-command" : "other";
+            var key = phase + ":" + kind;
+            var count = speedLegInterruptSummary[key];
+            speedLegInterruptSummary[key] = (count == null ? 0 : (int)count) + 1;
+            if (mover == null) return;
+            if (speedLegInterruptions.Count >= SpeedLegInterruptRecordLimit) { var t = speedLegInterruptSummary["truncated"]; speedLegInterruptSummary["truncated"] = (t == null ? 0 : (int)t) + 1; return; }
+            try { speedLegInterruptions.Add(DescribeInterrupt(legLabel, mover, command)); }
+            catch (Exception error)
+            {
+                var f = speedLegInterruptSummary["observerFailures"]; speedLegInterruptSummary["observerFailures"] = (f == null ? 0 : (int)f) + 1;
+                speedLegInterruptions.Add(new JObject { ["legLabel"] = legLabel, ["moverId"] = mover.Unit.UniqueId, ["commandObject"] = Id(command), ["observerError"] = error.GetType().Name + ": " + error.Message });
+            }
+        }
+
+        private JObject DescribeInterrupt(string legLabel, SpeedLegMover mover, UnitCommand command)
+        {
+            var unit = mover.Unit; var agent = unit.View?.AgentASP; var game = Game.Instance; var path = agent?.Path;
+            bool truncated; var callers = SpeedLegInterruptObserver.Callers(40, out truncated);
+            return new JObject { ["phase"] = "speed-leg", ["legLabel"] = legLabel, ["moverId"] = unit.UniqueId, ["role"] = mover.Record["role"], ["commandObject"] = Id(command),
+                ["frame"] = Time.frameCount, ["gameTicks"] = game.TimeController.GameTime.Ticks,
+                ["gameSecondsSinceClick"] = (game.TimeController.GameTime - speedLegStartedGame).TotalSeconds, ["wallSecondsSinceClick"] = clock.Elapsed.TotalSeconds - speedLegStartedWall,
+                ["commandStarted"] = command.IsStarted, ["commandActed"] = command.IsActed, ["commandFinishedBefore"] = command.IsFinished, ["resultBefore"] = command.Result.ToString(),
+                ["position"] = Point(unit.Position), ["target"] = Point(mover.Move.Target), ["flatDistanceToTarget"] = Vector3.Distance(Flat(unit.Position), Flat(mover.Move.Target)),
+                ["pathLengthSoFar"] = mover.Sampler.PathLength,
+                ["agent"] = agent == null ? null : new JObject { ["enabled"] = agent.enabled, ["isReallyMoving"] = agent.IsReallyMoving, ["wantsToMove"] = agent.WantsToMove,
+                    ["pathFailed"] = agent.PathFailed, ["nearTheEnd"] = agent.NearTheEnd, ["speed"] = agent.Speed, ["hasPath"] = path != null,
+                    ["pathError"] = path == null ? (JToken)null : path.error, ["pathDone"] = path == null ? (JToken)null : path.IsDone(),
+                    ["pathVectorCount"] = path?.vectorPath == null ? (JToken)null : path.vectorPath.Count },
+                ["gameMode"] = game.CurrentMode.ToString(), ["paused"] = game.IsPaused, ["inCombat"] = game.Player.IsInCombat, ["unitInCombat"] = unit.IsInCombat,
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["loading"] = LoadingProcess.Instance.IsLoadingInProcess, ["area"] = game.CurrentlyLoadedArea?.AssetGuid,
+                ["unitCanMove"] = unit.Descriptor.State.CanMove, ["unitCanAct"] = unit.Descriptor.State.CanAct,
+                ["callers"] = callers, ["callersTruncated"] = truncated, ["nearbyMapObjects"] = NearbyMapObjects(unit.Position, 8f, 6) };
+        }
+
+        // Bounded read-only neighbourhood: the nearest map-object views within the radius (name, view type, distance).
+        private static JArray NearbyMapObjects(Vector3 origin, float radius, int limit)
+        {
+            var rows = new JArray();
+            var views = UnityEngine.Object.FindObjectsOfType<MapObjectView>() ?? new MapObjectView[0];
+            foreach (var view in views.Where(v => v != null).Select(v => new { View = v, Distance = Vector3.Distance(Flat(v.transform.position), Flat(origin)) })
+                .Where(x => x.Distance <= radius).OrderBy(x => x.Distance).Take(limit))
+            {
+                rows.Add(new JObject { ["name"] = view.View.name, ["viewType"] = view.View.GetType().Name, ["distance"] = view.Distance,
+                    ["position"] = Point(view.View.transform.position), ["interactionTypes"] = new JArray(view.View.GetComponents<InteractionComponent>().Select(c => c.GetType().Name)) });
+            }
+            return rows;
+        }
+
+        private void DisposeSpeedLegInterruptObserver()
+        {
+            var observer = speedLegInterruptObserver; speedLegInterruptObserver = null;
+            if (observer == null) return;
+            try { observer.Dispose(); if (speedLegInterruptSummary != null) speedLegInterruptSummary["observerRemoved"] = true; }
+            catch (Exception error) { if (speedLegInterruptSummary != null) speedLegInterruptSummary["observerRemoveError"] = error.GetType().Name + ": " + error.Message; }
         }
 
         private IEnumerable<UnitEntityData> SelectionUnits(SpeedLegSelection selection, UnitEntityData mover)
@@ -374,6 +484,72 @@ namespace KingmakerMountedCombat.Diagnostics
                 doorClearanceShots.Enqueue("C7-world-selection-routing", "door-clearance", Time.frameCount + 1);
             }
             doorClearanceShots?.Pump(Time.frameCount);
+        }
+    }
+
+    // Sprint 2 (speed legs v5, review 2026-10-31): the run-scoped observer of native UnitCommand.Interrupt (the same exact
+    // token the actor-allocation trace observes), installed before the first speed leg and removed with the engine. It
+    // calls one engine callback and never changes the native result; nothing here interrupts, finishes or moves anything.
+    internal sealed class SpeedLegInterruptObserver : IDisposable
+    {
+        private const string HarmonyId = "KingmakerMountedCombat.Diagnostics.SpeedLegInterrupts";
+        private const int InterruptToken = 0x060027AC;
+        private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+        private static Action<UnitCommand> active;
+        private readonly HarmonyInstance harmony;
+        private readonly MethodInfo target;
+        private bool disposed;
+
+        internal SpeedLegInterruptObserver(Action<UnitCommand> observer)
+        {
+            if (observer == null) throw new ArgumentNullException(nameof(observer));
+            if (active != null) throw new InvalidOperationException("One speed-leg interrupt observer may be installed at a time.");
+            target = typeof(UnitCommand).GetMethods(Flags).SingleOrDefault(m => m.MetadataToken == InterruptToken);
+            if (target == null || target.Name != "Interrupt") throw new MissingMethodException(typeof(UnitCommand).FullName, InterruptToken.ToString("X8"));
+            active = observer;
+            harmony = HarmonyInstance.Create(HarmonyId);
+            harmony.Patch(target, new HarmonyMethod(typeof(SpeedLegInterruptObserver).GetMethod(nameof(Before), Flags)) { prioritiy = Priority.First });
+        }
+
+        internal JObject Describe(int recordLimit, JObject summary) => new JObject {
+            ["scope"] = "first native UnitCommand.Interrupt of each issued speed-leg Move command, recorded before cleanup with its callers; interrupts of other commands and every cleanup-phase interrupt are counted by phase only",
+            ["method"] = target.DeclaringType.FullName + "." + target.Name, ["token"] = InterruptToken.ToString("X8"), ["moduleMvid"] = target.Module.ModuleVersionId.ToString(),
+            ["callerCapture"] = "one System.Diagnostics.StackTrace per recorded interrupt (method names only, no per-frame tracing)", ["recordLimit"] = recordLimit, ["counts"] = summary };
+
+        private static void Before(UnitCommand __instance)
+        {
+            var observer = active;
+            if (observer == null || __instance == null) return;
+            try { observer(__instance); } catch (Exception) { }
+        }
+
+        // The native caller chain of the current interrupt (Harmony and this observer's own frames skipped).
+        internal static string Callers(int maximum, out bool truncated)
+        {
+            truncated = true;
+            try
+            {
+                var stack = new System.Diagnostics.StackTrace(1, false);
+                var names = new List<string>(); truncated = false;
+                for (var index = 0; index < stack.FrameCount; index++)
+                {
+                    var method = stack.GetFrame(index)?.GetMethod();
+                    if (method == null) continue;
+                    var name = (method.DeclaringType == null ? "" : method.DeclaringType.FullName + ".") + method.Name;
+                    if (name.StartsWith("Harmony", StringComparison.Ordinal) || name.StartsWith("KingmakerMountedCombat.Diagnostics.", StringComparison.Ordinal)) continue;
+                    if (names.Count == maximum) { truncated = true; break; }
+                    names.Add(name);
+                }
+                return string.Join(" < ", names.ToArray());
+            }
+            catch (Exception exception) { truncated = true; return "unavailable:" + exception.GetType().Name; }
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true; active = null;
+            harmony.UnpatchAll(HarmonyId);
         }
     }
 }

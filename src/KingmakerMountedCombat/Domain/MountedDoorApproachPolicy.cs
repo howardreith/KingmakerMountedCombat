@@ -59,13 +59,13 @@ namespace KingmakerMountedCombat.Domain
         public const float ProgressEpsilonMetres = 0.25f;
         // Approaches that end outside range without progress before the click is refused as unreachable.
         public const int MaximumApproachesWithoutProgress = 3;
-        // Game seconds a running approach may hold the mount still before it is treated as stalled.
+        // Operational seconds (MountedDoorOperationalClock) a running approach may hold the mount still before it is treated as stalled.
         public const float StalledSecondsLimit = 4f;
         // The farthest walkable node a post-interaction repath may target.
         public const float RecoveryRadiusMetres = 1.5f;
         // Displacement below this is "still" for the stall clock.
         public const float DisplacementEpsilonMetres = 0.02f;
-        // A longer gap between two stall samples is a pause in ticking (turn-based rounds), re-sampled rather than charged.
+        // A longer step between two samples is a hitch or a resumed process, skipped rather than charged (also the operational clock's step bound).
         public const float MaximumTickGapSeconds = 0.5f;
 
         public static MountedDoorAdmissionDisposition DecideAdmission(
