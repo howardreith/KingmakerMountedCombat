@@ -73,8 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountCombatSpeedMps"] = horse.CombatSpeedMps, ["riderThieveryBaseBefore"] = rider.Stats.SkillThievery.BaseValue,
                 ["policy"] = "Ordinary native inputs; the product's carried approach moves the mount; stock Kingmaker owns every check, cast, charge, roll, spend and effect." };
             castingOriginalSlots = new NativeCastingOriginalSlots(rider, castingTrace);
-            castingRod = AcquireCastingItem(NativeCastingItemLease.LesserQuickenRod);
-            castingPotion = AcquireCastingItem(NativeCastingItemLease.CurePotion, PotionStackCount);
+            // Only the CLW scroll stack: the 6C quicken rod would spend its own charge on every memorized cast (r02).
             castingScroll = AcquireCastingItem(NativeCastingItemLease.CureScroll, ScrollStackCount);
             CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence));
             step = Phase3dHorseStep.Phase3gControls;
@@ -164,7 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             s3Facts["after"] = Sprint3State();
             s3Facts["events"] = castingTrace.EventsSince(s3EventOffset); s3Facts["costEvents"] = castingCosts.EventsSince(s3CostOffset);
-            s3Facts["rules"] = s3Rules.Capture(); s3Facts["trapEvents"] = s3TrapObserver.Capture();
+            s3Facts["rules"] = Sprint3RowRules(); s3Facts["trapEvents"] = s3TrapObserver.Capture();
             s3Facts["command"] = Sprint3Command(s3Command);
             s3Facts["carriedSeen"] = s3CarriedSeen; s3Facts["carriedReleasedSeen"] = s3ReleasedSeen;
             s3Facts["mountTravelledMetres"] = s3MountTravelled;
@@ -176,6 +175,17 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private void FailSprint3Row(string why) { s3Facts["failure"] = why; FinishSprint3Row(false, why); }
+
+        // The rule observer spans the scenario; a row reports only its own case's rules (r02 counted earlier rows).
+        private JObject Sprint3RowRules()
+        {
+            var capture = s3Rules.Capture();
+            return new JObject { ["dropped"] = capture["dropped"],
+                ["events"] = new JArray(((JArray)capture["events"]).Where(e => (string)e["caseId"] == Sprint3Case).Select(e => e.DeepClone())) };
+        }
+        private JToken[] Sprint3RiderAttackRolls(UnitEntityData onTarget) =>
+            ((JArray)Sprint3RowRules()["events"]).Where(e => (string)e["kind"] == "attack-roll" && (string)e["actor"] == rider.UniqueId &&
+                (string)e["target"] == onTarget.UniqueId).ToArray();
 
         private void TickSprint3Approach()
         {
@@ -243,17 +253,24 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // ---- TRAP-01 -------------------------------------------------------------------------------------------
+        private JObject Sprint3TrapFacts(TrapObjectView t) => new JObject { ["id"] = t.UniqueId, ["name"] = t.name,
+            ["position"] = CapturePosition(t.transform.position), ["distance"] = HorizontalDistance(t.transform.position, horse.Position),
+            ["blueprint"] = t.Blueprint?.AssetGuid, ["disableDc"] = t.Data?.DisableDC, ["scriptZone"] = t.ScriptZoneTrigger != null,
+            ["active"] = t.TrapActive, ["perceptionPassed"] = t.Data?.IsPerceptionCheckPassed, ["revealed"] = t.Data?.IsRevealed,
+            ["inGame"] = t.Data?.IsInGame, ["interactable"] = t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) };
+
         private void TickSprint3Trap()
         {
             if (s3Step == 0)
             {
-                var traps = (UnityEngine.Object.FindObjectsOfType<TrapObjectView>() ?? new TrapObjectView[0])
-                    .Where(t => t != null && t.Data != null && t.TrapActive && t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
+                var all = (UnityEngine.Object.FindObjectsOfType<TrapObjectView>() ?? new TrapObjectView[0]).Where(t => t != null && t.Data != null).ToArray();
+                s3Facts["traps"] = new JArray(all.Select(Sprint3TrapFacts));
+                // Discovered and natively usable; the fog reveal is a separate native fact (the click handler needs it) that
+                // the pair's own exploration leg below supplies when the trap lies beyond the revealed area.
+                var traps = all.Where(t => t.TrapActive && t.Data.IsPerceptionCheckPassed &&
                         t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()))
                     .OrderBy(t => HorizontalDistance(t.transform.position, horse.Position)).ToArray();
-                s3Facts["discoveredTraps"] = new JArray(traps.Select(t => new JObject { ["id"] = t.UniqueId, ["name"] = t.name,
-                    ["position"] = CapturePosition(t.transform.position), ["distance"] = HorizontalDistance(t.transform.position, horse.Position),
-                    ["blueprint"] = t.Blueprint?.AssetGuid, ["disableDc"] = t.Data.DisableDC, ["scriptZone"] = t.ScriptZoneTrigger != null }));
+                s3Facts["discoveredTraps"] = new JArray(traps.Select(Sprint3TrapFacts));
                 if (traps.Length == 0) { FailSprint3Row("No discovered, active, interactable trap exists in the loaded fixture area."); return; }
                 s3Trap = traps[0];
                 // A read-only native route query: the mount's own navmesh graph from its position to the trap's nearest node.
@@ -262,6 +279,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 var length = path.error ? float.PositiveInfinity : path.GetTotalLength();
                 s3Facts["routeProbe"] = new JObject { ["error"] = path.error, ["lengthMetres"] = length, ["points"] = path.vectorPath?.Count ?? 0 };
                 if (path.error || length > Sprint3PathLengthBoundMetres) { FailSprint3Row("The discovered trap has no bounded native route from the fixture pair (length " + length.ToString("F1") + " m)."); return; }
+                // The exploration leg: the pair walks its own route to a point about ten metres short of the trap through one
+                // ordinary ground order, so the trap is inside the revealed area and the click still begins outside range.
+                if (!s3Trap.Data.IsRevealed || length > 20f)
+                {
+                    var points = path.vectorPath; var fromEnd = 0f; var legPoint = points[0];
+                    for (var i = points.Count - 1; i > 0; i--)
+                    {
+                        fromEnd += Vector3.Distance(points[i], points[i - 1]);
+                        if (fromEnd >= 10f) { legPoint = points[i - 1]; break; }
+                    }
+                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(legPoint, false);
+                    s3Facts["explorationLeg"] = new JObject { ["destination"] = CapturePosition(legPoint), ["routeLength"] = length,
+                        ["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position), ["ordered"] = true, ["revealedBefore"] = s3Trap.Data.IsRevealed };
+                    s3Step = 10; ResetLeafClock(); return;
+                }
+                s3Step = 11; return;
+            }
+            if (s3Step == 10)
+            {
+                if (!Sprint3Settled()) { s3StableFrames = 0; return; }
+                if (++s3StableFrames < 10) return;
+                ((JObject)s3Facts["explorationLeg"])["distanceAfter"] = HorizontalDistance(s3Trap.transform.position, horse.Position);
+                ((JObject)s3Facts["explorationLeg"])["revealedAfter"] = s3Trap.Data.IsRevealed;
+                s3StableFrames = 0; s3MountTravelled = 0f; s3LastMountSample = horse.Position; s3MountStart = horse.Position; s3RiderStart = rider.Position;
+                s3Step = 11; ResetLeafClock(); return;
+            }
+            if (s3Step == 11)
+            {
+                s3Facts["trapAtClick"] = Sprint3TrapFacts(s3Trap);
+                if (!s3Trap.Data.IsRevealed) { FailSprint3Row("The discovered trap is not revealed after the pair's exploration leg; the native click handler refuses an unrevealed object."); return; }
                 // Fixture setup on the disposable rider only: the native rank cap (character level) in Trickery, restored at
                 // cleanup. The check, DC, roll and consequence stay native; nobody on the Working fixture has a rank.
                 s3TrickeryBefore = rider.Stats.SkillThievery.BaseValue;
@@ -419,7 +467,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ((JObject)s3Facts["stop"])["settled"] = Sprint3State();
                 ((JObject)s3Facts["stop"])["chargeHeldAfterStop"] = held != null;
                 if (held == null) { FailSprint3Row("The native Stop did not retain the held touch charge."); return; }
-                var redelivery = IssueSprint3Cast(ExactCastingItemAbility(castingScroll), s3Recipient, "redeliver");
+                // The ordinary re-delivery input is the held touch itself (the action-bar entry the engine shows while a
+                // charge is held); re-clicking the scroll would read a fresh scroll cast (r02).
+                var redelivery = IssueSprint3Cast(held.Ability.Data, s3Recipient, "redeliver");
                 ((JObject)s3Facts["redeliver"])["resolvedToHeldTouch"] = redelivery != null && redelivery.Spell.Blueprint == held.Ability.Blueprint;
                 if (redelivery == null) { FailSprint3Row("The second ordinary click did not admit the held touch delivery."); return; }
                 s3StableFrames = 0; s3Step = 3; ResetLeafClock(); return;
@@ -454,8 +504,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (live != null && !live.IsFinished) return;
             if (!Sprint3Settled()) { s3StableFrames = 0; return; }
             if (++s3StableFrames < 10) return;
-            var rules = s3Rules.Capture();
-            var rolls = ((JArray)rules["events"]).Where(e => (string)e["kind"] == "attack-roll" && (string)e["actor"] == rider.UniqueId && (string)e["target"] == target.UniqueId).ToArray();
+            var rolls = Sprint3RiderAttackRolls(target);
             var events = castingTrace.EventsSince(s3EventOffset);
             var casts = events.Count(e => (string)e["kind"] == "cast-after");
             var itemSpends = events.Count(e => (string)e["kind"] == "item-spend-after" && e["result"]?.Value<bool>() == true);
@@ -494,8 +543,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (++s3StableFrames < 10) return;
             var events = castingTrace.EventsSince(s3EventOffset);
             var cast = events.FirstOrDefault(e => (string)e["kind"] == "cast-after");
-            var rules = s3Rules.Capture();
-            var rolls = ((JArray)rules["events"]).Count(e => (string)e["kind"] == "attack-roll" && (string)e["actor"] == rider.UniqueId);
+            var rolls = Sprint3RiderAttackRolls(target).Count(r => (string)r["attackType"] == "RangedTouch" || (string)r["attackType"] == "Ranged");
             var outcome = (JArray)s3Facts["carriedOutcomes"];
             var distanceAtCast = outcome != null && outcome.Count > 0 ? (float?)outcome[outcome.Count - 1]["distanceAtSatisfaction"] : null;
             var range = (float)s3Facts["rangeMetres"];
@@ -567,7 +615,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var held = rider.Get<UnitPartTouch>();
                 s3Facts["secondTurn"] = new JObject { ["before"] = Sprint3State(), ["heldCharge"] = held != null, ["deliverTouchMode"] = turn.EnableDeliverTouch };
                 if (held == null) { FailSprint3Row("The held touch charge did not survive the native turn boundary."); return; }
-                if (IssueSprint3Cast(ExactCastingItemAbility(castingScroll), s3Recipient, "redeliver") == null) { FailSprint3Row("The second ordinary click did not admit the held touch delivery."); return; }
+                if (IssueSprint3Cast(held.Ability.Data, s3Recipient, "redeliver") == null) { FailSprint3Row("The second ordinary click did not admit the held touch delivery."); return; }
                 ((JObject)s3Facts["redeliver"])["resolvedToHeldTouch"] = s3Command is UnitUseAbility second && second.Spell.Blueprint == held.Ability.Blueprint;
                 s3RowTurn = turn; s3Step = 1; s3SecondInputSent = true; ResetLeafClock(); return;
             }
