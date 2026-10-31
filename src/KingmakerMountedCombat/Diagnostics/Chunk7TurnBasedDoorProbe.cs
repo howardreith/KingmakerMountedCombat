@@ -518,7 +518,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var stepMetres = allocation == null ? 0d : (double)allocation["mountStepMetres"];
             var recovered = recoveryDisposition == MountedDoorRecoveryDisposition.Admitted.ToString();
             var decayBound = 1.1d * settlementSeconds + 0.01d;
-            var lawful = mountCharge > 0.01d && mountCharge <= approachSeconds + 0.05d && (double)atActionEnd["mount"]["move"] <= 6.001d &&
+            // Native turn-based GameTime does not advance inside a turn (retained TB traces: constant ticks across a whole
+            // rider turn), so the game-seconds figures are recorded data, never a bound on the charge; the allocation time
+            // and the six-second budget bound it.
+            var lawful = mountCharge > 0.01d && (double)atActionEnd["mount"]["move"] <= 6.001d &&
                 Math.Abs(riderMoveDelta) <= 0.01d && (double)atActionEnd["rider"]["move"] <= 0.01d &&
                 allocationTime.HasValue && mountCharge <= allocationTime.Value + 0.05d && (stepMetres > 0d || Math.Abs(mountCharge - allocationTime.Value) <= 0.05d) &&
                 Math.Abs((double)allocation["mountMoveAfter"] - (double)atActionEnd["mount"]["move"]) <= 0.05d &&
