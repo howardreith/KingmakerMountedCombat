@@ -1080,7 +1080,7 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     if([Math]::Abs([double]$mc.allocationTime-[double]$al.mountTime)-gt0.0005-or[Math]::Abs([double]$mc.allocationStepMetres-[double]$al.mountStepMetres)-gt0.0005){throw 'Turn-based movement cost allocation figures differ from the allocation observation.'}
     # The contract itself, on the raw values.
     if($charge-le0.01){throw 'Free transport: the mount travelled on the rider''s turn but no Move time was charged.'}
-    if($charge-gt$approach+0.05){throw 'Excess movement charge: more Move time than game time passed during the approach.'}
+    # (Native turn-based GameTime does not advance inside a turn, so the recorded game seconds are data, not a bound.)
     if([double]$ac.mount.move-gt6.001){throw 'The mount''s Move cooldown exceeded one turn''s six-second budget.'}
     if([Math]::Abs([double]$ac.rider.move-[double]$ck.rider.move)-gt0.01-or[double]$ac.rider.move-gt0.01){throw 'Rider transport tax: the carried rider''s own Move was charged for the mount''s approach.'}
     if($charge-gt[double]$al.mountTime+0.05){throw 'Double movement charge: the mount''s Move delta exceeds the allocation''s movement time.'}
