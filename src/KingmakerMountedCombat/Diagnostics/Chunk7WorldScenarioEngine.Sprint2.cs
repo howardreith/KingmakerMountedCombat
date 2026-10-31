@@ -284,7 +284,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var primary = speedLegMovers.First(m => (string)m.Record["id"] == (string)speedLeg["primaryMoverId"]);
             // v5: a failed leg is recorded and the sequence continues for diagnosis; the aggregate acceptance stays false
             // (RequireSpeedLegsAccepted at the end of the sequence) and the failed leg is never waived.
-            var accepted = primary.Move.Result == UnitCommand.ResultType.Success && primary.Sampler.PathLength >= SpeedLegDistanceMetres * 0.5f;
+            // The meaningful length is half the admitted route length (r20: the engine still compared against the nine-metre constant).
+            var admittedDistance = (float)speedLeg["distance"];
+            var accepted = primary.Move.Result == UnitCommand.ResultType.Success && primary.Sampler.PathLength >= admittedDistance * 0.5f;
             speedLeg["accepted"] = accepted;
             speedLeg["interruptRecords"] = speedLegInterruptions == null ? 0 : speedLegInterruptions.Count(r => (string)r["legLabel"] == (string)speedLeg["label"]);
             if (!accepted)
@@ -421,21 +423,23 @@ namespace KingmakerMountedCombat.Diagnostics
             var startInfo = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(start);
             var startNodeHeight = startInfo.node != null ? (float)startInfo.node.position.y * 0.001f : start.y;
             search["startNodeHeight"] = startNodeHeight; search["heightBasis"] = SpeedLegHeightBasis;
-            // v6 (r19): the hub surface is cramped; a bearing refused at the preferred nine metres is tried at the shorter meaningful
-            // lengths before the next bearing. The admitted length becomes the leg's recorded distance (never below five metres).
+            // v6 (r19, r20): the hub surface is cramped. Every bearing is tried at the preferred nine metres first; only when
+            // none is admitted is the whole sweep repeated at the shorter meaningful lengths (seven, then five metres), so a
+            // long route on any bearing is preferred to a short one (r20 took a five-metre first bearing over r19's nine-metre
+            // route). The admitted length becomes the leg's recorded distance. Each pass records the previous passes' reasons.
+            var previousPasses = new JArray[SpeedLegBearingOffsets.Length];
+            foreach (var distance in SpeedLegDistancesMetres)
+            {
+            candidates = new JArray(); search["candidates"] = candidates; search["distance"] = distance;
             for (var i = 0; i < SpeedLegBearingOffsets.Length && !found; i++)
             {
                 var heading = Quaternion.Euler(0f, SpeedLegBearingOffsets[i], 0f) * direction;
-                var candidate = new JObject { ["index"] = i, ["bearingOffset"] = SpeedLegBearingOffsets[i] };
-                var reason = "no-walkable-native-node"; var tried = new JArray();
-                foreach (var distance in SpeedLegDistancesMetres)
-                {
-                tried.Add(distance);
                 var requested = start + heading * distance;
                 var nearest = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(requested);
                 var walkable = nearest.node != null && nearest.node.Walkable;
-                candidate["requested"] = Point(requested); candidate["walkable"] = walkable; candidate["distance"] = distance;
-                reason = "no-walkable-native-node";
+                var candidate = new JObject { ["index"] = i, ["bearingOffset"] = SpeedLegBearingOffsets[i], ["requested"] = Point(requested), ["walkable"] = walkable,
+                    ["distance"] = distance, ["previousPasses"] = previousPasses[i] ?? new JArray() };
+                var reason = "no-walkable-native-node";
                 if (walkable)
                 {
                     // v6: the goal sits on the navmesh node's own height; the clamped position's height is the requested one.
@@ -467,9 +471,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         doorDistance <= doorRadius + SpeedLegDoorClearanceMetres ? "inside-door-approach" : slack < 0d ? "blocked-by-unit" : !level ? "elevation-change" : "admitted";
                     if (reason == "admitted") { goal = clamped; found = true; speedLeg["distance"] = distance; }
                 }
-                if (found) break;
-                }
-                candidate["distancesTried"] = tried; candidate["reason"] = reason; candidates.Add(candidate);
+                candidate["reason"] = reason; candidates.Add(candidate);
+                if (previousPasses[i] == null) previousPasses[i] = new JArray();
+                previousPasses[i].Add(new JObject { ["distance"] = distance, ["reason"] = reason });
+            }
+            if (found) break;
             }
             search["selectedIndex"] = found ? candidates.Count - 1 : -1;
             return goal;
