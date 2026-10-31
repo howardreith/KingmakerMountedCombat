@@ -18,6 +18,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("door operational clock: a live move with opportunity and no displacement stalls under frozen campaign time", OperationalClockStallUnderFrozenCampaignTime);
             runner.Run("door operational clock: paused, off-turn and exhausted-movement frames charge nothing and resuming charges no gap", OperationalClockControlsChargeNothing);
             runner.Run("door operational clock: a pending navmesh update becomes Unresolved within its operational bound under frozen campaign time", OperationalClockSettlementUnresolvedUnderFrozenCampaignTime);
+            runner.Run("door turn-based approach: an approach that ended on a turn (allocation spent) is re-attempted on a later turn only, never counted twice on the same turn", TurnBasedApproachEndDefersToLaterTurn);
             runner.Run("door settlement evaluates only after the delayed graph settles for two frames", SettlementDelayedThenSettled);
             runner.Run("door settlement deadline with a pending cut awards nothing even when a sample would be clear", SettlementDeadlineClearSampleUnresolved);
             runner.Run("door settlement deadline issues no recovery even when a candidate would be admitted", SettlementDeadlineCandidateUnresolved);
@@ -136,6 +137,35 @@ namespace KingmakerMountedCombat.Tests
             var verdict = MountedDoorSettlementLifecycle.Resolve(step, () => { sampled++; return new MountedFootprintSample(true, 8, 8, 8); }, () => { searched++; return true; }, true, true, true);
             TestRunner.True(sampled == 0 && searched == 0 && !verdict.MoveAuthorized && !verdict.CollisionSafe && verdict.Disposition == MountedDoorRecoveryDisposition.Unresolved,
                 "An unresolved settlement under frozen campaign time sampled, searched or authorized a move.");
+        }
+
+        private static void TurnBasedApproachEndDefersToLaterTurn()
+        {
+            // OFFLINE (review MAJOR-1): rider's acting turn, the mount's allocation runs out 4 m short; the native denial
+            // branch finishes the delegated move. With the operational clock elapsing inside the turn, the lifecycle must
+            // not retry (a zero-budget move would finish at once) nor count no-progress on that turn; it retries on the
+            // next turn after the cooldown. Campaign time is frozen throughout.
+            var clock = new MountedDoorOperationalClock(); var life = new MountedDoorApproachLifecycle(); var frame = 1;
+            var turnOne = new object(); var turnTwo = new object();
+            MountedDoorApproachObservation TurnObs(MountedDoorApproachMoveState move, float distance, object turn)
+            { var o = Obs(clock.Observe(frame++, FrameSeconds), move, distance, 0f, false, false); o.TurnToken = turn; return o; }
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, life.Tick(TurnObs(MountedDoorApproachMoveState.None, 10f, turnOne)), "No first move on turn one.");
+            TestRunner.Equal(MountedDoorApproachAction.Retry, life.Tick(TurnObs(MountedDoorApproachMoveState.Finished, 4f, turnOne)), "The finished approach was not recorded.");
+            TestRunner.True(life.ApproachesWithoutProgress == 0 && life.BestDistance == 4f, "Progress on turn one was not credited.");
+            // The rest of turn one: ten seconds of ticked frames, cooldown long elapsed, still no re-attempt.
+            for (var i = 0; i < 10 * 60; i++) TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(TurnObs(MountedDoorApproachMoveState.None, 4f, turnOne)), "The approach was re-attempted on the turn it ended.");
+            TestRunner.True(life.MoveStarts == 1 && life.ApproachesWithoutProgress == 0 && life.ExhaustedReason == null, "Turn one counted or exhausted a zero-budget retry.");
+            // Turn two: the cooldown has elapsed, the re-attempt begins at once.
+            TestRunner.Equal(MountedDoorApproachAction.BeginMove, life.Tick(TurnObs(MountedDoorApproachMoveState.None, 4f, turnTwo)), "A later turn did not re-attempt.");
+            TestRunner.Equal(MountedDoorApproachAction.Retry, life.Tick(TurnObs(MountedDoorApproachMoveState.Finished, 4f, turnTwo)), "The second approach end was not recorded.");
+            TestRunner.True(life.ApproachesWithoutProgress == 1, "No progress on turn two was not counted once.");
+            for (var i = 0; i < 60; i++) TestRunner.Equal(MountedDoorApproachAction.Wait, life.Tick(TurnObs(MountedDoorApproachMoveState.None, 4f, turnTwo)), "Turn two re-attempted its own ended approach.");
+            // Real time (no token): the cooldown alone governs, as before.
+            var rt = new MountedDoorApproachLifecycle(); var rtClock = new MountedDoorOperationalClock(); var rtFrame = 1;
+            rt.Tick(Obs(rtClock.Observe(rtFrame++, FrameSeconds), MountedDoorApproachMoveState.None, 10f, 0f));
+            rt.Tick(Obs(rtClock.Observe(rtFrame++, FrameSeconds), MountedDoorApproachMoveState.Finished, 6f, 0f));
+            var began = false; for (var i = 0; i < 60 && !began; i++) began = rt.Tick(Obs(rtClock.Observe(rtFrame++, FrameSeconds), MountedDoorApproachMoveState.None, 6f, 0f)) == MountedDoorApproachAction.BeginMove;
+            TestRunner.True(began, "Real time no longer retries after the cooldown.");
         }
 
         private static void SettlementDelayedThenSettled()

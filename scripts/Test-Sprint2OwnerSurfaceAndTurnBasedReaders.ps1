@@ -94,6 +94,8 @@ $tbFaults=@(
     @('not completed',{param($v)$v.completed=$false}),
     @('v3 outcome without its operational seconds',{param($v)$v.interaction.outcome.PSObject.Properties.Remove('OccupancySettleOperationalSeconds')}),
     @('v3 operational settlement exceeded its bound',{param($v)$v.interaction.outcome.OccupancySettleOperationalSeconds=4.0}),
+    @('v3 approach recorded no operational seconds although a move started',{param($v)$v.interaction.outcome.ApproachElapsedOperationalSeconds=0.0}),
+    @('v3 operational approach seconds unbounded',{param($v)$v.interaction.outcome.ApproachElapsedOperationalSeconds=99.0}),
     @('another contract',{param($v)$v.contract='owner-seed-turn-based-door-control-v4'}),
     @('door forbidden in combat',{param($v)$v.fixture.notInCombat=$true}),
     @('a mount received a roster turn',{param($v)$v.turns[1].actorId=$mountA;$v.turns[1].isMount=$true}),

@@ -222,7 +222,10 @@ namespace KingmakerMountedCombat.Integration
                     DistanceToPoint = HorizontalDistance(position, NativeApproachPoint),
                     DisplacementSinceLastTick = displacement,
                     StallClockRuns = MountedDoorApproachPolicy.StallClockRuns(owned, Game.Instance.IsPaused, turnBased, MovementOpportunity == null || MovementOpportunity()),
-                    ReapproachSample = UnityEngine.Random.value
+                    ReapproachSample = UnityEngine.Random.value,
+                    // Turn-based: the acting turn's native controller identifies the turn; an approach that ended on it
+                    // (movement allocation spent, route finished short) is re-attempted on a later turn only.
+                    TurnToken = turnBased ? Game.Instance.TurnBasedCombatController?.CurrentTurn : null
                 });
                 switch (action)
                 {

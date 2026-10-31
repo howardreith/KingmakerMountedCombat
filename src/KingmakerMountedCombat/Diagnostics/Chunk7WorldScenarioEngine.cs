@@ -1073,9 +1073,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
-            if (!DrainForHost()) throw new InvalidOperationException("World fixture retains native cleanup and requires owner polling.");
+            // The speed-leg interrupt observer is removed whether or not the drain completes (it must not outlive the engine).
+            try { if (!DrainForHost()) throw new InvalidOperationException("World fixture retains native cleanup and requires owner polling."); }
+            finally { DisposeSpeedLegInterruptObserver(); }
             disposed = true;
-            DisposeSpeedLegInterruptObserver();
         }
     }
 }

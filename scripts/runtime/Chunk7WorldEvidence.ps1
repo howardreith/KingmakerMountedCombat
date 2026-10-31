@@ -463,7 +463,7 @@ function Assert-KmcChunk7Sprint2Legs($Observations){
         if($leg.applicable-isnot[bool]){throw 'Sprint 2 speed leg applicability must be a native boolean.'}
         if(-not$leg.applicable){Assert-KmcExactProperties $leg @('label','selection','primaryMoverId','distance','applicable','goalSearch','reason') 'speed leg (not applicable)';continue}
         $legKeys=@('label','selection','primaryMoverId','distance','applicable','goalSearch','start','goal','environment','selectedIds','factsBeforeClick','movers','gameSeconds');if($legsV3){$legKeys+='carried'};if($legsV4){$legKeys+='endState'}
-        if($legsV5){$legKeys+=@('accepted','interruptRecords');if($null-ne$leg.PSObject.Properties['failure']){$legKeys+='failure'}}
+        if($legsV5){$legKeys+=@('accepted','interruptRecords');foreach($k in @('failure','continuationStopped')){if($null-ne$leg.PSObject.Properties[$k]){$legKeys+=$k}}}
         Assert-KmcExactProperties $leg $legKeys 'speed leg'
         if($legsV5){
             # A PASS verdict needs every applicable leg accepted; a leg that failed carries its retained reason and is never waived.
@@ -603,7 +603,8 @@ function Assert-KmcChunk7DoorEvidence($Door,$Owners,[string[]]$DeclaredRiders=@(
         if($doorV5){foreach($field in @('ApproachElapsedOperationalSeconds','OccupancySettleOperationalSeconds')){if(-not(Test-KmcChunk7FiniteNumber $o.$field)-or$o.$field-lt0){throw ('Door outcome '+$field+' is invalid.')}}
             # Real time: the supervision clock and the campaign clock run together (both the engine's per-frame gameplay timestep), so
             # the two approach figures agree closely; a half second admits ticks the action controller skipped around the start and end.
-            if([Math]::Abs([double]$o.ApproachElapsedOperationalSeconds-[double]$o.ApproachElapsedGameSeconds)-gt0.5){throw 'Real-time door approach: the operational and campaign elapsed seconds disagree.'}}
+            if([Math]::Abs([double]$o.ApproachElapsedOperationalSeconds-[double]$o.ApproachElapsedGameSeconds)-gt0.5){throw 'Real-time door approach: the operational and campaign elapsed seconds disagree.'}
+            if([Math]::Abs([double]$o.OccupancySettleOperationalSeconds-[double]$o.OccupancySettleGameSeconds)-gt0.5){throw 'Real-time door settlement: the operational and campaign elapsed seconds disagree.'}}
         Assert-KmcChunk7WorldCounters $o @('InteractionCount','DelegatedMoveStartCount','DelegatedMoveTickCount')
         # v3: the command retries a finished approach natively (bounded by progress), so approach starts are at least one.
         $approachStartsAdmitted=if($doorV3){$o.DelegatedMoveStartCount-ge1-and$o.DelegatedMoveStartCount-le4}else{$o.DelegatedMoveStartCount-eq1}
@@ -1057,7 +1058,11 @@ function Assert-KmcChunk7TurnBasedDoorEvidence($Request,$Turn,$Door,$Owners,[str
     # carries the supervision clock's operational seconds (Assert-KmcChunk7DoorSettlement bounds them); otherwise v2.
     if($t.contract-cnotin@('owner-seed-turn-based-door-control-v2','owner-seed-turn-based-door-control-v3')){throw 'Turn-based door control contract differs.'}
     Assert-KmcChunk7Boolean $t.completed $true
-    if($t.contract-ceq'owner-seed-turn-based-door-control-v3'-and($null-eq$t.interaction.outcome.PSObject.Properties['ApproachElapsedOperationalSeconds']-or$null-eq$t.interaction.outcome.PSObject.Properties['OccupancySettleOperationalSeconds'])){throw 'A v3 turn-based door outcome lacks its operational seconds.'}
+    if($t.contract-ceq'owner-seed-turn-based-door-control-v3'){$v3o=$t.interaction.outcome
+        if($null-eq$v3o.PSObject.Properties['ApproachElapsedOperationalSeconds']-or$null-eq$v3o.PSObject.Properties['OccupancySettleOperationalSeconds']){throw 'A v3 turn-based door outcome lacks its operational seconds.'}
+        # The supervision clock advanced inside the acting turn: a delegated approach that started has positive, bounded operational seconds.
+        foreach($field in @('ApproachElapsedOperationalSeconds','OccupancySettleOperationalSeconds')){if(-not(Test-KmcChunk7FiniteNumber $v3o.$field)-or$v3o.$field-lt0-or$v3o.$field-gt60){throw ('Turn-based door outcome '+$field+' is invalid.')}}
+        if($v3o.DelegatedMoveStartCount-ge1-and$v3o.ApproachElapsedOperationalSeconds-le0){throw 'Turn-based door approach recorded no operational seconds although a delegated move started.'}}
     # v2 scope labels: the off-turn click proves cross-pair isolation (not the same controller's pending-recovery preservation,
     # which stays offline coverage); zero stalls on a continuously acting turn is not an exhaustion/off-turn wait exercise.
     $sc=$t.scope;Assert-KmcExactProperties $sc @('offTurnRejection','stallClassification','movementCost') 'turn-based door scope labels'
