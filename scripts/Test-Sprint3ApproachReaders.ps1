@@ -23,6 +23,8 @@ function New-S3TrapRow{
  $e|Add-Member command ([pscustomobject]@{type='UnitInteractWithObject';acted=$true;result='Success'})
  $e|Add-Member thievery ([pscustomobject]@{baseBefore=0;baseGranted=4;granted=$true;mountBase=0})
  $e|Add-Member trapAfter ([pscustomobject]@{active=$false;distanceToRider=0.9})
+ $e|Add-Member trapAtClick ([pscustomobject]@{active=$true;perceptionPassed=$true;revealed=$true;distance=9.8})
+ $e|Add-Member explorationLegs @([pscustomobject]@{ordered=$true;destinationToTrap=6.1;perceptionBefore=$false;outcome='discovered';perceptionChecks=@([pscustomobject]@{actor=$rider;trap='trap-1';dc=15;d20=14;passed=$true})})
  $e.trapEvents=[pscustomobject]@{events=@([pscustomobject]@{kind='skill-check';actor=$rider;stat='SkillThievery';dc=20;d20=19;rollResult=25;passed=$true},[pscustomobject]@{kind='disarm-success';actor=$rider;trap='trap-1'})}
  $row
 }
@@ -113,6 +115,11 @@ $r=Copy-S3 $rt;$r.rows[2].evidence.redeliver.resolvedToHeldTouch=$false;Reject $
 $r=Copy-S3 $rt;$r.rows[2].evidence.events+=[pscustomobject]@{kind='item-spend-after';actor=$rider;result=$true};Reject $r 'sprint3-approach-rt' 'second scroll charge for one held delivery refused'
 $r=Copy-S3 $rt;$r.rows[3].evidence.rules.events[0].attackType='Melee';Reject $r 'sprint3-approach-rt' 'hostile delivery without a native touch attack roll refused'
 $r=Copy-S3 $rt;$r.rows[3].evidence.rules.events[0].result='Miss';Reject $r 'sprint3-approach-rt' 'effect delivered on a native miss refused'
+$r=Copy-S3 $rt;$r.rows[3].evidence.rules.events[0].result='Miss';$r.rows[3].evidence.events=@($r.rows[3].evidence.events|Where-Object kind -cne 'heal');$r.rows[3].evidence.after.heldTouch=[pscustomobject]@{blueprint='touch'};Accept $r 'sprint3-approach-rt';Check $true 'a legal native miss with the charge still held is accepted'
+$r=Copy-S3 $rt;$r.rows[3].evidence.rules.events[0].result='Miss';$r.rows[3].evidence.events=@($r.rows[3].evidence.events|Where-Object kind -cne 'heal');Reject $r 'sprint3-approach-rt' 'a miss that lost the held charge refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.trapAtClick.perceptionPassed=$false;Reject $r 'sprint3-approach-rt' 'trap click without native discovery refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].destinationToTrap=1.0;Reject $r 'sprint3-approach-rt' 'exploration leg ordered onto the trap refused'
+$r=Copy-S3 $rt;$r.rows[0].evidence.explorationLegs[0].perceptionChecks=@();Reject $r 'sprint3-approach-rt' 'discovery without an observed native Perception roll refused'
 $r=Copy-S3 $rt;$r.rows[4].evidence.carriedOutcomes[0].distanceAtSatisfaction=2.5;Reject $r 'sprint3-approach-rt' 'ranged spell forced into melee refused'
 $r=Copy-S3 $rt;$r.rows[4].evidence.carriedOutcomes[0].distanceAtSatisfaction=12.0;Reject $r 'sprint3-approach-rt' 'ranged cast beyond its own range refused'
 $r=Copy-S3 $rt;$r.rows[4].evidence.hostileRetreat.distanceAfter=6.0;Reject $r 'sprint3-approach-rt' 'ranged row with the hostile inside range refused'

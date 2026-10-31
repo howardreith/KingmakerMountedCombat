@@ -257,7 +257,44 @@ namespace KingmakerMountedCombat.Diagnostics
             ["position"] = CapturePosition(t.transform.position), ["distance"] = HorizontalDistance(t.transform.position, horse.Position),
             ["blueprint"] = t.Blueprint?.AssetGuid, ["disableDc"] = t.Data?.DisableDC, ["scriptZone"] = t.ScriptZoneTrigger != null,
             ["active"] = t.TrapActive, ["perceptionPassed"] = t.Data?.IsPerceptionCheckPassed, ["revealed"] = t.Data?.IsRevealed,
-            ["inGame"] = t.Data?.IsInGame, ["interactable"] = t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) };
+            ["inGame"] = t.Data?.IsInGame, ["interactable"] = t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()),
+            ["perceptionRadius"] = t.PerceptionCheckComponent == null ? (float?)null : t.PerceptionCheckComponent.Radius,
+            ["perceptionDc"] = t.PerceptionCheckComponent == null ? (int?)null : t.PerceptionCheckComponent.DC };
+
+        private TrapObjectView[] s3TrapCandidates;
+        private int s3TrapCandidateIndex, s3TrapDiscoveryFrames;
+        private const int Sprint3TrapCandidateLimit = 2, Sprint3TrapDiscoveryWaitFrames = 90;
+
+        // Begins the pair's ordinary exploration leg toward the current candidate: one ground order to a route point that
+        // is inside the trap's native perception radius, outside its trigger zone and at least four metres short of it. The
+        // native PartyPerceptionController rolls each moving character's Perception once per trap (one roll per rank);
+        // the row never sets the discovery flag itself. Returns false with the row failed when no bounded route exists.
+        private bool BeginSprint3TrapLeg()
+        {
+            s3Trap = s3TrapCandidates[s3TrapCandidateIndex];
+            var path = Pathfinding.ABPath.Construct(horse.Position, Kingmaker.View.ObstacleAnalyzer.GetNearestNode(s3Trap.transform.position).clampedPosition);
+            global::AstarPath.StartPath(path); global::AstarPath.WaitForPath(path);
+            var length = path.error ? float.PositiveInfinity : path.GetTotalLength();
+            var legs = (JArray)(s3Facts["explorationLegs"] ?? (s3Facts["explorationLegs"] = new JArray()));
+            var leg = new JObject { ["candidate"] = Sprint3TrapFacts(s3Trap), ["routeError"] = path.error, ["routeLength"] = length };
+            legs.Add(leg);
+            if (path.error || length > Sprint3PathLengthBoundMetres) { leg["skipped"] = "no bounded native route"; return false; }
+            var radius = s3Trap.PerceptionCheckComponent == null ? 6f : s3Trap.PerceptionCheckComponent.Radius;
+            var shortBy = Math.Max(4f, Math.Min(radius - 1.5f, 8f));
+            var points = path.vectorPath; var fromEnd = 0f; var legPoint = points[0]; var zone = s3Trap.ScriptZoneTrigger;
+            for (var i = points.Count - 1; i > 0; i--)
+            {
+                fromEnd += Vector3.Distance(points[i], points[i - 1]);
+                if (fromEnd >= shortBy && (zone == null || !zone.ContainsPosition(points[i - 1]))) { legPoint = points[i - 1]; break; }
+            }
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(legPoint, false);
+            leg["destination"] = CapturePosition(legPoint); leg["shortBy"] = shortBy; leg["perceptionRadius"] = radius;
+            leg["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position); leg["ordered"] = true;
+            leg["perceptionBefore"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedBefore"] = s3Trap.Data.IsRevealed;
+            s3TrapDiscoveryFrames = 0;
+            return true;
+        }
 
         private void TickSprint3Trap()
         {
@@ -265,51 +302,45 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var all = (UnityEngine.Object.FindObjectsOfType<TrapObjectView>() ?? new TrapObjectView[0]).Where(t => t != null && t.Data != null).ToArray();
                 s3Facts["traps"] = new JArray(all.Select(Sprint3TrapFacts));
-                // Discovered and natively usable; the fog reveal is a separate native fact (the click handler needs it) that
-                // the pair's own exploration leg below supplies when the trap lies beyond the revealed area.
-                var traps = all.Where(t => t.TrapActive && t.Data.IsPerceptionCheckPassed &&
-                        t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()))
-                    .OrderBy(t => HorizontalDistance(t.transform.position, horse.Position)).ToArray();
-                s3Facts["discoveredTraps"] = new JArray(traps.Select(Sprint3TrapFacts));
-                if (traps.Length == 0) { FailSprint3Row("No discovered, active, interactable trap exists in the loaded fixture area."); return; }
-                s3Trap = traps[0];
-                // A read-only native route query: the mount's own navmesh graph from its position to the trap's nearest node.
-                var path = Pathfinding.ABPath.Construct(horse.Position, Kingmaker.View.ObstacleAnalyzer.GetNearestNode(s3Trap.transform.position).clampedPosition);
-                global::AstarPath.StartPath(path); global::AstarPath.WaitForPath(path);
-                var length = path.error ? float.PositiveInfinity : path.GetTotalLength();
-                s3Facts["routeProbe"] = new JObject { ["error"] = path.error, ["lengthMetres"] = length, ["points"] = path.vectorPath?.Count ?? 0 };
-                if (path.error || length > Sprint3PathLengthBoundMetres) { FailSprint3Row("The discovered trap has no bounded native route from the fixture pair (length " + length.ToString("F1") + " m)."); return; }
-                // The exploration leg: the pair walks its own route to a point about ten metres short of the trap through one
-                // ordinary ground order, so the trap is inside the revealed area and the click still begins outside range.
-                if (!s3Trap.Data.IsRevealed || length > 20f)
-                {
-                    var points = path.vectorPath; var fromEnd = 0f; var legPoint = points[0];
-                    for (var i = points.Count - 1; i > 0; i--)
-                    {
-                        fromEnd += Vector3.Distance(points[i], points[i - 1]);
-                        if (fromEnd >= 10f) { legPoint = points[i - 1]; break; }
-                    }
-                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                    ClickGroundHandler.MoveSelectedUnitsToPoint(legPoint, false);
-                    s3Facts["explorationLeg"] = new JObject { ["destination"] = CapturePosition(legPoint), ["routeLength"] = length,
-                        ["destinationToTrap"] = HorizontalDistance(legPoint, s3Trap.transform.position), ["ordered"] = true, ["revealedBefore"] = s3Trap.Data.IsRevealed };
-                    s3Step = 10; ResetLeafClock(); return;
-                }
-                s3Step = 11; return;
+                // Active traps nearest first. Discovery (the native Perception roll) and the fog reveal are native facts the
+                // pair's own exploration legs supply; the fixture's saved discovery state does not survive its load (r06).
+                s3TrapCandidates = all.Where(t => t.TrapActive && t.Interactions.Any(i => i is DisableTrapInteractionComponent))
+                    .OrderBy(t => HorizontalDistance(t.transform.position, horse.Position)).Take(Sprint3TrapCandidateLimit).ToArray();
+                if (s3TrapCandidates.Length == 0) { FailSprint3Row("No active trap with a disarm interaction exists in the loaded fixture area."); return; }
+                var discovered = s3TrapCandidates.FirstOrDefault(t => t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
+                    t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) && HorizontalDistance(t.transform.position, horse.Position) >= 4f);
+                if (discovered != null) { s3Trap = discovered; s3Step = 11; return; }
+                s3TrapCandidateIndex = 0;
+                if (!BeginSprint3TrapLeg()) { FailSprint3Row("The nearest trap has no bounded native route from the fixture pair."); return; }
+                s3Step = 10; ResetLeafClock(); return;
             }
             if (s3Step == 10)
             {
+                var legs = (JArray)s3Facts["explorationLegs"]; var leg = (JObject)legs[legs.Count - 1];
                 if (!Sprint3Settled()) { s3StableFrames = 0; return; }
                 if (++s3StableFrames < 10) return;
-                ((JObject)s3Facts["explorationLeg"])["distanceAfter"] = HorizontalDistance(s3Trap.transform.position, horse.Position);
-                ((JObject)s3Facts["explorationLeg"])["revealedAfter"] = s3Trap.Data.IsRevealed;
+                leg["distanceAfter"] = HorizontalDistance(s3Trap.transform.position, horse.Position);
+                leg["perceptionAfter"] = s3Trap.Data.IsPerceptionCheckPassed; leg["revealedAfter"] = s3Trap.Data.IsRevealed;
+                leg["perceptionChecks"] = s3TrapObserver.PerceptionChecks(s3Trap.UniqueId);
+                var usable = s3Trap.Data.IsPerceptionCheckPassed && s3Trap.Data.IsRevealed && s3Trap.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract());
+                // The native rolls happen on moving ticks inside the radius; a bounded still wait lets a late reveal settle.
+                if (!usable && ++s3TrapDiscoveryFrames < Sprint3TrapDiscoveryWaitFrames) { s3StableFrames = 10; return; }
+                if (!usable)
+                {
+                    leg["outcome"] = "not discovered natively";
+                    if (++s3TrapCandidateIndex >= s3TrapCandidates.Length || !BeginSprint3TrapLeg())
+                    { FailSprint3Row("No trap was discovered natively by the party's own Perception within the bounded exploration legs."); return; }
+                    s3StableFrames = 0; ResetLeafClock(); return;
+                }
+                leg["outcome"] = "discovered";
                 s3StableFrames = 0; s3MountTravelled = 0f; s3LastMountSample = horse.Position; s3MountStart = horse.Position; s3RiderStart = rider.Position;
                 s3Step = 11; ResetLeafClock(); return;
             }
             if (s3Step == 11)
             {
                 s3Facts["trapAtClick"] = Sprint3TrapFacts(s3Trap);
-                if (!s3Trap.Data.IsRevealed) { FailSprint3Row("The discovered trap is not revealed after the pair's exploration leg; the native click handler refuses an unrevealed object."); return; }
+                if (!s3Trap.Data.IsPerceptionCheckPassed || !s3Trap.Data.IsRevealed) { FailSprint3Row("The trap is not discovered and revealed at the click; the native click handler refuses it."); return; }
+                if (HorizontalDistance(s3Trap.transform.position, horse.Position) < 3f) { FailSprint3Row("The pair stands inside immediate interaction range of the trap; no approach to prove."); return; }
                 // Fixture setup on the disposable rider only: the native rank cap (character level) in Trickery, restored at
                 // cleanup. The check, DC, roll and consequence stay native; nobody on the Working fixture has a rank.
                 s3TrickeryBefore = rider.Stats.SkillThievery.BaseValue;
@@ -510,9 +541,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var itemSpends = events.Count(e => (string)e["kind"] == "item-spend-after" && e["result"]?.Value<bool>() == true);
             var hit = rolls.Any(r => ((string)r["result"]).StartsWith("Hit", StringComparison.Ordinal) || (string)r["result"] == "CriticalHit");
             var effects = events.Count(e => ((string)e["kind"] == "heal" || (string)e["kind"] == "damage") && (string)e["target"] == target.UniqueId);
-            var passed = casts >= 2 && rolls.Length == 1 && itemSpends == 1 && s3CarriedSeen && s3MountTravelled >= 1f && rider.Get<UnitPartTouch>() == null &&
-                (!hit || effects == 1);
-            s3Facts["summary"] = new JObject { ["casts"] = casts, ["attackRolls"] = rolls.Length, ["hit"] = hit, ["effects"] = effects, ["itemSpends"] = itemSpends };
+            var heldAfter = rider.Get<UnitPartTouch>() != null;
+            // Native touch delivery: a hit consumes the charge and delivers one effect; a legal miss delivers nothing and the
+            // charge stays held (r06 missed on a native roll of 6 against AC 12).
+            var passed = casts >= 2 && rolls.Length == 1 && itemSpends == 1 && s3CarriedSeen && s3MountTravelled >= 1f &&
+                (hit ? effects == 1 && !heldAfter : effects == 0 && heldAfter);
+            s3Facts["summary"] = new JObject { ["casts"] = casts, ["attackRolls"] = rolls.Length, ["hit"] = hit, ["effects"] = effects, ["itemSpends"] = itemSpends, ["heldAfter"] = heldAfter };
             FinishSprint3Row(passed, passed ? "Ordinary touch delivery on a hostile: mount approach, native touch attack roll, one expenditure."
                 : "Hostile touch row incomplete: casts=" + casts + "; rolls=" + rolls.Length + "; hit=" + hit + "; effects=" + effects + "; itemSpends=" + itemSpends +
                   "; carried=" + s3CarriedSeen + "; travelled=" + s3MountTravelled.ToString("F2") + ".");
@@ -685,10 +719,21 @@ namespace KingmakerMountedCombat.Diagnostics
             internal int Disarms => events.Count(e => ((string)e["kind"]).StartsWith("disarm-", StringComparison.Ordinal) && (string)e["caseId"] == caseId);
             internal void BeginCase(string value) { caseId = value; }
             internal JObject Capture() => new JObject { ["events"] = events.DeepClone() };
+            // The party's native Perception rolls against one trap (PartyPerceptionController: one roll per moving character per rank).
+            internal JArray PerceptionChecks(string trapId) => new JArray(events.Where(e => (string)e["kind"] == "perception-check" &&
+                (trapId == null || (string)e["trap"] == trapId)).Select(e => e.DeepClone()));
             private JObject Record(string kind, UnitEntityData actor) { var e = new JObject { ["kind"] = kind, ["caseId"] = caseId, ["actor"] = actor?.UniqueId, ["frame"] = Time.frameCount }; if (events.Count < 256) events.Add(e); return e; }
             public void OnEventAboutToTrigger(RuleSkillCheck evt) { }
             public void OnEventDidTrigger(RuleSkillCheck evt)
             {
+                if (evt.StatType == StatType.SkillPerception)
+                {
+                    var reason = evt.Reason.SourceEntity as Kingmaker.EntitySystem.StaticEntityData;
+                    if (reason == null || !(reason.View is TrapObjectView)) return;
+                    var p = Record("perception-check", evt.Initiator); p["trap"] = ((TrapObjectView)reason.View).UniqueId; p["dc"] = evt.DC;
+                    p["d20"] = (int)evt.D20; p["rollResult"] = evt.RollResult; p["statValue"] = evt.StatValue; p["passed"] = evt.IsPassed;
+                    return;
+                }
                 if (evt.Initiator != rider || evt.StatType != StatType.SkillThievery) return;
                 var e = Record("skill-check", evt.Initiator); e["stat"] = evt.StatType.ToString(); e["dc"] = evt.DC; e["d20"] = (int)evt.D20;
                 e["rollResult"] = evt.RollResult; e["statValue"] = evt.StatValue; e["passed"] = evt.IsPassed;

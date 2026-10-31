@@ -27,7 +27,14 @@ function Assert-KmcSprint3TrapRow($Row,[string]$Rider,[string]$Mount) {
  if([string]$e.admitted.type -cne 'UnitInteractWithObject' -or [string]$e.admitted.executor -cne $Rider -or [string]$e.admitted.interaction -cne 'DisableTrapInteractionComponent'){ throw 'S3 trap: the native trap interaction was not admitted on the rider' }
  if([double]$e.admitted.approachRadius -gt 0.31 -or $e.admitted.needLoS -ne $true){ throw 'S3 trap: the native trap approach radius/LOS was changed' }
  if([double]$e.trap.distanceAtClick -lt 3){ throw 'S3 trap: the click began inside immediate range (no approach to prove)' }
- if($e.routeProbe.error -ne $false){ throw 'S3 trap: no native route existed; the row cannot prove the approach' }
+ # Discovery is native: the trap must have passed the party's own Perception roll and be revealed when it is clicked.
+ if(-not (Test-KmcSprint3Prop $e 'trapAtClick') -or $e.trapAtClick.perceptionPassed -ne $true -or $e.trapAtClick.revealed -ne $true -or $e.trapAtClick.active -ne $true){ throw 'S3 trap: the clicked trap was not natively discovered, revealed and active' }
+ if(Test-KmcSprint3Prop $e 'explorationLegs'){
+  foreach($leg in @($e.explorationLegs)){ if($leg.ordered -eq $true -and [double]$leg.destinationToTrap -lt 3.5){ throw 'S3 trap: an exploration leg was ordered onto the trap' } }
+  $last=@($e.explorationLegs)[-1]
+  if([string]$last.outcome -cne 'discovered' -or $last.perceptionBefore -eq $true){ throw 'S3 trap: the last exploration leg did not end in a native discovery of a previously undiscovered trap' }
+  if(@($last.perceptionChecks).Count -lt 1 -or @($last.perceptionChecks | Where-Object { $_.passed -eq $true }).Count -lt 1){ throw 'S3 trap: no passed native Perception roll was observed for the discovered trap' }
+ }
  Assert-KmcSprint3CarriedRow $Row $Rider $Mount
  $c=Get-KmcSprint3LastCarried $Row
  if([string]$c.kind -cne 'TrapInteraction'){ throw 'S3 trap: the carried approach was not a trap interaction' }
@@ -88,7 +95,9 @@ function Assert-KmcSprint3HostileRow($Row,[string]$Rider,[string]$Mount,[string]
  $effects=@(Get-KmcSprint3Events $Row 'heal')+@(Get-KmcSprint3Events $Row 'damage') | Where-Object { [string]$_.target -ceq $Hostile }
  if($hit -and @($effects).Count -ne 1){ throw 'S3 hostile: a hit did not deliver exactly one native effect' }
  if(-not $hit -and @($effects).Count -ne 0){ throw 'S3 hostile: a miss delivered an effect' }
- if($null -ne $e.after.heldTouch){ throw 'S3 hostile: a held touch charge remained after the touch attack' }
+ # Native touch delivery: a hit consumes the held charge; a legal miss keeps it held (nothing is manufactured or refunded).
+ if($hit -and $null -ne $e.after.heldTouch){ throw 'S3 hostile: a held touch charge remained after a delivered touch attack' }
+ if(-not $hit -and $null -eq $e.after.heldTouch){ throw 'S3 hostile: the held charge was lost on a native miss' }
 }
 function Assert-KmcSprint3RangedRow($Row,[string]$Rider,[string]$Mount,[string]$Hostile) {
  $e=$Row.evidence
