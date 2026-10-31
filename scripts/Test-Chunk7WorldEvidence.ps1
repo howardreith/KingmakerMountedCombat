@@ -522,9 +522,11 @@ $legV5Mutations=@(
  @('v5 interrupt record count differing from the records',{param($v)$v.observations.speedLegs[0].interruptRecords=1}),
  @('v5 interrupt record without its callers',{param($v)$v.observations.speedLegs[0].interruptRecords=1;$r=New-TestInterrupt 'mounted-party' $horse 1820;$r.PSObject.Properties.Remove('callers');$v.observations.speedLegInterruptions=@($r)}),
  @('v4 speed leg carrying the v5 record',{param($v)$v.observations.speedLegContract='sprint2-speed-legs/v4'}),
- @('v5 speed leg in the v4 shape',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('accepted')})
+ @('v5 speed leg in the v4 shape',{param($v)$v.observations.speedLegs[0].PSObject.Properties.Remove('accepted')}),
+ @('v5 speed leg below the meaningful five-metre floor',{param($v)$v.observations.speedLegs[0].distance=3.0;$v.observations.speedLegs[0].movers[0].pathLength=3.0})
 )
 foreach($mutation in $legV5Mutations){$copy=Copy-TestValue $speedLegsV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
+Check 'Sprint 2 v5 speed leg admitted at a shorter meaningful length' {$v=Copy-TestValue $speedLegsV5;$v.observations.speedLegs[0].distance=5.0;$v.observations.speedLegs[0].movers[0].pathLength=5.0;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
 Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v5"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v5 reader.'}
     $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v6"'){throw 'Speed leg contract differs from the v6 reader.'}
     $turnBased=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7TurnBasedDoorProbe.cs'));if($turnBased-cnotmatch'Contract = "owner-seed-turn-based-door-control-v3"'){throw 'Turn-based door contract differs from the v3 reader.'}
