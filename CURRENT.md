@@ -1,35 +1,29 @@
-# Sprint 2 — exploration speed, doors and collision safety: ENGINEERING PARTIAL, READY FOR FINAL REVIEW (2026-10-31, seventh iteration)
+# Sprint 3 — mounted trap disarm and spell target approach: ENGINEERING PARTIAL, READY FOR REVIEW (2026-10-31)
 
-**SPRINT 2 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE PENDING.** No merge, release or
-installation is selected.
+**SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** No merge, release or installation is selected.
 
-Review branch `codex/mounted-combat-sprint2-movement-doors` from `main` `05a9efd0`. Product commits `5b02d4dd`,
-`7d124fad` (DLL `809573ad…`, r09/r10 PASS retained) and `058792e5`/`0c0e39c0` (door supervision on the engine's gameplay
-timestep instead of frozen turn-based GameTime; a turn-based approach end re-attempts on a later turn only).
-Diagnostics `538a1192`..`de4ff23b` (speed legs v6), readers `d1667bcd`, single-pair turn-based door stage `43c10412`,
-`3ad92495`. Current candidate sprint2v (DLL `39a1006c69925d1e3f47b71c76d6e65fb27de8522c4737f2afc9271215437483`, MVID
-`df69c928-ccae-46a3-a6a6-c0f9df5711d5`, package `1115d2bc…`, suite `sprint2v-3ad92495-20261031`). Budget `sprint2`
-143.58 of 160 min (explicit +30, +20, +20 adjustments on the one record).
+Review branch `codex/mounted-combat-sprint3-traps-spell-approach` from `main` `6240d91e` (the PR #7 merge). Product
+commits `f22e6bd1` (the mount carries the rider's own native ability and discovered-trap commands to their native
+range; `MountedCarriedApproachPolicy`, `MountedCarriedApproach`) and `3980e1cf` (the delegated approach move is admitted
+on the rider's turn in turn-based combat: the exact-type test on `UnitMoveTo` had refused it). Diagnostics, readers and
+registries `f12662b6`..`845892d7`. Final candidate sprint3k (`845892d7`; DLL `ad961c3d…`, MVID `565f890d…`, package `75521a56…`, suite `sprint3k-845892d7-20261031`). Budget `sprint3` 65.77 of 90 min.
 
-- **MOVE-01 on the owner's surface: accepted (r21, sprint2t).** All four legs on the owner's roguelike-hub save with the
-  pre-owned pair: party-paced Horse 2.63 m/s (Slow gait, limit 3.048), Horse carrying the rider 4.52, Horse alone
-  4.43, rider on foot 2.91; recorded host verdict FAIL on two unknown v6 goal-search keys, re-evaluated PASS by the
-  reader-only commit `d1667bcd` (receipt retained). Not rerun.
-- **Production clock correction: accepted at source review; real-time door exercise on the corrected clock PASS
-  natively (r22, sprint2v).** `chunk4-traversal-core` on the Working fixture: routed mounted door click from distance,
-  one interaction, navmesh settlement, doorway traversal, closed-door stop/return control; 257 assertions, 0 failures,
-  exact restoration. The chunk 4 evidence does not record the door command's operational-second fields.
-- **DOOR-01 / SPACE-01 real time: PASS natively** (r09, r10 on `809573ad…`; r22 on `39a1006c…`).
-- **DOOR-01 turn-based control: NOT DEMONSTRATED.** The single-pair stage exists (owner-surface opt-in; shared
-  combat-usable selection before any preparation). No retained copy supplies a loadable save with a combat-usable
-  door: Working fixture dwarf door inferred `NotInCombat` (Chunk 6A refusal), Old Sycamore's only such door 94 m away
-  and unrevealed (r18), the owner's dungeon-floor autosave refused by the persistence authority's `Manual` pin (r23,
-  pin deliberately kept). Justified external input: an owner-made Manual save with a revealed, interactable
-  `NotInCombat`-false door within 28 m of the mounted pair (details in the report's seventh iteration).
+- **SPELL-01 real time: PASS natively** (r08 on sprint3e, r12 on sprint3h, r13/r15/r16 on sprint3i/3j/3k): ordinary Cure Light Wounds on a
+  distant ally (mount approach, native cast, one held-touch delivery), the held charge delivered after a Stop and a
+  second ordinary click, one offensive touch on a hostile (native touch attack roll, one expenditure; a legal miss keeps
+  the charge), one ranged spell beyond range (the mount approaches to the spell's own range, projectile roll).
+- **SPELL-01 turn-based: PASS natively** (r10/r11 on sprint3f/3g, r14 natively, r17 end to end on sprint3k): the cast on the rider's turn carries
+  the mount's movement on that turn and delivers once; with insufficient movement the carried approach ends by the native
+  rule, the charge survives the turn boundary and is delivered on the next rider turn through a second ordinary click.
+- **TRAP-01: NOT DEMONSTRATED natively (fixture limit).** The carried trap approach is implemented and proven offline;
+  all four traps of the Working fixture sit in navmesh areas disconnected from the party (A* areas 13 and 7 against
+  10), the only nearby entrance is a secret passage whose native interaction refuses, and saved discovery does not
+  survive the load (r06 to r16). Required input: a disposable save with a reachable trap (report, Risks).
+- Unmounted controls are untouched by the carrier (policy regression); an unmounted native trap/spell control row was not
+  run natively this sprint.
 
-Records: [docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md](docs/SPRINT2-MOVEMENT-DOORS-2026-10-30.md) ("Seventh iteration"
-and earlier), `AUTONOMOUS-RESUME.md`, PR #7.
+Records: [docs/SPRINT3-TRAPS-SPELL-APPROACH.md](docs/SPRINT3-TRAPS-SPELL-APPROACH.md), `AUTONOMOUS-RESUME.md`, the PR opened from this branch.
 
-Live installation at closeout: Mods tree empty, loader parameters and profile root (including `Areas\`) at intake,
-protected saves and the owner's originals unchanged, no lock or game process, no candidate installed. Owner play
-acceptance of Sprint 1 and Sprint 2 remains separate. Sprint 1 state: [CURRENT before Sprint 2](docs/history/CURRENT-before-sprint2-2026-10-30.md).
+Live installation at closeout: Mods tree empty, loader parameters and profile root at intake, protected saves and the
+owner's originals unchanged, no lock or game process, no candidate installed. Owner play acceptance of Sprints 1, 2 and 3
+remains separate. Sprint 2 state: [CURRENT before Sprint 3](docs/history/CURRENT-before-sprint3-2026-10-31.md).
