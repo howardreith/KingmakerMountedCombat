@@ -606,3 +606,113 @@ and suite sprint2o 2.4; six WhatIfs 2.0; launches r13 1.9, r14 1.9, r16 1.1. Ent
 Live state after the last restoration: Mods tree empty (digest `e3b0c442…` before every launch), profile bytes restored
 exactly on r13, r14 and r16, profile `Areas\` empty, no lock, no game process; the owner's originals
 `Manual_301_After_mounting.zks` (`1fda72b1…`, 2026-08-28) and `Auto_1121.zks` untouched; no candidate installed.
+
+## Sixth iteration (2026-10-31, afternoon): the turn-based clock correction, the surface interruption cause, the combat-usable door gate
+
+Owner-forwarded mission (review of PR #7 at `f1b9638c`): fix the production door supervision clocks that still used
+campaign `GameTime` (frozen inside a turn-based acting turn), establish the owner-surface interruption cause from
+retained logs or one bounded run-scoped observation, require a combat-usable door in the turn-based selection before
+any preparation, then complete both native outcomes. One explicit +20 minute adjustment (120 to 140) was recorded on
+the same `sprint2` record (`adjustments[1]`, 2026-10-31T15:11:04Z, spent 105.87 at the adjustment); no reset, no new id.
+
+### Native clock facts (installed 2.1.7b IL, read-only)
+`TimeController.Tick` computes `DeltaTime = min(Time.deltaTime, PlayerTimeScale*DebugTimeScale/12)`, zeroes
+`GameDeltaTime`, and only in the Default (1) and Cutscene (7) modes sets `GameDeltaTime = DeltaTime` and
+`Player.GameTime += DeltaTime`; in turn-based combat it then calls `CombatController.TickTime`, which sets
+`Player.GameTime = m_StartTime + TimeSinceStart` on every frame and advances `TimeSinceStart` only while passing between
+turns. Inside an acting turn campaign GameTime is therefore rewound every frame while `GameDeltaTime` (the movement
+timestep) stays positive. Both getters are public; KMC never calls `SetDeltaTime`/`SetGameDeltaTime`.
+
+### Production correction (commits `058792e5`, `0c0e39c0`)
+- `Domain/MountedDoorApproachLifecycle.cs`: new pure `MountedDoorOperationalClock` (accumulates the engine's per-frame
+  gameplay timestep once per ticked frame; non-finite, non-positive or >0.5 s steps skipped, never charged). The
+  observation carries a turn-based `TurnToken`: an approach that ended on a turn (allocation spent, route finished
+  short) is re-attempted on a later turn only, as the frozen native cooldown defers the native rider approach; real
+  time keeps the cooldown alone (review MAJOR-1).
+- `Integration/MountedDoorInteractionCommand.cs`: the lifecycle is driven by the operational clock
+  (`GameDeltaTime`, 0 while paused); the outcome keeps `ApproachElapsedGameSeconds` as observed campaign time and adds
+  `ApproachElapsedOperationalSeconds`. `Integration/MountedDoorOccupancySettlement.cs`: the settlement wait and the
+  recovery stall run on the operational clock (`SettleOperationalSecondsLimit` 3 s, independent of movement
+  opportunity; the recovery stall keeps its opportunity gate); `OccupancySettleOperationalSeconds` added.
+- Nothing writes game time, time scale, cooldowns, movement, turn state or resources.
+- Offline regressions (`tests/MountedDoorLifecycleTests.cs`, controlled time, not native time): frozen campaign time
+  with the retry cooldown and the no-progress bound elapsing on ticked frames; live move with opportunity and no
+  displacement stalls; paused/off-turn/exhausted frames charge nothing and resuming charges no gap; pending navmesh
+  update becomes Unresolved within its operational bound; turn-based approach end defers to a later turn.
+- Evidence contracts: door v5 and turn-based door v3 carry the operational seconds beside the campaign seconds;
+  readers bound the operational figures, require their real-time agreement with the campaign figures, and keep every
+  retained shape (door v4, TB v2, legs v1 to v4) at its original verdict.
+
+### Independent delta review (read-only, 058792e5)
+No blockers; one MAJOR (false exhaustion of a turn-based approach after the mount's allocation ran out, fixed in
+`0c0e39c0` with the turn token and an offline case); minors fixed: later speed legs continue only when the failed leg
+ended in the quiet default mode, only the first interrupt of a mover's command is described, a stale observer is
+replaced and the observer is removed even when the drain throws, RT settlement agreement and finite positive bounded
+TB operational seconds in the readers.
+
+### Diagnostics
+- Turn-based door selection: `Chunk7NativeDoorProbe.FindQualifyingDoor(mounts, requireCombatUsable)` and
+  `DoorFacts.CombatUsable` (`StandardDoor.NotInCombat` false) decide in the shared selection at case 7, before the
+  real-time probe, any fixture close or any encounter; an absence fails the turn-based row with the read-only inventory
+  (`door.rows` carry `notInCombat`, `requiredCombatUsable`). The probe reuses the same door for the real-time rows.
+- Speed legs v5/v6: a failed leg is recorded (`accepted` false, `failure`) and the later legs continue for diagnosis;
+  `speedLegsAccepted` stays false and fails the row at the end; the run-scoped `SpeedLegInterruptObserver` (own
+  Harmony id, `UnitCommand.Interrupt` 0x060027AC) records the first native interrupt of each issued speed-leg Move
+  (callers, mode, position, native path status, nearby map objects) before cleanup; one read-only door inventory of
+  the owner's surface at start.
+
+### Candidates
+sprint2p (`058792e5`, DLL `14472bcc655771ab07c7e023a424c287db6d9e5c914c5b1b27d74146c6677d4b`, MVID
+`c127c19a-2407-4211-9ad7-9ce62915f4d8`, package `31442e7d…`, suite `sprint2p-058792e5-20261031`) superseded by the
+review fixes before any launch. sprint2q (`0c0e39c0`, DLL `21c76460993ebaa26a144fedb94b7f4eab8b2412c40b63af475a81757f286199`,
+MVID `0c55c511-774d-4921-a59d-fe8d057ead3c`, package `f195cdbc8ecea53657b44f3d9e8186636b0d84b75a98479b110bdccfbf5fd1ab`,
+suite `sprint2q-0c0e39c0-20261031` sha `a4bb6c1bce9e587fbbe9eeec90c541c9a430cee84557dcfc57aa92a93a1dd7fa`).
+Later candidates: sprint2r (`538a1192`, speed legs v6: goal and level samples on the navmesh node height; DLL
+`6391c0bf2c84978333c8c83544c5cd065995264fdcce8be1f7fc3d906c5dc4c4`, MVID `cc715d09-390d-4b54-8a85-6210156655c3`, package
+`5e1003c25f8c3ccb976114f554acf826d93d3d1dfdc524ad8eb6e1ac4a191b6d`, suite `sprint2r-538a1192-20261031` sha `bd543069…`)
+and sprint2s (`ba0eb6e5`, bearings tried at 9, 7 and 5 m; DLL `a51affa159fc9efb52ab2198578a23983e36cf85e9777f34ed66e8f20fc8a0ae`,
+MVID `220274de-7526-4b69-bacb-bdcee1967bda`, package `927b46b0260b4baafcb31eac39fe3b3947816fddf1541d98ab85d272c873b495`,
+suite `sprint2s-ba0eb6e5-20261031` sha `e1ce72e0…`). The production code (clock correction, turn token) is identical
+from `0c0e39c0` onward; sprint2r and sprint2s differ from sprint2q in diagnostics only.
+
+### Native runs (every WhatIf PASS; Mods tree empty before and after; profile, protected saves and the owner's originals restored exactly)
+
+| Run | Candidate / batch | Result |
+| --- | --- | --- |
+| r17 `20261031-sprint2-r17-owner-surface-interrupt-observation` | sprint2q / `sprint2:completion-6` | Game FAIL (runtime row; 126 s). Owner pair loaded through the missing-metadata path and mounted natively. **Cause identified:** each of the three party movers was interrupted at a different time (2.47 s, 2.78 s, 3.95 s) by the native path-completion chain `UnitMovementAgent.TickMovement > CompleteMovement > InterruptMovement > UnitEntityView.OnMovementInterrupted > UnitCommand.Interrupt` with `pathDone=true`, `pathError=false`, a two-vertex path and 1.19-1.53 m left to the target; Default mode, unpaused, no combat, no loading, no map object within 8 m. The goal (-18.03, 0.70, 11.61) lay 1.7 m below the raised surface (the units ended at y 1.74-2.36): `GetNearestNode.clampedPosition` keeps the requested height, so the path ended at the node nearest in 3D, short of the goal. Not a trigger, dialog, combat or KMC call (the only KMC frames are the passive `UnitMoveController.Tick` and `CompleteMovement` prefix wrappers). The sequence continued for diagnosis: **mounted-solo 4.56 m/s** (Horse carrying the rider, 8.95 m, Success, rider 0.47 m beside it, no own Move), **horse-solo 4.54 m/s** (8.95 m), **rider-solo 3.03 m/s** (8.74 m); party-paced Horse 2.90 m/s at Slow gait against the 3.048 m/s limit over 6.70 m. Aggregate acceptance false (the party leg); door inventory of the hub: zero StandardDoors. |
+| r18 `20261031-sprint2-r18-doors-tb-combat-usable` | sprint2q / `sprint2:completion-6-tb` | Game FAIL at case 7, before any real-time preparation, fixture close or encounter (109 s). The shared selection required combat usability and found none: Old Sycamore has exactly three StandardDoors, `TavernDoor` (eligible, `NotInCombat` true, 6.5/9.3 m), `RootsDoor` (one restriction, `NotInCombat` true, 40 m), `MiteYardDoor` (`NotInCombat` false, closed, unrevealed, not interactable, 94 m). Rows recorded under `door.rows` with `requiredCombatUsable`. Legitimate native refusal; no door or campaign state touched; cleanup PASS. |
+| r19 `20261031-sprint2-r19-owner-surface-node-height` | sprint2r / `sprint2:completion-6` | Runtime rows all PASS (122 s), host verdict FAIL by the reader (`legsApplicable` 3 of 4). With the goal on the node height the **mounted-party** leg completed (Horse 7.46 m, 2.56 m/s Slow gait, residual 0.04 m; party members 3.02 and 2.69 m/s; no interrupt), **mounted-solo** 4.53 m/s (9.00 m, residual 0.01), **rider-solo** 3.01 m/s (8.97 m). The level samples now measure terrain (rises up to 3.3 m on the refused bearings). The **horse-solo** leg found no admissible nine-metre bearing after the dismount (clamp residuals 0.6-3.6 m, a unit 0.01 m inside the clearance on the one level bearing, real elevation changes on the others) and was recorded not applicable: the comparison stayed incomplete. |
+| r20 `20261031-sprint2-r20-owner-surface-shorter-routes` | sprint2s / `sprint2:completion-6c` | Game FAIL (runtime row; 124 s). The bearing-major fallback admitted a five-metre route on the first bearing for the party leg (r19 had a nine-metre route on another bearing from the same start); the party formation moved the Horse 2.97 m (Success, residual 0.05 m, 2.80 m/s Slow gait) and the engine compared that against the nine-metre constant while the reader already used the admitted distance. The three solo legs were accepted at seven metres: **mounted-solo 4.39 m/s**, **horse-solo 4.40 m/s**, **rider-solo 2.94 m/s**. No interrupt. |
+| r21 `20261031-sprint2-r21-owner-surface-distance-major` | sprint2t / `sprint2:completion-6c` | **All four legs accepted natively** (124 s): rows fixture, owner-surface-mount, owner-surface-legs and cleanup PASS; the recorded host verdict is FAIL because the reader's exact-property list did not know the two v6 goal-search keys (`startNodeHeight`, `heightBasis`); corrected reader `d1667bcd` (reader-only) re-evaluated the retained artifact (`5b168a2c…`): `Assert-KmcChunk7WorldArtifact` PASS (`analysis-cache\sprint2\20261031-sprint2-r21-owner-surface-distance-major-reader-only-reevaluation.log`; the original verdict stays in `runtime-result.json`). Legs: **mounted-party** 9 m route, Horse 7.46 m at **2.63 m/s** (Slow gait, party limit 3.048; members 3.02 and 2.66 m/s), rider carried 0.47 m beside it with no Move of its own; **mounted-solo** 9.00 m at **4.52 m/s**; **horse-solo** 6.96 m (7 m route) at **4.43 m/s**; **rider-solo** 7.13 m (7 m route) at **2.91 m/s**. No interrupt, no combat, no pause; restoration exact. |
+
+### Interpretation (MOVE-01 on the owner's surface)
+The pre-owned pair on the owner's own roguelike-hub save moves at the Horse's speed when the rider is mounted: 4.52 m/s
+carrying the rider against 4.43 m/s for the Horse alone (r21; r17 gave 4.56 and 4.54), while the rider on foot walks
+2.91 to 3.03 m/s. With the whole party selected the native party pacing governs (limit 3.048 m/s, the Horse at Slow
+gait 2.63 to 2.90 m/s). No KMC speed clamp, no independent rider locomotion command, the rider attached throughout.
+This agrees with r09 on the door seed (pair alone 4.55, Horse 4.18, rider 3.02, party-paced 2.69). The earlier
+interrupted party legs (r13, r16, r17) were a diagnostic goal-height error (goal below the raised surface), not a
+gameplay or KMC defect; nine metres and level terrain were diagnostic choices (the hub admits 7 m routes for two legs).
+
+### Turn-based door control: NOT DEMONSTRATED
+The combat-usability gate refused r18 before any preparation: the owner's Old Sycamore seed has no qualifying door with
+`NotInCombat` false within reach (the only such door, `MiteYardDoor`, is 94 m away, closed, unrevealed and not
+interactable). The corrected clock code therefore has no native door exercise on this candidate line (real-time or
+turn-based): r09/r10 remain the real-time door evidence on `809573ad…`, and the clock correction is covered offline
+(five controlled-time regressions) and by the independent review only. Smallest discriminating next action: an
+owner-made save with the party within 28 m of a revealed, interactable `NotInCombat`-false door (Old Sycamore's Mite
+yard, or another area), then the unchanged `two-pair-tb` route (the gate selects such a door itself); a compact
+real-time door run on the same save would exercise the corrected clock in real time.
+
+### Cost and state
+Budget `sprint2` 130.73 of 140 min (one explicit +20 adjustment recorded; remaining 9.27, below one launch's 600 s
+admission estimate). This iteration charged 24.9 min over 25 entries: five Fast tiers (build, 947 component tests,
+Validate-Source 149, focused readers) 5.1; five package-and-suite freezes (sprint2p..sprint2t) 7.5; seven WhatIfs 2.4;
+launches r17 2.1, r18 1.5, r19 2.1, r20 2.4, r21 2.4; the reader re-evaluation 0.1. Batches `sprint2:completion-6`
+(r17, r19), `sprint2:completion-6-tb` (r18), `sprint2:completion-6c` (r20, r21); every launch WhatIf PASS; no launch
+refused. Active work this iteration about 1 h 55 min.
+
+Live state after the last restoration: Mods tree empty, profile `Areas\` empty, `modsRestored`, `saveProtectionPassed`,
+`baselineImmutable`, `workingRestored` and `saveWriteAllowlistPassed` true on r17 to r21, no lock, no game process; the
+owner's originals (`Manual_301_After_mounting.zks` `1fda72b1…`, the Old Sycamore seed `90789101…`) untouched; no
+candidate installed. Retained unchanged: r09/r10 (PASS on `809573ad…`), r13/r14/r16 (FAIL), r15 (refused).
