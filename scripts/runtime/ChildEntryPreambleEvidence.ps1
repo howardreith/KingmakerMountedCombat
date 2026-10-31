@@ -52,9 +52,9 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
 }
 # The tranche's own handoff rule: Chunk 6A combat-mount children start unmounted; every
 # other tranche child requires the mounted preamble.
-function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6c-*' -or $Scenario -clike 'chunk6d-*' -or $Scenario -clike 'chunk6e-*') }
+function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6c-*' -or $Scenario -clike 'chunk6d-*' -or $Scenario -clike 'chunk6e-*' -or $Scenario -clike 'sprint3-*') }
 function Test-KmcChildEntryRequiresIdleParty([string]$Scenario){
- $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6b-*' -or $Scenario -clike 'chunk6c-*' -or $Scenario -clike 'chunk6d-*' -or $Scenario -clike 'chunk6e-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'
+ $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6b-*' -or $Scenario -clike 'chunk6c-*' -or $Scenario -clike 'chunk6d-*' -or $Scenario -clike 'chunk6e-*' -or $Scenario -ceq 'unmounted-attack-controls-rt' -or $Scenario -clike 'sprint3-*'
 }
 # Required of every Chunk 6A candidate from preview.150 and of every Chunk 6B candidate (the compiled
 # producer stamps that version). Earlier candidates, the historical product lines and parser-only synthetic versions
