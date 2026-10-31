@@ -114,7 +114,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
   if($e.secondTurn.heldCharge -ne $true){ throw 'S3 tb insufficient: the held charge did not survive the turn boundary' }
   if($e.redeliver.resolvedToHeldTouch -ne $true){ throw 'S3 tb insufficient: the next-turn click did not resolve to the held touch' }
   if([double]$e.recipientPlacement.distanceAfter -le [double]$e.allowanceMetres){ throw 'S3 tb insufficient: the recipient was within one turn''s pair movement' }
-  if($null -ne $e.firstTurnEnd.heldTouch -eq $false){ throw 'S3 tb insufficient: the charge was not held at the first turn end' }
+  if(-not (Test-KmcSprint3Prop $e 'firstTurnEnd') -or $null -eq $e.firstTurnEnd.heldTouch){ throw 'S3 tb insufficient: the charge was not held at the first turn end' }
  } else {
   if([int]$e.inputCount -ne 1){ throw 'S3 tb friendly: more than one ordinary input was needed' }
   if([double]$e.cast.distanceMountToTarget -lt 5){ throw 'S3 tb friendly: the recipient was not beyond touch range' }
@@ -124,7 +124,7 @@ function Assert-KmcSprint3ApproachEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
  if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
-  if($Status -ceq 'PASS' -or @($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1){ throw 'Sprint 3 incomplete observation cannot become PASS' }
+  if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 3 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
  }
  if($Artifact.status -cne 'PASS' -or @($Artifact.errors).Count -ne 0 -or @($Artifact.rows | Where-Object status -CNE 'PASS').Count -ne 0 -or $Artifact.subscenarioFailCount -ne 0 -or $Artifact.subscenarioPassCount -ne @($Artifact.rows).Count){ throw 'Sprint 3 PASS envelope is not internally consistent' }
