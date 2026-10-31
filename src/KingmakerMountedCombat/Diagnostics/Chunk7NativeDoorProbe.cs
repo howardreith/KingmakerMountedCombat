@@ -108,7 +108,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Door probe requires idle native actors.");
             door = FindQualifyingDoor(mounts, RequireCombatUsableDoor, out _);
             Require(door != null, RequireCombatUsableDoor
-                ? "No bounded combat-usable (NotInCombat false) open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; the turn-based door control needs one."
+                ? "No bounded combat-usable (NotInCombat false) qualifying native door; the turn-based door control needs one."
                 : "No bounded open or player-clickable closed native door with a navmesh cut outside both pair interaction radii; exact door fixture is required.");
             cut = door.GetComponentInChildren<NavmeshCut>();
             doorObject = door.gameObject; doorTransform = door.transform;
@@ -364,7 +364,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(rows.All(r => !(bool)r["eligible"] || (requireCombatUsable && (bool)r["notInCombat"])), "A qualifying door exists; the door step is applicable.");
             var record = new JObject { ["applicable"] = false,
                 ["reason"] = requireCombatUsable
-                    ? "No combat-usable (NotInCombat false) open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius; the turn-based door control is not possible on this seed."
+                    ? "No combat-usable (NotInCombat false) qualifying StandardDoor within the scan radius outside the pair interaction radii; turn-based door control impossible on this seed."
                     : "No open or player-clickable closed unrestricted StandardDoor with a navmesh cut lies outside both pair interaction radii within the bounded scan radius.",
                 ["candidatesScanned"] = present.Length, ["radius"] = ScanRadius,
                 ["mounts"] = new JArray(mounts.Select(m => new JObject { ["id"] = m.UniqueId, ["position"] = Point(m.Position) })),

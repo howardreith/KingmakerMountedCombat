@@ -272,8 +272,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             // Owner-seed kind only: an observed absence of a qualifying door is
                             // recorded as not applicable; door behaviour is never claimed as tested.
                             evidence["door"] = Chunk7NativeDoorProbe.NotApplicable(new[] { firstMount, secondMount }, TurnBasedDoorSelected);
-                            Require(!TurnBasedDoorSelected, "No combat-usable qualifying door (StandardDoor.NotInCombat false) lies within the 28 m scan radius of both mounts: " +
-                                "the selected turn-based door control is not possible on this seed; the read-only door inventory is recorded under door.rows (no real-time preparation, no encounter).");
+                            Require(!TurnBasedDoorSelected, "No combat-usable qualifying door (NotInCombat false) within 28 m of both mounts: turn-based door control impossible on this seed; inventory under door.rows.");
                             Input(firstRider, firstRider, controls.DismountAbility, "dismount-mammoth", secondRider); Next(8); break;
                         }
                         doorProbe = new Chunk7NativeDoorProbe(world, nativeScope, firstRider, firstMount, secondRider, secondMount) { RequireCombatUsableDoor = TurnBasedDoorSelected };

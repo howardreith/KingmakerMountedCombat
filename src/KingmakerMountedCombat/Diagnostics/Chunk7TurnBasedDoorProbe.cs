@@ -42,7 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Contract = "owner-seed-turn-based-door-control-v3";
         internal const string MovementCostContract = "paired-approach-charged-to-own-mount-move/v1";
         internal const string OffTurnScope = "cross-pair-isolation: pair B's click during pair A's turn is refused and mutates nothing; not native proof that a rejected click preserves the same controller's own pending recovery (offline coverage)";
-        internal const string SinglePairOffTurnScope = "cross-pair-isolation: not exercised in this run (single pair, no second pair); not native proof of any off-turn refusal here (offline coverage and the retained two-pair rows)";
+        internal const string SinglePairOffTurnScope = "cross-pair-isolation: not exercised in this run (single pair, no second pair); not native proof of an off-turn refusal (offline coverage)";
         internal const string StallScope = "ApproachesWithoutProgress == 0 on a continuously acting turn; not a native exercise of an exhausted or off-turn movement wait (offline coverage)";
         internal const string Row = "C7-world-turn-based-door";
         private const float ApproachStandoffMetres = 5f;
@@ -97,7 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             this.world = world; this.scope = scope; this.request = request; this.logger = logger; this.selectMode = selectMode;
             this.door = door; this.originalParty = originalParty;
-            Require(door != null, "The turn-based door control requires the exact selected combat-usable door.");
+            Require(door != null, "The turn-based door control requires its selected door.");
             Require((secondRider == null) == (secondMount == null), "A second pair needs both its rider and its mount.");
             cut = door.GetComponentInChildren<NavmeshCut>(); doorObject = door.gameObject; doorTransform = door.transform;
             // Single-pair mode (finishing mission 2026-10-31): one existing mounted pair is sufficient for the positive native
@@ -117,7 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void SelectAfterInput() => Chunk7NativeFixture.Select(SinglePair ? SelectionActor : riders[1]);
         private UnitEntityData[] AiActors => SinglePair ? new[] { riders[0], mounts[0] } : new[] { riders[0], mounts[0], riders[1] };
         private static JObject NotApplicableRejection(string label) => new JObject { ["label"] = label, ["applicable"] = false,
-            ["reason"] = "single pair: no second pair exists in this run; the cross-pair off-turn refusal stays offline coverage and the retained two-pair rows (r14)" };
+            ["reason"] = "single pair: no second pair in this run; the cross-pair refusal stays offline coverage" };
 
         private Vector3 ApproachPoint => door.MapObject != null ? door.MapObject.transform.position : door.transform.position;
         private float Radius => door.ProximityRadius > 0f ? door.ProximityRadius : 4f;
@@ -126,7 +126,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Begin()
         {
             Require(stage == 0 && !leaseCaptured, "The turn-based door control may begin only once.");
-            Require(!SinglePair || SelectionActor != null && !actors.Contains(SelectionActor), "Single-pair turn-based door control needs a declared other party member for the selection after inputs.");
+            Require(!SinglePair || SelectionActor != null && !actors.Contains(SelectionActor), "Single-pair door control needs the other party member for selection.");
             RequirePairs(); Require(actors.All(Chunk7NativeFixture.Idle), "Turn-based door control requires idle native actors.");
             RequireDoor();
             var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, mounts);
