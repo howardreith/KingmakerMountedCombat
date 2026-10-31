@@ -22,7 +22,7 @@ registries `f12662b6`..`845892d7`. Final candidate sprint3k (`845892d7`; DLL `ad
 - Unmounted controls are untouched by the carrier (policy regression); an unmounted native trap/spell control row was not
   run natively this sprint.
 
-Records: [docs/SPRINT3-TRAPS-SPELL-APPROACH.md](docs/SPRINT3-TRAPS-SPELL-APPROACH.md), `AUTONOMOUS-RESUME.md`, the PR opened from this branch.
+Records: [docs/SPRINT3-TRAPS-SPELL-APPROACH.md](docs/SPRINT3-TRAPS-SPELL-APPROACH.md), `AUTONOMOUS-RESUME.md`, PR #8.
 
 Live installation at closeout: Mods tree empty, loader parameters and profile root at intake, protected saves and the
 owner's originals unchanged, no lock or game process, no candidate installed. Owner play acceptance of Sprints 1, 2 and 3

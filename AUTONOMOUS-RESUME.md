@@ -18,7 +18,7 @@ the final one is sprint3k (`845892d7`, suite `sprint3k-845892d7-20261031` SHA-25
 
 ## Next action
 
-1. Final review of the PR opened from this branch (disposition PARTIAL). Owner play acceptance stays separate. No merge, release
+1. Final review of PR #8 (disposition PARTIAL). Owner play acceptance stays separate. No merge, release
    or installation is part of this workflow.
 2. TRAP-01 is the only outcome without native evidence. Required input: a disposable save (never a human save) on
    an area where an active, disarmable trap stands in the party's own navmesh area 4 to 30 m from the mounted pair
