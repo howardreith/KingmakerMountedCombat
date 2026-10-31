@@ -51,7 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // node's own height (node.position.y / 1000, the basis of the game's own GetNearestNode height check); nothing is
         // raycast and no terrain rule is changed. The v5 "heights" of r17 are retained with the v4 limitation.
         internal const string SpeedLegContract = "sprint2-speed-legs/v6";
-        private const string SpeedLegHeightBasis = "navmesh node centre height (GetNearestNode node.position.y*0.001, the game's own height-check basis); clampedPosition keeps the requested height";
+        private const string SpeedLegHeightBasis = "navmesh node centre height (node.position.y*0.001, the game's height-check basis); clampedPosition keeps the requested height";
         private const int SpeedLegInterruptRecordLimit = 8;
         private const float SpeedLegLevelToleranceMetres = 0.5f;
         internal const float SpeedLegDistanceMetres = 9f;
@@ -139,7 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var goal = SearchSpeedLegGoal(mover, preferred.normalized, excluded, out var found);
             if (!found)
             {
-                speedLeg["reason"] = "No walkable nine-metre route clear of other units and the door lies in any bearing; this leg is not applicable on this fixture.";
+                speedLeg["reason"] = "No admissible route in any bearing; this leg is not applicable on this fixture.";
                 speedLegSkipped = true; speedLegMovers = new List<SpeedLegMover>(); speedLegCarried = new List<SpeedLegCarried>();
                 logger.Info("Sprint 2 speed leg " + label + " skipped: no clear route.");
                 return;
@@ -295,12 +295,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     " (result " + primary.Move.Result + ", path " + primary.Sampler.PathLength.ToString("F2") + " m, goal residual " +
                     ((float)primary.Record["goalResidual"]).ToString("F2") + " m).";
                 speedLeg["failure"] = failure; speedLegFailures.Add(failure);
-                logger.Warning("Sprint 2 speed leg " + speedLeg["label"] + " NOT accepted (later legs continue for diagnosis only): " + failure);
+                logger.Warning("Sprint 2 speed leg " + speedLeg["label"] + " NOT accepted: " + failure);
                 // Later legs continue only on a quiet default surface: a leg ended by a dialog, cutscene, pause, load or
                 // combat stops the sequence here (no input is issued inside such a mode).
                 var es = (JObject)speedLeg["endState"];
                 var quiet = (string)es["gameMode"] == "Default" && !(bool)es["paused"] && !(bool)es["inCombat"] && !(bool)es["loading"];
-                if (!quiet) { speedLeg["continuationStopped"] = "the leg ended outside the quiet default mode: " + es.ToString(Newtonsoft.Json.Formatting.None); RequireSpeedLegsAccepted(); }
+                if (!quiet) { speedLeg["continuationStopped"] = "ended outside the quiet default mode: " + es.ToString(Newtonsoft.Json.Formatting.None); RequireSpeedLegsAccepted(); }
             }
             else
             {
@@ -319,7 +319,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var accepted = speedLegs != null && speedLegs.Count >= 1 && speedLegFailures.Count == 0;
             if (speedLegs != null) evidence["speedLegsAccepted"] = accepted;
             Require(accepted, speedLegs == null ? "No speed leg was recorded." :
-                "Speed legs not accepted (" + speedLegFailures.Count + " failed leg(s); the later legs ran for diagnosis only): " + string.Join(" | ", speedLegFailures.ToArray()));
+                "Speed legs not accepted (" + speedLegFailures.Count + " failed; later legs ran for diagnosis): " + string.Join(" | ", speedLegFailures.ToArray()));
         }
 
         // v5: the first native UnitCommand.Interrupt of each issued speed-leg Move, observed before cleanup. Interrupts of
@@ -557,9 +557,9 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal JObject Describe(int recordLimit, JObject summary) => new JObject {
-            ["scope"] = "first native UnitCommand.Interrupt of each issued speed-leg Move command, recorded before cleanup with its callers; interrupts of other commands and every cleanup-phase interrupt are counted by phase only",
+            ["scope"] = "first native UnitCommand.Interrupt of each issued speed-leg Move command, recorded before cleanup with callers; other and cleanup interrupts counted by phase",
             ["method"] = target.DeclaringType.FullName + "." + target.Name, ["token"] = InterruptToken.ToString("X8"), ["moduleMvid"] = target.Module.ModuleVersionId.ToString(),
-            ["callerCapture"] = "one System.Diagnostics.StackTrace per recorded interrupt (method names only, no per-frame tracing)", ["recordLimit"] = recordLimit, ["counts"] = summary };
+            ["callerCapture"] = "one StackTrace per recorded interrupt (method names only)", ["recordLimit"] = recordLimit, ["counts"] = summary };
 
         private static void Before(UnitCommand __instance)
         {

@@ -182,8 +182,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (door == null)
             {
                 evidence["door"] = Chunk7NativeDoorProbe.NotApplicable(mounts, true);
-                Require(false, "No combat-usable qualifying door (StandardDoor.NotInCombat false) lies within the 28 m scan radius of the owner's Horse on this surface: " +
-                    "the turn-based door control is not possible here; the read-only door inventory is recorded under door.rows (no preparation, no encounter).");
+                Require(false, "No combat-usable qualifying door (NotInCombat false) within 28 m of the Horse: turn-based door control impossible here; inventory under door.rows.");
             }
             var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, mounts);
             evidence["door"] = new JObject { ["applicable"] = true, ["requiredCombatUsable"] = true, ["candidatesScanned"] = scanned, ["radius"] = Chunk7NativeDoorProbe.ScanRadius,
