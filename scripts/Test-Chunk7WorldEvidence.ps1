@@ -527,6 +527,20 @@ $legV5Mutations=@(
 )
 foreach($mutation in $legV5Mutations){$copy=Copy-TestValue $speedLegsV5;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Check 'Sprint 2 v5 speed leg admitted at a shorter meaningful length' {$v=Copy-TestValue $speedLegsV5;$v.observations.speedLegs[0].distance=5.0;$v.observations.speedLegs[0].movers[0].pathLength=5.0;Assert-KmcChunk7WorldEvidence $request $v 'PASS'}
+# v6 speed legs (r17 causal result): the goal search records the navmesh node height basis (r21 shape).
+function New-SpeedLegsV6Fixture(){
+    $copy=Copy-TestValue $speedLegsV5;$o=$copy.observations;$o.speedLegContract='sprint2-speed-legs/v6'
+    foreach($leg in $o.speedLegs){$leg.goalSearch|Add-Member startNodeHeight 0.914;$leg.goalSearch|Add-Member heightBasis 'navmesh node centre height (GetNearestNode node.position.y*0.001, the game''s own height-check basis); clampedPosition keeps the requested height'}
+    return $copy
+}
+$speedLegsV6=New-SpeedLegsV6Fixture
+Check 'Sprint 2 v6 speed legs with the navmesh height basis' {Assert-KmcChunk7WorldEvidence $request (Copy-TestValue $speedLegsV6) 'PASS'}
+$legV6Mutations=@(
+ @('v6 speed leg without the height basis',{param($v)$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('heightBasis');$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('startNodeHeight')}),
+ @('v6 speed leg with the basis but no start node height',{param($v)$v.observations.speedLegs[0].goalSearch.PSObject.Properties.Remove('startNodeHeight')}),
+ @('v6 speed leg with another height basis',{param($v)$v.observations.speedLegs[0].goalSearch.heightBasis='clampedPosition'})
+)
+foreach($mutation in $legV6Mutations){$copy=Copy-TestValue $speedLegsV6;& $mutation[1] $copy;Reject $mutation[0] {Assert-KmcChunk7WorldEvidence $request $copy 'PASS'}}
 Check 'door probe and speed legs write the contracts the reader requires' {$source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7NativeDoorProbe.cs'));if($source-cnotmatch'Contract = "two-pair-native-door-click-selection-change-v5"'-or$source-cnotmatch'evidence\["contract"\] = Contract;'){throw 'Door probe contract differs from the v5 reader.'}
     $engine=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7WorldScenarioEngine.Sprint2.cs'));if($engine-cnotmatch'SpeedLegContract = "sprint2-speed-legs/v6"'){throw 'Speed leg contract differs from the v6 reader.'}
     $turnBased=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\Chunk7TurnBasedDoorProbe.cs'));if($turnBased-cnotmatch'Contract = "owner-seed-turn-based-door-control-v3"'){throw 'Turn-based door contract differs from the v3 reader.'}
