@@ -108,7 +108,7 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
-                PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
+                PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
                 PatchExact(typeof(LoadingProcess), "StartLoadingProcessInternal", 0x06007FC5, null,
@@ -920,6 +920,15 @@ namespace KingmakerMountedCombat.Integration
                 { PatchBridge.Combat?.CancelSelectedInput("stop or hold"); PatchBridge.Service?.ForwardStopOrHold(); }
                 else PatchBridge.World.Visit(pair =>
                 { pair.Combat.CancelSelectedInput("stop or hold"); pair.Relationship.ForwardStopOrHold(); });
+            }
+
+            // Stop additionally holds back the selected pair's automatic proposals (native Stop arms nothing itself).
+            internal static void StopPrefix()
+            {
+                StopOrHoldPrefix();
+                if (PointerController.SimulatingClick) { return; }
+                if (PatchBridge.World == null) PatchBridge.Combat?.ObserveStopInput();
+                else PatchBridge.World.Visit(pair => pair.Combat.ObserveStopInput());
             }
 
             internal static bool ContinuousMovePrefix(ref UnitEntityData executor)

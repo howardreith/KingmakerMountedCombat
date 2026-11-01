@@ -96,12 +96,33 @@ namespace KingmakerMountedCombat.Tests
                 NativeMountedControlKind.MountPrimary
             })
             {
+                // ATTACK-01: retired from every ordinary surface, on either actor, mounted or not.
                 TestRunner.True(
-                    NativeMountedControlPolicy.ShouldLease(kind, true, false, true, false, true, false),
-                    kind + " was absent from the rider native surface.");
+                    !NativeMountedControlPolicy.ShouldLease(kind, true, false, true, false, true, false),
+                    kind + " came back to the rider's ordinary surface.");
                 TestRunner.True(
-                    NativeMountedControlPolicy.ShouldLease(kind, true, false, true, false, false, true),
-                    kind + " was absent from the mount native surface.");
+                    !NativeMountedControlPolicy.ShouldLease(kind, true, false, true, false, false, true),
+                    kind + " came back to the mount's ordinary surface.");
+                TestRunner.True(
+                    !NativeMountedControlPolicy.ShouldLease(kind, true, true, false, false, true, false),
+                    kind + " appeared on an unmounted owner.");
+                TestRunner.True(NativeMountedControlPolicy.IsRetiredPrimaryHelper(kind), kind + " is not classified as retired.");
+                // Only an explicit diagnostic selection reaches the retained definitions.
+                TestRunner.True(
+                    NativeMountedControlPolicy.ShouldLease(kind, true, false, false, true, false, true, false, false, true),
+                    kind + " was unreachable for an explicitly selected historical diagnostic row.");
+                TestRunner.True(
+                    !NativeMountedControlPolicy.ShouldLease(kind, false, false, false, true, false, true, false, false, true),
+                    kind + " ignored the mounted feature gate under diagnostic selection.");
+            }
+            foreach (var kind in new[]
+            {
+                NativeMountedControlKind.MountCompanion,
+                NativeMountedControlKind.Dismount,
+                NativeMountedControlKind.MountedCharge
+            })
+            {
+                TestRunner.True(!NativeMountedControlPolicy.IsRetiredPrimaryHelper(kind), kind + " was retired with the primary helpers.");
             }
 
             TestRunner.True(
@@ -177,11 +198,11 @@ namespace KingmakerMountedCombat.Tests
         {
             TestRunner.True(
                 NativeMountedControlPolicy.ShouldLease(
-                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, true, false),
-                "Unified rider principal did not receive Mount primary.");
+                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, true, false, false, true),
+                "Unified rider principal did not receive the selected diagnostic Mount primary.");
             TestRunner.True(
                 !NativeMountedControlPolicy.ShouldLease(
-                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, false, true),
+                    NativeMountedControlKind.MountPrimary, true, true, false, true, false, false, true, false, true),
                 "Unified mount retained a duplicate primary surface.");
         }
 

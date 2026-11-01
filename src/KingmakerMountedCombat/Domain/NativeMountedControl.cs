@@ -136,6 +136,11 @@ namespace KingmakerMountedCombat.Domain
                 (relationshipMounted || relationshipFaulted) && unitIsRider;
         }
 
+        public static bool IsRetiredPrimaryHelper(NativeMountedControlKind kind)
+        {
+            return kind == NativeMountedControlKind.RiderPrimary || kind == NativeMountedControlKind.MountPrimary;
+        }
+
         public static bool ShouldLease(
             NativeMountedControlKind kind,
             bool featureEnabled,
@@ -165,7 +170,8 @@ namespace KingmakerMountedCombat.Domain
             bool relationshipFaulted,
             bool unitIsRider,
             bool unitIsMount,
-            bool mountedChargeEnabled = false)
+            bool mountedChargeEnabled = false,
+            bool retiredPrimaryHelpersSelected = false)
         {
             // The escape hatch, and it comes before every feature gate. One typed
             // decision, shared by leasing, availability, targeting and delivery.
@@ -197,6 +203,10 @@ namespace KingmakerMountedCombat.Domain
             if (kind == NativeMountedControlKind.RiderPrimary ||
                 kind == NativeMountedControlKind.MountPrimary)
             {
+                if (!retiredPrimaryHelpersSelected)
+                {
+                    return false;
+                }
                 if (unifiedMountedTurn)
                 {
                     return unitIsRider;
