@@ -83,10 +83,17 @@ function New-S3Artifact([string]$scenario,$rows){
 }
 $rt=New-S3Artifact 'sprint3-approach-rt' @((New-S3TrapRow),(New-S3FriendlyRow $false),(New-S3FriendlyRow $true),(New-S3HostileRow),(New-S3RangedRow))
 $tb=New-S3Artifact 'sprint3-approach-tb' @((New-S3TbRow $true),(New-S3TbRow $false))
+$nb=New-S3Artifact 'sprint3-approach-rt-neighbor' @((New-S3FriendlyRow $true))
 function Accept($artifact,[string]$scenario){Assert-KmcSprint3ApproachEvidence -Request ([pscustomobject]@{scenario=$scenario}) -Artifact $artifact -Status 'PASS'}
 function Reject($artifact,[string]$scenario,[string]$why){$refused=$false;try{Accept $artifact $scenario}catch{$refused=$true};Check $refused $why}
 Accept $rt 'sprint3-approach-rt';Check $true 'complete real-time Sprint 3 envelope accepted'
 Accept $tb 'sprint3-approach-tb';Check $true 'complete turn-based Sprint 3 envelope accepted'
+Accept $nb 'sprint3-approach-rt-neighbor';Check $true 'the held-charge ownership neighbor envelope accepted as its own selected subset'
+$r=Copy-S3 $nb;Reject $r 'sprint3-approach-rt' 'the neighbor subset is never accepted as the full real-time set'
+$r=Copy-S3 $rt;Reject $r 'sprint3-approach-rt-neighbor' 'the full real-time row set is refused under the neighbor selection'
+$r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member successorRetained $true -Force;Reject $r 'sprint3-approach-rt-neighbor' 'a carried release reporting an unordered successor refused'
+$r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member yieldedToMountOwner $true -Force;Reject $r 'sprint3-approach-rt-neighbor' 'a carried approach yielding to an unordered mount command refused'
+$r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member successorRetained $false -Force;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member yieldedToMountOwner $false -Force;Accept $r 'sprint3-approach-rt-neighbor';Check $true 'producer-shaped ownership fields without a successor accepted'
 Check ((Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 44 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'chunk6c-casting-rt')) 'schema 47 binds exactly the Sprint 3 scenarios'
 Check (((Get-KmcPhase3dEvidenceDispatch -SchemaVersion 47 -Scenario 'sprint3-approach-tb').validator) -ceq 'Assert-KmcSprint3ApproachEvidence') 'dispatch selects the Sprint 3 reader'
 # Exercise the actual launcher's parameter binder without executing its body.
@@ -94,7 +101,7 @@ $launcher=Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'
 $tokens=$null;$errors=$null;$launchAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$errors)
 Check ($errors.Count-eq0) 'actual guarded launcher parses'
 $bindOnly=[scriptblock]::Create($launchAst.ParamBlock.Extent.Text+"`n'bound-without-launch'")
-foreach($scenario in @('sprint3-approach-rt','sprint3-approach-tb')){
+foreach($scenario in @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-tb')){
  Check ((& $bindOnly -Scenario $scenario -RunId 's3-registration-probe')-ceq'bound-without-launch') ('actual native parameter guard admits '+$scenario)
  Check ((Get-KmcSaveBackedRuntimeScenarios)-ccontains$scenario) ('request registry agrees '+$scenario)
  Check ((Test-KmcCompoundRuntimeScenario $scenario)) ('compound registry agrees '+$scenario)

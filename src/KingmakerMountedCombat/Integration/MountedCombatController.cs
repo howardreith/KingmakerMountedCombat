@@ -1818,6 +1818,13 @@ namespace KingmakerMountedCombat.Integration
                     LastCarriedApproachObservation = "deferred: another pair operation owns the mount";
                     return false;
                 }
+                // Review correction B: any other live or queued command of the mount owns its movement; it is never
+                // cancelled for a carried approach, which binds once the mount is free.
+                if (MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(relationship.Mount?.Commands, null))
+                {
+                    LastCarriedApproachObservation = "deferred: another command owns the mount's movement";
+                    return false;
+                }
                 // A settlement still sampling the last door click yields to the pair's new movement intent.
                 CancelPendingDoorSettlement("superseded by a carried approach");
                 carriedApproach = new MountedCarriedApproach(relationship, relationship.Rider, relationship.Mount, command, kind, logger, HandleCarriedApproachTerminal)
@@ -1838,24 +1845,74 @@ namespace KingmakerMountedCombat.Integration
             return carriedApproach.Tick();
         }
 
-        // Called from the UnitCommands.Run prefix before any routing. Native Run replaces the rider's running command
-        // of the same slot and interrupts its other unstarted commands; a new order for the mount is the pair's new
-        // movement intent. Either way the carried approach is released and the carried command is left to its own
-        // native replacement (rider request) or interrupted with the reason (mount request).
-        internal void ObservePairCommandRequest(UnitCommands container, UnitCommand command)
+        // PR #8 review correction A. The UnitCommands.Run prefix runs the pair's routing gates through this admission
+        // in their existing order; nothing is released while they decide. Only a request every gate admitted gets a
+        // ticket, which the Run postfix completes from what native Run actually did (CompletePairCommandRun).
+        internal bool AdmitPairCommandRun(UnitCommands container, ref UnitCommand command, out MountedCarriedRequestTicket ticket)
         {
-            if (disposed || carriedApproach == null || container == null || command == null) return;
-            var riderRequest = ReferenceEquals(container, relationship.Rider?.Commands);
-            var mountRequest = ReferenceEquals(container, relationship.Mount?.Commands);
-            if (MountedCarriedApproachPolicy.ReleasesOnRiderRequest(carriedApproach.IsLive, riderRequest, ReferenceEquals(command, carriedApproach.Command)))
+            var routed = command;
+            var admitted = MountedCarriedRequestFlow.Admit(carriedRequestHost, container, routed, new Func<bool>[]
             {
-                ReleaseCarriedApproach("rider command request");
-                return;
+                () => TryRouteMountedDoorInteraction(container, ref routed),
+                () => TryRouteMountedStockAttack(container, routed),
+                () => ShouldAllowStockCommand(container, routed)
+            }, out ticket);
+            command = routed;
+            if (disposed) ticket = null;
+            return admitted;
+        }
+
+        internal void CompletePairCommandRun(MountedCarriedRequestTicket ticket, UnitCommand executed)
+        {
+            if (disposed || ticket == null) return;
+            var action = MountedCarriedRequestFlow.Complete(carriedRequestHost, ticket, executed);
+            if (action != MountedCarriedRequestAction.Keep) CarriedApproachAdmittedReleaseCount++;
+        }
+
+        internal int CarriedApproachAdmittedReleaseCount { get; private set; }
+
+        private MountedCarriedRequestHost carriedRequestHostValue;
+        private MountedCarriedRequestHost carriedRequestHost => carriedRequestHostValue ?? (carriedRequestHostValue = new MountedCarriedRequestHost(this));
+
+        private sealed class MountedCarriedRequestHost : IMountedCarriedRequestHost
+        {
+            private readonly MountedCombatController owner;
+            internal MountedCarriedRequestHost(MountedCombatController owner) { this.owner = owner; }
+
+            // The bound carried approach. One whose command native Run just ended directly (an out-of-range unstarted
+            // command it interrupted without the patched slot removal) is still bound here, so the admitted request
+            // releases its delegated move at once instead of at the next update sweep.
+            public object LiveApproach => owner.carriedApproach;
+            public bool IsRiderContainer(object container) => container != null && ReferenceEquals(container, owner.relationship.Rider?.Commands);
+            public bool IsMountContainer(object container) => container != null && ReferenceEquals(container, owner.relationship.Mount?.Commands);
+            public bool IsCarriedCommand(object approach, object command) => command != null && ReferenceEquals((approach as MountedCarriedApproach)?.Command, command);
+            public bool IsDelegatedMove(object approach, object command) => command != null && ReferenceEquals((approach as MountedCarriedApproach)?.DelegatedMove, command);
+            public bool IsPlayerRequest(object command) => command is UnitCommand unit && unit.CreatedByPlayer && unit.AiAction == null;
+
+            public bool CarriedCommandDisplaced(object approach)
+            {
+                var carried = (approach as MountedCarriedApproach)?.Command;
+                var commands = owner.relationship.Rider?.Commands;
+                if (carried == null || carried.IsFinished || commands == null) return true;
+                return !commands.Contains(carried) && !commands.Queue.Contains(carried);
             }
-            if (mountRequest && carriedApproach.IsLive && !ReferenceEquals(command, carriedApproach.DelegatedMove))
+
+            public bool MountMovementDisplaced(object approach)
             {
-                var carried = carriedApproach.Command;
-                ReleaseCarriedApproach("mount command request");
+                var carrier = approach as MountedCarriedApproach;
+                var commands = owner.relationship.Mount?.Commands;
+                if (carrier == null || commands == null) return false;
+                return MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(commands, carrier.DelegatedMove);
+            }
+
+            public void Release(object approach, string reason)
+            {
+                if (ReferenceEquals(owner.carriedApproach, approach)) owner.ReleaseCarriedApproach(reason);
+            }
+
+            public void InterruptCarriedCommand(object approach)
+            {
+                var carried = (approach as MountedCarriedApproach)?.Command;
                 if (carried != null && !carried.IsFinished && !carried.IsStarted) carried.Interrupt();
             }
         }

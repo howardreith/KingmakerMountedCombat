@@ -75,7 +75,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Game), "ResetToMainMenu", 0x06000CDD,
                     new[] { typeof(string), typeof(Kingmaker.Blueprints.Area.BlueprintAreaPreset) },
                     nameof(PatchMethods.ResetToMainMenuPrefix));
-                PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
+                PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix), nameof(PatchMethods.UnitCommandRunPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
@@ -519,8 +519,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.CombatFor(unit)?.CompleteGroundCommandAdmission(unit);
             }
 
-            internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
+            internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd, out MountedCarriedRequestTicket __state)
             {
+                // PR #8 review correction A: no ticket on any refusal or native-only path, so nothing a refused,
+                // simulated or preparation request carries can release the pair's carried approach.
+                __state = null;
                 // Bind a same-frame native hostile click to the exact command its own Run carries,
                 // before any refusal below, so no later command can borrow or erase that click.
                 PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
@@ -536,18 +539,16 @@ namespace KingmakerMountedCombat.Integration
                 if (PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 var combat = PatchBridge.CombatFor(__instance);
-                // Sprint 3: a new order for the rider or its mount releases the pair's carried approach before native
-                // Run replaces or interrupts the carried command itself.
-                combat?.ObservePairCommandRequest(__instance, cmd);
-                if (combat != null && !combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
-                {
-                    return false;
-                }
-                if (combat != null && !combat.TryRouteMountedStockAttack(__instance, cmd))
-                {
-                    return false;
-                }
-                return combat == null || combat.ShouldAllowStockCommand(__instance, cmd);
+                if (combat == null) return true;
+                // The door, stock-attack and stock-command gates in their existing order. The carried approach is
+                // released only after native Run executed an admitted request, from what Run displaced (postfix).
+                return combat.AdmitPairCommandRun(__instance, ref cmd, out __state);
+            }
+
+            internal static void UnitCommandRunPostfix(UnitCommands __instance, UnitCommand cmd, MountedCarriedRequestTicket __state)
+            {
+                if (__state == null) return;
+                PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
             }
 
             internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)

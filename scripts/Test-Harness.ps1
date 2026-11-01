@@ -10212,7 +10212,7 @@ try {
             $stabilizationSource.Contains('relationshipMounted && commandOwnerIsExactRider &&') -and
             $combatSource.Contains('command.GetType() == typeof(UnitInteractWithObject)') -and
             $combatSource.Contains('stockInteraction.Interaction.GetType() == typeof(StandardDoor)') -and
-            $patchSource.Contains('TryRouteMountedDoorInteraction(__instance, ref cmd)') -and
+            $patchSource.Contains('combat.AdmitPairCommandRun(__instance, ref cmd, out __state)') -and $combatSource.Contains('() => TryRouteMountedDoorInteraction(container, ref routed),') -and
             $doorSource.Contains('new MountedDoorApproachMove(NativeApproachPoint, approachRadius, GetTargetLOSObjectId())') -and
             $doorSource.Contains('public override bool CanStart => approachSatisfied;') -and
             $doorSource.Contains('IsUnitCloseEnough(NativeApproachPoint, mount.Position, mount.EyePosition, approachRadius, true, GetTargetLOSObjectId())') -and
@@ -12697,7 +12697,7 @@ try {
             $unifiedSource.Contains('ShouldSuppressStepOpportunity(UnitEntityData target)') -and
             $unifiedSource.Contains('settings.EnableUnifiedMountedTurn = false;')) `
             'unified-turn coordinator lost exact initiative, ledger, five-foot-step, or fallback ownership'
-        Assert-Test ($patchSource.Contains('TryRouteMountedStockAttack(__instance, cmd)') -and
+        Assert-Test ($patchSource.Contains('combat.AdmitPairCommandRun(__instance, ref cmd, out __state)') -and $combatSource.Contains('() => TryRouteMountedStockAttack(container, routed),') -and
             $patchSource.Contains('PatchExact(typeof(CombatController), "Tick", 0x06000BD1') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);') -and
             $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
@@ -13055,7 +13055,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
