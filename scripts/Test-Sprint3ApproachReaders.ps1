@@ -124,7 +124,7 @@ $s3Declared=@('a350a897-1800-4bc6-855f-f8c157c51340','90fdc0ef-f893-43de-bf8c-f5
 function New-S3HostileSetup{
  [pscustomobject]@{kind='declared-fixture-setup';group=$s3Group;declared=$s3Declared;dispatches=2;combatAtSettle=$false;settledFrame=400
   before=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;group=$s3Group;conscious=$true;dead=$false;inCombat=$false;playerFaction=$false;pet=$false}})
-  dispatched=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;initiator=$_;requested=30;nativeDamage=30}})
+  dispatched=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;initiator=$_;needed=11;requested=56;nativeDamage=11}})
   after=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;group=$s3Group;conscious=$false;dead=$true;inCombat=$false}})
   partyAfter=@([pscustomobject]@{id=$rider;inCombat=$false;conscious=$true},[pscustomobject]@{id=$recipient;inCombat=$false;conscious=$true})}
 }
@@ -134,6 +134,7 @@ $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostilesNear=@($s3Declared[0]
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatched[1].initiator=$recipient;Reject $r 'sprint3-approach-rt-trap' 'a hostile setup dispatched by a party member refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatched[1].id=$s3Declared[0];Reject $r 'sprint3-approach-rt-trap' 'two dispatches on one declared unit refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatches=3;Reject $r 'sprint3-approach-rt-trap' 'a further setup dispatch refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatched[0].nativeDamage=2;Reject $r 'sprint3-approach-rt-trap' 'a difficulty-scaled dispatch below the native death threshold refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.after[0].dead=$false;Reject $r 'sprint3-approach-rt-trap' 'a declared hostile that is not natively dead refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.combatAtSettle=$true;Reject $r 'sprint3-approach-rt-trap' 'a setup that settled in combat refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.partyAfter[1].inCombat=$true;Reject $r 'sprint3-approach-rt-trap' 'a party member left in combat after the setup refused'

@@ -608,12 +608,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     !unit.IsPlayersEnemy || unit.IsPlayerFaction || unit.Descriptor.IsPet || unit.IsInCombat || !unit.Descriptor.State.IsConscious ||
                     (bool)unit.Descriptor.State.IsRegenerate || HorizontalDistance(unit.Position, Sprint3DeclaredHostiles[unit.UniqueId]) > Sprint3DeclaredHostileToleranceMetres)
                     return "declared hostile " + unit.UniqueId + " does not match its recorded group, position or out-of-combat state";
+            // r20: the native rule scales every enemy-initiated damage, self-inflicted included, by the difficulty's
+            // DamageToParty after reduction; the request is sized through that same native factor (the Chunk 6A lethal
+            // pattern) and the scaled result must still reach the native death threshold.
+            var difficulty = game.Player.Difficulty.DamageToParty;
+            setup["damageToParty"] = difficulty;
+            if (difficulty <= 0 || float.IsNaN(difficulty) || float.IsInfinity(difficulty)) return "no finite positive native damage scale for an enemy-initiated rule";
             var dispatched = new JArray(); setup["dispatched"] = dispatched;
             foreach (var unit in declared)
             {
                 var needed = checked(unit.Stats.HitPoints.ModifiedValue + unit.Stats.Constitution.ModifiedValue + unit.Stats.TemporaryHitPoints.ModifiedValue - unit.Damage + 1);
-                var damage = Rulebook.Trigger(new RuleDealDamage(unit, unit, new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), needed))));
-                dispatched.Add(new JObject { ["id"] = unit.UniqueId, ["initiator"] = unit.UniqueId, ["requested"] = needed, ["nativeDamage"] = damage.Damage,
+                var requested = checked((int)Math.Ceiling((needed + 1d) / difficulty));
+                var damage = Rulebook.Trigger(new RuleDealDamage(unit, unit, new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
+                dispatched.Add(new JObject { ["id"] = unit.UniqueId, ["initiator"] = unit.UniqueId, ["needed"] = needed, ["requested"] = requested, ["nativeDamage"] = damage.Damage,
                     ["nativeDamageBeforeDifficulty"] = damage.DamageBeforeDifficulty, ["damageAfter"] = unit.Damage, ["frame"] = Time.frameCount });
                 if (damage.Damage < needed) return "the native rule did not carry the lethal damage to declared hostile " + unit.UniqueId;
             }
