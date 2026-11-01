@@ -220,7 +220,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var taken = s4Targets.Select(t => t.Unit.Position).Concat(target == null ? new Vector3[0] : new[] { target.Position }).ToArray();
             var point = FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1f : .5f,
-                candidate => taken.All(position => HorizontalDistance(candidate, position) >= 7f));
+                candidate => taken.All(position => HorizontalDistance(candidate, position) >= 5f));
             var service = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
             var unit = service.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, durable);
             if (!service.PrepareForPlayerClick(unit) || !service.QueueBidirectionalCombatMemory(rider, unit))
@@ -279,7 +279,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (s4Stage == 1)
             {
-                if (!Sprint4Settled() || game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
+                // A row that continues an encounter or ends it itself starts with the automatic path still attacking.
+                var continuesEncounter = Sprint4Case == "S4-controls" || Sprint4Case == "S4-melee-retarget" || Sprint4Case == "S4-hold-no-chase";
+                if (!continuesEncounter && (!Sprint4Settled() || game.HandsEquipmentController.IsUpdateScheduledFor(rider))) return;
                 if (relationship.State != RelationshipState.Mounted) throw new InvalidOperationException("Sprint 4 rows require the exact mounted pair at every row start.");
                 BeginSprint4Row(); s4Stage = 2; return;
             }
@@ -362,7 +364,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rangedWeaponLease == null)
                 {
                     rangedWeaponLease = new Phase3dRangedWeaponLease(rider);
-                    rangedWeaponLease.Acquire(WeaponCategory.Longbow);
+                    rangedWeaponLease.AcquireCompatibleRanged();
                     AcquirePhase3hRapidShot();
                     ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle, true, null, true);
                     return;
@@ -578,7 +580,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s4Step == 0)
             {
-                var away = FindWalkablePoint(s4Second.Position, 16f, 2f, candidate => Sprint3PathPossible(horse.Position, candidate) == true);
+                var away = FindWalkablePoint(s4Second.Position, 14f, 4f, candidate => Sprint3PathPossible(horse.Position, candidate) == true);
                 s4Facts["moveTarget"] = CapturePosition(away);
                 bool clicked;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);

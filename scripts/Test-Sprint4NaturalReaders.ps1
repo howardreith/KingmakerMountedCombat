@@ -78,6 +78,8 @@ function Reject($artifact,[string]$scenario,[string]$why){$threw=$false;try{Acce
 Accept $rt 'sprint4-natural-rt';Check $true 'complete real-time evidence accepted'
 Accept $tb 'sprint4-natural-tb';Check $true 'complete turn-based evidence accepted'
 Check ((Get-KmcPhase3dEvidenceDispatch 48 'sprint4-natural-rt').validator -ceq 'Assert-KmcSprint4NaturalEvidence') 'schema 48 dispatches to the Sprint 4 reader'
+Check (Test-KmcPhase3dSchemaRegistration 48 'sprint4-natural-tb') 'schema 48 is registered for the Sprint 4 scenarios'
+Check (-not (Test-KmcPhase3dSchemaRegistration 48 'sprint3-approach-rt')) 'schema 48 is refused for another scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 47 'sprint4-natural-rt')) 'a Sprint 3 schema is refused for a Sprint 4 scenario'
 Check (Test-KmcPersistenceAreasIsolationSelection -Scenario 'sprint4-natural-rt' -PersistenceCase $null -ObserveWorkingDeserialization $false) 'Sprint 4 rows select the profile Areas isolation'
 # ATTACK-01

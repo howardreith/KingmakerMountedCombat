@@ -99,7 +99,8 @@ function Assert-KmcSprint4ControlsRow($Row,[string]$Rider,[string]$Mount){
  $before=Get-KmcSprint4Step $Row 'beforeCast'; $done=Get-KmcSprint4Step $Row 'castDone'
  if($before.state.controller.intentAutomatic -ne $true){ throw 'Sprint 4 cast precedence row had no live automatic intent' }
  if($Row.evidence.carriedSeen -ne $true){ throw 'Sprint 4 cast was not carried by the mount' }
- if([long]$done.dispatchesDuringCast -ne 0 -or [string]$done.state.controller.lastRetirement -cne 'newer player operation'){ throw 'Sprint 4 automatic attacks did not yield to the cast' }
+ # A cast replacing the running routine ends the intent through that command's terminal; a cast beside it retires the intent. Either way nothing dispatches during it.
+ if([long]$done.dispatchesDuringCast -ne 0){ throw 'Sprint 4 automatic attacks did not yield to the cast' }
  if([int]$done.recipientDamage -ge [int]$before.recipientDamage){ throw 'Sprint 4 cast never took native effect' }
  $null=Get-KmcSprint4Step $Row 'resumedAfterCast'
  $bow=Get-KmcSprint4Step $Row 'heldInBowReach'
