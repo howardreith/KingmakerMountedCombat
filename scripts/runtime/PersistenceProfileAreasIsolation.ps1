@@ -11,6 +11,8 @@ function Test-KmcPersistenceAreasIsolationSelection {
     # Sprint 2 (r07): the Working-fixture traversal suite loads from the live profile, and the engine unpacks the
     # loaded archive into the profile's Areas tree; the isolation holds the intake tree and quarantines the generated one.
     if($Scenario-ceq'chunk4-traversal-core'){return $true}
+    # Sprint 3 (r01): the carried-approach rows load the same Working fixture from the live profile (Mammoth engine entry).
+    if($Scenario-cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')){return $true}
     if($Scenario-ceq'persistence-p07-save'){
         return ($OwnerStockRemoval -and $PersistenceCase-ceq'prepare-removal') -or
             $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')

@@ -1,0 +1,570 @@
+# Sprint 3 — traps and spell target approach while mounted (2026-10-31)
+
+> **Finishing mission (2026-11-01):** the section *Finishing mission* below holds the current disposition, candidate
+> (sprint3q) and evidence. *Second review* (sprint3m) holds the accepted queued-order correction. *Review corrections* records the first review iteration (sprint3l); the first-iteration record that
+> follows both is kept, with its incorrect claims corrected in place.
+
+**Disposition (first iteration): SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.**
+SPELL-01 is demonstrated natively in real time and in turn-based combat on the candidate of that iteration. TRAP-01 is
+implemented and shares the natively evidenced driver, but its trap-specific layers have neither native evidence nor
+offline execution: every trap on the Working fixture sits in a
+navmesh area that ordinary input cannot enter (fixture limit, recorded below). Nothing is merged, released or installed.
+
+Review branch `codex/mounted-combat-sprint3-traps-spell-approach` from `main` `6240d91e` (the PR #7 merge). Product
+commits `f22e6bd1` (carried approach) and `3980e1cf` (turn-based admission of the delegated approach move); diagnostics,
+readers and registries `f12662b6`, `9cc2a463`, `ae72ebdb`, `1af5bb2c`, `63534a24`, `2993655f`, `e0011565`, `c63bd260`,
+`0a4e0e1f`, `6f54bcf8`, `845892d7`; docs follow. Final candidate sprint3k (built at `845892d7`): DLL SHA-256
+`ad961c3dbdf5316598434a3fd6750e2a6afee1d687f43e887bf5e8a9570e4045`, MVID `565f890d-3522-4812-8e59-88907e1f3ed1`,
+8 457 216 bytes; package `artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint3k-diagnostic.zip` SHA-256
+`75521a56af393f7a6f382cd2eef73f57f39fedacb5a28996d6164d2a97e64075`; suite `sprint3k-845892d7-20261031` SHA-256
+`b2b6636c4a43de563ca4a4cd60635b6ac7a26a2f0cab115aafc53f302febac0f` (protected-save authority
+`20260816T0115379973604Z-user-attested-quicksave-continuity`, authority `111c794b…`, pin set `6f137d57…`). The production
+carried-approach code is identical from sprint3d on; only `3980e1cf` changed production after that (one admission
+predicate), so sprint3f/3g/3h carry the same product behaviour and sprint3a–3e differ from it only by that predicate.
+
+## Finishing mission: declared trap-room setup and the native trap outcome (2026-11-01, PR #8 review of `a8ca1603`)
+
+**Disposition: SPRINT 3 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** The owner's
+mission allowed the two hostiles beyond the declared dwarf door to be cleared as fixture setup on the disposable copy.
+That setup now works natively (r24): both units died through the engine's own life rules, no combat started, and the
+door opened through one ordinary click on a settled navmesh. **But no active trap joins the mounted pair's navmesh area
+behind that door.** The declared route is therefore exhausted without a trap click, and TRAP-01 still has no native
+attempt. No product code changed in this iteration; the queued-order correction stays accepted at source level.
+
+### Identities
+
+| Item | Identity |
+| --- | --- |
+| Head before docs | `de5abf08` (diagnostic and reader commits `f85e8327`, `54123d23`, `29012367`, `de5abf08` on `a8ca1603`) |
+| Product source | unchanged since `24c92355` (sprint3m); only `Diagnostics/Sprint3ApproachScenario.cs` and the external reader changed |
+| Final candidate | sprint3q (`de5abf08`): DLL `fac005d62bfe204cc37a0fb8697ad95b77a2387e2db5acb2843b895c8cbaccd5`, MVID `6660af4a-cad8-40a4-b0e2-436ba0983f90`, 8,483,328 bytes |
+| Package / suite | `6958aa3cacfc86b8fd5f3202b8dddcd43daecec43d87fbfdc6976ea3adde48fa`; `sprint3q-de5abf08-20261101` (`8fa2910dfbc20603746282b0530e991704e58d103c4284938de5c327762d62fc`) |
+| Intermediate candidates | sprint3n `f85e8327` (DLL `a167f856…`, suite `739a165d…`), sprint3o `54123d23` (DLL `ca8056fa…`, suite `08d4015a…`), sprint3p `29012367` (DLL `5e989b4c…`, suite `3c93c1bd…`) |
+
+Each candidate ran the Candidate tier once (PASS 8/8, about 3.5 to 3.8 min each; reader checks 88, 89, 93, 94). The
+same protected-save authority as sprint3m was used.
+
+### Declared fixture preparation (setup only, never evidence of combat)
+
+- **Entities:** door `dwarf_dungeon_door_01` `3e8d6924-f364-47cf-ba3f-d59edbf674f6` at (40, 5.975, 60). Native group
+  `aaac19a9-5e3b-4adc-b506-b0cdaa3492c7`, with exactly two members:
+  - `a350a897-1800-4bc6-855f-f8c157c51340` at (57.8, 52.3), blueprint `b286c0e4…`, 8 HP;
+  - `90fdc0ef-f893-43de-bf8c-f52b3854a9c6` at (63.6, 62.6), blueprint `67041044…`, 4 HP.
+
+  The mission's "aaac19a9…" is this group's id; the second unit was resolved from the read-only r19 Working backup.
+- **Method:** under `sprint3-approach-rt-trap` only. The identity, group size, position (2 m), out-of-combat and
+  no-regeneration checks are made first; any undeclared hostile near the door or opener still refuses. Then, per unit:
+  1. one self-initiated native `RuleDealDamage`, so no party actor, command or resource takes part;
+  2. one engine `UnitEntityData.Wake(2 s)`;
+  3. a bounded wait (60 stable frames) for native death and no combat.
+
+  The unchanged 20 m guard is re-read before the walk and again at the door click.
+- **Native contracts measured on the way:**
+  - **r20 (sprint3n):** `RuleDealDamage` scales every enemy-initiated damage, self-inflicted included, by
+    `Difficulty.DamageToParty` (0.2 here; 11 requested, 2 dealt). The request is now sized through that factor, the
+    reviewed Chunk 6A pattern.
+  - **r21 (sprint3o):** the damage reached the threshold (12/11, 16/15), but both units stayed Conscious for 900 frames.
+    `BaseUnitController` ticks only `State.AwakeUnits`.
+  - **r23 (sprint3p):** `SleepingUnitsController` keeps a fogged, idle, out-of-combat unit asleep unless its
+    `AwakeTimer` runs. The closed door kept both in fog with the opener beside it, so the click guard refused.
+  - **r24 (sprint3q):** after `Wake`, both units turned Dead on the native tick within 60 frames; the party gained the
+    native 100 XP each; nobody entered combat.
+- **Changed state, disposable copy only:** two enemy deaths, party XP 35,065 → 35,165 (Druid and opener; the mammoth
+  pet unchanged), and the opened door. Nothing was saved; the Working fixture was restored byte-exact afterwards.
+
+### r24 outcome (`20261101-sprint3-r24-trap-rt`, sprint3q, batch `sprint3:final-2`)
+
+- **Door:** the opener walked an ordinary trap-clear route of 52.5 m, through
+  `ClickGroundHandler.MoveSelectedUnitsToPoint`, to 2.5 m from the door. The guard was empty and both declared units
+  were dead at the click. One `ClickMapObjectHandler.OnClick` opened the door natively, and the cut settled in 4 frames.
+- **Trap selection on the settled graph:** none of the four active traps is reachable from the mount (A* area 10;
+  nearest trap point area 12):
+  - Snowball `40781fdf…` (28, 70), DC 14;
+  - Snowball `ad092d95…` (36, −24);
+  - Magic Missile `1f1563b5…` (60, 18);
+  - Magic Missile `e942951f…` (79, 36).
+
+  The opener beside the opened door reaches neither recorded candidate. The row stopped as designed: "The declared door
+  opened but no active disarmable trap joined the mounted pair's navmesh area; the route stops here."
+- **Stopped there:** a further door, a search or teleporting is outside the mission. No trap click, skill check or
+  disarm outcome exists.
+
+### Native attempts this iteration
+
+| Run | Candidate | Outcome |
+| --- | --- | --- |
+| r20 | sprint3n | FAIL: setup refused before a second dispatch (difficulty scale) |
+| r21 | sprint3o | FAIL: setup did not settle (sleeping units) |
+| r22 | sprint3p | refused by the batch guard before launch (two failures of the selection in `sprint3:final-1`); no lock, transaction or game process |
+| r23 | sprint3p | FAIL: units alive at the door click (still asleep in fog); `sprint3:final-2` |
+| r24 | sprint3q | FAIL: setup and door succeeded; no reachable trap |
+
+Every run restored Mods and the Working fixture (restored inventory `60e3d6cc…`), and save protection passed. Each
+failure is retained with its own candidate.
+
+### Evidence layers
+
+| Layer | Items |
+| --- | --- |
+| Executed on sprint3q | r24 (setup, door, settled-graph trap selection); Candidate tier 8/8 |
+| Executed on sprint3n/o/p | r20, r21, r23 (retained failures with their measured causes); Candidate tier 8/8 each |
+| Retained | queued-order correction and its four regressions on sprint3m; r18 on sprint3l; spell rows up to r16 and r14/r17 on sprint3k; r19 on sprint3m |
+| Offline only | trap outcome, no-reroll and setup-reader logic (94 reader checks) |
+| Not executed | the ordinary mounted trap click, the rider's Trickery check and its consequence (TRAP-01 acceptance) |
+
+### Budget
+
+`sprint3`: ONE +30 adjustment recorded on the same record (105 → 135; 88.75 min spent at the adjustment; second
+`allowanceAdjustments` entry, the +15 kept). Spent 118.27 of 135 min across 83 entries; 16.73 min unused. No reset, no
+new budget id.
+
+### Minimum remaining input
+
+There is still no trap the Working fixture's mounted pair can walk to through the declared door. The mission's routes
+are spent: no second door, no roaming and no teleport. TRAP-01 needs one of these:
+- **(a)** a save, made in normal play, with a supported mounted pair out of combat about 4 to 30 m from an active trap
+  in the same walkable area;
+- **(b)** an owner decision naming a further door or route in this fixture (the inventory lists the open door at
+  (8, 52) beside the pair and the trap areas 12, 13 and 7).
+
+With (a), `sprint3-approach-rt-trap` runs unchanged after the usual fixture registration; the new save gets its own
+pinned identity and disposable copy.
+
+## Second review: queued-order correction and bounded trap closeout (2026-11-01, PR #8 review of `d5307347`)
+
+**Disposition: SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** The queued-order
+correction is done and passes its focused behaviour tests. TRAP-01 still has no native attempt. The one declared
+Working-fixture door route was measured natively (r19) and stops at a safety precondition: an awake two-unit hostile
+group stands 19.4 m and 23.7 m from the door on its far side, so opening it would expose the opener to combat. A
+compatible external save is now the only remaining input (below).
+
+Candidate sprint3m, product commit `24c92355e6517d475439c530bc1b44602a4beac2`: DLL SHA-256
+`9cef78946dc9cdb68b505f14c28c9a883458e4c836b0cfe1c2dab77c528fe719`, MVID `2f57647e-939b-41ff-a308-0c573c81652b`,
+8,475,136 bytes (deterministic build); package
+`artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint3m-diagnostic.zip` SHA-256
+`c9ff09788f548f7da5e6119454515f5a83d0d07e31cf7b5673355bd7ec0c5dfc`; suite `sprint3m-24c92355-20261101` SHA-256
+`2356f454c3f913cb4a0b6be084c8b89e093ba74517287aa1c6af0c4706b93e56` (same protected-save authority and pin set).
+
+### Queued-order correction
+
+`MountedCarriedRequestHost.MountMovementDisplaced` reused the cleanup predicate `HasOtherLive`, which returns true for
+any queued command. A mount order that native `UnitCommands.Run` merely queued, with the carrier's delegated move
+still in its slot and the rider's command still live, was therefore reported as displacement. A player order then
+released the approach and cancelled the rider's still-valid command.
+
+Installed 2.1.7b semantics (read-only): a fresh `Run` clears the queue. It then either queues the request (only while
+an uninterruptible command runs; the slot's current command is merely marked `InterruptAsSoonAsPossible`) or installs
+it. Installing interrupts the same-type slot together with its Move/Standard pair, and every unstarted command still
+out of range when the new command is itself out of range. `UnitActionController` steers the agent from a running
+`UnitMoveTo` and from every unstarted command that is not close enough (`TickApproaching`).
+
+`MountedMovementDisplacementPolicy` (Domain) now classifies the slots native `Run` left, mapped from
+`UnitCommands.Raw`. The queue is deliberately not an input. Another slot's unfinished command is displacement only
+when it steers the agent itself (unstarted and not close enough). It is also displacement when native `Run` ended the
+carrier's move, held at admission (recorded on the ticket), while installing it, or when it is a new Move-slot command
+while no carrier move is held. A non-player request still gains no authority over the rider's command. Cleanup and
+re-binding keep the conservative queue-aware `HasOtherLive`, because the cleanup sweep itself can activate a queued
+successor.
+
+Focused regressions (`tests/MountedCarriedApproachPolicyTests.cs`) drive the production slot mapping through the slot
+and queue model of the cleanup tests, not a preselected flag:
+
+1. own move held, player successor queued, rider command live: no release, no interrupt, no agent stop, queue kept;
+2. an in-range Swift action and a started Free action beside the held move, and an in-range action between legs:
+   kept;
+3. an installed active replacement: a player move order, and a player out-of-range Standard order that ended the
+   paired Move: exactly one release and one rider cancellation, duplicate completion inert, successor path intact;
+   the same replacement by AI releases the movement only;
+4. the queued order becomes active at the carrier's eventual cleanup: swept, retained, path kept, agent not stopped.
+
+### Trap route: the declared door, measured natively
+
+Retained r15 identity (second settle): `dwarf_dungeon_door_01` at (40, 5.975, 60), closed, revealed,
+closed-clickable, no restriction, no dialog, not combat-gated. At row start it is unrevealed and in fog, and nothing
+retained recorded what lies behind it, so the one permitted experiment was not decidable offline.
+
+Scenario `sprint3-approach-rt-trap` runs only the trap row. Its preflight, when no trap shares the pair's navmesh
+area, may prepare this door once. It requires the exact area and exactly one door at the declared position, an
+ordinary closed door (no restriction, dialog, designer trigger or door trap, a native cut present), an unmounted,
+conscious, out-of-combat party member as opener, no conscious hostile within 20 m of the door or the opener, and a
+walk point beside the door whose native route stays outside every active trap zone. Then one ordinary ground order,
+one ordinary map-object click, the native open, the cut settle, and a re-read of trap reach on the updated graph.
+Exploration legs never click a further door or secret passage. The reader validates every element and refuses a
+second door.
+
+**r19** `20261101-sprint3-r19-trap-rt` (sprint3m, batch `sprint3:review-1`, 107 s): the declared door resolved
+exactly (one match, id `3e8d6924-f364-47cf-ba3f-d59edbf674f6`, restrictions 0, cut present, no dialog or door trap,
+unrevealed). Both trap candidates (Snowball `40781fdf…`, Magic Missile `1f1563b5…`) were unreachable from the mount and
+the opener. The preparation refused before any walk or click: a conscious hostile, `a350a897…`, stood within 20 m.
+From the read-only fixture copy, it and the second member of its group `aaac19a9…` are awake, AI-enabled and
+unrevealed, at (57.8, 52.3) and (63.6, 62.6), 19.4 m and 23.7 m from the door, both on its far (east) side. The route
+therefore exposes required combat and stops here, as the mission directs. Runtime FAIL, Mods restored, Working restored,
+save protection and write allowlist passed, Baseline immutable. No retry: a rerun repeats the same measured fact, and
+the hostile guard is not weakened.
+
+### Validation on the sprint3m bytes
+
+| Check | Result |
+| --- | --- |
+| Candidate tier (build, components, Validate-Source, focused readers, Test-Harness, contracts, Kingmaker assembly) | PASS 8/8, 4.07 min |
+| Component tests | 966 PASS (the four new cases included) |
+| Validate-Source | 149 PASS |
+| Sprint 3 reader regressions | 79 PASS (16 new: trap subset envelope, declared door identity, opener, hostile, restriction, reveal, click path, open, refusal, second door) |
+| Test-Harness, PairedActivationContracts, RuntimeArtifactManifestContract, AssemblyContracts Kingmaker | PASS (30 patch-construction, 11 manifest, 751 assembly) |
+| Native r19 `sprint3-approach-rt-trap` | FAIL at the declared door's hostile precondition (above); restoration complete |
+
+### Evidence by layer
+
+- **Executed on sprint3m:** r19 (door identity, safety refusal, restoration); the offline Candidate tier above.
+- **Executed on sprint3l, retained:** r18, the held-charge ownership neighbor (PASS end to end). The queued-order
+  correction does not change its path: it issues no mount order.
+- **Retained, older bytes:** real-time spell rows up to r16 and the turn-based rows r14, r17 on sprint3k `ad961c3d…`;
+  the aggregate FAIL results and every reader re-evaluation are kept with their original identities.
+- **Offline only:** the queued-order classification (four regressions), the trap-only selection's reader, and the
+  trap-specific outcome and no-reroll logic.
+- **Not executed:** a native mounted trap attempt (no admissible input). No turn-based replay: the correction changes
+  no turn or resource behaviour.
+
+Native attempts in this iteration: one (r19). Earlier failures r01 to r16 are unchanged.
+
+### Remaining input for TRAP-01
+
+What to save in normal play: a new Manual save, out of combat, in which a supported mounted pair (the Working
+fixture's Druid on the Mammoth, or the owner's own pair) stands within roughly 4 to 30 m of an active trap. The trap
+must be reachable on foot with no closed door or monster in the way, and the nearby monsters must be killed first. A
+trap the party has already spotted is ideal. A trap behind a door that opens normally is acceptable if the room
+beyond is cleared.
+
+- **Simplest form:** continue the Working-fixture game `cvb` in normal play, defeat the two monsters beyond the dwarf
+  door at (40, 60) (or reach another trap room), and save beside the trap. The existing trap selection runs on that
+  save unchanged.
+- **Identity:** the new save gets its own pinned immutable identity, a disposable copy and its own fixture
+  registration. It never overwrites the protected Working or Baseline archives.
+- **Dependencies:** Kingmaker 2.1.7b. An owner-campaign save with Call of the Wild units is staged with the retained
+  dependency bytes in base-game mode.
+- **Owner campaign save:** a save from another campaign also needs a narrow input adapter that binds the trap row to
+  that save's pair. It is not built, because there is no admitted input to build it against.
+- **Fixture rank:** the row's existing fixture setup grants the disposable rider Trickery up to the native rank cap,
+  and one Perception rank only when the saved rolls had consumed the pair's ranks. Both are restored at cleanup and
+  recorded. A rider who already has Trickery ranks needs no grant.
+
+### Budget
+
+`sprint3`: ONE explicit +15 min adjustment recorded on the same record (90 → 105, `allowanceAdjustments`, 56 entries at
+adjustment, 80.45 min spent then including the 3.55 min reconciliation). This iteration: reader run 4 s, Candidate tier
+244 s, package and suite 121 s, WhatIf 22 s, r19 107 s. Total 88.75 of 105 min, 16.25 remaining. No reset, rename,
+transfer or further increase.
+
+## Review corrections (2026-11-01, PR #8 review of `aa8702b9`)
+
+**Disposition after the review iteration: SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE
+SEPARATE.** Both command-ownership defects are repaired with focused regressions and the held-charge ownership neighbor
+ran natively on the corrected candidate (r18 PASS end to end on sprint3l). TRAP-01 still has no native evidence: neither inspected
+retained alternative supplies a reachable trap (measured below), so a compatible external fixture is required.
+
+Corrected candidate sprint3l, built at `6c19b814`: DLL SHA-256
+`8abeffb960b1e933c25f726f72256359980211e77051837ae71ecf3b64f957a5`, MVID `a09a28ff-bc3b-4243-ab83-bb519c60993c`,
+8,463,872 bytes; package `artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint3l-diagnostic.zip` SHA-256
+`a1987a781c01ee3bb897bd610918fd88eae85bd6cb81b2ff2372fd1e46486ea1`; suite `sprint3l-6c19b814-20261101` SHA-256
+`25c146852ce0efe3d1b09a39df6fe1b7299aad856f471c412e273a33c296ed0a` (same protected-save authority and pin set).
+
+### Correction A: admission before destructive release
+
+The `UnitCommands.Run` prefix used to call `ObservePairCommandRequest` before the door, stock-attack and stock-command
+gates, so a request refused later (for example a wrong-turn door click) had already stopped the delegated move and
+discarded the approach. Now `MountedCarriedRequestFlow.Admit` runs those gates in their existing order without touching
+the approach and gives a ticket only to a request every gate admitted. A new Run postfix completes the ticket from what
+native Run actually displaced (`MountedCarriedApproachPolicy.AfterAdmittedRequest`):
+
+- a refused request, a cursor simulation and a native preparation command get no ticket and release nothing;
+- an admitted rider request releases the approach only if native Run displaced the carried command (replaced it or
+  interrupted it as an out-of-range unstarted command); a command Run queued or ran beside it keeps it;
+- the carrier's own delegated move and the carried command's own run never release it;
+- an admitted mount request releases the approach only when another command now owns the mount's movement, and only
+  an ordinary player order (`CreatedByPlayer`, no `AiAction`) also ends the rider's pending command; an AI request has
+  no authority over it;
+- a native boundary inside Run that already settled the approach, a duplicate completion and another unit's request
+  never release.
+
+The Sprint 2 door route keeps its own two-phase admission; it now runs inside the same gate sequence.
+
+### Correction B: release only movement the carrier still owns
+
+`ClearFinishedDelegatedMove` used to call `mount.View.StopMoving()` unconditionally and reported restoration as "the
+mount has no commands". It now goes through `MountedOwnMovePolicy.Release`: it ends only the carrier's exact move,
+sweeps only when that move still sits in its slot, re-reads ownership after the sweep (native
+`RemoveFinishedAndUpdateQueue` can `Run` the queue head) and stops the agent only when no other live or queued command
+owns the mount's movement. `MountMoveSlotRestored` now means "our move is finished and in no slot"; a retained successor
+is reported separately (`SuccessorRetained`). Native facts relied on: `UnitCommand.Interrupt(false)` and `OnEnded`
+never touch the agent; only `StopMoving` does. A due move while another command owns the mount no longer throws (which
+used to interrupt the rider's command through the exception path): the approach yields (`YieldedToMountOwner`) and the
+controller defers re-binding while the mount is busy.
+
+The same unconditional `StopMoving` pattern exists in the Sprint 2 door command (`MountedDoorInteractionCommand`) and
+the pair attack command (`MountedPairAttackCommand`); neither is part of this review and both are unchanged.
+
+### Focused regressions (offline, the production seams the prefix, postfix and carrier call)
+
+`tests/MountedCarriedApproachPolicyTests.cs`, nine new cases replacing the old "any different rider request releases"
+case that encoded the defect: a request refused by the door gate and one refused by the last gate (later gates not run,
+nothing released, approach identity unchanged); an admitted replacement released exactly once with a duplicate
+completion inert; the carrier's own move, the carried command's own run and a non-displacing request kept; player
+versus AI mount-order authority; a native boundary, a foreign container and a missing ticket inert; cleanup while the
+carrier owns its slot; a finished move whose slot holds a successor (the successor's command and path untouched, also
+for a successor in another slot); a successor the cleanup sweep activates (path kept, not stopped); repeated cleanup
+idempotent and never stopping a later successor. The fakes model native slot, queue and agent ownership; nothing is
+asserted from source text.
+
+### Other changes
+
+- The trap row now refuses before any exploration leg when no candidate trap shares the pair's navmesh area (native A*
+  connectivity), recording the obstacle inventory; the review's instruction not to re-explore the cut-off Working rooms
+  is enforced by the row itself.
+- Carried outcomes record `successorRetained` and `yieldedToMountOwner`; the reader refuses either on these fixtures,
+  which issue no other mount order (fields absent on older evidence are tolerated).
+- Named subset scenario `sprint3-approach-rt-neighbor` runs exactly the existing `S3-touch-held-charge` row; the
+  reader accepts it only under that name and never as the full real-time set.
+- Harness pins: the door and stock-attack routing pins follow the new admission seam; the Phase 3E `schemaVersion` pin
+  was stale since `f12662b6` (schema 47 prefix) because no Candidate tier ran during Sprint 3; it now matches the full
+  current expression.
+
+### Validation on the corrected bytes
+
+| Check | Result |
+| --- | --- |
+| Candidate tier (build, components, Validate-Source, Test-Harness, …) | build, components and Validate-Source PASS; Test-Harness 280 PASS, 1 FAIL (the stale Phase 3E pin), so the tier stopped there |
+| Test-Harness, the corrected Phase 3E test evaluated whole | 9 of 9 assertions PASS |
+| Test-PairedActivationContracts, Test-RuntimeArtifactManifestContract, Test-AssemblyContracts Kingmaker | PASS (30 patch-construction, 11 manifest, 751 assembly) |
+| Component tests on the frozen sprint3l build | 962 PASS (the nine new cases included) |
+| Validate-Source (inside Package.ps1) | 149 PASS |
+| Sprint 3 reader regressions | 63 PASS |
+| Native r18 `sprint3-approach-rt-neighbor` on sprint3l | PASS end to end: runtime result PASS, reader PASS, Mods restored, save protection passed, 0 errors |
+
+The Candidate tier was not rerun after the pin fix (a rerun did not fit the remaining allowance beside the native
+neighbor); the failing test was evaluated whole instead and its other 280 harness tests had already passed on the same
+product bytes.
+
+### Native evidence: what ran on which bytes
+
+- **Executed on the corrected bytes (sprint3l):** r18, the held-charge row (Stop, second ordinary click, the carrier's
+  own delegated move through the new Run admission and cleanup). One ordinary cast click; the mount carried the delivery approach; the Stop released the carried move (first outcome: released by the Stop, own move restored, no successor, no yield) and the charge stayed held; the second ordinary click resolved to the held touch, was carried again and satisfied at 1.58 m (second outcome: own move restored, no successor, no yield); one heal, one scroll charge, no charge left; 4.87 m of mount travel; rider and mount command sets empty at the end. Evidence `runtime-evidence\20261101-sprint3-r18-neighbor-rt`, batch `sprint3:review-1`.
+- **Retained, earlier bytes, still valid as evidence of the native behaviour they recorded:** real-time spell rows on
+  sprint3e to sprint3k (r08, r12, r13, r15, r16; r16 on sprint3k `ad961c3d…`, aggregate FAIL because of its trap row),
+  turn-based rows r14 natively and r17 end to end on sprint3k `ad961c3d…`. They predate both corrections and are not
+  claimed for sprint3l.
+- **Offline only on the corrected bytes:** the turn-based neighbor (the insufficient-movement row uses the changed
+  cleanup and the native approach-end path); the remaining real-time spell rows; unmounted controls; a refused request
+  during a live carried approach and a successor during cleanup (both covered only by the regressions above).
+- **Not executed:** TRAP-01 natively (below).
+
+### TRAP-01: fixture feasibility (two retained alternatives, offline inventories)
+
+The review's correction stands: the seven original policy tests choose the command category, compare flags and drift
+and drive the shared Sprint 2 lifecycle; they do not execute the trap-specific safe point (`OverrideTarget` outside the
+trigger zone with the mount's footprint) or the native `TrapObjectView.Interact` Trickery check. Those layers have no
+native evidence and no offline execution; only the shared driver (the delegated move to the command's own radius, the
+native command acting afterwards) is natively evidenced, through the spell rows.
+
+| Candidate | Load facts | Trap facts | Verdict |
+| --- | --- | --- | --- |
+| `KMC_S2_ROGUELIKE_SURFACE_CANDIDATE` (`1fda72b1…`, Manual, game "Akasa", area `c49315fe…`) | owner seed, pre-owned pair | no `TrapObjectData` in the area state | no trap |
+| `KMC_S2_DUNGEON_FLOOR_CANDIDATE` (`4c1db37e…`, **Auto**, Endless floor `63de91df…`, delve seed −1950525545) | needs Call of the Wild 1.14.4c-2.1 (unit parts in party and area state; retained bytes exist); pre-owned pair rider `121dc2f0…` on Horse `fb764728…` (a `KMC_Horse_AddPet` fact), party level 1, standing near (28, −34) | three active undiscovered traps (Snowball `b903a3bd…` at (56, 52), Magic Missile `111f3390…` at (7.9, 52.4) and (63.9, 52)), 88–93 m from the pair; 9 of 10 doors closed; at least three hostile groups between pair and traps (nearest revealed group 22–31 m away) | no trap reachable without fighting through the floor, which is a playthrough |
+
+The Working fixture is not re-explored (r12 to r16 measured all four traps in A* areas 13 and 7 against the party's
+10, the nearby `Secret_Door` interaction refusing with `CanInteract` false, no skill, DC 0). One retained fact was not
+pursued under the review's instruction: the r15 inventory shows the closed `dwarf_dungeon_door_01` at (40, 60) as
+revealed and clickable from the second settle; whether opening it joins area 10 to a trap area is unknown.
+
+**Required external input (either form):**
+
+1. **For the existing route, no row change:** a Manual save of the Working-fixture game (`cvb`, game id
+   `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f`, area `9d1278a2f599b2a4daab53abdfe88d2e`) with the Druid `b6628a77…` mounted
+   on the Mammoth `d79a4f6c…` and the recipient `d17c8fd0…` in the party, standing out of combat in the same navmesh
+   area as an active disarmable trap 4–30 m away (undiscovered, or discovered and revealed), no hostiles within the
+   trap's perception radius. It would replace or sit beside the qualified Working identity, which needs the existing
+   fixture requalification and protected-save authority steps for the new hash.
+2. **For the owner's own campaign:** a Manual save of the "Akasa" game on an Endless floor with the pre-owned pair
+   (rider `121dc2f0…` on Horse `fb764728…`) out of combat within 4–30 m of an active disarmable trap in the same room,
+   hostiles cleared, registered in `scripts/runtime/Chunk7OwnerSeedRegistry.json` as type `Manual` and staged with the
+   retained Call of the Wild bytes. This form also needs a narrow owner-seed trap stage binding the trap row to that
+   pair (not built: there is no admitted input to build it against).
+
+Not examined (the review capped this at two alternatives): the registered owner seeds on area `b10e8651…`, including
+`KMC_C7_MOUNTED6_SEED`.
+
+## First causal boundary (installed 2.1.7b IL, read-only)
+
+Both reports share one cause. The rider's own native command (`UnitUseAbility` for a spell, `UnitInteractWithObject`
+for a discovered trap) approaches its target through `UnitCommand.TickApproaching`, which calls the protected virtual
+`OnTickApproaching` (token `0x060027AE`) and then `Executor.View.MoveTo(target, radius)`. A carried rider's view is
+attached to the mount and its stock `AgentASP` is disabled, so `MoveTo` never moves anything: the cast or disarm waits
+for a range it cannot reach, and in real time the native "longer than one round" interrupt eventually ends it. Nothing
+in KMC re-routed these commands before this sprint (doors and ground moves were routed; abilities and interactions were
+not). In turn-based combat the same path requests a path once and sets `NextApproachTime = MaxValue`;
+`UnitActionController.TickCommandTurnBased` then force-finishes a should-approach command once its executor is no longer
+moving, which is the native "insufficient movement" rule.
+
+Other contracts the change relies on (all read from `Assembly-CSharp.dll`, MVID `07fa1e4d…`): `ClickMapObjectHandler`
+→ `UnitInteractWithObject` (trap approach radius 0.3 m, LOS required; `UpdateTarget` sets an `OverrideTarget` so the
+executor stops outside `TrapObjectView.ScriptZoneTrigger`); `TrapObjectView.Interact` rolls `RuleSkillCheck(user,
+SkillThievery, DisableDC)` and raises `IDisarmTrapHandler` (critical failure triggers the trap); `UnitUseAbility.Init`
+(sticky touch real-time radius = speed × 3 s; `AbilityData.GetApproachDistance` for ranged spells);
+`AbilityEffectStickyTouch.Apply` creates `UnitPartTouch` and queues the delivery `UnitUseAbility` first; a native touch
+miss keeps the charge held; `PartyPerceptionController.Tick` rolls each moving controllable character's Perception once
+per rank per trap (`StaticEntityData.LastPerceptionRollRank`, persisted in the save) inside
+`PerceptionCheckComponent.Radius` (a 3D distance) with line of sight and the trap outside fog; `UnitCommands.Run`
+replaces a same-slot running command and interrupts other unstarted commands.
+
+## Product change (`src/KingmakerMountedCombat`)
+
+- `Domain/MountedCarriedApproachPolicy.cs` (new): pure decisions. A command is carried only when it is the mounted
+  rider's own unstarted `UnitUseAbility` or trap `UnitInteractWithObject`; started/finished commands, the mount's and
+  third units' commands, Mount/Dismount relationship shells, the Charge shell, AI-originated casts and cursor
+  simulations stay native. Real-time move end → lifecycle retry; turn-based move end → signal the native approach-end
+  rule. Replanning follows a moving target only beyond 0.75 m; since the review, only a rider request native Run admitted
+  and that displaced the carried command releases it (correction A).
+- `Integration/MountedCarriedApproach.cs` (new): one driver per carried command. Each native approach tick is replaced
+  by: the exact native `OnTickApproaching` (a pinned `callvirt` bridge, so the game's own TB bookkeeping still runs),
+  then the mount's delegated move through the accepted Sprint 2 lifecycle (`MountedDoorApproachLifecycle`,
+  operational clock, `MountedDoorApproachMove`) to the command's own radius minus 0.5 m (floor 0.3 m). For a trap the
+  delegated point is the native safe point outside the trigger zone with the mount's corpulence, applied as
+  `OverrideTarget`. In turn-based combat a finished delegated move sets `NextApproachTime = MaxValue`, exactly what the
+  native tick does, so the native rule ends an unreachable command. Exhaustion (no progress / stall) calls the
+  command's own `Interrupt()`; nothing is finished, spent or refunded by KMC.
+- `MountedCombatController.cs`: the carried driver joins the retained-pair-command, exact-mount-movement, animation
+  and independent-turn predicates, the update sweep, cancel/interrupt observation and the door-click interplay (a
+  door click releases a carried move the same way it replaces a ground move). `MountedPatchController.cs`: the native
+  approach prefix defers to the carrier; the command-run prefix observes rider requests. One new rejection code
+  (`NoPath`).
+- `PairedActivationLifecycle.cs` (`3980e1cf`): the rider-turn admission of a cooldown-ignoring partner command tested
+  the exact type `UnitMoveTo`; the delegated approach move is a derived `UnitMoveTo`, so in turn-based combat it was
+  never admitted on the rider's turn (r09 waited the whole turn). The test is now `is UnitMoveTo`. This is also the
+  most likely reason Sprint 2's turn-based door approach never moved; it is recorded, not re-run.
+
+Preserved: native cost ownership (the cast, the touch delivery, the Trickery check, the trap consequence and every
+turn-based budget are the engine's), pair-owned command authority, unmounted controls (unmounted units never enter the
+carrier), the Charge and relationship shells, Stop/pause behaviour (a Stop releases the carried move and leaves the
+native command to the native Stop).
+
+Offline: `tests/MountedCarriedApproachPolicyTests.cs` (7 tests at the first iteration, 15 after the review) in the Fast
+tier (954 component tests then, 962 after the review; 149 source validations, PASS); `scripts/Test-Sprint3ApproachReaders.ps1`
+(54 checks at the first iteration, 63 after the review: positive envelopes, schema 47/dispatch/
+registry agreement, and a negative per native fact — trap click without native discovery, discovery without an
+observed roll, Trickery/Perception fixture ranks beyond their bound or unrestored, double heal, held charge left after
+delivery, legal miss keeps the charge, ranged cast beyond range, charge lost across the turn, insufficient-movement row
+without the native rule, failed producer envelope promoted).
+
+## Native harness (diagnostic assembly only)
+
+`Diagnostics/Sprint3ApproachScenario.cs` joins the casting-fixture family (Mammoth engine, Working fixture Druid
+`b6628a77…` on Mammoth `d79a4f6c…`, recipient `d17c8fd0…`): scenarios `sprint3-approach-rt` (rows `S3-trap-disarm`,
+`S3-touch-friendly-distant`, `S3-touch-held-charge`, `S3-touch-hostile`, `S3-ranged-distant`) and `sprint3-approach-tb`
+(`S3-tb-insufficient-movement`, `S3-tb-touch-friendly`), evidence schema 47, observation key `sprint3Approach`, reader
+`scripts/runtime/Sprint3ApproachEvidence.ps1`. Every input is ordinary: `ClickMapObjectHandler.OnClick` for the trap,
+`ClickWithSelectedAbilityHandler.OnClick` for spells, `SelectionManager.Instance.Stop()` for the stop, ground clicks for
+exploration legs. The fixture is a native scroll stack of Cure Light Wounds plus the Druid's memorized slots and a
+Snowball scroll; the trap row grants the disposable rider Trickery ranks up to character level (nobody on the Working
+fixture has one) and, only when the save's recorded rolls had consumed the pair's current ranks, one Perception rank, both
+restored at drain and checked by the reader. Discovery is the party's own native Perception roll during bounded
+exploration legs (walkable point three metres inside the 3D perception radius, outside the trigger zone, re-ordered at
+most three times when the pair settles short); the row never sets a discovery flag.
+
+The diagnostic DLL reached the package validator's 8 MiB entry bound at Sprint 2's end; the bound is raised once to
+9 MiB (`scripts/Validate-Package.ps1`, `scripts/Test-Harness.ps1` boundary case `limit=9MB`, one-over refused). The
+mission allowed up to 12 MiB; 9 MiB is the narrowest value that admits this assembly (8,457,216 bytes, about 8.07 MiB, at sprint3k;
+8,463,872 bytes at sprint3l).
+
+## Native runs (budget record `sprint3`, batches `sprint3:approach-1` to `-4`)
+
+All runs: Working fixture only, `-BaseGameOnly` with the retained CotW/CMI staging, WhatIf development-scoped audit
+PASS before each candidate, detached through WMI, exact restoration (Mods tree empty, no lock, no game process
+afterwards). Engine Areas unpack residue from r01 is retained under
+`runtime-backups\20261031-sprint3-r01-approach-rt\engine-areas-residue\` with its manifest.
+
+| Run | Candidate (DLL) | Scenario | Outcome | Cause / change |
+| --- | --- | --- | --- | --- |
+| r01 | 3a `eaeff76f…` | rt | FAIL before rows | Child-entry preamble "parent identity missing" (the family rule did not list the new scenarios); engine `Areas` unpack outside the isolation; stale lock recovered by the profile recovery script |
+| r02 | 3b `3bed8618…` | rt | 1/5 | Spells carried natively; evidence defects (rod charge accounting, scroll re-click recast, cross-row rolls); trap undiscovered on load |
+| r03–r05 | 3b | rt | refused | Batch rule (third equivalent attempt) → batch `approach-2` |
+| r06 | 3c `0c603a8a…` | rt | 3/5 | Friendly/held/ranged PASS; hostile legal miss kept the charge (row semantics corrected); every trap `perceptionPassed=false` after load (saved discovery does not survive) |
+| r07 | 3d `3f0a1c25…` | rt | 4/6 | 4 spell rows PASS; trap legs ended 12 m from an 8 m radius; cleanup deadline from a 46 m walk-back |
+| r08 | 3e `7d29909d…` | rt | 4/5 | 4 spell rows PASS, cleanup clean; trap leg settled 7.9 m from the trap, no native roll (rider 3D distance outside the radius; legs stopped short) |
+| r09 | 3e | tb | leaf deadline | Delegated move never admitted on the rider's turn → `3980e1cf` |
+| r10 | 3f `65ebe30c…` | tb | 1/2 | `S3-tb-touch-friendly` PASS natively; insufficient row's recipient reachable in one turn (15.7 m) |
+| r11 | 3g `3d2e5728…` | tb | 1/2 | Native sequence correct (short on turn one, native approach-end rule, charge held, delivered on the next rider turn, one heal); the row re-entered its held-charge step a turn later and failed itself → `c63bd260` |
+| r12 | 3h `eaf7059a…` | rt | 4/5 | 4 spell rows PASS; trap legs with gates recorded for the first time: the trap stayed in fog on every frame, no party member was ever moving inside the radius, every re-order settled at the same spot (the legs are cut off) |
+| r13 | 3i `373ec2ec…` | rt | 4/5 | Every trap `reachable=false` by the native graph connectivity test (A* areas); no closed clickable door within 12 m of either settle |
+| r14 | 3i | tb | native 2/2, reader refused | Both turn-based rows PASS natively (the insufficient-movement row complete: native approach-end rule, charge held across the turn, re-delivered on the next turn); the reader refused the friendly row because its recipient point lay on the cut-off island (3.7 m instead of 9 m) → `6f54bcf8` |
+| r15 | 3j `0d96c040…` | rt | 4/5 | Obstacle inventory: mount node area 10, trap-room node area 13 (second trap: area 7); nearest door 12.3 m away, closed, unrevealed, not clickable; a `Secret_Door` map object 1.5 m from the settle (`InteractionSkillCheck`); no party member can reach any trap point. r15's first request was refused by the batch rule (two real-time failures in `approach-4`) and re-declared as `approach-5` |
+| r16 | 3k `ad961c3d…` | rt | 4/5 | The secret passage is revealed and perception-passed but its native interaction refuses: `CanInteract()` false, skill `Unknown`, DC 0 (designer-scripted, not player-openable from this side); no ordinary input reaches the trap rooms |
+| r17 | 3k | tb | 2/2, reader PASS | Both turn-based rows PASS end to end on the final candidate: friendly recipient at 9.0 m with 7.7 m of carried travel; insufficient row at 26.9 m against the 24.4 m allowance, native approach-end rule, charge held across the turn, delivered on the next rider turn; exact restoration |
+| r18 | 3l `8abeffb9…` | rt-neighbor | 1/1, reader PASS | Review iteration, batch `sprint3:review-1`: the held-charge ownership neighbor on the corrected bytes; Stop release and carried re-delivery with own move restored, no successor, no yield; exact restoration |
+| r19 | 3m `9cef7894…` | rt-trap | refused at the door precondition | Second review, batch `sprint3:review-1`: trap row only; the declared door resolved exactly but an awake two-unit hostile group stands 19.4 and 23.7 m beyond it, so the preparation refused before any walk or click; restoration complete |
+
+## Outcomes
+
+| Item | Disposition | Evidence |
+| --- | --- | --- |
+| SPELL-01 real time: Cure Light Wounds on a distant ally (12 m) | **PASS natively** | r08, r12, r13, r15, r16 `S3-touch-friendly-distant`: one ordinary ability click, the mount's carried approach to the sticky-touch radius, native cast, one held-touch delivery, one heal, memorized slot spent natively, no charge left |
+| SPELL-01 real time: held charge after a Stop, second ordinary click | **PASS natively** | same runs, `S3-touch-held-charge`: the Stop releases the carried move and leaves the native command to the native Stop; the charge stays held; the second click resolves to the held touch (no recast, no second scroll charge) and delivers once |
+| SPELL-01 real time: offensive touch on a hostile | **PASS natively** | `S3-touch-hostile`: native touch attack roll, one scroll charge; r06's legal miss kept the charge (the row records both outcomes) |
+| SPELL-01 real time: ranged spell beyond range | **PASS natively** | `S3-ranged-distant`: Snowball from beyond its range; the mount approaches to the spell's own `GetApproachDistance`, cast and projectile attack roll at 10.2 m against a 10.0 m range |
+| SPELL-01 turn-based: touch on a distant ally within one turn | **PASS natively** | r10, r11, r14, r17 `S3-tb-touch-friendly`: cast on the rider's turn, carried mount movement on that turn, one delivery, rider Standard cost events, native mount Move cooldown |
+| SPELL-01 turn-based: insufficient movement | **PASS natively** | r14, r17 `S3-tb-insufficient-movement`: recipient placed 26.9 m away against a 24.4 m allowance; the carried approach ends through the native approach-end rule (`nativeApproachEndSignalled`), the held charge survives the turn boundary, a second ordinary click on the next rider turn resolves to the held touch and delivers once (r11 showed the same native sequence; only the row's bookkeeping failed it) |
+| TRAP-01: mounted disarm of a discovered trap | **NOT DEMONSTRATED natively (fixture limit)** | The Working fixture area has four active traps; all four sit in navmesh graph areas disconnected from the party's (areas 13 and 7 against the party's 10); saved discovery does not survive the load; the only entrance near the first trap is a secret passage whose native interaction refuses (`CanInteract` false, no skill, DC 0); no closed clickable door within 12 m; every bounded exploration leg settled at the island edge with the trap in fog, so no native Perception roll was possible. The shared driver (the mount's delegated move to the command's own radius, the native command acting afterwards) is natively evidenced through the spell rows. The policy tests only choose the command category and drive the shared lifecycle; the trap-specific safe point and the native `TrapObjectView.Interact` Trickery check have neither native evidence nor offline execution (corrected after the review). |
+| Unmounted controls | **Offline only** | The carrier refuses unmounted riders, the mount's and third units' commands (policy tests); no native unmounted trap/spell control row ran |
+| Interruption / replacement | **Partial** | An admitted rider request that displaced the carried command releases it and a refused one releases nothing (review regressions, correction A); the Stop case is native (held-charge row); a door click during a carried approach is routed through the same replacement path as a ground move (source), not re-run natively |
+
+TRAP-01 reading: the mechanism a trap needs (replace the native per-tick approach with the mount's delegated move to
+the command's own radius, then let the native command act) is what SPELL-01 exercised natively in every run from r06
+on; what remains unproven is the trap-specific target (the `OverrideTarget` safe point outside the trigger zone) and
+the Trickery consequence. A fixture with a discovered, reachable trap is the required input (see Risks).
+
+## Sprint 2 carryover (recorded once, not reopened)
+
+- Turn-based door control was not demonstrated in Sprint 2; the `3980e1cf` admission predicate is the probable cause
+  of the never-moving turn-based approach, unverified against a door.
+- The owner's dungeon autosave `Auto_1121` was refused by the persistence authority's `Manual`-only pin (kept).
+- The Working fixture's dwarf dungeon door `NotInCombat` state is unknown (inferred from a Chunk 6A refusal).
+- The diagnostic DLL hit the 8 MiB package bound (raised to 9 MiB here, see above).
+
+## Budget, launches, state
+
+Current totals are in the *Second review* section (88.75 of 105 min after the one +15 adjustment). The first iteration
+closed at 65.77 of 90 min across 48 entries: fifteen
+native launches (r01, r02, r06 to r17; r03 to r05 and r15's first request were refused by the batch rule and not
+charged), their WhatIf qualifications, and imported `kind=other` entries for the candidate packages, suite freezes and
+reader reruns. Batches: `sprint3:approach-1` (r01, r02), `-2` (r06, r07), `-3` (r08, r09), `-4` (r10 to r14), `-5`
+(r15 to r17). Each batch change followed a discriminating observation (preamble and fixture defects, trap discovery not
+surviving the load, the perception gates, the graph connectivity test). Mission limits respected: at most five native
+scenarios per batch, two equivalent failures before a changed experiment, one native executor at a time, no human save
+loaded.
+
+Live installation at closeout: Mods tree empty, loader parameters and profile root at intake, protected saves
+(`KMC_AUTOMATION_BASELINE`, the owner's originals) unchanged, no lock, no game process, no candidate installed. The
+Working fixture is the only save loaded; it was read-only copied for offline inspection and never written.
+
+## Risks and open items
+
+- **TRAP-01 native evidence is missing** (fixture limit, above). Required input: a disposable save (never a human
+  save) on an area where an active, disarmable trap stands in the party's own graph area, 4 to 30 m from the mounted
+  pair, either undiscovered (the row discovers it through the party's own Perception while walking inside its radius)
+  or already discovered and revealed. The row, reader and registries are complete; only the fixture is missing.
+  Candidates: a copy of `KMC_AUTOMATION_WORKING` taken after the party has opened the Lvl01 secret passage from its
+  scripted side, or an owner-made save registered as a disposable copy (`Chunk7OwnerSeedRegistry.json`, type `Manual`).
+- **Turn-based door (Sprint 2 carryover)**: `3980e1cf` admits derived `UnitMoveTo` commands on the rider's turn, which
+  the turn-based door approach also needs; it was not re-run against a door.
+- **General mounted interactions**: only traps (and Sprint 2 doors) are carried. A mounted click on a secret passage,
+  chest or lever still meets the first causal boundary when it needs an approach (r16 never reached that point: the
+  passage refused before any command). Widening the carrier to every `UnitInteractWithObject` is a small policy change
+  on the same driver, left for a later sprint with its own native rows.
+- **Fixture rank grants**: the trap row grants the disposable rider Trickery ranks (character level) and, only when the
+  save's recorded rolls had consumed the pair's ranks, one Perception rank; both are restored at drain and bounded by
+  the reader. The Perception grant never fired (`allowedBefore` true in r12 to r16).
+- **Harness gap**: the shared tranche reports an unknown subscenario `phase3d-horse-tranche-cleanup-deadline` when the
+  casting cleanup overruns (r07); it is a FAIL row without a reader rule. The trap row's return leg keeps the party
+  inside the cleanup window since r08.
+- **Diagnostic DLL size**: 8,463,872 bytes (about 8.07 MiB) at sprint3l against the 9 MiB bound; the next sizeable diagnostic needs a split assembly or a
+  bound decision.
+- **Launch wrapper text match**: the launcher's "development-scoped check PASS" line is not matched by an ASCII literal
+  (non-ASCII hyphen and console wrapping); launches were issued by hand after reading the WhatIf verdict.

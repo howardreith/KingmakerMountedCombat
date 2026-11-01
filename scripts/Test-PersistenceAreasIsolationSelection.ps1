@@ -12,6 +12,7 @@ Check 'traversal-core suite selects Areas isolation' (Test-KmcPersistenceAreasIs
 Check 'two-pair owner-seed exploration (isolated save root) does not' (-not(Test-KmcPersistenceAreasIsolationSelection -Scenario 'chunk7-owned-two-pair-campaign' -PersistenceCase '' -ObserveWorkingDeserialization $false))
 Check 'other Working-fixture movement suites are not widened' (-not(Test-KmcPersistenceAreasIsolationSelection -Scenario 'chunk4-traversal-slope' -PersistenceCase '' -ObserveWorkingDeserialization $false))
 Check 'working deserialization observation still excludes it' (-not(Test-KmcPersistenceAreasIsolationSelection -Scenario 'chunk4-traversal-core' -PersistenceCase '' -ObserveWorkingDeserialization $true))
+Check 'Sprint 3 approach rows (Working fixture, Mammoth engine) select Areas isolation' ((Test-KmcPersistenceAreasIsolationSelection -Scenario 'sprint3-approach-rt' -PersistenceCase '' -ObserveWorkingDeserialization $false) -and (Test-KmcPersistenceAreasIsolationSelection -Scenario 'sprint3-approach-tb' -PersistenceCase '' -ObserveWorkingDeserialization $false))
 Check 'P07 load keeps its selection' (Test-KmcPersistenceAreasIsolationSelection -Scenario 'persistence-p07-load' -PersistenceCase '' -ObserveWorkingDeserialization $false)
 # The r07 retained inventory: the only profile additions were the engine's unpack of the loaded archive under Areas/.
 $r07='C:\Dev\KingmakerMountedCombatLab\runtime-backups\profile-20261030-sprint2-r07-traversal-core-dungeon-door\snapshot.json'
