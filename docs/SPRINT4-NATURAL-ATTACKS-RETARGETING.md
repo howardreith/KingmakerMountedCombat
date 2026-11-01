@@ -113,8 +113,8 @@ the native plan computed on the same actor, not with a new unmounted run.
 
 ## Evidence
 
-Under `runtime-evidence\`. All five launches restored: Mods and save protection verified on r03 and r05 by their results,
-and the live Mods tree was empty at closeout.
+Under `runtime-evidence\`. Every one of the five results records Mods restored and save protection passed, and the live Mods tree was empty at
+closeout.
 
 | Run | Candidate | Verdict | Cause |
 | --- | --- | --- | --- |
@@ -142,7 +142,7 @@ Full hashes: sprint4f package `e4a685dd01613eb699ff27ab667f508069f99c35272a70877
 | Check | Result |
 | --- | --- |
 | `Test-Tiers -Tier Candidate -SkipBuild -AssemblyTarget Kingmaker -Focused Test-Sprint4NaturalReaders.ps1` on `fdb3adf5` | PASS, 388 s (Test-Harness 374 s). An earlier Candidate caught one stale schema pin, updated. |
-| Unit tests | 986+ PASS, 0 FAIL, including the new policy tests |
+| Unit tests | 987 PASS, 0 FAIL, including the new policy tests |
 | Native attempts | 5 launches, batches `sprint4:accept-1` to `-3`; 3 distinct failure causes changed the experiment each time |
 | Independent delta review | One, before packaging: 0 blockers, 3 majors and 4 minors. Majors and three minors corrected; one minor recorded below. |
 | Budget `sprint4` | About 52 of 90 minutes at closeout; no adjustment |
