@@ -700,7 +700,11 @@ namespace KingmakerMountedCombat.Integration
             return OwnsNativePreparationCommand(actor, command, turn) ||
                 CanAddressActor(actor, turn) && actor == activation.Partner &&
                 command != null && command.Executor == actor &&
-                (!command.IsIgnoreCooldown || command.GetType() == typeof(UnitMoveTo)) &&
+                // A cooldown-ignoring partner command is admitted only when it is a native ground move the pair owns exactly
+                // (OwnsExactPairedNativeCommand below): the player's own UnitMoveTo or the pair's delegated approach move for a
+                // door, a carried spell or a trap (MountedDoorApproachMove, a UnitMoveTo). Sprint 3 r09: the exact-type test left
+                // the delegated move pending for the whole rider turn, so no turn-based approach ever moved.
+                (!command.IsIgnoreCooldown || command is UnitMoveTo) &&
                 combat != null && combat.OwnsExactPairedNativeCommand(command);
         }
 
