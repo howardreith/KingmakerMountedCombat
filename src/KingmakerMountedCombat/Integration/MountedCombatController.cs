@@ -49,6 +49,7 @@ namespace KingmakerMountedCombat.Integration
             new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private readonly MountedAutomaticAttackGate automaticGate = new MountedAutomaticAttackGate();
         private const string AutomaticInputSurface = "automatic-native-target";
+        private UnitEntityData automaticApproachFailedTarget;
         private MountedDoorInteractionCommand activeDoorInteraction;
         // Sprint 2 (SPACE-01): the owned post-interaction occupancy settlement of the last door click.
         private MountedDoorOccupancySettlement pendingDoorSettlement;
@@ -894,6 +895,7 @@ namespace KingmakerMountedCombat.Integration
             }
             automaticGate.Tick(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
                 IsPairInCombat(), CombatController.IsInTurnBasedCombat(), relationship.Rider?.IsAIEnabled == true);
+            ObserveAutomaticApproachFailure();
             pairedCommandScheduler.Update();
             SweepFinishedCommand();
             pairedCommandScheduler.Update();
@@ -1165,6 +1167,20 @@ namespace KingmakerMountedCombat.Integration
             TryDriveStockAttackIntent();
         }
 
+        // The mount, not the rider, approached and failed, so the native UnitMovementAgent marked the target on the wrong
+        // actor. Recording it on the rider gives the rider's brain the native reach-only rule for this target
+        // (BlueprintAiAction.IsTargetValid), cleared by native combat state, instead of a proposal loop. A terminal runs
+        // inside a replacing native Run, so only this later update can tell a lost approach from a newer order.
+        private void ObserveAutomaticApproachFailure()
+        {
+            var failed = automaticApproachFailedTarget;
+            if (failed == null) return;
+            automaticApproachFailedTarget = null;
+            var rider = relationship.Rider;
+            if (relationship.State == RelationshipState.Mounted && !HasRiderPlayerOperation(rider, relationship.Mount))
+                rider?.CombatState?.AIData.UnreachableUnits.Add(failed);
+        }
+
         private bool AutomaticMovementForbidden(UnitEntityData rider)
         {
             return rider != null && (rider.AiMovementForbidden || automaticGate.PlayerMoveHold);
@@ -1181,7 +1197,7 @@ namespace KingmakerMountedCombat.Integration
 
         private bool HasMountOperationBesidesAttack(UnitEntityData mount)
         {
-            return HasActiveDoorInteraction || pendingDoorSettlement?.RecoveryMove != null || HasLiveCarriedApproach ||
+            return HasActiveDoorInteraction || HasPendingDoorSettlement || HasLiveCarriedApproach ||
                 HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending ||
                 MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(mount?.Commands, stockIntentCommand?.DelegatedMove);
         }
@@ -1199,7 +1215,9 @@ namespace KingmakerMountedCombat.Integration
                     {
                         Finished = command.IsFinished,
                         AiOrigin = command.AiAction != null,
-                        PairOwnedOrReaction = command is MountedPairSingleAttack || command is UnitAttackOfOpportunity
+                        PairOwnedOrReaction = command is MountedPairSingleAttack || command is UnitAttackOfOpportunity,
+                        CoexistsWithAttack = (command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift) &&
+                            (command.IsStarted || command.IsUnitEnoughClose)
                     });
                 }
             }
@@ -1813,6 +1831,7 @@ namespace KingmakerMountedCombat.Integration
 
             // Admitted: a settlement still waiting on the previous click (no move yet) is superseded by this one.
             CancelPendingDoorSettlement("superseded by a new door click");
+            automaticGate.ObservePlayerOrder();
             var routed = new MountedDoorInteractionCommand(
                 relationship,
                 relationship.Rider,
@@ -1965,14 +1984,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 stockIntentCommand = null;
             }
-            // The mount, not the rider, approached and failed, so the native UnitMovementAgent marked the target on the
-            // wrong actor. Recording it on the rider gives the rider's brain the native reach-only rule for this target
-            // (BlueprintAiAction.IsTargetValid), cleared by native combat state, instead of a proposal loop.
             if (stockIntentOwned && stockIntent.Automatic && outcome != null && outcome.ChildAttackStartCount == 0 &&
-                !outcome.NativeRangedTailTermination && stockIntentTarget != null &&
+                !outcome.NativeRangedTailTermination &&
                 !string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal))
             {
-                relationship.Rider?.CombatState?.AIData.UnreachableUnits.Add(stockIntentTarget);
+                automaticApproachFailedTarget = stockIntentTarget;
             }
             LastOutcome = outcome;
             finishedCommandPendingSweep = command;
@@ -2074,6 +2090,7 @@ namespace KingmakerMountedCombat.Integration
                 };
                 unifiedTurn.RememberPairedMovementInput();
                 CarriedApproachBindCount++;
+                automaticGate.ObservePlayerOrder();
                 LastCarriedApproachOutcome = null;
                 LastFeedback = MountedCarriedApproachPolicy.Feedback(kind, MountDisplayName);
                 LastCarriedApproachObservation = "bound: " + command.GetType().Name;

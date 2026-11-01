@@ -17,6 +17,9 @@ namespace KingmakerMountedCombat.Domain
         public bool AiOrigin;
         // The intent's own pair command or a native reaction (attack of opportunity): neither is a newer order.
         public bool PairOwnedOrReaction;
+        // A Free or Swift command already in reach. Native Run leaves the Standard slot running beside it (a swift
+        // self-buff, a kineticist blade's activation), so it never displaces an attack routine.
+        public bool CoexistsWithAttack;
     }
 
     // Everything the native party-brain proposal is admitted from, read by the controller from the live pair at the
@@ -88,7 +91,7 @@ namespace KingmakerMountedCombat.Domain
         {
             if (queuedCommands > 0) return true;
             foreach (var slot in riderSlots)
-                if (!slot.Finished && !slot.AiOrigin && !slot.PairOwnedOrReaction) return true;
+                if (!slot.Finished && !slot.AiOrigin && !slot.PairOwnedOrReaction && !slot.CoexistsWithAttack) return true;
             return false;
         }
 
