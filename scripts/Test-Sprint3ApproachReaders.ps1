@@ -140,6 +140,7 @@ $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.after[0].awake=$
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.after[0].damage=9;Reject $r 'sprint3-approach-rt-trap' 'a pending declared hostile below its native death threshold refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.deathPendingOnWake=@($s3Declared[0]);Reject $r 'sprint3-approach-rt-trap' 'an undeclared pending death refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.atClick[1].dead=$false;Reject $r 'sprint3-approach-rt-trap' 'a declared hostile still alive at the door click refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup|Add-Member wake ([pscustomobject]@{method='UnitEntityData.Wake';seconds=2;units=@($recipient)});Reject $r 'sprint3-approach-rt-trap' 'a setup wake of an undeclared unit refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostilesNearAtClick=@('hostile-x');Reject $r 'sprint3-approach-rt-trap' 'a conscious hostile near at the door click refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.combatAtSettle=$true;Reject $r 'sprint3-approach-rt-trap' 'a setup that settled in combat refused'
 $r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.partyAfter[1].inCombat=$true;Reject $r 'sprint3-approach-rt-trap' 'a party member left in combat after the setup refused'
