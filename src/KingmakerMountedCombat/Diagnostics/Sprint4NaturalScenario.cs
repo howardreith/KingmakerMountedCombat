@@ -204,7 +204,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             bool clicked;
-            using (var input = new NativeOrdinaryAttackInput(hostile)) clicked = input.Click();
+            using (var input = new NativeOrdinaryAttackInput(hostile))
+            {
+                // The native cursor requires fresh predictions in turn-based combat (TurnController.IgnoreClick).
+                if (CastingTb) input.Predict();
+                clicked = input.Click();
+            }
             ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "hostile-click", ["name"] = name, ["target"] = hostile.UniqueId,
                 ["clicked"] = clicked, ["frame"] = Time.frameCount, ["inputPath"] = "ClickUnitHandler.OnClick" });
             return clicked;
@@ -674,7 +679,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The mount acts through ordinary selection and the same hostile click, on its own resources.
                 SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
                 bool clicked;
-                using (var input = new NativeOrdinaryAttackInput(target)) clicked = input.Click();
+                using (var input = new NativeOrdinaryAttackInput(target)) { input.Predict(); clicked = input.Click(); }
                 ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "hostile-click", ["name"] = "mount-attack", ["target"] = target.UniqueId, ["clicked"] = clicked, ["frame"] = Time.frameCount });
                 Sprint4Step("mountInput");
                 if (!clicked) { FailSprint4Row("The mount's ordinary click was refused."); return; }
