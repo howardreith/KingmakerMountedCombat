@@ -571,6 +571,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["90fdc0ef-f893-43de-bf8c-f52b3854a9c6"] = new Vector3(63.56f, 6.06f, 62.64f) };
         private const float Sprint3DeclaredHostileToleranceMetres = 2f;
         private const int Sprint3HostileSetupSettleFrames = 60, Sprint3HostileSetupFrameLimit = 900;
+        private const float Sprint3HostileSetupWakeSeconds = 2f;
         private bool s3HostileSetupPending; private StandardDoor s3SetupDoor;
 
         private UnitEntityData[] Sprint3DoorPrepHostiles(StandardDoor door, UnitEntityData opener) => Game.Instance.State.Units.Where(u => u != null &&
@@ -625,6 +626,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (damage.Damage < needed) return "the native rule did not carry the lethal damage to declared hostile " + unit.UniqueId;
             }
             setup["dispatches"] = dispatched.Count;
+            // r23: SleepingUnitsController keeps a fogged, idle, out-of-combat unit asleep (no life tick) unless its AwakeTimer
+            // runs, and the closed door kept both in fog; the engine's own UnitEntityData.Wake starts that timer once per
+            // declared unit so the native UnitLifeController applies each recorded death.
+            foreach (var unit in declared) unit.Wake(Sprint3HostileSetupWakeSeconds);
+            setup["wake"] = new JObject { ["method"] = "UnitEntityData.Wake", ["seconds"] = Sprint3HostileSetupWakeSeconds, ["units"] = new JArray(declared.Select(u => u.UniqueId)) };
             return null;
         }
 
