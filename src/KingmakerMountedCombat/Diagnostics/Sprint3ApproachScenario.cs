@@ -580,7 +580,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CaptureSprint3SetupHostile(UnitEntityData unit) => new JObject { ["id"] = unit.UniqueId, ["group"] = unit.GroupId,
             ["blueprint"] = unit.Blueprint?.AssetGuid, ["position"] = CapturePosition(unit.Position), ["inState"] = unit.IsInState, ["enemy"] = unit.IsPlayersEnemy,
             ["playerFaction"] = unit.IsPlayerFaction, ["pet"] = unit.Descriptor.IsPet, ["inCombat"] = unit.IsInCombat, ["lifeState"] = unit.Descriptor.State.LifeState.ToString(),
-            ["conscious"] = unit.Descriptor.State.IsConscious, ["dead"] = unit.Descriptor.State.IsDead, ["damage"] = unit.Damage,
+            ["conscious"] = unit.Descriptor.State.IsConscious, ["dead"] = unit.Descriptor.State.IsDead, ["awake"] = Game.Instance.State.AwakeUnits.Contains(unit), ["damage"] = unit.Damage,
             ["hitPoints"] = unit.Stats.HitPoints.ModifiedValue, ["constitution"] = unit.Stats.Constitution.ModifiedValue, ["groupSize"] = unit.Group?.Count };
 
         private JArray CaptureSprint3SetupParty() => new JArray(Game.Instance.Player.ControllableCharacters.Select(u => new JObject { ["id"] = u.UniqueId,
@@ -643,19 +643,27 @@ namespace KingmakerMountedCombat.Diagnostics
                 FailSprint3Row("The declared hostile setup did not settle."); return;
             }
             ResetLeafClock();
-            if (declared.Length != Sprint3DeclaredHostiles.Count || declared.Any(u => !u.Descriptor.State.IsDead) || combat) { s3StableFrames = 0; return; }
+            // r21: the native UnitLifeController (BaseUnitController) ticks only State.AwakeUnits, so a sleeping unit at its
+            // death threshold dies natively on its first awake tick. Such a unit is settled only as "death pending on wake";
+            // the ordinary walk wakes it, and the click requires both natively dead (no readiness while a death is pending).
+            if (declared.Length != Sprint3DeclaredHostiles.Count || combat || declared.Any(u => !u.Descriptor.State.IsDead && !Sprint3DeathPendingOnWake(u)))
+            { s3StableFrames = 0; return; }
             if (++s3StableFrames < Sprint3HostileSetupSettleFrames) return;
             setup["after"] = new JArray(declared.Select(CaptureSprint3SetupHostile)); setup["partyAfter"] = CaptureSprint3SetupParty();
             setup["combatAtSettle"] = combat; setup["settledFrame"] = Time.frameCount; setup["settleFrames"] = s3PrepFrames;
+            setup["deathPendingOnWake"] = new JArray(declared.Where(u => !u.Descriptor.State.IsDead).Select(u => u.UniqueId));
             s3HostileSetupPending = false; s3StableFrames = 0;
             var door = s3SetupDoor; s3SetupDoor = null;
-            var hostiles = Sprint3DoorPrepHostiles(door, s3Recipient);
+            var hostiles = Sprint3DoorPrepHostiles(door, s3Recipient).Where(u => !(Sprint3DeclaredHostiles.ContainsKey(u.UniqueId) && Sprint3DeathPendingOnWake(u))).ToArray();
             prep["hostilesNearAfterSetup"] = new JArray(hostiles.Select(u => u.UniqueId));
             var refusal = hostiles.Length != 0 ? "a conscious hostile still stands within " + Sprint3DoorPrepHostileMetres + " m after the declared setup: " +
                 string.Join(",", hostiles.Select(u => u.UniqueId)) : OrderSprint3DoorPrepWalk(door, s3Recipient, prep);
             if (refusal != null) { prep["refusal"] = refusal; FailSprint3Row("The declared door preparation stopped after the hostile setup: " + refusal); return; }
             ResetLeafClock();
         }
+
+        private static bool Sprint3DeathPendingOnWake(UnitEntityData unit) => !unit.Descriptor.State.IsDead && !Game.Instance.State.AwakeUnits.Contains(unit) &&
+            !(bool)unit.Descriptor.State.IsRegenerate && unit.Damage >= unit.Stats.HitPoints.ModifiedValue + unit.Stats.Constitution.ModifiedValue;
 
         // Orders the opener's one ordinary walk beside the door; returns the refusal when no trap-clear route exists.
         private string OrderSprint3DoorPrepWalk(StandardDoor door, UnitEntityData opener, JObject prep)
@@ -778,6 +786,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The walk is bounded by the native route bound (160 m); the leaf clock only guards a stalled walk.
                 if (!Sprint3OpenerSettled()) { s3StableFrames = 0; if (s3Recipient.View?.AgentASP?.IsReallyMoving == true && ++s3PrepFrames < 3600) ResetLeafClock(); return; }
                 if (++s3StableFrames < 10) return;
+                if (prep["hostileSetup"] != null)
+                {
+                    // Every declared unit must be natively dead and the unchanged guard empty before the click.
+                    var declaredAtClick = Game.Instance.State.Units.Where(u => u != null && Sprint3DeclaredHostiles.ContainsKey(u.UniqueId)).ToArray();
+                    var nearAtClick = Sprint3DoorPrepHostiles(s3PrepDoor, s3Recipient);
+                    prep["hostileSetup"]["atClick"] = new JArray(declaredAtClick.Select(CaptureSprint3SetupHostile));
+                    prep["hostilesNearAtClick"] = new JArray(nearAtClick.Select(u => u.UniqueId));
+                    if (declaredAtClick.Length != Sprint3DeclaredHostiles.Count || declaredAtClick.Any(u => !u.Descriptor.State.IsDead) || nearAtClick.Length != 0)
+                    {
+                        prep["refusal"] = "a declared hostile was not natively dead, or a conscious hostile stood near, when the opener reached the door";
+                        FailSprint3Row("The declared hostile setup was not natively settled at the door; the route stops here."); return;
+                    }
+                }
                 var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(s3PrepDoor, new[] { horse });
                 prep["walk"]["arrived"] = CapturePosition(s3Recipient.Position); prep["walk"]["distanceToDoorAfter"] = HorizontalDistance(s3Recipient.Position, s3PrepDoor.transform.position);
                 prep["doorAtClick"] = Sprint3DoorPrepFacts(s3PrepDoor, facts);
