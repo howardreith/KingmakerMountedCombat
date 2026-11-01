@@ -30,7 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsSprint3ApproachScenario(string scenario) =>
-            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-tb";
+            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-rt-neighbor" || scenario == "sprint3-approach-tb";
         private bool IsSprint3Approach => IsSprint3ApproachScenario(request.Scenario);
         internal const int Sprint3SchemaVersion = 47;
         internal static readonly string[] Sprint3RealTimeCases = { "S3-trap-disarm", "S3-touch-friendly-distant",
@@ -38,7 +38,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // The insufficient-movement row runs first: its recipient is placed beyond one turn's pair movement before the
         // encounter (a recipient's own in-combat move reaches only its budget, r10: 15.7 m against a 24.4 m allowance).
         internal static readonly string[] Sprint3TurnBasedCases = { "S3-tb-insufficient-movement", "S3-tb-touch-friendly" };
-        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : Sprint3RealTimeCases;
+        // PR #8 review: the named ownership neighbor runs one existing row (Stop, second ordinary click, the carrier's own
+        // delegated move through the new Run admission and cleanup); it is a selected subset, never the full real-time set.
+        internal static readonly string[] Sprint3NeighborCases = { "S3-touch-held-charge" };
+        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : request.Scenario == "sprint3-approach-rt-neighbor" ? Sprint3NeighborCases : Sprint3RealTimeCases;
         private string Sprint3Case => Sprint3Cases[s3CaseIndex];
         private const float Sprint3FriendlyDistantMetres = 12f, Sprint3FriendlyHeldMetres = 6f, Sprint3HostileSpawnMetres = 8f,
             Sprint3RangedRetreatMetres = 10f, Sprint3TurnBasedFriendlyMetres = 9f, Sprint3PathLengthBoundMetres = 160f;
@@ -111,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["replans"] = o.ReplanCount, ["withoutProgress"] = o.ApproachesWithoutProgress, ["satisfied"] = o.Satisfied,
             ["nativeApproachEndSignalled"] = o.NativeApproachEndSignalled, ["trapSafePointApplied"] = o.TrapSafePointApplied,
             ["distanceAtSatisfaction"] = o.DistanceAtSatisfaction, ["lineOfSightAtSatisfaction"] = o.LineOfSightAtSatisfaction,
-            ["operationalSeconds"] = o.ApproachElapsedOperationalSeconds, ["slotRestored"] = o.MountMoveSlotRestored,
+            ["operationalSeconds"] = o.ApproachElapsedOperationalSeconds, ["slotRestored"] = o.MountMoveSlotRestored, ["successorRetained"] = o.SuccessorRetained, ["yieldedToMountOwner"] = o.YieldedToMountOwner,
             ["terminalReason"] = o.TerminalReason, ["result"] = o.Result };
 
         private JObject Sprint3Command(UnitCommand command) => command == null ? null : new JObject {
@@ -563,6 +566,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     .OrderByDescending(t => Sprint3PathPossible(horse.Position, t.transform.position) == true)
                     .ThenBy(t => HorizontalDistance(t.transform.position, horse.Position)).Take(Sprint3TrapCandidateLimit).ToArray();
                 if (s3TrapCandidates.Length == 0) { FailSprint3Row("No active trap with a disarm interaction exists in the loaded fixture area."); return; }
+                // PR #8 review: a trap outside the pair's own navmesh area (the native graph connectivity test) is refused before
+                // any exploration leg is ordered; the obstacle inventory records why (r12 to r16: every Working-fixture trap is cut off).
+                if (!s3TrapCandidates.Any(t => Sprint3PathPossible(horse.Position, t.transform.position) == true))
+                {
+                    s3Facts["obstacleInventory"] = Sprint3ObstacleInventory(s3TrapCandidates[0].transform.position);
+                    FailSprint3Row("No active disarmable trap shares the mounted pair's navmesh area; no exploration leg was ordered."); return;
+                }
                 var discovered = s3TrapCandidates.FirstOrDefault(t => t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
                     t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) && HorizontalDistance(t.transform.position, horse.Position) >= 4f);
                 s3TrapOrigin = horse.Position;

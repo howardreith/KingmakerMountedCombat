@@ -3,6 +3,8 @@
 Set-StrictMode -Version Latest
 function Get-KmcSprint3ApproachCases([string]$Scenario) {
  if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-insufficient-movement','S3-tb-touch-friendly') }
+ # The named ownership neighbor: one selected existing row, never reported as the full real-time set.
+ if($Scenario -ceq 'sprint3-approach-rt-neighbor'){ return @('S3-touch-held-charge') }
  @('S3-trap-disarm','S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant')
 }
 function Test-KmcSprint3Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }
@@ -18,6 +20,12 @@ function Assert-KmcSprint3CarriedRow($Row,[string]$Rider,[string]$Mount) {
  if($null -eq $c){ throw ($Row.name+': no carried-approach outcome was recorded') }
  if([string]$c.rider -cne $Rider -or [string]$c.mount -cne $Mount){ throw ($Row.name+': carried approach identity is not the exact pair') }
  if([int]$c.moveStarts -lt 1){ throw ($Row.name+': the carried approach started no delegated mount move') }
+ # PR #8 review correction B: these fixtures issue no other mount order, so no carried outcome may report a retained
+ # successor or a yield to another mount command (fields absent on evidence produced before the correction).
+ foreach($outcome in @($e.carriedOutcomes)){
+  if((Test-KmcSprint3Prop $outcome 'successorRetained') -and $outcome.successorRetained -eq $true){ throw ($Row.name+': a carried release reported a successor owning the mount where none was ordered') }
+  if((Test-KmcSprint3Prop $outcome 'yieldedToMountOwner') -and $outcome.yieldedToMountOwner -eq $true){ throw ($Row.name+': the carried approach yielded to a mount command no row ordered') }
+ }
  if($c.slotRestored -ne $true){ throw ($Row.name+': the mount Move slot was not restored after the carried approach') }
  if($null -ne $c.terminalReason -and [string]$c.terminalReason -ne ''){ throw ($Row.name+': the carried approach ended with a fault: '+$c.terminalReason) }
 }
@@ -143,7 +151,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
 }
 function Assert-KmcSprint3ApproachEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 3 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.

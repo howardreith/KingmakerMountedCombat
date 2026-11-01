@@ -34,7 +34,12 @@ namespace KingmakerMountedCombat.Integration
         public float DistanceAtSatisfaction { get; set; } = float.NaN;
         public bool LineOfSightAtSatisfaction { get; set; }
         public float ApproachElapsedOperationalSeconds { get; set; }
+        // The carrier's own delegated move is finished and released (review correction B: our work, not "no commands").
         public bool MountMoveSlotRestored { get; set; }
+        // Another command owned the mount's movement at a release and was left untouched (path, target and queue).
+        public bool SuccessorRetained { get; set; }
+        // The approach yielded because another command owned the mount's movement when a move was due.
+        public bool YieldedToMountOwner { get; set; }
         public string TerminalReason { get; set; }
         public string Result { get; set; }
     }
@@ -183,6 +188,17 @@ namespace KingmakerMountedCombat.Integration
                 switch (action)
                 {
                     case MountedDoorApproachAction.BeginMove:
+                        if (MountMovementOwnedByAnotherCommand())
+                        {
+                            // Review correction B: a successor owns the mount's movement (a queued or native order that
+                            // arrived without displacing this approach through Run). Nothing of it is cancelled: this
+                            // approach yields, and the rider's native command waits unstarted until the mount is free.
+                            outcome.YieldedToMountOwner = true;
+                            outcome.SuccessorRetained = true;
+                            logger.Info("Mounted carried approach yielded: another command owns the mount's movement (mountId=" + mount.UniqueId + ").");
+                            Release("mount movement owned by another command");
+                            return false;
+                        }
                         BeginDelegatedMove(command, approachPoint);
                         return true;
                     case MountedDoorApproachAction.Retry:
@@ -253,10 +269,13 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginDelegatedMove(UnitCommand command, Vector3 approachPoint)
         {
-            if (mount.Commands == null || !mount.Commands.Empty || mount.Commands.Queue.Count != 0)
+            // A live or queued command of another owner never reaches here (the caller yields to it). A finished
+            // command still sitting in a slot is native residue the native sweep removes anyway.
+            if (mount.Commands == null || MountMovementOwnedByAnotherCommand())
             {
                 throw new InvalidOperationException("Mount Move slot is not idle for the carried approach.");
             }
+            if (!mount.Commands.Empty) mount.Commands.RemoveFinishedAndUpdateQueue();
             plannedPoint = approachPoint;
             // The native start gate measures the RIDER's position; the mount stops a saddle margin inside the
             // command's radius so a settled mount never leaves the rider a few centimetres out of range.
@@ -296,20 +315,48 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Review correction B: only the carrier's exact move and the agent it still owns are touched. A successor that
+        // owns the slot, another slot or the queue (including one the sweep itself activates) keeps its path.
         private void ClearFinishedDelegatedMove()
         {
             var exactMove = delegatedMove;
             if (exactMove == null) return;
-            if (!exactMove.IsFinished) exactMove.Interrupt(false);
-            if (mount.Commands != null && mount.Commands.Contains(exactMove) && mount.Commands.Queue.Count == 0)
-            {
-                mount.Commands.RemoveFinishedAndUpdateQueue();
-            }
-            mount.View?.StopMoving();
-            mountMoveSlotRestored = mount.Commands != null &&
-                mount.Commands.GetCommand(UnitCommand.CommandType.Move) == null &&
-                !mount.Commands.Contains(exactMove) && mount.Commands.Queue.Count == 0;
             delegatedMove = null;
+            var release = MountedOwnMovePolicy.Release(new MountMoveSlotHost(mount), exactMove);
+            mountMoveSlotRestored = release.OwnReleased;
+            if (release.SuccessorRetained) outcome.SuccessorRetained = true;
+        }
+
+        // Whether a command other than this approach's own live move owns any of the mount's slots or its queue.
+        internal bool MountMovementOwnedByAnotherCommand()
+        {
+            return MountMoveSlotHost.HasOtherLive(mount.Commands, delegatedMove);
+        }
+
+        internal sealed class MountMoveSlotHost : IMountedOwnMoveHost
+        {
+            private readonly UnitEntityData mount;
+            internal MountMoveSlotHost(UnitEntityData mount) { this.mount = mount; }
+            public object MoveSlot => mount.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            public bool Holds(object command) => mount.Commands != null && mount.Commands.Contains(command as UnitCommand);
+            public bool HasOtherLiveCommand(object own) => HasOtherLive(mount.Commands, own as UnitCommand);
+            public bool IsFinished(object command) => (command as UnitCommand)?.IsFinished != false;
+            public void Interrupt(object command) => (command as UnitCommand)?.Interrupt(false);
+            public void SweepFinished() => mount.Commands?.RemoveFinishedAndUpdateQueue();
+            public void StopAgent() => mount.View?.StopMoving();
+
+            internal static bool HasOtherLive(UnitCommands commands, UnitCommand own)
+            {
+                if (commands == null) return false;
+                if (commands.Queue.Count != 0) return true;
+                var raw = commands.Raw;
+                for (var index = 0; index < raw.Length; index++)
+                {
+                    var command = raw[index];
+                    if (command != null && !command.IsFinished && !ReferenceEquals(command, own)) return true;
+                }
+                return false;
+            }
         }
 
         private void StopDelegatedMove()
