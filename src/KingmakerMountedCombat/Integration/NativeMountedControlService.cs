@@ -143,6 +143,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool SerializationSuspended => serializationSuspended;
 
+        // ATTACK-01: Rider Primary and Mount Primary are retired from gameplay. Their definitions stay registered so an
+        // older reference resolves; the facts are leased only for a runtime scenario that explicitly selected them.
+        internal bool RetiredPrimaryHelpersSelected { get; set; }
+
         internal long TargetSelectionStartCount { get; private set; }
 
         internal long TargetSelectionEndCount { get; private set; }
@@ -871,6 +875,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 return new NativeMountedControlAvailability(false, false, "Mounted control services are not active.");
             }
+            if (!RetiredPrimaryHelpersSelected && NativeMountedControlPolicy.IsRetiredPrimaryHelper(kind))
+            {
+                return new NativeMountedControlAvailability(false, false, "Attack with ordinary controls.");
+            }
 
             var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion);
             if (relationship == null) return new NativeMountedControlAvailability(false, false, "No exact mounted control owner is available.");
@@ -1261,6 +1269,8 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnCastRequested(AbilityData ability, TargetWrapper target)
         {
+            // Any ordinary cast is a deliberate new order for the caster's pair, not only a KMC control.
+            VisitInputOwners(owner => owner.ObservePlayerOrderFor(ability?.Caster?.Unit));
             var kind = ResolveKind(ability?.Blueprint);
             if (kind == NativeMountedControlKind.None)
             {
@@ -1314,6 +1324,7 @@ namespace KingmakerMountedCombat.Integration
             // stock targeting intent authorizes additional post-input cleanup.
             VisitInputOwners(owner =>
             {
+                owner.ObserveSelectedMoveOrder();
                 if (owner.HasStockAttackIntent)
                     owner.CancelSelectedInput("native move request replaced stock attack intent");
             });
@@ -1323,6 +1334,7 @@ namespace KingmakerMountedCombat.Integration
         {
             VisitInputOwners(owner =>
             {
+                owner.ObserveSelectedPlayerOrder();
                 if (owner.HasStockAttackIntent)
                     owner.CancelSelectedInput("native item-use request replaced stock attack intent");
             });
@@ -1547,6 +1559,7 @@ namespace KingmakerMountedCombat.Integration
             foreach (var unit in candidates)
             {
                 RememberUnit(unit);
+                ReconcileRetiredPrimaryReferences(unit);
                 foreach (var ability in EnumerateBlueprints())
                 {
                     var kind = ResolveKind(ability);
@@ -1587,6 +1600,35 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // A slot or auto-use selection an older save restored would otherwise outlive its fact. Only these exact entries
+        // are touched; every other slot keeps its content and position, and the check is idempotent every update.
+        private void ReconcileRetiredPrimaryReferences(UnitEntityData unit)
+        {
+            if (RetiredPrimaryHelpersSelected || unit == null) return;
+            var slots = unit.UISettings?.Slots;
+            if (slots != null)
+            {
+                for (var index = 0; index < slots.Length; index++)
+                {
+                    var blueprint = (slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint;
+                    if (blueprint == null || !NativeMountedControlPolicy.IsRetiredPrimaryHelper(ResolveKind(blueprint))) continue;
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, index);
+                    RetiredPrimarySlotsCleared++;
+                    logger.Info("Retired mounted primary hotbar entry cleared: unitId=" + unit.UniqueId + "; slot=" + index + ".");
+                }
+            }
+            if (NativeMountedControlPolicy.IsRetiredPrimaryHelper(ResolveKind(unit.AutoUseAbility?.Blueprint)))
+            {
+                unit.AutoUseAbility = null;
+                RetiredPrimaryAutoUseCleared++;
+                logger.Info("Retired mounted primary auto-use selection cleared: unitId=" + unit.UniqueId + ".");
+            }
+        }
+
+        internal long RetiredPrimarySlotsCleared { get; private set; }
+
+        internal long RetiredPrimaryAutoUseCleared { get; private set; }
+
         private bool ShouldLease(UnitEntityData unit, NativeMountedControlKind kind)
         {
             var relationship = ResolveControlBoundary(unit, false);
@@ -1604,7 +1646,8 @@ namespace KingmakerMountedCombat.Integration
                 faulted,
                 relationship != null && unit == relationship.Rider,
                 relationship != null && unit == relationship.Mount,
-                settings.EnableMountedCharge);
+                settings.EnableMountedCharge,
+                RetiredPrimaryHelpersSelected);
         }
 
         private List<UnitEntityData> CollectCurrentCandidateUnits()

@@ -26,6 +26,16 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnitEntityData mount;
         private readonly bool usesMountedRiderReach;
         private float pairApproachRadius;
+        private bool automaticOrigin;
+
+        // UnitCommands.UpdateCombatTarget marks a command without AiAction as the player's manual target.
+        public override bool MarkManualTarget => !automaticOrigin;
+
+        internal void MarkAutomaticOrigin()
+        {
+            automaticOrigin = true;
+            CreatedByPlayer = false;
+        }
 
         public MountedPairSingleAttack(
             UnitEntityData target,
