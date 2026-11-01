@@ -84,6 +84,18 @@ function New-S3Artifact([string]$scenario,$rows){
 $rt=New-S3Artifact 'sprint3-approach-rt' @((New-S3TrapRow),(New-S3FriendlyRow $false),(New-S3FriendlyRow $true),(New-S3HostileRow),(New-S3RangedRow))
 $tb=New-S3Artifact 'sprint3-approach-tb' @((New-S3TbRow $true),(New-S3TbRow $false))
 $nb=New-S3Artifact 'sprint3-approach-rt-neighbor' @((New-S3FriendlyRow $true))
+# PR #8 second review: the trap-only selection with the declared door preparation (the legs then click no door).
+function New-S3DoorPreparation{
+ $door=[pscustomobject]@{name='dwarf_dungeon_door_01';id='door-1';position=[pscustomobject]@{x=40.0;y=5.975;z=60.0};open=$false;active=$true;dataPresent=$true;interactable=$true;availableInteractions=$false;revealed=$false;restrictions=0;cutPresent=$true;notInCombat=$true;hasDialog=$false;viewTriggerActions=$false;hasVisibleTrap=$false;trapActive=$false;closedClickable=$false}
+ $atClick=Copy-S3 $door;$atClick.revealed=$true;$atClick.availableInteractions=$true;$atClick.closedClickable=$true
+ $after=Copy-S3 $atClick;$after.open=$true
+ [pscustomobject]@{declared=[pscustomobject]@{name='dwarf_dungeon_door_01';area='9d1278a2f599b2a4daab53abdfe88d2e'};area='9d1278a2f599b2a4daab53abdfe88d2e';matches=1
+  opener=[pscustomobject]@{id=$recipient;pet=$false;conscious=$true;inCombat=$false};doorBefore=$door;hostilesNear=@()
+  walk=[pscustomobject]@{ordered=$true;inputPath='ClickGroundHandler.MoveSelectedUnitsToPoint'};doorAtClick=$atClick
+  click=[pscustomobject]@{clicked=$true;inputPath='ClickMapObjectHandler.OnClick';executor=$recipient};doorAfter=$after;settledFrame=900}
+}
+$trapRow=New-S3TrapRow;$trapRow.evidence.explorationLegs[0].doors=@();$trapRow.evidence|Add-Member doorPreparation (New-S3DoorPreparation)
+$tr=New-S3Artifact 'sprint3-approach-rt-trap' @($trapRow)
 function Accept($artifact,[string]$scenario){Assert-KmcSprint3ApproachEvidence -Request ([pscustomobject]@{scenario=$scenario}) -Artifact $artifact -Status 'PASS'}
 function Reject($artifact,[string]$scenario,[string]$why){$refused=$false;try{Accept $artifact $scenario}catch{$refused=$true};Check $refused $why}
 Accept $rt 'sprint3-approach-rt';Check $true 'complete real-time Sprint 3 envelope accepted'
@@ -94,6 +106,19 @@ $r=Copy-S3 $rt;Reject $r 'sprint3-approach-rt-neighbor' 'the full real-time row 
 $r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member successorRetained $true -Force;Reject $r 'sprint3-approach-rt-neighbor' 'a carried release reporting an unordered successor refused'
 $r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member yieldedToMountOwner $true -Force;Reject $r 'sprint3-approach-rt-neighbor' 'a carried approach yielding to an unordered mount command refused'
 $r=Copy-S3 $nb;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member successorRetained $false -Force;$r.rows[0].evidence.carriedOutcomes[0]|Add-Member yieldedToMountOwner $false -Force;Accept $r 'sprint3-approach-rt-neighbor';Check $true 'producer-shaped ownership fields without a successor accepted'
+Accept $tr 'sprint3-approach-rt-trap';Check $true 'the trap-only selection with the declared door preparation accepted as its own subset'
+$r=Copy-S3 $tr;Reject $r 'sprint3-approach-rt' 'the trap-only subset is never accepted as the full real-time set'
+$r=Copy-S3 $rt;Reject $r 'sprint3-approach-rt-trap' 'the full real-time row set is refused under the trap selection'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.doorBefore.position.x=48.0;Reject $r 'sprint3-approach-rt-trap' 'a door other than the declared one refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.matches=2;Reject $r 'sprint3-approach-rt-trap' 'an ambiguous declared door refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.opener.id=$rider;Reject $r 'sprint3-approach-rt-trap' 'a door prepared by the mounted rider refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.hostilesNear=@('hostile-1');Reject $r 'sprint3-approach-rt-trap' 'a door preparation beside a hostile refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.doorBefore.restrictions=1;Reject $r 'sprint3-approach-rt-trap' 'a restricted (locked) declared door refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.doorAtClick.closedClickable=$false;Reject $r 'sprint3-approach-rt-trap' 'a click on a door the native fog had not revealed refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.click.inputPath='StandardDoor.Open';Reject $r 'sprint3-approach-rt-trap' 'a door opened outside the ordinary click handler refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.doorAfter.open=$false;Reject $r 'sprint3-approach-rt-trap' 'a preparation whose door did not open refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation|Add-Member refusal 'x';Reject $r 'sprint3-approach-rt-trap' 'a refused door preparation refused'
+$r=Copy-S3 $tr;$r.rows[0].evidence.explorationLegs[0].doors=@([pscustomobject]@{name='Door';inputPath='ClickMapObjectHandler.OnClick';openBefore=$false;openAfter=$true;clicked=$true});Reject $r 'sprint3-approach-rt-trap' 'a second door clicked after the declared preparation refused'
 Check ((Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 44 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'chunk6c-casting-rt')) 'schema 47 binds exactly the Sprint 3 scenarios'
 Check (((Get-KmcPhase3dEvidenceDispatch -SchemaVersion 47 -Scenario 'sprint3-approach-tb').validator) -ceq 'Assert-KmcSprint3ApproachEvidence') 'dispatch selects the Sprint 3 reader'
 # Exercise the actual launcher's parameter binder without executing its body.
@@ -101,7 +126,7 @@ $launcher=Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'
 $tokens=$null;$errors=$null;$launchAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$errors)
 Check ($errors.Count-eq0) 'actual guarded launcher parses'
 $bindOnly=[scriptblock]::Create($launchAst.ParamBlock.Extent.Text+"`n'bound-without-launch'")
-foreach($scenario in @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-tb')){
+foreach($scenario in @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')){
  Check ((& $bindOnly -Scenario $scenario -RunId 's3-registration-probe')-ceq'bound-without-launch') ('actual native parameter guard admits '+$scenario)
  Check ((Get-KmcSaveBackedRuntimeScenarios)-ccontains$scenario) ('request registry agrees '+$scenario)
  Check ((Test-KmcCompoundRuntimeScenario $scenario)) ('compound registry agrees '+$scenario)

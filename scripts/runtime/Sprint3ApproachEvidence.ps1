@@ -5,6 +5,8 @@ function Get-KmcSprint3ApproachCases([string]$Scenario) {
  if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-insufficient-movement','S3-tb-touch-friendly') }
  # The named ownership neighbor: one selected existing row, never reported as the full real-time set.
  if($Scenario -ceq 'sprint3-approach-rt-neighbor'){ return @('S3-touch-held-charge') }
+ # The trap row alone (PR #8 second review), with its one declared door preparation; never the full real-time set.
+ if($Scenario -ceq 'sprint3-approach-rt-trap'){ return @('S3-trap-disarm') }
  @('S3-trap-disarm','S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant')
 }
 function Test-KmcSprint3Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }
@@ -37,6 +39,22 @@ function Assert-KmcSprint3TrapRow($Row,[string]$Rider,[string]$Mount) {
  if([double]$e.trap.distanceAtClick -lt 3){ throw 'S3 trap: the click began inside immediate range (no approach to prove)' }
  # Discovery is native: the trap must have passed the party's own Perception roll and be revealed when it is clicked.
  if(-not (Test-KmcSprint3Prop $e 'trapAtClick') -or $e.trapAtClick.perceptionPassed -ne $true -or $e.trapAtClick.revealed -ne $true -or $e.trapAtClick.active -ne $true){ throw 'S3 trap: the clicked trap was not natively discovered, revealed and active' }
+ # PR #8 second review: the one declared Working-fixture door, opened once by the unmounted party member through one
+ # ordinary walk and one ordinary click; afterwards no exploration leg may click a further door or secret passage.
+ if(Test-KmcSprint3Prop $e 'doorPreparation'){
+  $p=$e.doorPreparation
+  if((Test-KmcSprint3Prop $p 'refusal') -or [string]$p.declared.name -cne 'dwarf_dungeon_door_01' -or [string]$p.area -cne '9d1278a2f599b2a4daab53abdfe88d2e' -or [int]$p.matches -ne 1){ throw 'S3 trap: the door preparation did not use exactly the declared Working-fixture door' }
+  if([string]$p.doorBefore.name -cne 'dwarf_dungeon_door_01' -or [math]::Abs([double]$p.doorBefore.position.x-40) -gt 0.75 -or [math]::Abs([double]$p.doorBefore.position.z-60) -gt 0.75){ throw 'S3 trap: the prepared door is not at the declared position' }
+  if([string]$p.opener.id -ceq $Rider -or [string]$p.opener.id -ceq $Mount -or $p.opener.pet -ne $false -or $p.opener.inCombat -ne $false){ throw 'S3 trap: the door was not prepared by an unmounted, out-of-combat party member' }
+  if(@($p.hostilesNear).Count -ne 0){ throw 'S3 trap: the door preparation ran with a conscious hostile nearby' }
+  $b=$p.doorBefore
+  if($b.open -ne $false -or [int]$b.restrictions -ne 0 -or $b.hasDialog -ne $false -or $b.viewTriggerActions -ne $false -or $b.trapActive -ne $false -or $b.hasVisibleTrap -ne $false -or $b.cutPresent -ne $true){ throw 'S3 trap: the declared door was not an ordinary closed door' }
+  if([string]$p.walk.inputPath -cne 'ClickGroundHandler.MoveSelectedUnitsToPoint' -or $p.walk.ordered -ne $true){ throw 'S3 trap: the opener did not reach the door through one ordinary ground order' }
+  if($p.doorAtClick.open -ne $false -or $p.doorAtClick.closedClickable -ne $true){ throw 'S3 trap: the declared door was not a closed clickable door at the click' }
+  if($p.click.clicked -ne $true -or [string]$p.click.inputPath -cne 'ClickMapObjectHandler.OnClick' -or [string]$p.click.executor -cne [string]$p.opener.id){ throw 'S3 trap: the declared door was not opened through one ordinary click by the opener' }
+  if($p.doorAfter.open -ne $true -or -not (Test-KmcSprint3Prop $p 'settledFrame')){ throw 'S3 trap: the declared door was not open on a settled navmesh' }
+  if(Test-KmcSprint3Prop $e 'explorationLegs'){ foreach($leg in @($e.explorationLegs)){ if(@($leg.doors).Count -ne 0){ throw 'S3 trap: an exploration leg clicked a further door or secret passage after the declared door preparation' } } }
+ }
  if(Test-KmcSprint3Prop $e 'explorationLegs'){
    foreach($leg in @($e.explorationLegs)){
    if($leg.ordered -eq $true -and [double]$leg.destinationToTrap -lt 3.5){ throw 'S3 trap: an exploration leg was ordered onto the trap' }
@@ -151,7 +169,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
 }
 function Assert-KmcSprint3ApproachEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 3 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.

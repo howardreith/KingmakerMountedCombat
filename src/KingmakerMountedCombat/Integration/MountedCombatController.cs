@@ -1897,12 +1897,36 @@ namespace KingmakerMountedCombat.Integration
                 return !commands.Contains(carried) && !commands.Queue.Contains(carried);
             }
 
-            public bool MountMovementDisplaced(object approach)
+            public bool OwnMoveHeld(object approach) => MountedMovementDisplacementPolicy.OwnMoveHeld(MountSlotFacts(approach));
+
+            // A queued command is not displacement: native Run left the carrier's move in its slot (see the policy).
+            // The conservative queue-aware HasOtherLive stays with cleanup and re-binding, where it protects a successor.
+            public bool MountMovementDisplaced(object approach, bool ownMoveHeldAtAdmission) =>
+                MountedMovementDisplacementPolicy.Displaced(ownMoveHeldAtAdmission, MountSlotFacts(approach));
+
+            private System.Collections.Generic.List<MountedSlotCommandFacts> MountSlotFacts(object approach)
             {
                 var carrier = approach as MountedCarriedApproach;
                 var commands = owner.relationship.Mount?.Commands;
-                if (carrier == null || commands == null) return false;
-                return MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(commands, carrier.DelegatedMove);
+                var facts = new System.Collections.Generic.List<MountedSlotCommandFacts>();
+                if (carrier == null || commands == null) return facts;
+                var own = carrier.DelegatedMove;
+                var raw = commands.Raw;
+                for (var index = 0; index < raw.Length; index++)
+                {
+                    var command = raw[index];
+                    if (command == null) continue;
+                    var unstarted = !command.IsStarted && !command.IsFinished;
+                    facts.Add(new MountedSlotCommandFacts
+                    {
+                        IsCarrierMove = own != null && ReferenceEquals(command, own),
+                        Finished = command.IsFinished,
+                        InMoveSlot = index == (int)UnitCommand.CommandType.Move,
+                        Started = command.IsStarted,
+                        EnoughClose = !unstarted || command.IsUnitEnoughClose
+                    });
+                }
+                return facts;
             }
 
             public void Release(object approach, string reason)
