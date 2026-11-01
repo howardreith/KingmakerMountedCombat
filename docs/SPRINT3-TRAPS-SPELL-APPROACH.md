@@ -1,7 +1,8 @@
 # Sprint 3 — traps and spell target approach while mounted (2026-10-31)
 
-> **Review iteration (2026-11-01):** the section *Review corrections* below holds the current disposition, candidate
-> identity and evidence; the first-iteration record that follows it is kept, with its incorrect claims corrected in place.
+> **Second review (2026-11-01):** the section *Second review* below holds the current disposition, candidate (sprint3m)
+> and evidence. *Review corrections* records the first review iteration (sprint3l); the first-iteration record that
+> follows both is kept, with its incorrect claims corrected in place.
 
 **Disposition (first iteration): SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.**
 SPELL-01 is demonstrated natively in real time and in turn-based combat on the candidate of that iteration. TRAP-01 is
@@ -20,6 +21,131 @@ readers and registries `f12662b6`, `9cc2a463`, `ae72ebdb`, `1af5bb2c`, `63534a24
 `20260816T0115379973604Z-user-attested-quicksave-continuity`, authority `111c794b…`, pin set `6f137d57…`). The production
 carried-approach code is identical from sprint3d on; only `3980e1cf` changed production after that (one admission
 predicate), so sprint3f/3g/3h carry the same product behaviour and sprint3a–3e differ from it only by that predicate.
+
+## Second review: queued-order correction and bounded trap closeout (2026-11-01, PR #8 review of `d5307347`)
+
+**Disposition: SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** The queued-order
+correction is done and passes its focused behaviour tests. TRAP-01 still has no native attempt. The one declared
+Working-fixture door route was measured natively (r19) and stops at a safety precondition: an awake two-unit hostile
+group stands 19.4 m and 23.7 m from the door on its far side, so opening it would expose the opener to combat. A
+compatible external save is now the only remaining input (below).
+
+Candidate sprint3m, product commit `24c92355e6517d475439c530bc1b44602a4beac2`: DLL SHA-256
+`9cef78946dc9cdb68b505f14c28c9a883458e4c836b0cfe1c2dab77c528fe719`, MVID `2f57647e-939b-41ff-a308-0c573c81652b`,
+8,475,136 bytes (deterministic build); package
+`artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint3m-diagnostic.zip` SHA-256
+`c9ff09788f548f7da5e6119454515f5a83d0d07e31cf7b5673355bd7ec0c5dfc`; suite `sprint3m-24c92355-20261101` SHA-256
+`2356f454c3f913cb4a0b6be084c8b89e093ba74517287aa1c6af0c4706b93e56` (same protected-save authority and pin set).
+
+### Queued-order correction
+
+`MountedCarriedRequestHost.MountMovementDisplaced` reused the cleanup predicate `HasOtherLive`, which returns true for
+any queued command. A mount order that native `UnitCommands.Run` merely queued, with the carrier's delegated move
+still in its slot and the rider's command still live, was therefore reported as displacement. A player order then
+released the approach and cancelled the rider's still-valid command.
+
+Installed 2.1.7b semantics (read-only): a fresh `Run` clears the queue. It then either queues the request (only while
+an uninterruptible command runs; the slot's current command is merely marked `InterruptAsSoonAsPossible`) or installs
+it. Installing interrupts the same-type slot together with its Move/Standard pair, and every unstarted command still
+out of range when the new command is itself out of range. `UnitActionController` steers the agent from a running
+`UnitMoveTo` and from every unstarted command that is not close enough (`TickApproaching`).
+
+`MountedMovementDisplacementPolicy` (Domain) now classifies the slots native `Run` left, mapped from
+`UnitCommands.Raw`. The queue is deliberately not an input. Another slot's unfinished command is displacement only
+when it steers the agent itself (unstarted and not close enough). It is also displacement when native `Run` ended the
+carrier's move, held at admission (recorded on the ticket), while installing it, or when it is a new Move-slot command
+while no carrier move is held. A non-player request still gains no authority over the rider's command. Cleanup and
+re-binding keep the conservative queue-aware `HasOtherLive`, because the cleanup sweep itself can activate a queued
+successor.
+
+Focused regressions (`tests/MountedCarriedApproachPolicyTests.cs`) drive the production slot mapping through the slot
+and queue model of the cleanup tests, not a preselected flag:
+
+1. own move held, player successor queued, rider command live: no release, no interrupt, no agent stop, queue kept;
+2. an in-range Swift action and a started Free action beside the held move, and an in-range action between legs:
+   kept;
+3. an installed active replacement: a player move order, and a player out-of-range Standard order that ended the
+   paired Move: exactly one release and one rider cancellation, duplicate completion inert, successor path intact;
+   the same replacement by AI releases the movement only;
+4. the queued order becomes active at the carrier's eventual cleanup: swept, retained, path kept, agent not stopped.
+
+### Trap route: the declared door, measured natively
+
+Retained r15 identity (second settle): `dwarf_dungeon_door_01` at (40, 5.975, 60), closed, revealed,
+closed-clickable, no restriction, no dialog, not combat-gated. At row start it is unrevealed and in fog, and nothing
+retained recorded what lies behind it, so the one permitted experiment was not decidable offline.
+
+Scenario `sprint3-approach-rt-trap` runs only the trap row. Its preflight, when no trap shares the pair's navmesh
+area, may prepare this door once. It requires the exact area and exactly one door at the declared position, an
+ordinary closed door (no restriction, dialog, designer trigger or door trap, a native cut present), an unmounted,
+conscious, out-of-combat party member as opener, no conscious hostile within 20 m of the door or the opener, and a
+walk point beside the door whose native route stays outside every active trap zone. Then one ordinary ground order,
+one ordinary map-object click, the native open, the cut settle, and a re-read of trap reach on the updated graph.
+Exploration legs never click a further door or secret passage. The reader validates every element and refuses a
+second door.
+
+**r19** `20261101-sprint3-r19-trap-rt` (sprint3m, batch `sprint3:review-1`, 107 s): the declared door resolved
+exactly (one match, id `3e8d6924-f364-47cf-ba3f-d59edbf674f6`, restrictions 0, cut present, no dialog or door trap,
+unrevealed). Both trap candidates (Snowball `40781fdf…`, Magic Missile `1f1563b5…`) were unreachable from the mount and
+the opener. The preparation refused before any walk or click: a conscious hostile, `a350a897…`, stood within 20 m.
+From the read-only fixture copy, it and the second member of its group `aaac19a9…` are awake, AI-enabled and
+unrevealed, at (57.8, 52.3) and (63.6, 62.6), 19.4 m and 23.7 m from the door, both on its far (east) side. The route
+therefore exposes required combat and stops here, as the mission directs. Runtime FAIL, Mods restored, Working restored,
+save protection and write allowlist passed, Baseline immutable. No retry: a rerun repeats the same measured fact, and
+the hostile guard is not weakened.
+
+### Validation on the sprint3m bytes
+
+| Check | Result |
+| --- | --- |
+| Candidate tier (build, components, Validate-Source, focused readers, Test-Harness, contracts, Kingmaker assembly) | PASS 8/8, 4.07 min |
+| Component tests | 966 PASS (the four new cases included) |
+| Validate-Source | 149 PASS |
+| Sprint 3 reader regressions | 79 PASS (16 new: trap subset envelope, declared door identity, opener, hostile, restriction, reveal, click path, open, refusal, second door) |
+| Test-Harness, PairedActivationContracts, RuntimeArtifactManifestContract, AssemblyContracts Kingmaker | PASS (30 patch-construction, 11 manifest, 751 assembly) |
+| Native r19 `sprint3-approach-rt-trap` | FAIL at the declared door's hostile precondition (above); restoration complete |
+
+### Evidence by layer
+
+- **Executed on sprint3m:** r19 (door identity, safety refusal, restoration); the offline Candidate tier above.
+- **Executed on sprint3l, retained:** r18, the held-charge ownership neighbor (PASS end to end). The queued-order
+  correction does not change its path: it issues no mount order.
+- **Retained, older bytes:** real-time spell rows up to r16 and the turn-based rows r14, r17 on sprint3k `ad961c3d…`;
+  the aggregate FAIL results and every reader re-evaluation are kept with their original identities.
+- **Offline only:** the queued-order classification (four regressions), the trap-only selection's reader, and the
+  trap-specific outcome and no-reroll logic.
+- **Not executed:** a native mounted trap attempt (no admissible input). No turn-based replay: the correction changes
+  no turn or resource behaviour.
+
+Native attempts in this iteration: one (r19). Earlier failures r01 to r16 are unchanged.
+
+### Remaining input for TRAP-01
+
+What to save in normal play: a new Manual save, out of combat, in which a supported mounted pair (the Working
+fixture's Druid on the Mammoth, or the owner's own pair) stands within roughly 4 to 30 m of an active trap. The trap
+must be reachable on foot with no closed door or monster in the way, and the nearby monsters must be killed first. A
+trap the party has already spotted is ideal. A trap behind a door that opens normally is acceptable if the room
+beyond is cleared.
+
+- **Simplest form:** continue the Working-fixture game `cvb` in normal play, defeat the two monsters beyond the dwarf
+  door at (40, 60) (or reach another trap room), and save beside the trap. The existing trap selection runs on that
+  save unchanged.
+- **Identity:** the new save gets its own pinned immutable identity, a disposable copy and its own fixture
+  registration. It never overwrites the protected Working or Baseline archives.
+- **Dependencies:** Kingmaker 2.1.7b. An owner-campaign save with Call of the Wild units is staged with the retained
+  dependency bytes in base-game mode.
+- **Owner campaign save:** a save from another campaign also needs a narrow input adapter that binds the trap row to
+  that save's pair. It is not built, because there is no admitted input to build it against.
+- **Fixture rank:** the row's existing fixture setup grants the disposable rider Trickery up to the native rank cap,
+  and one Perception rank only when the saved rolls had consumed the pair's ranks. Both are restored at cleanup and
+  recorded. A rider who already has Trickery ranks needs no grant.
+
+### Budget
+
+`sprint3`: ONE explicit +15 min adjustment recorded on the same record (90 → 105, `allowanceAdjustments`, 56 entries at
+adjustment, 80.45 min spent then including the 3.55 min reconciliation). This iteration: reader run 4 s, Candidate tier
+244 s, package and suite 121 s, WhatIf 22 s, r19 107 s. Total 88.75 of 105 min, 16.25 remaining. No reset, rename,
+transfer or further increase.
 
 ## Review corrections (2026-11-01, PR #8 review of `aa8702b9`)
 
@@ -265,6 +391,7 @@ afterwards). Engine Areas unpack residue from r01 is retained under
 | r16 | 3k `ad961c3d…` | rt | 4/5 | The secret passage is revealed and perception-passed but its native interaction refuses: `CanInteract()` false, skill `Unknown`, DC 0 (designer-scripted, not player-openable from this side); no ordinary input reaches the trap rooms |
 | r17 | 3k | tb | 2/2, reader PASS | Both turn-based rows PASS end to end on the final candidate: friendly recipient at 9.0 m with 7.7 m of carried travel; insufficient row at 26.9 m against the 24.4 m allowance, native approach-end rule, charge held across the turn, delivered on the next rider turn; exact restoration |
 | r18 | 3l `8abeffb9…` | rt-neighbor | 1/1, reader PASS | Review iteration, batch `sprint3:review-1`: the held-charge ownership neighbor on the corrected bytes; Stop release and carried re-delivery with own move restored, no successor, no yield; exact restoration |
+| r19 | 3m `9cef7894…` | rt-trap | refused at the door precondition | Second review, batch `sprint3:review-1`: trap row only; the declared door resolved exactly but an awake two-unit hostile group stands 19.4 and 23.7 m beyond it, so the preparation refused before any walk or click; restoration complete |
 
 ## Outcomes
 
@@ -295,7 +422,8 @@ the Trickery consequence. A fixture with a discovered, reachable trap is the req
 
 ## Budget, launches, state
 
-Budget record `runtime-state\workflow-budgets\sprint3.json`: 65.77 of 90 min across 48 entries: fifteen
+Current totals are in the *Second review* section (88.75 of 105 min after the one +15 adjustment). The first iteration
+closed at 65.77 of 90 min across 48 entries: fifteen
 native launches (r01, r02, r06 to r17; r03 to r05 and r15's first request were refused by the batch rule and not
 charged), their WhatIf qualifications, and imported `kind=other` entries for the candidate packages, suite freezes and
 reader reruns. Batches: `sprint3:approach-1` (r01, r02), `-2` (r06, r07), `-3` (r08, r09), `-4` (r10 to r14), `-5`
