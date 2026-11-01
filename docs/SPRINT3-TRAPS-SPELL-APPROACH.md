@@ -1,7 +1,7 @@
 # Sprint 3 — traps and spell target approach while mounted (2026-10-31)
 
-> **Second review (2026-11-01):** the section *Second review* below holds the current disposition, candidate (sprint3m)
-> and evidence. *Review corrections* records the first review iteration (sprint3l); the first-iteration record that
+> **Finishing mission (2026-11-01):** the section *Finishing mission* below holds the current disposition, candidate
+> (sprint3q) and evidence. *Second review* (sprint3m) holds the accepted queued-order correction. *Review corrections* records the first review iteration (sprint3l); the first-iteration record that
 > follows both is kept, with its incorrect claims corrected in place.
 
 **Disposition (first iteration): SPRINT 3 ENGINEERING PARTIAL — READY FOR REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.**
@@ -21,6 +21,114 @@ readers and registries `f12662b6`, `9cc2a463`, `ae72ebdb`, `1af5bb2c`, `63534a24
 `20260816T0115379973604Z-user-attested-quicksave-continuity`, authority `111c794b…`, pin set `6f137d57…`). The production
 carried-approach code is identical from sprint3d on; only `3980e1cf` changed production after that (one admission
 predicate), so sprint3f/3g/3h carry the same product behaviour and sprint3a–3e differ from it only by that predicate.
+
+## Finishing mission: declared trap-room setup and the native trap outcome (2026-11-01, PR #8 review of `a8ca1603`)
+
+**Disposition: SPRINT 3 ENGINEERING PARTIAL — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** The owner's
+mission allowed the two hostiles beyond the declared dwarf door to be cleared as fixture setup on the disposable copy.
+That setup now works natively (r24): both units died through the engine's own life rules, no combat started, and the
+door opened through one ordinary click on a settled navmesh. **But no active trap joins the mounted pair's navmesh area
+behind that door.** The declared route is therefore exhausted without a trap click, and TRAP-01 still has no native
+attempt. No product code changed in this iteration; the queued-order correction stays accepted at source level.
+
+### Identities
+
+| Item | Identity |
+| --- | --- |
+| Head before docs | `de5abf08` (diagnostic and reader commits `f85e8327`, `54123d23`, `29012367`, `de5abf08` on `a8ca1603`) |
+| Product source | unchanged since `24c92355` (sprint3m); only `Diagnostics/Sprint3ApproachScenario.cs` and the external reader changed |
+| Final candidate | sprint3q (`de5abf08`): DLL `fac005d62bfe204cc37a0fb8697ad95b77a2387e2db5acb2843b895c8cbaccd5`, MVID `6660af4a-cad8-40a4-b0e2-436ba0983f90`, 8,483,328 bytes |
+| Package / suite | `6958aa3cacfc86b8fd5f3202b8dddcd43daecec43d87fbfdc6976ea3adde48fa`; `sprint3q-de5abf08-20261101` (`8fa2910dfbc20603746282b0530e991704e58d103c4284938de5c327762d62fc`) |
+| Intermediate candidates | sprint3n `f85e8327` (DLL `a167f856…`, suite `739a165d…`), sprint3o `54123d23` (DLL `ca8056fa…`, suite `08d4015a…`), sprint3p `29012367` (DLL `5e989b4c…`, suite `3c93c1bd…`) |
+
+Each candidate ran the Candidate tier once (PASS 8/8, about 3.5 to 3.8 min each; reader checks 88, 89, 93, 94). The
+same protected-save authority as sprint3m was used.
+
+### Declared fixture preparation (setup only, never evidence of combat)
+
+- **Entities:** door `dwarf_dungeon_door_01` `3e8d6924-f364-47cf-ba3f-d59edbf674f6` at (40, 5.975, 60). Native group
+  `aaac19a9-5e3b-4adc-b506-b0cdaa3492c7`, with exactly two members:
+  - `a350a897-1800-4bc6-855f-f8c157c51340` at (57.8, 52.3), blueprint `b286c0e4…`, 8 HP;
+  - `90fdc0ef-f893-43de-bf8c-f52b3854a9c6` at (63.6, 62.6), blueprint `67041044…`, 4 HP.
+
+  The mission's "aaac19a9…" is this group's id; the second unit was resolved from the read-only r19 Working backup.
+- **Method:** under `sprint3-approach-rt-trap` only. The identity, group size, position (2 m), out-of-combat and
+  no-regeneration checks are made first; any undeclared hostile near the door or opener still refuses. Then, per unit:
+  1. one self-initiated native `RuleDealDamage`, so no party actor, command or resource takes part;
+  2. one engine `UnitEntityData.Wake(2 s)`;
+  3. a bounded wait (60 stable frames) for native death and no combat.
+
+  The unchanged 20 m guard is re-read before the walk and again at the door click.
+- **Native contracts measured on the way:**
+  - **r20 (sprint3n):** `RuleDealDamage` scales every enemy-initiated damage, self-inflicted included, by
+    `Difficulty.DamageToParty` (0.2 here; 11 requested, 2 dealt). The request is now sized through that factor, the
+    reviewed Chunk 6A pattern.
+  - **r21 (sprint3o):** the damage reached the threshold (12/11, 16/15), but both units stayed Conscious for 900 frames.
+    `BaseUnitController` ticks only `State.AwakeUnits`.
+  - **r23 (sprint3p):** `SleepingUnitsController` keeps a fogged, idle, out-of-combat unit asleep unless its
+    `AwakeTimer` runs. The closed door kept both in fog with the opener beside it, so the click guard refused.
+  - **r24 (sprint3q):** after `Wake`, both units turned Dead on the native tick within 60 frames; the party gained the
+    native 100 XP each; nobody entered combat.
+- **Changed state, disposable copy only:** two enemy deaths, party XP 35,065 → 35,165 (Druid and opener; the mammoth
+  pet unchanged), and the opened door. Nothing was saved; the Working fixture was restored byte-exact afterwards.
+
+### r24 outcome (`20261101-sprint3-r24-trap-rt`, sprint3q, batch `sprint3:final-2`)
+
+- **Door:** the opener walked an ordinary trap-clear route of 52.5 m, through
+  `ClickGroundHandler.MoveSelectedUnitsToPoint`, to 2.5 m from the door. The guard was empty and both declared units
+  were dead at the click. One `ClickMapObjectHandler.OnClick` opened the door natively, and the cut settled in 4 frames.
+- **Trap selection on the settled graph:** none of the four active traps is reachable from the mount (A* area 10;
+  nearest trap point area 12):
+  - Snowball `40781fdf…` (28, 70), DC 14;
+  - Snowball `ad092d95…` (36, −24);
+  - Magic Missile `1f1563b5…` (60, 18);
+  - Magic Missile `e942951f…` (79, 36).
+
+  The opener beside the opened door reaches neither recorded candidate. The row stopped as designed: "The declared door
+  opened but no active disarmable trap joined the mounted pair's navmesh area; the route stops here."
+- **Stopped there:** a further door, a search or teleporting is outside the mission. No trap click, skill check or
+  disarm outcome exists.
+
+### Native attempts this iteration
+
+| Run | Candidate | Outcome |
+| --- | --- | --- |
+| r20 | sprint3n | FAIL: setup refused before a second dispatch (difficulty scale) |
+| r21 | sprint3o | FAIL: setup did not settle (sleeping units) |
+| r22 | sprint3p | refused by the batch guard before launch (two failures of the selection in `sprint3:final-1`); no lock, transaction or game process |
+| r23 | sprint3p | FAIL: units alive at the door click (still asleep in fog); `sprint3:final-2` |
+| r24 | sprint3q | FAIL: setup and door succeeded; no reachable trap |
+
+Every run restored Mods and the Working fixture (restored inventory `60e3d6cc…`), and save protection passed. Each
+failure is retained with its own candidate.
+
+### Evidence layers
+
+| Layer | Items |
+| --- | --- |
+| Executed on sprint3q | r24 (setup, door, settled-graph trap selection); Candidate tier 8/8 |
+| Executed on sprint3n/o/p | r20, r21, r23 (retained failures with their measured causes); Candidate tier 8/8 each |
+| Retained | queued-order correction and its four regressions on sprint3m; r18 on sprint3l; spell rows up to r16 and r14/r17 on sprint3k; r19 on sprint3m |
+| Offline only | trap outcome, no-reroll and setup-reader logic (94 reader checks) |
+| Not executed | the ordinary mounted trap click, the rider's Trickery check and its consequence (TRAP-01 acceptance) |
+
+### Budget
+
+`sprint3`: ONE +30 adjustment recorded on the same record (105 → 135; 88.75 min spent at the adjustment; second
+`allowanceAdjustments` entry, the +15 kept). Spent 118.27 of 135 min across 83 entries; 16.73 min unused. No reset, no
+new budget id.
+
+### Minimum remaining input
+
+There is still no trap the Working fixture's mounted pair can walk to through the declared door. The mission's routes
+are spent: no second door, no roaming and no teleport. TRAP-01 needs one of these:
+- **(a)** a save, made in normal play, with a supported mounted pair out of combat about 4 to 30 m from an active trap
+  in the same walkable area;
+- **(b)** an owner decision naming a further door or route in this fixture (the inventory lists the open door at
+  (8, 52) beside the pair and the trap areas 12, 13 and 7).
+
+With (a), `sprint3-approach-rt-trap` runs unchanged after the usual fixture registration; the new save gets its own
+pinned identity and disposable copy.
 
 ## Second review: queued-order correction and bounded trap closeout (2026-11-01, PR #8 review of `d5307347`)
 
