@@ -27,6 +27,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsSprint4NaturalScenario(string scenario) => scenario == "sprint4-natural-rt" || scenario == "sprint4-natural-tb";
         private bool IsSprint4Natural => IsSprint4NaturalScenario(request.Scenario);
         internal const int Sprint4SchemaVersion = 48;
+        // Inside the host deadline, so a stalled row still writes its evidence.
+        internal const double Sprint4ScenarioDeadlineSeconds = 420.0d, Sprint4HostDeadlineSeconds = 460.0d;
         internal static readonly string[] Sprint4RealTimeCases = { "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase" };
         internal static readonly string[] Sprint4TurnBasedCases = { "S4-tb-ordinary-actors" };
         private string[] Sprint4Cases => CastingTb ? Sprint4TurnBasedCases : Sprint4RealTimeCases;
@@ -231,11 +233,22 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // Setup only: the target is left one hit point, so the first native hit is the kill. Nothing here decides a hit.
+        // The stock Mammoth carries the dying condition (r02: a hit at one point left it unconscious), so the disposable
+        // target gets the native rule of a monster without it: UnitLifeController kills at zero hit points.
         private void Sprint4LeaveOneHitPoint(UnitEntityData unit)
         {
+            unit.Descriptor.State.AllowDyingCondition.ReleaseAll();
             unit.Damage = Math.Max(0, unit.MaxHP - 1);
             if (unit.HPLeft != 1 || !unit.Descriptor.State.IsConscious)
                 throw new InvalidOperationException("The low target did not settle at one hit point.");
+        }
+
+        private bool Sprint4FirstTargetDied()
+        {
+            var state = s4First.Descriptor.State;
+            if (state.IsDead) return true;
+            if (!state.IsConscious) throw new InvalidOperationException("The low target fell unconscious instead of dying natively.");
+            return false;
         }
 
         private bool Sprint4DestroyTargets()
@@ -396,7 +409,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (s4Step == 2)
             {
-                if (!s4First.Descriptor.State.IsDead) return;
+                if (!Sprint4FirstTargetDied()) return;
                 Sprint4Step("firstTargetDead"); s4Facts["killedAtFrame"] = Time.frameCount;
                 s4Baseline = combat.AutomaticDispatchCount; s4Step = 3; ResetLeafClock(); return;
             }
@@ -566,7 +579,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (s4Step == 2)
             {
-                if (!s4First.Descriptor.State.IsDead) return;
+                if (!Sprint4FirstTargetDied()) return;
                 Sprint4Step("firstTargetDead"); s4Facts["firstTarget"] = s4First.UniqueId; s4Facts["secondTarget"] = s4Second.UniqueId;
                 s4Step = 3; ResetLeafClock(); return;
             }

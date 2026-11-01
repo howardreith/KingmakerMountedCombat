@@ -462,7 +462,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // nothing recording why, so the outcome is now observed rather than assumed.
                 var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
-                var scenarioBudget = IsSprint4Natural ? 480.0d : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                var scenarioBudget = IsSprint4Natural ? Sprint4ScenarioDeadlineSeconds : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
                     FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");
