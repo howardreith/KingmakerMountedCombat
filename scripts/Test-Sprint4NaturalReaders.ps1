@@ -35,7 +35,7 @@ function New-S4RangedRow{
 }
 function New-S4MeleeRow{
  $rules=@((New-S4Attack $rider $low 100 1),(New-S4Damage $low 101),(New-S4Attack $rider $next 200 2),(New-S4Attack $mount $next 260 3))
- New-S4Row 'S4-melee-retarget' (New-S4State) (New-S4State @{nativeRequests=6;admitted=3;automaticDispatches=2}) (New-S4RetargetSteps) @([pscustomobject]@{kind='hostile-click';name='first';target=$low;clicked=$true;inputPath='ClickUnitHandler.OnClick'}) $rules @((New-S4Command $rider $next 195 'RiderMelee' 1 $false),(New-S4Command $mount $next 255 'MountPrimaryNatural' 1 $false)) @{firstTarget=$low;secondTarget=$next;riderWeapon=[pscustomobject]@{ranged=$false}}
+ New-S4Row 'S4-melee-retarget' (New-S4State) (New-S4State @{nativeRequests=6;admitted=3;automaticDispatches=2}) (New-S4RetargetSteps) @([pscustomobject]@{kind='hostile-click';name='first';target=$low;clicked=$true;inputPath='ClickUnitHandler.OnClick'}) $rules @((New-S4Command $rider $next 195 'RiderMelee' 1 $false),(New-S4Command $mount $next 255 'MountPrimaryNatural' 1 $false)) @{firstTarget=$low;secondTarget=$next;riderWeapon=[pscustomobject]@{ranged=$false};nativePlan=[pscustomobject]@{count=1}}
 }
 function New-S4ControlsRow{
  $steps=[pscustomobject]@{
@@ -46,7 +46,9 @@ function New-S4ControlsRow{
   paused=[pscustomobject]@{pausedObserved=$true;proposalsDuring=0;dispatchesDuring=0}
   beforeCast=[pscustomobject]@{state=(New-S4State @{intentAutomatic=$true;hasIntent=$true});recipientDamage=3}
   castDone=[pscustomobject]@{state=(New-S4State @{lastRetirement='newer player operation'});recipientDamage=0;dispatchesDuringCast=0}
-  resumedAfterCast=[pscustomobject]@{state=(New-S4State @{intentAutomatic=$true})}}
+  resumedAfterCast=[pscustomobject]@{state=(New-S4State @{intentAutomatic=$true})}
+  heldInBowReach=[pscustomobject]@{dispatchesDuring=1;holdKept=$true;mountDisplacement=0;state=(New-S4State @{intentAutomatic=$true})}
+  aiOffRetired=[pscustomobject]@{retiredDuring=1;dispatchesDuring=0;state=(New-S4State @{lastRetirement='ai off'})}}
  New-S4Row 'S4-controls' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='stop'},[pscustomobject]@{kind='stop'},[pscustomobject]@{kind='cast'},[pscustomobject]@{kind='hostile-click';target=$third;clicked=$true}) @() @() @{carriedSeen=$true}
 }
 function New-S4HoldRow{
@@ -121,10 +123,16 @@ $r=Copy-S4 $rt;$r.rows[2].evidence.steps.castDone.dispatchesDuringCast=1;Reject 
 $r=Copy-S4 $rt;$r.rows[2].evidence.carriedSeen=$false;Reject $r 'sprint4-natural-rt' 'a cast not carried by the mount refused'
 $r=Copy-S4 $rt;$r.rows[2].evidence.steps.castDone.recipientDamage=3;Reject $r 'sprint4-natural-rt' 'a cast without native effect refused'
 $r=Copy-S4 $rt;$r.rows[2].evidence.steps.PSObject.Properties.Remove('resumedAfterCast');Reject $r 'sprint4-natural-rt' 'no resumption after the cast refused'
+$r=Copy-S4 $rt;$r.rows[2].evidence.steps.heldInBowReach.dispatchesDuring=0;Reject $r 'sprint4-natural-rt' 'a Hold row that never dispatched refused'
+$r=Copy-S4 $rt;$r.rows[2].evidence.steps.heldInBowReach.holdKept=$false;Reject $r 'sprint4-natural-rt' 'a dispatch clearing native Hold refused'
+$r=Copy-S4 $rt;$r.rows[2].evidence.steps.aiOffRetired.retiredDuring=0;Reject $r 'sprint4-natural-rt' 'AI off leaving the automatic intent live refused'
+$r=Copy-S4 $rt;$r.rows[2].evidence.steps.aiOffRetired.state.controller.lastRetirement='stop';Reject $r 'sprint4-natural-rt' 'an AI-off row ended by another cause refused'
+$r=Copy-S4 $rt;$r.rows[3].evidence.pairCommands[0].plannedAttacks=5;Reject $r 'sprint4-natural-rt' 'a melee routine above the native plan refused'
+$r=Copy-S4 $rt;$r.rows[1].evidence.pairCommands[1].frame=200;$r.rows[1].evidence.pairCommands[1]|Add-Member endFrame 230;Reject $r 'sprint4-natural-rt' 'overlapping routines on one actor refused'
 # Hold
 $r=Copy-S4 $rt;$r.rows[4].evidence.steps.heldAfterMove.mountDisplacement=3;Reject $r 'sprint4-natural-rt' 'a chase after a player move refused'
 $r=Copy-S4 $rt;$r.rows[4].evidence.steps.heldAfterMove.dispatchesDuring=1;Reject $r 'sprint4-natural-rt' 'a dispatch out of reach under the move hold refused'
-$r=Copy-S4 $rt;$r.rows[4].evidence.steps.heldInReach.holdKept=$false;Reject $r 'sprint4-natural-rt' 'an automatic dispatch clearing native Hold refused'
+$r=Copy-S4 $rt;$r.rows[4].evidence.steps.heldInReach.holdKept=$false;Reject $r 'sprint4-natural-rt' 'an automatic path clearing native Hold on the melee row refused'
 $r=Copy-S4 $rt;$r.rows[4].evidence.steps.heldInReach.mountDisplacement=2;Reject $r 'sprint4-natural-rt' 'movement under native Hold refused'
 # Turn-based neighbor
 $r=Copy-S4 $tb;$r.rows[0].evidence.after.controller.admitted=3;Reject $r 'sprint4-natural-tb' 'an automatic admission in turn-based combat refused'

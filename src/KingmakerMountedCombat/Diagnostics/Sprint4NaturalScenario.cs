@@ -501,9 +501,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 s4Baseline = combat.AutomaticDispatchCount; s4Step = 11; ResetLeafClock(); return;
             }
             // Nothing is holding the pair back now, so the brain's next proposal resumes the automatic path.
-            if (combat.AutomaticDispatchCount == s4Baseline) return;
-            Sprint4Step("resumedAfterCast");
-            FinishSprint4Row(true, "Stop, re-enable, manual replacement, pause and cast observations recorded.");
+            if (s4Step == 11)
+            {
+                if (combat.AutomaticDispatchCount == s4Baseline) return;
+                Sprint4Step("resumedAfterCast");
+                // The bow is in reach, so a native Hold leaves the brain proposing: a stationary dispatch that keeps Hold.
+                Sprint4Input("hold", "hold-in-bow-reach", () => SelectionManager.Instance.Hold());
+                s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount; s4Step = 12; ResetLeafClock(); return;
+            }
+            if (s4Step == 12)
+            {
+                if (combat.AutomaticDispatchCount == s4Baseline || !combat.StockIntentIsAutomatic) return;
+                var record = Sprint4Step("heldInBowReach");
+                record["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; record["holdKept"] = rider.HoldState;
+                record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+                // AI off with the automatic intent live: the intent ends without any other order.
+                s4ProposalBaseline = combat.AutomaticRetiredCount;
+                Sprint4SetAi(false, "live-automatic-intent"); s4Baseline = combat.AutomaticDispatchCount;
+                s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 13; ResetLeafClock(); return;
+            }
+            if (Time.time < s4WaitUntil) return;
+            var off = Sprint4Step("aiOffRetired");
+            off["retiredDuring"] = combat.AutomaticRetiredCount - s4ProposalBaseline; off["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline;
+            Sprint4SetAi(true, "after-ai-off");
+            FinishSprint4Row(true, "Stop, re-enable, manual replacement, pause, cast, Hold and AI-off observations recorded.");
         }
 
         // ---- AI-01: melee, with the mount's own participation --------------------------------------------------------
@@ -535,6 +556,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return;
                 if (rider.CombatState.Cooldown.StandardAction > .001f || !rider.Commands.Empty || !horse.Commands.Empty) return;
+                var plan = new UnitAttack(s4Second); plan.Init(rider);
+                s4Facts["nativePlan"] = new JObject { ["count"] = plan.CreateFullAttack().Count };
                 Sprint4SetAi(true, "before-first-click");
                 if (!Sprint4Click(s4First, "first-target")) { FailSprint4Row("The ordinary hostile click was refused."); return; }
                 Sprint4Step("afterFirstClick"); s4Step = 2; ResetLeafClock(); return;
@@ -595,6 +618,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var held = Sprint4Step("heldInReach");
             held["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
             held["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; held["holdKept"] = rider.HoldState;
+            held["manualTarget"] = rider.CombatState.ManualTarget?.UniqueId;
             FinishSprint4Row(true, "Hold and no-chase observations recorded.");
         }
 

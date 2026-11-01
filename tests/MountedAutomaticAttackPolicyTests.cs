@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("hold allows only a target already in the rider's reach", HoldIsReachOnly);
             runner.Run("a queued future order refuses a proposal even when no slot is occupied", QueuedOrderCounts);
             runner.Run("the pair's own command, AI commands and reactions are not player operations", OwnedCommandsAreNotOperations);
+            runner.Run("a swift or free command beside the routine does not displace it", CoexistingCommandsAreNotOperations);
             runner.Run("a live player cast retires a repeating intent of either origin in real time", NewerOperationRetires);
             runner.Run("automatic boundaries never retire a click-owned intent", ClickOwnedIntentKeepsItsBoundaries);
             runner.Run("stop holds proposals until a new order, not on the next tick", StopHoldsUntilOrder);
@@ -162,6 +163,12 @@ namespace KingmakerMountedCombat.Tests
                 "A pair command, brain command or finished slot was read as a newer order.");
             TestRunner.True(MountedAutomaticAttackPolicy.HasPlayerOperation(new[] { OwnPairCommand(), PlayerCast() }, 0),
                 "A live player command beside the pair's own was missed.");
+        }
+
+        private static void CoexistingCommandsAreNotOperations()
+        {
+            TestRunner.True(!MountedAutomaticAttackPolicy.HasPlayerOperation(new[] { OwnPairCommand(), new MountedAutomaticSlotFacts { CoexistsWithAttack = true } }, 0),
+                "A swift self-buff or blade activation would have interrupted the rider's running routine.");
         }
 
         private static string Retire(bool automatic, bool ai = true, bool brain = true, bool control = true, bool stopped = false,

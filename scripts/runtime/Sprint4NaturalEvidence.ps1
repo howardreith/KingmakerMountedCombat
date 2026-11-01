@@ -49,6 +49,11 @@ function Assert-KmcSprint4Retarget($Row,[string]$Rider,[string]$Mount){
  $controller=$Row.evidence.after.controller
  if(([long]$controller.admitted-[long]$Row.evidence.before.controller.admitted) -lt 1){ throw 'Sprint 4 no native proposal was admitted' }
  if(($Row.evidence.costEvents | Measure-Object).Count -eq 0){ throw 'Sprint 4 retarget row records no native expenditure' }
+ # Routines on one actor never overlap: a new target buys no second routine inside the first.
+ foreach($actor in @($Rider,$Mount)){
+  $own=@($next | Where-Object { [string]$_.actor -ceq $actor } | Sort-Object { [int]$_.frame })
+  for($index=1;$index -lt $own.Count;$index++){ if(-not (Test-KmcSprint4Prop $own[$index-1] 'endFrame') -or [int]$own[$index].frame -lt [int]$own[$index-1].endFrame){ throw 'Sprint 4 automatic routines overlap on one actor' } }
+ }
  $next
 }
 function Assert-KmcSprint4RangedRow($Row,[string]$Rider,[string]$Mount){
@@ -69,8 +74,13 @@ function Assert-KmcSprint4RangedRow($Row,[string]$Rider,[string]$Mount){
  if(@($riders | Where-Object { Test-KmcSprint4Prop $_ 'endFrame' }).Count -lt 1){ throw 'Sprint 4 no automatic routine reached its terminal' }
 }
 function Assert-KmcSprint4MeleeRow($Row,[string]$Rider,[string]$Mount){
- $null=Assert-KmcSprint4Retarget $Row $Rider $Mount; $second=[string]$Row.evidence.secondTarget
+ $next=@(Assert-KmcSprint4Retarget $Row $Rider $Mount); $second=[string]$Row.evidence.secondTarget
  if($Row.evidence.riderWeapon.ranged -ne $false){ throw 'Sprint 4 melee row did not run with a melee weapon' }
+ foreach($command in @($next | Where-Object { [string]$_.actor -ceq $Rider -and (Test-KmcSprint4Prop $_ 'endFrame') })){
+  if([int]$command.plannedAttacks -gt [int]$Row.evidence.nativePlan.count){ throw 'Sprint 4 melee routine exceeds the native full-attack plan' }
+  $strikes=@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $second -and [int]$_.frame -ge [int]$command.frame -and [int]$_.frame -le [int]$command.endFrame })
+  if($strikes.Count -gt [int]$command.plannedAttacks){ throw 'Sprint 4 melee routine struck more than its plan' }
+ }
  if(@(Get-KmcSprint4Attacks $Row $Mount $second).Count -lt 1){ throw 'Sprint 4 mount lost its legitimate attack on the next target' }
 }
 function Assert-KmcSprint4ControlsRow($Row,[string]$Rider,[string]$Mount){
@@ -92,6 +102,10 @@ function Assert-KmcSprint4ControlsRow($Row,[string]$Rider,[string]$Mount){
  if([long]$done.dispatchesDuringCast -ne 0 -or [string]$done.state.controller.lastRetirement -cne 'newer player operation'){ throw 'Sprint 4 automatic attacks did not yield to the cast' }
  if([int]$done.recipientDamage -ge [int]$before.recipientDamage){ throw 'Sprint 4 cast never took native effect' }
  $null=Get-KmcSprint4Step $Row 'resumedAfterCast'
+ $bow=Get-KmcSprint4Step $Row 'heldInBowReach'
+ if([long]$bow.dispatchesDuring -lt 1 -or $bow.holdKept -ne $true -or [double]$bow.mountDisplacement -gt 0.5){ throw 'Sprint 4 automatic dispatch under native Hold moved the pair or cleared Hold' }
+ $off=Get-KmcSprint4Step $Row 'aiOffRetired'
+ if([long]$off.retiredDuring -lt 1 -or [long]$off.dispatchesDuring -ne 0 -or [string]$off.state.controller.lastRetirement -cne 'ai off' -or $off.state.controller.hasIntent -ne $false){ throw 'Sprint 4 AI off did not end the live automatic intent' }
  if(@(Get-KmcSprint4Inputs $Row 'stop').Count -ne 2 -or @(Get-KmcSprint4Inputs $Row 'cast').Count -ne 1 -or @(Get-KmcSprint4Inputs $Row 'hostile-click').Count -ne 1){ throw 'Sprint 4 controls row input count differs' }
  Assert-KmcSprint4Delta $Row 'duplicateDispatches' 0
 }
@@ -100,6 +114,7 @@ function Assert-KmcSprint4HoldRow($Row,[string]$Rider,[string]$Mount){
  if([double]$arrived.distanceToTarget -lt 6){ throw 'Sprint 4 hold fixture left the target in reach' }
  if([double]$held.mountDisplacement -gt 0.5 -or [long]$held.dispatchesDuring -ne 0){ throw 'Sprint 4 automatic attacks chased after a completed player move' }
  if([long]$held.refusedDuring -lt 1 -or [string]$held.state.controller.lastRefusal -cnotlike 'hold-out-of-reach*'){ throw 'Sprint 4 no-chase period was not the live brain being refused' }
+ if($held.state.controller.intentAutomatic -eq $true){ throw 'Sprint 4 automatic intent stayed live beyond a player move hold' }
  $null=Get-KmcSprint4Step $Row 'attackAfterMove'
  $hold=Get-KmcSprint4Step $Row 'afterHold'; $reach=Get-KmcSprint4Step $Row 'heldInReach'
  if($hold.state.riderHold -ne $true -or $reach.holdKept -ne $true){ throw 'Sprint 4 automatic path cleared a native Hold' }
