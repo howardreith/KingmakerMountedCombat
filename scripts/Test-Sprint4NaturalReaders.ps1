@@ -9,8 +9,9 @@ $rider='rider-1';$mount='mount-1';$low='low-1';$next='next-1';$third='third-1'
 $bow='bow-guid'
 function New-S4Controller($over){$c=[ordered]@{hasIntent=$false;intentAutomatic=$false;stopSuppressed=$false;nativeRequests=5;intentStarts=1;riderDispatches=1;mountDispatches=0;duplicateDispatches=0;proposals=10;admitted=2;continued=1;refused=3;automaticDispatches=0;retired=0;lastRefusal='none';lastRetirement='none';lastObservation='x'};foreach($k in $over.Keys){$c[$k]=$over[$k]};[pscustomobject]$c}
 function New-S4State($over=@{},$targets=@()){[pscustomobject]@{controller=(New-S4Controller $over);riderAiEnabled=$true;riderHold=$false;targets=$targets}}
-function New-S4Attack([string]$actor,[string]$target,[int]$frame,[int]$identity){[pscustomobject]@{kind='attack-before';actor=$actor;target=$target;frame=$frame;identity=$identity}}
-function New-S4Damage([string]$target,[int]$frame){[pscustomobject]@{kind='damage';actor=$rider;target=$target;frame=$frame;identity=$frame+7000}}
+function New-S4Attack([string]$actor,[string]$target,[int]$frame,[int]$identity){[pscustomobject]@{kind='attack-before';actor=$actor;target=$target;frame=$frame;identity=$identity;targetDamage=0}}
+function New-S4Hit([string]$target,[int]$frame){[pscustomobject]@{kind='attack-roll';actor=$rider;target=$target;frame=$frame;identity=$frame+7000;result='Hit'}}
+function New-S4Resolved([string]$target,[int]$frame){[pscustomobject]@{kind='weapon-resolved';actor=$rider;target=$target;frame=$frame;identity=$frame+8000;targetDamage=3}}
 function New-S4Command([string]$actor,[string]$target,[int]$frame,[string]$action='RiderRanged',[int]$planned=3,[bool]$full=$true){[pscustomobject]@{actor=$actor;target=$target;frame=$frame;endFrame=$frame+30;action=$action;automaticIntent=$true;createdByPlayer=$false;aiAction=$false;riderStandardCooldown=0;mountStandardCooldown=0;plannedAttacks=$planned;fullAttack=$full}}
 function New-S4Row([string]$name,$before,$after,$steps,$inputs,$rules,$commands,$extra=@{}){
  $evidence=[ordered]@{case=$name;before=$before;after=$after;steps=$steps;inputs=$inputs;rules=[pscustomobject]@{events=$rules;dropped=0};pairCommands=$commands;costEvents=@([pscustomobject]@{kind='cost'})}
@@ -26,15 +27,15 @@ function New-S4UiRow{
   surface=[pscustomobject]@{rider=$riderSurface;mount=$mountSurface;blueprintsResolve=[pscustomobject]@{riderPrimary=$true;mountPrimary=$true};slotsClearedBefore=0;autoUseClearedBefore=0;unrelatedSlotsBefore=$slots;staleIndex=7;staleSlotsAtInjection=$stale}
   reconciled=[pscustomobject]@{rider=$riderSurface;mount=$mountSurface;slotsCleared=1;autoUseCleared=1;staleIndex=7;staleInjected=$true}}) @() @() @()
 }
-function New-S4RetargetSteps{[pscustomobject]@{firstTargetDead=[pscustomobject]@{state=(New-S4State @{} @([pscustomobject]@{id=$low;dead=$true},[pscustomobject]@{id=$next;dead=$false}))}}}
+function New-S4RetargetSteps{[pscustomobject]@{firstTargetDead=[pscustomobject]@{frame=150;state=(New-S4State @{} @([pscustomobject]@{id=$low;dead=$true},[pscustomobject]@{id=$next;dead=$false}))}}}
 function New-S4RangedRow{
- $rules=@((New-S4Attack $rider $low 100 1),(New-S4Damage $low 101),(New-S4Attack $rider $next 200 2),(New-S4Attack $rider $next 205 3),(New-S4Attack $rider $next 210 4),(New-S4Attack $rider $next 400 5),(New-S4Attack $rider $next 405 6),(New-S4Attack $rider $next 410 7))
+ $rules=@((New-S4Attack $rider $low 100 1),(New-S4Hit $low 100),(New-S4Resolved $low 101),(New-S4Attack $rider $next 200 2),(New-S4Attack $rider $next 205 3),(New-S4Attack $rider $next 210 4),(New-S4Attack $rider $next 400 5),(New-S4Attack $rider $next 405 6),(New-S4Attack $rider $next 410 7))
  $commands=@((New-S4Command $rider $next 195),(New-S4Command $rider $next 395))
  $commands[1].PSObject.Properties.Remove('endFrame')
  New-S4Row 'S4-ranged-retarget' (New-S4State) (New-S4State @{nativeRequests=6;admitted=3;automaticDispatches=2}) (New-S4RetargetSteps) @([pscustomobject]@{kind='hostile-click';name='first';target=$low;clicked=$true;inputPath='ClickUnitHandler.OnClick'}) $rules $commands @{firstTarget=$low;secondTarget=$next;mountDisplacement=0.1;nativePlan=[pscustomobject]@{count=3;ranged=3;enoughClose=$true}}
 }
 function New-S4MeleeRow{
- $rules=@((New-S4Attack $rider $low 100 1),(New-S4Damage $low 101),(New-S4Attack $rider $next 200 2),(New-S4Attack $mount $next 260 3))
+ $rules=@((New-S4Attack $rider $low 100 1),(New-S4Hit $low 100),(New-S4Resolved $low 101),(New-S4Attack $rider $next 200 2),(New-S4Attack $mount $next 260 3))
  New-S4Row 'S4-melee-retarget' (New-S4State) (New-S4State @{nativeRequests=6;admitted=3;automaticDispatches=2}) (New-S4RetargetSteps) @([pscustomobject]@{kind='hostile-click';name='first';target=$low;clicked=$true;inputPath='ClickUnitHandler.OnClick'}) $rules @((New-S4Command $rider $next 195 'RiderMelee' 1 $false),(New-S4Command $mount $next 255 'MountPrimaryNatural' 1 $false)) @{firstTarget=$low;secondTarget=$next;riderWeapon=[pscustomobject]@{ranged=$false};nativePlan=[pscustomobject]@{count=1}}
 }
 function New-S4ControlsRow{
@@ -101,7 +102,9 @@ $r=Copy-S4 $rt;$r.rows[1].evidence.pairCommands[0]|Add-Member manualTargetAtDisp
 $r=Copy-S4 $rt;$r.rows[1].evidence.pairCommands[0].riderStandardCooldown=3.0;Reject $r 'sprint4-natural-rt' 'a dispatch inside the native cooldown refused'
 $r=Copy-S4 $rt;$r.rows[1].evidence.after.controller.duplicateDispatches=6;Reject $r 'sprint4-natural-rt' 'a duplicate dispatch refused'
 $r=Copy-S4 $rt;$r.rows[1].evidence.rules.events=@($r.rows[1].evidence.rules.events|Where-Object{$_.target -cne $low});Reject $r 'sprint4-natural-rt' 'a first target dying without the pair''s attack refused'
-$r=Copy-S4 $rt;$r.rows[1].evidence.rules.events=@($r.rows[1].evidence.rules.events|Where-Object{$_.kind -cne 'damage'});Reject $r 'sprint4-natural-rt' 'a first target dying without a damage rule refused'
+$r=Copy-S4 $rt;$r.rows[1].evidence.rules.events=@($r.rows[1].evidence.rules.events|Where-Object{$_.kind -cne 'attack-roll'});Reject $r 'sprint4-natural-rt' 'a first target dying without a native hit refused'
+$r=Copy-S4 $rt;$r.rows[1].evidence.rules.events=@($r.rows[1].evidence.rules.events|Where-Object{$_.kind -cne 'weapon-resolved'});Reject $r 'sprint4-natural-rt' 'a first target dying without a resolved attack refused'
+$r=Copy-S4 $rt;$r.rows[1].evidence.steps.firstTargetDead.frame=50;Reject $r 'sprint4-natural-rt' 'a death recorded before its hit resolved refused'
 $r=Copy-S4 $rt;$r.rows[1].evidence.steps.firstTargetDead.state.targets[0].dead=$false;Reject $r 'sprint4-natural-rt' 'a first target still alive refused'
 # Attack integrity
 $r=Copy-S4 $rt;$r.rows[1].evidence.pairCommands[0].plannedAttacks=4;Reject $r 'sprint4-natural-rt' 'a routine plan differing from the native plan refused'

@@ -36,7 +36,11 @@ function Assert-KmcSprint4Retarget($Row,[string]$Rider,[string]$Mount){
  $dead=Get-KmcSprint4Step $Row 'firstTargetDead'
  if(@($dead.state.targets | Where-Object { [string]$_.id -ceq $first -and $_.dead -eq $true }).Count -ne 1){ throw 'Sprint 4 first target did not die' }
  if((@(Get-KmcSprint4Attacks $Row $Rider $first).Count + @(Get-KmcSprint4Attacks $Row $Mount $first).Count) -eq 0){ throw 'Sprint 4 first target died without the pair''s own native attack' }
- if(@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'damage' -and [string]$_.target -ceq $first }).Count -eq 0 -and @($Row.evidence.rules.events | Where-Object { [string]$_.target -ceq $first -and [string]$_.kind -clike '*damage*' }).Count -eq 0){ throw 'Sprint 4 first target died without a native damage rule' }
+ # The death's cause in the native rules: a Hit by a pair actor, whose resolution raised the target's damage, before it died.
+ $hits=@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-roll' -and [string]$_.target -ceq $first -and [string]$_.result -cin @('Hit','CriticalHit') -and ([string]$_.actor -ceq $Rider -or [string]$_.actor -ceq $Mount) })
+ $before=@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.target -ceq $first } | Sort-Object { [int]$_.frame })
+ $resolved=@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'weapon-resolved' -and [string]$_.target -ceq $first -and [int]$_.frame -le [int]$dead.frame -and $before.Count -gt 0 -and [int]$_.targetDamage -gt [int]$before[0].targetDamage })
+ if($hits.Count -eq 0 -or $resolved.Count -eq 0){ throw 'Sprint 4 first target died without a native hit raising its damage' }
  if(@(Get-KmcSprint4Attacks $Row $Rider $second).Count -lt 1){ throw 'Sprint 4 rider never attacked the unclicked next target' }
  $next=@($Row.evidence.pairCommands | Where-Object { [string]$_.target -ceq $second })
  if($next.Count -eq 0){ throw 'Sprint 4 no pair command addressed the next target' }
