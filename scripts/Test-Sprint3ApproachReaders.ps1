@@ -119,6 +119,25 @@ $r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.click.inputPath='StandardDoor
 $r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation.doorAfter.open=$false;Reject $r 'sprint3-approach-rt-trap' 'a preparation whose door did not open refused'
 $r=Copy-S3 $tr;$r.rows[0].evidence.doorPreparation|Add-Member refusal 'x';Reject $r 'sprint3-approach-rt-trap' 'a refused door preparation refused'
 $r=Copy-S3 $tr;$r.rows[0].evidence.explorationLegs[0].doors=@([pscustomobject]@{name='Door';inputPath='ClickMapObjectHandler.OnClick';openBefore=$false;openAfter=$true;clicked=$true});Reject $r 'sprint3-approach-rt-trap' 'a second door clicked after the declared preparation refused'
+# PR #8 review at a8ca1603: the declared two-unit group beyond the door cleared first as recorded fixture setup.
+$s3Declared=@('a350a897-1800-4bc6-855f-f8c157c51340','90fdc0ef-f893-43de-bf8c-f52b3854a9c6');$s3Group='aaac19a9-5e3b-4adc-b506-b0cdaa3492c7'
+function New-S3HostileSetup{
+ [pscustomobject]@{kind='declared-fixture-setup';group=$s3Group;declared=$s3Declared;dispatches=2;combatAtSettle=$false;settledFrame=400
+  before=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;group=$s3Group;conscious=$true;dead=$false;inCombat=$false;playerFaction=$false;pet=$false}})
+  dispatched=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;initiator=$_;requested=30;nativeDamage=30}})
+  after=@($s3Declared|ForEach-Object{[pscustomobject]@{id=$_;group=$s3Group;conscious=$false;dead=$true;inCombat=$false}})
+  partyAfter=@([pscustomobject]@{id=$rider;inCombat=$false;conscious=$true},[pscustomobject]@{id=$recipient;inCombat=$false;conscious=$true})}
+}
+$hs=Copy-S3 $tr;$hs.rows[0].evidence.doorPreparation.hostilesNear=@($s3Declared[0]);$hs.rows[0].evidence.doorPreparation|Add-Member hostileSetup (New-S3HostileSetup);$hs.rows[0].evidence.doorPreparation|Add-Member hostilesNearAfterSetup @()
+Accept $hs 'sprint3-approach-rt-trap';Check $true 'the declared hostile setup followed by a settled, hostile-free preparation accepted'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostilesNear=@($s3Declared[0],'hostile-x');Reject $r 'sprint3-approach-rt-trap' 'a hostile setup beside an undeclared hostile refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatched[1].initiator=$recipient;Reject $r 'sprint3-approach-rt-trap' 'a hostile setup dispatched by a party member refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatched[1].id=$s3Declared[0];Reject $r 'sprint3-approach-rt-trap' 'two dispatches on one declared unit refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.dispatches=3;Reject $r 'sprint3-approach-rt-trap' 'a further setup dispatch refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.after[0].dead=$false;Reject $r 'sprint3-approach-rt-trap' 'a declared hostile that is not natively dead refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.combatAtSettle=$true;Reject $r 'sprint3-approach-rt-trap' 'a setup that settled in combat refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostileSetup.partyAfter[1].inCombat=$true;Reject $r 'sprint3-approach-rt-trap' 'a party member left in combat after the setup refused'
+$r=Copy-S3 $hs;$r.rows[0].evidence.doorPreparation.hostilesNearAfterSetup=@('hostile-x');Reject $r 'sprint3-approach-rt-trap' 'a conscious hostile remaining after the setup refused'
 Check ((Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 44 -Scenario 'sprint3-approach-rt') -and -not (Test-KmcPhase3dSchemaRegistration -SchemaVersion 47 -Scenario 'chunk6c-casting-rt')) 'schema 47 binds exactly the Sprint 3 scenarios'
 Check (((Get-KmcPhase3dEvidenceDispatch -SchemaVersion 47 -Scenario 'sprint3-approach-tb').validator) -ceq 'Assert-KmcSprint3ApproachEvidence') 'dispatch selects the Sprint 3 reader'
 # Exercise the actual launcher's parameter binder without executing its body.

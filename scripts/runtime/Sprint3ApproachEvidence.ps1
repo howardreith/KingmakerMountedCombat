@@ -46,7 +46,20 @@ function Assert-KmcSprint3TrapRow($Row,[string]$Rider,[string]$Mount) {
   if((Test-KmcSprint3Prop $p 'refusal') -or [string]$p.declared.name -cne 'dwarf_dungeon_door_01' -or [string]$p.area -cne '9d1278a2f599b2a4daab53abdfe88d2e' -or [int]$p.matches -ne 1){ throw 'S3 trap: the door preparation did not use exactly the declared Working-fixture door' }
   if([string]$p.doorBefore.name -cne 'dwarf_dungeon_door_01' -or [math]::Abs([double]$p.doorBefore.position.x-40) -gt 0.75 -or [math]::Abs([double]$p.doorBefore.position.z-60) -gt 0.75){ throw 'S3 trap: the prepared door is not at the declared position' }
   if([string]$p.opener.id -ceq $Rider -or [string]$p.opener.id -ceq $Mount -or $p.opener.pet -ne $false -or $p.opener.inCombat -ne $false){ throw 'S3 trap: the door was not prepared by an unmounted, out-of-combat party member' }
-  if(@($p.hostilesNear).Count -ne 0){ throw 'S3 trap: the door preparation ran with a conscious hostile nearby' }
+  if(@($p.hostilesNear).Count -ne 0){
+   # PR #8 review at a8ca1603: only the one declared native group beyond the door may be cleared first, as recorded fixture
+   # setup (one self-initiated native lethal rule per unit, native death and combat cleanup), never as combat evidence.
+   $declared=@('a350a897-1800-4bc6-855f-f8c157c51340','90fdc0ef-f893-43de-bf8c-f52b3854a9c6')
+   if(-not (Test-KmcSprint3Prop $p 'hostileSetup')){ throw 'S3 trap: the door preparation ran with a conscious hostile nearby' }
+   $s=$p.hostileSetup
+   if(@($p.hostilesNear | Where-Object { $declared -cnotcontains [string]$_ }).Count -ne 0){ throw 'S3 trap: an undeclared hostile stood near the declared door' }
+   if([string]$s.group -cne 'aaac19a9-5e3b-4adc-b506-b0cdaa3492c7' -or [int]$s.dispatches -ne 2 -or @($s.dispatched).Count -ne 2 -or @($s.dispatched | ForEach-Object { [string]$_.id } | Sort-Object -Unique).Count -ne 2){ throw 'S3 trap: the hostile setup was not exactly one native dispatch per declared unit' }
+   foreach($d in @($s.dispatched)){ if($declared -cnotcontains [string]$d.id -or [string]$d.initiator -cne [string]$d.id -or [int]$d.nativeDamage -lt [int]$d.requested){ throw 'S3 trap: a hostile setup dispatch was not the declared self-initiated native lethal rule' } }
+   foreach($u in @($s.before)){ if($declared -cnotcontains [string]$u.id -or $u.conscious -ne $true -or $u.inCombat -ne $false -or $u.playerFaction -ne $false -or $u.pet -ne $false -or [string]$u.group -cne 'aaac19a9-5e3b-4adc-b506-b0cdaa3492c7'){ throw 'S3 trap: a hostile setup subject was not a declared conscious out-of-combat group member' } }
+   if(@($s.after).Count -ne 2 -or @($s.after | Where-Object { $_.dead -ne $true }).Count -ne 0 -or $s.combatAtSettle -ne $false -or -not (Test-KmcSprint3Prop $s 'settledFrame')){ throw 'S3 trap: the declared hostiles were not natively dead with combat settled' }
+   if(@($s.partyAfter | Where-Object { $_.inCombat -ne $false -or $_.conscious -ne $true }).Count -ne 0){ throw 'S3 trap: the party was not out of combat and conscious after the hostile setup' }
+   if(-not (Test-KmcSprint3Prop $p 'hostilesNearAfterSetup') -or @($p.hostilesNearAfterSetup).Count -ne 0){ throw 'S3 trap: a conscious hostile remained near after the declared setup' }
+  }
   $b=$p.doorBefore
   if($b.open -ne $false -or [int]$b.restrictions -ne 0 -or $b.hasDialog -ne $false -or $b.viewTriggerActions -ne $false -or $b.trapActive -ne $false -or $b.hasVisibleTrap -ne $false -or $b.cutPresent -ne $true){ throw 'S3 trap: the declared door was not an ordinary closed door' }
   if([string]$p.walk.inputPath -cne 'ClickGroundHandler.MoveSelectedUnitsToPoint' -or $p.walk.ordered -ne $true){ throw 'S3 trap: the opener did not reach the door through one ordinary ground order' }

@@ -560,6 +560,109 @@ namespace KingmakerMountedCombat.Diagnostics
         private const int Sprint3DoorPrepSettleFrameLimit = 600;
         private StandardDoor s3PrepDoor; private bool s3DoorPrepared; private int s3PrepFrames, s3PrepSettledFrame;
 
+        // PR #8 review at a8ca1603: r19 refused on the one native group beyond the declared door; the owner's mission selects
+        // clearing exactly these two units of the disposable copy as fixture setup (never evidence of combat). Each takes one
+        // self-initiated native lethal RuleDealDamage (no party actor, command or resource takes part); the native
+        // UnitLifeController applies the death and the native combat cleanup settles; the unchanged hostile guard is then
+        // re-read before the ordinary walk. Any other hostile still refuses.
+        private const string Sprint3DeclaredHostileGroup = "aaac19a9-5e3b-4adc-b506-b0cdaa3492c7";
+        private static readonly Dictionary<string, Vector3> Sprint3DeclaredHostiles = new Dictionary<string, Vector3> {
+            ["a350a897-1800-4bc6-855f-f8c157c51340"] = new Vector3(57.81f, 6.06f, 52.31f),
+            ["90fdc0ef-f893-43de-bf8c-f52b3854a9c6"] = new Vector3(63.56f, 6.06f, 62.64f) };
+        private const float Sprint3DeclaredHostileToleranceMetres = 2f;
+        private const int Sprint3HostileSetupSettleFrames = 60, Sprint3HostileSetupFrameLimit = 900;
+        private bool s3HostileSetupPending; private StandardDoor s3SetupDoor;
+
+        private UnitEntityData[] Sprint3DoorPrepHostiles(StandardDoor door, UnitEntityData opener) => Game.Instance.State.Units.Where(u => u != null &&
+            u.IsInState && u.IsPlayersEnemy && u.Descriptor.State.IsConscious && (HorizontalDistance(u.Position, door.transform.position) <= Sprint3DoorPrepHostileMetres ||
+            HorizontalDistance(u.Position, opener.Position) <= Sprint3DoorPrepHostileMetres)).ToArray();
+
+        private JObject CaptureSprint3SetupHostile(UnitEntityData unit) => new JObject { ["id"] = unit.UniqueId, ["group"] = unit.GroupId,
+            ["blueprint"] = unit.Blueprint?.AssetGuid, ["position"] = CapturePosition(unit.Position), ["inState"] = unit.IsInState, ["enemy"] = unit.IsPlayersEnemy,
+            ["playerFaction"] = unit.IsPlayerFaction, ["pet"] = unit.Descriptor.IsPet, ["inCombat"] = unit.IsInCombat, ["lifeState"] = unit.Descriptor.State.LifeState.ToString(),
+            ["conscious"] = unit.Descriptor.State.IsConscious, ["dead"] = unit.Descriptor.State.IsDead, ["damage"] = unit.Damage,
+            ["hitPoints"] = unit.Stats.HitPoints.ModifiedValue, ["constitution"] = unit.Stats.Constitution.ModifiedValue, ["groupSize"] = unit.Group?.Count };
+
+        private JArray CaptureSprint3SetupParty() => new JArray(Game.Instance.Player.ControllableCharacters.Select(u => new JObject { ["id"] = u.UniqueId,
+            ["inCombat"] = u.IsInCombat, ["conscious"] = u.Descriptor.State.IsConscious, ["damage"] = u.Damage, ["experience"] = u.Descriptor.Progression.Experience,
+            ["position"] = CapturePosition(u.Position) }));
+
+        // Returns null after one native lethal dispatch per declared unit; otherwise the refusal (nothing dispatched unless
+        // every identity and precondition held, and never a second dispatch).
+        private string BeginSprint3DeclaredHostileSetup(UnitEntityData[] hostiles, JObject prep)
+        {
+            var game = Game.Instance;
+            var setup = new JObject { ["kind"] = "declared-fixture-setup", ["group"] = Sprint3DeclaredHostileGroup,
+                ["contract"] = "one-self-initiated-native-lethal-ruledealdamage-per-declared-unit-then-native-death-and-combat-cleanup",
+                ["declared"] = new JArray(Sprint3DeclaredHostiles.Keys), ["frame"] = Time.frameCount, ["playerInCombatBefore"] = game.Player.IsInCombat };
+            prep["hostileSetup"] = setup;
+            var declared = game.State.Units.Where(u => u != null && Sprint3DeclaredHostiles.ContainsKey(u.UniqueId)).ToArray();
+            setup["before"] = new JArray(declared.Select(CaptureSprint3SetupHostile));
+            setup["partyBefore"] = CaptureSprint3SetupParty();
+            var undeclared = hostiles.Where(u => !Sprint3DeclaredHostiles.ContainsKey(u.UniqueId)).ToArray();
+            if (undeclared.Length != 0) return "an undeclared conscious hostile stands near the door or the opener: " + string.Join(",", undeclared.Select(u => u.UniqueId));
+            if (declared.Length != Sprint3DeclaredHostiles.Count) return "the declared hostiles are not all present in the loaded world";
+            if (game.Player.IsInCombat) return "combat is active before the declared hostile setup";
+            foreach (var unit in declared)
+                if (unit.GroupId != Sprint3DeclaredHostileGroup || unit.Group == null || unit.Group.Count != Sprint3DeclaredHostiles.Count || !unit.IsInState ||
+                    !unit.IsPlayersEnemy || unit.IsPlayerFaction || unit.Descriptor.IsPet || unit.IsInCombat || !unit.Descriptor.State.IsConscious ||
+                    (bool)unit.Descriptor.State.IsRegenerate || HorizontalDistance(unit.Position, Sprint3DeclaredHostiles[unit.UniqueId]) > Sprint3DeclaredHostileToleranceMetres)
+                    return "declared hostile " + unit.UniqueId + " does not match its recorded group, position or out-of-combat state";
+            var dispatched = new JArray(); setup["dispatched"] = dispatched;
+            foreach (var unit in declared)
+            {
+                var needed = checked(unit.Stats.HitPoints.ModifiedValue + unit.Stats.Constitution.ModifiedValue + unit.Stats.TemporaryHitPoints.ModifiedValue - unit.Damage + 1);
+                var damage = Rulebook.Trigger(new RuleDealDamage(unit, unit, new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), needed))));
+                dispatched.Add(new JObject { ["id"] = unit.UniqueId, ["initiator"] = unit.UniqueId, ["requested"] = needed, ["nativeDamage"] = damage.Damage,
+                    ["nativeDamageBeforeDifficulty"] = damage.DamageBeforeDifficulty, ["damageAfter"] = unit.Damage, ["frame"] = Time.frameCount });
+                if (damage.Damage < needed) return "the native rule did not carry the lethal damage to declared hostile " + unit.UniqueId;
+            }
+            setup["dispatches"] = dispatched.Count;
+            return null;
+        }
+
+        // Waits (bounded) until both declared units are natively dead and no combat remains, then re-reads the unchanged
+        // guard and orders the ordinary walk.
+        private void TickSprint3DeclaredHostileSetup(JObject prep)
+        {
+            var setup = (JObject)prep["hostileSetup"]; var game = Game.Instance;
+            var declared = game.State.Units.Where(u => u != null && Sprint3DeclaredHostiles.ContainsKey(u.UniqueId)).ToArray();
+            var combat = game.Player.IsInCombat || rider.IsInCombat || horse.IsInCombat || s3Recipient.IsInCombat;
+            if (combat) setup["combatObserved"] = true;
+            if (++s3PrepFrames > Sprint3HostileSetupFrameLimit)
+            {
+                setup["after"] = new JArray(declared.Select(CaptureSprint3SetupHostile)); setup["combatAtLimit"] = combat;
+                prep["refusal"] = "the declared hostile setup did not settle (native death and combat cleanup)";
+                FailSprint3Row("The declared hostile setup did not settle."); return;
+            }
+            ResetLeafClock();
+            if (declared.Length != Sprint3DeclaredHostiles.Count || declared.Any(u => !u.Descriptor.State.IsDead) || combat) { s3StableFrames = 0; return; }
+            if (++s3StableFrames < Sprint3HostileSetupSettleFrames) return;
+            setup["after"] = new JArray(declared.Select(CaptureSprint3SetupHostile)); setup["partyAfter"] = CaptureSprint3SetupParty();
+            setup["combatAtSettle"] = combat; setup["settledFrame"] = Time.frameCount; setup["settleFrames"] = s3PrepFrames;
+            s3HostileSetupPending = false; s3StableFrames = 0;
+            var door = s3SetupDoor; s3SetupDoor = null;
+            var hostiles = Sprint3DoorPrepHostiles(door, s3Recipient);
+            prep["hostilesNearAfterSetup"] = new JArray(hostiles.Select(u => u.UniqueId));
+            var refusal = hostiles.Length != 0 ? "a conscious hostile still stands within " + Sprint3DoorPrepHostileMetres + " m after the declared setup: " +
+                string.Join(",", hostiles.Select(u => u.UniqueId)) : OrderSprint3DoorPrepWalk(door, s3Recipient, prep);
+            if (refusal != null) { prep["refusal"] = refusal; FailSprint3Row("The declared door preparation stopped after the hostile setup: " + refusal); return; }
+            ResetLeafClock();
+        }
+
+        // Orders the opener's one ordinary walk beside the door; returns the refusal when no trap-clear route exists.
+        private string OrderSprint3DoorPrepWalk(StandardDoor door, UnitEntityData opener, JObject prep)
+        {
+            var walk = FindSprint3DoorPrepWalkPoint(door, opener, prep);
+            if (!walk.HasValue) return "no walkable point beside the door is reachable from the opener on a route clear of every active trap zone";
+            s3PrepDoor = door; s3PrepFrames = 0; s3PrepSettledFrame = -1;
+            SelectionManager.Instance.SelectUnit(opener.View, true, true, false);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(walk.Value, false);
+            prep["walk"] = new JObject { ["destination"] = CapturePosition(walk.Value), ["ordered"] = true, ["inputPath"] = "ClickGroundHandler.MoveSelectedUnitsToPoint",
+                ["frame"] = Time.frameCount, ["distanceToDoor"] = HorizontalDistance(walk.Value, door.transform.position) };
+            return null;
+        }
+
         private JObject Sprint3TrapReach() => new JObject((s3TrapCandidates ?? new TrapObjectView[0]).Select(t => new JProperty(t.UniqueId, new JObject {
             ["name"] = t.name, ["fromMount"] = Sprint3PathPossible(horse.Position, t.transform.position),
             ["fromOpener"] = s3Recipient == null ? null : Sprint3PathPossible(s3Recipient.Position, t.transform.position) })));
@@ -591,27 +694,22 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var door = matches[0];
                 var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, new[] { horse });
-                var hostiles = game.State.Units.Where(u => u != null && u.IsInState && u.IsPlayersEnemy && u.Descriptor.State.IsConscious &&
-                    (HorizontalDistance(u.Position, door.transform.position) <= Sprint3DoorPrepHostileMetres || HorizontalDistance(u.Position, opener.Position) <= Sprint3DoorPrepHostileMetres)).ToArray();
+                var hostiles = Sprint3DoorPrepHostiles(door, opener);
                 prep["doorBefore"] = Sprint3DoorPrepFacts(door, facts);
                 prep["hostilesNear"] = new JArray(hostiles.Select(u => u.UniqueId));
                 if (door.IsOpen) refusal = "the declared door is already open";
                 else if (!facts.Active || !facts.DataPresent || !facts.CutPresent || facts.RestrictionCount != 0 || facts.HasDialog || facts.ViewTriggerActions || facts.HasVisibleTrap || facts.TrapActive)
                     refusal = "the declared door carries a restriction, dialog, designer trigger, trap or no native cut";
+                else if (hostiles.Length != 0 && request.Scenario == "sprint3-approach-rt-trap")
+                {
+                    refusal = BeginSprint3DeclaredHostileSetup(hostiles, prep);
+                    if (refusal == null) { s3SetupDoor = door; s3HostileSetupPending = true; s3PrepFrames = 0; return true; }
+                }
                 else if (hostiles.Length != 0) refusal = "a conscious hostile stands within " + Sprint3DoorPrepHostileMetres + " m of the door or the opener";
                 else
                 {
-                    var walk = FindSprint3DoorPrepWalkPoint(door, opener, prep);
-                    if (!walk.HasValue) refusal = "no walkable point beside the door is reachable from the opener on a route clear of every active trap zone";
-                    else
-                    {
-                        s3PrepDoor = door; s3PrepFrames = 0; s3PrepSettledFrame = -1;
-                        SelectionManager.Instance.SelectUnit(opener.View, true, true, false);
-                        ClickGroundHandler.MoveSelectedUnitsToPoint(walk.Value, false);
-                        prep["walk"] = new JObject { ["destination"] = CapturePosition(walk.Value), ["ordered"] = true, ["inputPath"] = "ClickGroundHandler.MoveSelectedUnitsToPoint",
-                            ["frame"] = Time.frameCount, ["distanceToDoor"] = HorizontalDistance(walk.Value, door.transform.position) };
-                        return true;
-                    }
+                    refusal = OrderSprint3DoorPrepWalk(door, opener, prep);
+                    if (refusal == null) return true;
                 }
             }
             prep["refusal"] = refusal;
@@ -666,6 +764,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void TickSprint3DoorPreparation()
         {
             var prep = (JObject)s3Facts["doorPreparation"];
+            if (s3HostileSetupPending) { TickSprint3DeclaredHostileSetup(prep); return; }
             if (rider.IsInCombat || horse.IsInCombat || s3Recipient.IsInCombat) { prep["refusal"] = "combat started during the door preparation"; FailSprint3Row("The declared door preparation met combat."); return; }
             if (s3Step == 30)
             {
