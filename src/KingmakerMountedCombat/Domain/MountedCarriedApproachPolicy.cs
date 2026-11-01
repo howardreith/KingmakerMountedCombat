@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
 {
@@ -162,8 +163,10 @@ namespace KingmakerMountedCombat.Domain
         bool IsPlayerRequest(object command);
         // Read after native Run: the carried command finished or left every rider slot and the queue.
         bool CarriedCommandDisplaced(object approach);
-        // Read after native Run: another live command now owns the mount's movement.
-        bool MountMovementDisplaced(object approach);
+        // Read at admission, before native Run: the carrier's own delegated move is unfinished and in its slot.
+        bool OwnMoveHeld(object approach);
+        // Read after native Run: another command now owns the mount's movement (MountedMovementDisplacementPolicy).
+        bool MountMovementDisplaced(object approach, bool ownMoveHeldAtAdmission);
         void Release(object approach, string reason);
         void InterruptCarriedCommand(object approach);
     }
@@ -181,6 +184,7 @@ namespace KingmakerMountedCombat.Domain
         internal object Approach { get; }
         internal object Container { get; }
         internal object Command { get; }
+        internal bool OwnMoveHeldAtAdmission { get; set; }
         internal bool Consumed { get; set; }
     }
 
@@ -205,7 +209,10 @@ namespace KingmakerMountedCombat.Domain
             var approach = host?.LiveApproach;
             if (approach != null && (host.IsRiderContainer(container) || host.IsMountContainer(container)))
             {
-                ticket = new MountedCarriedRequestTicket(approach, container, command);
+                ticket = new MountedCarriedRequestTicket(approach, container, command)
+                {
+                    OwnMoveHeldAtAdmission = host.OwnMoveHeld(approach)
+                };
             }
             return true;
         }
@@ -227,11 +234,62 @@ namespace KingmakerMountedCombat.Domain
                 host.IsDelegatedMove(ticket.Approach, command),
                 host.IsPlayerRequest(command),
                 host.CarriedCommandDisplaced(ticket.Approach),
-                host.MountMovementDisplaced(ticket.Approach));
+                host.MountMovementDisplaced(ticket.Approach, ticket.OwnMoveHeldAtAdmission));
             if (action == MountedCarriedRequestAction.Keep) return action;
             host.Release(ticket.Approach, riderRequest ? "rider command admitted" : "mount command admitted");
             if (action == MountedCarriedRequestAction.ReleaseAndInterrupt) host.InterruptCarriedCommand(ticket.Approach);
             return action;
+        }
+    }
+
+    // One occupied mount command slot as native UnitCommands.Raw holds it.
+    public struct MountedSlotCommandFacts
+    {
+        // The slot holds the carrier's own delegated move.
+        public bool IsCarrierMove;
+        public bool Finished;
+        public bool InMoveSlot;
+        public bool Started;
+        // Native IsUnitEnoughClose (read only for an unstarted command; a started one no longer approaches).
+        public bool EnoughClose;
+    }
+
+    // Follow-up to review correction A: which mount state after native UnitCommands.Run means an admitted mount request
+    // took the mount's movement from the carrier. Installed 2.1.7b semantics: a fresh Run clears the queue and then
+    // either queues the request (while an uninterruptible command runs; the carrier's move is only marked to stop as soon
+    // as possible and stays in its slot) or installs it, interrupting the same-type slot with its Move/Standard pair and
+    // every unstarted command still out of range when the new command is itself out of range. Native
+    // UnitActionController steers the agent from a running UnitMoveTo and from every unstarted command that is not close
+    // enough (TickApproaching). So a queued command is never displacement (it owns nothing until a later sweep runs it),
+    // and a command in another slot is displacement only when it steers the agent itself or when native Run ended the
+    // carrier's held move while installing it. The queue is deliberately not an input. Cleanup (MountedOwnMovePolicy)
+    // stays conservative and still counts the queue, because its own sweep can activate the queued successor.
+    public static class MountedMovementDisplacementPolicy
+    {
+        public static bool OwnMoveHeld(IEnumerable<MountedSlotCommandFacts> slots)
+        {
+            if (slots == null) return false;
+            foreach (var slot in slots)
+            {
+                if (slot.IsCarrierMove && !slot.Finished) return true;
+            }
+            return false;
+        }
+
+        public static bool Displaced(bool ownMoveHeldAtAdmission, IEnumerable<MountedSlotCommandFacts> slotsAfterRun)
+        {
+            if (slotsAfterRun == null) return false;
+            var ownHeldAfterRun = OwnMoveHeld(slotsAfterRun);
+            foreach (var other in slotsAfterRun)
+            {
+                if (other.IsCarrierMove || other.Finished) continue;
+                // An unstarted command out of range ticks its own approach and steers the agent.
+                if (!other.Started && !other.EnoughClose) return true;
+                // Native Run ended the carrier's held move while installing this command (its slot or the pair), or,
+                // with no carrier move held, a new command runs its own path from the Move slot.
+                if (!ownHeldAfterRun && (ownMoveHeldAtAdmission || other.InMoveSlot)) return true;
+            }
+            return false;
         }
     }
 

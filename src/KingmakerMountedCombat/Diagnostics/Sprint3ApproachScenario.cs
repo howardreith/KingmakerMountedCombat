@@ -30,7 +30,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsSprint3ApproachScenario(string scenario) =>
-            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-rt-neighbor" || scenario == "sprint3-approach-tb";
+            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-rt-neighbor" || scenario == "sprint3-approach-rt-trap" ||
+            scenario == "sprint3-approach-tb";
         private bool IsSprint3Approach => IsSprint3ApproachScenario(request.Scenario);
         internal const int Sprint3SchemaVersion = 47;
         internal static readonly string[] Sprint3RealTimeCases = { "S3-trap-disarm", "S3-touch-friendly-distant",
@@ -41,7 +42,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // PR #8 review: the named ownership neighbor runs one existing row (Stop, second ordinary click, the carrier's own
         // delegated move through the new Run admission and cleanup); it is a selected subset, never the full real-time set.
         internal static readonly string[] Sprint3NeighborCases = { "S3-touch-held-charge" };
-        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : request.Scenario == "sprint3-approach-rt-neighbor" ? Sprint3NeighborCases : Sprint3RealTimeCases;
+        // PR #8 second review: the trap row alone (with its declared door preparation), so the passed spell rows are not rerun.
+        internal static readonly string[] Sprint3TrapCases = { "S3-trap-disarm" };
+        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : request.Scenario == "sprint3-approach-rt-neighbor" ? Sprint3NeighborCases :
+            request.Scenario == "sprint3-approach-rt-trap" ? Sprint3TrapCases : Sprint3RealTimeCases;
         private string Sprint3Case => Sprint3Cases[s3CaseIndex];
         private const float Sprint3FriendlyDistantMetres = 12f, Sprint3FriendlyHeldMetres = 6f, Sprint3HostileSpawnMetres = 8f,
             Sprint3RangedRetreatMetres = 10f, Sprint3TurnBasedFriendlyMetres = 9f, Sprint3PathLengthBoundMetres = 160f;
@@ -460,6 +464,9 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (remaining <= Sprint3TrapLegShortMetres) return false;
             else if (reachable == false)
             {
+                // PR #8 second review: the trap selection and any declared door preparation never chain into further
+                // doors or secret passages.
+                if (s3DoorPrepared || request.Scenario == "sprint3-approach-rt-trap") return false;
                 if (doors.Count >= Sprint3TrapDoorLimit) return false;
                 var door = FindSprint3ClosedDoor(Sprint3TrapDoorScanMetres);
                 if (door == null)
@@ -541,6 +548,176 @@ namespace KingmakerMountedCombat.Diagnostics
             return inventory;
         }
 
+        // PR #8 second review: the one declared Working-fixture door. The r15 inventory recorded this closed
+        // dwarf_dungeon_door_01 as revealed and closed-clickable from its second settle (no restriction, no dialog, no door
+        // trap, not combat-gated) while every trap lay outside the pair's navmesh area. It is prepared at most once: one
+        // ordinary ground walk by the unmounted party member lets the native fog reveal it, one ordinary map-object click
+        // by that member lets native UnitInteractWithObject open it, and the graph is re-read only after the native cut
+        // settled. Never a second door, a secret passage, a forced reveal or unlock, a teleport or a combat.
+        private const string Sprint3DeclaredDoorName = "dwarf_dungeon_door_01", Sprint3DeclaredDoorArea = "9d1278a2f599b2a4daab53abdfe88d2e";
+        private static readonly Vector3 Sprint3DeclaredDoorPosition = new Vector3(40f, 5.975f, 60f);
+        private const float Sprint3DeclaredDoorToleranceMetres = 0.75f, Sprint3DoorPrepHostileMetres = 20f;
+        private const int Sprint3DoorPrepSettleFrameLimit = 600;
+        private StandardDoor s3PrepDoor; private bool s3DoorPrepared; private int s3PrepFrames, s3PrepSettledFrame;
+
+        private JObject Sprint3TrapReach() => new JObject((s3TrapCandidates ?? new TrapObjectView[0]).Select(t => new JProperty(t.UniqueId, new JObject {
+            ["name"] = t.name, ["fromMount"] = Sprint3PathPossible(horse.Position, t.transform.position),
+            ["fromOpener"] = s3Recipient == null ? null : Sprint3PathPossible(s3Recipient.Position, t.transform.position) })));
+
+        // Begins the declared preparation when its exact door and every safety precondition hold; otherwise records why
+        // not and returns false (the row then refuses as before).
+        private bool BeginSprint3DoorPreparation()
+        {
+            var prep = new JObject { ["declared"] = new JObject { ["name"] = Sprint3DeclaredDoorName, ["area"] = Sprint3DeclaredDoorArea,
+                ["position"] = CapturePosition(Sprint3DeclaredDoorPosition), ["source"] = "r15 obstacle inventory, second settle" } };
+            s3Facts["doorPreparation"] = prep;
+            s3DoorPrepared = true;
+            var game = Game.Instance;
+            var area = game.CurrentlyLoadedArea?.AssetGuidThreadSafe;
+            prep["area"] = area;
+            var matches = (UnityEngine.Object.FindObjectsOfType<StandardDoor>() ?? new StandardDoor[0])
+                .Where(d => d != null && d.name == Sprint3DeclaredDoorName && HorizontalDistance(d.transform.position, Sprint3DeclaredDoorPosition) <= Sprint3DeclaredDoorToleranceMetres).ToArray();
+            prep["matches"] = matches.Length;
+            var opener = s3Recipient;
+            prep["opener"] = opener == null ? null : new JObject { ["id"] = opener.UniqueId, ["pet"] = opener.Descriptor.IsPet,
+                ["conscious"] = opener.Descriptor.State.IsConscious, ["inCombat"] = opener.IsInCombat, ["position"] = CapturePosition(opener.Position) };
+            string refusal = null;
+            if (area != Sprint3DeclaredDoorArea) refusal = "the loaded area is not the declared Working-fixture area";
+            else if (matches.Length != 1) refusal = "the declared door is not exactly one object at its recorded position";
+            else if (opener == null || opener == rider || opener == horse || opener.Descriptor.IsPet || !opener.Descriptor.State.IsConscious || opener.IsInCombat)
+                refusal = "no conscious, unmounted, out-of-combat party member is available to open the door";
+            else if (rider.IsInCombat || horse.IsInCombat) refusal = "the pair is in combat";
+            if (refusal == null)
+            {
+                var door = matches[0];
+                var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(door, new[] { horse });
+                var hostiles = game.State.Units.Where(u => u != null && u.IsInState && u.IsPlayersEnemy && u.Descriptor.State.IsConscious &&
+                    (HorizontalDistance(u.Position, door.transform.position) <= Sprint3DoorPrepHostileMetres || HorizontalDistance(u.Position, opener.Position) <= Sprint3DoorPrepHostileMetres)).ToArray();
+                prep["doorBefore"] = Sprint3DoorPrepFacts(door, facts);
+                prep["hostilesNear"] = new JArray(hostiles.Select(u => u.UniqueId));
+                if (door.IsOpen) refusal = "the declared door is already open";
+                else if (!facts.Active || !facts.DataPresent || !facts.CutPresent || facts.RestrictionCount != 0 || facts.HasDialog || facts.ViewTriggerActions || facts.HasVisibleTrap || facts.TrapActive)
+                    refusal = "the declared door carries a restriction, dialog, designer trigger, trap or no native cut";
+                else if (hostiles.Length != 0) refusal = "a conscious hostile stands within " + Sprint3DoorPrepHostileMetres + " m of the door or the opener";
+                else
+                {
+                    var walk = FindSprint3DoorPrepWalkPoint(door, opener, prep);
+                    if (!walk.HasValue) refusal = "no walkable point beside the door is reachable from the opener on a route clear of every active trap zone";
+                    else
+                    {
+                        s3PrepDoor = door; s3PrepFrames = 0; s3PrepSettledFrame = -1;
+                        SelectionManager.Instance.SelectUnit(opener.View, true, true, false);
+                        ClickGroundHandler.MoveSelectedUnitsToPoint(walk.Value, false);
+                        prep["walk"] = new JObject { ["destination"] = CapturePosition(walk.Value), ["ordered"] = true, ["inputPath"] = "ClickGroundHandler.MoveSelectedUnitsToPoint",
+                            ["frame"] = Time.frameCount, ["distanceToDoor"] = HorizontalDistance(walk.Value, door.transform.position) };
+                        return true;
+                    }
+                }
+            }
+            prep["refusal"] = refusal;
+            return false;
+        }
+
+        private JObject Sprint3DoorPrepFacts(StandardDoor door, Chunk7NativeDoorProbe.DoorFacts facts) => new JObject {
+            ["name"] = door.name, ["id"] = door.GetComponentInParent<MapObjectView>()?.UniqueId, ["position"] = CapturePosition(door.transform.position),
+            ["open"] = door.IsOpen, ["active"] = facts.Active, ["dataPresent"] = facts.DataPresent, ["interactable"] = facts.Interactable,
+            ["availableInteractions"] = facts.AvailableInteractions, ["revealed"] = facts.Revealed, ["restrictions"] = facts.RestrictionCount,
+            ["cutPresent"] = facts.CutPresent, ["notInCombat"] = facts.NotInCombat, ["hasDialog"] = facts.HasDialog, ["viewTriggerActions"] = facts.ViewTriggerActions,
+            ["hasVisibleTrap"] = facts.HasVisibleTrap, ["trapActive"] = facts.TrapActive, ["closedClickable"] = facts.ClosedClickable,
+            ["inFogOfWar"] = door.GetComponentInParent<MapObjectView>()?.Data?.IsInFogOfWar };
+
+        // A walkable point 2.5 to 3.5 m from the door in the opener's own navmesh area, whose native route from the opener
+        // stays outside every active trap's trigger zone (sampled along the path), nearest the door first.
+        private Vector3? FindSprint3DoorPrepWalkPoint(StandardDoor door, UnitEntityData opener, JObject prep)
+        {
+            if (global::AstarPath.active == null) return null;
+            var zones = (UnityEngine.Object.FindObjectsOfType<TrapObjectView>() ?? new TrapObjectView[0])
+                .Where(t => t != null && t.TrapActive && t.ScriptZoneTrigger != null).Select(t => t.ScriptZoneTrigger).ToArray();
+            var origin = door.transform.position; var tried = 0;
+            foreach (var distance in new[] { 2.5f, 3.5f })
+            {
+                for (var index = 0; index < 16; index++)
+                {
+                    var nearest = global::AstarPath.active.GetNearest(origin + Quaternion.Euler(0f, index * 22.5f, 0f) * Vector3.forward * distance);
+                    if (nearest.node == null || !nearest.node.Walkable) continue;
+                    var point = nearest.clampedPosition;
+                    if (Sprint3PathPossible(opener.Position, point) != true) continue;
+                    tried++;
+                    var path = Pathfinding.ABPath.Construct(opener.Position, point);
+                    global::AstarPath.StartPath(path); global::AstarPath.WaitForPath(path);
+                    if (path.error || path.GetTotalLength() > Sprint3PathLengthBoundMetres) continue;
+                    var points = path.vectorPath; var crosses = false;
+                    for (var p = 1; p < points.Count && !crosses; p++)
+                        for (var s = 0; s <= 8 && !crosses; s++)
+                            crosses = zones.Any(z => z.ContainsPosition(Vector3.Lerp(points[p - 1], points[p], s / 8f)));
+                    if (crosses) continue;
+                    prep["walkRouteLength"] = path.GetTotalLength(); prep["walkCandidatesTried"] = tried;
+                    return point;
+                }
+            }
+            prep["walkCandidatesTried"] = tried;
+            return null;
+        }
+
+        private bool Sprint3OpenerSettled() => s3Recipient.Commands.Empty && s3Recipient.View?.AgentASP?.IsReallyMoving != true;
+
+        // Steps 30 to 32: the walk settles, one ordinary click, the native open and cut settle; then the trap selection
+        // re-runs once (step 0) on the updated graph.
+        private void TickSprint3DoorPreparation()
+        {
+            var prep = (JObject)s3Facts["doorPreparation"];
+            if (rider.IsInCombat || horse.IsInCombat || s3Recipient.IsInCombat) { prep["refusal"] = "combat started during the door preparation"; FailSprint3Row("The declared door preparation met combat."); return; }
+            if (s3Step == 30)
+            {
+                // The walk is bounded by the native route bound (160 m); the leaf clock only guards a stalled walk.
+                if (!Sprint3OpenerSettled()) { s3StableFrames = 0; if (s3Recipient.View?.AgentASP?.IsReallyMoving == true && ++s3PrepFrames < 3600) ResetLeafClock(); return; }
+                if (++s3StableFrames < 10) return;
+                var facts = Chunk7NativeDoorProbe.DoorFacts.Capture(s3PrepDoor, new[] { horse });
+                prep["walk"]["arrived"] = CapturePosition(s3Recipient.Position); prep["walk"]["distanceToDoorAfter"] = HorizontalDistance(s3Recipient.Position, s3PrepDoor.transform.position);
+                prep["doorAtClick"] = Sprint3DoorPrepFacts(s3PrepDoor, facts);
+                if (s3PrepDoor.IsOpen || !facts.ClosedClickable)
+                {
+                    prep["refusal"] = "the declared door was not closed and clickable after the ordinary walk (native reveal)";
+                    FailSprint3Row("The declared door was not revealed as a closed clickable door by the ordinary walk; the route stops here."); return;
+                }
+                SelectionManager.Instance.SelectUnit(s3Recipient.View, true, true, false);
+                var clicked = new ClickMapObjectHandler().OnClick(s3PrepDoor.gameObject, s3PrepDoor.transform.position, 0, false, false);
+                prep["click"] = new JObject { ["clicked"] = clicked, ["inputPath"] = "ClickMapObjectHandler.OnClick", ["frame"] = Time.frameCount,
+                    ["executor"] = s3Recipient.UniqueId, ["admitted"] = Sprint3Command(s3Recipient.Commands.Standard) };
+                if (!clicked) { prep["refusal"] = "the ordinary door click was refused"; FailSprint3Row("The ordinary click on the declared door was refused."); return; }
+                s3StableFrames = 0; s3Step = 31; ResetLeafClock(); return;
+            }
+            if (s3Step == 31)
+            {
+                if (!Sprint3OpenerSettled()) { s3StableFrames = 0; return; }
+                if (++s3StableFrames < 10) return;
+                if (!s3PrepDoor.IsOpen)
+                {
+                    prep["doorAfter"] = Sprint3DoorPrepFacts(s3PrepDoor, Chunk7NativeDoorProbe.DoorFacts.Capture(s3PrepDoor, new[] { horse }));
+                    prep["refusal"] = "the native interaction did not open the declared door";
+                    FailSprint3Row("The native interaction did not open the declared door."); return;
+                }
+                prep["openedFrame"] = Time.frameCount; s3PrepFrames = 0; s3PrepSettledFrame = -1;
+                s3Step = 32; ResetLeafClock(); return;
+            }
+            if (s3Step == 32)
+            {
+                // The native cut settle (the Sprint 2 door predicate): no queued graph update and a frame after the last tile update.
+                var cuts = s3PrepDoor.GetComponentsInChildren<Pathfinding.NavmeshCut>();
+                var pending = global::AstarPath.active == null || global::AstarPath.active.IsAnyGraphUpdatesQueued ||
+                    Time.frameCount <= Pathfinding.Util.TileHandler.LastUpdateFrame || cuts.Any(c => c.enabled && c.RequiresUpdate());
+                if (++s3PrepFrames > Sprint3DoorPrepSettleFrameLimit) { prep["refusal"] = "the navmesh did not settle after the door opened"; FailSprint3Row("The navmesh did not settle after the declared door opened."); return; }
+                if (pending) { s3PrepSettledFrame = -1; return; }
+                if (s3PrepSettledFrame < 0) { s3PrepSettledFrame = Time.frameCount; return; }
+                if (Time.frameCount <= s3PrepSettledFrame + 2) return;
+                prep["doorAfter"] = Sprint3DoorPrepFacts(s3PrepDoor, Chunk7NativeDoorProbe.DoorFacts.Capture(s3PrepDoor, new[] { horse }));
+                prep["settledFrame"] = Time.frameCount; prep["settleFrames"] = s3PrepFrames;
+                prep["reachAfter"] = Sprint3TrapReach();
+                prep["obstacleInventoryAfter"] = Sprint3ObstacleInventory(s3TrapCandidates[0].transform.position);
+                s3PrepDoor = null; s3StableFrames = 0; s3Step = 0; ResetLeafClock(); return;
+            }
+        }
+
         // The pair returns to where the row began through one ordinary ground order before the row finishes, so the
         // party stays together for the later rows and the tranche cleanup (r07: a 46 m walk-back overran it).
         private bool s3TrapVerdict; private string s3TrapDetail; private Vector3 s3TrapOrigin;
@@ -556,6 +733,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void TickSprint3Trap()
         {
+            if (s3Step >= 30) { TickSprint3DoorPreparation(); return; }
             if (s3Step == 0)
             {
                 var all = (UnityEngine.Object.FindObjectsOfType<TrapObjectView>() ?? new TrapObjectView[0]).Where(t => t != null && t.Data != null).ToArray();
@@ -568,10 +746,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (s3TrapCandidates.Length == 0) { FailSprint3Row("No active trap with a disarm interaction exists in the loaded fixture area."); return; }
                 // PR #8 review: a trap outside the pair's own navmesh area (the native graph connectivity test) is refused before
                 // any exploration leg is ordered; the obstacle inventory records why (r12 to r16: every Working-fixture trap is cut off).
+                // The second review allows the one declared door preparation first, once; its outcome is re-read here.
                 if (!s3TrapCandidates.Any(t => Sprint3PathPossible(horse.Position, t.transform.position) == true))
                 {
                     s3Facts["obstacleInventory"] = Sprint3ObstacleInventory(s3TrapCandidates[0].transform.position);
-                    FailSprint3Row("No active disarmable trap shares the mounted pair's navmesh area; no exploration leg was ordered."); return;
+                    if (!s3DoorPrepared)
+                    {
+                        s3Facts["reachBeforeDoorPreparation"] = Sprint3TrapReach();
+                        if (BeginSprint3DoorPreparation()) { s3StableFrames = 0; s3Step = 30; ResetLeafClock(); return; }
+                        FailSprint3Row("No active disarmable trap shares the mounted pair's navmesh area and the declared door preparation was refused: " +
+                            (string)s3Facts["doorPreparation"]["refusal"]); return;
+                    }
+                    FailSprint3Row(s3Facts["doorPreparation"] == null
+                        ? "No active disarmable trap shares the mounted pair's navmesh area; no exploration leg was ordered."
+                        : "The declared door opened but no active disarmable trap joined the mounted pair's navmesh area; the route stops here."); return;
                 }
                 var discovered = s3TrapCandidates.FirstOrDefault(t => t.Data.IsPerceptionCheckPassed && t.Data.IsRevealed &&
                     t.Interactions.Any(i => i is DisableTrapInteractionComponent && i.CanInteract()) && HorizontalDistance(t.transform.position, horse.Position) >= 4f);
