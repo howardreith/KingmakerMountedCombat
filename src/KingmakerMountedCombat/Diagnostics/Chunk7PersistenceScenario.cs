@@ -256,7 +256,13 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (RidingDogCase)
                         {
                             // Disclosed setup: the owner's Small body. The companion choice above was the native selection.
-                            if (!ridingDogBodyApplied) { Sprint5Fixture.ApplyBody(secondRider, Sprint5Fixture.HalflingRace, Kingmaker.Blueprints.Gender.Female); ridingDogBodyApplied = true; TrackNativeActors(); return; }
+                            if (!ridingDogBodyApplied)
+                            {
+                                var priorView = secondRider.View;
+                                Sprint5Fixture.ApplyBody(secondRider, Sprint5Fixture.HalflingRace, Kingmaker.Blueprints.Gender.Female);
+                                nativeScope.AdoptDeclaredViewReplacement(secondRider, priorView);
+                                ridingDogBodyApplied = true; return;
+                            }
                             if (!Sprint5Fixture.BodyReady(secondRider) || ++ridingDogFrames < 45) return;
                         }
                         actors = new[] { firstRider, firstMount, secondRider, secondMount };

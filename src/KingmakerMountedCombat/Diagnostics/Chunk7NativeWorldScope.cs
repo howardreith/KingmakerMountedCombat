@@ -58,6 +58,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 Descriptor = actor.Descriptor, View = actor.View });
         }
 
+        // A scenario's own disclosed body setup replaces one tracked actor's view on purpose. Every other view change still refuses.
+        internal void AdoptDeclaredViewReplacement(UnitEntityData actor, object priorView)
+        {
+            ActorIdentity known;
+            if (actor == null || !actors.TryGetValue(actor.UniqueId, out known) || !ReferenceEquals(known.Actor, actor) ||
+                !ReferenceEquals(known.Descriptor, actor.Descriptor) || !ReferenceEquals(known.View, priorView) ||
+                ReferenceEquals(actor.View, priorView) || actor.View == null)
+                throw new InvalidOperationException("Only the exact tracked actor's own declared view replacement can be adopted.");
+            known.View = actor.View;
+        }
+
         internal void RequireCurrent()
         {
             RequireOriginalWorld();
