@@ -4,6 +4,7 @@ using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Classes;
 using Kingmaker.Blueprints.Classes.Selection;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Stats;
 using Kingmaker.Enums;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
@@ -160,6 +161,89 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             finally { SettingsRoot.Instance.AutoLevelup.CurrentValue = originalAutoLevelup; }
             return commits;
+        }
+
+        // One ordinary level of the pet's own class through the native controller, with its choices actually made.
+        // Nothing here writes a level, experience or a stat: the commit is the operation under observation.
+        internal static JObject CommitPetLevel(UnitEntityData pet, BlueprintCharacterClass petClass, BlueprintFeature upgrade, IModLogger logger)
+        {
+            var record = new JObject { ["canLevelUp"] = LevelUpController.CanLevelUp(pet.Descriptor), ["committed"] = false, ["before"] = PetProgress(pet, petClass, upgrade) };
+            if (record.Value<bool>("canLevelUp") != true) return record;
+            var originalAutoLevelup = SettingsRoot.Instance.AutoLevelup.CurrentValue;
+            var choices = new JArray(); record["choices"] = choices;
+            LevelUpController controller = null;
+            var committed = false;
+            try
+            {
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
+                controller = LevelUpController.StartWithoutAssigningStaticInstance(pet.Descriptor);
+                if (!controller.SelectClass(petClass)) { record["refused"] = "The native controller refused the pet's own class."; return record; }
+                record["nextLevel"] = controller.State.NextLevel;
+                while (controller.State.AttributePoints > 0)
+                {
+                    if (!controller.SpendAttributePoint(StatType.Wisdom)) break;
+                    choices.Add("attribute:Wisdom");
+                }
+                SpendPetSkills(controller, petClass, choices);
+                for (var pass = 0; pass < 12 && MakeNextPetSelection(controller, choices); pass++) { }
+                SpendPetSkills(controller, petClass, choices);
+                record["complete"] = controller.State.IsComplete();
+                record["skillPoints"] = new JObject { ["total"] = controller.State.TotalSkillPoints, ["spent"] = controller.State.SpentSkillPoints };
+                if (controller.State.IsComplete() != true) { record["refused"] = "The native level was not complete."; return record; }
+                controller.Commit();
+                committed = true;
+                record["committed"] = true;
+                logger.Info("Native pet level committed: pet=" + pet.UniqueId + "; level=" + pet.Descriptor.Progression.CharacterLevel + ".");
+            }
+            finally
+            {
+                if (controller != null && !committed) controller.Cancel();
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = originalAutoLevelup;
+            }
+            record["after"] = PetProgress(pet, petClass, upgrade);
+            return record;
+        }
+
+        private static void SpendPetSkills(LevelUpController controller, BlueprintCharacterClass petClass, JArray choices)
+        {
+            foreach (var skill in petClass.ClassSkills.Concat(StatTypeHelper.Skills).Distinct().ToArray())
+            {
+                while (controller.State.SkillPointsRemaining > 0 && controller.SpendSkillPoint(skill)) choices.Add("skill:" + skill);
+                if (controller.State.SkillPointsRemaining <= 0) return;
+            }
+        }
+
+        private static bool MakeNextPetSelection(LevelUpController controller, JArray choices)
+        {
+            foreach (var state in controller.State.Selections.Where(value => !value.Selected).ToArray())
+            {
+                var preview = controller.Preview;
+                var item = state.Selection.Items.FirstOrDefault(candidate => state.Selection.CanSelect(preview, controller.State, state, candidate));
+                if (item == null) continue;
+                if (!controller.SelectFeature(state, item)) continue;
+                choices.Add("selection:" + (state.Selection as BlueprintScriptableObject)?.name + "=" + item.Feature?.name);
+                return true;
+            }
+            return false;
+        }
+
+        internal static JObject PetProgress(UnitEntityData pet, BlueprintCharacterClass petClass, BlueprintFeature upgrade)
+        {
+            var progression = pet.Descriptor.Progression;
+            var classData = progression.GetClassData(petClass);
+            var level = classData?.Level ?? 0;
+            return new JObject {
+                ["id"] = pet.UniqueId, ["master"] = pet.Descriptor.Master.Value?.UniqueId, ["size"] = pet.Descriptor.State.Size.ToString(),
+                ["characterLevel"] = progression.CharacterLevel, ["classLevel"] = level, ["experience"] = progression.Experience,
+                ["hitPointsBase"] = pet.Stats.HitPoints.BaseValue, ["maxHp"] = pet.MaxHP,
+                ["babBase"] = pet.Stats.BaseAttackBonus.BaseValue, ["fortitudeBase"] = pet.Stats.SaveFortitude.BaseValue,
+                ["reflexBase"] = pet.Stats.SaveReflex.BaseValue, ["willBase"] = pet.Stats.SaveWill.BaseValue,
+                ["classBab"] = classData?.BaseAttackBonus.GetBonus(level), ["classFortitude"] = classData?.FortitudeSave.GetBonus(level),
+                ["classReflex"] = classData?.ReflexSave.GetBonus(level), ["classWill"] = classData?.WillSave.GetBonus(level), ["classHitDie"] = petClass == null ? 0 : (int)petClass.HitDie,
+                ["strength"] = pet.Stats.Strength.ModifiedValue, ["dexterity"] = pet.Stats.Dexterity.ModifiedValue, ["constitution"] = pet.Stats.Constitution.ModifiedValue,
+                ["wisdom"] = pet.Stats.Wisdom.ModifiedValue,
+                ["upgradeCount"] = progression.Features.Enumerable.Count(feature => feature.Blueprint == upgrade), ["upgradeRank"] = progression.Features.GetRank(upgrade),
+                ["features"] = new JArray(progression.Features.Enumerable.Select(feature => feature.Blueprint.name + "/" + feature.Rank).OrderBy(name => name, StringComparer.Ordinal)) };
         }
 
         private static FeatureSelectionState FindExactSelection(

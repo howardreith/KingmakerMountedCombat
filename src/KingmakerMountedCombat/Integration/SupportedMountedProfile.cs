@@ -158,8 +158,7 @@ namespace KingmakerMountedCombat.Integration
                     result = privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId);
             }
             if (result == null)
-                refusal = "This Small body has no measured seat on a " + mountProfile.DisplayName +
-                    ". Supported: male and female Halfling and Gnome rigs on a Horse or Riding Dog.";
+                refusal = MountedRiderProfileCatalog.NoMeasuredSeatRefusal(mountProfile.DisplayName, observed?.SkeletonName);
             return result;
         }
 
