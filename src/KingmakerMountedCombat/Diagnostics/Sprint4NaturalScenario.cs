@@ -9,6 +9,7 @@ using Kingmaker.UI.Selection;
 using Kingmaker.UI.UnitSettings;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -655,20 +656,33 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitMoveTo s4Move, s4InterruptedMove;
         private Vector3 s4MoveStart;
         private MountedPairAttackCommand s4QueuedCommand;
-        private Sprint4BusyAttack s4Busy;
+        private Sprint4BusyCommand s4Busy;
         private int s4QueueAttempts;
         private const int Sprint4QueueAttemptLimit = 3;
 
-        // A native attack on the mount's Standard slot that spends nothing, the way a native spell-combat attack does. It
-        // is bounded setup: UnitCommands.Run then queues the pair's dispatch behind this running command by its own rules
-        // (a running command on the same target), which an ordinary fixture cannot reach because an actor's own attack
-        // leaves it on cooldown for longer than the attack lasts.
-        private sealed class Sprint4BusyAttack : UnitAttack
+        // Bounded setup, not a native command: the mount's Standard slot held for a moment by a test-owned command that
+        // cannot be interrupted, spends nothing and has no effect. UnitCommands.Run then queues the pair's dispatch by its
+        // own rule (HasUniterrapitble), and queue advancement runs it later. The Attack command itself cannot be this
+        // setup: a running UnitAttack merges a same-target attack instead of queuing it, and an actor's own attack leaves
+        // it on cooldown for longer than the attack lasts. A kineticist blade's activation reaches the same two native
+        // runs through the custom handler; the fixture has no kineticist.
+        private sealed class Sprint4BusyCommand : UnitCommand
         {
-            internal Sprint4BusyAttack(UnitEntityData target) : base(target)
+            private const float Seconds = 2.5f;
+
+            internal Sprint4BusyCommand(UnitEntityData target) : base(CommandType.Standard, target)
             {
-                IsSingleAttack = true;
+                ApproachRadius = 1000000f;
                 IgnoreCooldown();
+            }
+
+            public override bool IsInterruptible => TimeSinceStart >= Seconds;
+            public override bool DontWaitForHands => true;
+            protected override ResultType OnAction() => ResultType.None;
+
+            protected override void OnTick()
+            {
+                if (TimeSinceStart >= Seconds) ForceFinish(ResultType.Success);
             }
         }
 
@@ -745,7 +759,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var record = Sprint4Step("heldAfterArrival");
                 record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
                 record["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; record["refusedDuring"] = combat.AutomaticRefusedCount - s4ProposalBaseline;
-                // The interruption control: a new move, stopped natively before it arrives, never holds the pair.
+                // The interruption control: a native Hold, a new move that releases it as it would an unmounted unit, then
+                // the move stopped natively before it arrives. Neither Hold nor an arrival is left holding the pair.
+                Sprint4Input("hold", "hold-before-second-move", () => SelectionManager.Instance.Hold());
                 var far = s4First; var here = HorizontalDistance(horse.Position, far.Position);
                 var away = FindWalkablePoint(horse.Position, 8f, 3f, candidate => HorizontalDistance(candidate, far.Position) >= here && Sprint3PathPossible(horse.Position, candidate) == true);
                 if (!Sprint4GroundMove(away, "move-to-interrupt")) return;
@@ -757,7 +773,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (s4InterruptedMove.IsFinished) { FailSprint4Row("The second move ended before the interruption control."); return; }
                 if (horse.View?.AgentASP?.IsReallyMoving != true || HorizontalDistance(s4MoveStart, horse.Position) < .5f) return;
-                // The exact native call SelectionManager.Hold makes for a selected mover.
+                // A native interruption of the mover alone, with no player order behind it.
                 horse.Commands.InterruptMove();
                 ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "native-interrupt-move", ["frame"] = Time.frameCount });
                 s4Step = 6; ResetLeafClock(); return;
@@ -781,6 +797,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s4Step == 0)
             {
+                if (s4First == null) { FailSprint4Row("The queued row has no encounter from the move row."); return; }
                 Sprint4SetAi(false, "before-queued-target");
                 s4Step = 1; ResetLeafClock(); return;
             }
@@ -813,9 +830,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var riderEnding = active != null && active.ActionActor == rider && active.IsActed && mountCooldown <= 0f;
                 var mountExpiring = active == null && !rider.HasStandardAction() && mountCooldown > .15f && mountCooldown < .6f;
                 if (!riderEnding && !mountExpiring) return;
-                s4Busy = new Sprint4BusyAttack(s4Second);
+                s4Busy = new Sprint4BusyCommand(s4Second);
                 horse.Commands.Run(s4Busy);
-                if (!horse.Commands.Contains(s4Busy) || !s4Busy.IsUnitEnoughClose) { FailSprint4Row("The mount's busy attack was not admitted in reach."); return; }
+                if (!horse.Commands.Contains(s4Busy)) { FailSprint4Row("The mount's busy command was not admitted."); return; }
                 // Native Run cleared the mount's Hold for this setup command. The Hold under test is written the way the
                 // native Hold input writes it for a selected unit, while the setup command runs.
                 horse.HoldState = true;
@@ -832,7 +849,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (active == null || active.ActionActor != horse)
                     {
                         if (!s4Busy.IsFinished) return;
-                        // The busy attack ended before the dispatch: nothing was queued, and nothing is claimed for it.
+                        // The busy command ended before the dispatch: nothing was queued, and nothing is claimed for it.
                         if (++s4QueueAttempts >= Sprint4QueueAttemptLimit) { FailSprint4Row("No automatic command reached the native queue within the bounded attempts."); return; }
                         s4Step = 3; return;
                     }
@@ -844,7 +861,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s4QueuedCommand = active;
                     var queued = Sprint4Step("queued");
                     queued["identity"] = castingTrace.Identity(active); queued["automaticOrigin"] = active.IsAutomaticOrigin; queued["createdByPlayer"] = active.CreatedByPlayer;
-                    queued["aiAction"] = active.AiAction != null; queued["busyRunning"] = s4Busy.IsRunning; queued["busyActed"] = s4Busy.IsActed; queued["actor"] = active.ActionActor.UniqueId;
+                    queued["aiAction"] = active.AiAction != null; queued["busyUninterruptible"] = !s4Busy.IsInterruptible; queued["busyFinished"] = s4Busy.IsFinished; queued["actor"] = active.ActionActor.UniqueId;
                     queued["inStandardSlot"] = horse.Commands.Contains(active); queued["started"] = active.IsStarted;
                     return;
                 }
@@ -890,6 +907,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s4Step == 0)
             {
+                if (s4Third == null) { FailSprint4Row("The neighbor row has no far target from the queued row."); return; }
                 Sprint4Step("beforeStop"); s4HoldPosition = horse.Position;
                 s4Baseline = combat.AutomaticDispatchCount; s4ProposalBaseline = combat.AutomaticRefusedCount;
                 Sprint4Input("stop", "stop", () => SelectionManager.Instance.Stop());

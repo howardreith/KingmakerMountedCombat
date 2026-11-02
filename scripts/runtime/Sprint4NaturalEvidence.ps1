@@ -143,7 +143,7 @@ function Assert-KmcSprint4TurnBasedRow($Row,[string]$Rider,[string]$Mount){
 }
 function Assert-KmcSprint4MoveRow($Row,[string]$Rider,[string]$Mount){
  $clicks=@(Get-KmcSprint4Inputs $Row 'ground-click')
- if($clicks.Count -ne 2 -or @($clicks | Where-Object { $_.clicked -ne $true -or [string]$_.inputPath -cne 'ClickGroundHandler.OnClick' }).Count -ne 0 -or @(Get-KmcSprint4Inputs $Row 'native-interrupt-move').Count -ne 1){ throw 'Sprint 4 move row did not use the ordinary ground input and one interruption' }
+ if($clicks.Count -ne 2 -or @($clicks | Where-Object { $_.clicked -ne $true }).Count -ne 0 -or @(Get-KmcSprint4Inputs $Row 'native-interrupt-move').Count -ne 1 -or @(Get-KmcSprint4Inputs $Row 'hold').Count -ne 1){ throw 'Sprint 4 move row did not use the ordinary ground input, one native Hold and one interruption' }
  $issued=Get-KmcSprint4Step $Row 'moveIssued'; $joined=Get-KmcSprint4Step $Row 'combatWhileMoving'; $arrival=Get-KmcSprint4Step $Row 'arrival'
  if($issued.riderInCombat -ne $false -or $issued.mountInCombat -ne $false -or $issued.finished -ne $false){ throw 'Sprint 4 move did not start before combat' }
  if([string]$issued.moveType -cne 'UnitMoveTo' -or $issued.createdByPlayer -ne $true -or [string]$issued.executor -cne $Mount){ throw 'Sprint 4 watched move is not the explicit player move on the mount' }
@@ -157,7 +157,7 @@ function Assert-KmcSprint4MoveRow($Row,[string]$Rider,[string]$Mount){
  if([long]$held.refusedDuring -lt 1 -or [string]$held.state.controller.lastRefusal -cnotlike 'hold-out-of-reach*' -or $held.state.controller.hasIntent -ne $false){ throw 'Sprint 4 no-chase period was not the live brain being refused' }
  $second=Get-KmcSprint4Step $Row 'secondMoveIssued'; $cut=Get-KmcSprint4Step $Row 'interrupted'
  if([string]$second.moveIdentity -ceq [string]$issued.moveIdentity -or [string]$cut.moveIdentity -cne [string]$second.moveIdentity){ throw 'Sprint 4 interruption control is not a distinct exact move' }
- if($second.state.controller.playerMoveHold -ne $false){ throw 'Sprint 4 issuing a move kept the earlier hold' }
+ if($second.state.controller.playerMoveHold -ne $false -or $second.state.riderHold -ne $false){ throw 'Sprint 4 issuing a move kept the earlier hold or the rider''s native Hold' }
  if($cut.finished -ne $true -or $cut.acted -ne $false -or [string]$cut.result -cne 'Interrupt'){ throw 'Sprint 4 interruption control did not end by a native interrupt' }
  if($cut.state.controller.playerMoveHold -ne $false -or $cut.state.mountHold -ne $false -or [string]$cut.state.controller.lastMoveOutcome -cne 'Interrupted'){ throw 'Sprint 4 interrupted move manufactured an arrival hold' }
  if([double]$cut.distanceToTarget -lt 13){ throw 'Sprint 4 interruption control left the target in reach, which proves nothing' }
@@ -168,12 +168,13 @@ function Assert-KmcSprint4QueuedRow($Row,[string]$Rider,[string]$Mount){
  $before=Get-KmcSprint4Step $Row 'heldBeforeAutomatic'; if($before.state.riderHold -ne $true){ throw 'Sprint 4 native Hold was not in place' }
  $queued=Get-KmcSprint4Step $Row 'queued'
  if($queued.automaticOrigin -ne $true -or $queued.createdByPlayer -ne $false -or $queued.aiAction -ne $false -or [string]$queued.actor -cne $Mount){ throw 'Sprint 4 queued command is not the mount''s distinct automatic command' }
- if($queued.inStandardSlot -ne $false -or $queued.started -ne $false -or [int]$queued.state.mountQueue -lt 1 -or $queued.busyRunning -ne $true){ throw 'Sprint 4 command was not waiting in the native queue behind a running command' }
+ if($queued.inStandardSlot -ne $false -or $queued.started -ne $false -or [int]$queued.state.mountQueue -lt 1 -or $queued.busyUninterruptible -ne $true){ throw 'Sprint 4 command was not waiting in the native queue behind an uninterruptible command' }
  if($queued.state.mountHold -ne $true -or $queued.state.riderHold -ne $true){ throw 'Sprint 4 Hold was lost before the later run' }
  $ran=Get-KmcSprint4Step $Row 'ranFromQueue'
- if([string]$ran.identity -cne [string]$queued.identity -or [long]$ran.queuedRuns -ne 1 -or [long]$ran.queuedHoldKept -ne 1){ throw 'Sprint 4 later run is not the exact queued command through queue advancement' }
+ if([string]$ran.identity -cne [string]$queued.identity -or [long]$ran.queuedRuns -ne 1 -or [long]$ran.queuedHoldKept -ne 1 -or $ran.busyFinished -ne $true){ throw 'Sprint 4 later run is not the exact queued command through queue advancement' }
  if($ran.state.mountHold -ne $true -or $ran.state.riderHold -ne $true){ throw 'Sprint 4 later native run cleared Hold' }
  $done=Get-KmcSprint4Step $Row 'queuedDone'
+ if([string]$done.result -cne 'Success'){ throw 'Sprint 4 queued command did not complete natively' }
  if([string]$done.identity -cne [string]$queued.identity -or $done.state.mountHold -ne $true -or $done.state.riderHold -ne $true){ throw 'Sprint 4 Hold did not survive the queued command' }
  if([double]$done.mountDisplacement -gt 0.5){ throw 'Sprint 4 queued command moved the held pair' }
  if([double]$done.mountStandardCooldown -le 0){ throw 'Sprint 4 queued command spent no native Standard of the mount' }

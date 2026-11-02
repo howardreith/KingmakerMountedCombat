@@ -912,6 +912,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            // The ground click is synchronous; one that threw never reached its postfix.
+            groundOrderOpen = false;
             automaticGate.Tick(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
                 IsPairInCombat(), CombatController.IsInTurnBasedCombat(), relationship.Rider?.IsAIEnabled == true);
             ObservePlayerMoveOutcome();
@@ -1561,6 +1563,8 @@ namespace KingmakerMountedCombat.Integration
                 commands != null && (commands.Contains(command) || commands.Queue.Contains(command)))) return;
             playerMove.Bind(command, relationship.MountedPairGeneration);
             LastPlayerMoveOutcome = MountedPlayerMoveOutcome.Pending;
+            // The native effect of a new order on the unit it was given to, which a routed click never reaches.
+            relationship.Rider.HoldState = false;
         }
 
         private void ObservePlayerMoveOutcome()
@@ -1625,6 +1629,8 @@ namespace KingmakerMountedCombat.Integration
                 commands.Contains(command), commands.Queue.Contains(command))) return;
             activeCommand = null;
             AutomaticQueuedRefusedCount++;
+            // The intent ends first: nothing failed to reach this target, so its terminal must not record it unreachable.
+            if (ReferenceEquals(stockIntentCommand, command)) ClearStockAttackIntent("automatic command dropped from the native queue", true);
             pairedCommandScheduler.ObserveExternalInterrupt(command, "automatic command dropped from the native queue");
             command.Interrupt();
         }
