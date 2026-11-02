@@ -846,10 +846,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s4Step == 2)
             {
                 if (!s4Second.IsInCombat || rider.Commands.Standard != null || !rider.HasLOS(s4Second)) return;
-                // Only the near target remains for the native brain to choose, inside the rider's own bow reach.
-                var previous = s4Targets.First(t => t.Unit == s4First);
-                if (!previous.Service.DestroyAndVerify()) return;
-                previous.Service.Dispose(); s4Targets.Remove(previous);
+                // The first target stays as the later out-of-reach target: a native Hold keeps the brain to the near one,
+                // inside the rider's own bow reach, and its service's AI lease keeps the other party members idle.
+                s4Third = s4First;
                 s4Facts["secondTarget"] = s4Second.UniqueId; s4Facts["mountStart"] = CapturePosition(horse.Position); s4HoldPosition = horse.Position;
                 Sprint4Input("hold", "hold-before-automatic", () => SelectionManager.Instance.Hold());
                 Sprint4SetAi(true, "queued-target");
@@ -914,13 +913,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 done["result"] = s4QueuedCommand.Result.ToString(); done["identity"] = castingTrace.Identity(s4QueuedCommand);
                 done["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
                 done["mountAttacks"] = Sprint4Attacks(horse, s4Second).Length; done["mountStandardCooldown"] = horse.CombatState.Cooldown.StandardAction;
-                // A later target beyond every reach: the kept Hold is what stops the chase.
-                s4Third = Sprint4Spawn(19f, "s4-queued-far", true);
                 s4Step = 6; ResetLeafClock(); return;
             }
             if (s4Step == 6)
             {
-                if (!s4Third.IsInCombat || combat.CurrentPairCommand != null) return;
+                if (combat.CurrentPairCommand != null) return;
+                // Only the far target remains: the kept Hold is what stops the chase.
                 var near = s4Targets.First(t => t.Unit == s4Second);
                 if (!near.Service.DestroyAndVerify()) return;
                 near.Service.Dispose(); s4Targets.Remove(near);
