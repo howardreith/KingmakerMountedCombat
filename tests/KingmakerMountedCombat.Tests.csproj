@@ -69,6 +69,7 @@
     <Compile Include="MountedCarriedApproachPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAutomaticAttackPolicy.cs" />
     <Compile Include="MountedAutomaticAttackPolicyTests.cs" />
+    <Compile Include="MountedPlayerIntentBoundaryTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="SpeedLegSamplerTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />

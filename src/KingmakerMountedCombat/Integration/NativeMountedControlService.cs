@@ -1324,7 +1324,8 @@ namespace KingmakerMountedCombat.Integration
             // stock targeting intent authorizes additional post-input cleanup.
             VisitInputOwners(owner =>
             {
-                owner.ObserveSelectedMoveOrder();
+                // The order supersedes Stop whatever becomes of the move; only its own completion can hold the pair.
+                owner.ObserveSelectedPlayerOrder();
                 if (owner.HasStockAttackIntent)
                     owner.CancelSelectedInput("native move request replaced stock attack intent");
             });

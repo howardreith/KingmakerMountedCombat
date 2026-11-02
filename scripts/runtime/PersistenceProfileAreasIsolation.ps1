@@ -12,7 +12,7 @@ function Test-KmcPersistenceAreasIsolationSelection {
     # loaded archive into the profile's Areas tree; the isolation holds the intake tree and quarantines the generated one.
     if($Scenario-ceq'chunk4-traversal-core'){return $true}
     # Sprint 3 (r01): the carried-approach rows load the same Working fixture from the live profile (Mammoth engine entry).
-    if($Scenario-cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb')){return $true}
+    if($Scenario-cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt')){return $true}
     if($Scenario-ceq'persistence-p07-save'){
         return ($OwnerStockRemoval -and $PersistenceCase-ceq'prepare-removal') -or
             $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')

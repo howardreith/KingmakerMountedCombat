@@ -29,7 +29,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("an explicit AI off and on rearms a stopped pair", AiToggleRearmsStop);
             runner.Run("a stop only belongs to its combat, mode and relationship generation", StopClearsOnBoundaries);
             runner.Run("two pairs keep separate stop state and intents", PairsStaySeparate);
-            runner.Run("a completed player move holds the pair until the next order", PlayerMoveHoldsUntilOrder);
+            runner.Run("a completed player move holds the pair until the next order or combat end", PlayerMoveHoldsUntilOrder);
             runner.Run("a click on the brain's target makes the intent the player's own", ClickPromotesAutomaticIntent);
             runner.Run("cancellation clears automatic origin for the next intent", CancelClearsOrigin);
             runner.Run("an automatic ranged intent never drags the mount into melee", RangedAutomaticKeepsMountOut);
@@ -229,7 +229,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 var gate = new MountedAutomaticAttackGate();
                 gate.ObserveStop(4);
-                gate.ObservePlayerMove();
+                gate.ObservePlayerMoveCompleted();
                 gate.ObserveStop(4);
                 boundary(gate);
                 TestRunner.True(!gate.IsSuppressed(4) && !gate.IsSuppressed(5), "A stop outlived its boundary and became a permanent AI switch.");
@@ -256,14 +256,14 @@ namespace KingmakerMountedCombat.Tests
         private static void PlayerMoveHoldsUntilOrder()
         {
             var gate = new MountedAutomaticAttackGate();
-            gate.ObservePlayerMove();
+            gate.ObservePlayerMoveCompleted();
             gate.Tick(1, true, true, false, true);
             TestRunner.True(gate.PlayerMoveHold, "A player move did not hold like the native unit's own move.");
             gate.ObservePlayerOrder();
             TestRunner.True(!gate.PlayerMoveHold, "A new order did not release the move hold.");
-            gate.ObservePlayerMove();
+            gate.ObservePlayerMoveCompleted();
             gate.Tick(1, true, false, false, true);
-            TestRunner.True(!gate.PlayerMoveHold, "An exploration move held the pair into the next combat.");
+            TestRunner.True(!gate.PlayerMoveHold, "A finished combat's hold reached the next one.");
         }
 
         private static void ClickPromotesAutomaticIntent()

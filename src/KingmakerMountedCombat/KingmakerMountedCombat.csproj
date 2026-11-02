@@ -676,6 +676,7 @@
     <Compile Include="Integration\MountedChargeEnchantmentFx.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeCleanup.cs" />
     <Compile Include="Integration\NativeChargeActionBoundary.cs" />
+    <Compile Include="Integration\NativeRunHoldBoundary.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeBoundaries.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />
     <Compile Include="Domain\MountedChargeCleanupLedger.cs" />

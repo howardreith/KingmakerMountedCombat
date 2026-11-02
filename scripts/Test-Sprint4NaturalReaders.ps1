@@ -148,6 +148,73 @@ $r=Copy-S4 $tb;$r.rows[0].evidence.mountAfter.standard=0;Reject $r 'sprint4-natu
 $r=Copy-S4 $tb;$r.rows[0].evidence.rules.events=@($r.rows[0].evidence.rules.events|Where-Object{$_.actor -cne $mount});Reject $r 'sprint4-natural-tb' 'a mount without a stock attack refused'
 # Envelope
 Reject $rt 'sprint4-natural-tb' 'a real-time envelope under the turn-based scenario refused'
+# Player-intent rows: the exact move's completion and a queued automatic command keeping Hold.
+function New-S4MoveFacts($id,$finished,$acted,$result,$combat,$state){[pscustomobject]@{moveIdentity=$id;moveType='UnitMoveTo';createdByPlayer=$true;executor=$mount;finished=$finished;acted=$acted;result=$result;riderInCombat=$combat;mountInCombat=$combat;turnBased=$false;state=$state;frame=1;distanceToTarget=19}}
+function New-S4IntentState($over,$mountHold=$false,$riderHold=$false){$s=New-S4State $over;$s|Add-Member mountHold $mountHold;$s.riderHold=$riderHold;$s|Add-Member mountQueue 0;$s}
+function New-S4MoveRow{
+ $steps=[pscustomobject]@{
+  moveIssued=(New-S4MoveFacts 11 $false $false 'None' $false (New-S4IntentState @{}))
+  combatWhileMoving=(New-S4MoveFacts 11 $false $false 'None' $true (New-S4IntentState @{}))
+  arrival=(New-S4MoveFacts 11 $true $true 'Success' $true (New-S4IntentState @{playerMoveHold=$true;lastMoveOutcome='CompletedHeld'} $true))
+  heldAfterArrival=[pscustomobject]@{mountDisplacement=0;dispatchesDuring=0;refusedDuring=7;state=(New-S4IntentState @{lastRefusal='hold-out-of-reach;target=x';playerMoveHold=$true} $true)}
+  secondMoveIssued=(New-S4MoveFacts 12 $false $false 'None' $true (New-S4IntentState @{playerMoveHold=$false}))
+  interrupted=(New-S4MoveFacts 12 $true $false 'Interrupt' $true (New-S4IntentState @{playerMoveHold=$false;lastMoveOutcome='Interrupted'}))
+  resumedAfterInterruption=[pscustomobject]@{dispatchesDuring=1;mountDisplacement=3;state=(New-S4IntentState @{intentAutomatic=$true})}}
+ New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true;inputPath='ClickGroundHandler.OnClick'},[pscustomobject]@{kind='ground-click';clicked=$true;inputPath='ClickGroundHandler.OnClick'},[pscustomobject]@{kind='native-interrupt-move'}) @() @()
+}
+function New-S4QueuedRow{
+ $queuedState=New-S4IntentState @{} $true $true;$queuedState.mountQueue=1
+ $steps=[pscustomobject]@{
+  heldBeforeAutomatic=[pscustomobject]@{state=(New-S4IntentState @{} $false $true)}
+  queued=[pscustomobject]@{identity=21;automaticOrigin=$true;createdByPlayer=$false;aiAction=$false;actor=$mount;inStandardSlot=$false;started=$false;busyRunning=$true;state=$queuedState}
+  ranFromQueue=[pscustomobject]@{identity=21;queuedRuns=1;queuedHoldKept=1;frame=300;state=(New-S4IntentState @{} $true $true)}
+  queuedDone=[pscustomobject]@{identity=21;result='Success';mountDisplacement=0;mountStandardCooldown=5.2;state=(New-S4IntentState @{} $true $true)}
+  farTargetHeld=[pscustomobject]@{distanceToTarget=19;mountDisplacement=0;dispatchesDuring=0;refusedDuring=7;state=(New-S4IntentState @{lastRefusal='hold-out-of-reach;target=y'} $true $true)}}
+ New-S4Row 'S4-queued-hold' (New-S4State) (New-S4State) $steps @() @((New-S4Attack $mount $next 310 31)) @()
+}
+function New-S4NeighborRow{
+ $steps=[pscustomobject]@{
+  afterStop=[pscustomobject]@{dispatchesDuring=0;mountDisplacement=0;refusedDuring=6;state=(New-S4IntentState @{stopSuppressed=$true;lastRefusal='stop-suppressed;target=y'})}
+  afterReEnable=[pscustomobject]@{state=(New-S4IntentState @{intentAutomatic=$true;hasIntent=$true})}
+  manualAttacked=[pscustomobject]@{intentOwnedByPlayer=$true}
+  manualHeld=[pscustomobject]@{attacksOnOldTargetSinceManual=0;manualTargetStillOwned=$true}}
+ New-S4Row 'S4-intent-neighbors' (New-S4State) (New-S4State) $steps @() @() @()
+}
+$intent=New-S4Artifact 'sprint4-intent-rt' @((New-S4MoveRow),(New-S4QueuedRow),(New-S4NeighborRow))
+Accept $intent 'sprint4-intent-rt';Check $true 'complete player-intent evidence accepted'
+Check (Test-KmcPhase3dSchemaRegistration 48 'sprint4-intent-rt') 'schema 48 is registered for the player-intent scenario'
+function Mutate-S4([int]$row,[scriptblock]$change,[string]$why){$r=Copy-S4 $intent;& $change $r.rows[$row].evidence.steps $r.rows[$row].evidence;Reject $r 'sprint4-intent-rt' $why}
+Mutate-S4 0 {param($s)$s.moveIssued.riderInCombat=$true} 'a move issued in combat cannot stand for the exploration case'
+Mutate-S4 0 {param($s)$s.combatWhileMoving.finished=$true} 'a move finished before combat refused'
+Mutate-S4 0 {param($s)$s.arrival.moveIdentity=99} 'an arrival by another move refused'
+Mutate-S4 0 {param($s)$s.moveIssued.moveType='MountedDoorApproachMove'} 'a delegated move refused as the player move'
+Mutate-S4 0 {param($s)$s.arrival.result='Interrupt'} 'an interrupted arrival refused'
+Mutate-S4 0 {param($s)$s.arrival.state.controller.playerMoveHold=$false} 'an arrival in combat without the hold refused'
+Mutate-S4 0 {param($s)$s.arrival.state.mountHold=$false} 'an arrival without the native mover Hold refused'
+Mutate-S4 0 {param($s)$s.heldAfterArrival.mountDisplacement=4} 'a chase from the destination refused'
+Mutate-S4 0 {param($s)$s.heldAfterArrival.refusedDuring=0} 'a quiet period without live proposals refused'
+Mutate-S4 0 {param($s)$s.secondMoveIssued.moveIdentity=11} 'a control reusing the first move refused'
+Mutate-S4 0 {param($s)$s.interrupted.acted=$true} 'a control that arrived refused'
+Mutate-S4 0 {param($s)$s.interrupted.state.controller.playerMoveHold=$true} 'an interrupted move holding the pair refused'
+Mutate-S4 0 {param($s)$s.interrupted.distanceToTarget=5} 'an interruption control with the target in reach refused'
+Mutate-S4 0 {param($s)$s.resumedAfterInterruption.mountDisplacement=0} 'a pair still restricted after interruption refused'
+Mutate-S4 1 {param($s)$s.queued.inStandardSlot=$true} 'an immediate dispatch cannot be labeled queued'
+Mutate-S4 1 {param($s)$s.queued.state.mountQueue=0} 'an empty native queue cannot be labeled queued'
+Mutate-S4 1 {param($s)$s.queued.busyRunning=$false} 'a queue without a running command refused'
+Mutate-S4 1 {param($s)$s.queued.createdByPlayer=$true} 'a forged player command refused'
+Mutate-S4 1 {param($s)$s.queued.aiAction=$true} 'a forged AI command refused'
+Mutate-S4 1 {param($s)$s.ranFromQueue.queuedRuns=0} 'a run outside queue advancement refused'
+Mutate-S4 1 {param($s)$s.ranFromQueue.identity=99} 'a later run by another command refused'
+Mutate-S4 1 {param($s)$s.ranFromQueue.state.mountHold=$false} 'a later run clearing the mount Hold refused'
+Mutate-S4 1 {param($s)$s.queuedDone.state.riderHold=$false} 'the rider Hold lost after the queued command refused'
+Mutate-S4 1 {param($s)$s.queuedDone.mountStandardCooldown=0} 'a queued command without native expenditure refused'
+Mutate-S4 1 {param($s,$e)$e.rules.events=@()} 'a queued command that never struck refused'
+Mutate-S4 1 {param($s)$s.farTargetHeld.mountDisplacement=3} 'a later target provoking movement refused'
+Mutate-S4 1 {param($s)$s.farTargetHeld.distanceToTarget=4} 'a later target already in reach proves nothing'
+Mutate-S4 2 {param($s)$s.afterStop.dispatchesDuring=1} 'a restart after Stop refused'
+Mutate-S4 2 {param($s)$s.afterStop.state.riderHold=$true} 'Stop leaving native Hold refused'
+Mutate-S4 2 {param($s)$s.afterReEnable.state.controller.intentAutomatic=$false} 'an AI re-enable without resumption refused'
+Mutate-S4 2 {param($s)$s.manualHeld.attacksOnOldTargetSinceManual=1} 'an automatic attack over a manual order refused'
 $r=Copy-S4 $rt;$r.status='FAIL';$r.errors=@('x');$threw=$false;try{Accept $r 'sprint4-natural-rt'}catch{$threw=$true};Check $threw 'a failed run is never promoted to PASS'
 $r=Copy-S4 $rt;$r.rows=@($r.rows[0]);Reject $r 'sprint4-natural-rt' 'a missing required row refused'
 Write-Host ('Sprint 4 reader checks passed: '+$passed)
