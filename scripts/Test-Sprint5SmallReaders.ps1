@@ -33,6 +33,7 @@ function New-S5Artifact([string]$Scenario){
  Row 'S5-rigs' ([pscustomobject]@{rigs=@(New-S5Rigs $mount $size)})
  Row 'S5-actions' ([pscustomobject]@{remounted=$true;profileBefore=$profile;gearRemoved=$boundary;gearRestored=$boundary;duringCombat=$boundary;attackClicked=$true;mountAttackClicked=$true;riderAttacks=2;mountAttacks=1
    cooldownsAfterRider=[pscustomobject]@{riderStandard=4.0;mountStandard=0.0};cooldownsDuring=[pscustomobject]@{riderStandard=1.0;mountStandard=5.0};afterDismount=[pscustomobject]@{worldScale=[pscustomobject]@{y=1.0}};unmountedRig=[pscustomobject]@{worldScale=[pscustomobject]@{y=1.0}}})
+ Row 'S5-left-handed' ([pscustomobject]@{resolved=$profile;mounted=$true})
  if($dog){
   Row 'S5-size-change' ([pscustomobject]@{detached=$true;after=[pscustomobject]@{state=$null;resolved=$null};ownership=$owner;restored=[pscustomobject]@{sizes=[pscustomobject]@{riderEffective='Small'}}})
   Row 'S5-growth' ([pscustomobject]@{upgrade=$true;rankAfter=4;before=[pscustomobject]@{strength=15;constitution=15};after=[pscustomobject]@{strength=17;constitution=17;effectiveSize='Medium'};grownMounted=[pscustomobject]@{state='Mounted'}})

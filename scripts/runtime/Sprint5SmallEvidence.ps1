@@ -2,8 +2,8 @@
 # Pixels are not judged here: every named view must exist, hash and belong to its row, and a person inspects the images.
 $script:KmcSprint5Rigs=@('male-halfling','female-halfling','male-gnome','female-gnome')
 function Get-KmcSprint5Cases([string]$Scenario){
- if($Scenario -ceq 'sprint5-dog-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-medium-refused','S5-rigs','S5-actions','S5-size-change','S5-growth','S5-stock-dog','S5-replacement') }
- if($Scenario -ceq 'sprint5-small-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-rigs','S5-actions') }
+ if($Scenario -ceq 'sprint5-dog-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-medium-refused','S5-rigs','S5-actions','S5-left-handed','S5-size-change','S5-growth','S5-stock-dog','S5-replacement') }
+ if($Scenario -ceq 'sprint5-small-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-rigs','S5-actions','S5-left-handed') }
  throw ('Sprint 5 scenario has no case list: '+$Scenario)
 }
 function Assert-KmcSprint5Shot($Shots,[string]$Name,[string]$Root){

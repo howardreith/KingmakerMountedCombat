@@ -42,11 +42,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string HalflingRace = "b0c3ef2729c498f47970bb50fa1acd30";
 
         // Disclosed setup on a disposable actor: a native Doll and race, then the view rebuild Polymorph.RestoreView uses.
-        internal static void ApplyBody(UnitEntityData unit, string raceGuid, Gender gender)
+        internal static void ApplyBody(UnitEntityData unit, string raceGuid, Gender gender, bool leftHanded = false)
         {
             var race = BlueprintRoot.Instance.Progression.CharacterRaces.Single(value => value.AssetGuid == raceGuid);
             var doll = new DollState();
-            doll.SetRace(race); doll.SetGender(gender); doll.Validate();
+            doll.SetRace(race); doll.SetGender(gender); doll.SetLeftHanded(leftHanded); doll.Validate();
             unit.Descriptor.Progression.SetRace(race);
             unit.Descriptor.State.Size = race.Size;
             unit.Descriptor.Doll = doll.CreateData();
@@ -135,8 +135,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsSprint5Dog => request.Scenario == Sprint5DogRealTime;
         internal const int Sprint5SchemaVersion = 49;
         internal const double Sprint5ScenarioDeadlineSeconds = 300.0d, Sprint5HostDeadlineSeconds = 460.0d;
-        internal static readonly string[] Sprint5HorseCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-rigs", "S5-actions" };
-        internal static readonly string[] Sprint5DogCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-rigs", "S5-actions", "S5-size-change", "S5-growth", "S5-stock-dog", "S5-replacement" };
+        internal static readonly string[] Sprint5HorseCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-rigs", "S5-actions", "S5-left-handed" };
+        internal static readonly string[] Sprint5DogCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-rigs", "S5-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-stock-dog", "S5-replacement" };
         private string[] Sprint5Cases => IsSprint5Dog ? Sprint5DogCases : Sprint5HorseCases;
         private const int Sprint5SettleFrames = 45;
         private const float Sprint5MoveMetres = 6f, Sprint5ShotSeconds = 0.5f, Sprint5AttackSeconds = 12f;
@@ -226,6 +226,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S5-medium-refused": TickSprint5MediumRefused(); return;
                 case "S5-rigs": TickSprint5Rigs(); return;
                 case "S5-actions": TickSprint5Actions(); return;
+                case "S5-left-handed": TickSprint5LeftHanded(); return;
                 case "S5-size-change": TickSprint5SizeChange(); return;
                 case "S5-growth": TickSprint5Growth(); return;
                 case "S5-stock-dog": TickSprint5StockDog(); return;
@@ -565,6 +566,41 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!s5TargetService.PrepareForPlayerClick(s5Target) || !s5TargetService.QueueBidirectionalCombatMemory(s5Owner, s5Target))
                 throw new InvalidOperationException("Sprint 5 hostile target visibility/combat-memory lease failed.");
             s5TargetService.BeginExpectedAttackDispatch(s5Target);
+        }
+
+        // A left-handed body mirrors the native avatar, and its seat is observed here rather than inferred.
+        private void TickSprint5LeftHanded()
+        {
+            var state = Sprint5Pair()?.State;
+            var name = Sprint5MountName + "-left-handed";
+            switch (s5Step)
+            {
+                case 0:
+                    Sprint5Fixture.ApplyBody(s5Owner, Sprint5Rigs[0].RaceGuid, Sprint5Rigs[0].Gender, true);
+                    s5Frames = 0; s5Step = 1; ResetLeafClock(); return;
+                case 1:
+                    if (!Sprint5BodyReady() || ++s5Frames < Sprint5SettleFrames) return;
+                    s5Facts["rigFacts"] = Sprint5RiderRig(s5Owner);
+                    s5Facts["resolved"] = SupportedMountedProfiles.Resolve(s5Owner, s5Pet)?.Id;
+                    s5Facts["refusal"] = SupportedMountedProfiles.DescribeRefusal(s5Owner, s5Pet);
+                    if (s5Facts.Value<string>("resolved") == null) { s5Step = 5; return; }
+                    s5Step = 2; return;
+                case 2: if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 3; ResetLeafClock(); } return;
+                case 3:
+                    if (state != RelationshipState.Mounted || ++s5Frames < Sprint5SettleFrames) return;
+                    s5Facts["mounted"] = true;
+                    QueueSprint5Views(name, s5Pet); s5Step = 4; return;
+                case 4:
+                    if (Sprint5Click(s5Owner, nativeControls.DismountAbility, s5Owner)) { s5Step = 5; ResetLeafClock(); }
+                    return;
+                case 5:
+                    if (state == RelationshipState.Mounted || !s5Owner.Commands.Empty) return;
+                    Sprint5ApplyBody(s5Owner, Sprint5Rigs[0]); s5Frames = 0; s5Step = 6; ResetLeafClock(); return;
+                default:
+                    if (!Sprint5BodyReady() || ++s5Frames < Sprint5SettleFrames) return;
+                    FinishSprint5Row(true, "A left-handed rig was observed; the images decide whether it is supported.");
+                    return;
+            }
         }
 
         // ---- size ----------------------------------------------------------------------------------------------------
