@@ -603,6 +603,7 @@ namespace KingmakerMountedCombat.Integration
                 ridingDogSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
                     selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, ridingDogFeature)));
             }
+            logger.Info("Riding Dog selections: Ranger + " + string.Join(",", ridingDogSelections.Select(pair => pair.Key.name)) + "; failure=" + (ridingDogFailure ?? "none") + ".");
             string error;
             if (!ApplySelectionDesired(out error))
             {
@@ -706,6 +707,9 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeFeature = ridingDogUpgrade;
             addPet.UpgradeLevel = stockAddPet.UpgradeLevel > 0 ? stockAddPet.UpgradeLevel : 4;
             ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
+            logger.Info("Riding Dog registered from the stock Dog: stockSize=" + dogUnit.Size + "; sizeStep=" + size.SizeDelta +
+                "; stockFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Select(fact => fact?.name)) +
+                "; stockUpgrade=" + stockAddPet.UpgradeFeature?.name + "@" + stockAddPet.UpgradeLevel + ".");
 
             AddExactBlueprintRegistration(library, ridingDogSize);
             AddExactBlueprintRegistration(library, ridingDogUnit);

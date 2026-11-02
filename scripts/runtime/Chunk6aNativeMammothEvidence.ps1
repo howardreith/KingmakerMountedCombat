@@ -72,7 +72,9 @@ function Assert-KmcNativeMammothArtifact {
         $o=$profile.observations
         Assert-KmcNativeMammothPair $o.before $o.after
         $childObservation=$child.observations.($family.key)
-        if($null-eq$childObservation-or$o.before.riderId-cne$childObservation.rider-or$o.before.mountId-cne$childObservation.mount-or$o.childScenario-cne$Request.scenario){throw 'Native casting original pair binding differs.'}
+        $sprint5=$Request.scenario -cin @('sprint5-small-rt','sprint5-dog-rt')
+        $childRider=$(if($sprint5){$childObservation.controlRider}else{$childObservation.rider});$childMount=$(if($sprint5){$childObservation.controlMount}else{$childObservation.mount})
+        if($null-eq$childObservation-or$o.before.riderId-cne$childRider-or$o.before.mountId-cne$childMount-or$o.childScenario-cne$Request.scenario){throw 'Native casting original pair binding differs.'}
         if($o.restored-ne$true-or($o.selectionBefore|ConvertTo-Json -Compress)-cne($o.selectionAfter|ConvertTo-Json -Compress)-or$o.pauseBefore-ne$o.pauseAfter-or$o.turnBasedBefore-ne$o.turnBasedAfter-or$o.pairedBefore-ne$o.pairedAfter){throw 'Native casting outer fixture was not restored.'}
         & $family.validator -Request $Request -Artifact $child -Status $Status
         return
