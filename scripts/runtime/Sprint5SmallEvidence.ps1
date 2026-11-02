@@ -53,11 +53,11 @@ function Assert-KmcSprint5Actions($Evidence,$Shots,[string]$Mount,[string]$Root,
  if([double]$e.cooldownsAfterRider.riderStandard -le 0 -or [double]$e.cooldownsAfterRider.mountStandard -ne 0 -or [double]$e.cooldownsDuring.mountStandard -le 0){ throw 'Sprint 5 each actor must spend its own Standard action' }
  if([math]::Abs([double]$e.afterDismount.worldScale.y-[double]$e.unmountedRig.worldScale.y) -gt 0.02){ throw 'Sprint 5 dismount did not restore the rider scale' }
 }
-# A left-handed body is optional in the sense that the native setup decides it; when it mirrors, its seat must be complete and leave no residue.
+# The native view mirrors from the override the setup sets, so an unmirrored row is not left-handed evidence. Its seat must be complete and leave no residue.
 function Assert-KmcSprint5LeftHanded($Evidence,$Shots,[string]$Mount,[string]$Root){
  $e=$Evidence
  if($null -eq $e.restoredRig -or $e.restoredRig.mirror -ne $false){ throw 'Sprint 5 the left-handed setup was not undone' }
- if($e.rigFacts.mirror -ne $true){ return }
+ if($e.rigFacts.mirror -ne $true){ throw 'Sprint 5 the left-handed setup did not mirror the native avatar' }
  if([double]$e.rigFacts.animatorScaleX -ge 0 -or $e.rigFacts.leftHanded -ne $true){ throw 'Sprint 5 a mirrored rig has no mirrored native scale' }
  if($e.mounted -ne $true -or $null -eq $e.resolved -or $e.mountedRig.mirror -ne $true){ throw 'Sprint 5 the mirrored rig was not seated' }
  foreach($view in @('side','front','rear','close-side','close-other','close-front')){ Assert-KmcSprint5Shot $Shots ($Mount+'-left-handed-'+$view) $Root }
@@ -128,7 +128,11 @@ function Assert-KmcSprint5SmallEvidence {
  Assert-KmcSprint5Actions $rows['S5-actions'].evidence $shots $mount $EvidenceRoot
  $bodies=@($rows['S5-body-actions'].evidence.bodies)
  if((@($bodies | ForEach-Object { [string]$_.rig }) -join ',') -cne ($script:KmcSprint5ExtremeRigs -join ',')){ throw 'Sprint 5 the action extremes were not all run' }
- foreach($body in $bodies){ Assert-KmcSprint5Actions $body $shots $mount $EvidenceRoot ([string]$body.rig) }
+ foreach($body in $bodies){
+  $own=@($rows['S5-rigs'].evidence.rigs | Where-Object { [string]$_.rig -ceq [string]$body.rig })
+  if($own.Count -ne 1 -or [string]$body.profileBefore -cne [string]$own[0].expectedProfile -or [string]$body.unmountedRig.skeleton -cne [string]$own[0].rigFacts.skeleton){ throw ('Sprint 5 action extreme '+$body.rig+' did not run on its own body') }
+  Assert-KmcSprint5Actions $body $shots $mount $EvidenceRoot ([string]$body.rig)
+ }
  Assert-KmcSprint5LeftHanded $rows['S5-left-handed'].evidence $shots $mount $EvidenceRoot
  if($dogRun){
   $refused=$rows['S5-medium-refused'].evidence

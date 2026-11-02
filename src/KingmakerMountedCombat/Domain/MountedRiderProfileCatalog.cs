@@ -93,7 +93,8 @@ namespace KingmakerMountedCombat.Domain
         private const string SeatRecordSha256 = "a01d984eb2370bea7283d6fbe5603807ee2b5b1ddeeb172fd8bef4f3c3863463";
         private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
         private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
-        private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, -0.16f, 0f);
+        // Explicit zero: the accepted Horse seat always ran with none, because the -0.16 once written here initialized after the profiles that read it.
+        private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, 0f, 0f);
         private static PoseVector3 HorseSeat(float height) => new PoseVector3(0f, height - HorseChestHeight, HorseSaddleForward - HorseChestForward);
         // Foot and knee are sized by the rig's own thigh-and-shin reach.
         private static MountedRiderPoseProfile SmallPose(string id, float reach, float footSpread = HorseFootSpread) => new MountedRiderPoseProfile(id, "Pelvis",

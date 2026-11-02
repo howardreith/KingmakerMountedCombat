@@ -28,7 +28,7 @@ function New-S5Artifact([string]$Scenario){
  $profile=$(if($dog){'small-halfling-male-ridingdog-v1'}else{'small-default-halfling-horse-v1'})
  $boundary=[pscustomobject]@{state='Mounted';resolved=$profile}
  $action={ param($rig) $body=[pscustomobject]@{remounted=$true;profileBefore=$profile;gearRemoved=$boundary;gearRestored=$boundary;duringCombat=$boundary;attackClicked=$true;mountAttackClicked=$true;riderAttacks=2;mountAttacks=1
-   cooldownsAfterRider=[pscustomobject]@{riderStandard=4.0;mountStandard=0.0};cooldownsDuring=[pscustomobject]@{riderStandard=1.0;mountStandard=5.0};afterDismount=[pscustomobject]@{worldScale=[pscustomobject]@{y=1.0}};unmountedRig=[pscustomobject]@{worldScale=[pscustomobject]@{y=1.0}}}; if($rig){ $body | Add-Member -NotePropertyName rig -NotePropertyValue $rig }; $body }
+   cooldownsAfterRider=[pscustomobject]@{riderStandard=4.0;mountStandard=0.0};cooldownsDuring=[pscustomobject]@{riderStandard=1.0;mountStandard=5.0};afterDismount=[pscustomobject]@{worldScale=[pscustomobject]@{y=1.0}};unmountedRig=[pscustomobject]@{skeleton=$(if($rig){$rig}else{'male-halfling'});worldScale=[pscustomobject]@{y=1.0}}}; if($rig){ $parts=$rig.Split('-'); $body.profileBefore='small-'+$parts[1]+'-'+$parts[0]+'-'+$parts[2]+'-'+$(if($dog){'ridingdog'}else{'horse'})+'-v1'; $own=[pscustomobject]@{state='Mounted';resolved=$body.profileBefore}; $body.gearRemoved=$own; $body.gearRestored=$own; $body.duringCombat=$own; $body | Add-Member -NotePropertyName rig -NotePropertyValue $rig }; $body }
  $pet='pet-1'
  $state={ param($level,$xp) [pscustomobject]@{id=$pet;master=$owner;size='Medium';characterLevel=$level;classLevel=$level;experience=$xp;hitPointsBase=10*$level;maxHp=11*$level;babBase=$level;fortitudeBase=$level;reflexBase=$level;willBase=$level;classBab=$level;classFortitude=$level;classReflex=$level;classWill=$level;strength=17;constitution=17;upgradeCount=1;upgradeRank=1} }
  $commits=@(1,2,3 | ForEach-Object { [pscustomobject]@{canLevelUp=$true;committed=$true;complete=$true;before=(& $state $_ 9000);after=(& $state ($_+1) 9000)} })
@@ -99,7 +99,9 @@ $r=Copy-S5 $horse; (RowOf $r 'S5-body-actions').bodies[1].mountAttacks=0; Reject
 $r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').rigFacts.animatorScaleX=1.0; Reject $r 'sprint5-small-rt' 'a mirror claim without a mirrored scale refuses'
 $r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').mounted=$false; Reject $r 'sprint5-small-rt' 'a mirrored rig that never sat refuses'
 $r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').restoredRig.mirror=$true; Reject $r 'sprint5-small-rt' 'a mirror left behind refuses'
-$r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').rigFacts.mirror=$false; Check ((Accept $r 'sprint5-small-rt')[-1] -eq $true) 'an unmirrored setup is recorded, not counted as a mirror'
+$r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').rigFacts.mirror=$false; Reject $r 'sprint5-small-rt' 'an unmirrored setup is not left-handed evidence'
+$r=Copy-S5 $horse; (RowOf $r 'S5-body-actions').bodies[0].profileBefore='small-gnome-male-horse-v1'; Reject $r 'sprint5-small-rt' 'an action extreme on another body refuses'
+foreach($scenario in 'sprint5-dog-rt','sprint5-small-rt'){ foreach($row in (Get-KmcSprint5Cases $scenario)){ Check (@(Get-KmcPhase3dHorseRuntimeRows $scenario | Where-Object { $_ -ceq $row }).Count -eq 1) ($scenario+' registers row '+$row) } }
 $r=Copy-S5 $dog; $x=(RowOf $r 'S5-pet-level'); $x.commits=@($x.commits[0..1]); Reject $r 'sprint5-dog-rt' 'an incomplete pet level sequence refuses'
 $r=Copy-S5 $dog; (RowOf $r 'S5-pet-level').commits[0].complete=$false; Reject $r 'sprint5-dog-rt' 'a commit with unmade choices refuses'
 $r=Copy-S5 $dog; (RowOf $r 'S5-pet-level').commits[1].after.experience=99; Reject $r 'sprint5-dog-rt' 'a pet level that moved experience refuses'

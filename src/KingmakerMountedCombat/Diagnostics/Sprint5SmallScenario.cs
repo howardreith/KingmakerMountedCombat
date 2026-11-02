@@ -510,9 +510,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5Step = 7; ResetLeafClock(); return;
                 case 7:
                     if (Sprint5Pair()?.State == RelationshipState.Mounted || !s5Owner.Commands.Empty) return;
-                    s5RigRow["afterDismount"] = Sprint5Sizes(s5Owner, s5Pet); s5Step = 8; s5Frames = 0; ResetLeafClock(); return;
+                    s5RigRow["afterDismount"] = Sprint5Sizes(s5Owner, s5Pet); s5StepAt = Time.time + 1f; s5Step = 8; ResetLeafClock(); return;
                 case 8:
-                    if (++s5Frames < Sprint5SettleFrames) return;
+                    if (Time.time < s5StepAt) return;
                     // Scale and pose residue, once the rider is standing again.
                     s5RigRow["afterDismountRig"] = Sprint5RiderRig(s5Owner);
                     QueueSprint5Shot(name + "-dismounted", s5Owner, 90f, 1.3f, 5f, 24f);
