@@ -668,10 +668,12 @@ namespace KingmakerMountedCombat.Diagnostics
             QueueSprint5Shot(name + "-side", focus, 90f, 1.3f, 9f, 24f);
             QueueSprint5Shot(name + "-front", focus, 30f, 1.5f, 9f, 24f);
             QueueSprint5Shot(name + "-rear", focus, 150f, 1.9f, 9f, 24f);
+            QueueSprint5Shot(name + "-other", focus, 270f, 1.3f, 9f, 24f);
         }
 
         private void QueueSprint5Shot(string name, UnitEntityData focus, float yaw, float height, float distance, float fieldOfView) =>
-            s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height, Distance = distance, FieldOfView = fieldOfView });
+            s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height,
+                Distance = IsSprint5Dog && focus != horse ? distance * 0.7f : distance, FieldOfView = fieldOfView });
 
         private void PumpSprint5Shots()
         {
