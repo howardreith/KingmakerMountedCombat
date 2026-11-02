@@ -24,14 +24,16 @@ namespace KingmakerMountedCombat.Diagnostics
     // row: the native party brain chooses it. The reader owns PASS/FAIL.
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal static bool IsSprint4NaturalScenario(string scenario) => scenario == "sprint4-natural-rt" || scenario == "sprint4-natural-tb";
+        internal static bool IsSprint4NaturalScenario(string scenario) => scenario == "sprint4-natural-rt" || scenario == "sprint4-natural-tb" || scenario == "sprint4-intent-rt";
+        private bool IsSprint4Intent => request.Scenario == "sprint4-intent-rt";
         private bool IsSprint4Natural => IsSprint4NaturalScenario(request.Scenario);
         internal const int Sprint4SchemaVersion = 48;
         // Inside the host deadline, so a stalled row still writes its evidence.
         internal const double Sprint4ScenarioDeadlineSeconds = 420.0d, Sprint4HostDeadlineSeconds = 460.0d;
         internal static readonly string[] Sprint4RealTimeCases = { "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase" };
         internal static readonly string[] Sprint4TurnBasedCases = { "S4-tb-ordinary-actors" };
-        private string[] Sprint4Cases => CastingTb ? Sprint4TurnBasedCases : Sprint4RealTimeCases;
+        internal static readonly string[] Sprint4IntentCases = { "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors" };
+        private string[] Sprint4Cases => CastingTb ? Sprint4TurnBasedCases : IsSprint4Intent ? Sprint4IntentCases : Sprint4RealTimeCases;
         private string Sprint4Case => Sprint4Cases[s4CaseIndex];
         private const float Sprint4ObservationSeconds = 3f, Sprint4StopGraceSeconds = 1f, Sprint4RecipientMetres = 12f;
         private const int Sprint4RequiredAutomaticDispatches = 2;
@@ -92,12 +94,15 @@ namespace KingmakerMountedCombat.Diagnostics
             ["admitted"] = combat.AutomaticAdmittedCount, ["continued"] = combat.AutomaticContinuedCount,
             ["refused"] = combat.AutomaticRefusedCount, ["automaticDispatches"] = combat.AutomaticDispatchCount,
             ["retired"] = combat.AutomaticRetiredCount, ["lastRefusal"] = combat.LastAutomaticRefusal,
-            ["lastRetirement"] = combat.LastAutomaticRetirement, ["lastObservation"] = combat.LastStockAttackObservation };
+            ["lastRetirement"] = combat.LastAutomaticRetirement, ["lastObservation"] = combat.LastStockAttackObservation,
+            ["holdKept"] = combat.AutomaticHoldKeptCount, ["queuedHoldKept"] = combat.AutomaticQueuedHoldKeptCount, ["queuedRuns"] = combat.AutomaticQueuedRunCount,
+            ["queuedRefused"] = combat.AutomaticQueuedRefusedCount, ["playerMoveHold"] = combat.PlayerMoveHoldArmed, ["moveWatched"] = combat.WatchedPlayerMove != null,
+            ["lastMoveOutcome"] = combat.LastPlayerMoveOutcome.ToString() };
 
         private JObject Sprint4State() {
             var state = CastingState();
             state["controller"] = Sprint4Controller();
-            state["riderAiEnabled"] = rider.IsAIEnabled; state["riderBrainActive"] = rider.IsBrainActive; state["riderHold"] = rider.HoldState;
+            state["riderAiEnabled"] = rider.IsAIEnabled; state["riderBrainActive"] = rider.IsBrainActive; state["riderHold"] = rider.HoldState; state["mountHold"] = horse.HoldState;
             state["manualTarget"] = rider.CombatState.ManualTarget?.UniqueId; state["lastTarget"] = rider.CombatState.LastTarget?.UniqueId;
             state["mountManualTarget"] = horse.CombatState.ManualTarget?.UniqueId;
             state["riderPosition"] = CapturePosition(rider.Position); state["mountPosition"] = CapturePosition(horse.Position);
@@ -223,11 +228,11 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // An exact second native target through the same reviewed lease as BeginTarget. It never overlaps another target.
-        private UnitEntityData Sprint4Spawn(float distance, string suffix, bool durable)
+        private UnitEntityData Sprint4Spawn(float distance, string suffix, bool durable, Func<Vector3, bool> accepts = null)
         {
             var taken = s4Targets.Select(t => t.Unit.Position).Concat(target == null ? new Vector3[0] : new[] { target.Position }).ToArray();
             var point = FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1f : .5f,
-                candidate => taken.All(position => HorizontalDistance(candidate, position) >= 5f));
+                candidate => taken.All(position => HorizontalDistance(candidate, position) >= 5f) && (accepts == null || accepts(candidate)));
             var service = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
             var unit = service.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, durable);
             if (!service.PrepareForPlayerClick(unit) || !service.QueueBidirectionalCombatMemory(rider, unit))
@@ -298,7 +303,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s4Stage == 1)
             {
                 // A row that continues an encounter or ends it itself starts with the automatic path still attacking.
-                var continuesEncounter = Sprint4Case == "S4-controls" || Sprint4Case == "S4-melee-retarget" || Sprint4Case == "S4-hold-no-chase";
+                var continuesEncounter = Sprint4Case == "S4-controls" || Sprint4Case == "S4-melee-retarget" || Sprint4Case == "S4-hold-no-chase" ||
+                    Sprint4Case == "S4-queued-hold" || Sprint4Case == "S4-intent-neighbors";
                 if (!continuesEncounter && (!Sprint4Settled() || game.HandsEquipmentController.IsUpdateScheduledFor(rider))) return;
                 if (relationship.State != RelationshipState.Mounted) throw new InvalidOperationException("Sprint 4 rows require the exact mounted pair at every row start.");
                 BeginSprint4Row(); s4Stage = 2; return;
@@ -312,6 +318,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S4-melee-retarget": TickSprint4Melee(); return;
                 case "S4-hold-no-chase": TickSprint4Hold(); return;
                 case "S4-tb-ordinary-actors": TickSprint4TurnBased(turn); return;
+                case "S4-move-into-combat": TickSprint4MoveIntoCombat(); return;
+                case "S4-queued-hold": TickSprint4QueuedHold(); return;
+                case "S4-intent-neighbors": TickSprint4IntentNeighbors(); return;
                 default: throw new InvalidOperationException("Unknown Sprint 4 case " + Sprint4Case);
             }
         }
@@ -642,6 +651,293 @@ namespace KingmakerMountedCombat.Diagnostics
             FinishSprint4Row(true, "Hold and no-chase observations recorded.");
         }
 
+        // ---- Player intent: the exact move's own completion, and a queued automatic command keeping Hold ----------------
+        private UnitMoveTo s4Move, s4InterruptedMove;
+        private Vector3 s4MoveStart;
+        private MountedPairAttackCommand s4QueuedCommand;
+        private Sprint4BusyAttack s4Busy;
+        private int s4QueueAttempts;
+        private const int Sprint4QueueAttemptLimit = 3;
+
+        // A native attack on the mount's Standard slot that spends nothing, the way a native spell-combat attack does. It
+        // is bounded setup: UnitCommands.Run then queues the pair's dispatch behind this running command by its own rules
+        // (a running command on the same target), which an ordinary fixture cannot reach because an actor's own attack
+        // leaves it on cooldown for longer than the attack lasts.
+        private sealed class Sprint4BusyAttack : UnitAttack
+        {
+            internal Sprint4BusyAttack(UnitEntityData target) : base(target)
+            {
+                IsSingleAttack = true;
+                IgnoreCooldown();
+            }
+        }
+
+        private JObject Sprint4MoveFacts(UnitMoveTo move, JObject record)
+        {
+            record["moveIdentity"] = castingTrace.Identity(move); record["moveType"] = move.GetType().Name; record["createdByPlayer"] = move.CreatedByPlayer;
+            record["executor"] = move.Executor?.UniqueId; record["started"] = move.IsStarted; record["acted"] = move.IsActed; record["finished"] = move.IsFinished;
+            record["result"] = move.Result.ToString(); record["riderInCombat"] = rider.IsInCombat; record["mountInCombat"] = horse.IsInCombat;
+            record["turnBased"] = CombatController.IsInTurnBasedCombat(); record["generation"] = relationship.MountedPairGeneration;
+            record["position"] = CapturePosition(horse.Position);
+            return record;
+        }
+
+        private bool Sprint4GroundMove(Vector3 point, string name)
+        {
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            bool clicked;
+            using (var input = new NativeOrdinaryAttackInput(point)) clicked = input.Click();
+            ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "ground-click", ["name"] = name, ["clicked"] = clicked, ["frame"] = Time.frameCount,
+                ["target"] = CapturePosition(point), ["inputPath"] = "ClickGroundHandler.OnClick" });
+            if (!clicked) { FailSprint4Row("The ordinary ground click was refused."); return false; }
+            var watched = combat.WatchedPlayerMove as UnitMoveTo;
+            if (watched == null || !ReferenceEquals(horse.Commands.Move, watched)) { FailSprint4Row("The ground click left no exact watched move on the mount."); return false; }
+            s4Move = watched; s4MoveStart = horse.Position;
+            return true;
+        }
+
+        private void TickSprint4MoveIntoCombat()
+        {
+            var game = Game.Instance;
+            if (s4Step == 0)
+            {
+                if (rangedWeaponLease == null) { rangedWeaponLease = new Phase3dRangedWeaponLease(rider); rangedWeaponLease.AcquireCompatibleRanged(); return; }
+                if (!rangedWeaponLease.IsReady || game.HandsEquipmentController.IsUpdateScheduledFor(rider) || rider.AreHandsBusyWithAnimation) return;
+                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
+                if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                if (rider.IsInCombat || horse.IsInCombat) { FailSprint4Row("The move row must start before combat."); return; }
+                Sprint4SetAi(true, "before-move");
+                var point = FindWalkablePoint(horse.Position, 30f, 8f, candidate => Sprint3PathPossible(horse.Position, candidate) == true);
+                s4Facts["moveTarget"] = CapturePosition(point); s4HoldPosition = point;
+                if (!Sprint4GroundMove(point, "exploration-move")) return;
+                Sprint4MoveFacts(s4Move, Sprint4Step("moveIssued"));
+                s4Step = 1; ResetLeafClock(); return;
+            }
+            if (s4Step == 1)
+            {
+                if (s4Move.IsFinished) { FailSprint4Row("The exploration move ended before its encounter began."); return; }
+                if (horse.View?.AgentASP?.IsReallyMoving != true) return;
+                // The encounter begins behind the moving pair, well beyond the rider's reach from the destination.
+                var destination = s4HoldPosition;
+                s4First = Sprint4Spawn(9f, "s4-move-far", true, candidate => HorizontalDistance(candidate, destination) >= 18f);
+                s4Facts["firstTarget"] = s4First.UniqueId;
+                s4Step = 2; ResetLeafClock(); return;
+            }
+            if (s4Step == 2)
+            {
+                if (s4Move.IsFinished && (!rider.IsInCombat || !horse.IsInCombat)) { FailSprint4Row("The exploration move ended before combat began."); return; }
+                if (!rider.IsInCombat || !horse.IsInCombat) return;
+                Sprint4MoveFacts(s4Move, Sprint4Step("combatWhileMoving"));
+                s4Step = 3; ResetLeafClock(); return;
+            }
+            if (s4Step == 3)
+            {
+                // The controller has settled the exact move's native outcome, and the proposals since it are refused.
+                if (combat.WatchedPlayerMove != null) return;
+                var record = Sprint4MoveFacts(s4Move, Sprint4Step("arrival"));
+                record["distanceToTarget"] = HorizontalDistance(horse.Position, s4First.Position);
+                s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount; s4ProposalBaseline = combat.AutomaticRefusedCount;
+                s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 4; ResetLeafClock(); return;
+            }
+            if (s4Step == 4)
+            {
+                if (Time.time < s4WaitUntil) return;
+                var record = Sprint4Step("heldAfterArrival");
+                record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+                record["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; record["refusedDuring"] = combat.AutomaticRefusedCount - s4ProposalBaseline;
+                // The interruption control: a new move, stopped natively before it arrives, never holds the pair.
+                var far = s4First; var here = HorizontalDistance(horse.Position, far.Position);
+                var away = FindWalkablePoint(horse.Position, 8f, 3f, candidate => HorizontalDistance(candidate, far.Position) >= here && Sprint3PathPossible(horse.Position, candidate) == true);
+                if (!Sprint4GroundMove(away, "move-to-interrupt")) return;
+                s4InterruptedMove = s4Move;
+                Sprint4MoveFacts(s4InterruptedMove, Sprint4Step("secondMoveIssued"));
+                s4Step = 5; ResetLeafClock(); return;
+            }
+            if (s4Step == 5)
+            {
+                if (s4InterruptedMove.IsFinished) { FailSprint4Row("The second move ended before the interruption control."); return; }
+                if (horse.View?.AgentASP?.IsReallyMoving != true || HorizontalDistance(s4MoveStart, horse.Position) < .5f) return;
+                // The exact native call SelectionManager.Hold makes for a selected mover.
+                horse.Commands.InterruptMove();
+                ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "native-interrupt-move", ["frame"] = Time.frameCount });
+                s4Step = 6; ResetLeafClock(); return;
+            }
+            if (s4Step == 6)
+            {
+                if (combat.WatchedPlayerMove != null) return;
+                var record = Sprint4MoveFacts(s4InterruptedMove, Sprint4Step("interrupted"));
+                record["distanceToTarget"] = HorizontalDistance(horse.Position, s4First.Position);
+                s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount;
+                s4Step = 7; ResetLeafClock(); return;
+            }
+            // Nothing holds the pair: the native brain's proposal reaches the far target with the mount carrying the approach.
+            if (combat.AutomaticDispatchCount == s4Baseline || HorizontalDistance(s4HoldPosition, horse.Position) < 1f) return;
+            var resumed = Sprint4Step("resumedAfterInterruption");
+            resumed["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; resumed["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+            FinishSprint4Row(true, "Move completion and interruption observations recorded.");
+        }
+
+        private void TickSprint4QueuedHold()
+        {
+            if (s4Step == 0)
+            {
+                Sprint4SetAi(false, "before-queued-target");
+                s4Step = 1; ResetLeafClock(); return;
+            }
+            if (s4Step == 1)
+            {
+                if (combat.HasStockAttackIntent || combat.CurrentPairCommand != null || !horse.Commands.Empty) return;
+                s4Second = Sprint4Spawn(3.5f, "s4-queued-near", true);
+                s4Step = 2; ResetLeafClock(); return;
+            }
+            if (s4Step == 2)
+            {
+                if (!s4Second.IsInCombat || rider.Commands.Standard != null || !rider.HasLOS(s4Second)) return;
+                // Only the near target remains for the native brain to choose, inside the rider's own bow reach.
+                var previous = s4Targets.First(t => t.Unit == s4First);
+                if (!previous.Service.DestroyAndVerify()) return;
+                previous.Service.Dispose(); s4Targets.Remove(previous);
+                s4Facts["secondTarget"] = s4Second.UniqueId; s4Facts["mountStart"] = CapturePosition(horse.Position); s4HoldPosition = horse.Position;
+                Sprint4Input("hold", "hold-before-automatic", () => SelectionManager.Instance.Hold());
+                Sprint4SetAi(true, "queued-target");
+                Sprint4Step("heldBeforeAutomatic");
+                s4Step = 3; ResetLeafClock(); return;
+            }
+            if (s4Step == 3)
+            {
+                if (!combat.StockIntentIsAutomatic || combat.CurrentStockIntentTarget != s4Second || !horse.Commands.Empty || horse.Commands.Queue.Count != 0) return;
+                var active = combat.CurrentPairCommand;
+                var mountCooldown = horse.CombatState.Cooldown.StandardAction;
+                // The pair's next dispatch is the mount's: either the rider's routine is about to end with the mount ready,
+                // or the mount's own cooldown is about to expire with the rider spent. The busy command starts before it.
+                var riderEnding = active != null && active.ActionActor == rider && active.IsActed && mountCooldown <= 0f;
+                var mountExpiring = active == null && !rider.HasStandardAction() && mountCooldown > .15f && mountCooldown < .6f;
+                if (!riderEnding && !mountExpiring) return;
+                s4Busy = new Sprint4BusyAttack(s4Second);
+                horse.Commands.Run(s4Busy);
+                if (!horse.Commands.Contains(s4Busy) || !s4Busy.IsUnitEnoughClose) { FailSprint4Row("The mount's busy attack was not admitted in reach."); return; }
+                // Native Run cleared the mount's Hold for this setup command. The Hold under test is written the way the
+                // native Hold input writes it for a selected unit, while the setup command runs.
+                horse.HoldState = true;
+                var record = Sprint4Step("busyStarted" + s4QueueAttempts);
+                record["riderEnding"] = riderEnding; record["mountExpiring"] = mountExpiring; record["mountCooldown"] = mountCooldown;
+                s4QueuedCommand = null; s4Baseline = combat.AutomaticQueuedRunCount; s4ProposalBaseline = combat.AutomaticQueuedHoldKeptCount;
+                s4Step = 4; ResetLeafClock(); return;
+            }
+            if (s4Step == 4)
+            {
+                var active = combat.CurrentPairCommand;
+                if (s4QueuedCommand == null)
+                {
+                    if (active == null || active.ActionActor != horse)
+                    {
+                        if (!s4Busy.IsFinished) return;
+                        // The busy attack ended before the dispatch: nothing was queued, and nothing is claimed for it.
+                        if (++s4QueueAttempts >= Sprint4QueueAttemptLimit) { FailSprint4Row("No automatic command reached the native queue within the bounded attempts."); return; }
+                        s4Step = 3; return;
+                    }
+                    if (!horse.Commands.Queue.Contains(active))
+                    {
+                        if (++s4QueueAttempts >= Sprint4QueueAttemptLimit) { FailSprint4Row("The automatic command ran immediately on every bounded attempt."); return; }
+                        s4Step = 3; return;
+                    }
+                    s4QueuedCommand = active;
+                    var queued = Sprint4Step("queued");
+                    queued["identity"] = castingTrace.Identity(active); queued["automaticOrigin"] = active.IsAutomaticOrigin; queued["createdByPlayer"] = active.CreatedByPlayer;
+                    queued["aiAction"] = active.AiAction != null; queued["busyRunning"] = s4Busy.IsRunning; queued["busyActed"] = s4Busy.IsActed; queued["actor"] = active.ActionActor.UniqueId;
+                    queued["inStandardSlot"] = horse.Commands.Contains(active); queued["started"] = active.IsStarted;
+                    return;
+                }
+                if (!horse.Commands.Contains(s4QueuedCommand)) { if (s4QueuedCommand.IsFinished) FailSprint4Row("The queued automatic command ended without its later native Run."); return; }
+                var ran = Sprint4Step("ranFromQueue");
+                ran["identity"] = castingTrace.Identity(s4QueuedCommand); ran["queueAfter"] = horse.Commands.Queue.Count; ran["busyFinished"] = s4Busy.IsFinished;
+                ran["queuedRuns"] = combat.AutomaticQueuedRunCount - s4Baseline; ran["queuedHoldKept"] = combat.AutomaticQueuedHoldKeptCount - s4ProposalBaseline;
+                s4Step = 5; ResetLeafClock(); return;
+            }
+            if (s4Step == 5)
+            {
+                if (!s4QueuedCommand.IsFinished) return;
+                var done = Sprint4Step("queuedDone");
+                done["result"] = s4QueuedCommand.Result.ToString(); done["identity"] = castingTrace.Identity(s4QueuedCommand);
+                done["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+                done["mountAttacks"] = Sprint4Attacks(horse, s4Second).Length; done["mountStandardCooldown"] = horse.CombatState.Cooldown.StandardAction;
+                // A later target beyond every reach: the kept Hold is what stops the chase.
+                s4Third = Sprint4Spawn(19f, "s4-queued-far", true);
+                s4Step = 6; ResetLeafClock(); return;
+            }
+            if (s4Step == 6)
+            {
+                if (!s4Third.IsInCombat || combat.CurrentPairCommand != null) return;
+                var near = s4Targets.First(t => t.Unit == s4Second);
+                if (!near.Service.DestroyAndVerify()) return;
+                near.Service.Dispose(); s4Targets.Remove(near);
+                s4Step = 7; ResetLeafClock(); return;
+            }
+            if (s4Step == 7)
+            {
+                if (combat.HasStockAttackIntent || combat.CurrentPairCommand != null) return;
+                s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount; s4ProposalBaseline = combat.AutomaticRefusedCount;
+                s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 8; ResetLeafClock(); return;
+            }
+            if (Time.time < s4WaitUntil) return;
+            var held = Sprint4Step("farTargetHeld");
+            held["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position); held["distanceToTarget"] = HorizontalDistance(horse.Position, s4Third.Position);
+            held["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; held["refusedDuring"] = combat.AutomaticRefusedCount - s4ProposalBaseline;
+            FinishSprint4Row(true, "Queued automatic command and kept Hold observations recorded.");
+        }
+
+        private void TickSprint4IntentNeighbors()
+        {
+            if (s4Step == 0)
+            {
+                Sprint4Step("beforeStop"); s4HoldPosition = horse.Position;
+                s4Baseline = combat.AutomaticDispatchCount; s4ProposalBaseline = combat.AutomaticRefusedCount;
+                Sprint4Input("stop", "stop", () => SelectionManager.Instance.Stop());
+                s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 1; ResetLeafClock(); return;
+            }
+            if (s4Step == 1)
+            {
+                if (Time.time < s4WaitUntil) return;
+                var record = Sprint4Step("afterStop");
+                record["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; record["refusedDuring"] = combat.AutomaticRefusedCount - s4ProposalBaseline;
+                record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+                s4Baseline = combat.AutomaticDispatchCount;
+                Sprint4SetAi(false, "after-stop"); s4StableFrames = 0; s4Step = 2; return;
+            }
+            if (s4Step == 2)
+            {
+                if (++s4StableFrames < 5) return;
+                Sprint4SetAi(true, "explicit-re-enable"); s4Step = 3; ResetLeafClock(); return;
+            }
+            if (s4Step == 3)
+            {
+                if (combat.AutomaticDispatchCount == s4Baseline) return;
+                Sprint4Step("afterReEnable");
+                s4First = Sprint4Spawn(8f, "s4-neighbor-manual", true);
+                s4Step = 4; ResetLeafClock(); return;
+            }
+            if (s4Step == 4)
+            {
+                if (!s4First.IsInCombat) return;
+                Sprint4Step("beforeManual");
+                if (!Sprint4Click(s4First, "manual-replacement")) { FailSprint4Row("The manual replacement click was refused."); return; }
+                Sprint4Step("afterManual"); s4Step = 5; ResetLeafClock(); return;
+            }
+            if (s4Step == 5)
+            {
+                if (Sprint4Attacks(rider, s4First).Length == 0 && Sprint4Attacks(horse, s4First).Length == 0) return;
+                var record = Sprint4Step("manualAttacked");
+                record["intentOwnedByPlayer"] = combat.HasStockAttackIntent && !combat.StockIntentIsAutomatic && combat.CurrentStockIntentTarget == s4First;
+                s4Baseline = Sprint4Attacks(rider, s4Third).Length + Sprint4Attacks(horse, s4Third).Length;
+                s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 6; ResetLeafClock(); return;
+            }
+            if (Time.time < s4WaitUntil) return;
+            var manual = Sprint4Step("manualHeld");
+            manual["attacksOnOldTargetSinceManual"] = Sprint4Attacks(rider, s4Third).Length + Sprint4Attacks(horse, s4Third).Length - s4Baseline;
+            manual["manualTargetStillOwned"] = combat.CurrentStockIntentTarget == s4First && !combat.StockIntentIsAutomatic;
+            FinishSprint4Row(true, "Stop, re-enable and manual replacement observations recorded.");
+        }
+
         // ---- Turn-based neighbor: ordinary stock attacks by each actor, no automatic attack and no automatic End Turn ---
         private void TickSprint4TurnBased(TurnController turn)
         {
@@ -719,6 +1015,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (rangedWeaponLease != null) { rangedWeaponLease.Dispose(); rangedWeaponLease = null; }
             if (ordinaryVariation != null) { ordinaryVariation.Dispose(); ordinaryVariation = null; }
             RestorePhase3hRapidShot();
+            if (IsSprint4Intent) { rider.HoldState = false; horse.HoldState = false; }
             if (s4RiderAiCaptured) { rider.IsAIEnabled = s4RiderAiBefore; s4RiderAiCaptured = false; CastingMeasurement["riderAiRestored"] = rider.IsAIEnabled == s4RiderAiBefore; }
             if (!Sprint4DestroyTargets()) return false;
             if (!DrainCastingFixture()) return false;

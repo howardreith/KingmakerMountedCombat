@@ -128,7 +128,8 @@ namespace KingmakerMountedCombat.Domain
     //
     // The player-move hold mirrors native UnitMoveTo.OnAction, which holds the unit that moved after a player order in
     // combat. The mount executes the pair's move, so the rider's own HoldState never records it. The mount's HoldState
-    // cannot stand in for it, because the pair command's delegated approach is a UnitMoveTo as well.
+    // alone cannot stand in for it, because the pair command's delegated approach is a UnitMoveTo as well:
+    // MountedPlayerMoveWatch reads it only for the exact explicit move.
     public sealed class MountedAutomaticAttackGate
     {
         private long stopGeneration;
@@ -150,9 +151,9 @@ namespace KingmakerMountedCombat.Domain
             PlayerMoveHold = false;
         }
 
-        public void ObservePlayerMove()
+        // Only the exact move's own native completion arrives here; issuing an order is ObservePlayerOrder.
+        public void ObservePlayerMoveCompleted()
         {
-            stopArmed = false;
             PlayerMoveHold = true;
         }
 
@@ -179,6 +180,117 @@ namespace KingmakerMountedCombat.Domain
             stopArmed = false;
             aiOffSinceStop = false;
             PlayerMoveHold = false;
+        }
+    }
+
+    public enum MountedQueuedAutomaticRun
+    {
+        NotAutomatic,
+        Execute,
+        RefuseFinished,
+        RefuseStale
+    }
+
+    // Which exact command is the pair's current automatic one. Installed 2.1.7b: UnitCommands.Run(cmd, fromQueue,
+    // doNotClearQueue) clears the owner's Hold for any command without AiAction, at immediate admission and again when
+    // RemoveFinishedAndUpdateQueue later runs it from the queue, and the public Run's own hooks see only the first.
+    // A custom handler (a kineticist blade's activation) queues the command first and runs its prerequisite with
+    // doNotClearQueue, inheriting the same AiAction. Only that one native write is withheld, so Hold always stays the
+    // current value: a Hold pressed or cleared by a player between the two boundaries needs nothing restored.
+    public sealed class MountedAutomaticRunLedger
+    {
+        private object command;
+        private long generation;
+
+        public void Bind(object automaticCommand, long pairGeneration)
+        {
+            command = automaticCommand;
+            generation = pairGeneration;
+        }
+
+        public void Clear()
+        {
+            command = null;
+        }
+
+        public bool Owns(object candidate, long pairGeneration)
+        {
+            return candidate != null && ReferenceEquals(command, candidate) && generation == pairGeneration;
+        }
+
+        public bool NativeRunKeepsHold(object running, object firstQueued, bool preparesQueuedCommand, long pairGeneration)
+        {
+            return Owns(running, pairGeneration) || preparesQueuedCommand && Owns(firstQueued, pairGeneration);
+        }
+
+        // The later Run reaches none of the public Run's admission, so a command that outlived its intent stops here.
+        public MountedQueuedAutomaticRun DecideQueuedRun(object queued, bool automaticOrigin, bool finished, bool exactMountedPair, long pairGeneration)
+        {
+            if (!automaticOrigin) return MountedQueuedAutomaticRun.NotAutomatic;
+            if (finished) return MountedQueuedAutomaticRun.RefuseFinished;
+            return exactMountedPair && Owns(queued, pairGeneration)
+                ? MountedQueuedAutomaticRun.Execute
+                : MountedQueuedAutomaticRun.RefuseStale;
+        }
+
+        // Native Run clears the queue without interrupting what it holds: an unstarted command in neither place never runs.
+        public static bool IsOrphaned(bool automaticOrigin, bool started, bool finished, bool inSlot, bool inQueue)
+        {
+            return automaticOrigin && !started && !finished && !inSlot && !inQueue;
+        }
+    }
+
+    public enum MountedPlayerMoveOutcome
+    {
+        None,
+        Pending,
+        CompletedHeld,
+        CompletedNotHeld,
+        Interrupted,
+        Lost
+    }
+
+    // Separates "this particular player ground move actually completed" from "a new order was issued". Installed 2.1.7b:
+    // UnitMoveTo.OnAction runs only on arrival, and sets the mover's Hold only when that arrival is in real-time combat,
+    // so the exact move's native result answers both questions at the native boundary. Its Result is Interrupt, without
+    // OnAction, when it is replaced, stopped or blocked. A move the queue dropped has no result at all.
+    public sealed class MountedPlayerMoveWatch
+    {
+        private long generation;
+
+        public object Move { get; private set; }
+
+        // The exact unit the ground click itself ran: approaches for attacks, spells, traps, doors or recovery are
+        // UnitMoveTo as well, and may carry CreatedByPlayer for native routing, but never pass through the ground click.
+        public static bool IsExplicitGroundMove(bool groundOrderOpen, bool exactMoveType, bool createdByPlayer, bool aiOrigin,
+            bool ranOnPairMover, bool admitted)
+        {
+            return groundOrderOpen && exactMoveType && createdByPlayer && !aiOrigin && ranOnPairMover && admitted;
+        }
+
+        public void Bind(object move, long pairGeneration)
+        {
+            Move = move;
+            generation = pairGeneration;
+        }
+
+        public void Clear()
+        {
+            Move = null;
+        }
+
+        public MountedPlayerMoveOutcome Observe(long pairGeneration, bool exactMountedPair, bool finished, bool completedByAction,
+            bool moverHeld, bool inSlotOrQueue)
+        {
+            if (Move == null) return MountedPlayerMoveOutcome.None;
+            var outcome = MountedPlayerMoveOutcome.Pending;
+            if (!exactMountedPair || generation != pairGeneration) outcome = MountedPlayerMoveOutcome.Lost;
+            else if (finished)
+                outcome = !completedByAction ? MountedPlayerMoveOutcome.Interrupted :
+                    moverHeld ? MountedPlayerMoveOutcome.CompletedHeld : MountedPlayerMoveOutcome.CompletedNotHeld;
+            else if (!inSlotOrQueue) outcome = MountedPlayerMoveOutcome.Lost;
+            if (outcome != MountedPlayerMoveOutcome.Pending) Move = null;
+            return outcome;
         }
     }
 }

@@ -31,10 +31,19 @@ namespace KingmakerMountedCombat.Integration
         // UnitCommands.UpdateCombatTarget marks a command without AiAction as the player's manual target.
         public override bool MarkManualTarget => !automaticOrigin;
 
+        internal bool IsAutomaticOrigin => automaticOrigin;
+
         internal void MarkAutomaticOrigin()
         {
             automaticOrigin = true;
             CreatedByPlayer = false;
+        }
+
+        // A click on the brain's own target while its command waits in the queue: the later Run is the player's order.
+        internal void PromoteToPlayerOrigin()
+        {
+            automaticOrigin = false;
+            CreatedByPlayer = true;
         }
 
         public MountedPairSingleAttack(

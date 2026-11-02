@@ -77,7 +77,8 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.ResetToMainMenuPrefix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix), nameof(PatchMethods.UnitCommandRunPostfix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
-                    new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
+                    new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix), null,
+                    nameof(PatchMethods.NativeRunHoldTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
                 PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
@@ -459,6 +460,28 @@ namespace KingmakerMountedCombat.Integration
                 (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
+            // Queue advancement reaches only this overload, so a queued automatic pair command is re-admitted here.
+            internal static bool InternalRunPrefix(UnitCommands __instance, UnitCommand cmd, bool fromQueue)
+            {
+                if (!ChargeAdmissionPrefix(__instance, cmd)) return false;
+                var automatic = fromQueue ? cmd as MountedPairSingleAttack : null;
+                if (automatic == null || !automatic.IsAutomaticOrigin) return true;
+                var combat = PatchBridge.CombatFor(__instance);
+                if (combat != null) return combat.AdmitQueuedAutomaticRun(automatic);
+                automatic.Interrupt();
+                return false;
+            }
+
+            internal static IEnumerable<CodeInstruction> NativeRunHoldTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeRunHoldBoundary.Rewrite(instructions,
+                    typeof(PatchMethods).GetMethod(nameof(NativeRunHoldWrite), BindingFlags.Static | BindingFlags.NonPublic));
+
+            private static void NativeRunHoldWrite(UnitEntityData owner, UnitCommand cmd, bool fromQueue, bool doNotClearQueue)
+            {
+                if (PatchBridge.CombatFor(owner)?.NativeRunKeepsHold(owner, cmd, fromQueue, doNotClearQueue) != true)
+                    owner.HoldState = false;
+            }
+
             // Game.ResetToMainMenu, the only gameplay caller of StopAll. Deferred
             // while an owned archive worker can still commit; the service replays
             // it with the same arguments once the save has finished.
@@ -509,8 +532,10 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 var owner = PatchBridge.Owner(unit);
-                return owner == null || owner.RouteGroundCommand(ref unit,
+                var runsNatively = owner == null || owner.RouteGroundCommand(ref unit,
                     PatchBridge.UnifiedTurn?.MaySelectPairedPartner(unit) ?? false);
+                if (runsNatively) combat?.OpenGroundOrder();
+                return runsNatively;
             }
 
             internal static void GroundCommandPostfix(UnitEntityData unit)
@@ -547,6 +572,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void UnitCommandRunPostfix(UnitCommands __instance, UnitCommand cmd, MountedCarriedRequestTicket __state)
             {
+                PatchBridge.CombatFor(__instance)?.ObserveGroundOrderRun(__instance, cmd);
                 if (__state == null) return;
                 PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
             }

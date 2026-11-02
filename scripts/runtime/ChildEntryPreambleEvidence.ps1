@@ -12,7 +12,7 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
  function Has($o,$n){$null-ne$o-and$null-ne$o.PSObject.Properties[$n]}
  function Prop($o,$n){if(Has $o $n){$o.$n}else{$null}}
  if($null-eq$P-or(T (Prop $P 'contract'))-cne'structured-child-entry-preamble-snapshot'){Fail 'contract differs'}
- $nativeCasting=$ChildScenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb')
+ $nativeCasting=$ChildScenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt')
  $expectedParent=if($nativeCasting){$ChildScenario}else{'horse-companion-unmounted-suite'}
  if((T (Prop $P 'parentScenario'))-cne$expectedParent-or[string]::IsNullOrEmpty((T (Prop $P 'parentEngine')))){Fail 'parent identity missing'}
  if($nativeCasting-and(T (Prop $P 'parentEngine'))-cne'KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine'){Fail 'native casting parent is not the original-pair engine'}

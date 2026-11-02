@@ -48,6 +48,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly ObservedPlayerAttackRequest<UnitEntityData, UnitCommand> observedStockRequest =
             new ObservedPlayerAttackRequest<UnitEntityData, UnitCommand>();
         private readonly MountedAutomaticAttackGate automaticGate = new MountedAutomaticAttackGate();
+        private readonly MountedAutomaticRunLedger automaticRuns = new MountedAutomaticRunLedger();
+        private readonly MountedPlayerMoveWatch playerMove = new MountedPlayerMoveWatch();
+        private bool groundOrderOpen;
         private const string AutomaticInputSurface = "automatic-native-target";
         private UnitEntityData automaticApproachFailedTarget;
         private MountedDoorInteractionCommand activeDoorInteraction;
@@ -158,6 +161,20 @@ namespace KingmakerMountedCombat.Integration
         internal long AutomaticDispatchCount { get; private set; }
 
         internal long AutomaticRetiredCount { get; private set; }
+
+        internal long AutomaticHoldKeptCount { get; private set; }
+
+        internal long AutomaticQueuedHoldKeptCount { get; private set; }
+
+        internal long AutomaticQueuedRunCount { get; private set; }
+
+        internal long AutomaticQueuedRefusedCount { get; private set; }
+
+        internal bool PlayerMoveHoldArmed => automaticGate.PlayerMoveHold;
+
+        internal object WatchedPlayerMove => playerMove.Move;
+
+        internal MountedPlayerMoveOutcome LastPlayerMoveOutcome { get; private set; }
 
         internal string LastAutomaticRefusal { get; private set; } = "not-observed";
 
@@ -821,9 +838,12 @@ namespace KingmakerMountedCombat.Integration
                     !ordinaryIntent);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
                 // Never presented as a click: an automatic pair command is not a player order, marks no manual
-                // target and leaves a native Hold in place (native Run clears Hold for any command without AiAction).
-                if (automaticOrigin) command.MarkAutomaticOrigin();
-                var riderHoldBefore = relationship.Rider.HoldState;
+                // target and leaves a native Hold in place at every native Run (NativeRunKeepsHold).
+                if (automaticOrigin)
+                {
+                    command.MarkAutomaticOrigin();
+                    automaticRuns.Bind(command, relationship.MountedPairGeneration);
+                }
                 var schedulerRequired = pairedCommandScheduler.RequiresLease(action);
                 string schedulerReason;
                 if (schedulerRequired &&
@@ -841,7 +861,6 @@ namespace KingmakerMountedCombat.Integration
                 LastRejectionCodes = new MountedCombatRejectionCode[0];
                 var actionActor = command.ActionActor;
                 actionActor.Commands.Run(command);
-                if (automaticOrigin) relationship.Rider.HoldState = riderHoldBefore;
                 if (command.Executor != actionActor || command.IsFinished ||
                     (!actionActor.Commands.Contains(command) &&
                      !actionActor.Commands.Queue.Contains(command)))
@@ -895,6 +914,8 @@ namespace KingmakerMountedCombat.Integration
             }
             automaticGate.Tick(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
                 IsPairInCombat(), CombatController.IsInTurnBasedCombat(), relationship.Rider?.IsAIEnabled == true);
+            ObservePlayerMoveOutcome();
+            SweepOrphanedAutomaticCommand();
             ObserveAutomaticApproachFailure();
             pairedCommandScheduler.Update();
             SweepFinishedCommand();
@@ -1076,7 +1097,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             // The native effect of a new order on the unit it was given to, which a routed click never reaches.
-            automaticGate.ObservePlayerOrder();
+            ObserveDeliberateOrder();
             principal.HoldState = false;
             var actionContext = ownerIsMount ? MountedCombatActionKind.MountPrimaryNatural : ResolveRiderPrimaryAction();
             var weaponContext = principal.GetFirstWeapon();
@@ -1088,6 +1109,8 @@ namespace KingmakerMountedCombat.Integration
                 // Consume this exact pair request before UnitCommands.Run can replace its windup/approach.
                 // The stock pointer loop still dispatches every unrelated selected party member.
                 stockIntent.PromoteToPlayer();
+                stockIntentCommand?.PromoteToPlayerOrigin();
+                automaticRuns.Clear();
                 principal.CombatState.ManualTarget = target;
                 LastStockAttackObservation = "intent-continued;target=" + target.UniqueId;
                 return false;
@@ -1113,6 +1136,8 @@ namespace KingmakerMountedCombat.Integration
         private void ObserveAutomaticProposal(UnitAttack proposal, bool ownerIsRider, bool turnBased)
         {
             AutomaticProposalCount++;
+            // A move that arrived this frame holds the pair before this proposal is read, whichever controller ran first.
+            ObservePlayerMoveOutcome();
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             var target = proposal.Target;
@@ -1237,6 +1262,8 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!stockIntent.Automatic && turnBased) return false;
             var movementForbidden = stockIntent.Automatic && AutomaticMovementForbidden(rider);
+            // A delegated approach already under way is a chase even with the target in the rider's own reach.
+            var approaching = stockIntentCommand?.DelegatedMove != null && !stockIntentCommand.DelegatedMove.IsFinished;
             var reason = MountedAutomaticAttackPolicy.RetireReason(
                 !turnBased,
                 stockIntent.Automatic,
@@ -1245,7 +1272,7 @@ namespace KingmakerMountedCombat.Integration
                 rider != null && rider.IsBrainActive,
                 automaticGate.IsSuppressed(relationship.MountedPairGeneration),
                 movementForbidden,
-                !movementForbidden || IsTargetInRiderReach(stockIntentTarget),
+                !movementForbidden || !approaching && IsTargetInRiderReach(stockIntentTarget),
                 HasRiderPlayerOperation(rider, mount));
             if (reason == null) return false;
             var automatic = stockIntent.Automatic;
@@ -1452,6 +1479,7 @@ namespace KingmakerMountedCombat.Integration
             }
             stockIntent.Cancel();
             stockIntentCommand = null;
+            automaticRuns.Clear();
             if (target != null)
             {
                 LastStockAttackObservation = "intent-cleared;reason=" +
@@ -1495,22 +1523,110 @@ namespace KingmakerMountedCombat.Integration
         // Native Stop, from its own patch: the selected pair's automatic path stays quiet until a deliberate order.
         internal void ObserveStopInput()
         {
-            if (IsPairSelected()) automaticGate.ObserveStop(relationship.MountedPairGeneration);
-        }
-
-        internal void ObserveSelectedMoveOrder()
-        {
-            if (IsPairSelected()) automaticGate.ObservePlayerMove();
+            if (!IsPairSelected()) return;
+            ObservePlayerMoveOutcome();
+            automaticGate.ObserveStop(relationship.MountedPairGeneration);
         }
 
         internal void ObserveSelectedPlayerOrder()
         {
-            if (IsPairSelected()) automaticGate.ObservePlayerOrder();
+            if (IsPairSelected()) ObserveDeliberateOrder();
         }
 
         internal void ObservePlayerOrderFor(UnitEntityData unit)
         {
-            if (unit != null && (unit == relationship.Rider || unit == relationship.Mount)) automaticGate.ObservePlayerOrder();
+            if (unit != null && (unit == relationship.Rider || unit == relationship.Mount)) ObserveDeliberateOrder();
+        }
+
+        // A move that arrived earlier this frame is settled first, so its result can never overwrite the newer order.
+        private void ObserveDeliberateOrder()
+        {
+            ObservePlayerMoveOutcome();
+            automaticGate.ObservePlayerOrder();
+        }
+
+        // Opened by the native ground click's own prefix and closed by its postfix: only the command that click runs on
+        // the pair's mover can become the watched move.
+        internal void OpenGroundOrder()
+        {
+            groundOrderOpen = true;
+        }
+
+        internal void ObserveGroundOrderRun(UnitCommands commands, UnitCommand command)
+        {
+            if (!groundOrderOpen || disposed || relationship.State != RelationshipState.Mounted) return;
+            if (!MountedPlayerMoveWatch.IsExplicitGroundMove(groundOrderOpen, command != null && command.GetType() == typeof(UnitMoveTo),
+                command != null && command.CreatedByPlayer, command?.AiAction != null,
+                commands != null && commands == relationship.Mount?.Commands,
+                commands != null && (commands.Contains(command) || commands.Queue.Contains(command)))) return;
+            playerMove.Bind(command, relationship.MountedPairGeneration);
+            LastPlayerMoveOutcome = MountedPlayerMoveOutcome.Pending;
+        }
+
+        private void ObservePlayerMoveOutcome()
+        {
+            var move = playerMove.Move as UnitMoveTo;
+            if (move == null) return;
+            var commands = relationship.Mount?.Commands;
+            var outcome = playerMove.Observe(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
+                move.IsFinished, move.IsActed && move.Result == UnitCommand.ResultType.Success,
+                move.Executor == relationship.Mount && relationship.Mount.HoldState,
+                commands != null && (commands.Contains(move) || commands.Queue.Contains(move)));
+            if (outcome == MountedPlayerMoveOutcome.Pending) return;
+            LastPlayerMoveOutcome = outcome;
+            if (outcome == MountedPlayerMoveOutcome.CompletedHeld) automaticGate.ObservePlayerMoveCompleted();
+        }
+
+        // The one native write of Hold in UnitCommands.Run, for either pair actor.
+        internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)
+        {
+            if (disposed || owner == null || owner != relationship.Rider && owner != relationship.Mount) return false;
+            var keeps = automaticRuns.NativeRunKeepsHold(command, owner.Commands?.Queue.First?.Value, doNotClearQueue,
+                relationship.MountedPairGeneration);
+            if (keeps && owner.HoldState) AutomaticHoldKeptCount++;
+            if (keeps && owner.HoldState && fromQueue) AutomaticQueuedHoldKeptCount++;
+            return keeps;
+        }
+
+        // The Run that queue advancement makes. A refused command is left finished, never in a slot.
+        internal bool AdmitQueuedAutomaticRun(MountedPairSingleAttack command)
+        {
+            var decision = automaticRuns.DecideQueuedRun(command, command.IsAutomaticOrigin, command.IsFinished,
+                relationship.State == RelationshipState.Mounted && !disposed, relationship.MountedPairGeneration);
+            if (decision == MountedQueuedAutomaticRun.NotAutomatic) return true;
+            if (decision == MountedQueuedAutomaticRun.RefuseFinished)
+            {
+                AutomaticQueuedRefusedCount++;
+                return false;
+            }
+            if (decision == MountedQueuedAutomaticRun.RefuseStale)
+            {
+                AutomaticQueuedRefusedCount++;
+                command.Interrupt();
+                return false;
+            }
+            var rider = relationship.Rider;
+            if (TryRetireStockIntent(rider, relationship.Mount, CombatController.IsInTurnBasedCombat()))
+            {
+                AutomaticQueuedRefusedCount++;
+                if (!command.IsFinished) command.Interrupt();
+                return false;
+            }
+            if (AutomaticMovementForbidden(rider)) (command as MountedPairAttackCommand)?.ForbidApproach();
+            AutomaticQueuedRunCount++;
+            return true;
+        }
+
+        private void SweepOrphanedAutomaticCommand()
+        {
+            var command = activeCommand;
+            var commands = command?.ActionActor?.Commands;
+            if (commands == null || !MountedAutomaticRunLedger.IsOrphaned(command.IsAutomaticOrigin, command.IsStarted, command.IsFinished,
+                commands.Contains(command), commands.Queue.Contains(command))) return;
+            activeCommand = null;
+            AutomaticQueuedRefusedCount++;
+            pairedCommandScheduler.ObserveExternalInterrupt(command, "automatic command dropped from the native queue");
+            command.Interrupt();
         }
 
         public bool ShouldSuppressStockOpportunityAttack(
@@ -1656,6 +1772,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)
         {
+            groundOrderOpen = false;
             if (!riderTurnGroundMoveAdmissionPending)
             {
                 return;
@@ -1831,7 +1948,7 @@ namespace KingmakerMountedCombat.Integration
 
             // Admitted: a settlement still waiting on the previous click (no move yet) is superseded by this one.
             CancelPendingDoorSettlement("superseded by a new door click");
-            automaticGate.ObservePlayerOrder();
+            ObserveDeliberateOrder();
             var routed = new MountedDoorInteractionCommand(
                 relationship,
                 relationship.Rider,
@@ -2090,7 +2207,7 @@ namespace KingmakerMountedCombat.Integration
                 };
                 unifiedTurn.RememberPairedMovementInput();
                 CarriedApproachBindCount++;
-                automaticGate.ObservePlayerOrder();
+                ObserveDeliberateOrder();
                 LastCarriedApproachOutcome = null;
                 LastFeedback = MountedCarriedApproachPolicy.Feedback(kind, MountDisplayName);
                 LastCarriedApproachObservation = "bound: " + command.GetType().Name;

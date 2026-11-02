@@ -3,6 +3,7 @@ $script:KmcSprint4RetiredGuids = @('27364df661b3c121eabb97a31aa73a83','f88a50d6f
 function Get-KmcSprint4NaturalCases([string]$Scenario) {
  if($Scenario -ceq 'sprint4-natural-tb'){ return @('S4-tb-ordinary-actors') }
  if($Scenario -ceq 'sprint4-natural-rt'){ return @('S4-ui-clean','S4-ranged-retarget','S4-controls','S4-melee-retarget','S4-hold-no-chase') }
+ if($Scenario -ceq 'sprint4-intent-rt'){ return @('S4-move-into-combat','S4-queued-hold','S4-intent-neighbors') }
  throw ('Sprint 4 scenario has no case list: '+$Scenario)
 }
 function Test-KmcSprint4Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }
@@ -140,9 +141,62 @@ function Assert-KmcSprint4TurnBasedRow($Row,[string]$Rider,[string]$Mount){
  if([double]$Row.evidence.mountAfterRider.standard -ne [double]$Row.evidence.mountBefore.standard){ throw 'Sprint 4 rider attack spent the mount''s Standard' }
  if([double]$Row.evidence.mountAfter.standard -le [double]$Row.evidence.mountAfterRider.standard){ throw 'Sprint 4 mount attack did not spend its own native Standard' }
 }
+function Assert-KmcSprint4MoveRow($Row,[string]$Rider,[string]$Mount){
+ $clicks=@(Get-KmcSprint4Inputs $Row 'ground-click')
+ if($clicks.Count -ne 2 -or @($clicks | Where-Object { $_.clicked -ne $true -or [string]$_.inputPath -cne 'ClickGroundHandler.OnClick' }).Count -ne 0 -or @(Get-KmcSprint4Inputs $Row 'native-interrupt-move').Count -ne 1){ throw 'Sprint 4 move row did not use the ordinary ground input and one interruption' }
+ $issued=Get-KmcSprint4Step $Row 'moveIssued'; $joined=Get-KmcSprint4Step $Row 'combatWhileMoving'; $arrival=Get-KmcSprint4Step $Row 'arrival'
+ if($issued.riderInCombat -ne $false -or $issued.mountInCombat -ne $false -or $issued.finished -ne $false){ throw 'Sprint 4 move did not start before combat' }
+ if([string]$issued.moveType -cne 'UnitMoveTo' -or $issued.createdByPlayer -ne $true -or [string]$issued.executor -cne $Mount){ throw 'Sprint 4 watched move is not the explicit player move on the mount' }
+ if($joined.riderInCombat -ne $true -or $joined.mountInCombat -ne $true -or $joined.finished -ne $false){ throw 'Sprint 4 combat did not begin while the move was under way' }
+ if([string]$joined.moveIdentity -cne [string]$issued.moveIdentity -or [string]$arrival.moveIdentity -cne [string]$issued.moveIdentity){ throw 'Sprint 4 arrival is not the exact issued move' }
+ if($arrival.finished -ne $true -or $arrival.acted -ne $true -or [string]$arrival.result -cne 'Success' -or $arrival.riderInCombat -ne $true -or $arrival.turnBased -ne $false){ throw 'Sprint 4 move did not complete natively in real-time combat' }
+ if($arrival.state.mountHold -ne $true -or $arrival.state.controller.playerMoveHold -ne $true -or [string]$arrival.state.controller.lastMoveOutcome -cne 'CompletedHeld'){ throw 'Sprint 4 arrival in combat did not hold the pair' }
+ if([double]$arrival.distanceToTarget -lt 13){ throw 'Sprint 4 arrival left the target in reach' }
+ $held=Get-KmcSprint4Step $Row 'heldAfterArrival'
+ if([double]$held.mountDisplacement -gt 0.5 -or [long]$held.dispatchesDuring -ne 0){ throw 'Sprint 4 automatic attacks chased from the ordered destination' }
+ if([long]$held.refusedDuring -lt 1 -or [string]$held.state.controller.lastRefusal -cnotlike 'hold-out-of-reach*' -or $held.state.controller.hasIntent -ne $false){ throw 'Sprint 4 no-chase period was not the live brain being refused' }
+ $second=Get-KmcSprint4Step $Row 'secondMoveIssued'; $cut=Get-KmcSprint4Step $Row 'interrupted'
+ if([string]$second.moveIdentity -ceq [string]$issued.moveIdentity -or [string]$cut.moveIdentity -cne [string]$second.moveIdentity){ throw 'Sprint 4 interruption control is not a distinct exact move' }
+ if($second.state.controller.playerMoveHold -ne $false){ throw 'Sprint 4 issuing a move kept the earlier hold' }
+ if($cut.finished -ne $true -or $cut.acted -ne $false -or [string]$cut.result -cne 'Interrupt'){ throw 'Sprint 4 interruption control did not end by a native interrupt' }
+ if($cut.state.controller.playerMoveHold -ne $false -or $cut.state.mountHold -ne $false -or [string]$cut.state.controller.lastMoveOutcome -cne 'Interrupted'){ throw 'Sprint 4 interrupted move manufactured an arrival hold' }
+ if([double]$cut.distanceToTarget -lt 13){ throw 'Sprint 4 interruption control left the target in reach, which proves nothing' }
+ $resumed=Get-KmcSprint4Step $Row 'resumedAfterInterruption'
+ if([long]$resumed.dispatchesDuring -lt 1 -or [double]$resumed.mountDisplacement -lt 1 -or $resumed.state.controller.intentAutomatic -ne $true){ throw 'Sprint 4 pair stayed restricted after an interrupted move' }
+}
+function Assert-KmcSprint4QueuedRow($Row,[string]$Rider,[string]$Mount){
+ $before=Get-KmcSprint4Step $Row 'heldBeforeAutomatic'; if($before.state.riderHold -ne $true){ throw 'Sprint 4 native Hold was not in place' }
+ $queued=Get-KmcSprint4Step $Row 'queued'
+ if($queued.automaticOrigin -ne $true -or $queued.createdByPlayer -ne $false -or $queued.aiAction -ne $false -or [string]$queued.actor -cne $Mount){ throw 'Sprint 4 queued command is not the mount''s distinct automatic command' }
+ if($queued.inStandardSlot -ne $false -or $queued.started -ne $false -or [int]$queued.state.mountQueue -lt 1 -or $queued.busyRunning -ne $true){ throw 'Sprint 4 command was not waiting in the native queue behind a running command' }
+ if($queued.state.mountHold -ne $true -or $queued.state.riderHold -ne $true){ throw 'Sprint 4 Hold was lost before the later run' }
+ $ran=Get-KmcSprint4Step $Row 'ranFromQueue'
+ if([string]$ran.identity -cne [string]$queued.identity -or [long]$ran.queuedRuns -ne 1 -or [long]$ran.queuedHoldKept -ne 1){ throw 'Sprint 4 later run is not the exact queued command through queue advancement' }
+ if($ran.state.mountHold -ne $true -or $ran.state.riderHold -ne $true){ throw 'Sprint 4 later native run cleared Hold' }
+ $done=Get-KmcSprint4Step $Row 'queuedDone'
+ if([string]$done.identity -cne [string]$queued.identity -or $done.state.mountHold -ne $true -or $done.state.riderHold -ne $true){ throw 'Sprint 4 Hold did not survive the queued command' }
+ if([double]$done.mountDisplacement -gt 0.5){ throw 'Sprint 4 queued command moved the held pair' }
+ if([double]$done.mountStandardCooldown -le 0){ throw 'Sprint 4 queued command spent no native Standard of the mount' }
+ if(@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Mount -and [int]$_.frame -ge [int]$ran.frame }).Count -lt 1){ throw 'Sprint 4 queued command never struck' }
+ $held=Get-KmcSprint4Step $Row 'farTargetHeld'
+ if([double]$held.distanceToTarget -lt 13 -or [double]$held.mountDisplacement -gt 0.5 -or [long]$held.dispatchesDuring -ne 0){ throw 'Sprint 4 a later out-of-reach target provoked movement' }
+ if([long]$held.refusedDuring -lt 1 -or [string]$held.state.controller.lastRefusal -cnotlike 'hold-out-of-reach*' -or $held.state.riderHold -ne $true){ throw 'Sprint 4 later target was not refused under the kept Hold' }
+ Assert-KmcSprint4Delta $Row 'duplicateDispatches' 0
+}
+function Assert-KmcSprint4NeighborRow($Row,[string]$Rider,[string]$Mount){
+ $stop=Get-KmcSprint4Step $Row 'afterStop'
+ if([long]$stop.dispatchesDuring -ne 0 -or [double]$stop.mountDisplacement -gt 0.5){ throw 'Sprint 4 Stop was followed by an automatic restart' }
+ if([long]$stop.refusedDuring -lt 1 -or $stop.state.controller.stopSuppressed -ne $true -or [string]$stop.state.controller.lastRefusal -cnotlike 'stop-suppressed*' -or $stop.state.riderHold -ne $false){ throw 'Sprint 4 Stop quiet period was not the live brain being refused' }
+ $again=Get-KmcSprint4Step $Row 'afterReEnable'
+ if($again.state.controller.stopSuppressed -ne $false -or $again.state.controller.intentAutomatic -ne $true){ throw 'Sprint 4 explicit AI re-enable did not resume automatic attacks' }
+ if((Get-KmcSprint4Step $Row 'manualAttacked').intentOwnedByPlayer -ne $true){ throw 'Sprint 4 manual click did not own the replaced intent' }
+ $manual=Get-KmcSprint4Step $Row 'manualHeld'
+ if([long]$manual.attacksOnOldTargetSinceManual -ne 0 -or $manual.manualTargetStillOwned -ne $true){ throw 'Sprint 4 automatic proposal displaced the manual target' }
+ Assert-KmcSprint4Delta $Row 'duplicateDispatches' 0
+}
 function Assert-KmcSprint4NaturalEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint4-natural-rt','sprint4-natural-tb') -or $Artifact.schemaVersion -ne 48){ throw 'Sprint 4 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt') -or $Artifact.schemaVersion -ne 48){ throw 'Sprint 4 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 4 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -165,6 +219,9 @@ function Assert-KmcSprint4NaturalEvidence {
    'S4-melee-retarget' { Assert-KmcSprint4MeleeRow $row $o.rider $o.mount }
    'S4-hold-no-chase' { Assert-KmcSprint4HoldRow $row $o.rider $o.mount }
    'S4-tb-ordinary-actors' { Assert-KmcSprint4TurnBasedRow $row $o.rider $o.mount }
+   'S4-move-into-combat' { Assert-KmcSprint4MoveRow $row $o.rider $o.mount }
+   'S4-queued-hold' { Assert-KmcSprint4QueuedRow $row $o.rider $o.mount }
+   'S4-intent-neighbors' { Assert-KmcSprint4NeighborRow $row $o.rider $o.mount }
   }
  }
  if($o.castTrace.faults -ne 0 -or $o.castTrace.dropped -ne 0 -or $o.castTrace.identityRegistry.faults -ne 0 -or $o.castTrace.identityRegistry.released -ne $true){ throw 'Sprint 4 casting trace faulted' }
