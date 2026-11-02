@@ -1,6 +1,6 @@
 {
   "contract": "sprint5-small-seat-record-v2",
-  "sourceRuns": ["20261102-sprint5-r02-small", "20261102-sprint5-r05-dog", "20261102-sprint5-g1-horse", "20261102-sprint5-g2-horse"],
+  "sourceRuns": ["20261102-sprint5-r02-small", "20261102-sprint5-r05-dog", "20261102-sprint5-g1-horse", "20261102-sprint5-g2-horse", "20261102-sprint5-g3-dog"],
   "coordinateConvention": "native Unity, mount-root local, +z forward",
   "firstCause": "The batch70 Small seat aimed the feet at the Horse's stirrups. Small legs reach about 0.35 of the 0.75 from saddle to stirrup, so the pelvis sat at height 1.63 against the accepted Medium 2.22, inside the Horse.",
   "seatRule": "A Small seat is a fixed offset from the mount's anchor bone, set from the mount's measured back. It does not depend on the animation pose at mounting. Feet are sized by each rig's own reach and straddle the back.",
@@ -21,6 +21,6 @@
   "buildMeasurement": "Fat and thin thigh and shin measured within 0.002 of the same race and sex in the default build, so each build declares its default rig's reach. Only hip width differs.",
   "mounts": {
     "Horse": { "anchor": "Chest", "anchorHeight": 1.505, "anchorForward": 0.468, "saddleSurface": 1.82, "saddleForward": 0.22, "saddleSkirtHalfWidth": 0.32, "seatHeight": { "Halfling": 1.95, "Gnome": 1.98 }, "footSpread": 0.72, "footDrop": 0.60, "visualPass": "Spread raised from 0.61 and drop eased from 0.67 after g2 showed the thinner female boots inside the saddle skirt on the near side." },
-    "RidingDog": { "anchor": "UpperTorso", "anchorHeight": 0.77, "anchorForward": 0.08, "backSurface": 0.89, "backHalfWidth": 0.22, "seatForward": 0.12, "seatHeight": { "Halfling": 1.05, "Gnome": 1.07 }, "footSpread": 0.68, "footDrop": 0.67, "visualPass": "Raised 0.03 and 0.02 and spread from 0.61 after r12 showed the near thigh lost in the fur mid-stride." }
+    "RidingDog": { "anchor": "UpperTorso", "anchorHeight": 0.77, "anchorForward": 0.08, "backSurface": 0.89, "backHalfWidth": 0.22, "seatForward": 0.12, "seatHeight": { "Halfling": 1.05, "Gnome": 1.07 }, "footSpread": 0.80, "footDrop": 0.52, "visualPass": "Raised 0.03 and 0.02 and spread from 0.61 after r12 showed the near thigh lost in the fur mid-stride; spread raised from 0.68 and drop eased from 0.67 after g3 showed the near boot sinking into the fur." }
   }
 }

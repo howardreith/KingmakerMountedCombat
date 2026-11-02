@@ -91,7 +91,7 @@ namespace KingmakerMountedCombat.Domain
         // pommel over the Chest bone at z 0.47); the legs straddle instead of reaching down.
         // A Small seat is a fixed offset from the mount's anchor bone, so it cannot depend on
         // the animation pose playing at the moment of mounting.
-        private const string SeatRecordSha256 = "e6cd444f91dde3c16b0d8891ee5f53a94be52fd393eeddb3e5d957df8ba28aaf";
+        private const string SeatRecordSha256 = "44896e743a0f9ddbfe8990bbb7825aea14da4922fba1a0d39e40513d88830f58";
         private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
         private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
         // Explicit zero: the accepted Horse seat always ran with none, because the -0.16 once written here initialized after the profiles that read it.
@@ -112,7 +112,9 @@ namespace KingmakerMountedCombat.Domain
         private const float HalflingDogBackHeight = 1.05f, GnomeDogBackHeight = 1.07f;
         // The saddle skirt is about 0.32 to each side at seat height. Ankles at 0.61 of reach sat on its surface, so run g2's
         // thinner boots were inside it; 0.72 clears it, and the smaller drop leaves the knee a visible bend.
-        private const float DogFootSpread = 0.68f, DogFootDrop = 0.67f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
+        // The dog is wider at ankle height than along its back, and its torso rolls the rider a little toward one side; run g3 showed the
+        // near boot sinking into the fur at 0.68 and 0.67.
+        private const float DogFootSpread = 0.80f, DogFootDrop = 0.52f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
         private static DeclaredSmallMountedProfile DogFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
             new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, RidingDogBlueprintGuid, raceGuid, gender, skeleton),
                 SmallPose(id, reach, DogFootSpread, DogFootDrop), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),
