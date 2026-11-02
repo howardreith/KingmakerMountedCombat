@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 function Test-KmcPhase3dSchemaRegistration([long]$SchemaVersion,[string]$Scenario) {
     $phase3dSchemaVersion=$SchemaVersion
     $Request=[pscustomobject]@{scenario=$Scenario}
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L) -or
         ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L,40L,42L,43L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) -or
         ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 43L) -or
         ($phase3dSchemaVersion -eq 41L -and [string]$Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) -or
