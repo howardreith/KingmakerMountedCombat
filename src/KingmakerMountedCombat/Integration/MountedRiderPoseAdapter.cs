@@ -151,7 +151,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection)
+        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection, bool seatIsFixedFromSource = false)
         {
             if (!configured || exactMountRoot == null || exactSource == null ||
                 !exactSource.IsChildOf(exactMountRoot))
@@ -163,10 +163,11 @@ namespace KingmakerMountedCombat.Integration
             baselineLease.PrimeFrame(() =>
             {
                 ApplyPose();
-                animatedSaddle.Acquire(
-                    ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)),
-                    ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)),
-                    ToPose(anatomicalCorrection));
+                var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
+                if (seatIsFixedFromSource)
+                    animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
+                else
+                    animatedSaddle.Acquire(source, ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)), ToPose(anatomicalCorrection));
             });
             animatedSaddleRequired = true;
         }

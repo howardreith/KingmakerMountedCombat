@@ -514,7 +514,7 @@ namespace KingmakerMountedCombat.Integration
             if (supportedProfile.UsesAnimatedSaddle)
             {
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
-                    ToUnity(supportedProfile.AnimatedSeatCorrection));
+                    ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null);
                 if (supportedProfile.SmallRiderBody != null) poseAdapter.CompensateMountScale(positionAnchor);
             }
             presentationConfigured = true;
