@@ -39,6 +39,15 @@ namespace KingmakerMountedCombat.Tests
             // SIZE-01: native categories decide; a larger or reduced mount stays legal while it is larger than the rider.
             Admit(runner, "a Medium mount", value => value.MountSizeOrdinal = 4);
             Admit(runner, "a Huge mount", value => value.MountSizeOrdinal = 6);
+            runner.Run("mount scale compensation undoes only later growth", () =>
+            {
+                var attach = new PoseVector3(1.515f, 1.515f, 1.515f);
+                var same = MountScaleCompensation.AnchorScale(attach, attach);
+                TestRunner.True(same.X == 1f && same.Y == 1f && same.Z == 1f, "A rider already compensated at attach was scaled again.");
+                var grown = MountScaleCompensation.AnchorScale(attach, new PoseVector3(3.03f, 3.03f, 3.03f));
+                TestRunner.True(Math.Abs(grown.Y - 0.5f) < 0.0001f, "Native mount growth reached the rider.");
+                Throws2(() => MountScaleCompensation.AnchorScale(attach, new PoseVector3(0f, 1f, 1f)));
+            });
             runner.Run("size policy requires one whole native category", () =>
             {
                 TestRunner.True(MountedSizePolicy.Refusal(3, 4) == null && MountedSizePolicy.Refusal(3, 5) == null && MountedSizePolicy.Refusal(4, 5) == null, "A legal size pair was refused.");
@@ -237,6 +246,8 @@ namespace KingmakerMountedCombat.Tests
             CombatTurnEligible = true, RiderHasMoveAction = true, PairAdjacent = true
         };
         private static PoseVector3 Vector() => new PoseVector3(0f, 0f, 0f);
+        private static void Throws2(Action action)
+        { var threw = false; try { action(); } catch (InvalidOperationException) { threw = true; } TestRunner.True(threw, "An invalid mount scale was accepted."); }
         private static void Throws(Action action)
         { var threw = false; try { action(); } catch (ArgumentException) { threw = true; } TestRunner.True(threw, "Invalid declaration was accepted."); }
     }

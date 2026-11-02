@@ -3535,7 +3535,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     (disabledSnapshot.RangerOriginalOptionCount == 7 || disabledSnapshot.RangerOriginalOptionCount == 12) &&
                     disabledSnapshot.RangerCurrentOptionCount == disabledSnapshot.RangerOriginalOptionCount &&
                     reenabledSnapshot.RangerOriginalOptionCount == disabledSnapshot.RangerOriginalOptionCount &&
-                    reenabledSnapshot.RangerCurrentOptionCount == disabledSnapshot.RangerOriginalOptionCount + 1 &&
+                    reenabledSnapshot.RangerCurrentOptionCount == disabledSnapshot.RangerOriginalOptionCount + 2 &&
                     reenabledSnapshot.RangerAppendOwned,
                 "respec-and-uninstall-surface",
                 "After exact horse removal, the Ranger append restored its admitted original options and re-enabled once without residue.");
@@ -3715,7 +3715,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native mode, pause state, and the original exact selection were restored.");
             Check(unrelatedPetsExact && relationship.State == RelationshipState.Unmounted &&
                     (selectionSnapshot.RangerOriginalOptionCount == 7 || selectionSnapshot.RangerOriginalOptionCount == 12) &&
-                    selectionSnapshot.RangerCurrentOptionCount == selectionSnapshot.RangerOriginalOptionCount + 1 &&
+                    selectionSnapshot.RangerCurrentOptionCount == selectionSnapshot.RangerOriginalOptionCount + 2 &&
                     selectionSnapshot.RangerAppendOwned,
                 "non-horse-isolation",
                 "All unrelated party pet identities, the unmounted Mammoth subsystem, and the exact Ranger append remained unchanged.");

@@ -376,7 +376,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var knee = Sprint5Bone(root, "L_leg"); var foot = Sprint5Bone(root, "L_foot"); var chest = Sprint5Bone(root, "Spine_2") ?? Sprint5Bone(root, "Spine");
             return new JObject { ["skeleton"] = avatar.Skeleton?.name, ["race"] = unit.Descriptor.Progression.Race?.AssetGuid, ["gender"] = unit.Descriptor.Doll?.Gender.ToString(),
                 ["originalSize"] = unit.Descriptor.OriginalSize.ToString(), ["effectiveSize"] = unit.Descriptor.State.Size.ToString(), ["mirror"] = avatar.Mirror,
-                ["avatarScale"] = Sprint5Vector(root.localScale), ["pelvisHeight"] = pelvis == null ? (float?)null : root.InverseTransformPoint(pelvis.position).y,
+                ["avatarScale"] = Sprint5Vector(root.localScale), ["worldScale"] = Sprint5Vector(unit.View.transform.lossyScale), ["pelvisHeight"] = pelvis == null ? (float?)null : root.InverseTransformPoint(pelvis.position).y,
                 ["hipWidth"] = left == null || right == null ? (float?)null : Vector3.Distance(left.position, right.position),
                 ["thigh"] = left == null || knee == null ? (float?)null : Vector3.Distance(left.position, knee.position),
                 ["shin"] = knee == null || foot == null ? (float?)null : Vector3.Distance(knee.position, foot.position) };

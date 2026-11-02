@@ -115,7 +115,7 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.RidingDog.Size.Name", "Riding Dog Build" },
             { "KMC.RidingDog.Size.Description", "A riding dog is Medium from the start." },
             { "KMC.RidingDog.Upgrade.Name", "Riding Dog Advancement" },
-            { "KMC.RidingDog.Upgrade.Description", "At animal-companion rank 4, the riding dog gains +2 Dexterity and +2 Constitution. It does not grow larger." }
+            { "KMC.RidingDog.Upgrade.Description", "At animal-companion rank 4, the riding dog gains +2 Strength and +2 Constitution. It does not grow larger." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
         private readonly Dictionary<string, HorseActivationObservation> observedActivationByOwner =
@@ -586,7 +586,8 @@ namespace KingmakerMountedCombat.Integration
             // Every other native selection that offers the stock Dog offers the Riding Dog too, with its own
             // class's rank progression. The Ranger's own lease above carries both of its additions.
             foreach (var selection in blueprintList.OfType<BlueprintFeatureSelection>().Where(value =>
-                !ReferenceEquals(value, rangerSelection) && value.AllFeatures != null && value.AllFeatures.Contains(dogFeature)))
+                !ReferenceEquals(value, rangerSelection) && value.AllFeatures != null && value.AllFeatures.Contains(dogFeature) &&
+                !value.AllFeatures.Contains(null)))
             {
                 ridingDogSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
                     selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, ridingDogFeature)));
@@ -627,7 +628,7 @@ namespace KingmakerMountedCombat.Integration
             SetFeaturePresentation(ridingDogUpgrade, NewLocalizedString("KMC.RidingDog.Upgrade.Name"), NewLocalizedString("KMC.RidingDog.Upgrade.Description"), icon);
             ridingDogUpgrade.ComponentsArray = new BlueprintComponent[]
             {
-                CreateStatBonus("KMC_RidingDogUpgrade_Dexterity", StatType.Dexterity, 2),
+                CreateStatBonus("KMC_RidingDogUpgrade_Strength", StatType.Strength, 2),
                 CreateStatBonus("KMC_RidingDogUpgrade_Constitution", StatType.Constitution, 2)
             };
 
@@ -687,10 +688,22 @@ namespace KingmakerMountedCombat.Integration
             AddExactBlueprintRegistration(library, ridingDogFeature);
         }
 
+        // Every selection is attempted: drift in one never strands the others or the Ranger.
         private bool ApplySelectionDesired(out string error)
         {
+            string dogError, rangerError;
+            var dog = ApplyRidingDogSelections(selectionDesired, out dogError);
+            var ranger = ApplyRangerSelection(out rangerError);
+            error = JoinErrors(dogError, rangerError);
+            return dog && ranger;
+        }
+
+        private static string JoinErrors(string first, string second) =>
+            first == null ? second : second == null ? first : first + " " + second;
+
+        private bool ApplyRangerSelection(out string error)
+        {
             error = null;
-            if (!ApplyRidingDogSelections(out error)) return false;
             if (rangerSelection == null || selectionLease == null)
             {
                 error = "The exact Ranger selection lease is unavailable.";
@@ -710,37 +723,38 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
-            return TryRestoreSelection(out error);
+            return TryRestoreRangerSelection(out error);
         }
 
-        private bool ApplyRidingDogSelections(out string error)
+        private bool ApplyRidingDogSelections(bool desired, out string error)
         {
             error = null;
             foreach (var pair in ridingDogSelections)
             {
                 var current = pair.Key.AllFeatures;
-                if (selectionDesired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
-                if (selectionDesired && !pair.Value.MatchesOriginal(current) || !selectionDesired && !pair.Value.MatchesAppended(current))
+                if (desired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
+                if (desired ? !pair.Value.MatchesOriginal(current) : !pair.Value.MatchesAppended(current))
                 {
-                    error = "Companion selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.";
-                    return false;
+                    error = JoinErrors(error, "Companion selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.");
+                    continue;
                 }
-                pair.Key.AllFeatures = selectionDesired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
+                pair.Key.AllFeatures = desired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
             }
-            return true;
+            return error == null;
         }
 
         private bool TryRestoreSelection(out string error)
         {
+            string dogError, rangerError;
+            var dog = ApplyRidingDogSelections(false, out dogError);
+            var ranger = TryRestoreRangerSelection(out rangerError);
+            error = JoinErrors(dogError, rangerError);
+            return dog && ranger;
+        }
+
+        private bool TryRestoreRangerSelection(out string error)
+        {
             error = null;
-            if (selectionDesired)
-            {
-                // The Riding Dog's other selections leave with the Ranger's own additions.
-                selectionDesired = false;
-                try { if (!ApplyRidingDogSelections(out error)) return false; }
-                finally { selectionDesired = true; }
-            }
-            else if (!ApplyRidingDogSelections(out error)) return false;
             BlueprintFeature[] restored;
             string leaseError;
             if (!selectionLease.TryRestore(rangerSelection.AllFeatures, out restored, out leaseError))
