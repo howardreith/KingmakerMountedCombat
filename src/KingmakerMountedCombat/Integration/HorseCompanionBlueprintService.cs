@@ -686,8 +686,10 @@ namespace KingmakerMountedCombat.Integration
             ridingDogUnit.Skills = CopySkills(dogUnit.Skills);
             ridingDogUnit.MaxHP = dogUnit.MaxHP;
             ridingDogUnit.AdditionalTemplates = CloneArray(dogUnit.AdditionalTemplates);
-            ridingDogUnit.AddFacts = dogUnit.Size == Size.Medium ? CloneArray(dogUnit.AddFacts)
-                : CloneArray(dogUnit.AddFacts).Concat(new BlueprintUnitFact[] { ridingDogSize }).ToArray();
+            // A size fact on the stock Dog belongs to its own growth (another mod may add one). The Riding Dog is Medium from the start.
+            var stockFacts = CloneArray(dogUnit.AddFacts).Where(fact => !SetsSize(fact)).ToArray();
+            ridingDogUnit.AddFacts = dogUnit.Size == Size.Medium ? stockFacts
+                : stockFacts.Concat(new BlueprintUnitFact[] { ridingDogSize }).ToArray();
             ridingDogUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(dogClassLevels, "KMC_RidingDog_AddClassLevels"),
@@ -723,6 +725,9 @@ namespace KingmakerMountedCombat.Integration
 
         private static string JoinErrors(string first, string second) =>
             first == null ? second : second == null ? first : first + " " + second;
+
+        private static bool SetsSize(BlueprintUnitFact fact) => fact?.ComponentsArray != null && fact.ComponentsArray.Any(component =>
+            component != null && component.GetType().Name.IndexOf("Size", StringComparison.Ordinal) >= 0);
 
         private bool ApplyRangerSelection(out string error)
         {

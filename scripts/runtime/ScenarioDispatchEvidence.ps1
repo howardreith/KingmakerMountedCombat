@@ -21,13 +21,13 @@ function Test-KmcPhase3dSchemaRegistration([long]$SchemaVersion,[string]$Scenari
     if (($SchemaVersion -eq 45 -and $Scenario -cnotin @('chunk6d-staged-rt','chunk6d-staged-tb')) -or ($Scenario -cin @('chunk6d-staged-rt','chunk6d-staged-tb') -and $SchemaVersion -ne 45)) { return $false }
     if (($SchemaVersion -eq 46 -and $Scenario -cnotin @('chunk6e-reaction-rt','chunk6e-reaction-tb')) -or ($Scenario -cin @('chunk6e-reaction-rt','chunk6e-reaction-tb') -and $SchemaVersion -ne 46)) { return $false }
     if (($SchemaVersion -eq 48 -and $Scenario -cnotin @('sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt')) -or ($Scenario -cin @('sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt') -and $SchemaVersion -ne 48)) { return $false }
-    if (($SchemaVersion -eq 49 -and $Scenario -cne 'sprint5-small-rt') -or ($Scenario -ceq 'sprint5-small-rt' -and $SchemaVersion -ne 49)) { return $false }
+    if (($SchemaVersion -eq 49 -and $Scenario -cnotin @('sprint5-small-rt','sprint5-dog-rt')) -or ($Scenario -cin @('sprint5-small-rt','sprint5-dog-rt') -and $SchemaVersion -ne 49)) { return $false }
     if (($SchemaVersion -eq 47 -and $Scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')) -or ($Scenario -cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb') -and $SchemaVersion -ne 47)) { return $false }
     return $true
 }
 function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) {
     if ($SchemaVersion -eq 44 -or $Scenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6cCastingEvidence';mutationError='Chunk 6C casting evidence changed during validation.'} }
-    if ($SchemaVersion -eq 49 -or $Scenario -ceq 'sprint5-small-rt') { return [pscustomobject]@{validator='Assert-KmcSprint5SmallEvidence';mutationError='Sprint 5 small-rider evidence changed during validation.'} }
+    if ($SchemaVersion -eq 49 -or $Scenario -cin @('sprint5-small-rt','sprint5-dog-rt')) { return [pscustomobject]@{validator='Assert-KmcSprint5SmallEvidence';mutationError='Sprint 5 small-rider evidence changed during validation.'} }
     if ($SchemaVersion -eq 48 -or $Scenario -cin @('sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt')) { return [pscustomobject]@{validator='Assert-KmcSprint4NaturalEvidence';mutationError='Sprint 4 natural-attack evidence changed during validation.'} }
     if ($SchemaVersion -eq 47 -or $Scenario -cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')) { return [pscustomobject]@{validator='Assert-KmcSprint3ApproachEvidence';mutationError='Sprint 3 approach evidence changed during validation.'} }
     if ($SchemaVersion -eq 45 -or $Scenario -cin @('chunk6d-staged-rt','chunk6d-staged-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6dStagedEvidence';mutationError='Chunk 6D staged evidence changed during validation.'} }
@@ -54,7 +54,7 @@ function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) 
 # do not demand a self-named row for them. Individual scenarios keep the rule.
 function Get-KmcCompoundRuntimeScenarios {
     @('chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup','chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
-      'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt')
+      'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt')
 }
 function Test-KmcCompoundRuntimeScenario([string]$Scenario) {
     [string]$Scenario -cin @(Get-KmcCompoundRuntimeScenarios)

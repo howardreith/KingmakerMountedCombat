@@ -140,6 +140,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(pet.Blueprint?.AssetGuid, companionUnitGuid, StringComparison.Ordinal);
         }
 
+        // Further ordinary Ranger levels for an owner that already has its companion.
+        internal static int AddRangerLevels(UnitEntityData owner, int levels, IModLogger logger)
+        {
+            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(RangerClassGuid);
+            var originalAutoLevelup = SettingsRoot.Instance.AutoLevelup.CurrentValue;
+            var commits = 0;
+            try
+            {
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
+                for (var index = 0; index < levels && LevelUpController.CanLevelUp(owner.Descriptor); index++)
+                {
+                    var controller = LevelUpController.StartWithoutAssigningStaticInstance(owner.Descriptor);
+                    if (!controller.SelectClass(ranger)) { controller.Cancel(); break; }
+                    controller.Commit();
+                    commits++;
+                    logger.Info("Native Ranger level committed: characterLevel=" + owner.Descriptor.Progression.CharacterLevel + ".");
+                }
+            }
+            finally { SettingsRoot.Instance.AutoLevelup.CurrentValue = originalAutoLevelup; }
+            return commits;
+        }
+
         private static FeatureSelectionState FindExactSelection(
             LevelUpController controller,
             BlueprintFeatureSelection selection)
