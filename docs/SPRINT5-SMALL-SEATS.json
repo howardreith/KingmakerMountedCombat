@@ -12,6 +12,6 @@
   },
   "mounts": {
     "Horse": { "anchor": "Chest", "anchorHeight": 1.505, "anchorForward": 0.468, "saddleSurface": 1.82, "saddleForward": 0.22, "seatHeight": { "Halfling": 1.95, "Gnome": 1.98 } },
-    "RidingDog": { "anchor": "UpperTorso", "anchorHeight": 0.77, "anchorForward": 0.08, "backSurface": 0.89, "backHalfWidth": 0.22, "seatForward": 0.12, "seatHeight": { "Halfling": 1.02, "Gnome": 1.05 } }
+    "RidingDog": { "anchor": "UpperTorso", "anchorHeight": 0.77, "anchorForward": 0.08, "backSurface": 0.89, "backHalfWidth": 0.22, "seatForward": 0.12, "seatHeight": { "Halfling": 1.05, "Gnome": 1.07 }, "footSpread": 0.68, "visualPass": "Raised 0.03 and 0.02 and spread from 0.61 after r12 showed the near thigh lost in the fur mid-stride." }
   }
 }
