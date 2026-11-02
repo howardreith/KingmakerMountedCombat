@@ -161,7 +161,7 @@ namespace KingmakerMountedCombat.Integration
             assessment.World = facts;
             assessment.Reasons.AddRange(RemovalReadinessPolicy.WorldReasons(facts));
             if (assessment.PermanentReferences.Count != 0)
-                assessment.Reasons.Add("This campaign still references KMC's Horse companion (" +
+                assessment.Reasons.Add("This campaign still references a KMC companion (" +
                     string.Join("; ", assessment.PermanentReferences) + "). A save with it cannot be opened without KMC: " +
                     "remove or respec that companion first, or keep KMC installed for this campaign.");
             LastAssessment = assessment;

@@ -230,6 +230,13 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
+                        if (RidingDogCase)
+                        {
+                            // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
+                            var progression = secondRider.Descriptor.Progression;
+                            var needed = Kingmaker.Blueprints.Root.BlueprintRoot.Instance.Progression.XPTable.GetBonus(progression.CharacterLevel + 4);
+                            if (progression.Experience < needed) progression.AdvanceExperienceTo(needed, false);
+                        }
                         bool acquired;
                         try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition, SecondCompanionFeature,
                             RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid); }

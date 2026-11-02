@@ -140,7 +140,7 @@ namespace KingmakerMountedCombat.Integration
             var privateDeclaration = privateCalibrationGate.Resolve(rider.UniqueId, mount.UniqueId, rider, mount);
             if (rider.Descriptor.OriginalSize != Size.Small || rider.Descriptor.State.Size != Size.Small)
             { refusal = "A rider must currently be its own native Small or Medium size to have a supported seat."; return null; }
-            var observed = NativeSmallRiderBody.Capture(rider, mount);
+            var observed = NativeSmallRiderBody.CaptureRig(rider, mount);
             SupportedMountedProfile result = null;
             foreach (var profile in small)
             {
@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Integration
         internal static SmallRiderBodyMatch MatchSmall(UnitEntityData rider, UnitEntityData mount, SupportedMountedProfile profile)
         {
             string refusal;
-            return profile?.SmallRiderBody?.Match(NativeSmallRiderBody.Capture(rider, mount), out refusal);
+            return profile?.SmallRiderBody?.Match(NativeSmallRiderBody.CaptureRig(rider, mount), out refusal);
         }
         internal static bool IsSupported(UnitEntityData unit) => Resolve(unit) != null;
         internal static bool IsSupportedPair(UnitEntityData rider, UnitEntityData mount) => Resolve(rider, mount) != null;
