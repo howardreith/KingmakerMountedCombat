@@ -559,7 +559,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Sprint5SpawnTarget()
         {
-            var point = FindWalkablePoint(s5Pet.Position, 3f, 1f);
+            var point = FindWalkablePoint(s5Owner.Position, 4.5f, 1f);
             s5TargetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
             s5Target = s5TargetService.Spawn(s5Owner, s5Pet, point, request.RunId + "-s5", true, true);
             if (!s5TargetService.PrepareForPlayerClick(s5Target) || !s5TargetService.QueueBidirectionalCombatMemory(s5Owner, s5Target))
