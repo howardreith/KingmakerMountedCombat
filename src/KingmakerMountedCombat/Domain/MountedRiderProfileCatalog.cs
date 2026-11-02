@@ -69,7 +69,7 @@ namespace KingmakerMountedCombat.Domain
         // pommel over the Chest bone at z 0.47); the legs straddle instead of reaching down.
         // A Small seat is a fixed offset from the mount's anchor bone, so it cannot depend on
         // the animation pose playing at the moment of mounting.
-        private const string SeatRecordSha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+        private const string SeatRecordSha256 = "da84c0e50be9ff7cd39ab8a5822bbb53d304135970afcec2ec02268760a3352b";
         private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
         private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
         private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, -0.16f, 0f);

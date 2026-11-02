@@ -36,6 +36,97 @@ namespace KingmakerMountedCombat.Diagnostics
     // its own launch, a Riding Dog from the real selection. Its Small bodies are disclosed setup (a native Doll and race, with
     // the native view rebuild a polymorph's end uses); nothing about a body is granted to the mount or to admission. The
     // reader owns PASS/FAIL, and a person inspects the captured images.
+    // Shared by the Sprint 5 rows and the Riding Dog save route. Fixture setup and evidence only; never ordinary play.
+    internal static class Sprint5Fixture
+    {
+        internal const string HalflingRace = "b0c3ef2729c498f47970bb50fa1acd30";
+
+        // Disclosed setup on a disposable actor: a native Doll and race, then the view rebuild Polymorph.RestoreView uses.
+        internal static void ApplyBody(UnitEntityData unit, string raceGuid, Gender gender)
+        {
+            var race = BlueprintRoot.Instance.Progression.CharacterRaces.Single(value => value.AssetGuid == raceGuid);
+            var doll = new DollState();
+            doll.SetRace(race); doll.SetGender(gender); doll.Validate();
+            unit.Descriptor.Progression.SetRace(race);
+            unit.Descriptor.State.Size = race.Size;
+            unit.Descriptor.Doll = doll.CreateData();
+            var old = unit.View;
+            unit.AttachToViewOnLoad(null);
+            unit.View.transform.SetParent(old.transform.parent, false);
+            unit.View.transform.position = old.transform.position;
+            unit.View.transform.rotation = old.transform.rotation;
+            Game.Instance.UI.SelectionManager?.ForceCreateMarks();
+            UnityEngine.Object.Destroy(old.gameObject);
+        }
+
+        internal static bool BodyReady(UnitEntityData unit)
+        {
+            var avatar = unit.View?.CharacterAvatar;
+            return avatar != null && !avatar.IsDirty && avatar.Animator != null && unit.View.Animator != null;
+        }
+
+        internal static bool Click(NativeMountedControlService controls, UnitEntityData caster, BlueprintAbility blueprint, UnitEntityData target)
+        {
+            SelectionManager.Instance.SelectUnit(caster.View, true, true, false);
+            controls.Update();
+            var data = caster.Descriptor.Abilities.GetAbility(blueprint)?.Data;
+            var handler = Game.Instance.SelectedAbilityHandler;
+            var targetObject = target?.View?.gameObject;
+            if (data == null || handler == null || targetObject == null) return false;
+            handler.SetAbility(data);
+            return handler.OnClick(targetObject, target.Position, 0, false, false);
+        }
+
+        internal static Transform Bone(Transform root, string name) =>
+            root.GetComponentsInChildren<Transform>(true).FirstOrDefault(node => node.name == name);
+
+        internal static JObject Vector(Vector3 value) => new JObject { ["x"] = value.x, ["y"] = value.y, ["z"] = value.z };
+
+        // The gameplay camera is posed only for this render inside one end-of-frame and restored before anything else runs.
+        internal static IEnumerator Capture(string evidenceRoot, JArray shots, string name, UnitEntityData focusUnit, UnitEntityData riderUnit, UnitEntityData mountUnit,
+            float yaw, float height, float distance, float fieldOfViewDegrees, Action done)
+        {
+            yield return new WaitForEndOfFrame();
+            var row = new JObject { ["name"] = name, ["frame"] = Time.frameCount };
+            try
+            {
+                var camera = Game.GetCamera();
+                var transform = camera.transform;
+                var position = transform.position; var rotation = transform.rotation; var fieldOfView = camera.fieldOfView;
+                var focus = focusUnit.View.transform;
+                var look = focus.position + Vector3.up * 1.2f;
+                var direction = Quaternion.Euler(0f, yaw, 0f) * focus.forward;
+                byte[] bytes;
+                try
+                {
+                    transform.position = focus.position + direction * distance + Vector3.up * height;
+                    transform.rotation = Quaternion.LookRotation(look - transform.position);
+                    camera.fieldOfView = fieldOfViewDegrees;
+                    bytes = Screenshot.CapturePNG(camera);
+                }
+                finally { transform.position = position; transform.rotation = rotation; camera.fieldOfView = fieldOfView; }
+                // The pelvis in the same frame as its pixels, after this frame's pose.
+                if (riderUnit?.View?.CharacterAvatar != null && mountUnit?.View != null)
+                {
+                    var root = mountUnit.View.transform; var avatar = riderUnit.View.CharacterAvatar.transform;
+                    var pelvis = Bone(avatar, "Pelvis"); var left = Bone(avatar, "L_foot"); var right = Bone(avatar, "R_foot");
+                    if (pelvis != null && left != null && right != null)
+                        row["seat"] = new JObject { ["pelvisMountLocal"] = Vector(root.InverseTransformPoint(pelvis.position)),
+                            ["leftFootMountLocal"] = Vector(root.InverseTransformPoint(left.position)), ["rightFootMountLocal"] = Vector(root.InverseTransformPoint(right.position)) };
+                }
+                var folder = Path.Combine(evidenceRoot, "movement-visuals"); Directory.CreateDirectory(folder);
+                var file = "sprint5-" + name + ".png";
+                File.WriteAllBytes(Path.Combine(folder, file), bytes);
+                using (var algorithm = SHA256.Create())
+                    row["sha256"] = BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+                row["file"] = "movement-visuals/" + file; row["bytes"] = bytes.Length;
+            }
+            catch (Exception exception) { row["error"] = exception.GetType().Name + ": " + exception.Message; }
+            shots.Add(row);
+            done();
+        }
+    }
+
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Sprint5SmallRealTime = "sprint5-small-rt", Sprint5DogRealTime = "sprint5-dog-rt";
@@ -269,7 +360,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["originalSize"] = unit.Descriptor.OriginalSize.ToString(), ["effectiveSize"] = unit.Descriptor.State.Size.ToString(),
             ["level"] = unit.Descriptor.Progression.CharacterLevel, ["hp"] = unit.MaxHP, ["ac"] = unit.Stats.AC.ModifiedValue,
             ["strength"] = unit.Stats.Strength.ModifiedValue, ["dexterity"] = unit.Stats.Dexterity.ModifiedValue, ["constitution"] = unit.Stats.Constitution.ModifiedValue,
-            ["bab"] = unit.Stats.BaseAttackBonus.ModifiedValue, ["speed"] = unit.Stats.Speed.ModifiedValue,
+            ["bab"] = unit.Stats.BaseAttackBonus.ModifiedValue, ["speed"] = unit.Stats.Speed.ModifiedValue, ["experience"] = unit.Descriptor.Progression.Experience,
             ["handWeapon"] = unit.Body.PrimaryHand?.MaybeWeapon?.Blueprint?.name, ["bite"] = unit.Body.PrimaryHand?.MaybeWeapon?.Blueprint?.BaseDamage.ToString(),
             ["limbs"] = new JArray(unit.Body.AdditionalLimbs.Select(slot => slot.MaybeItem?.Blueprint?.name)),
             ["facts"] = new JArray(unit.Descriptor.Progression.Features.Enumerable.Select(fact => fact.Blueprint.name).Take(40)),
@@ -358,11 +449,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private bool Sprint5BodyReady()
-        {
-            var avatar = s5Owner.View?.CharacterAvatar;
-            return avatar != null && !avatar.IsDirty && avatar.Animator != null && s5Owner.View.Animator != null;
-        }
+        private bool Sprint5BodyReady() => Sprint5Fixture.BodyReady(s5Owner);
 
         // ---- actions on one rig: gear, cast, turn, attack, dismount, remount ----------------------------------------
         private void TickSprint5Actions()
@@ -428,7 +515,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         s5ShotIndex++; s5ShotAt = Time.time + 0.45f;
                         QueueSprint5Shot(name + "attack-" + s5ShotIndex, s5Pet, 90f, 1.3f, 9f, 24f); ResetLeafClock(); return;
                     }
-                    if (Time.time < s5StepAt && !(s5ShotIndex == 3 && Sprint5AttackCount(s5Owner) + Sprint5AttackCount(s5Pet) >= 2)) return;
+                    if (Time.time < s5StepAt && !(s5ShotIndex == 3 && Sprint5AttackCount(s5Owner) >= 1)) return;
+                    s5Facts["cooldownsAfterRider"] = Sprint5Cooldowns();
+                    // The mount's own attack, by the ordinary selection and click.
+                    SelectionManager.Instance.SelectUnit(s5Pet.View, true, true, false);
+                    using (var input = new NativeOrdinaryAttackInput(s5Target)) s5Facts["mountAttackClicked"] = input.Click();
+                    s5StepAt = Time.time + Sprint5AttackSeconds; s5ShotAt = Time.time + 0.35f; s5ShotIndex = 0; s5Step = 16; ResetLeafClock(); return;
+                case 16:
+                    s5TargetService.ObserveTargetLifeState(); s5TargetService.RefreshBidirectionalCombatMemoryLease();
+                    if (s5ShotIndex == 0 && Time.time >= s5ShotAt) { s5ShotIndex = 1; QueueSprint5Shot(name + "mount-attack", s5Pet, 90f, 1.3f, 9f, 24f); ResetLeafClock(); return; }
+                    if (Time.time < s5StepAt && Sprint5AttackCount(s5Pet) < 1) return;
                     s5Facts["cooldownsDuring"] = Sprint5Cooldowns();
                     s5Facts["rules"] = s5Rules.Capture(); s5Facts["riderAttacks"] = Sprint5AttackCount(s5Owner); s5Facts["mountAttacks"] = Sprint5AttackCount(s5Pet);
                     s5Facts["duringCombat"] = Sprint5PairFacts(state);
@@ -554,7 +650,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 s5Facts["spawned"] = Sprint5Unit(s5Target);
                 s5Facts["mountable"] = SupportedMountedProfiles.IsSupported(s5Target);
                 s5Facts["ridingDog"] = Sprint5Unit(s5Pet);
-                QueueSprint5Shot("dog-beside-stock", s5Pet, 90f, 1.3f, 10f, 24f); s5Step = 2; return;
+                QueueSprint5Views("dog-beside-stock", s5Pet); s5Step = 2; return;
             }
             s5Target.Destroy(); s5Target = null;
             FinishSprint5Row(s5Facts.Value<bool>("mountable") == false, "The ordinary Dog is not a mount and keeps its own definition.");
@@ -577,38 +673,9 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // ---- fixture helpers -----------------------------------------------------------------------------------------
-        private bool Sprint5Click(UnitEntityData caster, BlueprintAbility blueprint, UnitEntityData target)
-        {
-            SelectionManager.Instance.SelectUnit(caster.View, true, true, false);
-            nativeControls.Update();
-            var data = caster.Descriptor.Abilities.GetAbility(blueprint)?.Data;
-            var handler = Game.Instance.SelectedAbilityHandler;
-            var targetObject = target?.View?.gameObject;
-            if (data == null || handler == null || targetObject == null) return false;
-            handler.SetAbility(data);
-            return handler.OnClick(targetObject, target.Position, 0, false, false);
-        }
-
-        // Disclosed setup on a disposable actor: a native Doll and race, then the view rebuild Polymorph.RestoreView uses.
-        private void Sprint5ApplyBody(UnitEntityData unit, Sprint5Rig rig)
-        {
-            var race = BlueprintRoot.Instance.Progression.CharacterRaces.Single(value => value.AssetGuid == rig.RaceGuid);
-            var doll = new DollState();
-            doll.SetRace(race); doll.SetGender(rig.Gender); doll.Validate();
-            unit.Descriptor.Progression.SetRace(race);
-            unit.Descriptor.State.Size = race.Size;
-            unit.Descriptor.Doll = doll.CreateData();
-            var old = unit.View;
-            unit.AttachToViewOnLoad(null);
-            unit.View.transform.SetParent(old.transform.parent, false);
-            unit.View.transform.position = old.transform.position;
-            unit.View.transform.rotation = old.transform.rotation;
-            Game.Instance.UI.SelectionManager?.ForceCreateMarks();
-            UnityEngine.Object.Destroy(old.gameObject);
-        }
-
-        private static Transform Sprint5Bone(Transform root, string name) =>
-            root.GetComponentsInChildren<Transform>(true).FirstOrDefault(node => node.name == name);
+        private bool Sprint5Click(UnitEntityData caster, BlueprintAbility blueprint, UnitEntityData target) => Sprint5Fixture.Click(nativeControls, caster, blueprint, target);
+        private static void Sprint5ApplyBody(UnitEntityData unit, Sprint5Rig rig) => Sprint5Fixture.ApplyBody(unit, rig.RaceGuid, rig.Gender);
+        private static Transform Sprint5Bone(Transform root, string name) => Sprint5Fixture.Bone(root, name);
 
         private static JObject Sprint5RiderRig(UnitEntityData unit)
         {
@@ -660,7 +727,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["bones"] = bones, ["surfaces"] = surfaces, ["worldScale"] = Sprint5Vector(root.lossyScale), ["localScale"] = Sprint5Vector(root.localScale) };
         }
 
-        private static JObject Sprint5Vector(Vector3 value) => new JObject { ["x"] = value.x, ["y"] = value.y, ["z"] = value.z };
+        private static JObject Sprint5Vector(Vector3 value) => Sprint5Fixture.Vector(value);
 
         // ---- captures ----------------------------------------------------------------------------------------------
         private void QueueSprint5Views(string name, UnitEntityData focus)
@@ -681,51 +748,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var runner = UnityModManager.UI.Instance;
             if (runner == null) throw new InvalidOperationException("Sprint 5 capture has no end-of-frame runner.");
             s5CaptureActive = true;
-            runner.StartCoroutine(CaptureSprint5AtEndOfFrame(s5Queue.Dequeue()));
-        }
-
-        // The gameplay camera is posed only for this render inside one end-of-frame and restored before anything else runs.
-        private IEnumerator CaptureSprint5AtEndOfFrame(Sprint5Shot shot)
-        {
-            yield return new WaitForEndOfFrame();
-            var row = new JObject { ["name"] = shot.Name, ["frame"] = Time.frameCount };
-            try
+            var shot = s5Queue.Dequeue();
+            runner.StartCoroutine(Sprint5Fixture.Capture(request.EvidenceRoot, s5Shots, shot.Name, shot.Focus, s5Owner, s5Pet, shot.Yaw, shot.Height, shot.Distance, shot.FieldOfView, () =>
             {
-                var camera = Game.GetCamera();
-                var transform = camera.transform;
-                var position = transform.position; var rotation = transform.rotation; var fieldOfView = camera.fieldOfView;
-                var focus = shot.Focus.View.transform;
-                var look = focus.position + Vector3.up * 1.2f;
-                var direction = Quaternion.Euler(0f, shot.Yaw, 0f) * focus.forward;
-                byte[] bytes;
-                try
-                {
-                    transform.position = focus.position + direction * shot.Distance + Vector3.up * shot.Height;
-                    transform.rotation = Quaternion.LookRotation(look - transform.position);
-                    camera.fieldOfView = shot.FieldOfView;
-                    bytes = Screenshot.CapturePNG(camera);
-                }
-                finally { transform.position = position; transform.rotation = rotation; camera.fieldOfView = fieldOfView; }
-                // The pelvis in the same frame as its pixels, after this frame's pose.
-                if (s5Owner?.View?.CharacterAvatar != null && s5Pet?.View != null)
-                {
-                    var root = s5Pet.View.transform; var avatar = s5Owner.View.CharacterAvatar.transform;
-                    var pelvis = Sprint5Bone(avatar, "Pelvis"); var left = Sprint5Bone(avatar, "L_foot"); var right = Sprint5Bone(avatar, "R_foot");
-                    if (pelvis != null && left != null && right != null)
-                        row["seat"] = new JObject { ["pelvisMountLocal"] = Sprint5Vector(root.InverseTransformPoint(pelvis.position)),
-                            ["leftFootMountLocal"] = Sprint5Vector(root.InverseTransformPoint(left.position)), ["rightFootMountLocal"] = Sprint5Vector(root.InverseTransformPoint(right.position)) };
-                }
-                var folder = Path.Combine(request.EvidenceRoot, "movement-visuals"); Directory.CreateDirectory(folder);
-                var file = "sprint5-" + shot.Name + ".png";
-                File.WriteAllBytes(Path.Combine(folder, file), bytes);
-                using (var algorithm = SHA256.Create())
-                    row["sha256"] = BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
-                row["file"] = "movement-visuals/" + file; row["bytes"] = bytes.Length;
-            }
-            catch (Exception exception) { row["error"] = exception.GetType().Name + ": " + exception.Message; }
-            s5Shots.Add(row);
-            s5CaptureActive = false;
-            ResetLeafClock();
+                s5CaptureActive = false;
+                ResetLeafClock();
+            }));
         }
 
         private bool DrainSprint5Fixture()
