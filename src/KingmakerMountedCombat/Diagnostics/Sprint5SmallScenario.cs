@@ -114,11 +114,13 @@ namespace KingmakerMountedCombat.Diagnostics
             line /= length;
             foreach (var unit in Game.Instance.State.Units)
             {
-                if (unit == focus || unit == rider || unit == mount || unit.View == null || !unit.IsInGame) continue;
+                // The carried pair is the subject. A rider standing beside its mount is not carried, so the mount can block that view.
+                var subject = unit == focus || (focus == mount && unit == rider);
+                if (subject || unit.View == null || !unit.IsInGame) continue;
                 var offset = unit.Position - from; offset.y = 0f;
                 var along = Vector3.Dot(offset, line);
                 if (along <= 0f || along >= length) continue;
-                if ((offset - line * along).magnitude < unit.Corpulence + 0.3f) return unit.CharacterName;
+                if ((offset - line * along).magnitude < unit.Corpulence + 0.8f) return unit.CharacterName;
             }
             return null;
         }
@@ -555,7 +557,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (Time.time < s5StepAt) return;
                     // Scale and pose residue, once the rider is standing again.
                     s5RigRow["afterDismountRig"] = Sprint5RiderRig(s5Owner);
-                    QueueSprint5Shot(name + "-dismounted", s5Owner, 90f, 1.3f, 5f, 24f);
+                    QueueSprint5Shot(name + "-dismounted", s5Owner, 90f, 0.9f, 5f, 24f, 0.6f);
                     s5Step = 9; return;
                 default:
                     s5RigIndex++; s5Step = 0; s5Frames = 0; ResetLeafClock(); return;

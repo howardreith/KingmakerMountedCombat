@@ -91,29 +91,31 @@ namespace KingmakerMountedCombat.Domain
         // pommel over the Chest bone at z 0.47); the legs straddle instead of reaching down.
         // A Small seat is a fixed offset from the mount's anchor bone, so it cannot depend on
         // the animation pose playing at the moment of mounting.
-        private const string SeatRecordSha256 = "a01d984eb2370bea7283d6fbe5603807ee2b5b1ddeeb172fd8bef4f3c3863463";
+        private const string SeatRecordSha256 = "e6cd444f91dde3c16b0d8891ee5f53a94be52fd393eeddb3e5d957df8ba28aaf";
         private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
         private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
         // Explicit zero: the accepted Horse seat always ran with none, because the -0.16 once written here initialized after the profiles that read it.
         private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, 0f, 0f);
         private static PoseVector3 HorseSeat(float height) => new PoseVector3(0f, height - HorseChestHeight, HorseSaddleForward - HorseChestForward);
         // Foot and knee are sized by the rig's own thigh-and-shin reach.
-        private static MountedRiderPoseProfile SmallPose(string id, float reach, float footSpread = HorseFootSpread) => new MountedRiderPoseProfile(id, "Pelvis",
+        private static MountedRiderPoseProfile SmallPose(string id, float reach, float footSpread = HorseFootSpread, float footDrop = HorseFootDrop) => new MountedRiderPoseProfile(id, "Pelvis",
             new PoseVector3(0f, 0f, 0f), new PoseVector3(0f, 0f, 0f),
             new MountedRiderLegPoseProfile("L_Up_leg", "L_leg", "L_foot",
-                new PoseVector3(-footSpread * reach, -0.67f * reach, 0.13f * reach), new PoseVector3(-0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)),
+                new PoseVector3(-footSpread * reach, -footDrop * reach, 0.13f * reach), new PoseVector3(-0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)),
             new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
-                new PoseVector3(footSpread * reach, -0.67f * reach, 0.13f * reach), new PoseVector3(0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)));
+                new PoseVector3(footSpread * reach, -footDrop * reach, 0.13f * reach), new PoseVector3(0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)));
         // The Riding Dog has no saddle: its back is about 0.89 high at z 0.12, between hips and shoulders, and
         // 0.22 wide to each side, measured on the Medium dog. The seat is mount-local, so it follows native growth.
         public const string RidingDogBlueprintGuid = "b7a14f25d3c94e0d8e6f1a2c5d90e431";
         private const string RidingDogAnchor = "UpperTorso";
         private const float DogTorsoHeight = 0.77f, DogTorsoForward = 0.08f, DogSeatForward = 0.12f;
         private const float HalflingDogBackHeight = 1.05f, GnomeDogBackHeight = 1.07f;
-        private const float DogFootSpread = 0.68f, HorseFootSpread = 0.61f;
+        // The saddle skirt is about 0.32 to each side at seat height. Ankles at 0.61 of reach sat on its surface, so run g2's
+        // thinner boots were inside it; 0.72 clears it, and the smaller drop leaves the knee a visible bend.
+        private const float DogFootSpread = 0.68f, DogFootDrop = 0.67f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
         private static DeclaredSmallMountedProfile DogFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
             new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, RidingDogBlueprintGuid, raceGuid, gender, skeleton),
-                SmallPose(id, reach, DogFootSpread), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),
+                SmallPose(id, reach, DogFootSpread, DogFootDrop), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),
                 new PoseVector3(0f, seatHeight - DogTorsoHeight, DogSeatForward - DogTorsoForward), new PoseVector3(0f, 0f, 0f), "Riding Dog", RidingDogAnchor);
         private static DeclaredSmallMountedProfile HorseFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
             new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, DeclaredSmallRiderBody.HorseBlueprintGuid, raceGuid, gender, skeleton),
