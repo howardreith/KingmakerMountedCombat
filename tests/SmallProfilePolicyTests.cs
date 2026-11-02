@@ -68,6 +68,11 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.True(profile.Body.Refusal(rig) == MountedSizePolicy.TooSmallRefusal, "A mount no larger than its rider was admitted: " + profile.Body.ProfileId);
                 }
             });
+            runner.Run("each Small rig has a Riding Dog profile and no Medium rig does", () =>
+            {
+                var dog = MountedRiderProfileCatalog.Small.Where(profile => profile.Body.MountBlueprintGuid == MountedRiderProfileCatalog.RidingDogBlueprintGuid).ToArray();
+                TestRunner.True(dog.Length == 4 && dog.Select(profile => profile.Body.SkeletonName).Distinct().Count() == 4 && dog.All(profile => profile.MountAnchorName == "UpperTorso" && profile.MountDisplayName == "Riding Dog"), "The Riding Dog profiles differ from the published matrix.");
+            });
             runner.Run("the original Small profile ID still names the male Halfling on the Horse", () =>
             {
                 var body = MountedRiderProfileCatalog.Small.Single(profile => profile.Body.ProfileId == MountedRiderProfileCatalog.OriginalSmallHorseId).Body;
