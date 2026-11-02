@@ -30,7 +30,11 @@ namespace KingmakerMountedCombat.Domain
             halflingHorse,
             HorseFamily("small-halfling-female-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingSaddleHeight),
             HorseFamily("small-gnome-male-horse-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeSaddleHeight),
-            HorseFamily("small-gnome-female-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeSaddleHeight)
+            HorseFamily("small-gnome-female-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeSaddleHeight),
+            DogFamily("small-halfling-male-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-gnome-male-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeDogBackHeight)
         });
         public static IReadOnlyList<DeclaredSmallMountedProfile> Small => small;
         // Retain the exact F09 calibration lease for reproducible diagnostics;
@@ -77,6 +81,16 @@ namespace KingmakerMountedCombat.Domain
                 new PoseVector3(-0.61f * reach, -0.67f * reach, 0.13f * reach), new PoseVector3(-0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)),
             new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
                 new PoseVector3(0.61f * reach, -0.67f * reach, 0.13f * reach), new PoseVector3(0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)));
+        // The Riding Dog has no saddle: its back is about 0.89 high at z 0.12, between hips and shoulders, and
+        // 0.22 wide to each side, measured on the Medium dog. The seat is mount-local, so it follows native growth.
+        public const string RidingDogBlueprintGuid = "b7a14f25d3c94e0d8e6f1a2c5d90e431";
+        private const string RidingDogAnchor = "UpperTorso";
+        private const float DogTorsoHeight = 0.77f, DogTorsoForward = 0.08f, DogSeatForward = 0.12f;
+        private const float HalflingDogBackHeight = 1.02f, GnomeDogBackHeight = 1.05f;
+        private static DeclaredSmallMountedProfile DogFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
+            new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, RidingDogBlueprintGuid, raceGuid, gender, skeleton),
+                SmallPose(id, reach), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),
+                new PoseVector3(0f, seatHeight - DogTorsoHeight, DogSeatForward - DogTorsoForward), new PoseVector3(0f, 0f, 0f), "Riding Dog", RidingDogAnchor);
         private static DeclaredSmallMountedProfile HorseFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
             new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, DeclaredSmallRiderBody.HorseBlueprintGuid, raceGuid, gender, skeleton),
                 SmallPose(id, reach), SeatRecordSha256, SmallHorseRootOffset, HorseSeat(seatHeight), new PoseVector3(0f, 0f, 0f));

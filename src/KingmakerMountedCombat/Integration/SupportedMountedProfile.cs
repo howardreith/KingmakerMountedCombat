@@ -61,7 +61,7 @@ namespace KingmakerMountedCombat.Integration
     {
         internal const string MammothBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
         internal const string HorseBlueprintGuid = "4016c7db400ab721ff125aef9e65e202";
-        internal const string RidingDogBlueprintGuid = "b7a14f25d3c94e0d8e6f1a2c5d90e431";
+        internal const string RidingDogBlueprintGuid = MountedRiderProfileCatalog.RidingDogBlueprintGuid;
         internal static readonly SupportedMountedProfile Mammoth = new SupportedMountedProfile(
             "medium-humanoid-mammoth-v1", MammothBlueprintGuid, "Mammoth", "Spine", new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnMammothMountRootPositionOffset, new PoseVector3(0f, 0f, 0f),
@@ -73,7 +73,7 @@ namespace KingmakerMountedCombat.Integration
         // Mount classification only (names, native controls, lifecycle). A Riding Dog is Medium, so it
         // carries only Small rigs, and each of those has its own declared profile below.
         private static readonly SupportedMountedProfile ridingDogClassification = new SupportedMountedProfile(
-            "ridingdog-classification-only", RidingDogBlueprintGuid, "Riding Dog", "Chest", new PoseVector3(0f, 0f, 0f),
+            "ridingdog-classification-only", RidingDogBlueprintGuid, "Riding Dog", "UpperTorso", new PoseVector3(0f, 0f, 0f),
             new PoseVector3(0f, 0f, 0f), new PoseVector3(0f, 0f, 0f), MountedRiderPoseProfiles.MediumHumanoidOnHorse, false);
         private static readonly SupportedMountedProfile[] small = MountedRiderProfileCatalog.Small
             .Select(SupportedMountedProfile.FromDeclaredSmall).ToArray();

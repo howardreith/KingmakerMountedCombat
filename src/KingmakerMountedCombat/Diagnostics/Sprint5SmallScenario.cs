@@ -287,6 +287,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 nativeControls.Update();
                 s5Facts["mountFact"] = s5Owner.Descriptor.Abilities.GetAbility(nativeControls.MountAbility) != null;
                 s5Facts["clicked"] = Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet);
+                Game.Instance.SelectedAbilityHandler?.SetAbility(null);
                 s5Frames = 0; s5Step = 1; return;
             }
             if (++s5Frames < Sprint5SettleFrames) return;
@@ -322,7 +323,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5RigRow["refusal"] = SupportedMountedProfiles.DescribeRefusal(s5Owner, s5Pet);
                     s5RigRow["expectedProfile"] = IsSprint5Dog ? rig.DogProfile : rig.HorseProfile;
                     s5RigRow["resolvedProfile"] = SupportedMountedProfiles.Resolve(s5Owner, s5Pet)?.Id;
-                    s5Step = s5RigRow["resolvedProfile"].Type == JTokenType.Null ? 9 : 2; ResetLeafClock(); return;
+                    s5Step = s5RigRow.Value<string>("resolvedProfile") == null ? 9 : 2; ResetLeafClock(); return;
                 case 2:
                     if (!Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) return;
                     s5Frames = 0; s5Step = 3; ResetLeafClock(); return;
@@ -376,7 +377,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!Sprint5BodyReady() || ++s5Frames < Sprint5SettleFrames) return;
                     s5Facts["unmountedRig"] = Sprint5RiderRig(s5Owner);
                     s5Facts["profileBefore"] = SupportedMountedProfiles.Resolve(s5Owner, s5Pet)?.Id;
-                    if (s5Facts["profileBefore"].Type == JTokenType.Null) { FinishSprint5Row(false, "The rig has no profile on this mount: " + SupportedMountedProfiles.DescribeRefusal(s5Owner, s5Pet), false); return; }
+                    if (s5Facts.Value<string>("profileBefore") == null) { FinishSprint5Row(false, "The rig has no profile on this mount: " + SupportedMountedProfiles.DescribeRefusal(s5Owner, s5Pet), false); return; }
                     s5Step = 2; return;
                 case 2: if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 3; ResetLeafClock(); } return;
                 case 3:
@@ -499,7 +500,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (s5Owner.Descriptor.State.Size != Size.Small || ++s5Frames < Sprint5SettleFrames) return;
                     s5Facts["restored"] = Sprint5PairFacts(state);
                     var detached = s5Facts.Value<bool?>("detached") == true;
-                    FinishSprint5Row(detached && s5Facts["after"]["resolved"].Type == JTokenType.Null && s5Facts.Value<string>("ownership") == s5Owner.UniqueId,
+                    FinishSprint5Row(detached && s5Facts["after"].Value<string>("resolved") == null && s5Facts.Value<string>("ownership") == s5Owner.UniqueId,
                         "A native Enlarge detached the pair without losing ownership.", detached);
                     return;
             }
@@ -572,7 +573,7 @@ namespace KingmakerMountedCombat.Diagnostics
             s5Facts["ownerPet"] = s5Owner.Descriptor.Pet?.UniqueId;
             s5Facts["petDestroyed"] = s5Pet.Destroyed;
             s5Facts["orphans"] = Game.Instance.State.Units.Count(unit => unit.Blueprint?.AssetGuid == HorseCompanionBlueprintService.RidingDogUnitGuid);
-            FinishSprint5Row(s5Facts["ownerPet"].Type == JTokenType.Null && s5Facts.Value<int>("orphans") == 0, "Replacing the companion left no orphan.");
+            FinishSprint5Row(s5Facts.Value<string>("ownerPet") == null && s5Facts.Value<int>("orphans") == 0, "Replacing the companion left no orphan.");
         }
 
         // ---- fixture helpers -----------------------------------------------------------------------------------------
