@@ -142,6 +142,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var dogFeature = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.DogFeatureGuid);
             var stockAddPet = dogFeature.GetComponent<AddPet>();
             var service = horseService;
+            s5Facts["registration"] = new JObject { ["ridingDogFailure"] = service.CaptureSnapshot().RidingDogFailure, ["state"] = service.State.ToString() };
+            if (service.RidingDogFeature == null) { FinishSprint5Row(false, "The Riding Dog did not register."); return; }
             s5Facts["races"] = new JArray(BlueprintRoot.Instance.Progression.CharacterRaces.Select(race => new JObject {
                 ["name"] = race.name, ["guid"] = race.AssetGuid, ["size"] = race.Size.ToString(), ["raceId"] = race.RaceId.ToString(),
                 ["presets"] = new JArray((race.Presets ?? new BlueprintRaceVisualPreset[0]).Select(preset => new JObject {
@@ -162,7 +164,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private static JObject Sprint5UnitBlueprint(BlueprintUnit unit) => new JObject {
             ["name"] = unit.name, ["guid"] = unit.AssetGuid, ["size"] = unit.Size.ToString(), ["speed"] = unit.Speed.Value,
             ["strength"] = unit.Strength, ["dexterity"] = unit.Dexterity, ["constitution"] = unit.Constitution, ["intelligence"] = unit.Intelligence, ["wisdom"] = unit.Wisdom, ["charisma"] = unit.Charisma,
-            ["prefab"] = unit.Prefab?.AssetId, ["bab"] = unit.BaseAttackBonus, ["maxHp"] = unit.MaxHP,
+            ["prefab"] = unit.Prefab?.AssetId, ["bab"] = unit.BaseAttackBonus, ["maxHp"] = unit.MaxHP, ["nativeSizeScale"] = (int)unit.Size,
             ["limbs"] = new JArray((unit.Body?.AdditionalLimbs ?? new Kingmaker.Blueprints.Items.Weapons.BlueprintItemWeapon[0]).Select(limb => limb == null ? null : limb.name + "/" + limb.AssetGuid)),
             ["emptyHand"] = unit.Body?.EmptyHandWeapon?.name, ["primaryHand"] = unit.Body?.PrimaryHand?.name, ["disableHands"] = unit.Body?.DisableHands,
             ["addFacts"] = new JArray((unit.AddFacts ?? new Kingmaker.Blueprints.Facts.BlueprintUnitFact[0]).Select(fact => fact == null ? null : fact.name + "/" + fact.AssetGuid)),

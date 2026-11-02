@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Integration
         public string RidingDogUnitGuid { get; set; }
         public string RidingDogFeatureGuid { get; set; }
         public string[] RidingDogSelectionGuids { get; set; }
+        public string RidingDogFailure { get; set; }
         public bool RangerAppendOwned { get; set; }
         public bool RangerSelectionDesired { get; set; }
         public string NativeViewAssetId { get; set; }
@@ -136,6 +137,7 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature ridingDogFeature;
         private BlueprintFeature ridingDogUpgrade;
         private BlueprintFeature ridingDogSize;
+        private string ridingDogFailure;
         private readonly List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>> ridingDogSelections =
             new List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>>();
         private BlueprintFeatureSelection rangerSelection;
@@ -382,6 +384,7 @@ namespace KingmakerMountedCombat.Integration
                 RidingDogUnitGuid = ridingDogUnit?.AssetGuid,
                 RidingDogFeatureGuid = ridingDogFeature?.AssetGuid,
                 RidingDogSelectionGuids = ridingDogSelections.Select(pair => pair.Key.AssetGuid).ToArray(),
+                RidingDogFailure = ridingDogFailure,
                 RangerAppendOwned = selectionLease != null &&
                     selectionLease.MatchesAppended(rangerSelection?.AllFeatures),
                 RangerSelectionDesired = selectionDesired,
@@ -572,7 +575,14 @@ namespace KingmakerMountedCombat.Integration
             AddExactBlueprintRegistration(library, horseUpgrade);
             AddExactBlueprintRegistration(library, horseFeature);
 
-            RegisterRidingDog(library, dogFeature, dogUnit, dogClassLevels);
+            // A Riding Dog fault never costs the player the Horse or the mounted controls.
+            try { RegisterRidingDog(library, dogFeature, dogUnit, dogClassLevels); }
+            catch (Exception exception)
+            {
+                ridingDogFailure = exception.GetType().Name + ": " + exception.Message;
+                logger.Exception("Riding Dog companion blueprint registration", exception);
+                RemoveRidingDog(library);
+            }
 
             biteGuid = bite.AssetGuid;
             biteName = bite.name;
@@ -582,11 +592,12 @@ namespace KingmakerMountedCombat.Integration
             // admitted runtime selection array, so it is intentionally left
             // untouched. Lease only the exact Items-authoritative surface.
             selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(
-                RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), new[] { horseFeature, ridingDogFeature });
+                RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"),
+                ridingDogFeature == null ? new[] { horseFeature } : new[] { horseFeature, ridingDogFeature });
             // Every other native selection that offers the stock Dog offers the Riding Dog too, with its own
             // class's rank progression. The Ranger's own lease above carries both of its additions.
             foreach (var selection in blueprintList.OfType<BlueprintFeatureSelection>().Where(value =>
-                !ReferenceEquals(value, rangerSelection) && value.AllFeatures != null && value.AllFeatures.Contains(dogFeature) &&
+                ridingDogFeature != null && !ReferenceEquals(value, rangerSelection) && value.AllFeatures != null && value.AllFeatures.Contains(dogFeature) &&
                 !value.AllFeatures.Contains(null)))
             {
                 ridingDogSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
@@ -600,31 +611,42 @@ namespace KingmakerMountedCombat.Integration
             ValidateRegisteredContract(library);
         }
 
+        private void RemoveRidingDog(LibraryScriptableObject library)
+        {
+            RemoveExact(library, blueprintList, RidingDogFeatureGuid, ridingDogFeature);
+            RemoveExact(library, blueprintList, RidingDogUpgradeGuid, ridingDogUpgrade);
+            RemoveExact(library, blueprintList, RidingDogUnitGuid, ridingDogUnit);
+            RemoveExact(library, blueprintList, RidingDogSizeGuid, ridingDogSize);
+            ridingDogFeature = null; ridingDogUpgrade = null; ridingDogUnit = null; ridingDogSize = null;
+            ridingDogSelections.Clear();
+        }
+
         // Additive beside the stock Dog. The stock definitions are only read: this copies from the
-        // Dog's unit, and a Small blueprint with one native size step keeps the native view scaling
-        // (the same scale the stock Dog grows to) with no change to any other dog.
+        // Dog's unit, and native size steps from its blueprint size keep the native view scaling
+        // (the same scale the stock Dog reaches when it grows) with no change to any other dog.
         private void RegisterRidingDog(LibraryScriptableObject library, BlueprintFeature dogFeature, BlueprintUnit dogUnit, AddClassLevels dogClassLevels)
         {
             var stockAddPet = dogFeature.GetComponent<AddPet>();
-            if (dogUnit.Size != Size.Small || stockAddPet?.UpgradeFeature == null || stockAddPet.UpgradeLevel != 4)
+            if (stockAddPet == null || dogUnit.Size > Size.Medium)
             {
-                throw new InvalidOperationException("The exact stock Dog size and rank-4 upgrade contract changed.");
+                throw new InvalidOperationException("The stock Dog companion has no AddPet or is larger than Medium.");
             }
+            var contract = stockAddPet.UpgradeFeature ?? dogFeature;
             var sharedName = CreateOwned<SharedStringAsset>("KMC_RidingDog_LocalizedName");
             sharedName.String = NewLocalizedString("KMC.RidingDog.Name");
             var icon = dogFeature.Icon;
 
             ridingDogSize = CreateOwned<BlueprintFeature>("AnimalCompanionRidingDogSize");
             ridingDogSize.AssetGuid = RidingDogSizeGuid;
-            CopyFeatureContract(stockAddPet.UpgradeFeature, ridingDogSize);
+            CopyFeatureContract(contract, ridingDogSize);
             SetFeaturePresentation(ridingDogSize, NewLocalizedString("KMC.RidingDog.Size.Name"), NewLocalizedString("KMC.RidingDog.Size.Description"), icon);
             var size = CreateOwned<Kingmaker.Designers.Mechanics.Buffs.ChangeUnitSize>("KMC_RidingDog_ChangeUnitSize");
-            size.SizeDelta = 1;
+            size.SizeDelta = Size.Medium - dogUnit.Size;
             ridingDogSize.ComponentsArray = new BlueprintComponent[] { size };
 
             ridingDogUpgrade = CreateOwned<BlueprintFeature>("AnimalCompanionUpgradeRidingDog");
             ridingDogUpgrade.AssetGuid = RidingDogUpgradeGuid;
-            CopyFeatureContract(stockAddPet.UpgradeFeature, ridingDogUpgrade);
+            CopyFeatureContract(contract, ridingDogUpgrade);
             SetFeaturePresentation(ridingDogUpgrade, NewLocalizedString("KMC.RidingDog.Upgrade.Name"), NewLocalizedString("KMC.RidingDog.Upgrade.Description"), icon);
             ridingDogUpgrade.ComponentsArray = new BlueprintComponent[]
             {
@@ -664,7 +686,8 @@ namespace KingmakerMountedCombat.Integration
             ridingDogUnit.Skills = CopySkills(dogUnit.Skills);
             ridingDogUnit.MaxHP = dogUnit.MaxHP;
             ridingDogUnit.AdditionalTemplates = CloneArray(dogUnit.AdditionalTemplates);
-            ridingDogUnit.AddFacts = CloneArray(dogUnit.AddFacts).Concat(new BlueprintUnitFact[] { ridingDogSize }).ToArray();
+            ridingDogUnit.AddFacts = dogUnit.Size == Size.Medium ? CloneArray(dogUnit.AddFacts)
+                : CloneArray(dogUnit.AddFacts).Concat(new BlueprintUnitFact[] { ridingDogSize }).ToArray();
             ridingDogUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(dogClassLevels, "KMC_RidingDog_AddClassLevels"),
@@ -679,7 +702,7 @@ namespace KingmakerMountedCombat.Integration
             addPet.Pet = ridingDogUnit;
             addPet.LevelRank = levelRank;
             addPet.UpgradeFeature = ridingDogUpgrade;
-            addPet.UpgradeLevel = stockAddPet.UpgradeLevel;
+            addPet.UpgradeLevel = stockAddPet.UpgradeLevel > 0 ? stockAddPet.UpgradeLevel : 4;
             ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
 
             AddExactBlueprintRegistration(library, ridingDogSize);
@@ -772,10 +795,7 @@ namespace KingmakerMountedCombat.Integration
                 !ReferenceEquals(library.BlueprintsByAssetId[FeatureGuid], horseFeature) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[UpgradeGuid], horseUpgrade) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[PortraitGuid], horsePortrait) ||
-                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogUnitGuid], ridingDogUnit) ||
-                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogFeatureGuid], ridingDogFeature) ||
-                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogUpgradeGuid], ridingDogUpgrade) ||
-                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogSizeGuid], ridingDogSize) ||
+
                 CountExactBlueprint(blueprintList, horseUnit) != 1 ||
                 CountExactBlueprint(blueprintList, horseFeature) != 1 ||
                 CountExactBlueprint(blueprintList, horseUpgrade) != 1 ||
@@ -1144,12 +1164,7 @@ namespace KingmakerMountedCombat.Integration
                 string ignored;
                 TryRestoreSelection(out ignored);
             }
-            RemoveExact(library, blueprintList, RidingDogFeatureGuid, ridingDogFeature);
-            RemoveExact(library, blueprintList, RidingDogUpgradeGuid, ridingDogUpgrade);
-            RemoveExact(library, blueprintList, RidingDogUnitGuid, ridingDogUnit);
-            RemoveExact(library, blueprintList, RidingDogSizeGuid, ridingDogSize);
-            ridingDogFeature = null; ridingDogUpgrade = null; ridingDogUnit = null; ridingDogSize = null;
-            ridingDogSelections.Clear();
+            RemoveRidingDog(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
             RemoveExact(library, blueprintList, UnitGuid, horseUnit);

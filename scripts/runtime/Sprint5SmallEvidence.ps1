@@ -48,7 +48,7 @@ function Assert-KmcSprint5SmallEvidence {
  foreach($name in $expected){ $found=@($Artifact.rows | Where-Object name -CEQ $name); if($found.Count -ne 1){ throw ('Sprint 5 required row missing or duplicated: '+$name) }; $rows[$name]=$found[0] }
  $shots=@($o.shots)
  $inventory=$rows['S5-inventory'].evidence
- if([string]$inventory.stockDog.size -cne 'Small' -or [string]$inventory.ridingDog.guid -cne 'b7a14f25d3c94e0d8e6f1a2c5d90e431'){ throw 'Sprint 5 stock and Riding Dog identities differ' }
+ if([string]$inventory.ridingDog.guid -cne 'b7a14f25d3c94e0d8e6f1a2c5d90e431' -or $null -ne $inventory.registration.ridingDogFailure){ throw 'Sprint 5 Riding Dog identity or registration differs' }
  if(@($inventory.dogSelections | Where-Object { $_.ridingDogOffered -ne $true }).Count -ne 0 -or @($inventory.dogSelections).Count -lt 1){ throw 'Sprint 5 a selection that offers the stock Dog does not offer the Riding Dog' }
  $control=$rows['S5-medium-control'].evidence
  if([string]$control.profile -cne 'medium-humanoid-mammoth-v1'){ throw 'Sprint 5 Medium control profile differs' }
@@ -59,7 +59,7 @@ function Assert-KmcSprint5SmallEvidence {
  $dog=$rows['S5-dog-acquire'].evidence
  if($dog.acquisition.acquired -ne $true -or [string]$dog.acquisition.petBlueprint -cne 'b7a14f25d3c94e0d8e6f1a2c5d90e431' -or [int]$dog.acquisition.rank -ne 1){ throw 'Sprint 5 Riding Dog was not chosen through the native selection' }
  if(@($dog.acquisition.optionsOffered) -cnotcontains '5c8e2b9a417f4d63a1d07e3bf26c9184'){ throw 'Sprint 5 Ranger selection did not offer the Riding Dog' }
- if([string]$dog.pet.effectiveSize -cne 'Medium' -or [string]$dog.pet.originalSize -cne 'Small' -or [string]$dog.pet.master -cne [string]$dog.acquisition.owner){ throw 'Sprint 5 Riding Dog size or owner differs' }
+ if([string]$dog.pet.effectiveSize -cne 'Medium' -or [string]$dog.pet.master -cne [string]$dog.acquisition.owner){ throw 'Sprint 5 Riding Dog size or owner differs' }
  Assert-KmcSprint5Rigs $rows['S5-dog-rigs'] $shots 'dog' $EvidenceRoot 'Medium'
  if($Status -ceq 'PASS' -and $Artifact.status -cne 'PASS'){ throw 'Sprint 5 failed native observation cannot be promoted' }
 }
