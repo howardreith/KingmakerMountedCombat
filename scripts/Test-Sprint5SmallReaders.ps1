@@ -54,6 +54,8 @@ Check (Test-KmcPhase3dSchemaRegistration 49 'sprint5-dog-rt') 'schema 49 is regi
 Check (Test-KmcPhase3dSchemaRegistration 49 'sprint5-small-rt') 'schema 49 is registered for the Horse scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 49 'sprint4-natural-rt')) 'schema 49 is refused for another scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 48 'sprint5-dog-rt')) 'a Sprint 4 schema is refused for a Sprint 5 scenario'
+Check (-not (Test-KmcChildEntryExpectsMounted 'sprint5-dog-rt')) 'a Sprint 5 child starts from its unmounted fixture handoff'
+Check (Test-KmcChildEntryRequiresIdleParty 'sprint5-small-rt') 'a Sprint 5 child requires the idle party handoff'
 Check ('riding-dog-exploration-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the Riding Dog save case is registered'
 Check ((Get-KmcChunk7SecondPairProfile ([pscustomobject]@{persistenceCase='riding-dog-exploration-manual'})) -ceq 'small-halfling-female-ridingdog-v1') 'the Riding Dog save case expects its own profile'
 Check ((Get-KmcChunk7SecondPairProfile ([pscustomobject]@{persistenceCase='multi-exploration-manual'})) -ceq 'medium-humanoid-horse-v1') 'every other save case keeps the Medium Horse profile'
