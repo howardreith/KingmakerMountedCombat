@@ -18,11 +18,20 @@ namespace KingmakerMountedCombat.Domain
         public const string MediumMammothId = "medium-humanoid-mammoth-v1";
         public const string MediumHorseId = "medium-humanoid-horse-v1";
 
-        // The exact default MaleHalfling/Horse body and pose were measured in
-        // batch70. Other Small bodies, gear and mounts remain unsupported.
+        public const string OriginalSmallHorseId = "small-default-halfling-horse-v1";
+        private const string HalflingRaceGuid = "b0c3ef2729c498f47970bb50fa1acd30";
+        private const string GnomeRaceGuid = "ef35a22c9a27da345a4528f0d5889157";
+        // The first batch70 declaration's identity now names the whole MaleHalfling
+        // rig on the Horse. Keeping the one ID makes existing archives load unchanged
+        // and needs no migration. Every other Small rig or mount has its own ID.
         private static readonly DeclaredSmallMountedProfile halflingHorse = InitialHalflingCalibration();
-        private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> small =
-            Array.AsReadOnly(new[] { halflingHorse });
+        private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> small = Array.AsReadOnly(new[]
+        {
+            halflingHorse,
+            HorseFamily("small-halfling-female-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling"),
+            HorseFamily("small-gnome-male-horse-v1", GnomeRaceGuid, "Male", "MaleGnome"),
+            HorseFamily("small-gnome-female-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome")
+        });
         public static IReadOnlyList<DeclaredSmallMountedProfile> Small => small;
         // Retain the exact F09 calibration lease for reproducible diagnostics;
         // it names the same declaration as ordinary admission.
@@ -31,7 +40,7 @@ namespace KingmakerMountedCombat.Domain
         internal static IReadOnlyList<DeclaredSmallMountedProfile> PrivateCalibrationSmall => privateCalibrationSmall;
         private static DeclaredSmallMountedProfile InitialHalflingCalibration()
         {
-            const string id = "small-default-halfling-horse-v1";
+            const string id = OriginalSmallHorseId;
             var body = new DeclaredSmallRiderBody(id,
                 "dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9",
                 "b0c3ef2729c498f47970bb50fa1acd30", "639cebe8cbc098345af429d62fd79578",
@@ -45,19 +54,26 @@ namespace KingmakerMountedCombat.Domain
                     "EE_Armor_StuddedLeatherlUnpadded_M", "EE_Ranger_M_Cap_HL_Colorize",
                     "Ranger_M_Accessories", "EE_RangerAccesories_M_Any_Colorize",
                     "EE_Ranger_M_Any_Colorize", "EE_Ranger_M_Cape" });
-            var pose = new MountedRiderPoseProfile(id, "Pelvis", new PoseVector3(0f, 0f, 0f),
-                new PoseVector3(0f, 0f, 0f),
-                new MountedRiderLegPoseProfile("L_Up_leg", "L_leg", "L_foot",
-                    new PoseVector3(-0.247152f, -0.228413f, 0.039166f),
-                    new PoseVector3(-0.025848f, -0.14278f, 0.087729f), new PoseVector3(0f, 0f, 0f)),
-                new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
-                    new PoseVector3(0.246767f, -0.228475f, 0.048004f),
-                    new PoseVector3(0.023794f, -0.167833f, 0.003672f), new PoseVector3(0f, 0f, 0f)));
-            return new DeclaredSmallMountedProfile(body, pose,
-                "7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db",
-                new PoseVector3(0f, -0.16f, 0f), new PoseVector3(0f, -0.12f, 0f),
-                new PoseVector3(0f, 0f, 0f));
+            return new DeclaredSmallMountedProfile(body, SmallPose(id), SeatRecordSha256,
+                SmallHorseRootOffset, SmallHorseSeatCorrection, new PoseVector3(0f, 0f, 0f));
         }
+
+        // The old seat aimed the feet at the Horse's stirrups. Small legs reach only 0.35 of
+        // the 0.75 from saddle to stirrup, so the pelvis sank about 0.59 below the accepted
+        // Medium seat, into the Horse (mount-local height 1.63 against 2.22). The seat is now
+        // set from the back; the legs hang and grip instead of reaching for the stirrups.
+        private const string SeatRecordSha256 = "0000000000000000000000000000000000000000000000000000000000000000";
+        private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, -0.16f, 0f);
+        private static readonly PoseVector3 SmallHorseSeatCorrection = new PoseVector3(0f, 0.40f, -0.20f);
+        private static MountedRiderPoseProfile SmallPose(string id) => new MountedRiderPoseProfile(id, "Pelvis",
+            new PoseVector3(0f, 0f, 0f), new PoseVector3(0f, 0f, 0f),
+            new MountedRiderLegPoseProfile("L_Up_leg", "L_leg", "L_foot",
+                new PoseVector3(-0.20f, -0.25f, 0.05f), new PoseVector3(-0.22f, -0.08f, 0.14f), new PoseVector3(0f, 0f, 0f)),
+            new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
+                new PoseVector3(0.20f, -0.25f, 0.05f), new PoseVector3(0.22f, -0.08f, 0.14f), new PoseVector3(0f, 0f, 0f)));
+        private static DeclaredSmallMountedProfile HorseFamily(string id, string raceGuid, string gender, string skeleton) =>
+            new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, DeclaredSmallRiderBody.HorseBlueprintGuid, raceGuid, gender, skeleton),
+                SmallPose(id), SeatRecordSha256, SmallHorseRootOffset, SmallHorseSeatCorrection, new PoseVector3(0f, 0f, 0f));
         internal static bool IsDeclaredSmallProfile(string profileId) =>
             small.Any(profile => string.Equals(profile.Body.ProfileId, profileId, StringComparison.Ordinal));
 

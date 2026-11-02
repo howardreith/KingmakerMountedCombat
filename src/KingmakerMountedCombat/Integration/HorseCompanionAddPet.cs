@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Integration
     /// Keeps the native AddPet spawn, ownership, area-load, rank, and upgrade
     /// contract while closing the one KMC-specific respec edge: stock AddPet
     /// clears the master link but intentionally leaves the spawned unit alive.
+    /// One component type for each KMC companion (Horse, Riding Dog), bound to its own Pet.
     /// </summary>
     internal sealed class HorseCompanionAddPet : AddPet
     {
@@ -253,10 +254,10 @@ namespace KingmakerMountedCombat.Integration
             return table == null || characterLevel < 0 ? -1 : table.GetBonus(characterLevel);
         }
 
-        private static bool IsExactHorse(Kingmaker.EntitySystem.Entities.UnitEntityData unit)
+        private bool IsExactHorse(Kingmaker.EntitySystem.Entities.UnitEntityData unit)
         {
-            return unit != null &&
-                   string.Equals(unit.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
+            return unit != null && Pet != null &&
+                   string.Equals(unit.Blueprint?.AssetGuid, Pet.AssetGuid, StringComparison.Ordinal);
         }
     }
 }

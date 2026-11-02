@@ -5,9 +5,10 @@ using System.Text.RegularExpressions;
 
 namespace KingmakerMountedCombat.Domain
 {
-    // No admitted production declaration is provided by this staged source.
-    // A reviewed native inventory and measured pose must supply one concrete
-    // body/equipment combination before a caller can create a declaration.
+    // Sprint 5: an ordinary Small declaration names one native rig family (race,
+    // sex, skeleton) on one mount rig. Armor, headgear, weapons and cosmetics do
+    // not change the rig, so they do not participate. The exact-costume pins of the
+    // first calibration stay available to its historical diagnostics only.
     public sealed class SmallRiderBodyObservation
     {
         public int OriginalSizeOrdinal { get; set; }
@@ -48,14 +49,26 @@ namespace KingmakerMountedCombat.Domain
         public const int NativeSmallOrdinal = 3;
         public const int NativeHorseOrdinal = 5;
         public const string HorseBlueprintGuid = "4016c7db400ab721ff125aef9e65e202";
+        private const string ProfileIdPattern = "^small-[a-z0-9]+(?:-[a-z0-9]+)*-(?:horse|ridingdog)-v[1-9][0-9]*$";
         private readonly string[] dollEquipment, currentEquipment, visualEquipment;
+
+        // The ordinary rig-family declaration.
+        public DeclaredSmallRiderBody(string profileId, string mountBlueprintGuid, string raceGuid, string gender, string skeletonName)
+        {
+            Require(Regex.IsMatch(profileId ?? "", ProfileIdPattern), "Small profile needs its own versioned mount identity.");
+            Require(Hex(mountBlueprintGuid, 32) && Hex(raceGuid, 32), "Exact mount and Small race identities are required.");
+            Require(gender == "Male" || gender == "Female", "Unknown native gender.");
+            Require(!string.IsNullOrWhiteSpace(skeletonName) && skeletonName.Length <= 160, "Exact native skeleton name is required.");
+            ProfileId = profileId; MountBlueprintGuid = mountBlueprintGuid; RaceGuid = raceGuid; Gender = gender; SkeletonName = skeletonName;
+            AvatarLocalScale = new PoseVector3(1f, 1f, 1f);
+        }
 
         public DeclaredSmallRiderBody(string profileId, string nativeInventorySha256, string raceGuid,
             string presetGuid, string gender, string skeletonName, bool leftHanded, bool avatarMirrored,
             PoseVector3 avatarLocalScale, IEnumerable<string> dollEquipmentEntityIds,
             IEnumerable<string> currentEquipmentBlueprints, IEnumerable<string> activeVisualEquipmentNames)
         {
-            Require(Regex.IsMatch(profileId ?? "", "^small-[a-z0-9]+(?:-[a-z0-9]+)*-horse-v[1-9][0-9]*$"), "Small profile needs its own versioned Horse identity.");
+            Require(Regex.IsMatch(profileId ?? "", ProfileIdPattern), "Small profile needs its own versioned mount identity.");
             Require(Hex(nativeInventorySha256, 64), "Exact reviewed native body inventory hash is required.");
             Require(Hex(raceGuid, 32) && Hex(presetGuid, 32), "Exact Small race and preset identities are required.");
             Require(gender == "Male" || gender == "Female", "Unknown native gender.");
@@ -73,12 +86,14 @@ namespace KingmakerMountedCombat.Domain
             Require(visualEquipment.Length != 0 && visualEquipment.All(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 160),
                 "The exact native active visual-equipment multiset is required.");
             Array.Sort(dollEquipment, StringComparer.Ordinal); Array.Sort(visualEquipment, StringComparer.Ordinal);
-            ProfileId = profileId; NativeInventorySha256 = nativeInventorySha256; RaceGuid = raceGuid; PresetGuid = presetGuid;
+            ProfileId = profileId; MountBlueprintGuid = HorseBlueprintGuid; NativeInventorySha256 = nativeInventorySha256; RaceGuid = raceGuid; PresetGuid = presetGuid;
             Gender = gender; SkeletonName = skeletonName; LeftHanded = leftHanded; AvatarMirrored = avatarMirrored;
             AvatarLocalScale = avatarLocalScale;
         }
 
         public string ProfileId { get; }
+        public string MountBlueprintGuid { get; }
+        public bool HasExactFixturePins => dollEquipment != null;
         public string NativeInventorySha256 { get; }
         public string RaceGuid { get; }
         public string PresetGuid { get; }
@@ -94,8 +109,32 @@ namespace KingmakerMountedCombat.Domain
             return refusal == null ? new SmallRiderBodyMatch(ProfileId) : null;
         }
 
+        // Ordinary admission: the measured rig family on a larger declared mount. A missing
+        // native view is a lifecycle wait for the caller, never a change of the saved identity.
         public string Refusal(SmallRiderBodyObservation current)
         {
+            if (current == null) return "The native Small body is unavailable.";
+            if (current.OriginalSizeOrdinal != NativeSmallOrdinal || current.EffectiveSizeOrdinal != NativeSmallOrdinal)
+                return "A supported Small rider must currently be its native Small size.";
+            if (current.RiderPolymorphed || current.MountPolymorphed)
+                return "A polymorphed rider or mount has no supported seat.";
+            if (current.MountBlueprintGuid != MountBlueprintGuid)
+                return "This Small rig has no measured seat on this mount.";
+            var size = MountedSizePolicy.Refusal(current.EffectiveSizeOrdinal, current.MountSizeOrdinal);
+            if (size != null) return size;
+            if (current.RaceGuid != RaceGuid || current.Gender != Gender)
+                return "The rider's native race or sex has a different supported rig.";
+            if (current.SkeletonName != SkeletonName || !current.NativeRigAvailable)
+                return "The rider's live native skeleton is not the declared rig.";
+            if (!SameScale(Unmirrored(current.AvatarLocalScale), AvatarLocalScale))
+                return "The rider's native body scale differs from the measured rig.";
+            return null;
+        }
+
+        // The first calibration's exact costume, for the historical F09 diagnostics. Never ordinary admission.
+        public string ExactFixtureRefusal(SmallRiderBodyObservation current)
+        {
+            if (!HasExactFixturePins) return "This rig-family declaration has no exact fixture pins.";
             if (current == null) return "The exact native Small body is unavailable.";
             if (current.OriginalSizeOrdinal != NativeSmallOrdinal || current.EffectiveSizeOrdinal != NativeSmallOrdinal)
                 return "The declared Small profile requires original and effective native Small size.";
@@ -119,6 +158,7 @@ namespace KingmakerMountedCombat.Domain
             return null;
         }
 
+        private static PoseVector3 Unmirrored(PoseVector3 scale) => new PoseVector3(Math.Abs(scale.X), scale.Y, scale.Z);
         private static bool ExactSet(string[] actual, string[] expected, bool permitDuplicateNames)
         {
             if (actual == null || actual.Length != expected.Length || actual.Length > 128) return false;
@@ -163,14 +203,25 @@ namespace KingmakerMountedCombat.Domain
         { if (!condition) throw new ArgumentException(message); }
     }
 
+    // Native size categories decide who can carry whom; render scale never does.
+    public static class MountedSizePolicy
+    {
+        public const string TooSmallRefusal = "The mount must be at least one size category larger than its rider.";
+        public static string Refusal(int riderEffectiveSizeOrdinal, int mountEffectiveSizeOrdinal) =>
+            mountEffectiveSizeOrdinal > riderEffectiveSizeOrdinal ? null : TooSmallRefusal;
+    }
+
     // Declaration is impossible without explicit independent pose/calibration
     // values. No Medium parameter is selected implicitly for a Small body.
     public sealed class DeclaredSmallMountedProfile
     {
         public DeclaredSmallMountedProfile(DeclaredSmallRiderBody body, MountedRiderPoseProfile pose,
             string nativeCalibrationSha256, PoseVector3 mountRootOffset, PoseVector3 animatedSeatCorrection,
-            PoseVector3 riderEulerOffset)
+            PoseVector3 riderEulerOffset, string mountDisplayName = "Horse", string mountAnchorName = "Chest")
         {
+            if (string.IsNullOrWhiteSpace(mountDisplayName) || string.IsNullOrWhiteSpace(mountAnchorName))
+                throw new ArgumentException("The mount rig's name and seat anchor are required.");
+            MountDisplayName = mountDisplayName; MountAnchorName = mountAnchorName;
             if (body == null || pose == null) throw new ArgumentNullException(body == null ? nameof(body) : nameof(pose));
             if (body.ProfileId != pose.Id || pose.Validate() != null ||
                 ReferenceEquals(pose, MountedRiderPoseProfiles.MediumHumanoidOnHorse) ||
@@ -184,6 +235,8 @@ namespace KingmakerMountedCombat.Domain
             AnimatedSeatCorrection = animatedSeatCorrection; RiderEulerOffset = riderEulerOffset;
         }
         public DeclaredSmallRiderBody Body { get; }
+        public string MountDisplayName { get; }
+        public string MountAnchorName { get; }
         public MountedRiderPoseProfile Pose { get; }
         public string NativeCalibrationSha256 { get; }
         public PoseVector3 MountRootOffset { get; }

@@ -20,8 +20,9 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private const string RangerClassGuid = "cda0615668a6df14eb36ba19ee881af6";
         private const string HuntersBondSelectionGuid = "b705c5184a96a84428eeb35ae2517a14";
-        internal static bool Create(UnitEntityData owner, HorseCompanionBlueprintService service, IModLogger logger, JObject observations)
+        internal static bool Create(UnitEntityData owner, HorseCompanionBlueprintService service, IModLogger logger, JObject observations, BlueprintFeature companion = null, string companionUnitGuid = HorseCompanionBlueprintService.UnitGuid)
         {
+            companion = companion ?? service.HorseFeature;
             var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(RangerClassGuid);
             var huntersBond = ResourcesLibrary.TryGetBlueprint<BlueprintFeatureSelection>(HuntersBondSelectionGuid);
             var rangerCompanion = ResourcesLibrary.TryGetBlueprint<BlueprintFeatureSelection>(
@@ -83,13 +84,13 @@ namespace KingmakerMountedCombat.Diagnostics
                             var companionState = FindExactSelection(controller, rangerCompanion);
                             rangerCompanionSelectionLevel = companionState.Level;
                             var horseItem = companionState.Selection.Items.SingleOrDefault(item =>
-                                ReferenceEquals(item.Feature, service.HorseFeature));
+                                ReferenceEquals(item.Feature, companion));
                             if (horseItem == null || !controller.SelectFeature(companionState, horseItem))
                             {
                                 throw new InvalidOperationException("Native Ranger companion selection did not accept the exact KMC Horse item.");
                             }
 
-                            var previewFact = controller.Preview.GetFact(service.HorseFeature);
+                            var previewFact = controller.Preview.GetFact(companion);
                             logger.Info("Native Ranger horse preview selected: fact=" + (previewFact != null) +
                                 "; previewPet=" + (controller.Preview.Pet != null) + ".");
                         }
@@ -99,7 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         commits++;
                         logger.Info("Native Ranger level-up committed: rangerLevel=" + rangerLevel +
                             "; characterLevel=" + owner.Descriptor.Progression.CharacterLevel +
-                            "; horseFact=" + (owner.Descriptor.GetFact(service.HorseFeature) != null) +
+                            "; horseFact=" + (owner.Descriptor.GetFact(companion) != null) +
                             "; pet=" + (owner.Descriptor.Pet != null) + ".");
                     }
                     finally
@@ -119,7 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var bondSelections = owner.Descriptor.Progression.GetSelections(huntersBond, huntersBondSelectionLevel);
             var companionSelections = owner.Descriptor.Progression.GetSelections(
                 rangerCompanion, rangerCompanionSelectionLevel);
-            var feature = owner.Descriptor.GetFact(service.HorseFeature) as Feature;
+            var feature = owner.Descriptor.GetFact(companion) as Feature;
             var rank = owner.Descriptor.GetFact(service.LevelRank)?.GetRank() ?? 0;
             var pet = owner.Descriptor.Pet;
             observations["nativeRangerCommitCount"] = commits;
@@ -127,16 +128,16 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["rangerCompanionSelectionLevel"] = rangerCompanionSelectionLevel;
             observations["horseFactRankAtCommit"] = rank;
             observations["horsePresentAtNativeCommit"] = pet != null &&
-                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
+                string.Equals(pet.Blueprint?.AssetGuid, companionUnitGuid, StringComparison.Ordinal);
             observations["horseFeatureSourceGuid"] = feature?.Source?.AssetGuid;
             return commits == 4 &&
                 owner.Descriptor.Progression.CharacterLevel == originalCharacterLevel + 4 &&
                 owner.Descriptor.Progression.GetClassLevel(ranger) == originalRangerLevel + 4 &&
                 huntersBondSelectionLevel == 4 && rangerCompanionSelectionLevel == 4 &&
                 bondSelections.Count(item => ReferenceEquals(item, rangerCompanion)) == 1 &&
-                companionSelections.Count(item => ReferenceEquals(item, service.HorseFeature)) == 1 &&
+                companionSelections.Count(item => ReferenceEquals(item, companion)) == 1 &&
                 feature != null && feature.Source != null && rank == 1 && pet != null &&
-                string.Equals(pet.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
+                string.Equals(pet.Blueprint?.AssetGuid, companionUnitGuid, StringComparison.Ordinal);
         }
 
         private static FeatureSelectionState FindExactSelection(

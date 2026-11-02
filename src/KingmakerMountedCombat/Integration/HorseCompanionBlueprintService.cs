@@ -38,6 +38,9 @@ namespace KingmakerMountedCombat.Integration
         public string RangerSelectionGuid { get; set; }
         public int RangerOriginalOptionCount { get; set; }
         public int RangerCurrentOptionCount { get; set; }
+        public string RidingDogUnitGuid { get; set; }
+        public string RidingDogFeatureGuid { get; set; }
+        public string[] RidingDogSelectionGuids { get; set; }
         public bool RangerAppendOwned { get; set; }
         public bool RangerSelectionDesired { get; set; }
         public string NativeViewAssetId { get; set; }
@@ -81,6 +84,10 @@ namespace KingmakerMountedCombat.Integration
         internal const string RangerSelectionGuid = "ee63330662126374e8785cc901941ac7";
         internal const string LevelRankGuid = "1670990255e4fe948a863bafd5dbda5d";
         internal const string HoofGuid = "b0e472a49ff2a294f93faa3ab757a4a5";
+        internal const string RidingDogUnitGuid = SupportedMountedProfiles.RidingDogBlueprintGuid;
+        internal const string RidingDogFeatureGuid = "5c8e2b9a417f4d63a1d07e3bf26c9184";
+        internal const string RidingDogUpgradeGuid = "e31d6f08a95c47b2b8c4f27a6d10e5c7";
+        internal const string RidingDogSizeGuid = "92fb07c3d6e14a58bd23c8e1f47a0d69";
 
         private const int DisplayNameFieldToken = 0x04006955;
         private const int DescriptionFieldToken = 0x04006956;
@@ -101,7 +108,14 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.Horse.Feature.Name", "Animal Companion — Horse" },
             { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be used by KMC's private-alpha mounted profile." },
             { "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement" },
-            { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." }
+            { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." },
+            { "KMC.RidingDog.Name", "Riding Dog" },
+            { "KMC.RidingDog.Feature.Name", "Animal Companion — Riding Dog" },
+            { "KMC.RidingDog.Description", "A Medium dog bred to carry a rider. It bites and trips like any dog and can carry a Small rider (Halfling or Gnome) from the first level it is gained. A Medium rider is too large for it." },
+            { "KMC.RidingDog.Size.Name", "Riding Dog Build" },
+            { "KMC.RidingDog.Size.Description", "A riding dog is Medium from the start." },
+            { "KMC.RidingDog.Upgrade.Name", "Riding Dog Advancement" },
+            { "KMC.RidingDog.Upgrade.Description", "At animal-companion rank 4, the riding dog gains +2 Dexterity and +2 Constitution. It does not grow larger." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
         private readonly Dictionary<string, HorseActivationObservation> observedActivationByOwner =
@@ -118,6 +132,12 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintUnit horseUnit;
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
+        private BlueprintUnit ridingDogUnit;
+        private BlueprintFeature ridingDogFeature;
+        private BlueprintFeature ridingDogUpgrade;
+        private BlueprintFeature ridingDogSize;
+        private readonly List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>> ridingDogSelections =
+            new List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>>();
         private BlueprintFeatureSelection rangerSelection;
         private ExactAppendOnlyArrayLease<BlueprintFeature> selectionLease;
         private List<BlueprintScriptableObject> blueprintList;
@@ -155,6 +175,14 @@ namespace KingmakerMountedCombat.Integration
         public BlueprintFeature HorseFeature => horseFeature;
 
         public BlueprintFeature HorseUpgrade => horseUpgrade;
+
+        public BlueprintUnit RidingDogUnit => ridingDogUnit;
+
+        public BlueprintFeature RidingDogFeature => ridingDogFeature;
+
+        public BlueprintFeature RidingDogUpgrade => ridingDogUpgrade;
+
+        internal IEnumerable<BlueprintFeatureSelection> RidingDogSelections => ridingDogSelections.Select(pair => pair.Key);
 
         public BlueprintFeature LevelRank => levelRank;
 
@@ -242,7 +270,8 @@ namespace KingmakerMountedCombat.Integration
                 foreach (var reference in party)
                 {
                     var owner = reference.Value;
-                    var fact = owner?.Descriptor?.GetFact(horseFeature);
+                    var fact = owner?.Descriptor?.GetFact(horseFeature) ??
+                        (ridingDogFeature == null ? null : owner?.Descriptor?.GetFact(ridingDogFeature));
                     var addPet = fact?.Get<HorseCompanionAddPet>();
                     if (fact != null)
                     {
@@ -350,6 +379,9 @@ namespace KingmakerMountedCombat.Integration
                 RangerSelectionGuid = rangerSelection?.AssetGuid,
                 RangerOriginalOptionCount = selectionLease?.OriginalCount ?? 0,
                 RangerCurrentOptionCount = rangerSelection?.AllFeatures?.Length ?? 0,
+                RidingDogUnitGuid = ridingDogUnit?.AssetGuid,
+                RidingDogFeatureGuid = ridingDogFeature?.AssetGuid,
+                RidingDogSelectionGuids = ridingDogSelections.Select(pair => pair.Key.AssetGuid).ToArray(),
                 RangerAppendOwned = selectionLease != null &&
                     selectionLease.MatchesAppended(rangerSelection?.AllFeatures),
                 RangerSelectionDesired = selectionDesired,
@@ -415,6 +447,10 @@ namespace KingmakerMountedCombat.Integration
             AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);
             AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);
             AssertReservedGuidAbsent(library, blueprintList, PortraitGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogUnitGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogFeatureGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogUpgradeGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogSizeGuid);
 
             var nativeHorse = RequireBlueprint<BlueprintUnit>(library, NativeHorseGuid, "CR1_HorseRiding");
             var mammothUnit = RequireBlueprint<BlueprintUnit>(library, MammothUnitGuid, "AnimalCompanionUnitMammoth");
@@ -515,7 +551,7 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.AddFacts = CloneArray(mammothUnit.AddFacts);
             horseUnit.ComponentsArray = new BlueprintComponent[]
             {
-                CopyAddClassLevels(classLevels),
+                CopyAddClassLevels(classLevels, "KMC_Horse_AddClassLevels"),
                 CreateOwned<AllowDyingCondition>("KMC_Horse_AllowDyingCondition")
             };
 
@@ -536,6 +572,8 @@ namespace KingmakerMountedCombat.Integration
             AddExactBlueprintRegistration(library, horseUpgrade);
             AddExactBlueprintRegistration(library, horseFeature);
 
+            RegisterRidingDog(library, dogFeature, dogUnit, dogClassLevels);
+
             biteGuid = bite.AssetGuid;
             biteName = bite.name;
             hoofName = hoof.name;
@@ -544,7 +582,15 @@ namespace KingmakerMountedCombat.Integration
             // admitted runtime selection array, so it is intentionally left
             // untouched. Lease only the exact Items-authoritative surface.
             selectionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(
-                RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), horseFeature);
+                RequireExactRangerOptions(rangerSelection.AllFeatures, "AllFeatures"), new[] { horseFeature, ridingDogFeature });
+            // Every other native selection that offers the stock Dog offers the Riding Dog too, with its own
+            // class's rank progression. The Ranger's own lease above carries both of its additions.
+            foreach (var selection in blueprintList.OfType<BlueprintFeatureSelection>().Where(value =>
+                !ReferenceEquals(value, rangerSelection) && value.AllFeatures != null && value.AllFeatures.Contains(dogFeature)))
+            {
+                ridingDogSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
+                    selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, ridingDogFeature)));
+            }
             string error;
             if (!ApplySelectionDesired(out error))
             {
@@ -553,9 +599,98 @@ namespace KingmakerMountedCombat.Integration
             ValidateRegisteredContract(library);
         }
 
+        // Additive beside the stock Dog. The stock definitions are only read: this copies from the
+        // Dog's unit, and a Small blueprint with one native size step keeps the native view scaling
+        // (the same scale the stock Dog grows to) with no change to any other dog.
+        private void RegisterRidingDog(LibraryScriptableObject library, BlueprintFeature dogFeature, BlueprintUnit dogUnit, AddClassLevels dogClassLevels)
+        {
+            var stockAddPet = dogFeature.GetComponent<AddPet>();
+            if (dogUnit.Size != Size.Small || stockAddPet?.UpgradeFeature == null || stockAddPet.UpgradeLevel != 4)
+            {
+                throw new InvalidOperationException("The exact stock Dog size and rank-4 upgrade contract changed.");
+            }
+            var sharedName = CreateOwned<SharedStringAsset>("KMC_RidingDog_LocalizedName");
+            sharedName.String = NewLocalizedString("KMC.RidingDog.Name");
+            var icon = dogFeature.Icon;
+
+            ridingDogSize = CreateOwned<BlueprintFeature>("AnimalCompanionRidingDogSize");
+            ridingDogSize.AssetGuid = RidingDogSizeGuid;
+            CopyFeatureContract(stockAddPet.UpgradeFeature, ridingDogSize);
+            SetFeaturePresentation(ridingDogSize, NewLocalizedString("KMC.RidingDog.Size.Name"), NewLocalizedString("KMC.RidingDog.Size.Description"), icon);
+            var size = CreateOwned<Kingmaker.Designers.Mechanics.Buffs.ChangeUnitSize>("KMC_RidingDog_ChangeUnitSize");
+            size.SizeDelta = 1;
+            ridingDogSize.ComponentsArray = new BlueprintComponent[] { size };
+
+            ridingDogUpgrade = CreateOwned<BlueprintFeature>("AnimalCompanionUpgradeRidingDog");
+            ridingDogUpgrade.AssetGuid = RidingDogUpgradeGuid;
+            CopyFeatureContract(stockAddPet.UpgradeFeature, ridingDogUpgrade);
+            SetFeaturePresentation(ridingDogUpgrade, NewLocalizedString("KMC.RidingDog.Upgrade.Name"), NewLocalizedString("KMC.RidingDog.Upgrade.Description"), icon);
+            ridingDogUpgrade.ComponentsArray = new BlueprintComponent[]
+            {
+                CreateStatBonus("KMC_RidingDogUpgrade_Dexterity", StatType.Dexterity, 2),
+                CreateStatBonus("KMC_RidingDogUpgrade_Constitution", StatType.Constitution, 2)
+            };
+
+            ridingDogUnit = CreateOwned<BlueprintUnit>("AnimalCompanionUnitRidingDog");
+            ridingDogUnit.AssetGuid = RidingDogUnitGuid;
+            ridingDogUnit.Type = dogUnit.Type;
+            ridingDogUnit.LocalizedName = sharedName;
+            ridingDogUnit.Gender = dogUnit.Gender;
+            ridingDogUnit.Size = dogUnit.Size;
+            ridingDogUnit.IsLeftHanded = dogUnit.IsLeftHanded;
+            ridingDogUnit.Color = dogUnit.Color;
+            ridingDogUnit.Race = dogUnit.Race;
+            ridingDogUnit.Alignment = dogUnit.Alignment;
+            PortraitField.SetValue(ridingDogUnit, PortraitField.GetValue(dogUnit));
+            ridingDogUnit.Prefab = dogUnit.Prefab;
+            ridingDogUnit.CustomizationPreset = dogUnit.CustomizationPreset;
+            ridingDogUnit.ConsoleOverridePrefab = dogUnit.ConsoleOverridePrefab;
+            ridingDogUnit.Visual = dogUnit.Visual;
+            ridingDogUnit.Faction = dogUnit.Faction;
+            ridingDogUnit.FactionOverrides = dogUnit.FactionOverrides;
+            ridingDogUnit.StartingInventory = CloneArray(dogUnit.StartingInventory);
+            ridingDogUnit.Brain = dogUnit.Brain;
+            ridingDogUnit.Body = dogUnit.Body;
+            // Pathfinder riding dog base statistics. Native companion levels add everything else once.
+            ridingDogUnit.Strength = 15;
+            ridingDogUnit.Dexterity = 15;
+            ridingDogUnit.Constitution = 15;
+            ridingDogUnit.Intelligence = 2;
+            ridingDogUnit.Wisdom = 12;
+            ridingDogUnit.Charisma = 6;
+            ridingDogUnit.Speed = dogUnit.Speed;
+            ridingDogUnit.BaseAttackBonus = dogUnit.BaseAttackBonus;
+            ridingDogUnit.Skills = CopySkills(dogUnit.Skills);
+            ridingDogUnit.MaxHP = dogUnit.MaxHP;
+            ridingDogUnit.AdditionalTemplates = CloneArray(dogUnit.AdditionalTemplates);
+            ridingDogUnit.AddFacts = CloneArray(dogUnit.AddFacts).Concat(new BlueprintUnitFact[] { ridingDogSize }).ToArray();
+            ridingDogUnit.ComponentsArray = new BlueprintComponent[]
+            {
+                CopyAddClassLevels(dogClassLevels, "KMC_RidingDog_AddClassLevels"),
+                CreateOwned<AllowDyingCondition>("KMC_RidingDog_AllowDyingCondition")
+            };
+
+            ridingDogFeature = CreateOwned<BlueprintFeature>("AnimalCompanionFeatureRidingDog");
+            ridingDogFeature.AssetGuid = RidingDogFeatureGuid;
+            CopyFeatureContract(dogFeature, ridingDogFeature);
+            SetFeaturePresentation(ridingDogFeature, NewLocalizedString("KMC.RidingDog.Feature.Name"), NewLocalizedString("KMC.RidingDog.Description"), icon);
+            var addPet = CreateOwned<HorseCompanionAddPet>("KMC_RidingDog_AddPet");
+            addPet.Pet = ridingDogUnit;
+            addPet.LevelRank = levelRank;
+            addPet.UpgradeFeature = ridingDogUpgrade;
+            addPet.UpgradeLevel = stockAddPet.UpgradeLevel;
+            ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
+
+            AddExactBlueprintRegistration(library, ridingDogSize);
+            AddExactBlueprintRegistration(library, ridingDogUnit);
+            AddExactBlueprintRegistration(library, ridingDogUpgrade);
+            AddExactBlueprintRegistration(library, ridingDogFeature);
+        }
+
         private bool ApplySelectionDesired(out string error)
         {
             error = null;
+            if (!ApplyRidingDogSelections(out error)) return false;
             if (rangerSelection == null || selectionLease == null)
             {
                 error = "The exact Ranger selection lease is unavailable.";
@@ -578,9 +713,34 @@ namespace KingmakerMountedCombat.Integration
             return TryRestoreSelection(out error);
         }
 
+        private bool ApplyRidingDogSelections(out string error)
+        {
+            error = null;
+            foreach (var pair in ridingDogSelections)
+            {
+                var current = pair.Key.AllFeatures;
+                if (selectionDesired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
+                if (selectionDesired && !pair.Value.MatchesOriginal(current) || !selectionDesired && !pair.Value.MatchesAppended(current))
+                {
+                    error = "Companion selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.";
+                    return false;
+                }
+                pair.Key.AllFeatures = selectionDesired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
+            }
+            return true;
+        }
+
         private bool TryRestoreSelection(out string error)
         {
             error = null;
+            if (selectionDesired)
+            {
+                // The Riding Dog's other selections leave with the Ranger's own additions.
+                selectionDesired = false;
+                try { if (!ApplyRidingDogSelections(out error)) return false; }
+                finally { selectionDesired = true; }
+            }
+            else if (!ApplyRidingDogSelections(out error)) return false;
             BlueprintFeature[] restored;
             string leaseError;
             if (!selectionLease.TryRestore(rangerSelection.AllFeatures, out restored, out leaseError))
@@ -598,6 +758,10 @@ namespace KingmakerMountedCombat.Integration
                 !ReferenceEquals(library.BlueprintsByAssetId[FeatureGuid], horseFeature) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[UpgradeGuid], horseUpgrade) ||
                 !ReferenceEquals(library.BlueprintsByAssetId[PortraitGuid], horsePortrait) ||
+                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogUnitGuid], ridingDogUnit) ||
+                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogFeatureGuid], ridingDogFeature) ||
+                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogUpgradeGuid], ridingDogUpgrade) ||
+                !ReferenceEquals(library.BlueprintsByAssetId[RidingDogSizeGuid], ridingDogSize) ||
                 CountExactBlueprint(blueprintList, horseUnit) != 1 ||
                 CountExactBlueprint(blueprintList, horseFeature) != 1 ||
                 CountExactBlueprint(blueprintList, horseUpgrade) != 1 ||
@@ -635,9 +799,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal static void RequireNativeRangerOptions(BlueprintFeature[] features, BlueprintFeature horse)
         {
-            if (features == null || features.Length != 13 || horse == null ||
+            if (features == null || features.Length != 14 || horse == null ||
                 !string.Equals(horse.AssetGuid, FeatureGuid, StringComparison.Ordinal) ||
-                !ReferenceEquals(features[12], horse))
+                !ReferenceEquals(features[12], horse) ||
+                !string.Equals(features[13]?.AssetGuid, RidingDogFeatureGuid, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException("Base-only bootstrap requires the exact native Ranger append.");
             }
@@ -750,9 +915,9 @@ namespace KingmakerMountedCombat.Integration
             };
         }
 
-        private AddClassLevels CopyAddClassLevels(AddClassLevels source)
+        private AddClassLevels CopyAddClassLevels(AddClassLevels source, string objectName)
         {
-            var copy = CreateOwned<AddClassLevels>("KMC_Horse_AddClassLevels");
+            var copy = CreateOwned<AddClassLevels>(objectName);
             copy.CharacterClass = source.CharacterClass;
             copy.Archetypes = CloneArray(source.Archetypes);
             copy.Levels = source.Levels;
@@ -965,6 +1130,12 @@ namespace KingmakerMountedCombat.Integration
                 string ignored;
                 TryRestoreSelection(out ignored);
             }
+            RemoveExact(library, blueprintList, RidingDogFeatureGuid, ridingDogFeature);
+            RemoveExact(library, blueprintList, RidingDogUpgradeGuid, ridingDogUpgrade);
+            RemoveExact(library, blueprintList, RidingDogUnitGuid, ridingDogUnit);
+            RemoveExact(library, blueprintList, RidingDogSizeGuid, ridingDogSize);
+            ridingDogFeature = null; ridingDogUpgrade = null; ridingDogUnit = null; ridingDogSize = null;
+            ridingDogSelections.Clear();
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
             RemoveExact(library, blueprintList, UnitGuid, horseUnit);

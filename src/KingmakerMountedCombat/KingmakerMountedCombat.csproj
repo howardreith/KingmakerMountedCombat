@@ -518,6 +518,7 @@
     <Compile Include="Domain\TransitionResult.cs" />
     <Compile Include="Domain\TwoBonePoseSolver.cs" />
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
+    <Compile Include="Diagnostics\Sprint5SmallScenario.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />

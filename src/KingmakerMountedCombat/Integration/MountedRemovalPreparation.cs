@@ -89,13 +89,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // The KMC-registered blueprint identities a save cannot carry without the
-        // mod: the Horse companion trio and its portrait, and the four native
+        // mod: the Horse companion trio and its portrait, the Riding Dog set, and the four native
         // mounted-control abilities. Native blueprints KMC only references are
         // not in this list; they resolve without KMC.
         internal static string[] RegisteredBlueprintGuids => new[]
         {
             HorseCompanionBlueprintService.UnitGuid, HorseCompanionBlueprintService.FeatureGuid,
             HorseCompanionBlueprintService.UpgradeGuid, HorseCompanionBlueprintService.PortraitGuid,
+            HorseCompanionBlueprintService.RidingDogUnitGuid, HorseCompanionBlueprintService.RidingDogFeatureGuid,
+            HorseCompanionBlueprintService.RidingDogUpgradeGuid, HorseCompanionBlueprintService.RidingDogSizeGuid,
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
             NativeMountedControlService.MountedChargeAbilityGuid
@@ -183,12 +185,18 @@ namespace KingmakerMountedCombat.Integration
                 var guid = unit.Blueprint?.AssetGuid;
                 if (string.Equals(guid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal))
                     references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] is the KMC Horse");
+                if (string.Equals(guid, HorseCompanionBlueprintService.RidingDogUnitGuid, StringComparison.Ordinal))
+                    references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] is the KMC Riding Dog");
                 var descriptor = unit.Descriptor;
                 if (descriptor == null) continue;
                 if (feature != null && descriptor.GetFact(feature) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse companion feature");
                 if (upgrade != null && descriptor.GetFact(upgrade) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse advancement feature");
+                if (horseCompanion.RidingDogFeature != null && descriptor.GetFact(horseCompanion.RidingDogFeature) != null)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog companion feature");
+                if (horseCompanion.RidingDogUpgrade != null && descriptor.GetFact(horseCompanion.RidingDogUpgrade) != null)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog advancement feature");
             }
             return references;
         }
