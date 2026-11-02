@@ -84,7 +84,7 @@ function Assert-KmcSprint5SmallEvidence {
   $refused=$rows['S5-medium-refused'].evidence
   if([string]$refused.rigFacts.effectiveSize -cne 'Medium' -or $null -ne $refused.resolved -or [string]$refused.refusal -cnotmatch 'larger' -or [string]$refused.stateAfter -ceq 'Mounted'){ throw 'Sprint 5 a Medium rider was not refused on the Medium dog' }
   $size=$rows['S5-size-change'].evidence
-  if($size.detached -ne $true -or $null -ne $size.after.resolved -or [string]$size.ownership -cne [string]$acquire.acquisition.owner -or [string]$size.restored.riderEffective -cne 'Small'){ throw 'Sprint 5 native size change did not detach lawfully' }
+  if($size.detached -ne $true -or $null -ne $size.after.resolved -or [string]$size.ownership -cne [string]$acquire.acquisition.owner -or [string]$size.restored.sizes.riderEffective -cne 'Small'){ throw 'Sprint 5 native size change did not detach lawfully' }
   $growth=$rows['S5-growth'].evidence
   if($growth.upgrade -ne $true -or [int]$growth.rankAfter -lt 4 -or [string]$growth.after.effectiveSize -cne 'Medium' -or [string]$growth.grownMounted.state -cne 'Mounted'){ throw 'Sprint 5 rank-4 growth or grown seat differs' }
   if(([int]$growth.after.strength-[int]$growth.before.strength) -lt 2 -or ([int]$growth.after.constitution-[int]$growth.before.constitution) -lt 2){ throw 'Sprint 5 Riding Dog advancement did not apply' }
