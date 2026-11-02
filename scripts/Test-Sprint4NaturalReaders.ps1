@@ -160,14 +160,14 @@ function New-S4MoveRow{
   secondMoveIssued=(New-S4MoveFacts 12 $false $false 'None' $true (New-S4IntentState @{playerMoveHold=$false}))
   interrupted=(New-S4MoveFacts 12 $true $false 'Interrupt' $true (New-S4IntentState @{playerMoveHold=$false;lastMoveOutcome='Interrupted'}))
   resumedAfterInterruption=[pscustomobject]@{dispatchesDuring=1;mountDisplacement=3;state=(New-S4IntentState @{intentAutomatic=$true})}}
- New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true;inputPath='ClickGroundHandler.OnClick'},[pscustomobject]@{kind='ground-click';clicked=$true;inputPath='ClickGroundHandler.OnClick'},[pscustomobject]@{kind='native-interrupt-move'}) @() @()
+ New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='hold'},[pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='native-interrupt-move'}) @() @()
 }
 function New-S4QueuedRow{
  $queuedState=New-S4IntentState @{} $true $true;$queuedState.mountQueue=1
  $steps=[pscustomobject]@{
   heldBeforeAutomatic=[pscustomobject]@{state=(New-S4IntentState @{} $false $true)}
-  queued=[pscustomobject]@{identity=21;automaticOrigin=$true;createdByPlayer=$false;aiAction=$false;actor=$mount;inStandardSlot=$false;started=$false;busyRunning=$true;state=$queuedState}
-  ranFromQueue=[pscustomobject]@{identity=21;queuedRuns=1;queuedHoldKept=1;frame=300;state=(New-S4IntentState @{} $true $true)}
+  queued=[pscustomobject]@{identity=21;automaticOrigin=$true;createdByPlayer=$false;aiAction=$false;actor=$mount;inStandardSlot=$false;started=$false;busyUninterruptible=$true;state=$queuedState}
+  ranFromQueue=[pscustomobject]@{identity=21;queuedRuns=1;queuedHoldKept=1;busyFinished=$true;frame=300;state=(New-S4IntentState @{} $true $true)}
   queuedDone=[pscustomobject]@{identity=21;result='Success';mountDisplacement=0;mountStandardCooldown=5.2;state=(New-S4IntentState @{} $true $true)}
   farTargetHeld=[pscustomobject]@{distanceToTarget=19;mountDisplacement=0;dispatchesDuring=0;refusedDuring=7;state=(New-S4IntentState @{lastRefusal='hold-out-of-reach;target=y'} $true $true)}}
  New-S4Row 'S4-queued-hold' (New-S4State) (New-S4State) $steps @() @((New-S4Attack $mount $next 310 31)) @()
@@ -200,7 +200,11 @@ Mutate-S4 0 {param($s)$s.interrupted.distanceToTarget=5} 'an interruption contro
 Mutate-S4 0 {param($s)$s.resumedAfterInterruption.mountDisplacement=0} 'a pair still restricted after interruption refused'
 Mutate-S4 1 {param($s)$s.queued.inStandardSlot=$true} 'an immediate dispatch cannot be labeled queued'
 Mutate-S4 1 {param($s)$s.queued.state.mountQueue=0} 'an empty native queue cannot be labeled queued'
-Mutate-S4 1 {param($s)$s.queued.busyRunning=$false} 'a queue without a running command refused'
+Mutate-S4 1 {param($s)$s.queued.busyUninterruptible=$false} 'a queue without a busy command refused'
+Mutate-S4 1 {param($s)$s.ranFromQueue.busyFinished=$false} 'a later run while the busy command still ran refused'
+Mutate-S4 1 {param($s)$s.queuedDone.result='Interrupt'} 'a queued command that did not complete refused'
+Mutate-S4 0 {param($s)$s.secondMoveIssued.state.riderHold=$true} 'a routed move leaving the rider''s native Hold refused'
+Mutate-S4 0 {param($s,$e)$e.inputs=@($e.inputs|Where-Object{$_.kind -cne 'hold'})} 'a move row without the real Hold press refused'
 Mutate-S4 1 {param($s)$s.queued.createdByPlayer=$true} 'a forged player command refused'
 Mutate-S4 1 {param($s)$s.queued.aiAction=$true} 'a forged AI command refused'
 Mutate-S4 1 {param($s)$s.ranFromQueue.queuedRuns=0} 'a run outside queue advancement refused'

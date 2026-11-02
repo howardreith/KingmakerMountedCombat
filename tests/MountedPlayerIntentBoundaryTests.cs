@@ -17,6 +17,8 @@ namespace KingmakerMountedCombat.Tests
             public bool Finished;
             public object Target;
             public bool Interrupted;
+            public bool IsAttack;
+            public bool Merged;
         }
 
         private sealed class NativeActor
@@ -38,6 +40,13 @@ namespace KingmakerMountedCombat.Tests
             public void Run(Command command, bool busyBlocks = true)
             {
                 Queue.Clear();
+                // TryMergeInto precedes every queue rule: a running attack absorbs a new attack in reach.
+                if (command.IsAttack && Slot != null && Slot.IsAttack && Slot.Started && !Slot.Finished)
+                {
+                    Slot.Target = command.Target;
+                    command.Merged = true;
+                    return;
+                }
                 if (busyBlocks && Slot != null && Slot.Started && !Slot.Finished && Equals(Slot.Target, command.Target))
                 {
                     Queue.AddLast(command);
@@ -95,6 +104,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player, reaction-free, unmounted and foreign commands keep every native Hold write", OtherCommandsStayNative);
             runner.Run("a custom handler's prerequisite keeps Hold only for the exact queued command", PrerequisiteOfExactCommandOnly);
             runner.Run("a stopped queued command never runs", StoppedQueuedCommandNeverRuns);
+            runner.Run("a running attack merges a new attack without queuing it or touching Hold", RunningAttackMergesInsteadOfQueuing);
+            runner.Run("the unselected mount's queued command, interrupted by the controller, is refused at its later run", UnselectedMountQueuedCommandRefused);
             runner.Run("a retired, replaced or stale queued command is refused at its later run", StaleQueuedRunRefused);
             runner.Run("a dropped unstarted automatic command is recognized and nothing else is", OrphanOnlyForDroppedAutomatic);
             runner.Run("a move completed in combat holds the pair", MoveCompletedInCombatHolds);
@@ -225,6 +236,37 @@ namespace KingmakerMountedCombat.Tests
             actor.AdvanceQueue();
             TestRunner.True(automatic.Finished && automatic.Interrupted && actor.Slot == null, "A stopped command ran later.");
             TestRunner.True(!actor.Hold, "Stop's own native effect on Hold was undone.");
+        }
+
+        private static void RunningAttackMergesInsteadOfQueuing()
+        {
+            var ledger = new MountedAutomaticRunLedger();
+            var target = new object();
+            var running = new Command { Started = true, Target = target, IsAttack = true };
+            var actor = new NativeActor(ledger, 7) { Hold = true, Slot = running };
+            var automatic = Automatic(ledger, 7, target);
+            automatic.IsAttack = true;
+            actor.Run(automatic);
+            TestRunner.True(automatic.Merged && actor.Queue.Count == 0 && ReferenceEquals(actor.Slot, running),
+                "An attack behind a running attack was modeled as queued; the controller must see it in neither place.");
+            TestRunner.True(actor.Hold, "A merge touched Hold.");
+        }
+
+        // Native Stop reaches selected units only, so the rider's Stop leaves the mount's queue: the controller's cancel
+        // interrupts the command there, and native queue advancement still reaches it.
+        private static void UnselectedMountQueuedCommandRefused()
+        {
+            var ledger = new MountedAutomaticRunLedger();
+            var target = new object();
+            var mount = new NativeActor(ledger, 7) { Hold = true, Slot = new Command { Started = true, Target = target } };
+            var automatic = Automatic(ledger, 7, target);
+            mount.Run(automatic);
+            automatic.Finished = automatic.Interrupted = true;
+            ledger.Clear();
+            mount.Slot.Finished = true;
+            mount.AdvanceQueue();
+            TestRunner.True(mount.Slot == null && mount.Refused == 1, "A cancelled command reached the mount's slot.");
+            TestRunner.True(mount.Hold, "A refused run still wrote the mount's Hold.");
         }
 
         private static void StaleQueuedRunRefused()
