@@ -40,8 +40,9 @@ function Assert-KmcSprint5Actions($Row,$Shots,[string]$Mount,[string]$Root){
  foreach($boundary in @($e.gearRemoved,$e.gearRestored,$e.duringCombat)){
   if([string]$boundary.state -cne 'Mounted' -or [string]$boundary.resolved -cne [string]$e.profileBefore){ throw 'Sprint 5 gear or combat changed the rig profile or the mounted state' }
  }
- foreach($view in @('gear-removed','gear-restored','cast','turn','attack-1','attack-2','attack-3','dismounted')){ Assert-KmcSprint5Shot $Shots ($Mount+'-action-'+$view) $Root }
- if($e.attackClicked -ne $true -or ([int]$e.riderAttacks+[int]$e.mountAttacks) -lt 1){ throw 'Sprint 5 ordinary attack produced no native attack' }
+ foreach($view in @('gear-removed','gear-restored','cast','turn','attack-1','attack-2','attack-3','mount-attack','dismounted')){ Assert-KmcSprint5Shot $Shots ($Mount+'-action-'+$view) $Root }
+ if($e.attackClicked -ne $true -or $e.mountAttackClicked -ne $true -or [int]$e.riderAttacks -lt 1 -or [int]$e.mountAttacks -lt 1){ throw 'Sprint 5 ordinary clicks did not produce a native attack by each actor' }
+ if([double]$e.cooldownsAfterRider.riderStandard -le 0 -or [double]$e.cooldownsAfterRider.mountStandard -ne 0 -or [double]$e.cooldownsDuring.mountStandard -le 0){ throw 'Sprint 5 each actor must spend its own Standard action' }
  if([math]::Abs([double]$e.afterDismount.worldScale.y-[double]$e.unmountedRig.worldScale.y) -gt 0.02){ throw 'Sprint 5 dismount did not restore the rider scale' }
 }
 function Assert-KmcSprint5SmallEvidence {

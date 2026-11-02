@@ -256,7 +256,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7NativeLifeScenario(string scenario) => scenario == "chunk7-two-pair-native-life-cleanup";
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
-            "multi-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
+            "multi-exploration-manual", "riding-dog-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint, Chunk7OwnedPairsSelection.CapitalArrivalColdCheckpoint,
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
@@ -1533,6 +1533,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C4-SUSTAINED-TB-after-early-end",
             "C6D-move-cast-move", "C6D-cast-then-move", "C6D-double-move-ranged", "C6D-movement-exhausted", "C6D-auto-stop-boundary",
             "C6E-swift-on-own-turn", "C6E-swift-out-of-turn", "C6E-attack-on-mount-observed", "C6E-reaction-window",
+            "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-rigs", "S5-actions", "S5-size-change", "S5-growth", "S5-stock-dog", "S5-replacement",
             "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase", "S4-tb-ordinary-actors", "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors", "S3-trap-disarm", "S3-touch-friendly-distant", "S3-touch-held-charge", "S3-touch-hostile", "S3-ranged-distant", "S3-tb-touch-friendly", "S3-tb-insufficient-movement", "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-scroll-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
             "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",

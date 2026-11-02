@@ -52,7 +52,9 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7CapitalArrivalEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
-function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
+# Sprint 5: the same exploration Manual route with a Riding Dog pair as its second pair.
+function Get-KmcChunk7SecondPairProfile($Request){ if($Request.persistenceCase-ceq'riding-dog-exploration-manual'){'small-halfling-female-ridingdog-v1'}else{'medium-humanoid-horse-v1'} }
+function Get-KmcChunk7PersistenceCases { @('multi-exploration-manual','riding-dog-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
 # Sprint 1 slot rotation: the owner-seed checkpoint producer overwrites its selected output through
 # ordinary saves (the QuickSave handler body, or SaveGame on the existing Manual). Writes after the
 # first are native replacement commits; the final bytes at the unchanged leaf are the receipt.
@@ -132,7 +134,7 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
         foreach($pair in @($first[0],$second[0])){if($pair.ProfileId-isnot[string]-or$pair.ProfileId-cnotmatch'^[a-z0-9][a-z0-9.-]{0,127}$'){throw 'Inherited archive profile token invalid.'}}
     }else{
     $first=@($Archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-mammoth-v1')
-    $second=@($Archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1')
+    $second=@($Archive.Pairs|Where-Object ProfileId -CEQ (Get-KmcChunk7SecondPairProfile $Request))
     if($first.Count-ne1-or$second.Count-ne1-or$first[0].Rider.Id-cne'b6628a77-4962-47a4-a17c-88d9836fc9d5'-or
        $first[0].Mount.Id-cne'd79a4f6c-b74e-4868-95bd-533899131acb'-or$second[0].Rider.Id-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'){
         throw 'Native archive actor/profile roles differ from the exact qualified fixture.'
@@ -199,6 +201,12 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
     $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'
     if(-not(Test-KmcChunk7LoadRefusal $Request)-and$null-ne$o.PSObject.Properties['loadRefusal']){throw 'Another persistence case supplied native refusal evidence.'}
+    if($Request.persistenceCase-ceq'riding-dog-exploration-manual'-and$cold){
+        $d=$o.ridingDogCold
+        if($null-eq$d-or$d.restoredProfile-cne'small-halfling-female-ridingdog-v1'-or$d.mountBlueprint-cne'b7a14f25d3c94e0d8e6f1a2c5d90e431'-or$d.mountEffectiveSize-cne'Medium'-or
+           $d.riderEffectiveSize-cne'Small'-or$d.dismounted-ne$true-or$d.remounted-ne$true-or$d.owner-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or$d.featureSourced-ne$true){throw 'The cold Riding Dog pair lost its identity, size, owner or usable controls.'}
+        foreach($view in 'dog-cold-restored-side','dog-cold-restored-other','dog-cold-remounted-side'){if(@($d.shots|Where-Object{$_.name-ceq$view-and$null-eq$_.PSObject.Properties['error']}).Count-ne1){throw ('The cold Riding Dog view is missing: '+$view)}}
+    }
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     if($owned){
@@ -283,7 +291,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
         $pairs=@($archive.Pairs|Sort-Object ProfileId -Descending)
         if($owned){$roles=Get-KmcChunk7OwnedPairIds $Request;$expected=@(@('mount-mammoth',$roles[0],$roles[1]),@('mount-horse',$roles[2],$roles[3]))}else{
         $expected=@(@('mount-mammoth','b6628a77-4962-47a4-a17c-88d9836fc9d5','d79a4f6c-b74e-4868-95bd-533899131acb'),
-          @('mount-horse','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',@($archive.Pairs|Where-Object ProfileId -CEQ 'medium-humanoid-horse-v1')[0].Mount.Id))
+          @('mount-horse','d17c8fd0-6627-40c4-bf9a-024cf001c1f7',@($archive.Pairs|Where-Object ProfileId -CEQ (Get-KmcChunk7SecondPairProfile $Request))[0].Mount.Id))
         }
         for($i=0;$i-lt2;$i++) {
             $row=$inputs[$i];$spec=$expected[$i]

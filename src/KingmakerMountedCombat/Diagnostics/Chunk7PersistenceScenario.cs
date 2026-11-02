@@ -49,6 +49,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData[] actors, originalSelection;
         private UnitEntityData firstRider, firstMount, secondRider, secondMount;
         private Feature acquiredHorse, acquiredRank;
+        // Sprint 5: the exploration Manual route with a female Halfling and her Riding Dog as the second pair.
+        internal const string RidingDogCaseName = "riding-dog-exploration-manual", RidingDogPairProfile = "small-halfling-female-ridingdog-v1";
+        private bool RidingDogCase => request.PersistenceCase == RidingDogCaseName;
+        private Kingmaker.Blueprints.Classes.BlueprintFeature SecondCompanionFeature => RidingDogCase ? horses.RidingDogFeature : horses.HorseFeature;
+        private bool ridingDogBodyApplied, ridingDogShotPending;
+        private int ridingDogFrames;
+        private readonly JArray ridingDogShots = new JArray();
         private Chunk7OwnedPairFixture inherited;
         private readonly WorkingFixtureLoader ownedFixtureLoader;
         private bool beforeLoad, started, captured, completed, disposed, cleanup, cleanupActions, callback, originalPause, pendingHostCustody;
@@ -224,10 +231,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
                         bool acquired;
-                        try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition); }
+                        try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition, SecondCompanionFeature,
+                            RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid); }
                         finally
                         {
-                            acquiredHorse = secondRider.Descriptor.GetFact(horses.HorseFeature) as Feature;
+                            acquiredHorse = secondRider.Descriptor.GetFact(SecondCompanionFeature) as Feature;
                             acquiredRank = secondRider.Descriptor.GetFact(horses.LevelRank) as Feature;
                             secondMount = secondRider.Descriptor.Pet;
                             TrackNativeActors();
@@ -236,8 +244,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         Next(1); break;
                     case 1:
                         if (secondMount?.View?.AgentASP == null || !secondMount.IsInState) return;
-                        Require(secondMount.Blueprint?.AssetGuid == HorseCompanionBlueprintService.UnitGuid &&
-                            ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Acquired Horse is not the exact reciprocal pet.");
+                        Require(secondMount.Blueprint?.AssetGuid == (RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid) &&
+                            ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Acquired companion is not the exact reciprocal pet.");
+                        if (RidingDogCase)
+                        {
+                            // Disclosed setup: the owner's Small body. The companion choice above was the native selection.
+                            if (!ridingDogBodyApplied) { Sprint5Fixture.ApplyBody(secondRider, Sprint5Fixture.HalflingRace, Kingmaker.Blueprints.Gender.Female); ridingDogBodyApplied = true; TrackNativeActors(); return; }
+                            if (!Sprint5Fixture.BodyReady(secondRider) || ++ridingDogFrames < 45) return;
+                        }
                         actors = new[] { firstRider, firstMount, secondRider, secondMount };
                         Input(firstRider, firstMount, controls.MountAbility, secondRider, "mount-mammoth"); Next(2); break;
                     case 2:
@@ -298,11 +312,62 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 12:
                         AssertOwners(); if (!MovementSettled()) return;
                         Pass("C7-persistence-native-continuation"); snapshots.Add(Capture("continuation-complete"));
+                        if (RidingDogCase && Cold) { BeginRidingDogCold(); Next(50); break; }
                         BeginCleanup(); break;
+                    case 50: case 51: case 52: case 53: case 54:
+                        UpdateRidingDogCold(); break;
                 }
             }
             catch (Exception error) { Fail("C7-persistence-runtime", error.ToString()); BeginCleanup(); }
         }
+        // The separate-process consumer: the restored pair's identity and seat, then its ordinary controls.
+        private void BeginRidingDogCold()
+        {
+            var feature = secondRider.Descriptor.GetFact(horses.RidingDogFeature) as Feature;
+            evidence["ridingDogCold"] = new JObject { ["owner"] = secondMount.Descriptor.Master.Value?.UniqueId, ["mountBlueprint"] = secondMount.Blueprint?.AssetGuid,
+                ["featureSourced"] = feature?.Source != null, ["rank"] = secondRider.Descriptor.GetFact(horses.LevelRank)?.GetRank() ?? 0,
+                ["restoredProfile"] = saved.Pairs.Single(p => p.Rider.Id == secondRider.UniqueId).ProfileId,
+                ["resolvedProfile"] = SupportedMountedProfiles.Resolve(secondRider, secondMount)?.Id,
+                ["riderSkeleton"] = secondRider.View.CharacterAvatar?.Skeleton?.name, ["riderEffectiveSize"] = secondRider.Descriptor.State.Size.ToString(),
+                ["mountEffectiveSize"] = secondMount.Descriptor.State.Size.ToString(), ["riderWorldScale"] = Sprint5Fixture.Vector(secondRider.View.transform.lossyScale),
+                ["shots"] = ridingDogShots, ["dismounted"] = false, ["remounted"] = false };
+            RidingDogShot("dog-cold-restored-side", 90f); RidingDogShot("dog-cold-restored-other", 270f);
+        }
+
+        private readonly Queue<KeyValuePair<string, float>> ridingDogQueue = new Queue<KeyValuePair<string, float>>();
+        private void RidingDogShot(string name, float yaw) => ridingDogQueue.Enqueue(new KeyValuePair<string, float>(name, yaw));
+
+        private void UpdateRidingDogCold()
+        {
+            if (ridingDogShotPending) return;
+            if (ridingDogQueue.Count != 0)
+            {
+                var shot = ridingDogQueue.Dequeue(); ridingDogShotPending = true;
+                UnityModManagerNet.UnityModManager.UI.Instance.StartCoroutine(Sprint5Fixture.Capture(request.EvidenceRoot, ridingDogShots, shot.Key, secondMount, secondRider, secondMount,
+                    shot.Value, 1.3f, 6.3f, 24f, () => ridingDogShotPending = false));
+                return;
+            }
+            var record = (JObject)evidence["ridingDogCold"];
+            switch (stage)
+            {
+                case 50:
+                    if (Sprint5Fixture.Click(controls, secondRider, controls.DismountAbility, secondRider)) Next(51);
+                    return;
+                case 51:
+                    if (Mounted(secondRider, secondMount) || !secondRider.Commands.Empty) return;
+                    record["dismounted"] = true; record["dismountedWorldScale"] = Sprint5Fixture.Vector(secondRider.View.transform.lossyScale);
+                    Next(52); return;
+                case 52:
+                    if (Sprint5Fixture.Click(controls, secondRider, controls.MountAbility, secondMount)) { ridingDogFrames = 0; Next(53); }
+                    return;
+                case 53:
+                    if (!Mounted(secondRider, secondMount) || ++ridingDogFrames < 45) return;
+                    record["remounted"] = true; RidingDogShot("dog-cold-remounted-side", 90f); Next(54); return;
+                default:
+                    BeginCleanup(); return;
+            }
+        }
+
         private void Start()
         {
             RequireInitialLoadGame();
@@ -382,7 +447,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else
             {
                 var mammoth = saved.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Mammoth.Id);
-                var horse = saved.Pairs.Single(p => p.ProfileId == SupportedMountedProfiles.Horse.Id);
+                var horse = saved.Pairs.Single(p => p.ProfileId == (RidingDogCase ? RidingDogPairProfile : SupportedMountedProfiles.Horse.Id));
                 Require(mammoth.Rider.Id == Chunk7WorldScenarioEngine.MammothRiderId && mammoth.Mount.Id == Chunk7WorldScenarioEngine.MammothId &&
                     horse.Rider.Id == Chunk7WorldScenarioEngine.HorseRiderId, "Cold archive selected another fixture actor.");
                 firstRider = Exact(mammoth.Rider.Id); firstMount = Exact(mammoth.Mount.Id);

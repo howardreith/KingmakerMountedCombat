@@ -1,0 +1,17 @@
+{
+  "contract": "sprint5-small-seat-record-v1",
+  "sourceRuns": ["20261102-sprint5-r02-small", "20261102-sprint5-r05-dog"],
+  "coordinateConvention": "native Unity, mount-root local, +z forward",
+  "firstCause": "The batch70 Small seat aimed the feet at the Horse's stirrups. Small legs reach about 0.35 of the 0.75 from saddle to stirrup, so the pelvis sat at height 1.63 against the accepted Medium 2.22, inside the Horse.",
+  "seatRule": "A Small seat is a fixed offset from the mount's anchor bone, set from the mount's measured back. It does not depend on the animation pose at mounting. Feet are sized by each rig's own reach and straddle the back.",
+  "rigs": {
+    "MaleHalfling": { "reach": 0.351, "pelvisHeight": 0.418 },
+    "FemaleHalfling": { "reach": 0.324, "pelvisHeight": 0.390 },
+    "MaleGnome": { "reach": 0.465, "pelvisHeight": 0.536 },
+    "FemaleGnome": { "reach": 0.452, "pelvisHeight": 0.518 }
+  },
+  "mounts": {
+    "Horse": { "anchor": "Chest", "anchorHeight": 1.505, "anchorForward": 0.468, "saddleSurface": 1.82, "saddleForward": 0.22, "seatHeight": { "Halfling": 1.95, "Gnome": 1.98 } },
+    "RidingDog": { "anchor": "UpperTorso", "anchorHeight": 0.77, "anchorForward": 0.08, "backSurface": 0.89, "backHalfWidth": 0.22, "seatForward": 0.12, "seatHeight": { "Halfling": 1.02, "Gnome": 1.05 } }
+  }
+}
