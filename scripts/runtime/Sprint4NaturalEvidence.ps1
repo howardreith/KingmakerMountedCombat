@@ -182,7 +182,8 @@ function Assert-KmcSprint4QueuedRow($Row,[string]$Rider,[string]$Mount){
  if(@($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Mount -and [int]$_.frame -ge [int]$ran.frame }).Count -lt 1){ throw 'Sprint 4 queued command never struck' }
  $held=Get-KmcSprint4Step $Row 'farTargetHeld'
  if([double]$held.distanceToTarget -lt 13 -or [double]$held.mountDisplacement -gt 0.5 -or [long]$held.dispatchesDuring -ne 0){ throw 'Sprint 4 a later out-of-reach target provoked movement' }
- if([long]$held.refusedDuring -lt 1 -or [string]$held.state.controller.lastRefusal -cnotlike 'hold-out-of-reach*' -or $held.state.riderHold -ne $true){ throw 'Sprint 4 later target was not refused under the kept Hold' }
+ # Under a native Hold the brain itself filters targets out of reach (AiMovementForbidden), so there is no proposal to refuse: r08 saw none. The next row's Stop shows the same brain proposing that target once Hold is gone.
+ if($held.state.riderHold -ne $true -or $held.state.mountHold -ne $true -or $held.state.riderAiEnabled -ne $true -or $held.state.riderBrainActive -ne $true -or $held.state.controller.hasIntent -ne $false){ throw 'Sprint 4 later target was not held off with Hold kept and the AI live' }
  Assert-KmcSprint4Delta $Row 'duplicateDispatches' 0
 }
 function Assert-KmcSprint4NeighborRow($Row,[string]$Rider,[string]$Mount){
