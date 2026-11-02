@@ -160,7 +160,7 @@ function New-S4MoveRow{
   secondMoveIssued=(New-S4MoveFacts 12 $false $false 'None' $true (New-S4IntentState @{playerMoveHold=$false}))
   interrupted=(New-S4MoveFacts 12 $true $false 'Interrupt' $true (New-S4IntentState @{playerMoveHold=$false;lastMoveOutcome='Interrupted'}))
   resumedAfterInterruption=[pscustomobject]@{dispatchesDuring=1;mountDisplacement=3;state=(New-S4IntentState @{intentAutomatic=$true})}}
- New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='hold'},[pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='native-interrupt-move'}) @() @()
+ New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='hold'},[pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='native-interrupt-move'}) @() @() @{continueMovementOption=[pscustomobject]@{original=$false;leased=$true}}
 }
 function New-S4QueuedRow{
  $queuedState=New-S4IntentState @{} $true $true;$queuedState.mountQueue=1
@@ -184,6 +184,7 @@ $intent=New-S4Artifact 'sprint4-intent-rt' @((New-S4MoveRow),(New-S4QueuedRow),(
 Accept $intent 'sprint4-intent-rt';Check $true 'complete player-intent evidence accepted'
 Check (Test-KmcPhase3dSchemaRegistration 48 'sprint4-intent-rt') 'schema 48 is registered for the player-intent scenario'
 function Mutate-S4([int]$row,[scriptblock]$change,[string]$why){$r=Copy-S4 $intent;& $change $r.rows[$row].evidence.steps $r.rows[$row].evidence;Reject $r 'sprint4-intent-rt' $why}
+Mutate-S4 0 {param($s,$e)$e.continueMovementOption.leased=$false} 'a move row without the recorded engagement option refused'
 Mutate-S4 0 {param($s)$s.moveIssued.riderInCombat=$true} 'a move issued in combat cannot stand for the exploration case'
 Mutate-S4 0 {param($s)$s.combatWhileMoving.finished=$true} 'a move finished before combat refused'
 Mutate-S4 0 {param($s)$s.arrival.moveIdentity=99} 'an arrival by another move refused'
