@@ -706,7 +706,8 @@ namespace KingmakerMountedCombat.Integration
             addPet.Pet = ridingDogUnit;
             addPet.LevelRank = levelRank;
             addPet.UpgradeFeature = ridingDogUpgrade;
-            addPet.UpgradeLevel = stockAddPet.UpgradeLevel > 0 ? stockAddPet.UpgradeLevel : 4;
+            // The published rank. The stock Dog's own level differs by installation (7 in the base game, 4 under Call of the Wild).
+            addPet.UpgradeLevel = 4;
             ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
             logger.Info("Riding Dog registered from the stock Dog: stockSize=" + dogUnit.Size + "; sizeStep=" + size.SizeDelta +
                 "; stockFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Select(fact => fact?.name)) +
