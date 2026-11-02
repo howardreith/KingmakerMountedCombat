@@ -144,6 +144,7 @@ function Assert-KmcSprint4TurnBasedRow($Row,[string]$Rider,[string]$Mount){
 function Assert-KmcSprint4MoveRow($Row,[string]$Rider,[string]$Mount){
  $clicks=@(Get-KmcSprint4Inputs $Row 'ground-click')
  if($clicks.Count -ne 2 -or @($clicks | Where-Object { $_.clicked -ne $true }).Count -ne 0 -or @(Get-KmcSprint4Inputs $Row 'native-interrupt-move').Count -ne 1 -or @(Get-KmcSprint4Inputs $Row 'hold').Count -ne 1){ throw 'Sprint 4 move row did not use the ordinary ground input, one native Hold and one interruption' }
+ if($Row.evidence.continueMovementOption.leased -ne $true){ throw 'Sprint 4 move row did not record the native engagement option' }
  $issued=Get-KmcSprint4Step $Row 'moveIssued'; $joined=Get-KmcSprint4Step $Row 'combatWhileMoving'; $arrival=Get-KmcSprint4Step $Row 'arrival'
  if($issued.riderInCombat -ne $false -or $issued.mountInCombat -ne $false -or $issued.finished -ne $false){ throw 'Sprint 4 move did not start before combat' }
  if([string]$issued.moveType -cne 'UnitMoveTo' -or $issued.createdByPlayer -ne $true -or [string]$issued.executor -cne $Mount){ throw 'Sprint 4 watched move is not the explicit player move on the mount' }

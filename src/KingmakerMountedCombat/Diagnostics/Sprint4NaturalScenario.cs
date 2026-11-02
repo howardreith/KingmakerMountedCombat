@@ -29,8 +29,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsSprint4Intent => request.Scenario == "sprint4-intent-rt";
         private bool IsSprint4Natural => IsSprint4NaturalScenario(request.Scenario);
         internal const int Sprint4SchemaVersion = 48;
-        // Inside the host deadline, so a stalled row still writes its evidence.
-        internal const double Sprint4ScenarioDeadlineSeconds = 420.0d, Sprint4HostDeadlineSeconds = 460.0d;
+        // Inside the host deadline even after the host's own startup (about 60 s, r06), so a stalled row still writes its evidence.
+        internal const double Sprint4ScenarioDeadlineSeconds = 300.0d, Sprint4HostDeadlineSeconds = 460.0d;
         internal static readonly string[] Sprint4RealTimeCases = { "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase" };
         internal static readonly string[] Sprint4TurnBasedCases = { "S4-tb-ordinary-actors" };
         internal static readonly string[] Sprint4IntentCases = { "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors" };
@@ -311,6 +311,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 BeginSprint4Row(); s4Stage = 2; return;
             }
             ObserveSprint4Commands();
+            // A row whose steps keep attacking restarts the leaf clock, so each step of these rows has its own bound.
+            if (IsSprint4Intent)
+            {
+                if (s4Step != s4BoundStep || s4Case != s4CaseIndex) { s4BoundStep = s4Step; s4Case = s4CaseIndex; s4BoundAt = Time.time; }
+                else if (Time.time - s4BoundAt > Sprint4StepBoundSeconds) { FailSprint4Row("Step " + s4Step + " exceeded its bound."); return; }
+            }
             switch (Sprint4Case)
             {
                 case "S4-ui-clean": TickSprint4UiClean(); return;
@@ -659,6 +665,33 @@ namespace KingmakerMountedCombat.Diagnostics
         private Sprint4BusyCommand s4Busy;
         private int s4QueueAttempts;
         private const int Sprint4QueueAttemptLimit = 3;
+        private const float Sprint4StepBoundSeconds = 40f;
+        private int s4BoundStep = -1, s4Case = -1;
+        private float s4BoundAt;
+        private bool s4OptionLeased;
+        private object s4OptionRaw;
+        private static readonly System.Reflection.FieldInfo Sprint4OptionCache = typeof(Kingmaker.UI.SettingsUI.SettingsEntityBool).GetField("m_Cached",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        // Native AutoPauseController interrupts every party move when combat starts unless the player's option
+        // ContinueMovementOnEngagement is on, so only that option lets a move issued in exploration arrive in combat. Held
+        // in the setting's in-memory cache alone, like NativeModeTransitionProbe: nothing is written to PlayerPrefs.
+        private void LeaseSprint4ContinueMovement()
+        {
+            var option = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.ContinueMovementOnEngagement;
+            s4Facts["continueMovementOption"] = new JObject { ["original"] = option.CurrentValue, ["leased"] = true };
+            s4OptionRaw = Sprint4OptionCache.GetValue(option);
+            Sprint4OptionCache.SetValue(option, (bool?)true);
+            s4OptionLeased = true;
+            if (!option.CurrentValue) throw new InvalidOperationException("The engagement option lease did not take.");
+        }
+
+        private void RestoreSprint4ContinueMovement()
+        {
+            if (!s4OptionLeased) return;
+            s4OptionLeased = false;
+            Sprint4OptionCache.SetValue(Kingmaker.UI.SettingsUI.SettingsRoot.Instance.ContinueMovementOnEngagement, s4OptionRaw);
+        }
 
         // Bounded setup, not a native command: the mount's Standard slot held for a moment by a test-owned command that
         // cannot be interrupted, spends nothing and has no effect. UnitCommands.Run then queues the pair's dispatch by its
@@ -721,6 +754,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                 if (rider.IsInCombat || horse.IsInCombat) { FailSprint4Row("The move row must start before combat."); return; }
                 Sprint4SetAi(true, "before-move");
+                LeaseSprint4ContinueMovement();
                 var point = FindWalkablePoint(horse.Position, 30f, 8f, candidate => Sprint3PathPossible(horse.Position, candidate) == true);
                 s4Facts["moveTarget"] = CapturePosition(point); s4HoldPosition = point;
                 if (!Sprint4GroundMove(point, "exploration-move")) return;
@@ -750,6 +784,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combat.WatchedPlayerMove != null) return;
                 var record = Sprint4MoveFacts(s4Move, Sprint4Step("arrival"));
                 record["distanceToTarget"] = HorizontalDistance(horse.Position, s4First.Position);
+                RestoreSprint4ContinueMovement();
+                if (s4Move.Result != UnitCommand.ResultType.Success) { FailSprint4Row("The exploration move did not arrive: " + s4Move.Result + "."); return; }
                 s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount; s4ProposalBaseline = combat.AutomaticRefusedCount;
                 s4WaitUntil = Time.time + Sprint4ObservationSeconds; s4Step = 4; ResetLeafClock(); return;
             }
@@ -1033,6 +1069,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (rangedWeaponLease != null) { rangedWeaponLease.Dispose(); rangedWeaponLease = null; }
             if (ordinaryVariation != null) { ordinaryVariation.Dispose(); ordinaryVariation = null; }
             RestorePhase3hRapidShot();
+            RestoreSprint4ContinueMovement();
             if (IsSprint4Intent) { rider.HoldState = false; horse.HoldState = false; }
             if (s4RiderAiCaptured) { rider.IsAIEnabled = s4RiderAiBefore; s4RiderAiCaptured = false; CastingMeasurement["riderAiRestored"] = rider.IsAIEnabled == s4RiderAiBefore; }
             if (!Sprint4DestroyTargets()) return false;
