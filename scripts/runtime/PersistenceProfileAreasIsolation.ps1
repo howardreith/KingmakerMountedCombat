@@ -26,7 +26,7 @@ function Get-KmcPersistenceAreasIsolationPaths {
     # RecoveredTransactionToken: a profile-recovery lock settling the exact transaction Recover-KingmakerRuntimeTransaction closed.
     param($Lock,$Snapshot,[string]$BackupRoot,[string]$RecoveredTransactionToken='')
     [void](Assert-KmcRuntimeLockOwner $Lock)
-    if($null-eq$Snapshot-or$Lock.RunId-cne$Snapshot.runId-or($Lock.Token-cne$Snapshot.token-and$RecoveredTransactionToken-cne$Snapshot.token)){
+    if($null-eq$Snapshot-or$Lock.RunId-cne$Snapshot.runId-or($Lock.Token-cne$Snapshot.token-and($RecoveredTransactionToken-cnotmatch'^[a-f0-9]{64}$'-or$RecoveredTransactionToken-cne$Snapshot.token))){
         throw 'Areas isolation has no matching profile snapshot and owned transaction.'
     }
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
@@ -104,7 +104,7 @@ function Restore-KmcPersistenceAreasIsolation {
     if(-not(Test-Path -LiteralPath $paths.state -PathType Leaf)){return $null}
     Assert-KmcRecoveryLeafNoLinks $paths.state 'Areas isolation state'
     $state=Read-KmcJson $paths.state
-    if([long]$state.schemaVersion-ne1-or$state.runId-cne$Lock.RunId-or($state.token-cne$Lock.Token-and$state.token-cne$RecoveredTransactionToken)-or
+    if([long]$state.schemaVersion-ne1-or$state.runId-cne$Lock.RunId-or($state.token-cne$Lock.Token-and($RecoveredTransactionToken-cnotmatch'^[a-f0-9]{64}$'-or$state.token-cne$RecoveredTransactionToken))-or
         $state.profile-cne$Snapshot.profile-or$state.profileDigest-cne$Snapshot.profileDigest-or
         $state.snapshotSha256-cne$paths.snapshotSha256-or$state.originalDigest-cnotmatch'^[a-f0-9]{64}$'-or
         $state.stage-cnotin @('prepared','original-held','isolated-ready','quarantined','restored')){
