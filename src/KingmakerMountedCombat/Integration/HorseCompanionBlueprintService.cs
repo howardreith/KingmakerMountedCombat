@@ -450,10 +450,7 @@ namespace KingmakerMountedCombat.Integration
             AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);
             AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);
             AssertReservedGuidAbsent(library, blueprintList, PortraitGuid);
-            AssertReservedGuidAbsent(library, blueprintList, RidingDogUnitGuid);
-            AssertReservedGuidAbsent(library, blueprintList, RidingDogFeatureGuid);
-            AssertReservedGuidAbsent(library, blueprintList, RidingDogUpgradeGuid);
-            AssertReservedGuidAbsent(library, blueprintList, RidingDogSizeGuid);
+
 
             var nativeHorse = RequireBlueprint<BlueprintUnit>(library, NativeHorseGuid, "CR1_HorseRiding");
             var mammothUnit = RequireBlueprint<BlueprintUnit>(library, MammothUnitGuid, "AnimalCompanionUnitMammoth");
@@ -628,6 +625,10 @@ namespace KingmakerMountedCombat.Integration
         private void RegisterRidingDog(LibraryScriptableObject library, BlueprintFeature dogFeature, BlueprintUnit dogUnit, AddClassLevels dogClassLevels)
         {
             var stockAddPet = dogFeature.GetComponent<AddPet>();
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogUnitGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogFeatureGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogUpgradeGuid);
+            AssertReservedGuidAbsent(library, blueprintList, RidingDogSizeGuid);
             if (stockAddPet == null || dogUnit.Size > Size.Medium)
             {
                 throw new InvalidOperationException("The stock Dog companion has no AddPet or is larger than Medium.");
@@ -709,6 +710,7 @@ namespace KingmakerMountedCombat.Integration
             ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
             logger.Info("Riding Dog registered from the stock Dog: stockSize=" + dogUnit.Size + "; sizeStep=" + size.SizeDelta +
                 "; stockFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Select(fact => fact?.name)) +
+                "; droppedSizeFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Where(SetsSize).Select(fact => fact.name)) +
                 "; stockUpgrade=" + stockAddPet.UpgradeFeature?.name + "@" + stockAddPet.UpgradeLevel + ".");
 
             AddExactBlueprintRegistration(library, ridingDogSize);
@@ -717,21 +719,28 @@ namespace KingmakerMountedCombat.Integration
             AddExactBlueprintRegistration(library, ridingDogFeature);
         }
 
-        // Every selection is attempted: drift in one never strands the others or the Ranger.
+        // Every selection is attempted. Another mod's drift in a Riding Dog selection is reported, and it
+        // never decides whether the mod itself is enabled: the Ranger's own lease does.
         private bool ApplySelectionDesired(out string error)
         {
-            string dogError, rangerError;
-            var dog = ApplyRidingDogSelections(selectionDesired, out dogError);
-            var ranger = ApplyRangerSelection(out rangerError);
-            error = JoinErrors(dogError, rangerError);
-            return dog && ranger;
+            ApplyRidingDogSelectionsReported(selectionDesired);
+            return ApplyRangerSelection(out error);
+        }
+
+        private void ApplyRidingDogSelectionsReported(bool desired)
+        {
+            string dogError;
+            if (ApplyRidingDogSelections(desired, out dogError)) return;
+            ridingDogFailure = dogError;
+            logger.Error(dogError);
         }
 
         private static string JoinErrors(string first, string second) =>
             first == null ? second : second == null ? first : first + " " + second;
 
+        // A native size change, or another mod's permanent size override.
         private static bool SetsSize(BlueprintUnitFact fact) => fact?.ComponentsArray != null && fact.ComponentsArray.Any(component =>
-            component != null && component.GetType().Name.IndexOf("Size", StringComparison.Ordinal) >= 0);
+            component is Kingmaker.Designers.Mechanics.Buffs.ChangeUnitSize || component != null && component.GetType().Name.EndsWith("SizeOverride", StringComparison.Ordinal));
 
         private bool ApplyRangerSelection(out string error)
         {
@@ -777,11 +786,8 @@ namespace KingmakerMountedCombat.Integration
 
         private bool TryRestoreSelection(out string error)
         {
-            string dogError, rangerError;
-            var dog = ApplyRidingDogSelections(false, out dogError);
-            var ranger = TryRestoreRangerSelection(out rangerError);
-            error = JoinErrors(dogError, rangerError);
-            return dog && ranger;
+            ApplyRidingDogSelectionsReported(false);
+            return TryRestoreRangerSelection(out error);
         }
 
         private bool TryRestoreRangerSelection(out string error)
