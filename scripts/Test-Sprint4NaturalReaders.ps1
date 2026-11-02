@@ -160,7 +160,7 @@ function New-S4MoveRow{
   secondMoveIssued=(New-S4MoveFacts 12 $false $false 'None' $true (New-S4IntentState @{playerMoveHold=$false}))
   interrupted=(New-S4MoveFacts 12 $true $false 'Interrupt' $true (New-S4IntentState @{playerMoveHold=$false;lastMoveOutcome='Interrupted'}))
   resumedAfterInterruption=[pscustomobject]@{dispatchesDuring=1;mountDisplacement=3;state=(New-S4IntentState @{intentAutomatic=$true})}}
- New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='hold'},[pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='native-interrupt-move'}) @() @() @{continueMovementOption=[pscustomobject]@{original=$false;leased=$true}}
+ New-S4Row 'S4-move-into-combat' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='hold'},[pscustomobject]@{kind='ground-click';clicked=$true},[pscustomobject]@{kind='native-interrupt-move'}) @() @() @{continueMovementOption=[pscustomobject]@{original=$false;leased=$true};firstTarget='far-1'}
 }
 function New-S4QueuedRow{
  $queuedState=New-S4IntentState @{} $true $true;$queuedState.mountQueue=1
@@ -174,7 +174,7 @@ function New-S4QueuedRow{
 }
 function New-S4NeighborRow{
  $steps=[pscustomobject]@{
-  afterStop=[pscustomobject]@{dispatchesDuring=0;mountDisplacement=0;refusedDuring=6;state=(New-S4IntentState @{stopSuppressed=$true;lastRefusal='stop-suppressed;target=y'})}
+  afterStop=[pscustomobject]@{dispatchesDuring=0;mountDisplacement=0;refusedDuring=6;state=(New-S4IntentState @{stopSuppressed=$true;lastRefusal='stop-suppressed;target=far-1'})}
   afterReEnable=[pscustomobject]@{state=(New-S4IntentState @{intentAutomatic=$true;hasIntent=$true})}
   manualAttacked=[pscustomobject]@{intentOwnedByPlayer=$true}
   manualHeld=[pscustomobject]@{attacksOnOldTargetSinceManual=0;manualTargetStillOwned=$true}}
@@ -220,6 +220,9 @@ Mutate-S4 1 {param($s)$s.farTargetHeld.state.mountHold=$false} 'a later window t
 Mutate-S4 1 {param($s)$s.farTargetHeld.state.riderBrainActive=$false} 'a quiet window with the brain off proves nothing'
 Mutate-S4 1 {param($s)$s.farTargetHeld.dispatchesDuring=1} 'a later dispatch under Hold refused'
 Mutate-S4 2 {param($s)$s.afterStop.dispatchesDuring=1} 'a restart after Stop refused'
+Mutate-S4 2 {param($s)$s.afterStop.state.controller.lastRefusal='stop-suppressed;target=other'} 'a Stop window refusing another target proves nothing for the far one'
+Mutate-S4 1 {param($s)$s.farTargetHeld.state.controller.admitted=99} 'a far target admitted under Hold refused, whatever the cooldown did'
+Mutate-S4 0 {param($s,$e)$e.inputs=@($e.inputs[1],$e.inputs[0],$e.inputs[2],$e.inputs[3])} 'a Hold that did not come between the two moves refused'
 Mutate-S4 2 {param($s)$s.afterStop.state.riderHold=$true} 'Stop leaving native Hold refused'
 Mutate-S4 2 {param($s)$s.afterReEnable.state.controller.intentAutomatic=$false} 'an AI re-enable without resumption refused'
 Mutate-S4 2 {param($s)$s.manualHeld.attacksOnOldTargetSinceManual=1} 'an automatic attack over a manual order refused'
