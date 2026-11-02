@@ -150,7 +150,7 @@ $r=Copy-S4 $tb;$r.rows[0].evidence.rules.events=@($r.rows[0].evidence.rules.even
 Reject $rt 'sprint4-natural-tb' 'a real-time envelope under the turn-based scenario refused'
 # Player-intent rows: the exact move's completion and a queued automatic command keeping Hold.
 function New-S4MoveFacts($id,$finished,$acted,$result,$combat,$state){[pscustomobject]@{moveIdentity=$id;moveType='UnitMoveTo';createdByPlayer=$true;executor=$mount;finished=$finished;acted=$acted;result=$result;riderInCombat=$combat;mountInCombat=$combat;turnBased=$false;state=$state;frame=1;distanceToTarget=19}}
-function New-S4IntentState($over,$mountHold=$false,$riderHold=$false){$s=New-S4State $over;$s|Add-Member mountHold $mountHold;$s.riderHold=$riderHold;$s|Add-Member mountQueue 0;$s}
+function New-S4IntentState($over,$mountHold=$false,$riderHold=$false){$s=New-S4State $over;$s|Add-Member mountHold $mountHold;$s|Add-Member riderBrainActive $true;$s.riderHold=$riderHold;$s|Add-Member mountQueue 0;$s}
 function New-S4MoveRow{
  $steps=[pscustomobject]@{
   moveIssued=(New-S4MoveFacts 11 $false $false 'None' $false (New-S4IntentState @{}))
@@ -216,6 +216,9 @@ Mutate-S4 1 {param($s)$s.queuedDone.mountStandardCooldown=0} 'a queued command w
 Mutate-S4 1 {param($s,$e)$e.rules.events=@()} 'a queued command that never struck refused'
 Mutate-S4 1 {param($s)$s.farTargetHeld.mountDisplacement=3} 'a later target provoking movement refused'
 Mutate-S4 1 {param($s)$s.farTargetHeld.distanceToTarget=4} 'a later target already in reach proves nothing'
+Mutate-S4 1 {param($s)$s.farTargetHeld.state.mountHold=$false} 'a later window that lost the mount Hold refused'
+Mutate-S4 1 {param($s)$s.farTargetHeld.state.riderBrainActive=$false} 'a quiet window with the brain off proves nothing'
+Mutate-S4 1 {param($s)$s.farTargetHeld.dispatchesDuring=1} 'a later dispatch under Hold refused'
 Mutate-S4 2 {param($s)$s.afterStop.dispatchesDuring=1} 'a restart after Stop refused'
 Mutate-S4 2 {param($s)$s.afterStop.state.riderHold=$true} 'Stop leaving native Hold refused'
 Mutate-S4 2 {param($s)$s.afterReEnable.state.controller.intentAutomatic=$false} 'an AI re-enable without resumption refused'
