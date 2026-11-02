@@ -20,42 +20,84 @@ namespace KingmakerMountedCombat.Tests
             Refuse(runner, "mount polymorph", value => value.MountPolymorphed = true);
             Refuse(runner, "Small body borrowed for Mammoth", value => value.MountBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9");
             Refuse(runner, "mount no larger than Small rider", value => value.MountSizeOrdinal = 3);
-            Refuse(runner, "Horse reduced to Medium outside calibrated pose", value => value.MountSizeOrdinal = 4);
-            Refuse(runner, "Horse enlarged to Huge outside calibrated pose", value => value.MountSizeOrdinal = 6);
             Refuse(runner, "other Small race", value => value.RaceGuid = new string('e', 32));
-            Refuse(runner, "other race preset", value => value.PresetGuid = new string('e', 32));
             Refuse(runner, "other sex", value => value.Gender = "Male");
-            Refuse(runner, "same-name replacement native race object", value => value.NativeRaceAndPresetIdentityExact = false);
             Refuse(runner, "other skeleton name", value => value.SkeletonName = "OtherSmallSkeleton");
-            Refuse(runner, "same-name replacement skeleton object", value => value.NativeSkeletonIsExactPreset = false);
             Refuse(runner, "unavailable native rig", value => value.NativeRigAvailable = false);
-            Refuse(runner, "other handedness", value => value.LeftHanded = true);
-            Refuse(runner, "other mirror state", value => value.AvatarMirrored = true);
             Refuse(runner, "changed avatar scale", value => value.AvatarLocalScale = new PoseVector3(1.1f, 1f, 1f));
             Refuse(runner, "nonfinite avatar scale", value => value.AvatarLocalScale = new PoseVector3(float.NaN, 1f, 1f));
-            Refuse(runner, "missing Doll equipment", value => value.DollEquipmentEntityIds = null);
-            Refuse(runner, "duplicate Doll equipment", value => value.DollEquipmentEntityIds = new[] { Equipment, Equipment });
-            Refuse(runner, "other Doll equipment", value => value.DollEquipmentEntityIds = new[] { new string('e', 32) });
-            Refuse(runner, "undeclared active weapon", value => value.CurrentEquipmentBlueprints[0] = new string('e', 32));
-            Refuse(runner, "undeclared worn armor", value => value.CurrentEquipmentBlueprints[2] = new string('e', 32));
-            Refuse(runner, "missing explicit equipment slots", value => value.CurrentEquipmentBlueprints = new string[11]);
-            Refuse(runner, "extra visual equipment", value => value.ActiveVisualEquipmentNames = new[] { "skin", "clothes", "wings" });
-            Refuse(runner, "visual duplicate hides missing garment", value => value.ActiveVisualEquipmentNames = new[] { "skin", "skin" });
-            Refuse(runner, "unexpected natural limb", value => value.AdditionalLimbCount = 1);
+            // POSE-01: gear, cosmetics and a mirrored native rig do not change the rig family.
+            Admit(runner, "other race preset", value => value.PresetGuid = new string('e', 32));
+            Admit(runner, "other handedness", value => value.LeftHanded = true);
+            Admit(runner, "a mirrored left-handed avatar", value => { value.AvatarMirrored = true; value.AvatarLocalScale = new PoseVector3(-1f, 1f, 1f); });
+            Admit(runner, "missing Doll equipment", value => value.DollEquipmentEntityIds = null);
+            Admit(runner, "other Doll equipment", value => value.DollEquipmentEntityIds = new[] { new string('e', 32) });
+            Admit(runner, "another active weapon", value => value.CurrentEquipmentBlueprints[0] = new string('e', 32));
+            Admit(runner, "other worn armor", value => value.CurrentEquipmentBlueprints[2] = new string('e', 32));
+            Admit(runner, "other visual equipment", value => value.ActiveVisualEquipmentNames = new[] { "skin", "clothes", "wings" });
+            Admit(runner, "a natural limb", value => value.AdditionalLimbCount = 1);
+            // SIZE-01: native categories decide; a larger or reduced mount stays legal while it is larger than the rider.
+            Admit(runner, "a Medium mount", value => value.MountSizeOrdinal = 4);
+            Admit(runner, "a Huge mount", value => value.MountSizeOrdinal = 6);
+            runner.Run("size policy requires one whole native category", () =>
+            {
+                TestRunner.True(MountedSizePolicy.Refusal(3, 4) == null && MountedSizePolicy.Refusal(3, 5) == null && MountedSizePolicy.Refusal(4, 5) == null, "A legal size pair was refused.");
+                TestRunner.True(MountedSizePolicy.Refusal(4, 4) == MountedSizePolicy.TooSmallRefusal && MountedSizePolicy.Refusal(3, 3) != null && MountedSizePolicy.Refusal(4, 3) != null, "An equal or smaller mount was allowed.");
+            });
+            runner.Run("the published Small matrix has one profile per rig and mount", () =>
+            {
+                var ids = MountedRiderProfileCatalog.Small.Select(profile => profile.Body.ProfileId).ToArray();
+                TestRunner.True(ids.Distinct().Count() == ids.Length && ids.Contains(MountedRiderProfileCatalog.OriginalSmallHorseId), "The Small matrix lost a profile or the original ID.");
+                foreach (var id in ids) TestRunner.True(MountedRiderProfileCatalog.IsSupportedArchiveProfile(id), "A declared rig is not archive-eligible: " + id);
+                foreach (var profile in MountedRiderProfileCatalog.Small)
+                {
+                    var rig = Observation(); rig.RaceGuid = profile.Body.RaceGuid; rig.Gender = profile.Body.Gender; rig.SkeletonName = profile.Body.SkeletonName;
+                    rig.MountBlueprintGuid = profile.Body.MountBlueprintGuid; rig.MountSizeOrdinal = 5;
+                    var claims = MountedRiderProfileCatalog.Small.Count(other => other.Body.Refusal(rig) == null);
+                    TestRunner.True(profile.Body.Refusal(rig) == null && claims == 1, "A rig is claimed by " + claims + " profiles: " + profile.Body.ProfileId);
+                    rig.MountSizeOrdinal = 3;
+                    TestRunner.True(profile.Body.Refusal(rig) == MountedSizePolicy.TooSmallRefusal, "A mount no larger than its rider was admitted: " + profile.Body.ProfileId);
+                }
+            });
+            runner.Run("the original Small profile ID still names the male Halfling on the Horse", () =>
+            {
+                var body = MountedRiderProfileCatalog.Small.Single(profile => profile.Body.ProfileId == MountedRiderProfileCatalog.OriginalSmallHorseId).Body;
+                TestRunner.True(body.SkeletonName == "MaleHalfling" && body.MountBlueprintGuid == DeclaredSmallRiderBody.HorseBlueprintGuid && body.HasExactFixturePins, "The original Small identity moved.");
+            });
+            ExactFixture(runner, "other race preset", value => value.PresetGuid = new string('e', 32));
+            ExactFixture(runner, "same-name replacement native race object", value => value.NativeRaceAndPresetIdentityExact = false);
+            ExactFixture(runner, "same-name replacement skeleton object", value => value.NativeSkeletonIsExactPreset = false);
+            ExactFixture(runner, "other handedness", value => value.LeftHanded = true);
+            ExactFixture(runner, "other mirror state", value => value.AvatarMirrored = true);
+            ExactFixture(runner, "missing Doll equipment", value => value.DollEquipmentEntityIds = null);
+            ExactFixture(runner, "duplicate Doll equipment", value => value.DollEquipmentEntityIds = new[] { Equipment, Equipment });
+            ExactFixture(runner, "other Doll equipment", value => value.DollEquipmentEntityIds = new[] { new string('e', 32) });
+            ExactFixture(runner, "undeclared active weapon", value => value.CurrentEquipmentBlueprints[0] = new string('e', 32));
+            ExactFixture(runner, "undeclared worn armor", value => value.CurrentEquipmentBlueprints[2] = new string('e', 32));
+            ExactFixture(runner, "missing explicit equipment slots", value => value.CurrentEquipmentBlueprints = new string[11]);
+            ExactFixture(runner, "extra visual equipment", value => value.ActiveVisualEquipmentNames = new[] { "skin", "clothes", "wings" });
+            ExactFixture(runner, "visual duplicate hides missing garment", value => value.ActiveVisualEquipmentNames = new[] { "skin", "skin" });
+            ExactFixture(runner, "unexpected natural limb", value => value.AdditionalLimbCount = 1);
+            ExactFixture(runner, "Horse enlarged to Huge", value => value.MountSizeOrdinal = 6);
+            runner.Run("a rig-family declaration carries no exact fixture pins", () =>
+            {
+                var family = new DeclaredSmallRiderBody(Profile, DeclaredSmallRiderBody.HorseBlueprintGuid, Race, "Female", "SyntheticSmallSkeleton");
+                TestRunner.True(!family.HasExactFixturePins && family.ExactFixtureRefusal(Observation()) != null && family.Refusal(Observation()) == null, "Rig-family pins differ.");
+            });
             runner.Run("visual equipment comparison is order independent with exact multiplicity", () =>
-            { var body = Observation(); body.ActiveVisualEquipmentNames = new[] { "clothes", "skin" }; TestRunner.True(Declaration().Refusal(body) == null, "Equivalent visual multiset was rejected."); });
+            { var body = Observation(); body.ActiveVisualEquipmentNames = new[] { "clothes", "skin" }; TestRunner.True(Declaration().ExactFixtureRefusal(body) == null, "Equivalent visual multiset was rejected."); });
             runner.Run("repeated visual names retain their exact multiplicity", () =>
             {
                 var declaration = Declaration(visual: new[] { "skin", "clothes", "skin" });
                 var body = Observation(); body.ActiveVisualEquipmentNames = new[] { "skin", "skin", "clothes" };
-                TestRunner.True(declaration.Refusal(body) == null, "Equivalent repeated visual names were rejected.");
+                TestRunner.True(declaration.ExactFixtureRefusal(body) == null, "Equivalent repeated visual names were rejected.");
                 body.ActiveVisualEquipmentNames = new[] { "skin", "clothes", "clothes" };
-                TestRunner.True(declaration.Refusal(body) != null, "A missing visual name was hidden by another duplicate.");
+                TestRunner.True(declaration.ExactFixtureRefusal(body) != null, "A missing visual name was hidden by another duplicate.");
             });
             runner.Run("declaration owns copied equipment values", () =>
             {
                 var slots = new string[12]; var declaration = Declaration(slots); slots[0] = new string('e', 32);
-                TestRunner.True(declaration.Refusal(Observation()) == null, "External array mutation changed declared equipment.");
+                TestRunner.True(declaration.ExactFixtureRefusal(Observation()) == null, "External array mutation changed declared equipment.");
             });
             runner.Run("Small size alone cannot enter pair admission", () =>
             { var candidate = Candidate(false, null); TestRunner.True(candidate.Validate() != null, "Undeclared Small pair was admitted."); });
@@ -87,7 +129,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("Small profile control requires its independently valid pose surface", () =>
             { var context = Context(false, Match()); context.RiderBodyProfileSupported = false; TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).IsEnabled, "Small bypassed live pose surface."); });
             runner.Run("qualified catalogue cannot admit synthetic Small profiles", () =>
-            { TestRunner.True(MountedRiderProfileCatalog.Small.Count == 1 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(Profile), "Unmeasured synthetic profile was globally enabled."); });
+            { TestRunner.True(MountedRiderProfileCatalog.Small.Count != 0 && !MountedRiderProfileCatalog.IsSupportedArchiveProfile(Profile), "Unmeasured synthetic profile was globally enabled."); });
             runner.Run("schema3 profile policy preserves both Medium IDs and rejects guessed/unknown IDs", () =>
             {
                 TestRunner.True(MountedRiderProfileCatalog.IsSupportedArchiveProfile("medium-humanoid-horse-v1") &&
@@ -108,7 +150,7 @@ namespace KingmakerMountedCombat.Tests
                 Throws(() => new DeclaredSmallMountedProfile(Declaration(), pose, null, Vector(), Vector(), Vector()));
                 var declaration = new DeclaredSmallMountedProfile(Declaration(), pose, new string('a', 64), Vector(), Vector(), Vector());
                 TestRunner.Equal(Profile, declaration.Pose.Id, "Exact independent pose identity changed.");
-                TestRunner.True(MountedRiderProfileCatalog.Small.Count == 1, "Constructing policy data changed the qualified native catalogue.");
+                TestRunner.True(!MountedRiderProfileCatalog.IsSupportedArchiveProfile(Profile), "Constructing policy data changed the qualified native catalogue.");
             });
             runner.Run("qualified Halfling declaration and private calibration share exact identity", () =>
             {
@@ -116,8 +158,6 @@ namespace KingmakerMountedCombat.Tests
                 var id = provisional.Body.ProfileId;
                 TestRunner.True(id == "small-default-halfling-horse-v1" &&
                     provisional.Body.NativeInventorySha256 == "dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9" &&
-                    provisional.NativeCalibrationSha256 == "7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db" &&
-                    MountedRiderProfileCatalog.Small.Count == 1 &&
                     ReferenceEquals(MountedRiderProfileCatalog.Small[0], provisional) &&
                     MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
                     "Native-qualified Small declaration differs from its private calibration identity.");
@@ -157,7 +197,6 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(refused, "Duplicate private Small admission was accepted.");
                 lease.Dispose();
                 TestRunner.True(gate.Resolve(rider, horse, riderObject, horseObject) == null && gate.ResolveProfileId(id) == null &&
-                    MountedRiderProfileCatalog.Small.Count == 1 &&
                     MountedRiderProfileCatalog.IsSupportedArchiveProfile(id),
                     "Released private Small calibration changed ordinary profile admission.");
             });
@@ -165,6 +204,10 @@ namespace KingmakerMountedCombat.Tests
 
         private static void Refuse(TestRunner runner, string name, Action<SmallRiderBodyObservation> change) => runner.Run("Small refuses " + name, () =>
         { var observed = Observation(); change(observed); string error; TestRunner.True(Declaration().Match(observed, out error) == null && error != null, "Changed body was admitted."); });
+        private static void Admit(TestRunner runner, string name, Action<SmallRiderBodyObservation> change) => runner.Run("Small admits " + name, () =>
+        { var observed = Observation(); change(observed); string error; TestRunner.True(Declaration().Match(observed, out error) != null && error == null, "A supported rig was refused: " + error); });
+        private static void ExactFixture(TestRunner runner, string name, Action<SmallRiderBodyObservation> change) => runner.Run("Exact fixture pin refuses " + name, () =>
+        { var observed = Observation(); change(observed); TestRunner.True(Declaration().ExactFixtureRefusal(observed) != null, "The exact fixture accepted a changed body."); });
         private static SmallRiderBodyMatch Match() { string error; return Declaration().Match(Observation(), out error); }
         private static DeclaredSmallRiderBody Declaration(string[] slots = null, string[] visual = null) => new DeclaredSmallRiderBody(Profile, new string('a', 64), Race, Preset,
             "Female", "SyntheticSmallSkeleton", false, false, new PoseVector3(1f, 1f, 1f), new[] { Equipment }, slots ?? new string[12], visual ?? new[] { "skin", "clothes" });

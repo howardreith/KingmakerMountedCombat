@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Tests
             var first = new object();
             var second = new object();
             var item = new object();
+            var two = new ExactAppendOnlyArrayLease<object>(new[] { first }, new[] { second, item });
+            TestRunner.True(two.AppendedCount == 3 && two.MatchesAppended(new[] { first, second, item }) && !two.MatchesAppended(new[] { first, item, second }), "Two appended items keep their exact order.");
             var lease = new ExactAppendOnlyArrayLease<object>(new[] { first, second }, item);
             var appended = lease.CreateAppendedValue();
             TestRunner.Equal(3, appended.Length, "Append length changed.");

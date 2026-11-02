@@ -7,26 +7,33 @@ namespace KingmakerMountedCombat.Domain
         private readonly T[] original;
         private readonly T[] appended;
 
-        public ExactAppendOnlyArrayLease(T[] source, T item)
+        public ExactAppendOnlyArrayLease(T[] source, T item) : this(source, new[] { item }) { }
+
+        public ExactAppendOnlyArrayLease(T[] source, T[] items)
         {
             if (source == null) { throw new ArgumentNullException(nameof(source)); }
-            if (item == null) { throw new ArgumentNullException(nameof(item)); }
+            if (items == null || items.Length == 0) { throw new ArgumentNullException(nameof(items)); }
+            foreach (var item in items)
+            {
+                if (item == null) { throw new ArgumentNullException(nameof(items)); }
+                if (Array.IndexOf(source, item) >= 0)
+                {
+                    throw new ArgumentException("The appended item is already present by exact reference.", nameof(items));
+                }
+            }
             for (var index = 0; index < source.Length; index++)
             {
                 if (source[index] == null)
                 {
                     throw new ArgumentException("The source array contains a null entry.", nameof(source));
                 }
-                if (ReferenceEquals(source[index], item))
-                {
-                    throw new ArgumentException("The appended item is already present by exact reference.", nameof(item));
-                }
+
             }
 
             original = (T[])source.Clone();
-            appended = new T[source.Length + 1];
+            appended = new T[source.Length + items.Length];
             Array.Copy(source, appended, source.Length);
-            appended[source.Length] = item;
+            Array.Copy(items, 0, appended, source.Length, items.Length);
         }
 
         public int OriginalCount => original.Length;

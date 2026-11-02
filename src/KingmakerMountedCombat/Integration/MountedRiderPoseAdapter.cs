@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Integration
         private Transform saddleMountRoot;
         private Transform saddleSource;
         private bool animatedSaddleRequired;
+        private Transform scaleCompensatedAnchor;
 
         public bool IsConfigured => configured;
 
@@ -169,6 +170,13 @@ namespace KingmakerMountedCombat.Integration
             animatedSaddleRequired = true;
         }
 
+        internal void CompensateMountScale(Transform exactAnchor)
+        {
+            if (!animatedSaddleRequired || exactAnchor == null || exactAnchor.parent != saddleMountRoot)
+                throw new InvalidOperationException("Mount scale compensation requires the owned anchor under the exact mount root.");
+            scaleCompensatedAnchor = exactAnchor;
+        }
+
         internal static bool TryValidateSupportedSurface(
             UnitEntityView exactRiderView,
             MountedRiderPoseProfile exactProfile,
@@ -193,6 +201,7 @@ namespace KingmakerMountedCombat.Integration
             baselineLease?.Restore();
             animatedSaddle.Release();
             animatedSaddleRequired = false;
+            scaleCompensatedAnchor = null;
             saddleMountRoot = null;
             saddleSource = null;
             riderView = null;
@@ -246,6 +255,12 @@ namespace KingmakerMountedCombat.Integration
 
         private void ApplyPose()
         {
+            // A mount's view scale, native growth included, is the mount's own. The rider keeps its own body size.
+            if (scaleCompensatedAnchor != null && saddleMountRoot != null)
+            {
+                var mountScale = saddleMountRoot.lossyScale;
+                scaleCompensatedAnchor.localScale = new Vector3(1f / mountScale.x, 1f / mountScale.y, 1f / mountScale.z);
+            }
             var pelvisPosition = pelvis.localPosition;
             var pelvisRotation = pelvis.localRotation;
             pelvis.localPosition = pelvisPosition + ToUnity(profile.PelvisPositionOffset);
@@ -280,8 +295,13 @@ namespace KingmakerMountedCombat.Integration
 
             var evaluatedFootRotation = binding.Foot.rotation;
             var root = binding.Thigh.position;
-            var requestedTarget = root + riderView.transform.TransformVector(ToUnity(legProfile.FootTargetFromThigh));
-            var bendHint = root + riderView.transform.TransformVector(ToUnity(legProfile.KneeHintFromThigh));
+            // A left-handed native avatar is mirrored, which swaps the anatomical side of each named bone.
+            // Scale-compensated (Small) seats follow the side the bone is really on; the Medium path is unchanged.
+            var side = scaleCompensatedAnchor != null && riderView.CharacterAvatar.Mirror ? -1f : 1f;
+            var footTarget = ToUnity(legProfile.FootTargetFromThigh); footTarget.x *= side;
+            var kneeHint = ToUnity(legProfile.KneeHintFromThigh); kneeHint.x *= side;
+            var requestedTarget = root + riderView.transform.TransformVector(footTarget);
+            var bendHint = root + riderView.transform.TransformVector(kneeHint);
             var solution = TwoBonePoseSolver.Solve(
                 ToPose(root),
                 ToPose(requestedTarget),
