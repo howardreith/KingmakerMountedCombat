@@ -105,6 +105,24 @@ namespace KingmakerMountedCombat.Diagnostics
             finally { UnityEngine.Object.Destroy(texture); }
         }
 
+        // The silhouette only marks what stands behind geometry. Another unit standing in front of the subject draws normally, so it is checked by position.
+        private static string BlockingUnit(Vector3 from, Vector3 to, UnitEntityData focus, UnitEntityData rider, UnitEntityData mount)
+        {
+            var line = to - from; line.y = 0f;
+            var length = line.magnitude;
+            if (length < 0.01f) return null;
+            line /= length;
+            foreach (var unit in Game.Instance.State.Units)
+            {
+                if (unit == focus || unit == rider || unit == mount || unit.View == null || !unit.IsInGame) continue;
+                var offset = unit.Position - from; offset.y = 0f;
+                var along = Vector3.Dot(offset, line);
+                if (along <= 0f || along >= length) continue;
+                if ((offset - line * along).magnitude < unit.Corpulence + 0.3f) return unit.CharacterName;
+            }
+            return null;
+        }
+
         // Nearer first, then around the requested side; the same subject height stays in frame at each distance.
         private static readonly float[][] ClearViewCandidates =
         {
@@ -115,7 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // The gameplay camera is posed only for these renders inside one end-of-frame and restored before anything else runs.
         // The first clear candidate is kept; if none is clear the least hidden one is, and the row records every score.
         internal static IEnumerator Capture(string evidenceRoot, JArray shots, string name, UnitEntityData focusUnit, UnitEntityData riderUnit, UnitEntityData mountUnit,
-            float yaw, float height, float distance, float fieldOfViewDegrees, Action done, float lookHeight = 1.2f, float clearFraction = 0.004f)
+            float yaw, float height, float distance, float fieldOfViewDegrees, Action done, float lookHeight = 1.2f, float clearFraction = 0.004f, bool frameRider = false, bool fillLight = false)
         {
             yield return new WaitForEndOfFrame();
             var row = new JObject { ["name"] = name, ["frame"] = Time.frameCount };
@@ -125,28 +143,44 @@ namespace KingmakerMountedCombat.Diagnostics
                 var transform = camera.transform;
                 var position = transform.position; var rotation = transform.rotation; var fieldOfView = camera.fieldOfView;
                 var focus = focusUnit.View.transform;
-                var look = focus.position + Vector3.up * lookHeight;
+                var pelvisBone = frameRider && riderUnit?.View?.CharacterAvatar != null ? Bone(riderUnit.View.CharacterAvatar.transform, "Pelvis") : null;
+                var origin = pelvisBone != null ? pelvisBone.position : focus.position;
+                var look = origin + Vector3.up * lookHeight;
                 var halfHeight = distance * Mathf.Tan(fieldOfViewDegrees * 0.5f * Mathf.Deg2Rad);
                 var tries = new JArray();
                 byte[] bytes = null;
                 var best = float.MaxValue;
+                // Fixture capture only: the dungeon leaves many seats too dark to read. It exists for these renders and is gone before the frame ends.
+                var lightObject = fillLight ? new GameObject("KMC fixture capture light") : null;
+                if (lightObject != null)
+                {
+                    var light = lightObject.AddComponent<Light>();
+                    light.type = LightType.Point; light.range = 16f; light.intensity = 1.5f; light.color = Color.white; light.shadows = LightShadows.None;
+                }
+                row["fillLight"] = fillLight;
                 try
                 {
                     foreach (var candidate in ClearViewCandidates)
                     {
                         var near = distance * candidate[0];
                         var direction = Quaternion.Euler(0f, yaw + candidate[1], 0f) * focus.forward;
-                        transform.position = focus.position + direction * near + Vector3.up * (lookHeight + (height - lookHeight) * candidate[0]);
+                        transform.position = origin + direction * near + Vector3.up * (lookHeight + (height - lookHeight) * candidate[0]);
                         transform.rotation = Quaternion.LookRotation(look - transform.position);
                         camera.fieldOfView = 2f * Mathf.Atan(halfHeight / near) * Mathf.Rad2Deg;
+                        if (lightObject != null) lightObject.transform.position = transform.position + Vector3.up * 0.5f;
+                        var blocked = BlockingUnit(transform.position, look, focusUnit, riderUnit, mountUnit);
                         var attempt = Screenshot.CapturePNG(camera);
-                        var hidden = SilhouetteFraction(attempt);
-                        tries.Add(new JObject { ["distance"] = near, ["yaw"] = yaw + candidate[1], ["silhouette"] = hidden });
+                        var hidden = blocked != null ? 1f : SilhouetteFraction(attempt);
+                        tries.Add(new JObject { ["distance"] = near, ["yaw"] = yaw + candidate[1], ["silhouette"] = hidden, ["blockedBy"] = blocked });
                         if (hidden < best) { best = hidden; bytes = attempt; row["distance"] = near; row["yaw"] = yaw + candidate[1]; }
                         if (hidden <= clearFraction) break;
                     }
                 }
-                finally { transform.position = position; transform.rotation = rotation; camera.fieldOfView = fieldOfView; }
+                finally
+                {
+                    transform.position = position; transform.rotation = rotation; camera.fieldOfView = fieldOfView;
+                    if (lightObject != null) UnityEngine.Object.DestroyImmediate(lightObject);
+                }
                 row["silhouette"] = best; row["clear"] = best <= clearFraction; row["tries"] = tries;
                 // The pelvis in the same frame as its pixels, after this frame's pose.
                 if (riderUnit?.View?.CharacterAvatar != null && mountUnit?.View != null)
@@ -232,11 +266,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private Kingmaker.Items.ItemEntity s5Armor;
         private Buff s5Buff;
         private float s5ShotAt, s5StepAt;
+        // Every walk stays around the point the companion first stood at, so a long rig list never strands the pair in a corner.
+        private Vector3 s5Home;
+        private bool s5WalkedHome;
+        private Vector3 Sprint5WalkGoal(float distance, float tolerance) =>
+            HorizontalDistance(s5Pet.Position, s5Home) > 2.5f ? s5Home : FindWalkablePoint(s5Home, distance, tolerance);
         private string Sprint5Case => Sprint5Cases[s5CaseIndex];
         private string Sprint5MountName => IsSprint5Dog ? "dog" : "horse";
         private BlueprintFeature Sprint5CompanionFeature => IsSprint5Dog ? horseService.RidingDogFeature : horseService.HorseFeature;
 
-        private sealed class Sprint5Shot { internal string Name; internal UnitEntityData Focus; internal float Yaw, Height, Distance, FieldOfView, Look, Clear; }
+        private sealed class Sprint5Shot { internal string Name; internal UnitEntityData Focus; internal float Yaw, Height, Distance, FieldOfView, Look, Clear; internal bool FrameRider; }
 
         private void BeginSprint5Small()
         {
@@ -403,6 +442,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5Pet = s5Owner.Descriptor.Pet;
                     if (s5Pet == null || !s5Pet.IsInState || s5Pet.View?.AgentASP == null) return;
                     if (++s5Frames < Sprint5SettleFrames) return;
+                    s5Home = s5Pet.Position;
                     s5Facts["pet"] = Sprint5Unit(s5Pet); s5Facts["rig"] = Sprint5MountRig(s5Pet);
                     QueueSprint5Views(Sprint5MountName + "-unmounted", s5Pet); s5Step = 2; return;
                 default:
@@ -493,7 +533,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5Step = 4; ResetLeafClock(); return;
                 case 4:
                     SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
-                    var point = FindWalkablePoint(s5Pet.Position, Sprint5MoveMetres, 1.5f);
+                    var point = Sprint5WalkGoal(Sprint5MoveMetres, 1.5f);
                     ClickGroundHandler.MoveSelectedUnitsToPoint(point, false);
                     s5RigRow["moveGoal"] = CapturePosition(point); s5ShotIndex = 0; s5ShotAt = Time.time + Sprint5ShotSeconds; s5Step = 5; ResetLeafClock(); return;
                 case 5:
@@ -570,13 +610,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 8:
                     if (!s5Owner.Commands.Empty || s5Owner.AreHandsBusyWithAnimation) return;
                     SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
-                    ClickGroundHandler.MoveSelectedUnitsToPoint(FindWalkablePoint(s5Pet.Position - s5Pet.View.transform.forward * 5f, 1f, 2f), false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(Sprint5WalkGoal(5f, 2f), false);
+                    s5WalkedHome = false;
                     s5StepAt = Time.time + 0.4f; s5Step = 9; ResetLeafClock(); return;
                 case 9:
                     if (Time.time < s5StepAt) return;
                     QueueSprint5Shot(name + "turn", s5Pet, 60f, 1.4f, 9f, 24f); s5Step = 10; return;
                 case 10:
                     if (s5Pet.View?.AgentASP?.IsReallyMoving == true || !s5Pet.Commands.Empty) return;
+                    // The fight starts from home, where the room for its target is known.
+                    if (!s5WalkedHome && HorizontalDistance(s5Pet.Position, s5Home) > 1.5f)
+                    {
+                        s5WalkedHome = true;
+                        SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
+                        ClickGroundHandler.MoveSelectedUnitsToPoint(s5Home, false);
+                        s5StepAt = Time.time + 0.4f; s5Step = 17; ResetLeafClock(); return;
+                    }
                     Sprint5SpawnTarget(); s5Rules = new Chunk4IncomingRuleObserver(s5Owner, s5Pet); s5Rules.BeginCase(Sprint5Case);
                     s5Facts["cooldownsBefore"] = Sprint5Cooldowns();
                     SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
@@ -595,6 +644,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     SelectionManager.Instance.SelectUnit(s5Pet.View, true, true, false);
                     using (var input = new NativeOrdinaryAttackInput(s5Target)) s5Facts["mountAttackClicked"] = input.Click();
                     s5StepAt = Time.time + Sprint5AttackSeconds; s5ShotAt = Time.time + 0.35f; s5ShotIndex = 0; s5Step = 16; ResetLeafClock(); return;
+                case 17:
+                    if (Time.time >= s5StepAt) { s5Step = 10; ResetLeafClock(); }
+                    return;
                 case 16:
                     s5TargetService.ObserveTargetLifeState(); s5TargetService.RefreshBidirectionalCombatMemoryLease();
                     if (s5ShotIndex == 0 && Time.time >= s5ShotAt) { s5ShotIndex = 1; QueueSprint5Shot(name + "mount-attack", s5Pet, 90f, 1.3f, 9f, 24f); ResetLeafClock(); return; }
@@ -803,7 +855,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5Step = 11; return;
                 case 11:
                     SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
-                    ClickGroundHandler.MoveSelectedUnitsToPoint(FindWalkablePoint(s5Pet.Position, 4f, 1.5f), false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(Sprint5WalkGoal(4f, 1.5f), false);
                     s5StepAt = Time.time + 0.6f; s5Step = 12; ResetLeafClock(); return;
                 case 12:
                     if (Time.time < s5StepAt) return;
@@ -828,7 +880,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var feature = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.DogFeatureGuid);
                 var stock = feature.GetComponent<AddPet>().Pet;
                 s5Facts["blueprint"] = Sprint5UnitBlueprint(stock);
-                var point = FindWalkablePoint(s5Pet.Position, 3f, 1f);
+                var point = FindWalkablePoint(s5Home, 3f, 1f);
                 s5Target = Game.Instance.EntityCreator.SpawnUnit(stock, point, Quaternion.identity, Game.Instance.State.LoadedAreaState.MainState);
                 s5Frames = 0; s5Step = 1; ResetLeafClock(); return;
             }
@@ -937,14 +989,14 @@ namespace KingmakerMountedCombat.Diagnostics
         // frames than a small silhouette would, so the clear limit is higher here.
         private void QueueSprint5CloseViews(string name, UnitEntityData focus)
         {
-            var look = IsSprint5Dog ? 1.05f : 2.1f;
-            QueueSprint5Shot(name + "-close-side", focus, 90f, look + 0.2f, 3.6f, 30f, look, 0.03f);
-            QueueSprint5Shot(name + "-close-other", focus, 270f, look + 0.2f, 3.6f, 30f, look, 0.03f);
-            QueueSprint5Shot(name + "-close-front", focus, 30f, look + 0.6f, 3.6f, 30f, look, 0.03f);
+            var distance = IsSprint5Dog ? 3.6f : 2.52f;
+            QueueSprint5Shot(name + "-close-side", focus, 90f, 0.25f, distance, 28f, 0.1f, 0.03f, true);
+            QueueSprint5Shot(name + "-close-other", focus, 270f, 0.25f, distance, 28f, 0.1f, 0.03f, true);
+            QueueSprint5Shot(name + "-close-front", focus, 30f, 0.7f, distance, 28f, 0.1f, 0.03f, true);
         }
 
-        private void QueueSprint5Shot(string name, UnitEntityData focus, float yaw, float height, float distance, float fieldOfView, float look = 1.2f, float clear = 0.004f) =>
-            s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height, Look = look, Clear = clear,
+        private void QueueSprint5Shot(string name, UnitEntityData focus, float yaw, float height, float distance, float fieldOfView, float look = 1.2f, float clear = 0.004f, bool frameRider = false) =>
+            s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height, Look = look, Clear = clear, FrameRider = frameRider,
                 Distance = IsSprint5Dog && focus != horse ? distance * 0.7f : distance, FieldOfView = fieldOfView });
 
         private void PumpSprint5Shots()
@@ -958,7 +1010,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 s5CaptureActive = false;
                 ResetLeafClock();
-            }, shot.Look, shot.Clear));
+            }, shot.Look, shot.Clear, shot.FrameRider, true));
         }
 
         private bool DrainSprint5Fixture()

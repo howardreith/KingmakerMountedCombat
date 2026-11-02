@@ -35,7 +35,8 @@ namespace KingmakerMountedCombat.Domain
             DogFamily("small-halfling-female-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingDogBackHeight),
             DogFamily("small-gnome-male-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeDogBackHeight),
             DogFamily("small-gnome-female-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeDogBackHeight),
-            // The fat and thin character-creation presets are their own native skeletons, each with its own measured reach.
+            // The fat and thin character-creation presets are their own native skeletons. Run g1 measured their thigh and shin
+            // within 0.002 of the default build's, so they share its reach; only the hips differ.
             HorseFamily("small-halfling-male-fat-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_fat", 0.351f, HalflingSaddleHeight),
             HorseFamily("small-halfling-male-thin-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_thin", 0.351f, HalflingSaddleHeight),
             HorseFamily("small-halfling-female-fat-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling_fat", 0.324f, HalflingSaddleHeight),
