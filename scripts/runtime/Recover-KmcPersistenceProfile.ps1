@@ -15,6 +15,7 @@ Set-StrictMode -Version Latest
 $dryRun=[bool]$WhatIfPreference;$WhatIfPreference=$false
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceProfileAreasIsolation.ps1')
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backups=Join-Path $lab 'runtime-backups'
 Assert-KmcNoGameProcesses
 if(-not(Wait-KmcStableNoKingmakerProcess -ExpectedProcessId 0)){throw 'Game process absence is not stable.'}
@@ -44,7 +45,12 @@ if((Get-KmcSha256 $snapshot.paramsPath)-cne$CurrentParamsSha256-or(Get-KmcTextSh
 }
 $currentProfile=Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
 # A new zero-length native achievement-cache leaf is admitted only by the settled-empty rule (PersistenceProfileProtection.ps1).
-[void]@(Get-KmcPersistenceProfileRecoveryDelta $snapshot $currentProfile -EmptyNewLeaf Admit)
+# A timed-out run leaves its isolated Areas unsettled: only the launcher's own exit path settles it. The tree is settled
+# under the held lock below, and everything outside it must already be the admitted delta.
+$areasStatePath=Join-Path $backups ('profile-'+$RunId+'/Areas-isolation.json')
+$areasPending=$AfterTransactionRecovery-and(Test-Path -LiteralPath $areasStatePath -PathType Leaf)-and[string](Read-KmcJson $areasStatePath).stage-cne'restored'
+if($areasPending){Assert-KmcPersistenceProfileOutsideAreasUnchanged $snapshot}
+else{[void]@(Get-KmcPersistenceProfileRecoveryDelta $snapshot $currentProfile -EmptyNewLeaf Admit)}
 $admittedBefore=@(Get-KmcPersistenceProfileCacheDelta $snapshot.inventory $currentProfile -EmptyNewLeaf Admit|Where-Object change -CEQ 'created-empty')
 Assert-KmcObservedPreparationTimeoutRecord $RunId
 [void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $RunId)
@@ -84,6 +90,12 @@ try{
         }
     }
     else{$lock=Adopt-KmcStaleRuntimeLock $stateRoot}
+    if($areasPending){
+        $areas=Restore-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $snapshot -BackupRoot $backups -RecoveredTransactionToken $runToken
+        Write-KmcJsonAtomic (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-areas-isolation.json')) ([ordered]@{
+            schemaVersion=1;runId=$RunId;profileRoot=[string]$areas.profile;originalDigest=[string]$areas.originalDigest
+            generatedDigest=[string]$areas.generatedDigest;generatedQuarantine=$areas.generatedQuarantine;originalAreasRestoredExactly=[bool]$areas.restored})
+    }
     Restore-KmcPersistenceStartupSettings -Lock $lock -RecoveredTransactionToken $(if($AfterTransactionRecovery){$runToken}else{''}) -Snapshot $snapshot -BackupRoot $backups -ExpectedCurrentParamsSha256 $CurrentParamsSha256 -ExpectedCurrentPrefsSha256 $CurrentPrefsSha256 -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -Confirm:$false
     # Restore defers a zero-length native cache leaf; the settled-empty rule is the authority again after the mutation, and
     # the admitted leaf is recorded, so the PASS below never rests on a deferred check.

@@ -163,6 +163,7 @@
     <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />
     <Compile Include="Integration\MountedDoorOccupancySettlement.cs" />
     <Compile Include="Domain\MountedCarriedApproachPolicy.cs" />
+    <Compile Include="Domain\MountedAutomaticAttackPolicy.cs" />
     <Compile Include="Integration\MountedCarriedApproach.cs" />
     <Compile Include="Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
@@ -475,6 +476,7 @@
     <Compile Include="Diagnostics\CastingSummonResidue.cs" />
     <Compile Include="Diagnostics\Chunk6StagedScenario.cs" />
     <Compile Include="Diagnostics\Sprint3ApproachScenario.cs" />
+    <Compile Include="Diagnostics\Sprint4NaturalScenario.cs" />
     <Compile Include="Diagnostics\NativeApproachMovementTrace.cs" />
     <Compile Include="Diagnostics\NativeApproachMovementEvidence.cs" />
     <Compile Include="Diagnostics\NativeMountApproachPathProbe.cs" />
@@ -674,6 +676,7 @@
     <Compile Include="Integration\MountedChargeEnchantmentFx.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeCleanup.cs" />
     <Compile Include="Integration\NativeChargeActionBoundary.cs" />
+    <Compile Include="Integration\NativeRunHoldBoundary.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeBoundaries.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />
     <Compile Include="Domain\MountedChargeCleanupLedger.cs" />

@@ -176,7 +176,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation;
         private readonly IModLogger logger;
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
-        private readonly bool allowApproach;
+        private bool allowApproach;
         // Chunk 6B increment 6B.2: charge mode layers the stock charge mechanics on this already qualified
         // transaction through one lease. Everything else about the transaction is unchanged.
         private readonly bool chargeMode;
@@ -311,6 +311,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeSequenceStarted => transaction.ChildAttackStartCount != 0;
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
+        // A Hold that arrived while this command waited in the native queue: it attacks from where the pair stands or not at all.
+        internal void ForbidApproach() { allowApproach = false; }
 
         internal UnitEntityData Rider => rider;
 

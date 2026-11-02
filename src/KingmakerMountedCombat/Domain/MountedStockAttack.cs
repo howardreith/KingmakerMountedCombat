@@ -200,6 +200,8 @@ namespace KingmakerMountedCombat.Domain
         public long Generation { get; private set; }
         public bool HasEnteredCombat { get; private set; }
         public bool PreferMount { get; private set; }
+        // AI-01: admitted from the native party brain, not a click. Same dispatch; different boundaries.
+        public bool Automatic { get; private set; }
         private object riderContext;
         private object mountContext;
         private object weaponContext;
@@ -215,12 +217,14 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public void Begin(TTarget target, TTurn turn, bool mountActor, bool inCombat,
-            object rider = null, object mount = null, object weapon = null, object mountWeapon = null, int action = 0)
+            object rider = null, object mount = null, object weapon = null, object mountWeapon = null, int action = 0,
+            bool automatic = false)
         {
             Target = target ?? throw new ArgumentNullException(nameof(target));
             Turn = turn;
             MountActor = mountActor;
             PreferMount = false;
+            Automatic = automatic;
             HasEnteredCombat = inCombat;
             riderContext = rider;
             mountContext = mount;
@@ -233,6 +237,12 @@ namespace KingmakerMountedCombat.Domain
         public bool Owns(TTarget target, long generation)
         {
             return Target != null && ReferenceEquals(Target, target) && Generation == generation;
+        }
+
+        // A click on the target the brain already chose makes the intent the player's own.
+        public void PromoteToPlayer()
+        {
+            Automatic = false;
         }
 
         public void ObserveDispatch(bool mountActor)
@@ -253,6 +263,7 @@ namespace KingmakerMountedCombat.Domain
             HasEnteredCombat = false;
             MountActor = false;
             PreferMount = false;
+            Automatic = false;
             riderContext = mountContext = weaponContext = mountWeaponContext = null;
             actionContext = 0;
             Generation++;

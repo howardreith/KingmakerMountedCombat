@@ -638,6 +638,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario),
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
+                if (Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.Sprint4HostDeadlineSeconds;
                 if (Chunk7NativeBootstrapScenario.SupportsScenario(request.Scenario)) hostDeadline = 420.0;
                 if (Chunk7AssistedFixtureScenario.SupportsScenario(request.Scenario)) hostDeadline = 600.0;
                 if (Chunk7AssistedColdInventoryScenario.SupportsScenario(request.Scenario)) hostDeadline = 240.0;

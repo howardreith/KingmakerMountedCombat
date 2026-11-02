@@ -12,7 +12,7 @@ function Test-KmcPersistenceAreasIsolationSelection {
     # loaded archive into the profile's Areas tree; the isolation holds the intake tree and quarantines the generated one.
     if($Scenario-ceq'chunk4-traversal-core'){return $true}
     # Sprint 3 (r01): the carried-approach rows load the same Working fixture from the live profile (Mammoth engine entry).
-    if($Scenario-cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')){return $true}
+    if($Scenario-cin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt')){return $true}
     if($Scenario-ceq'persistence-p07-save'){
         return ($OwnerStockRemoval -and $PersistenceCase-ceq'prepare-removal') -or
             $PersistenceCase-cin @('area-reload','mounted-charge-area','area-cross-entry','area-cross-exit')
@@ -23,9 +23,10 @@ function Test-KmcPersistenceAreasIsolationSelection {
 }
 
 function Get-KmcPersistenceAreasIsolationPaths {
-    param($Lock,$Snapshot,[string]$BackupRoot)
+    # RecoveredTransactionToken: a profile-recovery lock settling the exact transaction Recover-KingmakerRuntimeTransaction closed.
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$RecoveredTransactionToken='')
     [void](Assert-KmcRuntimeLockOwner $Lock)
-    if($null-eq$Snapshot-or$Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){
+    if($null-eq$Snapshot-or$Lock.RunId-cne$Snapshot.runId-or($Lock.Token-cne$Snapshot.token-and($RecoveredTransactionToken-cnotmatch'^[a-f0-9]{64}$'-or$RecoveredTransactionToken-cne$Snapshot.token))){
         throw 'Areas isolation has no matching profile snapshot and owned transaction.'
     }
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
@@ -97,13 +98,13 @@ function Enter-KmcPersistenceAreasIsolation {
 # If the game is still present, or either tree has changed under our hand,
 # ownership remains in the durable state and no original bytes are overwritten.
 function Restore-KmcPersistenceAreasIsolation {
-    param($Lock,$Snapshot,[string]$BackupRoot)
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$RecoveredTransactionToken='')
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
-    $paths=Get-KmcPersistenceAreasIsolationPaths $Lock $Snapshot $BackupRoot
+    $paths=Get-KmcPersistenceAreasIsolationPaths $Lock $Snapshot $BackupRoot -RecoveredTransactionToken $RecoveredTransactionToken
     if(-not(Test-Path -LiteralPath $paths.state -PathType Leaf)){return $null}
     Assert-KmcRecoveryLeafNoLinks $paths.state 'Areas isolation state'
     $state=Read-KmcJson $paths.state
-    if([long]$state.schemaVersion-ne1-or$state.runId-cne$Lock.RunId-or$state.token-cne$Lock.Token-or
+    if([long]$state.schemaVersion-ne1-or$state.runId-cne$Lock.RunId-or($state.token-cne$Lock.Token-and($RecoveredTransactionToken-cnotmatch'^[a-f0-9]{64}$'-or$state.token-cne$RecoveredTransactionToken))-or
         $state.profile-cne$Snapshot.profile-or$state.profileDigest-cne$Snapshot.profileDigest-or
         $state.snapshotSha256-cne$paths.snapshotSha256-or$state.originalDigest-cnotmatch'^[a-f0-9]{64}$'-or
         $state.stage-cnotin @('prepared','original-held','isolated-ready','quarantined','restored')){
