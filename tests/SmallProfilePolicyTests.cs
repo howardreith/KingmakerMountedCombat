@@ -71,7 +71,42 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("each Small rig has a Riding Dog profile and no Medium rig does", () =>
             {
                 var dog = MountedRiderProfileCatalog.Small.Where(profile => profile.Body.MountBlueprintGuid == MountedRiderProfileCatalog.RidingDogBlueprintGuid).ToArray();
-                TestRunner.True(dog.Length == 4 && dog.Select(profile => profile.Body.SkeletonName).Distinct().Count() == 4 && dog.All(profile => profile.MountAnchorName == "UpperTorso" && profile.MountDisplayName == "Riding Dog"), "The Riding Dog profiles differ from the published matrix.");
+                TestRunner.True(dog.Length == 12 && dog.Select(profile => profile.Body.SkeletonName).Distinct().Count() == 12 && dog.All(profile => profile.MountAnchorName == "UpperTorso" && profile.MountDisplayName == "Riding Dog"), "The Riding Dog profiles differ from the published matrix.");
+            });
+            runner.Run("every known preset rig has exactly one profile on each supported mount", () =>
+            {
+                var races = new[] { "Halfling", "Gnome" }; var sexes = new[] { "Male", "Female" }; var builds = new[] { "", "_fat", "_thin" };
+                var mounts = new[] { DeclaredSmallRiderBody.HorseBlueprintGuid, MountedRiderProfileCatalog.RidingDogBlueprintGuid };
+                TestRunner.True(MountedRiderProfileCatalog.Small.Count == 24, "The Small matrix is not twelve rigs on two mounts.");
+                foreach (var race in races) foreach (var sex in sexes) foreach (var build in builds) foreach (var mount in mounts)
+                {
+                    var skeleton = sex + race + build;
+                    TestRunner.True(MountedRiderProfileCatalog.Small.Count(profile => profile.Body.SkeletonName == skeleton && profile.Body.MountBlueprintGuid == mount && profile.Body.Gender == sex) == 1, "A preset rig lost its profile: " + skeleton);
+                }
+            });
+            runner.Run("an unknown rig or a build suffix is never matched by a nearby declaration", () =>
+            {
+                foreach (var skeleton in new[] { "MaleHalfling_huge", "MaleHalfling_", "malehalfling_fat", "MaleHalfling_fat2", "MaleElf_fat" })
+                {
+                    var rig = Observation(); rig.RaceGuid = "b0c3ef2729c498f47970bb50fa1acd30"; rig.Gender = "Male"; rig.SkeletonName = skeleton;
+                    TestRunner.True(MountedRiderProfileCatalog.Small.All(profile => profile.Body.Refusal(rig) != null), "An undeclared rig was admitted: " + skeleton);
+                }
+                var fat = Observation(); fat.RaceGuid = "b0c3ef2729c498f47970bb50fa1acd30"; fat.Gender = "Male"; fat.SkeletonName = "MaleHalfling_fat";
+                TestRunner.True(MountedRiderProfileCatalog.Small.Single(profile => profile.Body.Refusal(fat) == null).Body.ProfileId == "small-halfling-male-fat-horse-v1", "The fat rig resolved to another profile.");
+                fat.CurrentEquipmentBlueprints[2] = new string('e', 32); fat.ActiveVisualEquipmentNames = new[] { "other" };
+                TestRunner.True(MountedRiderProfileCatalog.Small.Single(profile => profile.Body.Refusal(fat) == null).Body.ProfileId == "small-halfling-male-fat-horse-v1", "Gear changed the fat rig's profile.");
+            });
+            runner.Run("the first eight Small profile IDs are unchanged and stay archive-eligible", () =>
+            {
+                foreach (var id in new[] { "small-default-halfling-horse-v1", "small-halfling-female-horse-v1", "small-gnome-male-horse-v1", "small-gnome-female-horse-v1",
+                    "small-halfling-male-ridingdog-v1", "small-halfling-female-ridingdog-v1", "small-gnome-male-ridingdog-v1", "small-gnome-female-ridingdog-v1" })
+                    TestRunner.True(MountedRiderProfileCatalog.IsSupportedArchiveProfile(id) && MountedRiderProfileCatalog.Small.Count(profile => profile.Body.ProfileId == id) == 1, "A published Small ID moved: " + id);
+            });
+            runner.Run("a refusal names the exact body and the supported builds", () =>
+            {
+                var text = MountedRiderProfileCatalog.NoMeasuredSeatRefusal("Mammoth", "MaleHalfling_fat");
+                TestRunner.True(text.Contains("MaleHalfling_fat") && text.Contains("Mammoth") && text.Contains("fat or thin"), "The refusal does not describe what is supported: " + text);
+                TestRunner.True(!MountedRiderProfileCatalog.NoMeasuredSeatRefusal("Horse", null).Contains("()"), "A missing skeleton name printed an empty name.");
             });
             runner.Run("the original Small profile ID still names the male Halfling on the Horse", () =>
             {

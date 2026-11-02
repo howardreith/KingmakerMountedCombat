@@ -34,9 +34,30 @@ namespace KingmakerMountedCombat.Domain
             DogFamily("small-halfling-male-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling", 0.351f, HalflingDogBackHeight),
             DogFamily("small-halfling-female-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingDogBackHeight),
             DogFamily("small-gnome-male-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeDogBackHeight),
-            DogFamily("small-gnome-female-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeDogBackHeight)
+            DogFamily("small-gnome-female-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeDogBackHeight),
+            // The fat and thin character-creation presets are their own native skeletons, each with its own measured reach.
+            HorseFamily("small-halfling-male-fat-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_fat", 0.351f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-male-thin-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_thin", 0.351f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-female-fat-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling_fat", 0.324f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-female-thin-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling_thin", 0.324f, HalflingSaddleHeight),
+            HorseFamily("small-gnome-male-fat-horse-v1", GnomeRaceGuid, "Male", "MaleGnome_fat", 0.465f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-male-thin-horse-v1", GnomeRaceGuid, "Male", "MaleGnome_thin", 0.465f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-female-fat-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome_fat", 0.452f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-female-thin-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome_thin", 0.452f, GnomeSaddleHeight),
+            DogFamily("small-halfling-male-fat-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling_fat", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-male-thin-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling_thin", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-fat-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling_fat", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-thin-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling_thin", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-gnome-male-fat-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome_fat", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-male-thin-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome_thin", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-fat-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome_fat", 0.452f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-thin-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome_thin", 0.452f, GnomeDogBackHeight)
         });
         public static IReadOnlyList<DeclaredSmallMountedProfile> Small => small;
+        // Names the exact body so an unsupported form is never described by a claim that would cover it.
+        public static string NoMeasuredSeatRefusal(string mountDisplayName, string skeletonName) =>
+            "This Small body" + (string.IsNullOrEmpty(skeletonName) ? "" : " (" + skeletonName + ")") + " has no measured seat on a " + mountDisplayName +
+            ". Supported: Halfling and Gnome riders of either sex, in the default, fat or thin build, on a Horse or Riding Dog.";
         // Retain the exact F09 calibration lease for reproducible diagnostics;
         // it names the same declaration as ordinary admission.
         private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> privateCalibrationSmall =
