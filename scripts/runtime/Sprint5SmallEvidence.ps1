@@ -24,7 +24,7 @@ function Assert-KmcSprint5Rigs($Row,$Shots,[string]$Mount,[string]$Root,[string]
   if([string]$f.originalSize -cne 'Small' -or [string]$f.effectiveSize -cne 'Small'){ throw ('Sprint 5 rig '+$rig.rig+' is not natively Small') }
   $s=$rig.sizes
   if([string]$s.mountEffective -cne $ExpectedMountEffective){ throw ('Sprint 5 '+$Mount+' effective size differs: '+$s.mountEffective) }
-  if([math]::Abs([double]$s.riderWorldScale.y-1.0) -gt 0.02){ throw ('Sprint 5 rider '+$rig.rig+' inherited the mount scale: '+$s.riderWorldScale.y) }
+  if([math]::Abs([double]$s.riderWorldScale.y-[double]$f.worldScale.y) -gt 0.02){ throw ('Sprint 5 rider '+$rig.rig+' changed size on the mount: '+$s.riderWorldScale.y+' from '+$f.worldScale.y) }
   foreach($view in @('side','front','rear')){ Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-idle-'+$view) $Root }
   foreach($index in 1,2){ Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-move-'+$index) $Root }
   if($null -eq $rig.afterDismount){ throw ('Sprint 5 rig '+$rig.rig+' never dismounted') }

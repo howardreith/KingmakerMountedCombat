@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Integration
         private Transform saddleSource;
         private bool animatedSaddleRequired;
         private Transform scaleCompensatedAnchor;
+        private PoseVector3 mountScaleAtAttach;
 
         public bool IsConfigured => configured;
 
@@ -174,6 +175,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!animatedSaddleRequired || exactAnchor == null || exactAnchor.parent != saddleMountRoot)
                 throw new InvalidOperationException("Mount scale compensation requires the owned anchor under the exact mount root.");
+            mountScaleAtAttach = ToPose(saddleMountRoot.lossyScale);
             scaleCompensatedAnchor = exactAnchor;
         }
 
@@ -255,11 +257,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void ApplyPose()
         {
-            // A mount's view scale, native growth included, is the mount's own. The rider keeps its own body size.
+            // A mount's later native growth is the mount's own. The rider keeps its own body size.
             if (scaleCompensatedAnchor != null && saddleMountRoot != null)
             {
-                var mountScale = saddleMountRoot.lossyScale;
-                scaleCompensatedAnchor.localScale = new Vector3(1f / mountScale.x, 1f / mountScale.y, 1f / mountScale.z);
+                scaleCompensatedAnchor.localScale = ToUnity(MountScaleCompensation.AnchorScale(mountScaleAtAttach, ToPose(saddleMountRoot.lossyScale)));
             }
             var pelvisPosition = pelvis.localPosition;
             var pelvisRotation = pelvis.localRotation;
