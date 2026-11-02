@@ -1,24 +1,24 @@
-# Sprint 4 — natural attacks and real-time retargeting (2026-11-01)
+# Sprint 5: Small riders, relative size and the Riding Dog (2026-11-02)
 
-**SPRINT 4 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** No merge, release or installation
-is selected.
+**Engineering complete for the default-build Halfling and Gnome rigs, ready for review. Not the full Sprint 5 completion label:**
+the fat and thin build presets are refused with feedback and unsupported. Owner play acceptance is separate. No merge, release or
+installation is selected.
 
-Branch `codex/mounted-combat-sprint4-natural-attacks-retargeting` (PR #9) from `main` `2c2e6fc6`. Final compiled candidate
-sprint4i (`526c32e6`; DLL `8236574a…`, MVID `fad7f560…`, package `3801c2d7…`). Later commits change readers, the recovery tool
-and docs only. Budget `sprint4`: 74.3 of 90 minutes, no adjustment.
+Branch `codex/mounted-combat-sprint5-small-riders-riding-dog` from `main` `e8450a56`. This corrects the merged Sprint 4 record:
+PR #9 is merged, and its "not merged" line predates that. Final compiled candidate sprint5o (`992fe68e`; DLL `ad3ee75e…`, MVID
+`0bad1c69…`). Later commits change docs only. Budget `sprint5`: 81.74 of 90 minutes, no adjustment.
 
-- **ATTACK-01:** Rider Primary and Mount Primary retired from every ordinary surface; definitions stay resolvable; exact
-  stale slots and auto-use selections are reconciled.
-- **AI-01:** a rider's native brain proposal has its own admission and becomes the pair's ordinary intent. Clicks, moves,
-  casts, Stop, AI off and Hold take precedence.
-- **Corrections after the review of `2e43e289`:** Hold survives every native Run of an automatic command, including its later
-  run from the queue, on whichever actor executes. The move hold follows the exact move's own native completion.
+- **POSE-01:** the Halfling sank into the Horse because its seat was calculated to reach the stirrups. Small seats are now fixed from
+  the mount's measured back, and gear no longer affects admission. Four rigs on two mounts, with images inspected.
+- **SIZE-01:** the mount must be at least one effective native size larger, on a supported anatomy. A Medium rider is refused on the
+  dog; a native Enlarge detaches the pair and keeps ownership.
+- **DOG-01:** an additive Riding Dog, chosen through the native Ranger selection in an existing campaign and Medium from rank 1, with
+  rank 4 advancement. Rider and dog attack on their own actions. A native save survives a separate-process cold load with
+  working controls.
+- **Owner decision:** extend the budget for the fat and thin presets (about 15 validation minutes), or accept the refusal for now.
 
-Sprint 3 is owner-accepted for advancement with the owner's manual trap check pending; its automated trap attempt stays
-unexecuted and is not a prerequisite.
+Record: [docs/SPRINT5-SMALL-RIDERS-RIDING-DOG.md](docs/SPRINT5-SMALL-RIDERS-RIDING-DOG.md). Prior state:
+[CURRENT before Sprint 5](docs/history/CURRENT-before-sprint5-2026-11-02.md).
 
-Record: [docs/SPRINT4-NATURAL-ATTACKS-RETARGETING.md](docs/SPRINT4-NATURAL-ATTACKS-RETARGETING.md). Prior state:
-[CURRENT before Sprint 4](docs/history/CURRENT-before-sprint4-2026-11-01.md).
-
-Live installation at closeout: Mods tree empty, the same as each run's captured start; protected saves unchanged; no transaction
-lock or game process; no candidate installed. Owner play acceptance of Sprints 1 to 4 remains separate.
+Live installation at closeout: Mods tree empty, the same as each run's captured start; protected saves restored; no transaction lock
+or game process; no candidate installed. Owner play acceptance of Sprints 1 to 5 and the Sprint 3 trap check remain separate.
