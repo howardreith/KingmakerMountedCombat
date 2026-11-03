@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 $script:pass=0;$script:fail=0
 function Check([bool]$Condition,[string]$Name){ if($Condition){$script:pass++;Write-Output ('    PASS '+$Name)}else{$script:fail++;Write-Output ('    FAIL '+$Name)} }
 function Copy-S7($Value){ $Value | ConvertTo-Json -Depth 30 | ConvertFrom-Json }
+function New-S7Pounce(){ $b=New-S7State; $t=New-S7Terminal (New-S7State) 'Success' 1 $true; $f=[pscustomobject]@{mountPounceTerminal=$t;riderPounceTerminal=$t;mountPounceAttack=[pscustomobject]@{fullAttack=$false;planned=1;riderPounce=$false;mountPounce=$true};riderPounceAttack=[pscustomobject]@{fullAttack=$true;planned=1;riderPounce=$true;mountPounce=$false};steps=[pscustomobject]@{mountPounce=(New-S7Click $b $true $null);riderPounce=(New-S7Click $b $true $null)}}; New-S7Envelope (New-S7Measure 'sprint7-charge-pounce-rt' $null @()) @(New-S7Row 'S7-pounce' $f) }
 $rider='11111111-1111-1111-1111-111111111111'; $mount='22222222-2222-2222-2222-222222222222'; $hostile='33333333-3333-3333-3333-333333333333'
 function New-S7State([hashtable]$Change=@{}){
  $s=[ordered]@{riderStandard=0.0;riderMove=0.0;riderSwift=0.0;mountStandard=0.0;mountMove=0.0;mountSwift=0.0;partnerTimeMoved=0.0;partnerTimeForced=0.0;partnerCanMove=$true;turnUnit=$rider;round=2;activation='a:1';activationSequence=1;riderAc=20;mountAc=23;buff=$false;buffCount=0;riderCharging=$false;mountCharging=$false;speedOverride=$null;mountMoving=$false;distance=12.0;riderCommandsEmpty=$true;mountCommandsEmpty=$true;chargeOwned=$false;mounted=$true}
@@ -54,6 +55,10 @@ foreach($s in 'sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-f
 Check (-not (Test-KmcPhase3dSchemaRegistration 50 'sprint7-charge-rt')) 'a Sprint 6 schema is refused for a Sprint 7 scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 51 'sprint6-feat-rt')) 'the Sprint 7 schema is refused for a Sprint 6 scenario'
 Check (-not (Test-KmcChildEntryExpectsMounted 'sprint7-charge-rt')) 'a Sprint 7 child starts from its unmounted fixture handoff'
+$po=New-S7Pounce; Check (Accept $po 'sprint7-charge-pounce-rt') 'complete Pounce evidence accepted'
+$r=Copy-S7 $po; $r.rows[0].evidence.mountPounceAttack.fullAttack=$true; Reject $r 'sprint7-charge-pounce-rt' 'a mount''s Pounce lifting the rider''s attack refuses'
+$r=Copy-S7 $po; $r.rows[0].evidence.mountPounceTerminal.rules=2; Reject $r 'sprint7-charge-pounce-rt' 'a second rider attack from the mount''s Pounce refuses'
+$r=Copy-S7 $po; $r.rows[0].evidence.riderPounceAttack.fullAttack=$false; Reject $r 'sprint7-charge-pounce-rt' 'a rider''s own Pounce refused its full attack refuses'
 function Facts($Artifact,[string]$Row){ @($Artifact.rows | Where-Object name -CEQ $Row)[0].evidence }
 $r=Copy-S7 $rt; $r.observations.sprint7Charge.defaultFeatureEnabled=$false; Reject $r 'sprint7-charge-rt' 'a row not under the ordinary default refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').steps.tooNear.clicked=$true; Reject $r 'sprint7-charge-rt' 'an admitted too-near charge refuses'

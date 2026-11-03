@@ -51,16 +51,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal const string Sprint7ChargeRealTime = "sprint7-charge-rt", Sprint7ChargeTurnBased = "sprint7-charge-tb", Sprint7ChargeMountFirst = "sprint7-charge-tb-mount-first";
-        internal static bool IsSprint7ChargeScenario(string scenario) => scenario == Sprint7ChargeRealTime || scenario == Sprint7ChargeTurnBased || scenario == Sprint7ChargeMountFirst;
+        internal const string Sprint7ChargeRealTime = "sprint7-charge-rt", Sprint7ChargeTurnBased = "sprint7-charge-tb", Sprint7ChargeMountFirst = "sprint7-charge-tb-mount-first", Sprint7ChargePounce = "sprint7-charge-pounce-rt";
+        internal static bool IsSprint7ChargeScenario(string scenario) => scenario == Sprint7ChargeRealTime || scenario == Sprint7ChargeTurnBased || scenario == Sprint7ChargeMountFirst || scenario == Sprint7ChargePounce;
         private bool IsSprint7Charge => IsSprint7ChargeScenario(request.Scenario);
-        private bool Sprint7Tb => request.Scenario != Sprint7ChargeRealTime;
+        private bool Sprint7Tb => request.Scenario == Sprint7ChargeTurnBased || request.Scenario == Sprint7ChargeMountFirst;
         private bool Sprint7RiderFirst => request.Scenario == Sprint7ChargeTurnBased;
         internal const int Sprint7SchemaVersion = 51;
         internal const double Sprint7ScenarioDeadlineSeconds = 300.0d, Sprint7HostDeadlineSeconds = 460.0d;
         private static readonly string[] Sprint7RealTimeCases = { "S7-rt-charge", "S7-rt-cancel" };
         private static readonly string[] Sprint7TurnBasedCases = { "S7-tb-charge" };
-        private string[] Sprint7Cases => Sprint7Tb ? Sprint7TurnBasedCases : Sprint7RealTimeCases;
+        private static readonly string[] Sprint7PounceCases = { "S7-pounce" };
+        private string[] Sprint7Cases => request.Scenario == Sprint7ChargePounce ? Sprint7PounceCases : Sprint7Tb ? Sprint7TurnBasedCases : Sprint7RealTimeCases;
         private string Sprint7Case => Sprint7Cases[s7CaseIndex];
         private const float Sprint7StepBoundSeconds = 25f;
         private const int Sprint7SettleFrames = 20;
@@ -68,7 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int s7CaseIndex, s7Stage = 1, s7Step, s7Frames, s7BoundStep = -1, s7RulesAtClick, s7InitiativeRider, s7InitiativeMount;
         private bool s7InitiativeSet;
         private float s7BoundAt, s7ClosestDistance = float.MaxValue, s7PeakSpeedOverride;
-        private bool s7MountClick;
+        private bool s7MountClick, s7MountPounce, s7RiderPounce;
         private JObject s7Facts, s7Measure;
         private Sprint6RuleObserver s7Rules;
         private MountedCombatRuleProbe s7Die;
@@ -104,6 +105,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s7Rules != null) { s7Rules.Dispose(); s7Rules = null; }
             if (s7Die != null) { s7Die.Dispose(); s7Die = null; }
+            if (s7MountPounce) { horse.Descriptor.State.Features.Pounce.Release(); s7MountPounce = false; }
+            if (s7RiderPounce) { rider.Descriptor.State.Features.Pounce.Release(); s7RiderPounce = false; }
             if (s7InitiativeSet)
             {
                 rider.Stats.Initiative.BaseValue = s7InitiativeRider; horse.Stats.Initiative.BaseValue = s7InitiativeMount;
@@ -177,6 +180,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S7-rt-charge": TickSprint7RealTime(); return;
                 case "S7-rt-cancel": TickSprint7Cancel(); return;
                 case "S7-tb-charge": TickSprint7TurnBased(turn); return;
+                case "S7-pounce": TickSprint7Pounce(); return;
                 default: throw new InvalidOperationException("Unknown Sprint 7 case " + Sprint7Case);
             }
         }
@@ -357,6 +361,39 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!Sprint7ChargeTerminal()) return;
                     Sprint7RecordTerminal("deathTerminal");
                     FinishSprint7Row(true, "Real-time cancellation observations recorded."); return;
+            }
+        }
+
+        // Disclosed control, not an ordinary grant: Pounce on the mount alone never lifts the rider's single attack; on the rider, it is the rider's own.
+        private void TickSprint7Pounce()
+        {
+            switch (s7Step)
+            {
+                case 0:
+                    BeginTarget(10f, "s7-pounce"); ruleProbe.Arm(target, false); s7Rules.Watch(target);
+                    horse.Descriptor.State.Features.Pounce.Retain(); s7MountPounce = true; s7Step = 1; return;
+                case 1:
+                    if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat || !target.IsVisibleForPlayer) return;
+                    if (Sprint7ChargeOnLane("mountPounce", new[] { 12f, 10f, 14f, 9f, 16f, 8f })) s7Step = 2;
+                    return;
+                case 2:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("mountPounceTerminal");
+                    s7Facts["mountPounceAttack"] = new JObject { ["fullAttack"] = s7Command.IsFullAttack, ["planned"] = s7Command.AllAttacks.Count, ["riderPounce"] = (bool)rider.Descriptor.State.Features.Pounce, ["mountPounce"] = (bool)horse.Descriptor.State.Features.Pounce };
+                    horse.Descriptor.State.Features.Pounce.Release(); s7MountPounce = false;
+                    rider.Descriptor.State.Features.Pounce.Retain(); s7RiderPounce = true; s7Step = 3; return;
+                case 3:
+                    if (Sprint7Buff() != null) return;
+                    if (Sprint7ChargeOnLane("riderPounce", new[] { 12f, 10f, 14f, 9f, 16f, 8f })) s7Step = 4;
+                    return;
+                case 4:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("riderPounceTerminal");
+                    s7Facts["riderPounceAttack"] = new JObject { ["fullAttack"] = s7Command.IsFullAttack, ["planned"] = s7Command.AllAttacks.Count, ["riderPounce"] = (bool)rider.Descriptor.State.Features.Pounce, ["mountPounce"] = (bool)horse.Descriptor.State.Features.Pounce };
+                    rider.Descriptor.State.Features.Pounce.Release(); s7RiderPounce = false;
+                    FinishSprint7Row(true, "Pounce observations recorded."); return;
             }
         }
 
