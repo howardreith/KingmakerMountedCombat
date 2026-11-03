@@ -39,7 +39,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public bool Acquired { get; private set; }
 
-        public bool IsActive => lease != null && lease.IsAcquired;
+        public bool NothingToLease { get; private set; }
+
+        public bool IsActive => NothingToLease || lease != null && lease.IsAcquired;
 
         public bool ActiveValidationPassed => lease != null && lease.LastActiveValidationPassed;
 
@@ -88,6 +90,16 @@ namespace KingmakerMountedCombat.Diagnostics
             MountSharesGroup = mount.Group == group;
             expectedMembers.Clear();
             expectedMembers.AddRange(CaptureCurrentMembers());
+            // A party of exactly the scenario's mounted pairs (the Working fixture's two riders and two companions, since the
+            // other pairs stopped being leased members): nothing can act autonomously outside the pairs, so nothing is leased. A
+            // member appearing later still fails validation below. A single pair with no other member keeps its refusal.
+            if (expectedMembers.Count == 0 && others.Length != 0)
+            {
+                NothingToLease = true;
+                Acquired = true;
+                LastError = null;
+                return;
+            }
 
             lease = new ScopedDiagnosticAiLease<UnitEntityData>(
                 unit => unit.UniqueId,
@@ -109,6 +121,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ValidateActive()
         {
             ThrowIfDisposed();
+            if (NothingToLease)
+            {
+                var appeared = CaptureCurrentMembers().Count != 0;
+                LastError = appeared ? "A party member appeared outside the scenario's pairs." : null;
+                return !appeared;
+            }
             if (!Acquired || lease == null || !lease.IsAcquired)
             {
                 LastError = "The non-pair party AI lease is not active.";
@@ -185,6 +203,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void ReassertAfterNativeModeExit()
         {
             ThrowIfDisposed();
+            if (NothingToLease) return;
             if (!Acquired || lease == null || !lease.IsAcquired ||
                 Kingmaker.Game.Instance.TurnBasedCombatController.Initialized ||
                 TurnBased.Controllers.CombatController.IsInTurnBasedCombat())

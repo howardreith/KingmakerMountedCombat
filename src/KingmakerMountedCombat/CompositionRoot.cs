@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat
         private readonly MountedAnimationAdapter animation;
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
+        private readonly MountedCombatDefenseService mountedCombatDefense;
         private bool disposed;
         // An update failure whose destructive cleanup was deferred because an
         // owned save was in flight; consumed by Update once that save settles.
@@ -63,7 +64,8 @@ namespace KingmakerMountedCombat
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
+                mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -90,7 +92,8 @@ namespace KingmakerMountedCombat
                 // Sprint 4 ordinary-control rows never select them.
                 nativeControls.RetiredPrimaryHelpersSelected = runtimeAutomation != null && !runtimeAutomation.IsManualReview &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -107,6 +110,7 @@ namespace KingmakerMountedCombat
                 try { movementTelemetry?.Dispose(); } catch (Exception exception) { rollbackException = exception; }
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { world?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { nativeControls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -165,6 +169,7 @@ namespace KingmakerMountedCombat
                     return false;
                 }
                 IsEnabled = true;
+                mountedCombatDefense.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
@@ -212,6 +217,7 @@ namespace KingmakerMountedCombat
                 return false;
             }
             IsEnabled = false;
+            mountedCombatDefense.Enabled = false;
             persistence.Enabled = false;
             persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
@@ -310,6 +316,7 @@ namespace KingmakerMountedCombat
                 PerformFailureCleanup();
             }
             nativeControls.Update();
+            mountedCombatDefense.Update();
             runtimeAutomation?.ObserveStartupPreHostEnd();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
@@ -402,6 +409,7 @@ namespace KingmakerMountedCombat
             movementTelemetry?.Dispose();
             runtimeAutomation?.Dispose();
             patches.Dispose();
+            mountedCombatDefense.Dispose();
             nativeControls.Dispose();
             lifecycle.Dispose();
             world.Dispose();
