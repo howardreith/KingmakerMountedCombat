@@ -12,6 +12,13 @@ namespace KingmakerMountedCombat.Tests
 
         internal static void Register(TestRunner runner)
         {
+            runner.Run("the native merge's missing bones are reported once each, in first-seen order", () =>
+            {
+                var avatar = new System.Collections.Generic.HashSet<string> { "Pelvis", "R_leg" };
+                var missing = NativeRigMergePolicy.MissingBones(new[] { "Pelvis", "slot_10", "R_leg", "slot_11", "slot_10" }, avatar);
+                TestRunner.True(missing.SequenceEqual(new[] { "slot_10", "slot_11" }), "Missing bones differ.");
+                TestRunner.True(NativeRigMergePolicy.MissingBones(new[] { "Pelvis", "R_leg" }, avatar).Count == 0, "A complete rig reported a missing bone.");
+            });
             runner.Run("exact declared Small observation produces one named body match", () =>
             { string error; var match = Declaration().Match(Observation(), out error); TestRunner.True(match != null && error == null && match.ProfileId == Profile, "Exact body was rejected."); });
             Refuse(runner, "original Medium reduced to Small", value => value.OriginalSizeOrdinal = 4);
