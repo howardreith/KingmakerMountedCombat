@@ -204,7 +204,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return record;
         }
 
-        private static void SpendPetSkills(LevelUpController controller, BlueprintCharacterClass petClass, JArray choices)
+        internal static void SpendPetSkills(LevelUpController controller, BlueprintCharacterClass petClass, JArray choices)
         {
             foreach (var skill in petClass.ClassSkills.Concat(StatTypeHelper.Skills).Distinct().ToArray())
             {
@@ -213,7 +213,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private static bool MakeNextPetSelection(LevelUpController controller, JArray choices)
+        internal static bool MakeNextPetSelection(LevelUpController controller, JArray choices)
         {
             foreach (var state in controller.State.Selections.Where(value => !value.Selected).ToArray())
             {
