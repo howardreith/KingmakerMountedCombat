@@ -19,10 +19,14 @@ using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.SettingsUI;
 using Kingmaker.UnitLogic;
+using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Abilities.Blueprints;
+using Kingmaker.UnitLogic.Abilities.Components;
 using Kingmaker.UnitLogic.ActivatableAbilities;
 using Kingmaker.UnitLogic.Class.LevelUp;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -80,15 +84,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal const string Sprint6FeatRealTime = "sprint6-feat-rt", Sprint6FeatTurnBased = "sprint6-feat-tb";
-        internal static bool IsSprint6FeatScenario(string scenario) => scenario == Sprint6FeatRealTime || scenario == Sprint6FeatTurnBased;
+        internal const string Sprint6FeatRealTime = "sprint6-feat-rt", Sprint6FeatTurnBased = "sprint6-feat-tb", Sprint6FeatForcedHit = "sprint6-feat-forced-rt";
+        internal static bool IsSprint6FeatScenario(string scenario) => scenario == Sprint6FeatRealTime || scenario == Sprint6FeatTurnBased || scenario == Sprint6FeatForcedHit;
         private bool IsSprint6Feat => IsSprint6FeatScenario(request.Scenario);
         private bool Sprint6Tb => request.Scenario == Sprint6FeatTurnBased;
         internal const int Sprint6SchemaVersion = 50;
         internal const double Sprint6ScenarioDeadlineSeconds = 300.0d, Sprint6HostDeadlineSeconds = 460.0d;
         internal static readonly string[] Sprint6RealTimeCases = { "S6-selection", "S6-rt-defense", "S6-rt-isolation" };
         internal static readonly string[] Sprint6TurnBasedCases = { "S6-rider-feat", "S6-tb-economy" };
-        private string[] Sprint6Cases => Sprint6Tb ? Sprint6TurnBasedCases : Sprint6RealTimeCases;
+        internal static readonly string[] Sprint6ForcedHitCases = { "S6-rider-feat", "S6-forced-hit" };
+        private bool Sprint6Forced => request.Scenario == Sprint6FeatForcedHit;
+        private string[] Sprint6Cases => Sprint6Forced ? Sprint6ForcedHitCases : Sprint6Tb ? Sprint6TurnBasedCases : Sprint6RealTimeCases;
         private string Sprint6Case => Sprint6Cases[s6CaseIndex];
         private const string Sprint6FighterClassGuid = "48ac8db94d5de7645906c7d0ad3bcfbd";
         private const int Sprint6SettleFrames = 30;
@@ -164,7 +170,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rider"] = r.Rider, ["mountId"] = r.Mount, ["attacker"] = r.Attacker, ["weapon"] = r.Weapon, ["mode"] = r.Mode, ["round"] = r.Round, ["frame"] = r.Frame,
                 ["attackD20"] = r.AttackD20, ["attackBonus"] = r.AttackBonus, ["attackResult"] = r.AttackResult, ["targetAc"] = r.TargetAc, ["resultBefore"] = r.ResultBefore, ["resultAfter"] = r.ResultAfter,
                 ["criticalBefore"] = r.CriticalBefore, ["criticalAfter"] = r.CriticalAfter, ["opportunity"] = r.AttackOfOpportunity, ["riderTurn"] = r.RiderTurn,
-                ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["negated"] = r.Negated,
+                ["abilityGuid"] = r.AbilityGuid, ["forcedHitContext"] = r.ForcedHitContext, ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["negated"] = r.Negated,
                 ["checkD20"] = r.CheckD20, ["checkStat"] = r.CheckStat, ["checkBonus"] = r.CheckBonus, ["checkResult"] = r.CheckResult, ["checkDc"] = r.CheckDc,
                 ["swiftBefore"] = r.SwiftBefore, ["swiftAfter"] = r.SwiftAfter, ["stateBefore"] = Sprint6StateOf(r.StateBefore), ["stateAfter"] = Sprint6StateOf(r.StateAfter),
                 ["mountSwiftBefore"] = r.MountSwiftBefore, ["mountSwiftAfter"] = r.MountSwiftAfter, ["mountDamageAtRecord"] = horse.Damage });
@@ -236,6 +242,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S6-rt-defense": TickSprint6RealTimeDefense(); return;
                 case "S6-rt-isolation": TickSprint6RealTimeIsolation(); return;
                 case "S6-tb-economy": TickSprint6TurnBased(turn); return;
+                case "S6-forced-hit": TickSprint6ForcedHit(); return;
                 default: throw new InvalidOperationException("Unknown Sprint 6 case " + Sprint6Case);
             }
         }
@@ -537,6 +544,72 @@ namespace KingmakerMountedCombat.Diagnostics
                 default:
                     if (++s6Frames < Sprint6SettleFrames) return;
                     FinishSprint6Row(true, "Isolation observations recorded.");
+                    return;
+            }
+        }
+
+        // ---- forced hit -------------------------------------------------------------------------------------------------
+        // One ranged touch ability cast twice by the hostile: as an ordinary cast, and with UnitUseAbility.ForceAlwaysHit as
+        // CommandUnitCastSpell sets it. Melee success and equality stand beside them as the unchanged control.
+        private BlueprintAbility s6Ray;
+        private float s6CastAt;
+
+        private static BlueprintAbility Sprint6FindRay()
+        {
+            var rays = ResourcesLibrary.LibraryObject.GetAllBlueprints().OfType<BlueprintAbility>().Where(ability =>
+            {
+                var delivery = ability.GetComponent<AbilityDeliverProjectile>();
+                return delivery != null && delivery.NeedAttackRoll && delivery.Type == AbilityProjectileType.Simple && !delivery.IsHandOfTheApprentice && delivery.Weapon != null;
+            }).OrderBy(ability => ability.name, StringComparer.Ordinal).ToArray();
+            return rays.FirstOrDefault(ability => ability.name == "RayOfFrost") ?? rays.FirstOrDefault();
+        }
+
+        private void Sprint6CastRay(bool forced)
+        {
+            var cast = new UnitUseAbility(new AbilityData(s6Ray, target.Descriptor), new TargetWrapper(horse)) { NeedLoS = false, ForceAlwaysHit = forced };
+            cast.IgnoreCooldown();
+            target.Commands.Run(cast);
+            s6CastAt = Time.time; s6StrikesThisStep++;
+        }
+
+        private JObject Sprint6RayRecord() => s6Records.Skip(s6AttemptsAtStep).OfType<JObject>().LastOrDefault(row => (string)row["abilityGuid"] == s6Ray.AssetGuid);
+
+        private bool Sprint6HostileSettled() => target.Commands.Empty && !NativeSaveEffectBoundary.HasUnresolvedAbilities() && !NativeSaveEffectBoundary.HasUnresolvedProjectiles();
+
+        private void TickSprint6ForcedHit()
+        {
+            switch (s6Step)
+            {
+                case 0:
+                    s6Ray = Sprint6FindRay();
+                    if (s6Ray == null) { FailSprint6Row("The library has no ranged touch ability with a rolled attack."); return; }
+                    s6Facts["ability"] = new JObject { ["name"] = s6Ray.name, ["guid"] = s6Ray.AssetGuid };
+                    Sprint6SpawnTarget("s6-forced"); s6Step = 1; return;
+                case 1: if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return; s6NextPlan = "success"; s6Step = 2; return;
+                case 2:
+                    if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
+                    Sprint6Step("meleeNegated"); s6Step = 3; return;
+                case 3: if (!target.Commands.Empty || !Sprint6RealTimeUsageFree(rider)) return; s6NextPlan = "equal"; s6Step = 4; return;
+                case 4:
+                    if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
+                    Sprint6Step("meleeEqual"); s6Step = 5; return;
+                case 5: if (!Sprint6HostileSettled() || !Sprint6RealTimeUsageFree(rider)) return; s6NextPlan = "success"; Sprint6Step("beforeOrdinaryRay"); s6Step = 6; return;
+                // The ordinary cast rolls, commits and negates: the projectile takes its miss path.
+                case 6:
+                    if (Sprint6RayRecord() != null) { Sprint6Step("ordinaryRayCommitted"); s6Step = 7; return; }
+                    if (Sprint6HostileSettled() && Time.time - s6CastAt > 2f) Sprint6CastRay(false);
+                    return;
+                case 7: if (!Sprint6HostileSettled() || !Sprint6RealTimeUsageFree(rider)) return; s6Facts["attemptsBeforeForced"] = s6Service.AttemptCount; s6Facts["chargesBeforeForced"] = s6Service.SwiftChargeCount; Sprint6Step("beforeForcedRay"); s6Frames = 0; s6Step = 8; return;
+                // The forced cast commits nothing: no check, no use and no Swift, and the engine's hit stands.
+                case 8:
+                    if (Sprint6RayRecord() != null) { Sprint6Step("forcedRayRefused"); s6Frames = 0; s6Step = 9; return; }
+                    if (Sprint6HostileSettled() && Time.time - s6CastAt > 2f) Sprint6CastRay(true);
+                    return;
+                case 9:
+                    if (!Sprint6HostileSettled() || ++s6Frames < Sprint6SettleFrames) return;
+                    s6Facts["attemptsAfterForced"] = s6Service.AttemptCount; s6Facts["chargesAfterForced"] = s6Service.SwiftChargeCount;
+                    Sprint6Step("forcedRaySettled");
+                    FinishSprint6Row(true, "Forced-hit observations recorded.");
                     return;
             }
         }
