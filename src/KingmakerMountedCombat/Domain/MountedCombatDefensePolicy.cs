@@ -8,6 +8,7 @@ namespace KingmakerMountedCombat.Domain
         None,
         NotAHit,
         NoNumericAttackResult,
+        ForcedHit,
         NoFeat,
         PreferenceOff,
         RiderCannotAct,
@@ -30,7 +31,7 @@ namespace KingmakerMountedCombat.Domain
 
     internal struct MountedCombatDefenseFacts
     {
-        internal bool WouldHit, HasNumericAttackResult, OwnsFeat, PreferenceOn, RiderCanAct, RiderFlatFooted;
+        internal bool WouldHit, HasNumericAttackResult, AttackForcedToHit, OwnsFeat, PreferenceOn, RiderCanAct, RiderFlatFooted;
         internal bool TurnBased, RiderTurn, SwiftAvailable;
         internal MountedCombatDefenseState State;
     }
@@ -64,6 +65,8 @@ namespace KingmakerMountedCombat.Domain
             commitment = MountedCombatDefenseCommitment.None;
             if (!facts.WouldHit) return MountedCombatDefenseRefusal.NotAHit;
             if (!facts.HasNumericAttackResult) return MountedCombatDefenseRefusal.NoNumericAttackResult;
+            // Nothing can negate it, so nothing is spent on it.
+            if (facts.AttackForcedToHit) return MountedCombatDefenseRefusal.ForcedHit;
             if (!facts.OwnsFeat) return MountedCombatDefenseRefusal.NoFeat;
             if (!facts.PreferenceOn) return MountedCombatDefenseRefusal.PreferenceOff;
             if (!facts.RiderCanAct) return MountedCombatDefenseRefusal.RiderCannotAct;

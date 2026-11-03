@@ -61,6 +61,19 @@ function New-S6Turn {
  $steps=[pscustomobject]@{renewedNoDebt=[pscustomobject]@{rider=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$true;swift=0.0}};otherSwiftSpent=[pscustomobject]@{rider=[pscustomobject]@{hasSwift=$false}};offTurnEqual=[pscustomobject]@{rider=[pscustomobject]@{charges=3}};debtPaidAtPreparation=[pscustomobject]@{mountSwift=0.0;rider=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swiftGateBlocked=$true;swift=6.0;charges=4}}}
  New-S6Envelope 'sprint6-feat-tb' $m @($feat,[pscustomobject]@{name='S6-tb-economy';status='PASS';evidence=[pscustomobject]@{steps=$steps;payingTurnMove=[pscustomobject]@{sameTurn=$true;mounted=$true;metres=2.5}}})
 }
+function New-S6Forced {
+ $m=New-S6Measure 'sprint6-feat-forced-rt'; $free=New-S6State; $win=New-S6State $false $false $true; $c='S6-forced-hit'; $ray='aaaa'
+ Add-S6Attack $m $c 2 'success' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT' $false
+ Add-S6Attack $m $c 4 'equal' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT' $false
+ Add-S6Attack $m $c 6 'success' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT'
+ $o=$m.records[-1]; $o.resultAfter='Miss'; $o | Add-Member abilityGuid $ray; $rule=$m.attackRules[-1]; $rule.resultAtEvent='Miss'; $rule.resultAfterRule='Miss'
+ Add-S6Attack $m $c 8 'success' 'ForcedHit' 'None' $free $free 0 0 $false 'RT'
+ $f=$m.records[-1]; $f | Add-Member abilityGuid $ray
+ foreach($x in $m.records){ $x | Add-Member forcedHitContext $false }; $f.forcedHitContext=$true
+ foreach($x in @($m.records[0],$m.records[1])){ $x | Add-Member abilityGuid $null }
+ $settled=[pscustomobject]@{rider=[pscustomobject]@{spent=$false;owed=$false;window=$false;hasSwift=$true}}
+ New-S6Envelope 'sprint6-feat-forced-rt' $m @([pscustomobject]@{name='S6-rider-feat';status='PASS';evidence=[pscustomobject]@{riderCombatChoice=(New-S6Choice 'FighterFeatSelection')}},[pscustomobject]@{name='S6-forced-hit';status='PASS';evidence=[pscustomobject]@{ability=[pscustomobject]@{name='RayOfFrost';guid=$ray};attemptsBeforeForced=3;attemptsAfterForced=3;chargesBeforeForced=3;chargesAfterForced=3;steps=[pscustomobject]@{forcedRaySettled=$settled}}})
+}
 function Accept($Artifact,[string]$Scenario){ try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario=$Scenario}) -Artifact $Artifact -Status 'PASS'; $true } catch { Write-Output ('      unexpected: '+$_.Exception.Message); $false } }
 function Reject($Artifact,[string]$Scenario,[string]$Name){ $threw=$false; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario=$Scenario}) -Artifact $Artifact -Status 'PASS' } catch { $threw=$true }; Check $threw $Name }
 function RecordOf($Artifact,[string]$Case,[int]$Step){ @($Artifact.observations.sprint6Feat.records | Where-Object { $_.case -ceq $Case -and $_.step -eq $Step })[0] }
@@ -132,6 +145,23 @@ $r=Copy-S6 $real; (RowOf $r $i).afterRemount.windowIdentity=10; Reject $r 'sprin
 # Envelope
 $threw=$false; $r=Copy-S6 $turn; $r.status='FAIL'; $r.subscenarioFailCount=1; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario='sprint6-feat-tb'}) -Artifact $r -Status 'FAIL' } catch { $threw=$true }; Check (-not $threw) 'a failed prefix is preserved without qualification'
 $threw=$false; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario='sprint6-feat-tb'}) -Artifact $r -Status 'PASS' } catch { $threw=$true }; Check $threw 'a failed prefix cannot become PASS'
+# Forced hit
+$forced=New-S6Forced; $fc='S6-forced-hit'; $fs='sprint6-feat-forced-rt'
+$acc=@(Accept $forced $fs); $acc | Where-Object { $_ -is [string] } | ForEach-Object { Write-Output $_ }; Check ($acc[-1] -eq $true) 'complete forced-hit evidence accepted'
+Check (Test-KmcPhase3dSchemaRegistration 50 $fs) 'schema 50 is registered for the forced-hit scenario'
+$r=Copy-S6 $forced; (RecordOf $r $fc 8).forcedHitContext=$false; Reject $r $fs 'a refusal without the native flag refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 8).refusal='None'; (RecordOf $r $fc 8).attempted=$true; Reject $r $fs 'a forced hit that committed refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 8).swiftAfter=6.0; Reject $r $fs 'a forced hit that charged Swift refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 8).stateAfter.window=$true; Reject $r $fs 'a forced hit that spent the use refuses'
+$r=Copy-S6 $forced; (RuleOf $r (RecordOf $r $fc 8)).damageRules=0; Reject $r $fs 'a forced hit that dealt no damage refuses'
+$r=Copy-S6 $forced; (RowOf $r $fc).attemptsAfterForced=4; Reject $r $fs 'a forced hit that rolled a check refuses'
+$r=Copy-S6 $forced; (RowOf $r $fc).chargesAfterForced=4; Reject $r $fs 'a forced hit that charged the native writer refuses'
+$r=Copy-S6 $forced; (RowOf $r $fc).steps.forcedRaySettled.rider.hasSwift=$false; Reject $r $fs 'a rider that lost its reaction to a forced hit refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 6).refusal='ForcedHit'; (RecordOf $r $fc 6).attempted=$false; Reject $r $fs 'an ordinary projectile that was refused refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 6).forcedHitContext=$true; Reject $r $fs 'an ordinary cast carrying the flag refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 6).resultAfter='Hit'; Reject $r $fs 'an ordinary projectile left as a hit refuses'
+$r=Copy-S6 $forced; (RuleOf $r (RecordOf $r $fc 6)).damageRules=1; Reject $r $fs 'damage after a negated projectile refuses'
+$r=Copy-S6 $forced; (RecordOf $r $fc 4).negated=$true; Reject $r $fs 'melee equality that negates refuses'
 # Persistence
 $goodSave=[pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=(New-S6State $true $true)}}
 $good=[pscustomobject]@{featCold=[pscustomobject]@{hasFeat=$true;preferenceOn=$true;state=(New-S6State $true $true)};featRenewal=[pscustomobject]@{afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6.0};chargesAtPreparation=1;commitment='BorrowNextSwift';attempted=$true;riderTurn=$false;stateAfter=(New-S6State $true $true)}}

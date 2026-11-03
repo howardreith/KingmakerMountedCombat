@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Tests
         {
             Refused(f => f.WouldHit = false, MountedCombatDefenseRefusal.NotAHit, "A miss is unaffected.");
             Refused(f => f.HasNumericAttackResult = false, MountedCombatDefenseRefusal.NoNumericAttackResult, "An automatic hit has no result to exceed.");
+            Refused(f => f.AttackForcedToHit = true, MountedCombatDefenseRefusal.ForcedHit, "A hit the engine will force afterward commits nothing.");
             Refused(f => f.OwnsFeat = false, MountedCombatDefenseRefusal.NoFeat, "A rider without the feat is unaffected.");
             Refused(f => f.PreferenceOn = false, MountedCombatDefenseRefusal.PreferenceOff, "The preference holds the reaction back.");
             Refused(f => f.RiderCanAct = false, MountedCombatDefenseRefusal.RiderCannotAct, "An incapacitated rider cannot react.");
@@ -52,6 +53,7 @@ namespace KingmakerMountedCombat.Tests
             internal MountedCombatDefenseFacts Value;
             internal bool WouldHit { set { Value.WouldHit = value; } }
             internal bool HasNumericAttackResult { set { Value.HasNumericAttackResult = value; } }
+            internal bool AttackForcedToHit { set { Value.AttackForcedToHit = value; } }
             internal bool OwnsFeat { set { Value.OwnsFeat = value; } }
             internal bool PreferenceOn { set { Value.PreferenceOn = value; } }
             internal bool RiderCanAct { set { Value.RiderCanAct = value; } }

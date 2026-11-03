@@ -2,6 +2,7 @@
 function Get-KmcSprint6Cases([string]$Scenario){
  if($Scenario -ceq 'sprint6-feat-rt'){ return @('S6-selection','S6-rt-defense','S6-rt-isolation') }
  if($Scenario -ceq 'sprint6-feat-tb'){ return @('S6-rider-feat','S6-tb-economy') }
+ if($Scenario -ceq 'sprint6-feat-forced-rt'){ return @('S6-rider-feat','S6-forced-hit') }
  throw ('Sprint 6 scenario has no case list: '+$Scenario)
 }
 function Get-KmcSprint6Record($Measure,[string]$Case,[int]$Step){
@@ -35,7 +36,7 @@ function Assert-KmcSprint6Selection($Facts,[string]$Who){
 }
 function Assert-KmcSprint6FeatEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint6-feat-rt','sprint6-feat-tb') -or $Artifact.schemaVersion -ne 50){ throw 'Sprint 6 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt') -or $Artifact.schemaVersion -ne 50){ throw 'Sprint 6 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 6 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -61,7 +62,7 @@ function Assert-KmcSprint6FeatEvidence {
  }
  foreach($rule in $rules){
   if($rule.autoHit -eq $true -or $rule.resultAtEvent -cin @('Hit','CriticalHit','Parried')){ continue }
-  if([string]$rule.identity -cin $identities){ throw 'Sprint 6 a natural miss was evaluated' }
+  if([string]$rule.identity -cin @($records | Where-Object { $_.negated -ne $true } | ForEach-Object { [string]$_.ruleIdentity })){ throw 'Sprint 6 a natural miss was evaluated' }
   if([int]$rule.damageRules -ne 0){ throw 'Sprint 6 a miss reached damage' }
  }
  foreach($r in $records){ if([double]$r.mountSwiftAfter -ne [double]$r.mountSwiftBefore){ throw 'Sprint 6 the mount paid the rider''s Swift action' } }
@@ -121,6 +122,33 @@ function Assert-KmcSprint6FeatEvidence {
   if([int]$i.beforeDismount.windowIdentity -eq 0 -or $i.afterDismount.windowIdentity -ne $i.beforeDismount.windowIdentity -or $i.afterDismount.windowEndTicks -ne $i.beforeDismount.windowEndTicks){ throw 'Sprint 6 a dismount changed the running use' }
   if([int]$i.attemptsAfterDismountedStrike -ne [int]$i.attemptsAtDismount){ throw 'Sprint 6 a former mount was defended after the dismount' }
   if([int]$i.afterRemount.windowIdentity -ne 0 -and ($i.afterRemount.windowIdentity -ne $i.beforeDismount.windowIdentity -or $i.afterRemount.windowEndTicks -ne $i.beforeDismount.windowEndTicks)){ throw 'Sprint 6 a remount minted a fresh use' }
+ } elseif($Request.scenario -ceq 'sprint6-feat-forced-rt'){
+  if($rows['S6-rider-feat'].evidence.riderCombatChoice.selection -cne 'FighterFeatSelection'){ throw 'Sprint 6 forced-hit rider choice differs' }
+  Assert-KmcSprint6Selection $rows['S6-rider-feat'].evidence.riderCombatChoice 'forced-hit rider'
+  $e=$rows['S6-forced-hit'].evidence; $c='S6-forced-hit'
+  # The unchanged melee control.
+  $r=Get-KmcSprint6Record $o $c 2
+  if([string](Get-KmcSprint6Rule $o $r).attackerCommand -cne 'UnitAttack' -or $r.forcedHitContext -ne $false){ throw 'Sprint 6 melee control was not the ordinary attack' }
+  Assert-KmcSprint6Negated $o $r 'melee control'
+  $r=Get-KmcSprint6Record $o $c 4
+  if([int]$r.checkResult -ne [int]$r.attackResult -or $r.attempted -ne $true -or $r.stateAfter.window -ne $true){ throw 'Sprint 6 melee equality was not exact or did not consume the use' }
+  Assert-KmcSprint6Stands $o $r 'melee equality'
+  # An ordinary rolled projectile stays eligible and takes the native miss path.
+  $guid=[string]$e.ability.guid
+  $ray=@($records | Where-Object { [string]$_.case -ceq $c -and [int]$_.step -eq 6 -and [string]$_.abilityGuid -ceq $guid })
+  if($ray.Count -lt 1){ throw 'Sprint 6 no ordinary projectile hit was evaluated' }; $r=$ray[0]
+  if($r.forcedHitContext -ne $false -or [string]$r.refusal -cne 'None' -or [string]$r.commitment -cne 'RealTimeWindow' -or $r.attempted -ne $true -or $r.negated -ne $true -or [int]$r.checkResult -ne [int]$r.attackResult+1 -or $r.resultAfter -cne 'Miss' -or $r.stateAfter.window -ne $true -or [double]$r.swiftAfter -lt 5.5){ throw 'Sprint 6 an ordinary projectile did not commit and negate' }
+  $rule=Get-KmcSprint6Rule $o $r
+  if($rule.resultAtEvent -cne 'Miss' -or $rule.isHitAtEvent -ne $false -or [int]$rule.damageRules -ne 0 -or [int]$rule.damage -ne 0){ throw 'Sprint 6 a negated projectile still reached a consumer or damage' }
+  # The same ability, forced: nothing is committed and the engine's hit lands.
+  $ray=@($records | Where-Object { [string]$_.case -ceq $c -and [int]$_.step -eq 8 -and [string]$_.abilityGuid -ceq $guid })
+  if($ray.Count -lt 1){ throw 'Sprint 6 no forced hit was evaluated' }; $r=$ray[0]
+  if($r.forcedHitContext -ne $true){ throw 'Sprint 6 the forced cast did not carry the native flag' }
+  Assert-KmcSprint6Refused $o $r 'ForcedHit' 'forced hit'
+  if(@($r.stateAfter.spent,$r.stateAfter.owed,$r.stateAfter.window) -contains $true){ throw 'Sprint 6 a forced hit left reaction state' }
+  if([int]$e.attemptsAfterForced -ne [int]$e.attemptsBeforeForced -or [int]$e.chargesAfterForced -ne [int]$e.chargesBeforeForced){ throw 'Sprint 6 a forced hit rolled a check or charged a Swift action' }
+  $n=$e.steps.forcedRaySettled.rider
+  if($n.spent -ne $false -or $n.owed -ne $false -or $n.window -ne $false -or $n.hasSwift -ne $true){ throw 'Sprint 6 the rider did not keep the reaction after a forced hit' }
  } else {
   $f=$rows['S6-rider-feat'].evidence
   if($f.riderCombatChoice.selection -cne 'FighterFeatSelection'){ throw 'Sprint 6 turn-based rider choice differs' }

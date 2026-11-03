@@ -9,6 +9,7 @@ using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UI.Log;
+using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.ActivatableAbilities;
 using Kingmaker.UnitLogic.Buffs;
 using Kingmaker.UnitLogic.Buffs.Blueprints;
@@ -23,11 +24,11 @@ namespace KingmakerMountedCombat.Integration
     // One attempt's distinguishing values, captured at the native boundary before any later rule can change them.
     internal sealed class MountedCombatDefenseRecord
     {
-        internal string Rider, Mount, Attacker, Weapon, ResultBefore, ResultAfter, Mode;
+        internal string Rider, Mount, Attacker, Weapon, ResultBefore, ResultAfter, Mode, AbilityGuid;
         internal MountedCombatDefenseRefusal Refusal;
         internal MountedCombatDefenseCommitment Commitment;
         internal int AttackD20, AttackBonus, AttackResult, TargetAc, CheckD20, CheckStat, CheckBonus, CheckResult, CheckDc, Round, Frame;
-        internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced;
+        internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced, ForcedHitContext;
         internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
         internal RuleAttackRoll Rule;
@@ -117,16 +118,19 @@ namespace KingmakerMountedCombat.Integration
             var riderTurn = turnBased && turn?.Unit == rider &&
                 (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing || turn.IsEnding);
             var attackResult = (int)rule.Roll + rule.AttackBonus;
+            // AbilityExecutionContext.TriggerRule sets the rule's Reason to the casting context before the roll. Its one producer is
+            // the cutscene command CommandUnitCastSpell; AbilityDeliverProjectile then overwrites the result with Hit after this rule.
+            var ability = rule.Reason?.Context as AbilityExecutionContext;
             var before = ReadState(rider);
             var record = new MountedCombatDefenseRecord {
                 Rider = rider.UniqueId, Mount = mount.UniqueId, Attacker = rule.Initiator.UniqueId, Weapon = rule.Weapon?.Blueprint?.name,
-                Rule = rule, ResultBefore = rule.Result.ToString(), Mode = turnBased ? "TB" : "RT", AttackD20 = rule.Roll, AttackBonus = rule.AttackBonus,
+                Rule = rule, AbilityGuid = ability?.AbilityBlueprint?.AssetGuid, ForcedHitContext = ability?.ForceAlwaysHit == true, ResultBefore = rule.Result.ToString(), Mode = turnBased ? "TB" : "RT", AttackD20 = rule.Roll, AttackBonus = rule.AttackBonus,
                 AttackResult = attackResult, TargetAc = rule.TargetAC, CriticalBefore = rule.IsCriticalConfirmed, RiderTurn = riderTurn,
                 AttackOfOpportunity = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, SwiftBefore = rider.CombatState.Cooldown.SwiftAction, MountSwiftBefore = mount.CombatState.Cooldown.SwiftAction,
                 Round = Game.Instance.TurnBasedCombatController?.RoundNumber ?? 0, Frame = Time.frameCount, StateBefore = before };
             var state = rider.Descriptor.State;
             var facts = new MountedCombatDefenseFacts {
-                WouldHit = true, HasNumericAttackResult = !rule.AutoHit && (int)rule.Roll > 0, OwnsFeat = rider.Descriptor.Progression.Features.HasFact(blueprints.MountedCombatFeature),
+                WouldHit = true, HasNumericAttackResult = !rule.AutoHit && (int)rule.Roll > 0, AttackForcedToHit = record.ForcedHitContext, OwnsFeat = rider.Descriptor.Progression.Features.HasFact(blueprints.MountedCombatFeature),
                 PreferenceOn = PreferenceOn(rider),
                 RiderCanAct = state.IsConscious && state.CanAct && !state.IsHelpless && rider.CombatState.CanActInCombat,
                 RiderFlatFooted = Rulebook.Trigger(new RuleCheckTargetFlatFooted(rule.Initiator, rider)).IsFlatFooted,
