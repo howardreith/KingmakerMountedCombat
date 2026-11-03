@@ -13,17 +13,59 @@ namespace KingmakerMountedCombat.Domain
         public static bool IsSupported(bool exactlyMedium, SmallRiderBodyMatch small) => exactlyMedium != (small != null);
     }
 
+    public static class NativeRigMergePolicy
+    {
+        // Every bone a body part's list names that the avatar's hierarchy lacks, once each, in first-seen order.
+        public static IReadOnlyList<string> MissingBones(IEnumerable<string> partBones, ISet<string> avatarBones) =>
+            partBones.Where(bone => !avatarBones.Contains(bone)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     public static class MountedRiderProfileCatalog
     {
         public const string MediumMammothId = "medium-humanoid-mammoth-v1";
         public const string MediumHorseId = "medium-humanoid-horse-v1";
 
-        // The exact default MaleHalfling/Horse body and pose were measured in
-        // batch70. Other Small bodies, gear and mounts remain unsupported.
+        public const string OriginalSmallHorseId = "small-default-halfling-horse-v1";
+        private const string HalflingRaceGuid = "b0c3ef2729c498f47970bb50fa1acd30";
+        private const string GnomeRaceGuid = "ef35a22c9a27da345a4528f0d5889157";
+        // The first batch70 declaration's identity now names the whole MaleHalfling
+        // rig on the Horse. Keeping the one ID makes existing archives load unchanged
+        // and needs no migration. Every other Small rig or mount has its own ID.
         private static readonly DeclaredSmallMountedProfile halflingHorse = InitialHalflingCalibration();
-        private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> small =
-            Array.AsReadOnly(new[] { halflingHorse });
+        private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> small = Array.AsReadOnly(new[]
+        {
+            halflingHorse,
+            HorseFamily("small-halfling-female-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingSaddleHeight),
+            HorseFamily("small-gnome-male-horse-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-female-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeSaddleHeight),
+            DogFamily("small-halfling-male-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-gnome-male-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome", 0.452f, GnomeDogBackHeight),
+            // The fat and thin character-creation presets are their own native skeletons. Run g1 measured their thigh and shin
+            // within 0.002 of the default build's, so they share its reach; only the hips differ.
+            HorseFamily("small-halfling-male-fat-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_fat", 0.351f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-male-thin-horse-v1", HalflingRaceGuid, "Male", "MaleHalfling_thin", 0.351f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-female-fat-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling_fat", 0.324f, HalflingSaddleHeight),
+            HorseFamily("small-halfling-female-thin-horse-v1", HalflingRaceGuid, "Female", "FemaleHalfling_thin", 0.324f, HalflingSaddleHeight),
+            HorseFamily("small-gnome-male-fat-horse-v1", GnomeRaceGuid, "Male", "MaleGnome_fat", 0.465f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-male-thin-horse-v1", GnomeRaceGuid, "Male", "MaleGnome_thin", 0.465f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-female-fat-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome_fat", 0.452f, GnomeSaddleHeight),
+            HorseFamily("small-gnome-female-thin-horse-v1", GnomeRaceGuid, "Female", "FemaleGnome_thin", 0.452f, GnomeSaddleHeight),
+            DogFamily("small-halfling-male-fat-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling_fat", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-male-thin-ridingdog-v1", HalflingRaceGuid, "Male", "MaleHalfling_thin", 0.351f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-fat-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling_fat", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-halfling-female-thin-ridingdog-v1", HalflingRaceGuid, "Female", "FemaleHalfling_thin", 0.324f, HalflingDogBackHeight),
+            DogFamily("small-gnome-male-fat-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome_fat", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-male-thin-ridingdog-v1", GnomeRaceGuid, "Male", "MaleGnome_thin", 0.465f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-fat-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome_fat", 0.452f, GnomeDogBackHeight),
+            DogFamily("small-gnome-female-thin-ridingdog-v1", GnomeRaceGuid, "Female", "FemaleGnome_thin", 0.452f, GnomeDogBackHeight)
+        });
         public static IReadOnlyList<DeclaredSmallMountedProfile> Small => small;
+        // Names the exact body so an unsupported form is never described by a claim that would cover it.
+        public static string NoMeasuredSeatRefusal(string mountDisplayName, string skeletonName) =>
+            "This Small body" + (string.IsNullOrEmpty(skeletonName) ? "" : " (" + skeletonName + ")") + " has no measured seat on a " + mountDisplayName +
+            ". Supported: Halfling and Gnome riders of either sex, in the default, fat or thin build, on a Horse or Riding Dog.";
         // Retain the exact F09 calibration lease for reproducible diagnostics;
         // it names the same declaration as ordinary admission.
         private static readonly ReadOnlyCollection<DeclaredSmallMountedProfile> privateCalibrationSmall =
@@ -31,7 +73,7 @@ namespace KingmakerMountedCombat.Domain
         internal static IReadOnlyList<DeclaredSmallMountedProfile> PrivateCalibrationSmall => privateCalibrationSmall;
         private static DeclaredSmallMountedProfile InitialHalflingCalibration()
         {
-            const string id = "small-default-halfling-horse-v1";
+            const string id = OriginalSmallHorseId;
             var body = new DeclaredSmallRiderBody(id,
                 "dcdc6cdce0265a221b2f3d890d34229385098235d2546df4a9c6a399239e48a9",
                 "b0c3ef2729c498f47970bb50fa1acd30", "639cebe8cbc098345af429d62fd79578",
@@ -45,19 +87,46 @@ namespace KingmakerMountedCombat.Domain
                     "EE_Armor_StuddedLeatherlUnpadded_M", "EE_Ranger_M_Cap_HL_Colorize",
                     "Ranger_M_Accessories", "EE_RangerAccesories_M_Any_Colorize",
                     "EE_Ranger_M_Any_Colorize", "EE_Ranger_M_Cape" });
-            var pose = new MountedRiderPoseProfile(id, "Pelvis", new PoseVector3(0f, 0f, 0f),
-                new PoseVector3(0f, 0f, 0f),
-                new MountedRiderLegPoseProfile("L_Up_leg", "L_leg", "L_foot",
-                    new PoseVector3(-0.247152f, -0.228413f, 0.039166f),
-                    new PoseVector3(-0.025848f, -0.14278f, 0.087729f), new PoseVector3(0f, 0f, 0f)),
-                new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
-                    new PoseVector3(0.246767f, -0.228475f, 0.048004f),
-                    new PoseVector3(0.023794f, -0.167833f, 0.003672f), new PoseVector3(0f, 0f, 0f)));
-            return new DeclaredSmallMountedProfile(body, pose,
-                "7d2385144838cccc27082cc9792f338c716961ed25016e6fff986599196411db",
-                new PoseVector3(0f, -0.16f, 0f), new PoseVector3(0f, -0.12f, 0f),
-                new PoseVector3(0f, 0f, 0f));
+            return new DeclaredSmallMountedProfile(body, SmallPose(id, 0.351f), SeatRecordSha256,
+                SmallHorseRootOffset, HorseSeat(HalflingSaddleHeight), new PoseVector3(0f, 0f, 0f));
         }
+
+        // The old seat aimed the feet at the Horse's stirrups. Small legs reach only 0.35 of
+        // the 0.75 from saddle to stirrup, so the pelvis sank about 0.59 below the accepted
+        // Medium seat, into the Horse (mount-local height 1.63 against 2.22). The seat now
+        // comes from the measured saddle (its surface is about 1.82 high at z 0.22, with the
+        // pommel over the Chest bone at z 0.47); the legs straddle instead of reaching down.
+        // A Small seat is a fixed offset from the mount's anchor bone, so it cannot depend on
+        // the animation pose playing at the moment of mounting.
+        private const string SeatRecordSha256 = "88f615962dc513334dd47cf6c3df3fee531d9ce14739181c0d7564289a22d269";
+        private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
+        private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
+        // Explicit zero: the accepted Horse seat always ran with none, because the -0.16 once written here initialized after the profiles that read it.
+        private static readonly PoseVector3 SmallHorseRootOffset = new PoseVector3(0f, 0f, 0f);
+        private static PoseVector3 HorseSeat(float height) => new PoseVector3(0f, height - HorseChestHeight, HorseSaddleForward - HorseChestForward);
+        // Foot and knee are sized by the rig's own thigh-and-shin reach.
+        private static MountedRiderPoseProfile SmallPose(string id, float reach, float footSpread = HorseFootSpread, float footDrop = HorseFootDrop) => new MountedRiderPoseProfile(id, "Pelvis",
+            new PoseVector3(0f, 0f, 0f), new PoseVector3(0f, 0f, 0f),
+            new MountedRiderLegPoseProfile("L_Up_leg", "L_leg", "L_foot",
+                new PoseVector3(-footSpread * reach, -footDrop * reach, 0.13f * reach), new PoseVector3(-0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)),
+            new MountedRiderLegPoseProfile("R_Up_leg", "R_leg", "R_foot",
+                new PoseVector3(footSpread * reach, -footDrop * reach, 0.13f * reach), new PoseVector3(0.80f * reach, -0.06f * reach, 0.46f * reach), new PoseVector3(0f, 0f, 0f)));
+        // The Riding Dog has no saddle: its back is about 0.89 high at z 0.12, between hips and shoulders, and
+        // 0.22 wide to each side, measured on the Medium dog. The seat is mount-local, so it follows native growth.
+        public const string RidingDogBlueprintGuid = "b7a14f25d3c94e0d8e6f1a2c5d90e431";
+        private const string RidingDogAnchor = "UpperTorso";
+        private const float DogTorsoHeight = 0.77f, DogTorsoForward = 0.08f, DogSeatForward = 0.12f;
+        private const float HalflingDogBackHeight = 1.05f, GnomeDogBackHeight = 1.07f;
+        // The saddle skirt is about 0.32 to each side at seat height; 0.72 clears it, and the smaller drop leaves the knee a visible bend.
+        // The Dog's 0.80 and 0.52 were a mistaken answer to a boot that never followed its bones at all; see SmallRiderRigCompletion.
+        private const float DogFootSpread = 0.68f, DogFootDrop = 0.67f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
+        private static DeclaredSmallMountedProfile DogFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
+            new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, RidingDogBlueprintGuid, raceGuid, gender, skeleton),
+                SmallPose(id, reach, DogFootSpread, DogFootDrop), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),
+                new PoseVector3(0f, seatHeight - DogTorsoHeight, DogSeatForward - DogTorsoForward), new PoseVector3(0f, 0f, 0f), "Riding Dog", RidingDogAnchor);
+        private static DeclaredSmallMountedProfile HorseFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
+            new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, DeclaredSmallRiderBody.HorseBlueprintGuid, raceGuid, gender, skeleton),
+                SmallPose(id, reach), SeatRecordSha256, SmallHorseRootOffset, HorseSeat(seatHeight), new PoseVector3(0f, 0f, 0f));
         internal static bool IsDeclaredSmallProfile(string profileId) =>
             small.Any(profile => string.Equals(profile.Body.ProfileId, profileId, StringComparison.Ordinal));
 

@@ -48,11 +48,11 @@ namespace KingmakerMountedCombat.Integration
         internal static SupportedMountedProfile FromDeclaredSmall(DeclaredSmallMountedProfile declared)
         {
             if (declared == null) throw new ArgumentNullException(nameof(declared));
-            // Horse anchor identity is native mount geometry. Every rider pose,
+            // The anchor identity is native mount geometry. Every rider pose,
             // mechanics-root translation and animated seat correction is an
             // explicit independent Small calibration, supplied by declaration.
-            return new SupportedMountedProfile(declared.Body.ProfileId, SupportedMountedProfiles.HorseBlueprintGuid,
-                "Horse", "Chest", new PoseVector3(0f, 0f, 0f), declared.MountRootOffset,
+            return new SupportedMountedProfile(declared.Body.ProfileId, declared.Body.MountBlueprintGuid,
+                declared.MountDisplayName, declared.MountAnchorName, new PoseVector3(0f, 0f, 0f), declared.MountRootOffset,
                 declared.RiderEulerOffset, declared.Pose, false, declared.AnimatedSeatCorrection, true, declared.Body);
         }
     }
@@ -61,6 +61,7 @@ namespace KingmakerMountedCombat.Integration
     {
         internal const string MammothBlueprintGuid = "e7aa96d15a45238438ae4cfb476f6bb9";
         internal const string HorseBlueprintGuid = "4016c7db400ab721ff125aef9e65e202";
+        internal const string RidingDogBlueprintGuid = MountedRiderProfileCatalog.RidingDogBlueprintGuid;
         internal static readonly SupportedMountedProfile Mammoth = new SupportedMountedProfile(
             "medium-humanoid-mammoth-v1", MammothBlueprintGuid, "Mammoth", "Spine", new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnMammothMountRootPositionOffset, new PoseVector3(0f, 0f, 0f),
@@ -69,6 +70,11 @@ namespace KingmakerMountedCombat.Integration
             "medium-humanoid-horse-v1", HorseBlueprintGuid, "Horse", "Chest", new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset, new PoseVector3(0f, 0f, 0f),
             MountedRiderPoseProfiles.MediumHumanoidOnHorse, false);
+        // Mount classification only (names, native controls, lifecycle). A Riding Dog is Medium, so it
+        // carries only Small rigs, and each of those has its own declared profile below.
+        private static readonly SupportedMountedProfile ridingDogClassification = new SupportedMountedProfile(
+            "ridingdog-classification-only", RidingDogBlueprintGuid, "Riding Dog", "UpperTorso", new PoseVector3(0f, 0f, 0f),
+            new PoseVector3(0f, 0f, 0f), new PoseVector3(0f, 0f, 0f), MountedRiderPoseProfiles.MediumHumanoidOnHorse, false);
         private static readonly SupportedMountedProfile[] small = MountedRiderProfileCatalog.Small
             .Select(SupportedMountedProfile.FromDeclaredSmall).ToArray();
         private static readonly SupportedMountedProfile[] privateCalibrationSmall =
@@ -98,43 +104,68 @@ namespace KingmakerMountedCombat.Integration
         {
             if (blueprintGuid == MammothBlueprintGuid) return Mammoth;
             if (blueprintGuid == HorseBlueprintGuid) return Horse;
+            if (blueprintGuid == RidingDogBlueprintGuid) return ridingDogClassification;
             return null;
         }
 
-        internal static SupportedMountedProfile Resolve(UnitEntityData rider, UnitEntityData mount)
+        internal static SupportedMountedProfile Resolve(UnitEntityData rider, UnitEntityData mount) =>
+            ResolveExplained(rider, mount, out _);
+
+        // One refusal per pair, phrased for the player. Null means supported.
+        internal static string DescribeRefusal(UnitEntityData rider, UnitEntityData mount)
+        {
+            string refusal;
+            return mount == null || ResolveExplained(rider, mount, out refusal) != null ? null : refusal;
+        }
+
+        private static SupportedMountedProfile ResolveExplained(UnitEntityData rider, UnitEntityData mount, out string refusal)
         {
             var mountProfile = Resolve(mount);
-            if (rider?.Descriptor?.State == null || mount?.Descriptor?.State == null || mountProfile == null ||
-                rider.GetActivePolymorph() != null || mount.GetActivePolymorph() != null ||
-                rider.Descriptor.Body?.IsPolymorphed != false || mount.Descriptor.Body?.IsPolymorphed != false) return null;
+            refusal = null;
+            if (rider?.Descriptor?.State == null || mount?.Descriptor?.State == null)
+            { refusal = "The rider or companion is unavailable."; return null; }
+            if (mountProfile == null)
+            { refusal = (mount.CharacterName ?? "This companion") + " is not a supported mount. Supported mounts: Horse, Riding Dog and Mammoth."; return null; }
+            if (rider.GetActivePolymorph() != null || mount.GetActivePolymorph() != null ||
+                rider.Descriptor.Body?.IsPolymorphed != false || mount.Descriptor.Body?.IsPolymorphed != false)
+            { refusal = "A polymorphed rider or mount has no supported seat."; return null; }
+            refusal = MountedSizePolicy.Refusal((int)rider.Descriptor.State.Size, (int)mount.Descriptor.State.Size);
+            if (refusal != null) return null;
             if (rider.Descriptor.OriginalSize == Size.Medium && rider.Descriptor.State.Size == Size.Medium)
+            {
+                if (ReferenceEquals(mountProfile, ridingDogClassification))
+                { refusal = "A Medium rider has no seat on a Riding Dog."; return null; }
                 return mountProfile;
+            }
             var privateDeclaration = privateCalibrationGate.Resolve(rider.UniqueId, mount.UniqueId, rider, mount);
-            if (small.Length == 0 && privateDeclaration == null || rider.Descriptor.OriginalSize != Size.Small || rider.Descriptor.State.Size != Size.Small ||
-                mountProfile.BlueprintGuid != HorseBlueprintGuid) return null;
-            var observed = NativeSmallRiderBody.Capture(rider, mount);
+            if (rider.Descriptor.OriginalSize != Size.Small || rider.Descriptor.State.Size != Size.Small)
+            { refusal = "A rider must currently be its own native Small or Medium size to have a supported seat."; return null; }
+            var observed = NativeSmallRiderBody.CaptureRig(rider, mount);
             SupportedMountedProfile result = null;
             foreach (var profile in small)
             {
                 if (profile.SmallRiderBody.Refusal(observed) != null) continue;
-                if (result != null) return null; // No ambiguous declared body/profile owner.
+                if (result != null) { refusal = "This Small rider matches more than one declared rig."; return null; } // No ambiguous declared body/profile owner.
                 result = profile;
             }
             if (privateDeclaration != null && privateDeclaration.Body.Refusal(observed) == null)
             {
                 // The diagnostic lease can coexist only with the same exact
                 // qualified declaration; it must not create a second claim.
-                if (result != null && !ReferenceEquals(result.SmallRiderBody, privateDeclaration.Body)) return null;
+                if (result != null && !ReferenceEquals(result.SmallRiderBody, privateDeclaration.Body))
+                { refusal = "This Small rider matches more than one declared rig."; return null; }
                 if (result == null)
                     result = privateCalibrationSmall.Single(profile => profile.Id == privateDeclaration.Body.ProfileId);
             }
+            if (result == null)
+                refusal = MountedRiderProfileCatalog.NoMeasuredSeatRefusal(mountProfile.DisplayName, observed?.SkeletonName);
             return result;
         }
 
         internal static SmallRiderBodyMatch MatchSmall(UnitEntityData rider, UnitEntityData mount, SupportedMountedProfile profile)
         {
             string refusal;
-            return profile?.SmallRiderBody?.Match(NativeSmallRiderBody.Capture(rider, mount), out refusal);
+            return profile?.SmallRiderBody?.Match(NativeSmallRiderBody.CaptureRig(rider, mount), out refusal);
         }
         internal static bool IsSupported(UnitEntityData unit) => Resolve(unit) != null;
         internal static bool IsSupportedPair(UnitEntityData rider, UnitEntityData mount) => Resolve(rider, mount) != null;

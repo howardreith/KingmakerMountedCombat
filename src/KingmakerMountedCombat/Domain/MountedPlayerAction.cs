@@ -30,6 +30,8 @@ namespace KingmakerMountedCombat.Domain
 
         public string MountDisplayName { get; set; }
 
+        public string MountProfileRefusal { get; set; }
+
         public bool MountIsStrictlyLarger { get; set; }
 
         public bool RiderIsAliveAndConscious { get; set; }
@@ -258,7 +260,11 @@ namespace KingmakerMountedCombat.Domain
                     reasons);
             }
 
-            if (!MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch))
+            if (!string.IsNullOrEmpty(context.MountProfileRefusal))
+            {
+                reasons.Add(context.MountProfileRefusal);
+            }
+            else if (!MountedRiderBodySelectionPolicy.IsSupported(context.RiderIsExactlyMedium, context.SmallRiderBodyMatch))
             {
                 reasons.Add("The selected rider needs exactly one supported Medium or declared Small body profile.");
             }

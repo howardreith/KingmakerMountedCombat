@@ -10,6 +10,27 @@ namespace KingmakerMountedCombat.Integration
     // no asset loading, fields, race, size, equipment or transforms are changed.
     internal static class NativeSmallRiderBody
     {
+        // Only what ordinary admission reads. The mounted invariant checks this every frame, so no costume lists.
+        internal static SmallRiderBodyObservation CaptureRig(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (rider?.Descriptor == null || mount?.Descriptor == null) return null;
+            var descriptor = rider.Descriptor;
+            var avatar = rider.View?.CharacterAvatar;
+            var scale = avatar == null ? new UnityEngine.Vector3(float.NaN, float.NaN, float.NaN) : avatar.transform.localScale;
+            return new SmallRiderBodyObservation
+            {
+                OriginalSizeOrdinal = (int)descriptor.OriginalSize,
+                EffectiveSizeOrdinal = (int)descriptor.State.Size,
+                RiderPolymorphed = rider.GetActivePolymorph() != null || descriptor.Body?.IsPolymorphed != false,
+                MountPolymorphed = mount.GetActivePolymorph() != null || mount.Descriptor.Body?.IsPolymorphed != false,
+                MountBlueprintGuid = mount.Blueprint?.AssetGuid, MountSizeOrdinal = (int)mount.Descriptor.State.Size,
+                RaceGuid = descriptor.Progression.Race?.AssetGuid, Gender = descriptor.Doll?.Gender.ToString(),
+                SkeletonName = avatar?.Skeleton?.name,
+                NativeRigAvailable = avatar != null && rider.View.Animator != null && avatar.Animator != null,
+                AvatarLocalScale = new PoseVector3(scale.x, scale.y, scale.z)
+            };
+        }
+
         internal static SmallRiderBodyObservation Capture(UnitEntityData rider, UnitEntityData mount)
         {
             if (rider?.Descriptor == null || mount?.Descriptor == null) return null;

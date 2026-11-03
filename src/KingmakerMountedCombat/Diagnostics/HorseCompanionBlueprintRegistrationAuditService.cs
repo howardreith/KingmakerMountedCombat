@@ -270,13 +270,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static bool HasExactHorseAppend(BlueprintFeature[] values, BlueprintFeature horseFeature)
         {
-            if (values == null || values.Length < 2 || horseFeature == null ||
-                !ReferenceEquals(values[values.Length - 1], horseFeature) ||
+            if (values == null || values.Length < 3 || horseFeature == null ||
+                !ReferenceEquals(values[values.Length - 2], horseFeature) ||
+                !string.Equals(values[values.Length - 1]?.AssetGuid, HorseCompanionBlueprintService.RidingDogFeatureGuid, StringComparison.Ordinal) ||
                 values.Count(item => ReferenceEquals(item, horseFeature)) != 1) { return false; }
             try
             {
                 HorseCompanionBlueprintService.RequireExactRangerOptions(
-                    values.Take(values.Length - 1).ToArray(), "audit appended prefix");
+                    values.Take(values.Length - 2).ToArray(), "audit appended prefix");
                 return true;
             }
             catch (InvalidOperationException) { return false; }

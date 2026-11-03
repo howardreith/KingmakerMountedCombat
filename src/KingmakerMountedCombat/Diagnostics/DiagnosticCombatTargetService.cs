@@ -222,7 +222,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var mountGuid = mount?.Blueprint?.AssetGuid;
             if (rider == null || !rider.IsInState || mount == null || !mount.IsInState ||
                 (!string.Equals(mountGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal) &&
-                 !string.Equals(mountGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) ||
+                 !string.Equals(mountGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal) &&
+                 !string.Equals(mountGuid, HorseCompanionBlueprintService.RidingDogUnitGuid, StringComparison.Ordinal)) ||
                 string.IsNullOrWhiteSpace(runId))
             {
                 throw new InvalidOperationException("Diagnostic target requires an exact live KMC rider/animal pair and run ID.");
