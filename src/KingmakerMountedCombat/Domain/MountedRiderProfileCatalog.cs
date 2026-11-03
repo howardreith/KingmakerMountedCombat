@@ -13,6 +13,13 @@ namespace KingmakerMountedCombat.Domain
         public static bool IsSupported(bool exactlyMedium, SmallRiderBodyMatch small) => exactlyMedium != (small != null);
     }
 
+    public static class NativeRigMergePolicy
+    {
+        // Every bone a body part's list names that the avatar's hierarchy lacks, once each, in first-seen order.
+        public static IReadOnlyList<string> MissingBones(IEnumerable<string> partBones, ISet<string> avatarBones) =>
+            partBones.Where(bone => !avatarBones.Contains(bone)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     public static class MountedRiderProfileCatalog
     {
         public const string MediumMammothId = "medium-humanoid-mammoth-v1";
@@ -91,7 +98,7 @@ namespace KingmakerMountedCombat.Domain
         // pommel over the Chest bone at z 0.47); the legs straddle instead of reaching down.
         // A Small seat is a fixed offset from the mount's anchor bone, so it cannot depend on
         // the animation pose playing at the moment of mounting.
-        private const string SeatRecordSha256 = "44896e743a0f9ddbfe8990bbb7825aea14da4922fba1a0d39e40513d88830f58";
+        private const string SeatRecordSha256 = "88f615962dc513334dd47cf6c3df3fee531d9ce14739181c0d7564289a22d269";
         private const float HorseChestHeight = 1.505f, HorseChestForward = 0.468f, HorseSaddleForward = 0.22f;
         private const float HalflingSaddleHeight = 1.95f, GnomeSaddleHeight = 1.98f;
         // Explicit zero: the accepted Horse seat always ran with none, because the -0.16 once written here initialized after the profiles that read it.
@@ -110,11 +117,9 @@ namespace KingmakerMountedCombat.Domain
         private const string RidingDogAnchor = "UpperTorso";
         private const float DogTorsoHeight = 0.77f, DogTorsoForward = 0.08f, DogSeatForward = 0.12f;
         private const float HalflingDogBackHeight = 1.05f, GnomeDogBackHeight = 1.07f;
-        // The saddle skirt is about 0.32 to each side at seat height. Ankles at 0.61 of reach sat on its surface, so run g2's
-        // thinner boots were inside it; 0.72 clears it, and the smaller drop leaves the knee a visible bend.
-        // The dog is wider at ankle height than along its back, and its torso rolls the rider a little toward one side; run g3 showed the
-        // near boot sinking into the fur at 0.68 and 0.67.
-        private const float DogFootSpread = 0.80f, DogFootDrop = 0.52f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
+        // The saddle skirt is about 0.32 to each side at seat height; 0.72 clears it, and the smaller drop leaves the knee a visible bend.
+        // The Dog's 0.80 and 0.52 were a mistaken answer to a boot that never followed its bones at all; see SmallRiderRigCompletion.
+        private const float DogFootSpread = 0.68f, DogFootDrop = 0.67f, HorseFootSpread = 0.72f, HorseFootDrop = 0.60f;
         private static DeclaredSmallMountedProfile DogFamily(string id, string raceGuid, string gender, string skeleton, float reach, float seatHeight) =>
             new DeclaredSmallMountedProfile(new DeclaredSmallRiderBody(id, RidingDogBlueprintGuid, raceGuid, gender, skeleton),
                 SmallPose(id, reach, DogFootSpread, DogFootDrop), SeatRecordSha256, new PoseVector3(0f, -0.40f, 0f),

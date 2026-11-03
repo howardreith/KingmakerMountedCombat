@@ -159,7 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (lightObject != null)
                 {
                     var light = lightObject.AddComponent<Light>();
-                    light.type = LightType.Point; light.range = 16f; light.intensity = 1.5f; light.color = Color.white; light.shadows = LightShadows.None;
+                    light.type = LightType.Point; light.range = 16f; light.intensity = 1.5f; light.color = Color.white; light.shadows = LightShadows.None; light.renderMode = LightRenderMode.ForcePixel;
                 }
                 row["fillLight"] = fillLight;
                 row["ordinaryCamera"] = ordinaryCamera;
@@ -251,8 +251,6 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const double Sprint5ScenarioDeadlineSeconds = 420.0d, Sprint5HostDeadlineSeconds = 540.0d;
         internal static readonly string[] Sprint5HorseCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed" };
         internal static readonly string[] Sprint5DogCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement" };
-        // A diagnostic candidate ends the run after S5-boot, leaving a failed outer verdict and a complete row. No final candidate sets this.
-        private static readonly bool Sprint5BootDiagnosticOnly = true;
         // The race, sex and build extremes of the rig list. Their attack and cast frames stand in for the shapes between them.
         private static readonly string[] Sprint5ExtremeRigs = { "female-halfling-thin", "male-gnome-fat" };
         private string[] Sprint5Cases => IsSprint5Dog ? Sprint5DogCases : Sprint5HorseCases;
@@ -581,9 +579,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         s5ShotIndex++; s5ShotAt = Time.time + Sprint5ShotSeconds;
                         QueueSprint5Shot(name + "-move-" + s5ShotIndex, s5Pet, 90f, 1.3f, 9f, 24f);
+                        QueueSprint5Boot(name + "-move-close-" + s5ShotIndex, s5Pet, 90f, 0.25f);
                         return;
                     }
                     if (s5ShotIndex < 2 || s5Pet.View?.AgentASP?.IsReallyMoving == true || !s5Pet.Commands.Empty) return;
+                    Game.Instance.UI.GetCameraRig().ScrollTo(s5Pet.Position);
+                    s5StepAt = Time.time + 1f; s5Step = 10; ResetLeafClock(); return;
+                case 10:
+                    if (Time.time < s5StepAt) return;
+                    s5Queue.Enqueue(new Sprint5Shot { Name = name + "-ordinary-camera", Focus = s5Pet, NoFill = true, OrdinaryCamera = true });
                     s5Step = 6; ResetLeafClock(); return;
                 case 6:
                     if (!Sprint5Click(s5Owner, nativeControls.DismountAbility, s5Owner)) return;
@@ -612,8 +616,7 @@ namespace KingmakerMountedCombat.Diagnostics
             new Sprint5BootCase { Label = "male-halfling", Rig = 0 },
             new Sprint5BootCase { Label = "female-halfling-left-handed", Rig = 1, LeftHanded = true }
         };
-        private GameObject s5FootExperimentOwner;
-        private Quaternion s5LeftFootLocal, s5RightFootLocal;
+
 
         private void QueueSprint5Boot(string name, UnitEntityData focus, float yaw, float height, bool observe = false, bool withoutMount = false, bool noFill = false) =>
             s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height, Look = 0.1f, Clear = 0.03f, FrameRider = true, FieldOfView = 28f,
@@ -624,7 +627,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s5RigIndex == Sprint5BootCases.Length)
             {
                 s5Facts["cases"] = s5RigRows;
-                FinishSprint5Row(s5RigRows.All(row => row.Value<bool>("mounted") && row.Value<bool>("remounted")), "The near boot compared on an affected rig, a control and a mirror.", !Sprint5BootDiagnosticOnly);
+                FinishSprint5Row(s5RigRows.All(row => row.Value<bool>("mounted") && row.Value<bool>("remounted")), "The near boot compared on an affected rig, a control and a mirror.");
                 return;
             }
             var entry = Sprint5BootCases[s5RigIndex];
@@ -640,8 +643,6 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5RigRows.Add(s5RigRow); s5Frames = 0; s5Step = 1; ResetLeafClock(); return;
                 case 1:
                     if (!Sprint5BodyReady() || ++s5Frames < Sprint5SettleFrames) return;
-                    var standingRoot = s5Owner.View.CharacterAvatar.transform;
-                    s5LeftFootLocal = Sprint5Bone(standingRoot, "L_foot").localRotation; s5RightFootLocal = Sprint5Bone(standingRoot, "R_foot").localRotation;
                     s5RigRow["rigFacts"] = Sprint5RiderRig(s5Owner);
                     s5RigRow["feetEquipped"] = s5Owner.Body.Feet.MaybeItem?.Blueprint?.name;
                     s5RigRow["armorEquipped"] = s5Owner.Body.Armor.MaybeItem?.Blueprint?.name;
@@ -649,6 +650,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     QueueSprint5Boot(name + "standing-far", s5Owner, 270f, 0.25f);
                     QueueSprint5Boot(name + "standing-front", s5Owner, 0f, 0.5f, true);
                     QueueSprint5Boot(name + "standing-near-ordinary-light", s5Owner, 90f, 0.25f, noFill: true);
+                    s5Step = 20; ResetLeafClock(); return;
+                case 20:
+                    // The native baseline: an untouched standing rider's own walk, before this mod has posed or completed anything.
+                    SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(FindWalkablePoint(s5Owner.Position, 3f, 1.5f), false);
+                    s5StepAt = Time.time + 0.5f; s5Step = 21; ResetLeafClock(); return;
+                case 21:
+                    if (Time.time < s5StepAt) return;
+                    QueueSprint5Boot(name + "standing-walk-1", s5Owner, 90f, 0.25f);
+                    s5StepAt = Time.time + 0.35f; s5Step = 22; ResetLeafClock(); return;
+                case 22:
+                    if (Time.time < s5StepAt) return;
+                    QueueSprint5Boot(name + "standing-walk-2", s5Owner, 90f, 0.25f);
+                    s5Step = 23; ResetLeafClock(); return;
+                case 23:
+                    if (s5Owner.View?.AgentASP?.IsReallyMoving == true || !s5Owner.Commands.Empty) return;
                     s5Step = 2; ResetLeafClock(); return;
                 case 2:
                     if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 3; ResetLeafClock(); }
@@ -668,22 +685,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 5:
                     if (Time.time < s5StepAt) return;
                     s5Queue.Enqueue(new Sprint5Shot { Name = name + "mounted-ordinary-camera", Focus = s5Pet, NoFill = true, OrdinaryCamera = true });
-                    s5Step = 6; ResetLeafClock(); return;
-                case 6:
-                    // Does the boot read correctly when the foot follows the shin instead of the animation's world rotation?
-                    var mountedRoot = s5Owner.View.CharacterAvatar.transform;
-                    var follow = s5Owner.View.gameObject.AddComponent<Sprint5FootFollowExperiment>();
-                    follow.LeftFoot = Sprint5Bone(mountedRoot, "L_foot"); follow.RightFoot = Sprint5Bone(mountedRoot, "R_foot");
-                    follow.LeftLocal = s5LeftFootLocal; follow.RightLocal = s5RightFootLocal;
-                    s5FootExperimentOwner = follow.gameObject;
-                    s5Frames = 0; s5Step = 7; ResetLeafClock(); return;
-                case 7:
-                    if (++s5Frames < 5) return;
-                    QueueSprint5Boot(name + "experiment-foot-follows-near", s5Pet, 90f, 0.25f, true);
-                    QueueSprint5Boot(name + "experiment-foot-follows-front", s5Pet, 30f, 0.7f);
                     s5Step = 8; ResetLeafClock(); return;
                 case 8:
-                    UnityEngine.Object.Destroy(s5FootExperimentOwner.GetComponent<Sprint5FootFollowExperiment>());
                     s5Armor = s5Owner.Body.Armor.MaybeItem;
                     if (s5Armor != null) s5Owner.Body.Armor.RemoveItem();
                     s5Frames = 0; s5Step = 9; ResetLeafClock(); return;
@@ -711,6 +714,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (Time.time < s5StepAt) return;
                     s5RigRow["afterDismountRig"] = Sprint5RiderRig(s5Owner);
                     QueueSprint5Boot(name + "dismounted-near", s5Owner, 90f, 0.25f);
+                    SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(FindWalkablePoint(s5Owner.Position, 3f, 1.5f), false);
+                    s5StepAt = Time.time + 0.5f; s5Step = 24; ResetLeafClock(); return;
+                case 24:
+                    if (Time.time < s5StepAt) return;
+                    QueueSprint5Boot(name + "dismounted-walk", s5Owner, 90f, 0.25f);
+                    s5Step = 25; ResetLeafClock(); return;
+                case 25:
+                    if (s5Owner.View?.AgentASP?.IsReallyMoving == true || !s5Owner.Commands.Empty) return;
                     s5Step = 15; ResetLeafClock(); return;
                 case 15:
                     if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 16; ResetLeafClock(); }
@@ -773,7 +785,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5StepAt = Time.time + 0.5f; s5Step = 7; ResetLeafClock(); return;
                 case 7:
                     if (Time.time < s5StepAt) return;
-                    QueueSprint5Shot(name + "cast", s5Pet, 90f, 1.3f, 9f, 24f); s5Step = 8; return;
+                    QueueSprint5Shot(name + "cast", s5Pet, 90f, 1.3f, 9f, 24f); QueueSprint5Boot(name + "cast-close", s5Pet, 90f, 0.25f); s5Step = 8; return;
                 case 8:
                     if (!s5Owner.Commands.Empty || s5Owner.AreHandsBusyWithAnimation) return;
                     SelectionManager.Instance.SelectUnit(s5Owner.View, true, true, false);
@@ -782,7 +794,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s5StepAt = Time.time + 0.4f; s5Step = 9; ResetLeafClock(); return;
                 case 9:
                     if (Time.time < s5StepAt) return;
-                    QueueSprint5Shot(name + "turn", s5Pet, 60f, 1.4f, 9f, 24f); s5Step = 10; return;
+                    QueueSprint5Shot(name + "turn", s5Pet, 60f, 1.4f, 9f, 24f); QueueSprint5Boot(name + "turn-close", s5Pet, 60f, 0.5f); s5Step = 10; return;
                 case 10:
                     if (s5Pet.View?.AgentASP?.IsReallyMoving == true || !s5Pet.Commands.Empty) return;
                     // The fight starts from home, where the room for its target is known.
@@ -803,7 +815,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (s5ShotIndex < 3 && Time.time >= s5ShotAt)
                     {
                         s5ShotIndex++; s5ShotAt = Time.time + 0.45f;
-                        QueueSprint5Shot(name + "attack-" + s5ShotIndex, s5Pet, 90f, 1.3f, 9f, 24f); ResetLeafClock(); return;
+                        QueueSprint5Shot(name + "attack-" + s5ShotIndex, s5Pet, 90f, 1.3f, 9f, 24f); if (s5ShotIndex == 1) QueueSprint5Boot(name + "attack-close", s5Pet, 90f, 0.25f); ResetLeafClock(); return;
                     }
                     if (Time.time < s5StepAt && !(s5ShotIndex == 3 && Sprint5AttackCount(s5Owner) >= 1)) return;
                     s5Facts["cooldownsAfterRider"] = Sprint5Cooldowns();

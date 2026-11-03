@@ -225,18 +225,4 @@ namespace KingmakerMountedCombat.Diagnostics
         }
     }
 
-    // Fixture only, removed before the row goes on. It runs after the pose adapter and writes only the two foot rotations, so the
-    // lease that restores the baseline before animation is untouched: does the boot read correctly when the foot follows the shin?
-    [DefaultExecutionOrder(32001)]
-    internal sealed class Sprint5FootFollowExperiment : MonoBehaviour
-    {
-        internal Transform LeftFoot, RightFoot;
-        internal Quaternion LeftLocal, RightLocal;
-
-        private void LateUpdate()
-        {
-            if (LeftFoot != null) LeftFoot.localRotation = LeftLocal;
-            if (RightFoot != null) RightFoot.localRotation = RightLocal;
-        }
-    }
 }

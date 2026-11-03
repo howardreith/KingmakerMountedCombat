@@ -31,7 +31,7 @@ function Assert-KmcSprint5Rigs($Row,$Shots,[string]$Mount,[string]$Root,[string]
   if([string]$s.mountEffective -cne $ExpectedMountEffective){ throw ('Sprint 5 '+$Mount+' effective size differs: '+$s.mountEffective) }
   if([math]::Abs([double]$s.riderWorldScale.y-[double]$f.worldScale.y) -gt 0.02){ throw ('Sprint 5 rider '+$rig.rig+' changed size on the mount: '+$s.riderWorldScale.y+' from '+$f.worldScale.y) }
   foreach($view in @('side','front','rear')){ Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-idle-'+$view) $Root }
-  foreach($index in 1,2){ Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-move-'+$index) $Root }
+  foreach($index in 1,2){ Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-move-'+$index) $Root; Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-move-close-'+$index) $Root }; Assert-KmcSprint5Shot $Shots ($Mount+'-'+$rig.rig+'-ordinary-camera') $Root
   if($null -eq $rig.afterDismount -or $null -eq $rig.afterDismountRig){ throw ('Sprint 5 rig '+$rig.rig+' never dismounted') }
   if([string]$rig.afterDismountRig.skeleton -cne [string]$f.skeleton){ throw ('Sprint 5 rig '+$rig.rig+' changed skeleton across the ride') }
   if([math]::Abs([double]$rig.afterDismountRig.worldScale.y-[double]$f.worldScale.y) -gt 0.02){ throw ('Sprint 5 rig '+$rig.rig+' kept a scale residue after dismounting') }
@@ -48,7 +48,7 @@ function Assert-KmcSprint5Actions($Evidence,$Shots,[string]$Mount,[string]$Root,
  foreach($boundary in @($e.gearRemoved,$e.gearRestored,$e.duringCombat)){
   if([string]$boundary.state -cne 'Mounted' -or [string]$boundary.resolved -cne [string]$e.profileBefore){ throw 'Sprint 5 gear or combat changed the rig profile or the mounted state' }
  }
- foreach($view in @('gear-removed','gear-restored','cast','turn','attack-1','attack-2','attack-3','mount-attack','dismounted')){ Assert-KmcSprint5Shot $Shots ($prefix+$view) $Root }
+ foreach($view in @('gear-removed','gear-restored','cast','cast-close','turn','turn-close','attack-close','attack-1','attack-2','attack-3','mount-attack','dismounted')){ Assert-KmcSprint5Shot $Shots ($prefix+$view) $Root }
  if($e.attackClicked -ne $true -or $e.mountAttackClicked -ne $true -or [int]$e.riderAttacks -lt 1 -or [int]$e.mountAttacks -lt 1){ throw 'Sprint 5 ordinary clicks did not produce a native attack by each actor' }
  if([double]$e.cooldownsAfterRider.riderStandard -le 0 -or [double]$e.cooldownsAfterRider.mountStandard -ne 0 -or [double]$e.cooldownsDuring.mountStandard -le 0){ throw 'Sprint 5 each actor must spend its own Standard action' }
  if([math]::Abs([double]$e.afterDismount.worldScale.y-[double]$e.unmountedRig.worldScale.y) -gt 0.02){ throw 'Sprint 5 dismount did not restore the rider scale' }
@@ -72,11 +72,16 @@ function Assert-KmcSprint5Boot($Evidence,$Shots,[string]$Mount,[string]$Root){
   if(($c.mountedRig.mirror -eq $true) -ne ($c.leftHanded -eq $true)){ throw ('Sprint 5 near boot case '+$c.label+' has the wrong mirror') }
   if($null -eq $c.afterDismountRig -or [math]::Abs([double]$c.afterDismountRig.pelvisHeight-[double]$c.rigFacts.pelvisHeight) -gt 0.08){ throw ('Sprint 5 near boot case '+$c.label+' kept a pose residue') }
   $prefix=$Mount+'-boot-'+$c.label+'-'
-  foreach($view in @('standing-near','standing-far','standing-front','standing-near-ordinary-light','mounted-near','mounted-near-nomount','mounted-far','mounted-front','mounted-front-nomount','mounted-three-quarter','mounted-near-ordinary-light','mounted-ordinary-camera','experiment-foot-follows-near','experiment-foot-follows-front','armor-off-near','armor-off-near-nomount','armor-off-far','armor-restored-near','dismounted-near','remounted-near')){ Assert-KmcSprint5Shot $Shots ($prefix+$view) $Root }
+  foreach($view in @('standing-near','standing-far','standing-front','standing-near-ordinary-light','standing-walk-1','standing-walk-2','mounted-near','mounted-near-nomount','mounted-far','mounted-front','mounted-front-nomount','mounted-three-quarter','mounted-near-ordinary-light','mounted-ordinary-camera','armor-off-near','armor-off-near-nomount','armor-off-far','armor-restored-near','dismounted-near','dismounted-walk','remounted-near')){ Assert-KmcSprint5Shot $Shots ($prefix+$view) $Root }
   foreach($view in @('standing-near','mounted-near','mounted-far','mounted-front','armor-off-near','remounted-near')){
    $shot=@($Shots | Where-Object { [string]$_.name -ceq ($prefix+$view) })[0]
    if($null -eq $shot.boot -or $null -ne $shot.PSObject.Properties['bootError']){ throw ('Sprint 5 near boot view has no geometry observation: '+$prefix+$view) }
    if([int]$shot.boot.frame -ne [int]$shot.frame){ throw ('Sprint 5 near boot geometry is not from the frame of its pixels: '+$prefix+$view) }
+   # A seated rider's rig is whole: the native merge mapped every bone of every part, so both legs follow their own bones.
+   if($view -cne 'standing-near'){
+    if(@($shot.boot.parts | Where-Object { $null -ne $_.PSObject.Properties['mappingStoppedAt'] }).Count -ne 0){ throw ('Sprint 5 a seated rig still stops the native merge: '+$prefix+$view) }
+    if([int]$shot.boot.rightBoot.count -le 0 -or [int]$shot.boot.rightBoot.count -ne [int]$shot.boot.leftBoot.count){ throw ('Sprint 5 a seated rig has no matching lower legs: '+$prefix+$view) }
+   }
   }
  }
 }
