@@ -11,7 +11,7 @@ $script:id=100
 function Add-S6Attack($M,[string]$Case,[int]$Step,[string]$Plan,[string]$Refusal,[string]$Commitment,$Before,$After,[double]$SwiftBefore,[double]$SwiftAfter,[bool]$RiderTurn,[string]$Mode,[bool]$Opportunity=$true,[string]$Who=$rider,[string]$On=$mount){
  $script:id++
  $attempted=$Refusal -ceq 'None'
- $total=25;$check=$(if($Plan -ceq 'success'){26}elseif($Plan -ceq 'equal'){25}elseif($Plan -ceq 'low'){24}elseif($attempted){30}else{0})
+ $total=25;$check=$(if(-not $attempted){0}elseif($Plan -ceq 'success'){26}elseif($Plan -ceq 'equal'){25}elseif($Plan -ceq 'low'){24}else{30})
  $negated=$attempted -and $check -gt $total
  $result=$(if($negated){'Parried'}else{'Hit'})
  $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$Who;mountId=$On;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');negated=$negated;checkD20=$(if($attempted){10}else{0});checkResult=$check;checkDc=$(if($attempted){26}else{0});swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwiftBefore=6.0;mountSwiftAfter=6.0}
