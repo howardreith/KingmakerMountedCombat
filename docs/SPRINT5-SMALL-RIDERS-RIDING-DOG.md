@@ -1,27 +1,24 @@
 # Sprint 5: Small riders, relative size and the Riding Dog
 
-**Status: NOT the Sprint 5 completion label. Two selected outcomes are open.**
+**SPRINT 5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.**
 
-1. **Open defect: the near boot of every female rig is cut off.** On the final Horse seat (g4), all six female rigs lose the boot
-   on the rider's right at the saddle. On the Dog (g3, previous seat) it sinks into the fur. Their far-side legs and all male rigs
-   display correctly. The foot bones report a position clear of the saddle, so this is not explained by clearance. **The cause is
-   not known.**
-2. **Not executed: the final Dog seat.** The last Dog correction (feet spread .68 to .80, drop .67 to .52, for all 12 rigs) is in the
-   final DLL but has never been rendered. The budget guard refused the run (g5) before launch: 9.62 minutes remained and a launch
-   needs 10. So no Dog row, including the pet level sequence, ran on the final DLL. Whether that correction helps is unknown.
+The two items that held this label back are closed. No merge, release or installation is part of this work.
 
-Everything else selected was demonstrated, as listed below: 24 profiles mounted, moved and dismounted, the extremes acted, a real
-mirrored rider sat correctly, and a Riding Dog levelled natively. Owner play acceptance is separate. No merge, release or installation
-is part of this work.
+- **The missing right boot on female rigs had a native cause, now repaired.** On the female doll, the game's mesh merge leaves the right
+  leg rigid on the pelvis, so that leg stayed in its standing pose while its bones were seated. See "The female boot: cause and repair".
+- **The final Dog pose was rendered and inspected.** The earlier `.80`/`.52` proposal was never rendered and answered this same symptom,
+  so it was reverted to `.68`/`.67` before any launch used it.
+
+**Visual packet of real captures:** [Sprint 5 Boot Packet](https://claude.ai/artifact/T1vJzEguDxW1PJsLzzRsBg) (private until shared).
 
 | | |
 | --- | --- |
 | Baseline | `main` `e8450a56`, the merge of Sprint 4 PR #9 |
 | Branch | `codex/mounted-combat-sprint5-small-riders-riding-dog` |
-| Final compiled source | `877f4b7f06baeb77e9702fa12bd7a505c617929d`. Later commits change docs only |
-| Final candidate | sprint5s, DLL `011682da4dce695a84c95b455bcbd250d2b7af8a34fa273b78b76a63a0d91432`, MVID `87950acb-17f5-4802-aa79-1df042f02803`, 8,614,400 bytes |
-| Package | `artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint5s-diagnostic.zip`, SHA-256 `e29388dedda4912b33c60c1df4ce5a2434325336a2c36af25e2ab6dc117ab6ad` |
-| Suite | `sprint5s-877f4b7f-20261102`, SHA-256 `cfdb83c622dca4fa8ec8b9abc64691b23f02adb773a13d092bf7426cf7a5b6f0` |
+| Final compiled source | `fcdce67564ee02f27a351e5fd1211ba35b8d824e`. Later commits change docs only |
+| Final candidate | sprint5v, DLL `0aa9bfe552ac818bc73af1b49b2141d97339111227840c7c594d1d80f84ebefd`, MVID `e9782372-98f6-4d6e-b27d-a7995e6385c7`, 8,636,416 bytes |
+| Package | `artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint5v-diagnostic.zip`, SHA-256 `3b8eb7c0501f16456b09abfa1dead675d87bb8fa0f1346fe3117358e8bf2fb14` |
+| Suite | `sprint5v-fcdce675-20261102`, SHA-256 `65c40018d5a6db9daabbbf1719fa0af9a2809279204dff9cae9a8061d708e019` |
 | Package bound | Unchanged at 9 MiB. No increase was needed |
 | Budget | `sprint5`: see Costs |
 
@@ -29,7 +26,16 @@ The reviewer of this work did not see the private captures or run the game. Noth
 
 ## Evidence, by binary
 
-**This finishing pass.** g3 and g4 differ only by the Dog seat literals and the seat record hash.
+**The boot closeout.** h2 and h3 ran the same final DLL bytes; only a reader line and the package identity differ between them.
+
+| Run | DLL | Game | Outer reader | What it shows |
+| --- | --- | --- | --- | --- |
+| `20261103-sprint5-h3-horse` | `0aa9bfe5` (sprint5v, final) | PASS, 8 rows | PASS | Horse: boot comparison, all 12 rigs, actions on the male Halfling and both extremes, mirrored rider |
+| `20261103-sprint5-h2-dog` | `0aa9bfe5` (sprint5u, same bytes) | PASS, 14 rows | Original FAIL, reader-only re-evaluation PASS | Dog: boot comparison, all 12 rigs, actions, Medium refusal, Enlarge, rank 4, pet levels, mirrored rider, stock Dog, replacement |
+| `20261103-sprint5-h1-boot` | `1d2b6a86` (sprint5t, diagnostic) | PASS, 4 rows | FAIL by design | Ended after the boot row, so the later rows are missing. The cause and the rejected explanations |
+
+**The body-variant pass.** g3 and g4 differ only by the Dog seat literals and the seat record hash. The g4 "final" labels below are
+historical.
 
 | Run | DLL | Game | Outer reader | What it shows |
 | --- | --- | --- | --- | --- |
@@ -39,7 +45,7 @@ The reviewer of this work did not see the private captures or run the game. Noth
 | `20261102-sprint5-g2-horse` | `58919cf1` (sprint5q) | PASS, 7 rows | PASS | Horse, earlier feet. Images showed the near boot problem |
 | `20261102-sprint5-g1-horse` | `222f7b4c` (sprint5p) | Rows through `S5-actions` PASS | FAIL | Scenario walk stranded the pair. See failures |
 
-**Retained from the first pass, on its frozen reader.** These are not re-judged by the v2 reader, and only the Riding Dog's
+**Retained from the first pass, on its frozen reader.** These are not re-judged by a later reader, and only the Riding Dog's
 advancement level literal differs between the two DLLs here.
 
 | Run | DLL | Game | Outer reader | What it shows |
@@ -77,11 +83,11 @@ between rigs and would differ between remounts and reloads.
 **One visual correction** after r12: the Halfling's near thigh was lost in the dog's fur mid-stride, so the dog seat rose 0.03 and
 0.02 and the feet spread from 0.61 to 0.68 of reach.
 
-**Corrections in the finishing pass, driven by the images:**
+**Corrections in the finishing passes:**
 
-- Horse feet: spread .61 to .72 of reach, drop .67 to .60 (g2 to g4). Male near boots now hang clear on the saddle flap. Female ones
-  do not.
-- Dog feet: spread .68 to .80, drop .67 to .52 (after g3). **Never rendered.**
+- Horse feet: spread .61 to .72 of reach, drop .67 to .60 (g2 to g4). Rendered clean, so kept. The female image that prompted the change
+  was the merge defect, not the saddle.
+- Dog feet: a proposed spread .80 and drop .52 (after g3) was **never rendered and reverted** to .68 and .67, which h2 rendered.
 - The Horse's -0.16 root offset never took effect, because of static initialization order. It is now an explicit zero, with no
   change in behavior.
 
@@ -90,23 +96,26 @@ between rigs and would differ between remounts and reloads.
 All 24 declarations are admitted in the final DLL. Each rig has its own skeleton, such as `MaleHalfling_fat`. The first eight
 profile IDs are unchanged.
 
-| Rig | Horse profile | Riding Dog profile | Horse near boot, final seat (g4) | Dog near boot, previous seat (g3) |
+| Rig | Horse profile | Riding Dog profile | Boot, final Horse (h3) | Boot, final Dog (h2) |
 | --- | --- | --- | --- | --- |
 | Male Halfling | `small-default-halfling-horse-v1` | `small-halfling-male-ridingdog-v1` | Clear | Clear |
-| Male Halfling fat | `small-halfling-male-fat-horse-v1` | `small-halfling-male-fat-ridingdog-v1` | Clear | Clear |
+| Male Halfling fat | `small-halfling-male-fat-horse-v1` | `small-halfling-male-fat-ridingdog-v1` | Clear | Clear in motion and far side; a mammoth blocks the idle near view |
 | Male Halfling thin | `small-halfling-male-thin-horse-v1` | `small-halfling-male-thin-ridingdog-v1` | Clear | Clear |
 | Male Gnome | `small-gnome-male-horse-v1` | `small-gnome-male-ridingdog-v1` | Clear | Clear |
-| Male Gnome fat | `small-gnome-male-fat-horse-v1` | `small-gnome-male-fat-ridingdog-v1` | Clear | Clear |
-| Male Gnome thin | `small-gnome-male-thin-horse-v1` | `small-gnome-male-thin-ridingdog-v1` | Clear in the front view; the bedroll hides it from the side | Dark frame, boot not readable |
-| Female Halfling | `small-halfling-female-horse-v1` | `small-halfling-female-ridingdog-v1` | **Cut off** | **In the fur** |
-| Female Halfling fat | `small-halfling-female-fat-horse-v1` | `small-halfling-female-fat-ridingdog-v1` | **Cut off** | **In the fur** |
-| Female Halfling thin | `small-halfling-female-thin-horse-v1` | `small-halfling-female-thin-ridingdog-v1` | **Cut off** | **In the fur** |
-| Female Gnome | `small-gnome-female-horse-v1` | `small-gnome-female-ridingdog-v1` | **Cut off** | **In the fur** |
-| Female Gnome fat | `small-gnome-female-fat-horse-v1` | `small-gnome-female-fat-ridingdog-v1` | **Cut off** | **In the fur** |
-| Female Gnome thin | `small-gnome-female-thin-horse-v1` | `small-gnome-female-thin-ridingdog-v1` | **Cut off** | **In the fur** |
+| Male Gnome fat | `small-gnome-male-fat-horse-v1` | `small-gnome-male-fat-ridingdog-v1` | Clear | Clear in motion and far side; a mammoth blocks the idle near view |
+| Male Gnome thin | `small-gnome-male-thin-horse-v1` | `small-gnome-male-thin-ridingdog-v1` | Clear | Clear; the earlier dark frame is now readable |
+| Female Halfling | `small-halfling-female-horse-v1` | `small-halfling-female-ridingdog-v1` | Clear | Clear |
+| Female Halfling fat | `small-halfling-female-fat-horse-v1` | `small-halfling-female-fat-ridingdog-v1` | Clear | Clear |
+| Female Halfling thin | `small-halfling-female-thin-horse-v1` | `small-halfling-female-thin-ridingdog-v1` | Clear | Clear |
+| Female Gnome | `small-gnome-female-horse-v1` | `small-gnome-female-ridingdog-v1` | Clear | Clear |
+| Female Gnome fat | `small-gnome-female-fat-horse-v1` | `small-gnome-female-fat-ridingdog-v1` | Clear | Clear |
+| Female Gnome thin | `small-gnome-female-thin-horse-v1` | `small-gnome-female-thin-ridingdog-v1` | Clear | Clear |
 
-Every rig mounted, moved and dismounted in `S5-rigs` on both mounts. Gear, cast, turn, four rider attacks, one mount attack and
-dismount ran on the male Halfling and on both extremes, female Halfling thin and male Gnome fat, on both mounts.
+"Clear" means the whole boot is visible from the rider's right side, resting on the saddle flap or the dog's coat. On the Dog, the boot
+rests on the coat rather than hanging free of it, on male and female rigs alike. See Limits.
+
+Every rig mounted, moved and dismounted in `S5-rigs` on both mounts. Gear, cast, turn, rider attacks, one mount attack and dismount
+ran on the male Halfling and on both extremes, female Halfling thin and male Gnome fat, on both mounts.
 
 **Fat and thin are close to the default build.** Measured thigh plus shin is within .002 of default; only hip width differs. The
 fixture dresses every rig in the same gear, so the images do not separate the bodies much.
@@ -121,40 +130,86 @@ fixture dresses every rig in the same gear, so the images do not separate the bo
 **The first pass's refusal of fat and thin presets is superseded by this matrix.** It is kept in the history of this file and in the
 f-series evidence.
 
-### The open female boot defect
+### The female boot: cause and repair
 
-What was measured and seen:
+**Correction.** The earlier version of this report said the foot bones' clear position ruled out clearance. A bone origin is not the boot's
+surface, so that conclusion was not established then. Run h1 compared real geometry and images instead.
 
-- The female `R_foot` bone is at about x .29 to .39 on the Horse. The saddle skirt is about ±.32, and the left foot is symmetric. The
-  rendered shin hangs almost straight down, which does not match that position.
-- It is on all six female rigs and on the rider's right only, in g2 and g4 on the Horse and g3 on the Dog.
-- In g3's wide Dog view, a female boot was visible at frame 5133 and hidden at 5134, as its bone went from x .273 to .258. The rider
-  rolls with the dog's torso.
+**Cause.** The native merge, `Character.EnsureBones`, stops mapping a body part at the first bone the avatar's hierarchy lacks, and leaves
+every later bone on the merged list's first bone. On the female doll that first bone is `Pelvis`. The female doll's hierarchy lacks
+`L_back_weapon_slot_10`, and it comes before all of the `R_` leg bones in the parts' lists. So the right leg's vertices stay rigid on the
+pelvis, in their standing pose. Standing, that looks normal. A seat bends the leg, and exposes it.
 
-What this does not show: the cause. It could be in the female mesh, foot or animation, but none of that is proven. The reliable next
-check is a single female Horse launch comparing the right foot bone with its baked mesh vertices.
+| Rig and moment | Parts where mapping stopped | `R_leg` merged slots | Right lower-leg vertices following `R_leg` |
+| --- | --- | --- | --- |
+| Female Halfling, standing, native | 13 | 5 | 0 |
+| Female Halfling, seated, repaired | 0 | 13 | 308 |
+| Male Halfling control, native | 0 | 13 | 308 |
+
+**Competing explanations, from one controlled comparison with the same gear on both rigs (h1):**
+
+| Question | Observation | Result |
+| --- | --- | --- |
+| Overlap with the saddle? | With the mount's renderers hidden for one render, the female right leg still hangs straight down; the male control splays | Rejected |
+| Camera side, or anatomy? | On a mirrored female the near leg is whole and the far leg shows the defect | Anatomy: it follows the `R_` bones |
+| Foot rotation (my lead)? | A fixture experiment made the foot follow the shin; the frame stayed cut off | Rejected |
+| Armor? | Armor off with the mount hidden shows the same leg | Rejected |
+| Capture, lighting or silhouette? | Same leg in ordinary light and in the ordinary-camera frame | Rejected |
+| Mounted regression, or native? | Before any mount, the female right leg stays nearly straight while walking, in two frames each from h2 and h3, where the male rear leg bends | Native, exposed by the seat |
+
+The fixture sets the body with a native Doll, and `DollData.CreateUnitView` uses this same `FemaleDoll` prefab for ordinary characters. A
+character made on the real creation screen has not been run. Whether it also applies outside these Small rigs was not examined.
+
+**Repair.** When a Small rider is seated, `SmallRiderRigCompletion` adds each bone the body parts name and the avatar lacks, with no
+geometry, and lets the native merge rebuild, as an ordinary gear change does. It checks again after each native rebuild. Medium riders,
+mechanics positions, collision, navigation, actions, saves and stock assets are untouched. A failure here is logged, and the seat keeps
+the native mesh.
+
+**One behavior to know.** The added bone stays for the life of that view. A female rider who has mounted once keeps a correctly moving
+right leg after dismounting, until the view is next rebuilt. That differs from her native walk before mounting, and it is visible in
+`horse-boot-female-halfling-dismounted-walk`.
+
+**Dog constants.** `.80`/`.52` answered this same symptom, so it was reverted rather than kept unseen. h2 shows the `.68`/`.67` pose working
+on all 12 rigs. The Horse's `.72`/`.60` stays, as already rendered.
 
 ### Left-handed riders
 
-Seen with a real mirror on the final DLL (Horse, g4) and on sprint5r (Dog, g3), using native `LeftHandedOverride`: `Mirror=true`,
-animator scale x -1, male Halfling, resolved to the rig's ordinary profile. The earlier row's `DollState.SetLeftHanded` left
-`mirror=False`. Mounted feet on the Horse were at ±.31. Dog feet were .29 and -.20, on the seat before the final Dog correction.
-Close images on both mounts show a clean straddle. It was restored to `false` afterwards. Only that one rig was viewed mirrored, so a
-**mirrored female rig has not been seen**.
+Seen with a real mirror on the final DLL on both mounts (h2, h3), using native `LeftHandedOverride`: `Mirror=true`, animator scale x -1,
+on the male Halfling and now the female Halfling, each resolved to the rig's ordinary profile. The earlier row's
+`DollState.SetLeftHanded` left `mirror=False`. Close images on both mounts show a clean straddle, including the female's far side after the
+repair. It was restored to `false` afterwards. No complete mirrored matrix was selected.
 
 ### Inspected images
 
 I opened these and looked at the pixels. All are under `runtime-evidence\<run>\movement-visuals\`, named `sprint5-<name>.png`.
 The blue shapes are the game's own silhouette overlay for a unit behind a wall or another unit; those frames show the outline only.
 
-**Capture setup, disclosed:** the finishing pass's frames use a temporary white fill light that exists only during the fixture's render,
-so they are brighter than play. Mammoths in the background are the fixture's control and target. Automated scores are not the verdict:
-162 Horse shots with 159 scored clear, and 183 Dog shots with 177 clear. The unclear ones were two Mammoth control views, one attack
-frame and four Dog dismounted frames.
+**Capture setup, disclosed:** posed frames use a temporary white fill light that exists only during the fixture's render, so they are
+brighter than play. `-ordinary-light` frames omit it, and `-ordinary-camera` frames also keep the camera where play has it. `-nomount`
+frames hide the mount's renderers for one render and are diagnostics, not acceptance. Mammoths are the fixture's control and target, and
+can block a view. Automated scores are not the verdict.
+
+**Final candidate (h2 and h3):**
 
 | Run | Image | What is visible |
 | --- | --- | --- |
-| g4 (final) | `horse-<each of 12 rigs>-idle-close-side` | Seated. Male boots on the saddle flap, female near boots cut off |
+| h3 | `horse-<each of 12 rigs>-idle-close-side`, `-idle-close-other`, `-idle-close-front`, `-move-close-1` | Whole boots on both sides, in place and walking. Female rigs match the male control |
+| h2 | `dog-<each of 12 rigs>-idle-close-side`, `-idle-close-other`, `-idle-close-front`, `-move-close-1` | Whole boots resting on the coat, in place and walking. A mammoth blocks a few idle near views |
+| h3, h2 | `*-boot-female-halfling-mounted-near-ordinary-light`, `-mounted-ordinary-camera`, `<mount>-<12 rigs>-ordinary-camera` | Ordinary appearance. At that zoom the rider is small. On the Horse a pillar can put part of the mount behind the game's silhouette |
+| h3, h2 | `*-action-female-halfling-thin-cast-close`, `-attack-close`, `-turn-close`, and the male Gnome fat equivalents | Seated and whole through cast, attack and turn |
+| h3, h2 | `*-boot-female-halfling-armor-off-near`, `-armor-restored-near`, `-dismounted-near`, `-remounted-near`, `*-action-female-halfling-thin-gear-restored` | One gear change, dismount and remount on the affected rig. Full size standing, with no scale or pose residue |
+| h3, h2 | `*-boot-female-halfling-left-handed-mounted-near`, `-mounted-far`, `*-left-handed-close-side`, `-close-other` | Mirrored female and mirrored male seated, boots whole |
+| h3, h2 | `*-boot-female-halfling-standing-walk-1`, `-2`, `*-boot-male-halfling-standing-walk-1`, `-2`, `horse-boot-female-halfling-dismounted-walk` | The native baseline: the female right leg stays nearly straight walking before any mount |
+| h2 | `dog-mounted-commit-side`, `dog-leveled-close-side`, `-close-other`, `dog-leveled-move`, `dog-enlarged-detached`, `dog-beside-stock-side` | Levelled pair seated on the final pose. The near boot sits low in the coat in the levelled frame. A hood appears in these frames, not traced. Enlarged rider standing clear. The stock frame is too occluded to count |
+| h1 | `horse-boot-female-halfling-mounted-near`, `-nomount`, `-front`, `-front-nomount`, `-far`, `-armor-off-near-nomount`, `-experiment-foot-follows-near`, `-left-handed-mounted-near-nomount`, `horse-boot-male-halfling-mounted-near`, `-nomount`, `-front`, `-front-nomount` | The discriminators in the table above |
+
+Not every frame was opened: h2 and h3 together hold 561 shots, and the move-close-2, attack-1 to -3 and most wide frames were sampled.
+
+**Earlier evidence, retained (g3 and g4). Their "final" labels are historical.**
+
+| Run | Image | What is visible |
+| --- | --- | --- |
+| g4 | `horse-<each of 12 rigs>-idle-close-side` | Seated. Male boots on the saddle flap, female near boots cut off |
 | g4 | `horse-<each of 12 rigs>-idle-close-other`, `-idle-close-front`, `-dismounted` | Far legs and boots whole on all 12. Dismounted at full size |
 | g4 | `horse-left-handed-close-side`, `-close-other` | **Genuinely mirrored rider:** seated, both boots whole |
 | g4 | `horse-action-female-halfling-thin-cast`, `-attack-1` | Seated and in the action at a distance |
@@ -312,21 +367,21 @@ after the cold load.
 | --- | --- |
 | Medium/Mammoth | Mounted control row in g2, g3, g4, f2 and f6; in the archive and cold load in f3 and f4 |
 | Ordinary Dog | Not mountable; effective Small at 0.66 scale, level 0, 13/17/15 under Call of the Wild. Numbers only: the frames did not show it |
-| Medium/Horse | **Not run in this sprint.** Its path is unchanged in code and the 1,028 component checks pass |
+| Medium/Horse | **Not run in this sprint.** Its path is unchanged in code and the 1,029 component checks pass |
 
 ## Evidence classes
 
 | Class | Contents |
 | --- | --- |
-| Executed on the final DLL | g4: Horse rows, including all 12 rigs and the mirrored rider |
-| Retained on an earlier DLL | g3 (one set of Dog literals and the seat hash away): every Dog row and the pet levels. g1, g2. First pass f1 to f6 and r01 to r12 |
-| Offline, on `877f4b7f` | Candidate 8/0 in 3.99 min, offline verification only: 1,028 component, 149 source, 78 reader, 281 harness, 751 assembly |
-| Not executed | **g5, the final Dog seat**. Fat and thin save and cold load. Everything listed as a limit below. Turn-based play on the Small profiles. A Sprint 1 to 4 requalification, which was not selected |
+| Executed on the final DLL bytes | h3: all Horse rows. h2: all Dog rows, with the outer FAIL and its re-evaluation recorded under failures |
+| Retained on an earlier DLL | g3 pet levels are repeated in h2 as a side effect of its row list, not as a new requirement. f3 and f4 save and cold load, default rigs only. g1 to g4, f1 to f6, r01 to r12, h1 |
+| Offline, on `fcdce675` | Candidate 8/0 in 3.88 min, offline verification only: 1,029 component, 149 source, 90 reader, 281 harness, 751 assembly |
+| Not executed | g5. Fat and thin save and cold load. Everything listed as a limit below. Turn-based play on the Small profiles. A Sprint 1 to 4 requalification, which was not selected |
 
 Body setup is disclosed in every row: a native Doll and race on a disposable actor, with the view rebuild native polymorph uses, and
 `LeftHandedOverride` for the mirrored rider. It is not character creation. The XP that makes level-ups possible is also disclosed
-setup. The reader is contract v2: it requires a real mirror and each extreme's own body. Retained evidence stays bound to its frozen
-reader.
+setup. The reader is contract v3: it adds the boot row, and needs a seated rig's merge to complete with both lower legs present and a
+geometry observation from the same frame as its pixels. Retained evidence stays bound to its frozen reader.
 
 ## Original failures, retained
 
@@ -345,10 +400,12 @@ reader.
 | f1 | Game PASS; outer: preamble wildcard. Re-evaluated PASS |
 | f5 | Expected load failure; found the rank 7 defect. See Recovery |
 | g1 | "No bounded walkable Phase 3D point satisfied the requested distance." The scenario's walks stranded the pair in `S5-body-actions` after 12 rigs. `S5-rigs` and `S5-actions` passed. Walks now stay around home |
-| g2 | Outer PASS. Images showed the female near boot inside the saddle, which led to the Horse feet change |
-| g3 | Outer PASS. Images showed female near boots in the fur, which led to the Dog feet change |
+| g2 | Outer PASS. Images showed the female near boot inside the saddle, which led to the Horse feet change. That image was the merge defect |
+| g3 | Outer PASS. Images showed female near boots in the fur, which led to the Dog feet proposal. That image was the merge defect, and the proposal was reverted |
 | g4 | Outer PASS. Images showed the Horse feet change fixed males and **not** females |
-| g5 | **Refused before launch by the budget guard.** The required WhatIf took the remaining time from 10.37 to 9.62 minutes, below the launch reservation of 10. The controller stopped before writing its completion marker, so the refusal was not read until the next session |
+| g5 | **Refused before launch by the budget guard.** The WhatIf and the launch's own staging prelude took the remaining time from 10.37 to 9.62 minutes, below the launch reservation of 10. An earlier version blamed the WhatIf alone. The controller stopped before writing its completion marker, so the refusal was not read until the next session |
+| h1 | FAIL by design: the diagnostic candidate ended after `S5-boot`. Found the cause. Its first reading, foot rotation, was rejected by its own experiment |
+| h2 | Game PASS. Outer FAIL: "a seated rig has no matching lower legs", from a check I had added requiring equal left and right counts. The male control is natively 312 and 308. Corrected to within 5 percent, and a mostly missing leg still refuses. Re-evaluated PASS on the same observation (`analysis-cache\sprint5\h2-dog-reader-reevaluation.json`). My background waiter for this run was stopped by Claude Code under memory pressure. The detached controller was unaffected and finished normally |
 
 Reader re-evaluations with old and new verdicts are in `analysis-cache\sprint5\`. The reviews found real defects, which were fixed:
 
@@ -371,38 +428,38 @@ Reader re-evaluations with old and new verdicts are in `analysis-cache\sprint5\`
 
 ## Costs
 
-`sprint5` budget, record `runtime-state\workflow-budgets\sprint5.json`: **114.48 of 120 minutes**, 5.52 remaining, which cannot admit a
-launch. The allowance was 90, with one explicit +30 adjustment of the same budget from the finishing mission (recorded
-under `allowanceAdjustments`), and no reset or new ID. The first pass spent 81.74.
+`sprint5` budget, record `runtime-state\workflow-budgets\sprint5.json`: **139.58 of 150 minutes**. The allowance was 90, with two explicit +30
+adjustments of the same budget from the finishing missions (120, then 150, both recorded under `allowanceAdjustments`), and no reset or new
+ID. The first pass spent 81.74, and the body-variant pass ended at 114.48.
 
-22 native launches: 18 in the first pass, plus g1 to g4 in batch `sprint5:finish-1`. g5 is a 23rd attempt that never launched. r10's
-stall cost a full 10 minutes.
+25 native launches: 18 in the first pass, g1 to g4 in batch `sprint5:finish-1`, and h1, h2 and h3 in `sprint5:boot-1` to `-3`. g5 is an
+attempt that never launched. r10's stall cost a full 10 minutes.
 
 ## Owner checklist
 
-1. **Female rider on a Horse and a Riding Dog: look at the boot on the rider's right.** This is the open defect, and the images show it
-   cut off. Tell me whether it also looks wrong in ordinary play.
-2. **Any rider on a Riding Dog: look at both feet.** This seat has never been rendered.
-3. Halfling on a Horse: mount, walk, turn, attack, cast, dismount, remount. It should sit in the saddle with the legs either side.
-4. Change armor, helmet and weapon while mounted. It should stay mounted.
-5. Create a **fat or thin** Halfling or Gnome and ride both mounts. Save and reload, which has not been run for these builds.
+1. **Female Halfling or Gnome on a Horse and a Riding Dog:** look at the boot on the rider's right. It should now be whole, as on a male rig.
+2. Walk, turn, attack and cast while riding each mount.
+3. Change armor while mounted. The seat should hold.
+4. Dismount, remount, and walk on foot. A female rider who has mounted once should keep a normal stride. Tell me if you would rather she
+   return to the game's native walk after dismounting.
+5. Create a **fat or thin** Halfling or Gnome on the real creation screen and ride both mounts. Save and reload, which has not been run
+   for these builds.
 6. Level a Ranger to 4 and choose **Riding Dog**, on the real level-up screen, in an existing campaign. This is the check I could
    not make: the headless controller took the choice.
-7. Level the dog through the real pet level-up screen, once while riding it. Its Strength and Hit Points should grow, and it should
-   stay Medium and mounted.
-8. Attack with the rider and with the dog.
-9. Try a Medium character: Mount should refuse with the size message.
-10. Save while mounted on the dog, restart the game, and load.
-11. Try a left-handed Small character, ideally female, and look at the legs.
+7. Level the dog through the real pet level-up screen, once while riding it.
+8. Try a Medium character: Mount should refuse with the size message.
+9. Save while mounted on the dog, restart the game, and load.
+10. Try a left-handed Small character.
 
 ## Limits, in priority order
 
-1. **Female near boot defect, cause unknown.** Blocks the completion label. See "The open female boot defect".
-2. **Final Dog seat never rendered, and no Dog row ran on the final DLL.** Blocks the completion label. Next step for both: one female
-   Horse diagnostic and one Dog launch, about 15 validation minutes, which needs a new allowance from the owner. The current mission
-   allows no further extension.
-3. Mirrored female rig not seen.
-4. Fat and thin builds not saved or cold-loaded. The save pair is retained on `7ef02e56`, default rigs only.
+1. **On the Dog, the boot rests on the coat.** It is whole and readable, but the deepest measured boot vertices sit about 0.06 to 0.12 units
+   under the coat's outer vertices, on male and female rigs alike. In a levelled frame the near boot sits low. The coat is soft-looking, so I
+   judged this plausible rather than a defect. Please say if it reads wrong in play.
+2. Fat and thin builds and the rig repair have not been saved or cold-loaded. The repair changes no save data and uses the same attach
+   path, but a repaired rider has not been seen after a real load. f3 and f4 are retained on `7ef02e56`, default rigs only.
+3. A character made on the real creation screen has not been run. The Doll setup uses the same native prefab.
+4. The native defect itself was not examined on other races, and no claim is made about Medium female riders.
 5. Riding and pet levels on the pure base game never seen, because no base-only fixture exists.
 6. Turn-based Small riding not run in this sprint.
 7. Mount growth while ridden, successful trip, and on-screen selection, level-up and respec not seen.
