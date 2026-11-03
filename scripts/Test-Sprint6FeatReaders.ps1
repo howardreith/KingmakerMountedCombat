@@ -39,7 +39,8 @@ function New-S6Real {
  Add-S6Attack $m $c 8 'success' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT'
  Add-S6Attack $m $c 9 'success' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT' $true $owner $pet
  $m.attackRules+=[pscustomobject]@{identity=9001;attacker=$hostile;target=$rider;autoHit=$false;opportunity=$true;resultAtEvent='Hit';isHitAtEvent=$true;sneakAtEvent=$false;damageRules=1;damage=3}
- $m.attackRules+=[pscustomobject]@{identity=9002;attacker=$hostile;target=$other;autoHit=$false;opportunity=$true;resultAtEvent='Miss';isHitAtEvent=$false;sneakAtEvent=$false;damageRules=0;damage=0}
+ $m.attackRules+=[pscustomobject]@{identity=9002;attacker=$rider;target=$hostile;autoHit=$false;opportunity=$false;resultAtEvent='Hit';isHitAtEvent=$true;sneakAtEvent=$false;damageRules=1;damage=2}
+ $m.attackRules+=[pscustomobject]@{identity=9003;attacker=$hostile;target=$mount;autoHit=$false;opportunity=$true;resultAtEvent='Miss';isHitAtEvent=$false;sneakAtEvent=$false;damageRules=0;damage=0}
  $w=[pscustomobject]@{rider=[pscustomobject]@{window=$true;windowIdentity=7;windowEndTicks=70;charges=5;hasSwift=$false}}
  $sel=[pscustomobject]@{name='S6-selection';status='PASS';evidence=[pscustomobject]@{registration=[pscustomobject]@{failure=$null;ranks=1;groups=@('Feat','CombatFeat');prerequisite='SkillMobility=1'};selections=@([pscustomobject]@{name='BasicFeatSelection';lastIsFeat=$true;occurrences=1},[pscustomobject]@{name='FighterFeatSelection';lastIsFeat=$true;occurrences=1});ordinary=(New-S6Choice 'BasicFeatSelection');noCompanionAtChoice=$true;riderCombatChoice=(New-S6Choice 'FighterFeatSelection');riderToggle=[pscustomobject]@{present=$true;on=$true}}}
  $def=[pscustomobject]@{name='S6-rt-defense';status='PASS';evidence=[pscustomobject]@{steps=[pscustomobject]@{renewedByNativeWindow=[pscustomobject]@{rider=[pscustomobject]@{window=$false;hasSwift=$true}};naturalDie=$w;preferenceKeptUse=(Copy-S6 $w)}}}
@@ -97,6 +98,9 @@ $r=Copy-S6 $real; (RuleOf $r (RecordOf $r $d 5)).damageRules=0; Reject $r 'sprin
 $r=Copy-S6 $real; $m=$r.observations.sprint6Feat; $m.skillChecks=@($m.skillChecks+$m.skillChecks[0]); Reject $r 'sprint6-feat-rt' 'a duplicate roll refuses'
 $r=Copy-S6 $real; $m=$r.observations.sprint6Feat; $m.records[1].ruleIdentity=$m.records[0].ruleIdentity; Reject $r 'sprint6-feat-rt' 'one rule evaluated twice refuses'
 $r=Copy-S6 $real; $m=$r.observations.sprint6Feat; $m.attackRules[-1].identity=$m.records[0].ruleIdentity; Reject $r 'sprint6-feat-rt' 'a miss that was evaluated refuses'
+$r=Copy-S6 $real; $m=$r.observations.sprint6Feat; @($m.attackRules | Where-Object identity -EQ 9002)[0].identity=$m.records[0].ruleIdentity; @($m.attackRules | Where-Object { $_.identity -eq $m.records[0].ruleIdentity -and $_.target -ceq $mount })[0].identity=7777; Reject $r 'sprint6-feat-rt' 'an evaluated attack on a non-mount refuses'
+$r=Copy-S6 $real; $m=$r.observations.sprint6Feat; @($m.attackRules | Where-Object identity -EQ 9002)[0].isHitAtEvent=$false; Reject $r 'sprint6-feat-rt' 'no unrelated hit refuses'
+$r=Copy-S6 $real; $m=$r.observations.sprint6Feat; @($m.attackRules | Where-Object identity -EQ 9001)[0].isHitAtEvent=$false; Reject $r 'sprint6-feat-rt' 'no hit on the rider refuses'
 $r=Copy-S6 $real; (RecordOf $r $d 2).attackD20=10; Reject $r 'sprint6-feat-rt' 'a comparison to something other than the attack result refuses'
 $r=Copy-S6 $real; (RecordOf $r $d 9).negated=$false; Reject $r 'sprint6-feat-rt' 'a natural die against the strict rule refuses'
 # Limits, renewal and debt
