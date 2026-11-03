@@ -5189,7 +5189,7 @@ try {
         # Charging-state writes remain restricted to the lease and the restored path measurement.
         $buffFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'ChargeBuff')).Count -gt 0 } | ForEach-Object Name)
         $chargingFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharging = true')).Count -gt 0 } | ForEach-Object Name | Sort-Object)
-        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeLifecycleScenario.cs|Chunk6bChargeScenario.cs|MountedChargeBuffChildren.cs|MountedChargeBuffSurface.cs|MountedChargeEnchantmentFx.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs' -and
+        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeLifecycleScenario.cs|Chunk6bChargeScenario.cs|MountedChargeBuffChildren.cs|MountedChargeBuffSurface.cs|MountedChargeEnchantmentFx.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs|Sprint7ChargeScenario.cs' -and
             (@($chargingFiles) -join '|') -ceq 'Chunk6bChargePathScenario.cs|MountedChargeLease.cs' -and
             ([regex]::Matches($leaseSource, 'IsCharging = true')).Count -eq 2 -and
             ([regex]::Matches($pathSource, 'IsCharging = true')).Count -eq 1) `
@@ -13055,7 +13055,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsSprint7Charge ? Sprint7SchemaVersion : IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
