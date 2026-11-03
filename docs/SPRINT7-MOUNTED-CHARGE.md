@@ -83,7 +83,7 @@ Preserved earlier attempts, all restored:
 | `r06-tbm` | sprint7f | FAIL retained: schema 51 absent from a master list; the artifact passes the reader |
 | `s01-save` | sprint7g | FAIL retained: reader expected the second rider's turn; re-evaluated PASS |
 
-Re-evaluations: `analysis-cache\sprint7\`. Reader: `scripts\runtime\Sprint7ChargeEvidence.ps1`; synthetic checks `scripts\Test-Sprint7ChargeReaders.ps1` (68 PASS). Candidate on sprint7i and sprint7j, with `Test-Chunk6bCharge` (502 reader checks) and `Test-Chunk6bChargePath` directly (142).
+Re-evaluations: `analysis-cache\sprint7\`. Reader: `scripts\runtime\Sprint7ChargeEvidence.ps1`; synthetic checks `scripts\Test-Sprint7ChargeReaders.ps1` (68 PASS). Candidate passed on sprint7i and sprint7j with `Test-Chunk6bCharge` focused (502 reader checks). `Test-Chunk6bChargePath` (142) passed directly on `7e8eccd2`, before the later corrections, and was not rerun.
 
 Reviews: one independent production review before live use (corrections in `7e8eccd2`) and one delta review (corrections in `3dda516a`).
 
