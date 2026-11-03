@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
-                        if (RidingDogCase)
+                        if (RidingDogCase || FeatDebtCase)
                         {
                             // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
                             var progression = secondRider.Descriptor.Progression;
