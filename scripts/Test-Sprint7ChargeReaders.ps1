@@ -15,7 +15,7 @@ function New-S7Click($Before,[bool]$Clicked,[string]$Code,$After=$null){
  [pscustomobject]@{abilityPresent=$true;clicked=$Clicked;policyAllowed=$Clicked;policyCode=$Code;policyReason=$(if($Clicked){'Mounted Charge is available.'}else{'refused'});castDelta=$(if($Clicked){1}else{0});refusalDelta=0;shell=$Clicked;shellTarget=$(if($Clicked){$hostile}else{$null});before=$Before;afterClick=$(if($After){$After}else{$Before})}
 }
 function New-S7Terminal($State,[string]$Result,[int]$Rules,[bool]$Handed,[double]$Closest=4.0){
- [pscustomobject]@{state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
+ [pscustomobject]@{state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;mountRules=0;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
   lease=[pscustomobject]@{applied=$true;buffApplied=$true;forcedPathOutstanding=$false;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true;riderChargingRestoredExactly=$true;buffHandedToNative=$Handed;buffOutstanding=$false}}
 }
 function New-S7Rule([int]$Id,[string]$Attacker,[bool]$Charge,[int]$D20,[int]$Bonus,[bool]$Crit,[int]$Damage){ [pscustomobject]@{identity=$Id;attacker=$Attacker;target=$hostile;d20=$D20;bonus=$Bonus;charge=$Charge;opportunity=$false;resultAtEvent=$(if($Damage -gt 0){'Hit'}else{'Miss'});criticalAtEvent=$Crit;damageRules=$(if($Damage -gt 0){1}else{0});damage=$Damage} }
@@ -75,7 +75,8 @@ $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').terminal.lease.riderAgentTouched=$true
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').terminal.state.chargeOwned=$true; Reject $r 'sprint7-charge-rt' 'retained ownership refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-cancel').stopTerminal.lease.buffHandedToNative=$true; Reject $r 'sprint7-charge-rt' 'Stop keeping the penalty refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-cancel').stopTerminal.state.riderStandard=0.0; Reject $r 'sprint7-charge-rt' 'Stop refunding the action refuses'
-$r=Copy-S7 $rt; (Facts $r 'S7-rt-cancel').deathTerminal.state.mountMoving=$true; Reject $r 'sprint7-charge-rt' 'a pair still moving after target loss refuses'
+$r=Copy-S7 $rt; (Facts $r 'S7-rt-cancel').deathTerminal.state.mountCharging=$true; Reject $r 'sprint7-charge-rt' 'a mount still charging after target loss refuses'
+$r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').terminal.mountRules=1; Reject $r 'sprint7-charge-rt' 'a mount attack during the charge refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').order.riderInitiative=-40; (Facts $r 'S7-tb-charge').order.mountInitiative=40; Reject $r 'sprint7-charge-tb' 'the wrong initiative arrangement refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').terminal.state.activationSequence=2; Reject $r 'sprint7-charge-tb' 'a minted activation refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').sameTurn=$false; Reject $r 'sprint7-charge-tb' 'a charge leaving its turn refuses'

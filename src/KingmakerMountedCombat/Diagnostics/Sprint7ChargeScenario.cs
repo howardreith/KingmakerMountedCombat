@@ -223,13 +223,31 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s7Command != null && s7Facts["whileCharging"] == null && horse.View.AgentASP.IsCharging) s7Facts["whileCharging"] = Sprint7State();
         }
 
-        private bool Sprint7ChargeTerminal() => s7Command != null && s7Command.IsFinished && !combat.HasChargeOwnership && rider.Commands.Empty && horse.Commands.Empty && !rider.AreHandsBusyWithAnimation;
+        // The brain resumes as soon as the charge ends, as in play, so the pair's later commands are not part of this terminal.
+        private bool Sprint7ChargeTerminal() => s7Command != null && s7Command.IsFinished && !combat.HasChargeOwnership;
+
+        private bool Sprint7StandardFree() => !rider.CombatState.HasCooldownForCommand(UnitCommand.CommandType.Standard) && horse.Commands.Raw.All(command => command == null || command.IsInterruptible);
+
+        // Placement and click in one tick: the live brain walks the pair toward any target left waiting. Retried only for the moment the actors are free.
+        private bool Sprint7ChargeOnLane(string name, float[] radii)
+        {
+            if (!Sprint7StandardFree() || !Sprint7PlaceOnLane(radii)) return false;
+            var availability = combat.ObserveMountedChargeTarget(rider, target);
+            s7Facts["lastAvailability"] = availability.Reason;
+            if (!availability.IsAllowed) return false;
+            Sprint7ResetTravel();
+            if (Sprint7Click(name).Value<bool>("clicked") != true) FailSprint7Row("The ordinary " + name + " click was refused: " + combat.LastMountedChargeRefusal);
+            return true;
+        }
+
+        private bool Sprint7RiderRule(JToken rule) => (string)rule["attacker"] == rider.UniqueId && (string)rule["target"] == target?.UniqueId;
 
         private void Sprint7RecordTerminal(string name)
         {
             s7Facts[name] = new JObject { ["state"] = Sprint7State(), ["sequence"] = s7Command?.ChargeSequence, ["sequenceLawful"] = s7Command?.ChargeSequenceLawful, ["result"] = s7Command?.Result.ToString(),
                 ["lease"] = s7Command?.CaptureChargeLeaseEvidence(), ["ownership"] = combat.LastDrainedChargeOwnership?.DeepClone(), ["revalidationFailed"] = s7Command?.ChargeRevalidationFailed,
-                ["revalidationReason"] = s7Command?.ChargeRevalidationFailureReason, ["outcomeRejection"] = combat.LastFeedback, ["rules"] = s7Rules.Attacks.Count - s7RulesAtClick,
+                ["revalidationReason"] = s7Command?.ChargeRevalidationFailureReason, ["outcomeRejection"] = combat.LastFeedback, ["rules"] = s7Rules.Attacks.Skip(s7RulesAtClick).Count(Sprint7RiderRule),
+                ["mountRules"] = s7Rules.Attacks.Skip(s7RulesAtClick).Count(rule => (string)rule["attacker"] == horse.UniqueId),
                 ["closestDistance"] = s7ClosestDistance, ["peakSpeedOverride"] = s7PeakSpeedOverride, ["mountCombatSpeed"] = horse.CombatSpeedMps,
                 ["riderWeaponRange"] = rider.GetFirstWeapon()?.AttackRange.Meters, ["mountCorpulence"] = horse.View.Corpulence, ["targetCorpulence"] = target.View.Corpulence };
         }
@@ -254,28 +272,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 1: if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat || !target.IsVisibleForPlayer) return; s7Step = 2; return;
                 // Too near: refused by the shared decision, nothing spent.
                 case 2:
-                    target.Translocate(FindWalkablePoint(horse.Position, 3f, .75f), null); s7Step = 3; return;
-                case 3:
-                    if (++s7Frames < Sprint7SettleFrames) return;
+                    if (!Sprint7StandardFree()) return;
+                    target.Translocate(FindWalkablePoint(horse.Position, 3f, .75f), null);
                     Sprint7Click("tooNear"); s7Step = 4; return;
                 // A blocked straight line where the fixture has one.
                 case 4:
-                    s7Step = Sprint7PlaceBehindObstruction() ? 5 : 6; return;
-                case 5:
-                    if (++s7Frames < Sprint7SettleFrames) return;
-                    Sprint7Click("obstructed"); s7Step = 6; return;
+                    if (!Sprint7StandardFree()) return;
+                    if (Sprint7PlaceBehindObstruction()) Sprint7Click("obstructed");
+                    s7Step = 6; return;
                 // The ordinary positive charge, with the natural 20 on this attack alone.
                 case 6:
-                    if (!Sprint7PlaceOnLane(new[] { 12f, 10f, 14f, 9f, 16f, 8f })) { FailSprint7Row("No clear charge lane exists at this fixture."); return; }
-                    s7Step = 7; return;
-                case 7:
-                    if (++s7Frames < Sprint7SettleFrames || !rider.Commands.Empty) return;
-                    if (rider.CombatState.HasCooldownForCommand(UnitCommand.CommandType.Standard)) return;
-                    s7Die = new MountedCombatRuleProbe(); s7Die.Arm(rider, horse, rider, target, 20);
-                    s7Measure["attackD20IsForced"] = true;
-                    Sprint7ResetTravel();
-                    if (Sprint7Click("charge").Value<bool>("clicked") != true) { FailSprint7Row("The ordinary charge click was refused: " + combat.LastMountedChargeRefusal); return; }
-                    s7Step = 8; return;
+                    if (s7Die == null) { s7Die = new MountedCombatRuleProbe(); s7Die.Arm(rider, horse, rider, target, 20); s7Measure["attackD20IsForced"] = true; }
+                    if (Sprint7ChargeOnLane("charge", new[] { 12f, 10f, 14f, 9f, 16f, 8f })) s7Step = 8;
+                    return;
                 case 8:
                     Sprint7ObserveTravel();
                     if (!Sprint7ChargeTerminal()) return;
@@ -285,17 +294,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sprint7Click("spentRefused"); s7Step = 10; return;
                 case 10:
                     if (Sprint7Buff() != null || rider.CombatState.HasCooldownForCommand(UnitCommand.CommandType.Standard)) return;
-                    Sprint7Step("buffExpired"); s7Step = 11; return;
-                // The ordinary attack neighbour: no charge flag and none of its bonus.
+                    Sprint7Step("buffExpired"); s7RulesAtClick = s7Rules.Attacks.Count; s7Step = 11; return;
+                // The ordinary attack neighbour: the click, or the brain that beat it to the same attack. No charge flag and none of its bonus.
                 case 11:
-                    if (!rider.Commands.Empty || rider.AreHandsBusyWithAnimation) return;
-                    s7RulesAtClick = s7Rules.Attacks.Count;
-                    if (!Sprint7OrdinaryClick(rider)) { FailSprint7Row("The ordinary attack neighbour was refused."); return; }
+                    if (!s7Rules.Attacks.Skip(s7RulesAtClick).Any(Sprint7RiderRule) && !Sprint7OrdinaryClick(rider)) { FailSprint7Row("The ordinary attack neighbour was refused."); return; }
                     s7Step = 12; return;
                 case 12:
-                    if (s7Rules.Attacks.Count <= s7RulesAtClick || !rider.Commands.Empty) return;
-                    Sprint7Step("ordinaryAttack"); s7Facts["ordinaryRule"] = s7Rules.Attacks[s7RulesAtClick].DeepClone();
-                    if (combat.HasActiveCommand) SelectionManager.Instance.Stop();
+                    var ordinary = s7Rules.Attacks.Skip(s7RulesAtClick).FirstOrDefault(Sprint7RiderRule);
+                    if (ordinary == null) return;
+                    Sprint7Step("ordinaryAttack"); s7Facts["ordinaryRule"] = ordinary.DeepClone();
                     FinishSprint7Row(true, "Real-time charge observations recorded."); return;
             }
         }
@@ -306,15 +313,8 @@ namespace KingmakerMountedCombat.Diagnostics
             switch (s7Step)
             {
                 case 0:
-                    if (!rider.Commands.Empty || combat.HasActiveCommand || rider.CombatState.HasCooldownForCommand(UnitCommand.CommandType.Standard)) return;
-                    SelectionManager.Instance.Stop();
-                    if (!Sprint7PlaceOnLane(new[] { 14f, 12f, 16f, 10f })) { FailSprint7Row("No clear lane for the Stop control."); return; }
-                    s7Step = 1; return;
-                case 1:
-                    if (++s7Frames < Sprint7SettleFrames) return;
-                    Sprint7ResetTravel();
-                    if (Sprint7Click("stopCharge").Value<bool>("clicked") != true) { FailSprint7Row("The Stop control's charge was refused: " + combat.LastMountedChargeRefusal); return; }
-                    s7Step = 2; return;
+                    if (Sprint7ChargeOnLane("stopCharge", new[] { 14f, 12f, 16f, 10f })) s7Step = 2;
+                    return;
                 case 2:
                     Sprint7ObserveTravel();
                     if (s7Command == null || !horse.View.AgentASP.IsCharging || !horse.View.AgentASP.IsReallyMoving) return;
@@ -323,17 +323,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     s7Frames = 0; s7Step = 3; return;
                 case 3:
                     Sprint7ObserveTravel();
-                    if (!Sprint7ChargeTerminal() || ++s7Frames < Sprint7SettleFrames) return;
+                    if (!Sprint7ChargeTerminal()) return;
                     Sprint7RecordTerminal("stopTerminal"); s7Step = 4; return;
                 case 4:
-                    if (!rider.Commands.Empty || rider.CombatState.HasCooldownForCommand(UnitCommand.CommandType.Standard)) return;
-                    if (!Sprint7PlaceOnLane(new[] { 14f, 12f, 16f, 10f })) { FailSprint7Row("No clear lane for the target-loss control."); return; }
-                    s7Step = 5; return;
-                case 5:
-                    if (++s7Frames < Sprint7SettleFrames) return;
-                    Sprint7ResetTravel();
-                    if (Sprint7Click("deathCharge").Value<bool>("clicked") != true) { FailSprint7Row("The target-loss control's charge was refused: " + combat.LastMountedChargeRefusal); return; }
-                    s7Step = 6; return;
+                    if (Sprint7ChargeOnLane("deathCharge", new[] { 14f, 12f, 16f, 10f })) s7Step = 6;
+                    return;
                 case 6:
                     Sprint7ObserveTravel();
                     if (s7Command == null || !horse.View.AgentASP.IsCharging || !horse.View.AgentASP.IsReallyMoving) return;
@@ -345,7 +339,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s7Frames = 0; s7Step = 7; return;
                 case 7:
                     Sprint7ObserveTravel();
-                    if (!Sprint7ChargeTerminal() || ++s7Frames < Sprint7SettleFrames) return;
+                    if (!Sprint7ChargeTerminal()) return;
                     Sprint7RecordTerminal("deathTerminal");
                     FinishSprint7Row(true, "Real-time cancellation observations recorded."); return;
             }

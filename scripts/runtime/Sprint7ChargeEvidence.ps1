@@ -19,13 +19,14 @@ function Assert-KmcSprint7Lease($Terminal,[string]$What){
  if($null -eq $l -or $l.applied -ne $true -or $l.buffApplied -ne $true -or $l.forcedPathOutstanding -ne $false -or $l.riderAgentTouched -ne $false){ throw ('Sprint 7 '+$What+': the lease did not own the mover only') }
  if($l.restored -ne $true -or $l.chargingRestoredExactly -ne $true -or $l.speedOverrideRestoredExactly -ne $true -or $l.riderChargingRestoredExactly -ne $true){ throw ('Sprint 7 '+$What+': an owned charge effect was not returned') }
  $s=$Terminal.state
- if($s.chargeOwned -ne $false -or $s.riderCharging -ne $false -or $s.mountCharging -ne $false -or $s.mountMoving -ne $false -or $s.mounted -ne $true -or $s.riderCommandsEmpty -ne $true -or $s.mountCommandsEmpty -ne $true){ throw ('Sprint 7 '+$What+': the pair did not settle free and mounted') }
+ if($s.chargeOwned -ne $false -or $s.riderCharging -ne $false -or $s.mountCharging -ne $false -or $s.mounted -ne $true){ throw ('Sprint 7 '+$What+': the pair did not settle free and mounted') }
 }
 function Assert-KmcSprint7Delivered($Facts,$Rules,$Click,[string]$What){
  $t=$Facts.terminal
  Assert-KmcSprint7Lease $t $What
  if($t.sequenceLawful -ne $true -or [string]$t.result -cne 'Success' -or $t.revalidationFailed -eq $true){ throw ('Sprint 7 '+$What+': the charge did not complete its lawful sequence: '+$t.revalidationReason) }
  if($Rules.Count -ne 1){ throw ('Sprint 7 '+$What+': one attack was expected, observed '+$Rules.Count) }
+ if([int]$t.mountRules -ne 0){ throw ('Sprint 7 '+$What+': the mount attacked during the charge') }
  if($Rules[0].charge -ne $true -or $Rules[0].opportunity -eq $true){ throw ('Sprint 7 '+$What+': the attack was not a native charge attack') }
  if($Rules[0].resultAtEvent -cin @('Hit','CriticalHit') -and [int]$Rules[0].damageRules -lt 1){ throw ('Sprint 7 '+$What+': a hit reached no native damage') }
  # One travel on the mount: real displacement to the rider's reach, at the doubled native speed.

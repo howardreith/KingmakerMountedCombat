@@ -118,6 +118,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 var ownedRequest = ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
                     current.Command?.OwnsChargeCarrier(command) == true;
+                // The native brain's proposal is not a deliberate order: it waits for the charge, and never ends it.
+                if (!ownedRequest && !current.Ownership.CleanupRequested && command?.AiAction != null) return false;
                 // Native Run interrupts the old command before installing its replacement. Resolve
                 // our ownership first so a failure cannot strand debt behind a newly admitted action.
                 if (current.Ownership.CleanupRequested || !ownedRequest)
