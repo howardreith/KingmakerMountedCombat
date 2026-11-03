@@ -23,6 +23,30 @@ namespace KingmakerMountedCombat.Diagnostics
     // CHARGE-01 rows. Every charge here is the rider's ordinary ability click on the native target handler. The target's place is
     // disclosed setup; the one forced d20 (a natural 20 at the rule boundary, for the critical branch) is disclosed too and disarmed
     // after its row. The rows record native observations; the reader owns PASS/FAIL.
+    internal static class MountedChargeFixture
+    {
+        // Disclosed setup: the hostile is placed on the nearest clear lane. Nothing about the lane is changed.
+        internal static bool TryPlaceOnLane(UnitEntityData mount, UnitEntityData rider, UnitEntityData hostile, float[] radii, out JObject lane)
+        {
+            lane = null;
+            var origin = mount.Position;
+            foreach (var radius in radii)
+                for (var angle = 0; angle < 360; angle += 15)
+                {
+                    var wanted = origin + Quaternion.Euler(0f, angle, 0f) * Vector3.forward * radius;
+                    var point = ObstacleAnalyzer.GetNearestNode(wanted).clampedPosition;
+                    if ((point.To2D() - wanted.To2D()).sqrMagnitude > 0.09f || ObstacleAnalyzer.TraceAlongNavmesh(origin, point) != point) continue;
+                    hostile.Translocate(point, null);
+                    if (MountedChargeGeometry.FootprintClear(mount, rider, hostile) && !MountedChargeGeometry.LandingBlocked(mount, rider, hostile) && hostile.IsVisibleForPlayer)
+                    {
+                        lane = new JObject { ["point"] = new JObject { ["x"] = point.x, ["y"] = point.y, ["z"] = point.z }, ["radius"] = radius, ["angle"] = angle };
+                        return true;
+                    }
+                }
+            return false;
+        }
+    }
+
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Sprint7ChargeRealTime = "sprint7-charge-rt", Sprint7ChargeTurnBased = "sprint7-charge-tb", Sprint7ChargeMountFirst = "sprint7-charge-tb-mount-first";
@@ -177,21 +201,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // Disclosed setup: the hostile is placed on the nearest clear lane. Nothing about the lane is changed.
         private bool Sprint7PlaceOnLane(float[] radii)
         {
-            var origin = horse.Position;
-            foreach (var radius in radii)
-                for (var angle = 0; angle < 360; angle += 15)
-                {
-                    var wanted = origin + Quaternion.Euler(0f, angle, 0f) * Vector3.forward * radius;
-                    var point = ObstacleAnalyzer.GetNearestNode(wanted).clampedPosition;
-                    if ((point.To2D() - wanted.To2D()).sqrMagnitude > 0.09f || ObstacleAnalyzer.TraceAlongNavmesh(origin, point) != point) continue;
-                    target.Translocate(point, null);
-                    if (MountedChargeGeometry.FootprintClear(horse, rider, target) && !MountedChargeGeometry.LandingBlocked(horse, rider, target) && target.IsVisibleForPlayer)
-                    {
-                        s7Facts["lane"] = new JObject { ["point"] = CapturePosition(point), ["radius"] = radius, ["angle"] = angle };
-                        return true;
-                    }
-                }
-            return false;
+            JObject lane;
+            if (!MountedChargeFixture.TryPlaceOnLane(horse, rider, target, radii, out lane)) return false;
+            s7Facts["lane"] = lane;
+            return true;
         }
 
         // A point the navmesh can reach but the straight line cannot, when this fixture has one. The refusal is real only if it is the route's.

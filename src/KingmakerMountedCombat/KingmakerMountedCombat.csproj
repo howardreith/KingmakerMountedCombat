@@ -523,6 +523,7 @@
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />
     <Compile Include="Diagnostics\Sprint5BootObservation.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />

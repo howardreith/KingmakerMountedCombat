@@ -94,5 +94,18 @@ $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.before.mount
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.clicked=$true; Reject $r 'sprint7-charge-tb' 'a charge admitted over a spent partner refuses'
 $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; try { Assert-KmcSprint7ChargeEvidence ([pscustomobject]@{scenario='sprint7-charge-rt'}) $r 'FAIL'; Check $true 'an explicit failed prefix is preserved without qualification' } catch { Check $false 'an explicit failed prefix is preserved without qualification' }
 $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; Reject $r 'sprint7-charge-rt' 'a failed artifact cannot be reported PASS'
+Check ('mounted-charge-tb-committed-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the committed-charge save case is registered'
+Check (Test-KmcChunk7CombatPersistenceCase 'mounted-charge-tb-committed-manual') 'the committed-charge save case is a combat checkpoint'
+$st=[pscustomobject]@{riderStandard=6.0;riderMove=3.0;mountStandard=0.0;mountMove=1.2;buffCount=1;chargeOwned=$false;activeCommand=$false;riderCharging=$false;mountCharging=$false;available=$false;turnUnit=$rider}
+$obs=[pscustomobject]@{chargeCommit=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;lease=[pscustomobject]@{buffHandedToNative=$true};rules=@([pscustomobject]@{charge=$true});after=$st};chargeCold=[pscustomobject]@{hasShell=$false;state=$st;castRequests=0};chargeRenewal=[pscustomobject]@{castRequests=0;rulesAfterLoad=@();state=[pscustomobject]@{riderStandard=0.0;riderMove=0.0;turnUnit=$rider}}}
+function Persist($O,[bool]$Cold){ try{ $null=Assert-KmcSprint7ChargePersistence $O $null $Cold; $true }catch{ $false } }
+Check (Persist $obs $false) 'a delivered charge before the save is accepted'
+Check (Persist $obs $true) 'a clean cold load is accepted'
+$o=Copy-S7 $obs; $o.chargeCold.state.riderStandard=0.0; Check (-not (Persist $o $true)) 'a cold refund refuses'
+$o=Copy-S7 $obs; $o.chargeCold.state.buffCount=2; Check (-not (Persist $o $true)) 'a duplicated penalty after the load refuses'
+$o=Copy-S7 $obs; $o.chargeCold.state.chargeOwned=$true; Check (-not (Persist $o $true)) 'a resumed charge refuses'
+$o=Copy-S7 $obs; $o.chargeCold.state.available=$true; Check (-not (Persist $o $true)) 'a free charge after the load refuses'
+$o=Copy-S7 $obs; $o.chargeRenewal.rulesAfterLoad=@([pscustomobject]@{charge=$true}); Check (-not (Persist $o $true)) 'a duplicate delivery after the load refuses'
+$o=Copy-S7 $obs; $o.chargeCommit.lease.buffHandedToNative=$false; Check (-not (Persist $o $false)) 'a save with no native penalty refuses'
 Write-Output ('Sprint 7 readers: PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ exit 1 }
