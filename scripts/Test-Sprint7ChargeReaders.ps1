@@ -14,8 +14,8 @@ function New-S7State([hashtable]$Change=@{}){
 function New-S7Click($Before,[bool]$Clicked,[string]$Code,$After=$null){
  [pscustomobject]@{abilityPresent=$true;clicked=$Clicked;policyAllowed=$Clicked;policyCode=$Code;policyReason=$(if($Clicked){'Mounted Charge is available.'}else{'refused'});castDelta=$(if($Clicked){1}else{0});refusalDelta=0;shell=$Clicked;shellTarget=$(if($Clicked){$hostile}else{$null});before=$Before;afterClick=$(if($After){$After}else{$Before})}
 }
-function New-S7Terminal($State,[string]$Result,[int]$Rules,[bool]$Handed,[double]$Closest=4.0){
- [pscustomobject]@{state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;mountRules=0;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
+function New-S7Terminal($State,[string]$Result,[int]$Rules,[bool]$Handed,[double]$Closest=4.0,[string]$Outcome=''){
+ [pscustomobject]@{outcomeRejection=$Outcome;state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;mountRules=0;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
   lease=[pscustomobject]@{applied=$true;buffApplied=$true;forcedPathOutstanding=$false;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true;riderChargingRestoredExactly=$true;buffHandedToNative=$Handed;buffOutstanding=$false}}
 }
 function New-S7Rule([int]$Id,[string]$Attacker,[bool]$Charge,[int]$D20,[int]$Bonus,[bool]$Crit,[int]$Damage){ [pscustomobject]@{identity=$Id;attacker=$Attacker;target=$hostile;d20=$D20;bonus=$Bonus;charge=$Charge;opportunity=$false;resultAtEvent=$(if($Damage -gt 0){'Hit'}else{'Miss'});criticalAtEvent=$Crit;damageRules=$(if($Damage -gt 0){1}else{0});damage=$Damage} }
@@ -39,7 +39,7 @@ function New-S7Rt {
   whileCharging=(New-S7State @{buff=$true;buffCount=1;riderCharging=$true;riderAc=18;mountCharging=$true;mountMoving=$true});terminal=(New-S7Terminal $spent 'Success' 1 $true);
   steps=[pscustomobject]@{tooNear=(New-S7Click $before $false 'OutsideSupportedRange');obstructed=(New-S7Click $before $false 'NoPath');charge=(New-S7Click $before $true $null);spentRefused=(New-S7Click $spent $false 'WrongActionState');buffExpired=(New-S7State @{distance=3.9})}}
  $cancelled=New-S7State @{riderStandard=5.5;distance=8.0}
- $c=[pscustomobject]@{stopTerminal=(New-S7Terminal $cancelled 'Interrupt' 0 $false 8.0);deathTerminal=(New-S7Terminal $cancelled 'Interrupt' 0 $false 8.0);targetDeathState=[pscustomobject]@{dead=$true;conscious=$false};
+ $c=[pscustomobject]@{stopTerminal=(New-S7Terminal $cancelled 'Interrupt' 0 $false 8.0);deathTerminal=(New-S7Terminal $cancelled 'Interrupt' 0 $false 8.0 'Mounted rider melee ended: the exact target became invalid before completion.');
   steps=[pscustomobject]@{stopCharge=(New-S7Click $before $true $null);deathCharge=(New-S7Click $before $true $null)}}
  New-S7Envelope (New-S7Measure 'sprint7-charge-rt' $null @((New-S7Rule 1 $rider $true 20 9 $true 12),(New-S7Rule 2 $rider $false 10 7 $false 4))) @((New-S7Row 'S7-rt-charge' $f),(New-S7Row 'S7-rt-cancel' $c))
 }
@@ -63,6 +63,7 @@ $r=Copy-S7 $rt; $r.observations.sprint7Charge.attackRules=@($r.observations.spri
 $r=Copy-S7 $rt; $r.observations.sprint7Charge.attackRules[0].charge=$false; Reject $r 'sprint7-charge-rt' 'an attack without the charge flag refuses'
 $r=Copy-S7 $rt; $r.observations.sprint7Charge.attackRules[0].criticalAtEvent=$false; Reject $r 'sprint7-charge-rt' 'a forced natural 20 with no critical refuses'
 $r=Copy-S7 $rt; $r.observations.sprint7Charge.attackRules[0].damageRules=0; Reject $r 'sprint7-charge-rt' 'a hit with no native damage refuses'
+$r=Copy-S7 $rt; (Facts $r 'S7-rt-cancel').deathTerminal.outcomeRejection='Mounted pair attack ended: Interrupt.'; Reject $r 'sprint7-charge-rt' 'a target-loss control that lost no target refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').ordinaryRule.bonus=9; Reject $r 'sprint7-charge-rt' 'an ordinary attack keeping the charge bonus refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').terminal.state.buff=$false; Reject $r 'sprint7-charge-rt' 'a delivered charge with no native penalty refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').terminal.state.buffCount=2; Reject $r 'sprint7-charge-rt' 'a duplicated modifier refuses'
