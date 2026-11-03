@@ -339,11 +339,12 @@ namespace KingmakerMountedCombat.Integration
             appliedBuffCollection = rider.Buffs;
             // An earlier charge's buff still in its native round belongs to the engine, and its native Replace stacking would take it
             // off here too; this lease owns only the fresh one. Native round timing can leave it alive into the next turn.
-            appliedBuffCollection.Enumerable.FirstOrDefault(buff => buff.Blueprint == chargeBuff)?.Remove();
-            if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
+            var surface = RequireAvailableBuffSurface(chargeBuff, rider);
+            foreach (var earlier in appliedBuffCollection.Enumerable.Where(buff => buff.Blueprint == chargeBuff ||
+                surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))).ToArray()) earlier.Remove();
+            if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff || surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
                 throw new InvalidOperationException("An earlier Charge buff could not be replaced by this transaction.");
             buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
-            var surface = RequireAvailableBuffSurface(chargeBuff, rider);
             buffStats = rider.Descriptor.Stats.GetList().ToArray();
             buffOwnerThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
             buffAcquisitionContext = new MechanicsContext(rider, rider.Descriptor, chargeBuff);
@@ -366,16 +367,14 @@ namespace KingmakerMountedCombat.Integration
         private static MountedChargeBuffSurface RequireAvailableBuffSurface(BlueprintBuff chargeBuff, UnitEntityData rider)
         {
             // The structure of one loaded blueprint does not change, and this is asked on every availability check.
-            if (!ReferenceEquals(validatedSurfaceRoot, chargeBuff))
+            if (chargeBuff == null || !ReferenceEquals(validatedSurfaceRoot, chargeBuff))
             {
                 var read = MountedChargeBuffSurface.Read(chargeBuff);
                 foreach (var enchantment in read.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
                 validatedSurface = read; validatedSurfaceRoot = chargeBuff;
             }
-            var surface = validatedSurface;
-            if (rider?.Buffs == null || rider.Buffs.Enumerable.Any(buff => surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
-                throw new InvalidOperationException("An existing Charge lifetime buff cannot be replaced or adopted.");
-            return surface;
+            if (rider?.Buffs == null) throw new InvalidOperationException("The rider has no buff collection.");
+            return validatedSurface;
         }
 
         internal static string BuffAvailabilityReason(UnitEntityData rider)

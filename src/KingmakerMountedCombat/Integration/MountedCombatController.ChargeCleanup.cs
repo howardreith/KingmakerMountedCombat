@@ -142,10 +142,12 @@ namespace KingmakerMountedCombat.Integration
             if (rider == null || !relationship.IsExactActivePairUnit(rider) || relationship.Mount == null ||
                 container != rider.Commands || shell.Spell.Caster?.Unit != rider)
                 return false;
-            // Native admission still evaluates targeting/action availability; this observer only
-            // takes custody of the exact shell, without starting it or spending anything.
+            // Only a request the shared decision allows may end the pair's accepted work. Whatever reaches this
+            // Run, including an automatic caster or a route without the click's own target check, is refused here first.
+            if (shell.AiAction != null || !EvaluateMountedChargeRequest(CaptureMountedChargeRequest(rider, shell.Target?.Unit), rider).IsAllowed) return false;
             CaptureNativeChargeOwner(rider, container, shell);
-            ReleaseReplaceablePairCommands();
+            try { ReleaseReplaceablePairCommands(); }
+            catch (Exception exception) { logger.Exception("Charge admission release", exception); chargeOwner.Ownership.Retire(); }
             return true;
         }
 

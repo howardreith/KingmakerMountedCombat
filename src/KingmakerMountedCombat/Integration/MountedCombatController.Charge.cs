@@ -135,7 +135,7 @@ namespace KingmakerMountedCombat.Integration
                 TargetAttackable = rider != null && target != null && rider.CanAttack(target),
                 // Like the stock charge, a new charge replaces the pair's ordinary attack or move. The native brain has one running
                 // most of the time in real-time combat. A door, a running charge or a mount's swing already released cannot be replaced.
-                AlreadyActiveCommand = HasActiveDoorInteraction || context == null && chargeOwner?.Command != null ||
+                AlreadyActiveCommand = HasActiveDoorInteraction || pendingDoorSettlement?.RecoveryMove != null || context == null && chargeOwner?.Command != null ||
                     chargeOwner != null && context != null && !OwnsChargeDelivery(context),
                 MountCommandsIdle = mount?.Commands != null && mount.Commands.Raw.All(command => command == null || command.IsInterruptible),
                 DeliveringOwnShell = DeliveringOwnChargeShell(context, caster),
@@ -261,10 +261,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearObservedStockRequest();
             }
 
-            ReleaseReplaceablePairCommands();
-
-            NativeSingleAttackWeaponSelection mountPrimary;
-            CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
+            NativeSingleAttackWeaponSelection mountPrimary = null;
             MountedPairAttackCommand command = null;
             var queuedOnRider = false;
             // The exact owner this admission queues onto, captured before the queue call so a later
@@ -273,6 +270,8 @@ namespace KingmakerMountedCombat.Integration
             UnitCommands queuedContainer = null;
             try
             {
+                ReleaseReplaceablePairCommands();
+                CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
                 command = new MountedPairAttackCommand(
                     relationship,
                     relationship.Rider,
