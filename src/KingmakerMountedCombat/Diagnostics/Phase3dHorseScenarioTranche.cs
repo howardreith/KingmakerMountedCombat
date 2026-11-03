@@ -257,14 +257,14 @@ namespace KingmakerMountedCombat.Diagnostics
         // exploration preamble Mount. Pinned by Test-ParentHandoffIdleParty.ps1.
         internal static bool RequiresIdlePartyHandoff(string scenario)
         {
-            return IsSprint6FeatScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) ||
+            return IsSprint7ChargeScenario(scenario) || IsSprint6FeatScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) ||
                 IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal);
         }
 
         internal static bool SupportsScenario(string scenario)
         {
-            return IsSprint6FeatScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsSprint7ChargeScenario(scenario) || IsSprint6FeatScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -376,6 +376,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ChildEntryPreambleEvidence.AssertStructure(childEntryPreamble, request.Scenario, pairAlreadyMounted);
 
             if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
+            if (IsSprint7Charge) { BeginSprint7Charge(); return; }
             if (IsSprint6Feat) { BeginSprint6Feat(); return; }
             if (IsSprint5Small) { BeginSprint5Small(); return; }
             if (IsSprint4Natural) { BeginSprint4Natural(); return; }
@@ -464,7 +465,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // nothing recording why, so the outcome is now observed rather than assumed.
                 var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
-                var scenarioBudget = IsSprint6Feat ? Sprint6ScenarioDeadlineSeconds : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? Sprint4ScenarioDeadlineSeconds : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                var scenarioBudget = IsSprint7Charge ? Sprint7ScenarioDeadlineSeconds : IsSprint6Feat ? Sprint6ScenarioDeadlineSeconds : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? Sprint4ScenarioDeadlineSeconds : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
                     FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");
@@ -482,6 +483,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     case Phase3dHorseStep.Phase3gControls:
                         if (IsChunk6aCombatMount) TickChunk6aCombatMount();
+                        else if (IsSprint7Charge) TickSprint7Charge();
                         else if (IsSprint6Feat) TickSprint6Feat();
                         else if (IsSprint5Small) TickSprint5Small();
                         else if (IsSprint4Natural) TickSprint4Natural();
@@ -889,7 +891,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(
-                logger, repeatedNativeSequences: IsSprint6Feat || IsCastingFixtureFamily || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
+                logger, repeatedNativeSequences: IsSprint7Charge || IsSprint6Feat || IsCastingFixtureFamily || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (IsPairedAllocation) PreparePairedReactionTarget();
@@ -4838,6 +4840,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JToken CaptureLeafDeadlineProgress()
         {
             if (IsChunk4Sustained) return CaptureChunk4SustainedProgress();
+            if (IsSprint7Charge) return CaptureSprint7DeadlineProgress();
             if (IsSprint6Feat) return CaptureSprint6DeadlineProgress();
             if (IsSprint5Small) return CaptureSprint5DeadlineProgress();
             if (IsSprint4Natural) return CaptureSprint4DeadlineProgress();
@@ -6382,7 +6385,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsCastingFixtureFamily)
             {
                 try {
-                    if (!(IsSprint6Feat ? DrainSprint6Fixture() : IsSprint5Small ? DrainSprint5Fixture() : IsSprint4Natural ? DrainSprint4Fixture() : IsSprint3Approach ? DrainSprint3Fixture() : IsChunk6StagedFamily ? DrainStagedFixture() : DrainCastingFixture())) {
+                    if (!(IsSprint7Charge ? DrainSprint7Fixture() : IsSprint6Feat ? DrainSprint6Fixture() : IsSprint5Small ? DrainSprint5Fixture() : IsSprint4Natural ? DrainSprint4Fixture() : IsSprint3Approach ? DrainSprint3Fixture() : IsChunk6StagedFamily ? DrainStagedFixture() : DrainCastingFixture())) {
                         observations["castingCleanupPending"] = CastingState();
                         if (leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds) {
                             AddRow("phase3d-horse-tranche-cleanup-deadline", false,
@@ -6549,7 +6552,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsSprint7Charge ? Sprint7SchemaVersion : IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

@@ -163,7 +163,25 @@ namespace KingmakerMountedCombat.Integration
         internal bool BuffApplied { get; private set; }
 
         // Whether the buff is still owned by this lease right now.
-        internal bool BuffOutstanding => buffOwnership.Outstanding || buffChildren != null && !buffChildren.Drained;
+        internal bool BuffOutstanding => !BuffHandedToNative && (buffOwnership.Outstanding || buffChildren != null && !buffChildren.Drained);
+
+        // After a delivered attack the buff is the engine's, exactly as the stock charge leaves it: it expires or saves natively.
+        internal bool BuffHandedToNative { get; private set; }
+
+        internal bool HandBuffToNativeDuration()
+        {
+            var buff = buffOwnership.Fact;
+            if (BuffHandedToNative) return true;
+            // Pooled enchantment visuals have no native owner to go to, and an uncertain fact is never given away: those keep the removal.
+            if (!buffOwnership.Acquired || buffOwnership.RemovalAttempted || buffOwnership.Fault != null || buff == null || !buff.Active ||
+                !BuffLifecycleSettled(buff) || buffChildren == null || !buffChildren.TryHandOff() ||
+                !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)))
+                return false;
+            buffCondition?.HandOff();
+            BuffHandedToNative = true;
+            Observe("buff-handed-to-native", "remaining=" + Format((float)buff.TimeLeft.TotalSeconds));
+            return true;
+        }
 
         internal bool RiderAgentTouched { get; private set; }
 
@@ -297,7 +315,8 @@ namespace KingmakerMountedCombat.Integration
             var agent = RequireMountAgent();
             ChargingObservedThroughout &= agent.IsCharging;
             agent.MaxSpeedOverride = Math.Max(agent.MaxSpeedOverride ?? 0f, SpeedOverrideApplied);
-            if (!carrierAlive || ForceMode)
+            // Native Stop leaves force mode latched with no path, so the latch alone does not mean the line is live.
+            if (!carrierAlive || ForceMode && agent.Path != null)
             {
                 return;
             }
@@ -719,6 +738,7 @@ namespace KingmakerMountedCombat.Integration
                 ["forcedPathOutstanding"] = ForcedPathOutstanding,
                 ["buffApplied"] = BuffApplied,
                 ["buffOutstanding"] = BuffOutstanding,
+                ["buffHandedToNative"] = BuffHandedToNative,
                 ["buffAcquisitionObserved"] = buffOwnership.Fact != null,
                 ["buffAcquisitionStarted"] = buffOwnership.Started,
                 ["buffCallbackDebt"] = buffOwnership.Outstanding ? buffOwnership.Fault : null,

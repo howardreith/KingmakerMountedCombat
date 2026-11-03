@@ -53,6 +53,14 @@ namespace KingmakerMountedCombat.Domain
         public bool StraightRoute;
         public bool LandingBlocked;
         public bool MountAvoidanceDisabled;
+
+        // The participant facts of the declared contract, read before anything is committed. The mount owns
+        // the travel, so it must be able to move and, in turn-based combat, must not have moved or spent its
+        // Standard action this activation. A target already in the rider's reach needs no charge.
+        public bool MountCanMove = true;
+        public bool MountHasMoved;
+        public bool MountStandardSpent;
+        public bool TargetAlreadyInReach;
     }
 
     public sealed class MountedChargeAvailability
@@ -164,12 +172,40 @@ namespace KingmakerMountedCombat.Domain
                 return Refuse("Mounted Charge requires the rider's standard action.", MountedCombatRejectionCode.WrongActionState);
             }
 
+            if (!request.MountCanMove)
+            {
+                return Refuse("Mounted Charge requires a mount that can move.", MountedCombatRejectionCode.WrongActionState);
+            }
+
             if (request.TurnBased)
             {
-                // The final bounded preview.176 experiment spent a round but delivered no
-                // attack. Cleanup ownership does not change that movement failure mechanism.
-                return Refuse("Mounted Charge is not yet supported in turn-based mode.", MountedCombatRejectionCode.WrongTurn);
+                if (!request.RiderTurn || !request.TurnActingOrPreparing)
+                {
+                    return Refuse("Mounted Charge belongs to the rider's own turn.", MountedCombatRejectionCode.WrongTurn);
+                }
+
+                // The shell's own commitment is the rider's only spent action delivery may see.
+                if (!request.DeliveringOwnShell && (request.RiderMoveCooldown > 0.001f || request.TurnTimeMoved > 0f))
+                {
+                    return Refuse("Mounted Charge requires the rider's whole turn.", MountedCombatRejectionCode.WrongActionState);
+                }
+
+                if (request.MountHasMoved)
+                {
+                    return Refuse("Mounted Charge needs a mount that has not moved this turn.", MountedCombatRejectionCode.WrongActionState);
+                }
+
+                if (request.MountStandardSpent)
+                {
+                    return Refuse("Mounted Charge needs a mount that has not spent its action this turn.", MountedCombatRejectionCode.WrongActionState);
+                }
             }
+
+            if (request.TargetAlreadyInReach)
+            {
+                return Refuse("The charge target is already within the rider's reach.", MountedCombatRejectionCode.OutsideSupportedRange);
+            }
+
             if (request.Distance < request.MinimumRange)
             {
                 return Refuse("The charge target is nearer than the minimum charge distance of " + Metres(request.MinimumRange) + ".", MountedCombatRejectionCode.OutsideSupportedRange);

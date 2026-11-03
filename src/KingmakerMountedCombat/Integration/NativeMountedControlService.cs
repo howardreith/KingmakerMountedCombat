@@ -2111,6 +2111,10 @@ namespace KingmakerMountedCombat.Integration
                 return combat.DescribeNativeAbilityTargetRejection(
                     MountedCombatActionKind.MountPrimaryNatural, caster, target);
             }
+            if (kind == NativeMountedControlKind.MountedCharge)
+            {
+                return combat.DescribeMountedChargeTargetRejection(caster, target);
+            }
             return "The mounted control target is no longer valid.";
         }
 

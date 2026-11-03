@@ -70,7 +70,7 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(!MountedChargePolicy.Evaluate(null).IsAllowed, "A missing request was admitted.");
             });
 
-            runner.Run("mounted charge is default-off and gated before every other check", () =>
+            runner.Run("mounted charge switched off is gated before every other check", () =>
             {
                 var disabled = Evaluate(request =>
                 {
@@ -120,27 +120,32 @@ namespace KingmakerMountedCombat.Tests
                 }, MountedCombatRejectionCode.WrongActionState, "a spent turn-based standard action");
             });
 
-            runner.Run("turn-based mounted charge refuses every turn and delivery state without affecting real time", () =>
+            runner.Run("turn-based mounted charge belongs to the rider's own open turn and a whole action", () =>
             {
-                foreach (var own in new[] { false, true })
-                foreach (var acting in new[] { false, true })
-                foreach (var preparing in new[] { false, true })
-                foreach (var delivering in new[] { false, true })
-                {
-                    var result = Evaluate(request =>
-                    {
-                        request.TurnBased = true;
-                        request.RiderTurn = own;
-                        request.TurnActing = acting;
-                        request.TurnActingOrPreparing = preparing || acting;
-                        request.DeliveringOwnShell = delivering;
-                        request.RiderStandardCooldown = delivering ? 6f : 0f;
-                        request.RiderMoveCooldown = delivering ? 3f : 0f;
-                    });
-                    TestRunner.True(!result.IsAllowed && result.RejectionCode == MountedCombatRejectionCode.WrongTurn &&
-                        result.Reason == "Mounted Charge is not yet supported in turn-based mode.", "Unsafe TB admission: " + result.Reason);
-                }
-                TestRunner.True(Evaluate(request => request.TurnBased = false).IsAllowed, "RT charge was disabled.");
+                System.Action<MountedChargeRequest> tb = request => request.TurnBased = true;
+                var lawful = Evaluate(tb);
+                TestRunner.True(lawful.IsAllowed, "The lawful turn-based charge was refused: " + lawful.Reason);
+                Refuses(request => { tb(request); request.RiderTurn = false; }, MountedCombatRejectionCode.WrongTurn, "another actor's turn");
+                Refuses(request => { tb(request); request.TurnActingOrPreparing = false; }, MountedCombatRejectionCode.WrongTurn, "an ending turn");
+                Refuses(request => { tb(request); request.RiderMoveCooldown = 1f; }, MountedCombatRejectionCode.WrongActionState, "a rider whose Move is spent");
+                Refuses(request => { tb(request); request.TurnTimeMoved = 0.5f; }, MountedCombatRejectionCode.WrongActionState, "a turn that already moved");
+                Refuses(request => { tb(request); request.MountHasMoved = true; }, MountedCombatRejectionCode.WrongActionState, "a mount that already moved");
+                Refuses(request => { tb(request); request.MountStandardSpent = true; }, MountedCombatRejectionCode.WrongActionState, "a mount whose action is spent");
+                TestRunner.True(Evaluate(request => { request.MountHasMoved = true; request.MountStandardSpent = true; }).IsAllowed,
+                    "A real-time mount's cooldowns refused its travel: only the turn-based budget is the mount's to spend.");
+                // Delivery from inside the rider's own shell: its full round is not re-demanded, and nothing else is exempted.
+                var delivery = Evaluate(request => { tb(request); request.DeliveringOwnShell = true; request.RiderStandardCooldown = 6f; request.RiderMoveCooldown = 3f; });
+                TestRunner.True(delivery.IsAllowed, "The turn-based shell was refused the actions it paid: " + delivery.Reason);
+                Refuses(request => { tb(request); request.DeliveringOwnShell = true; request.RiderStandardCooldown = 6f; request.RiderMoveCooldown = 3f; request.MountHasMoved = true; },
+                    MountedCombatRejectionCode.WrongActionState, "delivery after the mount moved");
+                Refuses(request => { tb(request); request.DeliveringOwnShell = true; request.RiderStandardCooldown = 6f; request.RiderMoveCooldown = 3f; request.RiderTurn = false; },
+                    MountedCombatRejectionCode.WrongTurn, "delivery off the rider's turn");
+            });
+
+            runner.Run("mounted charge needs a mount that can move and a target out of the rider's reach", () =>
+            {
+                Refuses(request => request.MountCanMove = false, MountedCombatRejectionCode.WrongActionState, "a mount that cannot move");
+                Refuses(request => request.TargetAlreadyInReach = true, MountedCombatRejectionCode.OutsideSupportedRange, "a target already in reach");
             });
             runner.Run("mounted charge delivery does not re-demand the action its own shell has spent", () =>
             {
@@ -151,16 +156,12 @@ namespace KingmakerMountedCombat.Tests
                     request.RiderStandardCooldown = 6f;
                 });
                 TestRunner.True(realTime.IsAllowed, "The delivery of the charge shell was refused the action it had spent: " + realTime.Reason);
-                // The turn-based equivalent is not asserted here: increment 6B.3 is deferred with evidence
-                // and the turn-based branch refuses outright, which its own test covers.
                 // The exemption is exactly the two resources that shell pays for, and nothing else.
                 Refuses(request =>
                 {
                     request.DeliveringOwnShell = true;
                     request.RiderCanActInCombat = false;
                 }, MountedCombatRejectionCode.WrongActionState, "a delivering shell whose rider cannot act");
-                // The turn-based rule that prior movement is never exempted is unreachable while increment
-                // 6B.3 is deferred, so it is not asserted here; the deferral refusal has its own test.
                 Refuses(request =>
                 {
                     request.DeliveringOwnShell = true;
