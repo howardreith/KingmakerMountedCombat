@@ -274,18 +274,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     var acquired = NativeHorseFixtureAcquisition.Create(s6Owner, horseService, logger, acquisition);
                     acquisition["acquired"] = acquired;
                     if (!acquired) { FailSprint6Row("The second pair's native companion did not commit."); return; }
-                    s6Frames = 0; s6Step = 5; return;
-                // The second pair is mounted in exploration, the ordinary way, before any combat.
-                case 5:
-                    s6OwnerPet = s6Owner.Descriptor.Pet;
-                    if (s6OwnerPet == null || !s6OwnerPet.IsInState || s6OwnerPet.View?.AgentASP == null || !s6Owner.Commands.Empty || ++s6Frames < Sprint6SettleFrames) return;
-                    s6Rules.Watch(s6OwnerPet);
-                    if (Sprint5Fixture.Click(nativeControls, s6Owner, nativeControls.MountAbility, s6OwnerPet)) { s6Frames = 0; s6Step = 6; ResetLeafClock(); }
-                    return;
-                case 6:
-                    if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted) return;
-                    if (++s6Frames < Sprint6SettleFrames) return;
-                    s6Step = 3; return;
+                    s6Frames = 0; s6Step = 3; return;
                 case 3:
                     Sprint6EnsureLevels(rider, 1);
                     s6Facts["riderCombatChoice"] = Sprint6CommitLevel(rider, "FighterFeatSelection", 0);
@@ -430,7 +419,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             switch (s6Step)
             {
-                case 0: Sprint6SpawnTarget("s6-rt"); s6Step = 1; return;
+                // The second pair mounts in exploration, the ordinary way, once the first pair's AI isolation holds (r05).
+                case 0: s6Frames = 0; s6Step = 20; return;
+                case 20:
+                    s6OwnerPet = s6Owner.Descriptor.Pet;
+                    if (s6OwnerPet == null || !s6OwnerPet.IsInState || s6OwnerPet.View?.AgentASP == null || !s6Owner.Commands.Empty || ++s6Frames < Sprint6SettleFrames) return;
+                    s6Rules.Watch(s6OwnerPet);
+                    if (Sprint5Fixture.Click(nativeControls, s6Owner, nativeControls.MountAbility, s6OwnerPet)) { s6Frames = 0; s6Step = 21; ResetLeafClock(); }
+                    return;
+                case 21:
+                    if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted || ++s6Frames < Sprint6SettleFrames) return;
+                    Sprint6SpawnTarget("s6-rt"); s6Step = 1; return;
                 case 1: if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return; s6NextPlan = "success"; s6Step = 2; return;
                 // A hostile's ordinary attack, first legal hit: the check succeeds and the hit is negated.
                 case 2:
