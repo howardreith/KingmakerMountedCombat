@@ -83,6 +83,21 @@ namespace KingmakerMountedCombat.Integration
                 context.Caster == caster && blueprint.GetComponent<MountedChargeAbilityLogic>() != null;
         }
 
+        // What the shared decision called replaceable, ended from the shell's admission on: a running attack's next repath would
+        // otherwise order the mount and read as a deliberate replacement of the charge. A brain proposal waits (AdmitChargeCommand).
+        private void ReleaseReplaceablePairCommands()
+        {
+            ReleaseCarriedApproach("mounted charge admitted");
+            var replaced = activeCommand;
+            activeCommand = null;
+            if (replaced != null && !replaced.IsFinished)
+            {
+                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
+                replaced.Interrupt();
+            }
+            relationship.Mount.Commands.InterruptAll(existing => true);
+        }
+
         private MountedChargeRequest CaptureMountedChargeRequest(UnitEntityData caster, UnitEntityData target,
             AbilityExecutionContext context = null)
         {
@@ -246,16 +261,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearObservedStockRequest();
             }
 
-            // What the shared decision called replaceable is replaced here, before the mount is asked to carry.
-            ReleaseCarriedApproach("mounted charge admitted");
-            var replaced = activeCommand;
-            activeCommand = null;
-            if (replaced != null && !replaced.IsFinished)
-            {
-                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
-                replaced.Interrupt();
-            }
-            relationship.Mount.Commands.InterruptAll(existing => true);
+            ReleaseReplaceablePairCommands();
 
             NativeSingleAttackWeaponSelection mountPrimary;
             CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);

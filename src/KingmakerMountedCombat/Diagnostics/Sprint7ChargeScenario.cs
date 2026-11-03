@@ -60,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly string[] Sprint7TurnBasedCases = { "S7-tb-charge" };
         private string[] Sprint7Cases => Sprint7Tb ? Sprint7TurnBasedCases : Sprint7RealTimeCases;
         private string Sprint7Case => Sprint7Cases[s7CaseIndex];
-        private const float Sprint7StepBoundSeconds = 45f;
+        private const float Sprint7StepBoundSeconds = 25f;
         private const int Sprint7SettleFrames = 20;
 
         private int s7CaseIndex, s7Stage = 1, s7Step, s7Frames, s7BoundStep = -1, s7RulesAtClick, s7InitiativeRider, s7InitiativeMount;
