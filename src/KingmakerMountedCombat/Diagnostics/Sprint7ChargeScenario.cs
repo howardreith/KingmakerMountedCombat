@@ -25,6 +25,8 @@ namespace KingmakerMountedCombat.Diagnostics
     // after its row. The rows record native observations; the reader owns PASS/FAIL.
     internal static class MountedChargeFixture
     {
+        internal static int NativeBuffCount(UnitEntityData rider) => rider.Buffs.Enumerable.Count(fact => fact.Blueprint == BlueprintRoot.Instance.SystemMechanics.ChargeBuff);
+
         // Disclosed setup: the hostile is placed on the nearest clear lane. Nothing about the lane is changed.
         internal static bool TryPlaceOnLane(UnitEntityData mount, UnitEntityData rider, UnitEntityData hostile, float[] radii, out JObject lane)
         {
