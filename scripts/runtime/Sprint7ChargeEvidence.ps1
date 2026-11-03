@@ -1,6 +1,7 @@
 # Sprint 7 (CHARGE-01) external reader. The rows only record native observations; PASS is decided here.
 function Get-KmcSprint7Cases([string]$Scenario){
  if($Scenario -ceq 'sprint7-charge-rt'){ return @('S7-rt-charge','S7-rt-cancel') }
+ if($Scenario -ceq 'sprint7-charge-pounce-rt'){ return @('S7-pounce') }
  if($Scenario -cin @('sprint7-charge-tb','sprint7-charge-tb-mount-first')){ return @('S7-tb-charge') }
  throw ('Sprint 7 scenario has no case list: '+$Scenario)
 }
@@ -48,7 +49,7 @@ function Assert-KmcSprint7Cancelled($Terminal,$Before,[string]$What){
 }
 function Assert-KmcSprint7ChargeEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first') -or $Artifact.schemaVersion -ne 51){ throw 'Sprint 7 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt') -or $Artifact.schemaVersion -ne 51){ throw 'Sprint 7 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 7 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -61,6 +62,16 @@ function Assert-KmcSprint7ChargeEvidence {
  if(($o.cases | ConvertTo-Json -Compress) -cne ($expected | ConvertTo-Json -Compress)){ throw 'Sprint 7 registered row order differs' }
  $rows=@{}
  foreach($name in $expected){ $found=@($Artifact.rows | Where-Object name -CEQ $name); if($found.Count -ne 1){ throw ('Sprint 7 required row missing or duplicated: '+$name) }; $rows[$name]=$found[0] }
+ if($Request.scenario -ceq 'sprint7-charge-pounce-rt'){
+  $f=$rows['S7-pounce'].evidence
+  Assert-KmcSprint7Admitted $f.steps.mountPounce 'charge with a Pouncing mount'
+  Assert-KmcSprint7Admitted $f.steps.riderPounce 'charge with a Pouncing rider'
+  $m=$f.mountPounceAttack;$r=$f.riderPounceAttack
+  if($m.mountPounce -ne $true -or $m.riderPounce -ne $false -or $r.riderPounce -ne $true -or $r.mountPounce -ne $false){ throw 'Sprint 7 the Pounce control did not hold its setup' }
+  if($m.fullAttack -ne $false -or [int]$m.planned -ne 1 -or [int]$f.mountPounceTerminal.rules -ne 1 -or [string]$f.mountPounceTerminal.result -cne 'Success'){ throw 'Sprint 7 the mount''s Pounce transferred to the rider' }
+  if($r.fullAttack -ne $true -or [int]$f.riderPounceTerminal.rules -ne [int]$r.planned -or [string]$f.riderPounceTerminal.result -cne 'Success'){ throw 'Sprint 7 the rider''s own Pounce was not honoured' }
+  return
+ }
  if($Request.scenario -ceq 'sprint7-charge-rt'){
   $f=$rows['S7-rt-charge'].evidence; $d=$f.steps; $hostile=[string]$f.steps.charge.shellTarget
   Assert-KmcSprint7Refused $d.tooNear @('OutsideSupportedRange') 'too-near charge'
