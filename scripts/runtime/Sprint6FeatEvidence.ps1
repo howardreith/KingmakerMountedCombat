@@ -104,7 +104,10 @@ function Assert-KmcSprint6FeatEvidence {
   Assert-KmcSprint6Negated $o (Get-KmcSprint6Record $o $c 12) 'preference on'
 
   $i=$rows['S6-rt-isolation'].evidence; $c='S6-rt-isolation'
-  if([int]$i.attemptsAfterUnrelated -ne [int]$i.attemptsBeforeUnrelated -or @($rules | Where-Object { [string]$_.target -ceq [string]$o.rider }).Count -lt 1 -or @($rules | Where-Object { [string]$_.target -ceq [string]$i.unrelated }).Count -lt 1){ throw 'Sprint 6 attacks on the rider or an unrelated unit were evaluated, or never made' }
+  # The fixture party has no third member (r06): the unrelated hits are those on the hostile, every one recorded by the same observer.
+  $mounts=@([string]$o.mount,[string]$i.secondPair.mount)
+  if([int]$i.attemptsAfterUnrelated -ne [int]$i.attemptsBeforeUnrelated -or @($rules | Where-Object { [string]$_.target -ceq [string]$o.rider -and $_.isHitAtEvent -eq $true }).Count -lt 1 -or @($rules | Where-Object { [string]$_.target -cnotin ($mounts+@([string]$o.rider,[string]$i.secondPair.rider)) -and $_.isHitAtEvent -eq $true }).Count -lt 1){ throw 'Sprint 6 attacks on the rider or an unrelated unit were evaluated, or no such hit was made' }
+  foreach($rule in $rules){ if([string]$rule.target -cnotin $mounts -and [string]$rule.identity -cin $identities){ throw 'Sprint 6 an attack on something other than a mount was evaluated' } }
   if($i.stunApplied -ne $true){ throw 'Sprint 6 stun setup did not stop the rider' }
   Assert-KmcSprint6Refused $o (Get-KmcSprint6Record $o $c 3) 'RiderCannotAct' 'incapacitated rider'
   Assert-KmcSprint6Refused $o (Get-KmcSprint6Record $o $c 5) 'RiderFlatFooted' 'flat-footed rider'
