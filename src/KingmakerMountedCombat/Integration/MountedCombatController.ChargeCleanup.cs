@@ -145,6 +145,7 @@ namespace KingmakerMountedCombat.Integration
             // Native admission still evaluates targeting/action availability; this observer only
             // takes custody of the exact shell, without starting it or spending anything.
             CaptureNativeChargeOwner(rider, container, shell);
+            ReleaseReplaceablePairCommands();
             return true;
         }
 
