@@ -89,7 +89,8 @@ namespace KingmakerMountedCombat
                 // ATTACK-01: a historical diagnostic row drives the retired helpers by name; ordinary play and the
                 // Sprint 4 ordinary-control rows never select them.
                 nativeControls.RetiredPrimaryHelpersSelected = runtimeAutomation != null && !runtimeAutomation.IsManualReview &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

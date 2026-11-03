@@ -3,6 +3,18 @@ using System;
 namespace KingmakerMountedCombat.Domain
 {
     /// <summary>Mount-root coordinates only. Bone orientation never enters this position lease.</summary>
+    // A rider parented with its world transform kept is already compensated for the mount's scale at
+    // that moment. Only a later change of the mount's scale (native growth) still has to be undone.
+    public static class MountScaleCompensation
+    {
+        public static PoseVector3 AnchorScale(PoseVector3 mountScaleAtAttach, PoseVector3 currentMountScale)
+        {
+            if (!mountScaleAtAttach.IsFinite || !currentMountScale.IsFinite || currentMountScale.X == 0f || currentMountScale.Y == 0f || currentMountScale.Z == 0f)
+                throw new InvalidOperationException("Mount scale compensation requires finite nonzero scales.");
+            return new PoseVector3(mountScaleAtAttach.X / currentMountScale.X, mountScaleAtAttach.Y / currentMountScale.Y, mountScaleAtAttach.Z / currentMountScale.Z);
+        }
+    }
+
     public sealed class AnimatedSaddlePosition
     {
         private PoseVector3 seatFromSource;

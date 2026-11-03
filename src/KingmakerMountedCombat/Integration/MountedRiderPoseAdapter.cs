@@ -23,6 +23,8 @@ namespace KingmakerMountedCombat.Integration
         private Transform saddleMountRoot;
         private Transform saddleSource;
         private bool animatedSaddleRequired;
+        private Transform scaleCompensatedAnchor;
+        private PoseVector3 mountScaleAtAttach;
 
         public bool IsConfigured => configured;
 
@@ -149,7 +151,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection)
+        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection, bool seatIsFixedFromSource = false)
         {
             if (!configured || exactMountRoot == null || exactSource == null ||
                 !exactSource.IsChildOf(exactMountRoot))
@@ -161,12 +163,21 @@ namespace KingmakerMountedCombat.Integration
             baselineLease.PrimeFrame(() =>
             {
                 ApplyPose();
-                animatedSaddle.Acquire(
-                    ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)),
-                    ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)),
-                    ToPose(anatomicalCorrection));
+                var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
+                if (seatIsFixedFromSource)
+                    animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
+                else
+                    animatedSaddle.Acquire(source, ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)), ToPose(anatomicalCorrection));
             });
             animatedSaddleRequired = true;
+        }
+
+        internal void CompensateMountScale(Transform exactAnchor)
+        {
+            if (!animatedSaddleRequired || exactAnchor == null || exactAnchor.parent != saddleMountRoot)
+                throw new InvalidOperationException("Mount scale compensation requires the owned anchor under the exact mount root.");
+            mountScaleAtAttach = ToPose(saddleMountRoot.lossyScale);
+            scaleCompensatedAnchor = exactAnchor;
         }
 
         internal static bool TryValidateSupportedSurface(
@@ -193,6 +204,7 @@ namespace KingmakerMountedCombat.Integration
             baselineLease?.Restore();
             animatedSaddle.Release();
             animatedSaddleRequired = false;
+            scaleCompensatedAnchor = null;
             saddleMountRoot = null;
             saddleSource = null;
             riderView = null;
@@ -246,6 +258,11 @@ namespace KingmakerMountedCombat.Integration
 
         private void ApplyPose()
         {
+            // A mount's later native growth is the mount's own. The rider keeps its own body size.
+            if (scaleCompensatedAnchor != null && saddleMountRoot != null)
+            {
+                scaleCompensatedAnchor.localScale = ToUnity(MountScaleCompensation.AnchorScale(mountScaleAtAttach, ToPose(saddleMountRoot.lossyScale)));
+            }
             var pelvisPosition = pelvis.localPosition;
             var pelvisRotation = pelvis.localRotation;
             pelvis.localPosition = pelvisPosition + ToUnity(profile.PelvisPositionOffset);
@@ -280,8 +297,13 @@ namespace KingmakerMountedCombat.Integration
 
             var evaluatedFootRotation = binding.Foot.rotation;
             var root = binding.Thigh.position;
-            var requestedTarget = root + riderView.transform.TransformVector(ToUnity(legProfile.FootTargetFromThigh));
-            var bendHint = root + riderView.transform.TransformVector(ToUnity(legProfile.KneeHintFromThigh));
+            // A left-handed native avatar is mirrored, which swaps the anatomical side of each named bone.
+            // Scale-compensated (Small) seats follow the side the bone is really on; the Medium path is unchanged.
+            var side = scaleCompensatedAnchor != null && riderView.CharacterAvatar.Mirror ? -1f : 1f;
+            var footTarget = ToUnity(legProfile.FootTargetFromThigh); footTarget.x *= side;
+            var kneeHint = ToUnity(legProfile.KneeHintFromThigh); kneeHint.x *= side;
+            var requestedTarget = root + riderView.transform.TransformVector(footTarget);
+            var bendHint = root + riderView.transform.TransformVector(kneeHint);
             var solution = TwoBonePoseSolver.Solve(
                 ToPose(root),
                 ToPose(requestedTarget),

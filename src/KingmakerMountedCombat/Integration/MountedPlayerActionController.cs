@@ -709,6 +709,7 @@ namespace KingmakerMountedCombat.Integration
             context.RiderBodyProfileSupported = IsSupportedRiderBodySurface(rider, profile);
             context.ExactActiveOwnedSupportedMount = exactOwnership;
             context.MountDisplayName = profile?.DisplayName;
+            context.MountProfileRefusal = SupportedMountedProfiles.DescribeRefusal(rider, mount);
             context.MountIsStrictlyLarger = riderState != null && mountState != null &&
                 (int)mountState.Size > (int)riderState.Size;
             context.RiderIsAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead;

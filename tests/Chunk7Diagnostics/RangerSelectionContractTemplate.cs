@@ -9,6 +9,8 @@ public static class RangerSelectionContractAdapter
     private const string MammothFeatureGuid = "6adc3aab7cde56b40aa189a797254271";
     private const string HorseGuid = "7db7c50677e39f09feef56f3831fc723";
     private const string FeatureGuid = HorseGuid;
+    internal const string RidingDogFeatureGuid = "5c8e2b9a417f4d63a1d07e3bf26c9184";
+    private static readonly BlueprintFeature RidingDog = new BlueprintFeature { AssetGuid = RidingDogFeatureGuid };
     /*GUARD*/
     /*NATIVE*/
     /*APPEND*/
@@ -51,7 +53,7 @@ public static class RangerSelectionContractAdapter
         Check(lease != null && !lease.TryRestore(foreign, out restored, out error) && restored == null && error != null, name + " equal-GUID replacement refuses destructive restoration");
         var reordered = values.Reverse().Concat(new[]{horse}).ToArray();
         Check(lease != null && !lease.TryRestore(reordered, out restored, out error) && restored == null, name + " reordered current references refuse restoration");
-        var expectedAppend = values.Concat(new[]{horse}).ToArray();
+        var expectedAppend = values.Concat(new[]{horse, RidingDog}).ToArray();
         Check(HasExactHorseAppend(expectedAppend, horse), name + " audit accepts exact prefix and exact appended Horse");
         Check(HasExactStockRestore(values, horse), name + " audit accepts exact original restore");
         Check(!HasExactHorseAppend(expectedAppend, new BlueprintFeature { AssetGuid = HorseGuid }), name + " audit refuses equal-GUID foreign Horse object");
@@ -63,7 +65,7 @@ public static class RangerSelectionContractAdapter
             var mutation=Values(ids); mutation[index]=null; Check(Refusal(mutation)!=null, name+" null entry "+index+" refuses");
             mutation=Values(ids); mutation[index]=mutation[(index+1)%ids.Length]; Check(Refusal(mutation)!=null, name+" duplicate entry "+index+" refuses");
             mutation=Values(ids); mutation[index].AssetGuid=new string('a',32); Check(Refusal(mutation)!=null, name+" foreign entry "+index+" refuses");
-            Check(!HasExactHorseAppend(mutation.Concat(new[]{horse}).ToArray(),horse), name+" audit refuses changed prefix "+index);
+            Check(!HasExactHorseAppend(mutation.Concat(new[]{horse, RidingDog}).ToArray(),horse), name+" audit refuses changed prefix "+index);
             Check(!HasExactStockRestore(mutation,horse), name+" audit refuses changed restore "+index);
             mutation=Values(ids); mutation[index].AssetGuid=mutation[index].AssetGuid.ToUpperInvariant(); Check(Refusal(mutation)!=null, name+" changed casing "+index+" refuses");
             mutation=Values(ids); var next=(index+1)%ids.Length; var swap=mutation[index]; mutation[index]=mutation[next]; mutation[next]=swap; Check(Refusal(mutation)!=null, name+" changed order "+index+" refuses");
@@ -72,15 +74,17 @@ public static class RangerSelectionContractAdapter
     public static int Main() {
         VerifyShape("historical7", Historical); VerifyShape("native12", Native);
         var nativeHorse = new BlueprintFeature { AssetGuid = HorseGuid };
-        var nativeAppend = Values(Native).Concat(new[]{nativeHorse}).ToArray();
-        Check(NativeAccepted(nativeAppend,nativeHorse),"base-only gate accepts exact native twelve plus owned Horse");
-        Check(!NativeAccepted(Values(Historical).Concat(new[]{nativeHorse}).ToArray(),nativeHorse),"base-only gate refuses historical seven plus Horse before dispatch");
+        var nativeAppend = Values(Native).Concat(new[]{nativeHorse, RidingDog}).ToArray();
+        Check(NativeAccepted(nativeAppend,nativeHorse),"base-only gate accepts exact native twelve plus owned Horse and Riding Dog");
+        Check(!NativeAccepted(Values(Native).Concat(new[]{nativeHorse}).ToArray(),nativeHorse),"base-only gate refuses a missing Riding Dog");
+        Check(!HasExactHorseAppend(Values(Native).Concat(new[]{nativeHorse}).ToArray(),nativeHorse),"audit refuses a missing Riding Dog");
+        Check(!NativeAccepted(Values(Historical).Concat(new[]{nativeHorse, RidingDog}).ToArray(),nativeHorse),"base-only gate refuses historical seven plus additions before dispatch");
         Check(!NativeAccepted(nativeAppend,new BlueprintFeature{AssetGuid=HorseGuid}),"base-only gate refuses a foreign Horse object");
         Check(!NativeAccepted(Values(Native),nativeHorse),"base-only gate refuses missing append");
         Check(!NativeAccepted(nativeAppend.Concat(new[]{nativeHorse}).ToArray(),nativeHorse),"base-only gate refuses extra appended entry");
         Check(!NativeAccepted(null,nativeHorse)&&!NativeAccepted(nativeAppend,null),"base-only gate refuses absent selection or Horse");
         for(var index=0;index<Native.Length;index++){
-            var changed=Values(Native).Concat(new[]{nativeHorse}).ToArray();changed[index].AssetGuid=new string('a',32);
+            var changed=Values(Native).Concat(new[]{nativeHorse, RidingDog}).ToArray();changed[index].AssetGuid=new string('a',32);
             Check(!NativeAccepted(changed,nativeHorse),"base-only gate refuses changed native prefix "+index);
         }
         var nullMessage=Refusal(null); Check(nullMessage!=null && nullMessage.Contains("observedCount=null") && nullMessage.Contains("observedFirst32=<null>"),"null surface diagnostic is explicit");

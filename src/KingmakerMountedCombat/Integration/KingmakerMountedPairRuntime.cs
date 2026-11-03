@@ -48,6 +48,7 @@ namespace KingmakerMountedCombat.Integration
         private GameObject positionAnchorObject;
         private Transform positionAnchor;
         private MountedRiderPoseAdapter poseAdapter;
+        private SmallRiderRigCompletion smallRiderRig;
         // Unity's List<T> overload preserves the exact component-cardinality
         // check without allocating a new array on every mounted Update.
         private readonly List<MountedRiderPoseAdapter> poseComponents = new List<MountedRiderPoseAdapter>(1);
@@ -514,7 +515,12 @@ namespace KingmakerMountedCombat.Integration
             if (supportedProfile.UsesAnimatedSaddle)
             {
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
-                    ToUnity(supportedProfile.AnimatedSeatCorrection));
+                    ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null);
+                if (supportedProfile.SmallRiderBody != null)
+                {
+                    poseAdapter.CompensateMountScale(positionAnchor);
+                    smallRiderRig = new SmallRiderRigCompletion(riderView.CharacterAvatar, logger);
+                }
             }
             presentationConfigured = true;
             logger.Info("Rider presentation attached through an owned " + supportedProfile.DisplayName +
@@ -536,6 +542,8 @@ namespace KingmakerMountedCombat.Integration
         public void RestorePresentation(MountedPair pair)
         {
             Exception first = null;
+            smallRiderRig?.Dispose();
+            smallRiderRig = null;
             try
             {
                 ReleaseReplacementRiderViewFromOwnedAnchor();
