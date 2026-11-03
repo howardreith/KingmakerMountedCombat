@@ -30,7 +30,10 @@ namespace KingmakerMountedCombat.Integration
 
         // The exact reason the same shared decision gives for this target, for the native target refusal.
         internal string DescribeMountedChargeTargetRejection(UnitEntityData caster, UnitEntityData target) =>
-            disposed ? "Mounted combat services are not active." : EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster).Reason;
+            ChargeTargetReason(disposed ? null : EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster));
+
+        private static string ChargeTargetReason(MountedChargeAvailability result) =>
+            result == null ? "Mounted combat services are not active." : result.IsAllowed ? "The target cannot be charged." : result.Reason;
 
         // The stock minimum charge distance, read from the mount because the mount is the mover, and from the
         // turn-based mode setting exactly as AbilityCustomCharge.GetMinRangeMeters reads it.
@@ -120,6 +123,7 @@ namespace KingmakerMountedCombat.Integration
                 MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
                 DeliveringOwnShell = DeliveringOwnChargeShell(context, caster),
                 MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
+                MountAddressable = !turnBased || unifiedTurn.CanAddressActor(mount, turn),
                 MountHasMoved = mount != null && (mount.CombatState.Cooldown.MoveAction > 0.001f ||
                     unifiedTurn.PartnerContext != null && unifiedTurn.PartnerContext.TimeMoved > 0f),
                 MountStandardSpent = mount != null && mount.CombatState.Cooldown.StandardAction > 0.001f

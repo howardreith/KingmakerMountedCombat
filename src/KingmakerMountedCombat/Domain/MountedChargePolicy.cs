@@ -58,6 +58,7 @@ namespace KingmakerMountedCombat.Domain
         // the travel, so it must be able to move and, in turn-based combat, must not have moved or spent its
         // Standard action this activation. A target already in the rider's reach needs no charge.
         public bool MountCanMove = true;
+        public bool MountAddressable = true;
         public bool MountHasMoved;
         public bool MountStandardSpent;
         public bool TargetAlreadyInReach;
@@ -188,6 +189,11 @@ namespace KingmakerMountedCombat.Domain
                 if (!request.DeliveringOwnShell && (request.RiderMoveCooldown > 0.001f || request.TurnTimeMoved > 0f))
                 {
                     return Refuse("Mounted Charge requires the rider's whole turn.", MountedCombatRejectionCode.WrongActionState);
+                }
+
+                if (!request.MountAddressable)
+                {
+                    return Refuse("Mounted Charge needs a mount that can still act this turn.", MountedCombatRejectionCode.WrongActionState);
                 }
 
                 if (request.MountHasMoved)

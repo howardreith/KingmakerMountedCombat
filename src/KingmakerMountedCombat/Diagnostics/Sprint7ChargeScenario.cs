@@ -424,7 +424,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     s7Step = 12; return;
                 case 12:
                     if (++s7Frames < Sprint7SettleFrames) return;
-                    Sprint7Click("partnerSpentRefused");
+                    Sprint7Click("partnerSpentRefused"); s7Step = 13; return;
+                // Charging round after round: the next renewed turn charges again, whatever the native round left.
+                case 13:
+                    if (ReferenceEquals(turn, s7Turn)) { if (rider.Commands.Empty && horse.Commands.Empty && !horse.AreHandsBusyWithAnimation) EndCastingNativeTurn(turn); return; }
+                    if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
+                    if (!Sprint7RiderInput(turn)) return;
+                    s7Turn = turn; s7Step = 14; return;
+                case 14:
+                    if (!Sprint7PlaceOnLane(new[] { 12f, 10f, 14f, 9f, 16f, 8f })) { FailSprint7Row("No clear lane for the second charge."); return; }
+                    s7Step = 15; return;
+                case 15:
+                    if (++s7Frames < Sprint7SettleFrames || !Sprint7RiderInput(turn)) return;
+                    Sprint7ResetTravel(); s7Facts["secondWhileCharging"] = null;
+                    if (Sprint7Click("secondCharge").Value<bool>("clicked") != true) { FailSprint7Row("The next round's charge was refused: " + combat.LastMountedChargeRefusal); return; }
+                    s7Step = 16; return;
+                case 16:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("secondTerminal");
                     FinishSprint7Row(true, "Turn-based charge observations recorded."); return;
             }
         }
