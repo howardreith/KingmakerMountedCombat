@@ -14,7 +14,7 @@ function Add-S6Attack($M,[string]$Case,[int]$Step,[string]$Plan,[string]$Refusal
  $total=25;$check=$(if($Plan -ceq 'success'){26}elseif($Plan -ceq 'equal'){25}elseif($Plan -ceq 'low'){24}elseif($attempted){30}else{0})
  $negated=$attempted -and $check -gt $total
  $result=$(if($negated){'Parried'}else{'Hit'})
- $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$Who;mountId=$On;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');negated=$negated;checkD20=$(if($attempted){10}else{0});checkResult=$check;checkDc=$(if($attempted){26}else{0});swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwift=0.0}
+ $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$Who;mountId=$On;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');negated=$negated;checkD20=$(if($attempted){10}else{0});checkResult=$check;checkDc=$(if($attempted){26}else{0});swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwiftBefore=6.0;mountSwiftAfter=6.0}
  $M.attackRules+=[pscustomobject]@{identity=$script:id;attacker=$hostile;target=$On;d20=15;bonus=10;autoHit=$false;opportunity=$Opportunity;resultAtEvent=$result;isHitAtEvent=(-not $negated);criticalAtEvent=$false;sneakAtEvent=$false;resultAfterRule=$result;isHitAfterRule=(-not $negated);damageRules=$(if($negated){0}else{1});damage=$(if($negated){0}else{4})}
  if($attempted){ $M.skillChecks+=[pscustomobject]@{actor=$Who;d20=10;result=$check;dc=26;passed=$negated} }
 }
@@ -58,7 +58,7 @@ function New-S6Turn {
  Add-S6Attack $m $c 14 'success' 'None' 'BorrowNextSwift' $free $owed 5 5 $false 'TB'
  $feat=[pscustomobject]@{name='S6-rider-feat';status='PASS';evidence=[pscustomobject]@{riderCombatChoice=(New-S6Choice 'FighterFeatSelection')}}
  $steps=[pscustomobject]@{renewedNoDebt=[pscustomobject]@{rider=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$true;swift=0.0}};otherSwiftSpent=[pscustomobject]@{rider=[pscustomobject]@{hasSwift=$false}};offTurnEqual=[pscustomobject]@{rider=[pscustomobject]@{charges=3}};debtPaidAtPreparation=[pscustomobject]@{mountSwift=0.0;rider=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swiftGateBlocked=$true;swift=6.0;charges=4}}}
- New-S6Envelope 'sprint6-feat-tb' $m @($feat,[pscustomobject]@{name='S6-tb-economy';status='PASS';evidence=[pscustomobject]@{steps=$steps}})
+ New-S6Envelope 'sprint6-feat-tb' $m @($feat,[pscustomobject]@{name='S6-tb-economy';status='PASS';evidence=[pscustomobject]@{steps=$steps;payingTurnMove=[pscustomobject]@{sameTurn=$true;mounted=$true;metres=2.5}}})
 }
 function Accept($Artifact,[string]$Scenario){ try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario=$Scenario}) -Artifact $Artifact -Status 'PASS'; $true } catch { Write-Output ('      unexpected: '+$_.Exception.Message); $false } }
 function Reject($Artifact,[string]$Scenario,[string]$Name){ $threw=$false; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario=$Scenario}) -Artifact $Artifact -Status 'PASS' } catch { $threw=$true }; Check $threw $Name }
@@ -112,7 +112,8 @@ $r=Copy-S6 $turn; (RowOf $r $t).steps.debtPaidAtPreparation.rider.charges=5; Rej
 $r=Copy-S6 $turn; (RowOf $r $t).steps.debtPaidAtPreparation.mountSwift=6.0; Reject $r 'sprint6-feat-tb' 'a mount that paid the debt refuses'
 $r=Copy-S6 $turn; (RecordOf $r $t 14).commitment='None'; (RecordOf $r $t 14).refusal='SwiftOwed'; Reject $r 'sprint6-feat-tb' 'refusals only, with no positive renewal, refuse'
 $r=Copy-S6 $turn; (RowOf $r $t).steps.renewedNoDebt.rider.spent=$true; Reject $r 'sprint6-feat-tb' 'no renewal at the next preparation refuses'
-$r=Copy-S6 $turn; $r.observations.sprint6Feat.records[0].mountSwift=6.0; Reject $r 'sprint6-feat-tb' 'mount resources in a record refuse'
+$r=Copy-S6 $turn; (RowOf $r $t).payingTurnMove.metres=0.0; Reject $r 'sprint6-feat-tb' 'a paying turn that could not move refuses'
+$r=Copy-S6 $turn; $r.observations.sprint6Feat.records[0].mountSwiftAfter=12.0; Reject $r 'sprint6-feat-tb' 'mount resources in a record refuse'
 $r=Copy-S6 $turn; foreach($row in @($r.observations.sprint6Feat.attackRules)){ $row.opportunity=$true }; Reject $r 'sprint6-feat-tb' 'no ordinary hostile attack in turn-based combat refuses'
 # Isolation
 $i='S6-rt-isolation'
@@ -128,11 +129,13 @@ $r=Copy-S6 $real; (RowOf $r $i).afterRemount.windowIdentity=10; Reject $r 'sprin
 $threw=$false; $r=Copy-S6 $turn; $r.status='FAIL'; $r.subscenarioFailCount=1; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario='sprint6-feat-tb'}) -Artifact $r -Status 'FAIL' } catch { $threw=$true }; Check (-not $threw) 'a failed prefix is preserved without qualification'
 $threw=$false; try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario='sprint6-feat-tb'}) -Artifact $r -Status 'PASS' } catch { $threw=$true }; Check $threw 'a failed prefix cannot become PASS'
 # Persistence
-$good=[pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=(New-S6State $true $true)};featCold=[pscustomobject]@{hasFeat=$true;preferenceOn=$true;state=(New-S6State $true $true)};featRenewal=[pscustomobject]@{afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6.0};chargesAtPreparation=1;commitment='BorrowNextSwift';attempted=$true;riderTurn=$false;stateAfter=(New-S6State $true $true)}}
+$goodSave=[pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=(New-S6State $true $true)}}
+$good=[pscustomobject]@{featCold=[pscustomobject]@{hasFeat=$true;preferenceOn=$true;state=(New-S6State $true $true)};featRenewal=[pscustomobject]@{afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6.0};chargesAtPreparation=1;commitment='BorrowNextSwift';attempted=$true;riderTurn=$false;stateAfter=(New-S6State $true $true)}}
 function Persist($Value,[bool]$Cold){ try { Assert-KmcSprint6FeatPersistence ([pscustomobject]@{}) $Value $Cold; $true } catch { $false } }
-Check (Persist $good $false) 'a committed save is accepted'
+Set-StrictMode -Version Latest
+Check (Persist $goodSave $false) 'a committed save is accepted'
 Check (Persist $good $true) 'a cold load without refund and with renewal is accepted'
-$v=Copy-S6 $good; $v.featDebt.state.owed=$false; Check (-not (Persist $v $false)) 'a save with no debt refuses'
+$v=Copy-S6 $goodSave; $v.featDebt.state.owed=$false; Check (-not (Persist $v $false)) 'a save with no debt refuses'
 $v=Copy-S6 $good; $v.featCold.state.owed=$false; Check (-not (Persist $v $true)) 'a load that refunded the debt refuses'
 $v=Copy-S6 $good; $v.featCold.state.spent=$false; Check (-not (Persist $v $true)) 'a load that refunded the use refuses'
 $v=Copy-S6 $good; $v.featRenewal.chargesAtPreparation=2; Check (-not (Persist $v $true)) 'a restored debt charged twice refuses'
