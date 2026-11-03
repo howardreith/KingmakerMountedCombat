@@ -50,6 +50,7 @@ Check (Accept $rt 'sprint7-charge-rt') 'complete real-time evidence accepted'
 Check (Accept $tb 'sprint7-charge-tb') 'complete rider-first evidence accepted'
 Check (Accept $mf 'sprint7-charge-tb-mount-first') 'complete mount-first evidence accepted'
 Check ((Get-KmcPhase3dEvidenceDispatch 51 'sprint7-charge-tb').validator -ceq 'Assert-KmcSprint7ChargeEvidence') 'schema 51 dispatches to the Sprint 7 reader'
+foreach($s in 'sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first'){ Check (Test-KmcPhase3dSchemaRegistration 51 $s) ($s+' registers schema 51'); Check (Test-KmcCompoundRuntimeScenario $s) ($s+' reports case rows') }
 Check (-not (Test-KmcPhase3dSchemaRegistration 50 'sprint7-charge-rt')) 'a Sprint 6 schema is refused for a Sprint 7 scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 51 'sprint6-feat-rt')) 'the Sprint 7 schema is refused for a Sprint 6 scenario'
 Check (-not (Test-KmcChildEntryExpectsMounted 'sprint7-charge-rt')) 'a Sprint 7 child starts from its unmounted fixture handoff'
