@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Integration
             var corpulence = mount.View.Corpulence;
             if (length <= corpulence) return true;
             var side = new Vector2(-line.y, line.x).normalized * (corpulence * 0.8f);
-            for (var along = corpulence; ; along = Mathf.Min(along + 1f, length))
+            for (var along = corpulence; ; along = Mathf.Min(along + Mathf.Max(corpulence * 0.5f, 0.25f), length))
             {
                 var centre = Vector3.Lerp(mount.Position, target.Position, along / total);
                 if (!FlankClear(centre, side) || !FlankClear(centre, -side)) return false;

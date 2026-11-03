@@ -149,7 +149,7 @@ namespace KingmakerMountedCombat.Domain
                     MountedCombatRejectionCode.TargetNotAttackable);
             }
 
-            if (!request.MountCanMove && request.Phase != MountedChargeRevalidationPhase.BeforeAttackStart)
+            if (!request.MountCanMove && request.Phase == MountedChargeRevalidationPhase.BeforeRepath)
             {
                 return Invalid("The mounted charge lost a mount that can move.", MountedCombatRejectionCode.WrongActionState);
             }

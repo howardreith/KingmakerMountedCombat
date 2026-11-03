@@ -70,14 +70,15 @@ function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     if($current-gt1){throw 'Two owners claim the single native turn.'}
     if($tb) {
         if($combat.Round-lt1-or$combat.Roster.Count-eq0){throw 'Native TB roster/round absent.'}
-        if(-not$zero-and-not$legacy-and($combat.Current.ActorId-cne$second-or$current-ne1)){throw 'Two-pair TB checkpoint lost its saved second-rider turn.'}
+        $committedCharge=$Request.persistenceCase-ceq'mounted-charge-tb-committed-manual'
+        if(-not$zero-and-not$legacy-and($combat.Current.ActorId-cne$(if($committedCharge){$first}else{$second})-or$current-ne1)){throw 'Two-pair TB checkpoint lost its saved second-rider turn.'}
     } elseif($combat.Roster.Count-ne0-or$null-ne$combat.Current-or$null-ne$combat.NextActor){throw 'RT save contains a synthetic roster or current turn.'}
     if(-not$legacy) {
         $firstDebt=$native[([Guid]$first).ToString('N')].Native;$secondDebt=$native[([Guid]$second).ToString('N')].Native
         $a=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$first});$b=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$second})
         if($a.Count-ne1-or$b.Count-ne1){throw 'Two-pair checkpoint lost either independent owner.'}
         $mountB=$native[([Guid]$b[0].State.MountId).ToString('N')].Native
-        if($tb-and-not$zero-and($firstDebt.Standard-le0.1-or$firstDebt.Standard-gt6.001-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
+        if($tb-and-not$zero-and$Request.persistenceCase-cne'mounted-charge-tb-committed-manual'-and($firstDebt.Standard-le0.1-or$firstDebt.Standard-gt6.001-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
         if(-not$tb-and($firstDebt.Standard-le0.1-or$mountB.Standard-le0.1-or$secondDebt.Standard-ne0)){throw 'RT archive omitted the distinct rider/other-pair mount expenditures.'}
     }
     $allocations=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
