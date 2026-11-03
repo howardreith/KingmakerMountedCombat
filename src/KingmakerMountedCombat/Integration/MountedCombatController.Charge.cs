@@ -28,6 +28,10 @@ namespace KingmakerMountedCombat.Integration
     {
         internal const string MountedChargeDisabledReason = "Enable Mounted Charge in the KMC mod settings.";
 
+        // The exact reason the same shared decision gives for this target, for the native target refusal.
+        internal string DescribeMountedChargeTargetRejection(UnitEntityData caster, UnitEntityData target) =>
+            disposed ? "Mounted combat services are not active." : EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster).Reason;
+
         // The stock minimum charge distance, read from the mount because the mount is the mover, and from the
         // turn-based mode setting exactly as AbilityCustomCharge.GetMinRangeMeters reads it.
         internal float GetMountedChargeMinimumRange(UnitEntityData caster)
@@ -114,7 +118,11 @@ namespace KingmakerMountedCombat.Integration
                 AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
                     chargeOwner != null && context != null && !OwnsChargeDelivery(context),
                 MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
-                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster)
+                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster),
+                MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
+                MountHasMoved = mount != null && (mount.CombatState.Cooldown.MoveAction > 0.001f ||
+                    unifiedTurn.PartnerContext != null && unifiedTurn.PartnerContext.TimeMoved > 0f),
+                MountStandardSpent = mount != null && mount.CombatState.Cooldown.StandardAction > 0.001f
             };
 
             if (mount?.View != null && target?.View != null)
@@ -123,7 +131,9 @@ namespace KingmakerMountedCombat.Integration
                 request.Distance = (target.Position - mount.Position).magnitude;
                 request.MinimumRange = MountedChargeMinimumRange(mount, target);
                 request.MaximumRange = MountedChargeMaximumRange(mount);
-                request.StraightRoute = endpoint == target.Position;
+                request.StraightRoute = endpoint == target.Position &&
+                    MountedChargeGeometry.FootprintClear(mount, rider, target);
+                request.TargetAlreadyInReach = MountedChargeGeometry.WithinRiderReach(mount, rider, target);
                 request.MountAvoidanceDisabled = mount.View.MovementAgent != null && mount.View.MovementAgent.AvoidanceDisabled;
                 request.LandingBlocked = MountedChargeLandingBlocked(mount, target);
             }
@@ -157,6 +167,7 @@ namespace KingmakerMountedCombat.Integration
             request.Distance = request.MinimumRange;
             request.StraightRoute = true;
             request.LandingBlocked = false;
+            request.TargetAlreadyInReach = false;
             var availability = EvaluateMountedChargeRequest(request, caster);
             return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Reason);
         }
@@ -250,7 +261,8 @@ namespace KingmakerMountedCombat.Integration
                     logger,
                     HandleCommandTerminal,
                     true,
-                    true,
+                    // Only the rider's own native Pounce can lift the single attack; the engine decides from the rider alone.
+                    !relationship.Rider.Descriptor.State.Features.Pounce,
                     true);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
                 chargeOwner.Command = command;

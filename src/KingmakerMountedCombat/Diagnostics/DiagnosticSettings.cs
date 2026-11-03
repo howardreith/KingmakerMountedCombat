@@ -8,6 +8,7 @@ namespace KingmakerMountedCombat.Diagnostics
             EnableUnifiedMountedTurn = false;
             EnablePairedCommandScheduler = false;
             EnablePairedActivation = true;
+            EnableMountedCharge = true;
             EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;
             TelemetryIntervalSeconds = 0.10d;
@@ -30,8 +31,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;
         internal bool UsePairedTurnControls => EnablePairedActivation || EnableUnifiedMountedTurn;
 
-        // Chunk 6B increment 6B.2: the pair-owned Mounted Charge. Default off and absent from the action bar
-        // until the Chunk 6B development-exit gate passes; nothing else changes when it is off.
+        // CHARGE-01: the pair-owned Mounted Charge, on by default in both combat modes. This session-scoped switch
+        // is the only preference: the mod keeps no settings file, so an opt-out holds until the next launch.
         public bool EnableMountedCharge { get; set; }
 
         public bool EnableDiagnosticOverlay { get; set; }

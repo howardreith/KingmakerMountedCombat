@@ -224,6 +224,8 @@ namespace KingmakerMountedCombat.Integration
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
                 forced, agent.NearTheEnd,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue, out debit);
+            // A forced line reaches here only as a charge, whose native shell paid for its caster and not for this mover.
+            if (forced) debit = deltaTime;
             cooldown.MoveAction = used + debit;
             allocation.MoveUsed = allocation.Prepared ? cooldown.MoveAction : allocation.MoveUsed + debit;
             // Before Prepare only the new debit belongs to this allocation; an

@@ -1730,9 +1730,9 @@ Assert-Kmc ($spatialText -match 'movingAgentIsExactMount &&\s*riderTurnIsActing;
     $spatialText -notmatch 'exactOwnedChargeTransactionDelegating && riderTurnIsPreparing' -and
     ([Regex]::Matches($spatialText, 'bool CanDelegateMountMovement\(').Count -eq 2)) 'both delegation overloads retain Acting-only admission after the failed Preparing experiment'
 Assert-Kmc ($pairCommandText -match 'internal bool ChargeTransactionDelegating => false;' -and
-    $ownershipText -match 'TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) \|\| ChargeNativeWorldLoading\) return false;' -and
-    $ownershipText -match '!TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) && !ChargeNativeWorldLoading &&') 'the deferred charge experiment exposes no Preparing or TB shell admission'
-Assert-Kmc ($chargePolicyText -match 'return Refuse\("Mounted Charge is not yet supported in turn-based mode\.", MountedCombatRejectionCode.WrongTurn\);') 'turn-based charge retains the exact qualified cost-free refusal'
+    $ownershipText -match 'chargeOwner.AdmittedTurnBased == TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\)' -and
+    $ownershipText -match 'owner.AdmittedTurnBased != TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\)') 'a charge stays in the combat mode that admitted it, and Preparing never delegates the mount'
+Assert-Kmc ($chargePolicyText -match 'return Refuse\("Mounted Charge belongs to the rider''s own turn\.", MountedCombatRejectionCode.WrongTurn\);') 'turn-based charge is the rider''s own turn alone'
 Assert-Kmc ($evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && \(turnPreparing \|\| turnActing\);' -and
     ([Regex]::Matches($pairControllerText, 'MountedPairTurnPolicy\.CanDelegateMountMovement\(').Count -eq 1) -and
     $spatialText -match 'public static bool CanDriveRiderGroundMovement\(') 'charge deferral preserves relationship prepared-turn eligibility and ordinary movement policies'

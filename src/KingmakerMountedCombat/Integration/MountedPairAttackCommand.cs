@@ -369,7 +369,7 @@ namespace KingmakerMountedCombat.Integration
                 TargetVisible = attackTarget != null && attackTarget.IsVisibleForPlayer,
                 TargetHostile = rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
                 TargetAttackable = rider != null && attackTarget != null && rider.CanAttack(attackTarget),
-                StraightRoute = MountedChargeGeometry.StraightRoute(mount, attackTarget),
+                StraightRoute = MountedChargeGeometry.StraightLane(mount, rider, attackTarget),
                 LandingBlocked = MountedChargeGeometry.LandingBlocked(mount, rider, attackTarget),
                 MountAvoidanceDisabled = MountedChargeGeometry.MountAvoidanceDisabled(mount),
                 Distance = mount == null || attackTarget == null
@@ -829,6 +829,12 @@ namespace KingmakerMountedCombat.Integration
                 {
                     try { TryDrainChargeCarrier(); }
                     catch (Exception exception) { logger.Exception("Charge carrier cleanup retained", exception); }
+                    // A delivered charge keeps its native penalty for the native round. Anything less than delivery removes it.
+                    if (LastAttackRule != null && chargeLease != null)
+                    {
+                        try { chargeLease.HandBuffToNativeDuration(); }
+                        catch (Exception exception) { logger.Exception("Charge buff hand-off refused", exception); }
+                    }
                     try { TryDischargeChargeCleanupDebt(); }
                     catch (Exception exception) { logger.Exception("Charge lease cleanup retained", exception); }
                     if (Result == ResultType.Success && LastAttackRule != null &&
@@ -979,6 +985,13 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // As the stock turn-based routine does on every tick: the speed is re-asserted and a stopped line is forced again.
+            if (chargeMode && chargeLease != null && !delegatedMove.IsFinished &&
+                TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            {
+                chargeLease.Maintain(true);
+            }
+
             if (!NativePartnerMovement && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == rider)
             {
@@ -1047,6 +1060,7 @@ namespace KingmakerMountedCombat.Integration
             return "repath=" + (transaction.RepathCount + 1) + ";" + cause + ";ticks=" + delegatedMoveTickCount +
                 ";moved=" + GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position).ToString("0.###", culture) +
                 ";targetDistance=" + mount.DistanceTo(attackTarget).ToString("0.###", culture) +
+                ";forceMode=" + (chargeLease?.ForceMode.ToString() ?? "<none>") +
                 ";moveResult=" + (delegatedMove == null ? "<none>" : delegatedMove.Result.ToString()) +
                 ";riderMove=" + rider.CombatState.Cooldown.MoveAction.ToString("0.###", culture) +
                 ";riderStandard=" + rider.CombatState.Cooldown.StandardAction.ToString("0.###", culture) +
@@ -1105,6 +1119,9 @@ namespace KingmakerMountedCombat.Integration
             };
             if (chargeMode)
             {
+                // The native turn-based approach would request its own path and so drop the forced line, the cause of the
+                // preview.176 failure: the stock charge holds no approaching move at all. The lease alone drives this carrier.
+                if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat()) delegatedMove.NextApproachTime = TimeSpan.MaxValue;
                 chargeCarriers.Add(new KeyValuePair<UnitCommands, UnitMoveTo>(mount.Commands, delegatedMove));
                 chargeCarrierView = mount.View;
                 chargeCarrierAgent = mount.View?.AgentASP;

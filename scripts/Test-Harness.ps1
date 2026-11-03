@@ -5203,11 +5203,11 @@ try {
             -not $leaseSource.Contains('Cooldown.StandardAction =') -and
             -not $leaseSource.Contains('Cooldown.MoveAction =')) `
             'the Chunk 6B charge lease does not restore exactly, or writes a native cooldown'
-        # Default-off: the setting is never initialized true and the control is not leased without it.
-        Assert-Test (-not $settingsSource.Contains('EnableMountedCharge = true') -and
+        # On by default (CHARGE-01), with its own switch: the control is not leased without it.
+        Assert-Test ($settingsSource.Contains('EnableMountedCharge = true;') -and
             $settingsSource.Contains('public bool EnableMountedCharge { get; set; }') -and
             $leasePolicySource.Contains('return mountedChargeEnabled && unitIsRider;')) `
-            'the Chunk 6B charge is not default-off behind its own setting'
+            'the charge is not an ordinary default behind its own setting'
     }
 
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {

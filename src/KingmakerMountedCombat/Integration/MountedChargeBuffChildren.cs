@@ -142,6 +142,14 @@ namespace KingmakerMountedCombat.Integration
             return Drained;
         }
 
+        // A delivered buff goes back to the engine with its children. Enchantment visuals stay ours, so those keep the removal path.
+        internal bool TryHandOff()
+        {
+            if (fault != null || !ScopeSettled || nodes.Any(node => node.Visuals != null || node.Owner.Fault != null)) return false;
+            owners.Remove(this);
+            return true;
+        }
+
         internal void Release()
         {
             if (!Drained) throw new InvalidOperationException("Live Charge child ownership cannot be released.");

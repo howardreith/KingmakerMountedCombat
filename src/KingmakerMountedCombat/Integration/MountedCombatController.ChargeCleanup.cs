@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Integration
             internal bool ProcessObservationPending;
             internal string ProcessObservationError;
             internal bool Committed => Shell != null && Shell.IsActed;
+            internal bool AdmittedTurnBased;
         }
 
         private ChargeOwner chargeOwner;
@@ -73,7 +74,7 @@ namespace KingmakerMountedCombat.Integration
                     ["ended"] = p.IsEnded
                 })),
                 ["rider"] = owner.Rider?.UniqueId, ["mount"] = owner.Mount?.UniqueId, ["target"] = owner.Target?.UniqueId,
-                ["generation"] = owner.Generation, ["state"] = owner.Ownership.State.ToString(),
+                ["generation"] = owner.Generation, ["state"] = owner.Ownership.State.ToString(), ["admittedTurnBased"] = owner.AdmittedTurnBased,
                 ["cleanupRequested"] = owner.Ownership.CleanupRequested, ["attempts"] = owner.Ownership.AttemptCount,
                 ["committed"] = owner.Committed, ["commandTerminal"] = owner.Command == null || owner.Command.IsFinished,
                 ["riderSlotReleased"] = owner.Command == null || owner.RiderCommands.Standard != owner.Command,
@@ -126,8 +127,7 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
             if (!IsMountedChargeShell(command)) return true;
-            if (disposed || ChargeAdmissionFenced || !settings.EnableMountedCharge ||
-                TurnBased.Controllers.CombatController.IsInTurnBasedCombat() || ChargeNativeWorldLoading) return false;
+            if (disposed || ChargeAdmissionFenced || !settings.EnableMountedCharge || ChargeNativeWorldLoading) return false;
             var shell = (UnitUseAbility)command;
             if (chargeOwner != null)
                 return ReferenceEquals(chargeOwner.Shell, shell) && ReferenceEquals(container, chargeOwner.RiderCommands) &&
@@ -154,6 +154,7 @@ namespace KingmakerMountedCombat.Integration
             chargeOwner = CreateChargeOwner(rider, relationship.Mount, shell.Target?.Unit, container,
                 relationship.Mount.Commands, shell, relationship.MountedPairGeneration, Time.frameCount);
             chargeOwner.PairOwner = relationship.Ownership.FindActive(rider);
+            chargeOwner.AdmittedTurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
         }
 
         internal Action<bool> BeginChargeNativeAction(UnitUseAbility shell)
@@ -243,9 +244,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool AllowChargeExecution(UnitCommand command)
         {
             if (!IsMountedChargeShell(command)) return true;
-            return !disposed && !ChargeAdmissionFenced && settings.EnableMountedCharge &&
-                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() && !ChargeNativeWorldLoading &&
-                chargeOwner != null && ReferenceEquals(chargeOwner.Shell, command) &&
+            return !disposed && !ChargeAdmissionFenced && settings.EnableMountedCharge && !ChargeNativeWorldLoading &&
+                chargeOwner != null && chargeOwner.AdmittedTurnBased == TurnBased.Controllers.CombatController.IsInTurnBasedCombat() && ReferenceEquals(chargeOwner.Shell, command) &&
                 !chargeOwner.Ownership.CleanupRequested && chargeOwner.Generation == relationship.MountedPairGeneration && IsCurrentChargePair(chargeOwner);
         }
 
@@ -406,7 +406,7 @@ namespace KingmakerMountedCombat.Integration
             if (owner == null) { ResumeChargeNativeBoundaries(); return; }
             ObserveChargeProcess(owner.Shell);
             if (owner.Ownership.CleanupRequested || !settings.EnableMountedCharge || !settings.EnableUnsafeMovementExperiment ||
-                TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
+                owner.AdmittedTurnBased != TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
                 owner.Generation != relationship.MountedPairGeneration || owner.Rider != relationship.Rider || owner.Mount != relationship.Mount ||
                 owner.Command != null && owner.Command.IsFinished ||
                 owner.Command == null && owner.ProcessEnded != null && owner.ProcessEnded() ||

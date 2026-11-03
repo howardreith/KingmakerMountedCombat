@@ -217,8 +217,7 @@ namespace KingmakerMountedCombat.Domain
 
             if (kind == NativeMountedControlKind.MountedCharge)
             {
-                // Chunk 6B: the pair-owned charge is default-off until qualified, so the control is not leased
-                // at all unless its own setting is on, and it belongs to the rider, who owns the native shell.
+                // The control is not leased at all unless its own setting is on, and it belongs to the rider, who owns the native shell.
                 return mountedChargeEnabled && unitIsRider;
             }
 
