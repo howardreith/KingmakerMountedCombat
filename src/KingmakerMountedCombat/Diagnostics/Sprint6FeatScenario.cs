@@ -15,6 +15,7 @@ using Kingmaker.Enums;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem;
 using Kingmaker.RuleSystem.Rules;
+using Kingmaker.RuleSystem.Rules.Abilities;
 using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.SettingsUI;
@@ -549,8 +550,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // ---- forced hit -------------------------------------------------------------------------------------------------
-        // One ranged touch ability cast twice by the hostile: as an ordinary cast, and with UnitUseAbility.ForceAlwaysHit as
-        // CommandUnitCastSpell sets it. Melee success and equality stand beside them as the unchanged control.
+        // One ranged touch ability cast twice by the hostile: as an ordinary cast, and with the context's ForceAlwaysHit as
+        // CommandUnitCastSpell ends up setting it. Melee success and equality stand beside them as the unchanged control.
         private BlueprintAbility s6Ray;
         private float s6CastAt;
 
@@ -566,9 +567,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Sprint6CastRay(bool forced)
         {
-            var cast = new UnitUseAbility(new AbilityData(s6Ray, target.Descriptor), new TargetWrapper(horse)) { NeedLoS = false, ForceAlwaysHit = forced };
-            cast.IgnoreCooldown();
-            target.Commands.Run(cast);
+            // UnitUseAbility.Init interrupts a non-cutscene cast of an ability the caster does not own (f01), so this triggers what its
+            // OnAction triggers: the same rule, with the same two values the cutscene command carries into it.
+            var cast = new RuleCastSpell(new AbilityData(s6Ray, target.Descriptor), new TargetWrapper(horse)) { IsCutscene = forced };
+            cast.Context.ForceAlwaysHit = forced;
+            Rulebook.Trigger(cast);
             s6CastAt = Time.time; s6StrikesThisStep++;
         }
 
