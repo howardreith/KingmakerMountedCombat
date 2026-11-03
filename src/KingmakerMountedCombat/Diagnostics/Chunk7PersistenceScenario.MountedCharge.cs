@@ -1,6 +1,5 @@
 using System.Linq;
 using Kingmaker;
-using Kingmaker.Blueprints.Root;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
@@ -20,12 +19,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject ChargeCommitState()
         {
-            var buff = BlueprintRoot.Instance.SystemMechanics.ChargeBuff;
             var cooldown = firstRider.CombatState.Cooldown; var mountCooldown = firstMount.CombatState.Cooldown;
             var combat = world.ForActor(firstRider).Combat;
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             return new JObject { ["riderStandard"] = cooldown.StandardAction, ["riderMove"] = cooldown.MoveAction, ["mountStandard"] = mountCooldown.StandardAction, ["mountMove"] = mountCooldown.MoveAction,
-                ["buffCount"] = firstRider.Buffs.Enumerable.Count(fact => fact.Blueprint == buff), ["riderAc"] = firstRider.Stats.AC.ModifiedValue, ["riderCharging"] = firstRider.Descriptor.State.IsCharging,
+                ["buffCount"] = MountedChargeFixture.NativeBuffCount(firstRider), ["riderAc"] = firstRider.Stats.AC.ModifiedValue, ["riderCharging"] = firstRider.Descriptor.State.IsCharging,
                 ["mountCharging"] = firstMount.View.AgentASP.IsCharging, ["chargeOwned"] = combat.HasChargeOwnership, ["activeCommand"] = combat.HasActiveCommand, ["turnUnit"] = turn?.Unit?.UniqueId, ["turnStatus"] = turn?.Status.ToString(),
                 ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["rule"] = chargeRules?.Attacks.Count, ["available"] = firstRider.Descriptor.Abilities.GetAbility(controls.MountedChargeAbility)?.Data.IsAvailableForCast };
         }

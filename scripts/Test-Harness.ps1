@@ -5146,7 +5146,7 @@ try {
             'production synthesizes mounted opportunities or patches broad engagement ownership despite the default-off stretch disposition'
     }
 
-    Invoke-HarnessTest 'mounted charge remains scoped and default-off with retained cleanup ownership' {
+    Invoke-HarnessTest 'mounted charge remains scoped and on by default with retained cleanup ownership' {
         $productionFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' | Sort-Object FullName)
         $productionSource = @($productionFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
