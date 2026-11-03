@@ -12,7 +12,8 @@ function New-S5Shots([string]$Mount,[bool]$Dog){
  foreach($rig in $script:KmcSprint5Rigs){ foreach($v in 'idle-side','idle-front','idle-rear','idle-close-side','idle-close-other','idle-close-front','move-1','move-2','dismounted'){ [void]$names.Add($Mount+'-'+$rig+'-'+$v) } }
  foreach($v in 'gear-removed','gear-restored','cast','turn','attack-1','attack-2','attack-3','mount-attack','dismounted'){ [void]$names.Add($Mount+'-action-'+$v); foreach($rig in $script:KmcSprint5ExtremeRigs){ [void]$names.Add($Mount+'-action-'+$rig+'-'+$v) } }
  foreach($v in 'side','front','rear','close-side','close-other','close-front'){ [void]$names.Add($Mount+'-left-handed-'+$v); if($Dog){ [void]$names.Add('dog-leveled-'+$v) } }
- @($names | ForEach-Object { [pscustomobject]@{name=$_;file='movement-visuals/sprint5-'+$_+'.png';bytes=10;sha256='a';clear=$true} })
+ foreach($label in 'female-halfling','male-halfling','female-halfling-left-handed'){ foreach($v in 'standing-near','standing-far','standing-front','standing-near-ordinary-light','mounted-near','mounted-near-nomount','mounted-far','mounted-front','mounted-front-nomount','mounted-three-quarter','mounted-near-ordinary-light','mounted-ordinary-camera','experiment-foot-follows-near','experiment-foot-follows-front','armor-off-near','armor-off-near-nomount','armor-off-far','armor-restored-near','dismounted-near','remounted-near'){ [void]$names.Add($Mount+'-boot-'+$label+'-'+$v) } }
+ @($names | ForEach-Object { $shot=[pscustomobject]@{name=$_;frame=7;file='movement-visuals/sprint5-'+$_+'.png';bytes=10;sha256='a';clear=$true}; if($_ -cmatch '-boot-.*-(standing-near|mounted-near|mounted-far|mounted-front|armor-off-near|remounted-near)$'){ $shot | Add-Member -NotePropertyName boot -NotePropertyValue ([pscustomobject]@{frame=7}) }; $shot })
 }
 function New-S5Rigs([string]$Mount,[string]$Size){
  @($script:KmcSprint5Rigs | ForEach-Object {
@@ -38,6 +39,7 @@ function New-S5Artifact([string]$Scenario){
  Row 'S5-medium-control' ([pscustomobject]@{profile='medium-humanoid-mammoth-v1'})
  Row 'S5-acquire' ([pscustomobject]@{acquisition=[pscustomobject]@{acquired=$true;petBlueprint=$unit;rank=1;owner=$owner;optionsOffered=@($feature)};pet=[pscustomobject]@{id=$pet;effectiveSize=$size;master=$owner}})
  if($dog){ Row 'S5-medium-refused' ([pscustomobject]@{rigFacts=[pscustomobject]@{effectiveSize='Medium'};resolved=$null;refusal='The mount must be at least one size category larger than its rider.';stateAfter='none'}) }
+ Row 'S5-boot' ([pscustomobject]@{cases=@('female-halfling','male-halfling','female-halfling-left-handed' | ForEach-Object { $left=$_ -cmatch 'left'; [pscustomobject]@{label=$_;leftHanded=$left;mounted=$true;remounted=$true;resolved='p';remountedResolved='p';armorOff=[pscustomobject]@{state='Mounted';resolved='p'};armorOn=[pscustomobject]@{state='Mounted';resolved='p'};mountedRig=[pscustomobject]@{mirror=$left};rigFacts=[pscustomobject]@{pelvisHeight=0.4};afterDismountRig=[pscustomobject]@{pelvisHeight=0.41}} })})
  Row 'S5-rigs' ([pscustomobject]@{rigs=@(New-S5Rigs $mount $size)})
  Row 'S5-actions' (& $action $null)
  Row 'S5-body-actions' ([pscustomobject]@{bodies=@($script:KmcSprint5ExtremeRigs | ForEach-Object { & $action $_ })})
@@ -50,7 +52,7 @@ function New-S5Artifact([string]$Scenario){
   Row 'S5-replacement' ([pscustomobject]@{ownerPet=$null;orphans=0})
  }
  [pscustomobject]@{schemaVersion=49;status='PASS';errors=@();subscenarioFailCount=0;rows=@($rows)
-  observations=[pscustomobject]@{riderId='r';horseId='m';sprint5Small=[pscustomobject]@{contract='native-small-riders-riding-dog-v2';mount=$mount;controlRider='r';controlMount='m';bodiesAreDisclosedSetup=$true;cases=@(Get-KmcSprint5Cases $Scenario);shots=@(New-S5Shots $mount $dog)}}}
+  observations=[pscustomobject]@{riderId='r';horseId='m';sprint5Small=[pscustomobject]@{contract='native-small-riders-riding-dog-v3';mount=$mount;controlRider='r';controlMount='m';bodiesAreDisclosedSetup=$true;cases=@(Get-KmcSprint5Cases $Scenario);shots=@(New-S5Shots $mount $dog)}}}
 }
 function Accept($Artifact,[string]$Scenario){ try { Assert-KmcSprint5SmallEvidence -Request ([pscustomobject]@{scenario=$Scenario;evidenceRoot=''}) -Artifact $Artifact -Status 'PASS'; $true } catch { Write-Output ('      refused: '+$_.Exception.Message); $false } }
 function Reject($Artifact,[string]$Scenario,[string]$Name){ $threw=$false; try { Assert-KmcSprint5SmallEvidence -Request ([pscustomobject]@{scenario=$Scenario;evidenceRoot=''}) -Artifact $Artifact -Status 'PASS' } catch { $threw=$true }; Check $threw $Name }
@@ -102,6 +104,11 @@ $r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').restoredRig.mirror=$true; Reject 
 $r=Copy-S5 $horse; (RowOf $r 'S5-left-handed').rigFacts.mirror=$false; Reject $r 'sprint5-small-rt' 'an unmirrored setup is not left-handed evidence'
 $r=Copy-S5 $horse; (RowOf $r 'S5-body-actions').bodies[0].profileBefore='small-gnome-male-horse-v1'; Reject $r 'sprint5-small-rt' 'an action extreme on another body refuses'
 foreach($scenario in 'sprint5-dog-rt','sprint5-small-rt'){ foreach($row in (Get-KmcSprint5Cases $scenario)){ Check (@(Get-KmcPhase3dHorseRuntimeRows $scenario | Where-Object { $_ -ceq $row }).Count -eq 1) ($scenario+' registers row '+$row) } }
+$r=Copy-S5 $horse; (RowOf $r 'S5-boot').cases[0].remounted=$false; Reject $r 'sprint5-small-rt' 'a near boot case that never remounted refuses'
+$r=Copy-S5 $horse; (RowOf $r 'S5-boot').cases[1].armorOff.state='Unmounted'; Reject $r 'sprint5-small-rt' 'a near boot case that lost its seat across gear refuses'
+$r=Copy-S5 $horse; (RowOf $r 'S5-boot').cases[2].mountedRig.mirror=$false; Reject $r 'sprint5-small-rt' 'an unmirrored near boot mirror case refuses'
+$r=Copy-S5 $dog; (@($r.observations.sprint5Small.shots | Where-Object name -CEQ 'dog-boot-female-halfling-mounted-near')[0]).boot.frame=8; Reject $r 'sprint5-dog-rt' 'geometry from another frame than its pixels refuses'
+$r=Copy-S5 $dog; $r.observations.sprint5Small.shots=@($r.observations.sprint5Small.shots | Where-Object name -CNE 'dog-boot-male-halfling-mounted-near-nomount'); Reject $r 'sprint5-dog-rt' 'a missing near boot view refuses'
 $r=Copy-S5 $dog; $x=(RowOf $r 'S5-pet-level'); $x.commits=@($x.commits[0..1]); Reject $r 'sprint5-dog-rt' 'an incomplete pet level sequence refuses'
 $r=Copy-S5 $dog; (RowOf $r 'S5-pet-level').commits[0].complete=$false; Reject $r 'sprint5-dog-rt' 'a commit with unmade choices refuses'
 $r=Copy-S5 $dog; (RowOf $r 'S5-pet-level').commits[1].after.experience=99; Reject $r 'sprint5-dog-rt' 'a pet level that moved experience refuses'

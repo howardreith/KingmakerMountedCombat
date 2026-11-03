@@ -3,8 +3,8 @@
 $script:KmcSprint5Rigs=@('male-halfling','female-halfling','male-gnome','female-gnome','male-halfling-fat','male-halfling-thin','female-halfling-fat','female-halfling-thin','male-gnome-fat','male-gnome-thin','female-gnome-fat','female-gnome-thin')
 $script:KmcSprint5ExtremeRigs=@('female-halfling-thin','male-gnome-fat')
 function Get-KmcSprint5Cases([string]$Scenario){
- if($Scenario -ceq 'sprint5-dog-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-medium-refused','S5-rigs','S5-actions','S5-body-actions','S5-left-handed','S5-size-change','S5-growth','S5-pet-level','S5-stock-dog','S5-replacement') }
- if($Scenario -ceq 'sprint5-small-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-rigs','S5-actions','S5-body-actions','S5-left-handed') }
+ if($Scenario -ceq 'sprint5-dog-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-medium-refused','S5-boot','S5-rigs','S5-actions','S5-body-actions','S5-left-handed','S5-size-change','S5-growth','S5-pet-level','S5-stock-dog','S5-replacement') }
+ if($Scenario -ceq 'sprint5-small-rt'){ return @('S5-inventory','S5-medium-control','S5-acquire','S5-boot','S5-rigs','S5-actions','S5-body-actions','S5-left-handed') }
  throw ('Sprint 5 scenario has no case list: '+$Scenario)
 }
 function Assert-KmcSprint5Shot($Shots,[string]$Name,[string]$Root){
@@ -62,6 +62,24 @@ function Assert-KmcSprint5LeftHanded($Evidence,$Shots,[string]$Mount,[string]$Ro
  if($e.mounted -ne $true -or $null -eq $e.resolved -or $e.mountedRig.mirror -ne $true){ throw 'Sprint 5 the mirrored rig was not seated' }
  foreach($view in @('side','front','rear','close-side','close-other','close-front')){ Assert-KmcSprint5Shot $Shots ($Mount+'-left-handed-'+$view) $Root }
 }
+# The near boot comparison: an affected rig, a control and a mirror, each seated, geared, dismounted and remounted on its own profile, with a matched geometry observation.
+function Assert-KmcSprint5Boot($Evidence,$Shots,[string]$Mount,[string]$Root){
+ $cases=@($Evidence.cases)
+ if((@($cases | ForEach-Object { [string]$_.label }) -join ',') -cne 'female-halfling,male-halfling,female-halfling-left-handed'){ throw 'Sprint 5 the near boot cases differ' }
+ foreach($c in $cases){
+  if($c.mounted -ne $true -or $c.remounted -ne $true -or $null -eq $c.resolved -or [string]$c.remountedResolved -cne [string]$c.resolved){ throw ('Sprint 5 near boot case '+$c.label+' did not keep its profile through remounting') }
+  if([string]$c.armorOff.state -cne 'Mounted' -or [string]$c.armorOff.resolved -cne [string]$c.resolved -or [string]$c.armorOn.state -cne 'Mounted' -or [string]$c.armorOn.resolved -cne [string]$c.resolved){ throw ('Sprint 5 near boot case '+$c.label+' lost its seat across the gear change') }
+  if(($c.mountedRig.mirror -eq $true) -ne ($c.leftHanded -eq $true)){ throw ('Sprint 5 near boot case '+$c.label+' has the wrong mirror') }
+  if($null -eq $c.afterDismountRig -or [math]::Abs([double]$c.afterDismountRig.pelvisHeight-[double]$c.rigFacts.pelvisHeight) -gt 0.08){ throw ('Sprint 5 near boot case '+$c.label+' kept a pose residue') }
+  $prefix=$Mount+'-boot-'+$c.label+'-'
+  foreach($view in @('standing-near','standing-far','standing-front','standing-near-ordinary-light','mounted-near','mounted-near-nomount','mounted-far','mounted-front','mounted-front-nomount','mounted-three-quarter','mounted-near-ordinary-light','mounted-ordinary-camera','experiment-foot-follows-near','experiment-foot-follows-front','armor-off-near','armor-off-near-nomount','armor-off-far','armor-restored-near','dismounted-near','remounted-near')){ Assert-KmcSprint5Shot $Shots ($prefix+$view) $Root }
+  foreach($view in @('standing-near','mounted-near','mounted-far','mounted-front','armor-off-near','remounted-near')){
+   $shot=@($Shots | Where-Object { [string]$_.name -ceq ($prefix+$view) })[0]
+   if($null -eq $shot.boot -or $null -ne $shot.PSObject.Properties['bootError']){ throw ('Sprint 5 near boot view has no geometry observation: '+$prefix+$view) }
+   if([int]$shot.boot.frame -ne [int]$shot.frame){ throw ('Sprint 5 near boot geometry is not from the frame of its pixels: '+$prefix+$view) }
+  }
+ }
+}
 # The pet's own class levels: each commit is one native level with class-table base statistics, the same identity, and no second upgrade.
 function Assert-KmcSprint5PetLevel($Evidence,$Shots,[string]$Root,[string]$OwnerId,[string]$PetId){
  $e=$Evidence
@@ -101,7 +119,7 @@ function Assert-KmcSprint5SmallEvidence {
  }
  if($Artifact.status -cne 'PASS' -or @($Artifact.errors).Count -ne 0 -or @($Artifact.rows | Where-Object status -CNE 'PASS').Count -ne 0 -or $Artifact.subscenarioFailCount -ne 0){ throw 'Sprint 5 envelope differs' }
  $o=$Artifact.observations.sprint5Small
- if($null -eq $o -or $o.contract -cne 'native-small-riders-riding-dog-v2' -or $o.controlRider -cne $Artifact.observations.riderId -or $o.controlMount -cne $Artifact.observations.horseId){ throw 'Sprint 5 measurement identity differs' }
+ if($null -eq $o -or $o.contract -cne 'native-small-riders-riding-dog-v3' -or $o.controlRider -cne $Artifact.observations.riderId -or $o.controlMount -cne $Artifact.observations.horseId){ throw 'Sprint 5 measurement identity differs' }
  if($o.bodiesAreDisclosedSetup -ne $true){ throw 'Sprint 5 body setup is not disclosed' }
  $dogRun=$Request.scenario -ceq 'sprint5-dog-rt'
  $mount=$(if($dogRun){'dog'}else{'horse'})
@@ -124,6 +142,7 @@ function Assert-KmcSprint5SmallEvidence {
  if($acquire.acquisition.acquired -ne $true -or [string]$acquire.acquisition.petBlueprint -cne $wantedUnit -or [int]$acquire.acquisition.rank -ne 1){ throw 'Sprint 5 companion was not chosen through the native selection' }
  if(@($acquire.acquisition.optionsOffered) -cnotcontains $wantedFeature){ throw 'Sprint 5 Ranger selection did not offer the companion' }
  if([string]$acquire.pet.effectiveSize -cne $wantedSize -or [string]$acquire.pet.master -cne [string]$acquire.acquisition.owner){ throw 'Sprint 5 companion size or owner differs' }
+ Assert-KmcSprint5Boot $rows['S5-boot'].evidence $shots $mount $EvidenceRoot
  Assert-KmcSprint5Rigs $rows['S5-rigs'] $shots $mount $EvidenceRoot $wantedSize
  Assert-KmcSprint5Actions $rows['S5-actions'].evidence $shots $mount $EvidenceRoot
  $bodies=@($rows['S5-body-actions'].evidence.bodies)

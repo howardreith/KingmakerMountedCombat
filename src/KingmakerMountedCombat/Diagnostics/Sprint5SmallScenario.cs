@@ -135,10 +135,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // The gameplay camera is posed only for these renders inside one end-of-frame and restored before anything else runs.
         // The first clear candidate is kept; if none is clear the least hidden one is, and the row records every score.
         internal static IEnumerator Capture(string evidenceRoot, JArray shots, string name, UnitEntityData focusUnit, UnitEntityData riderUnit, UnitEntityData mountUnit,
-            float yaw, float height, float distance, float fieldOfViewDegrees, Action done, float lookHeight = 1.2f, float clearFraction = 0.004f, bool frameRider = false, bool fillLight = false)
+            float yaw, float height, float distance, float fieldOfViewDegrees, Action done, float lookHeight = 1.2f, float clearFraction = 0.004f, bool frameRider = false, bool fillLight = false,
+            bool ordinaryCamera = false, bool withoutMount = false, Func<JObject> observe = null)
         {
             yield return new WaitForEndOfFrame();
             var row = new JObject { ["name"] = name, ["frame"] = Time.frameCount };
+            JObject hiddenMountRow = null;
             try
             {
                 var camera = Game.GetCamera();
@@ -160,22 +162,43 @@ namespace KingmakerMountedCombat.Diagnostics
                     light.type = LightType.Point; light.range = 16f; light.intensity = 1.5f; light.color = Color.white; light.shadows = LightShadows.None;
                 }
                 row["fillLight"] = fillLight;
+                row["ordinaryCamera"] = ordinaryCamera;
+                var bestPosition = position; var bestRotation = rotation; var bestFieldOfView = fieldOfView;
                 try
                 {
-                    foreach (var candidate in ClearViewCandidates)
+                    // The ordinary camera is left where play has it, so that frame shows what a player sees.
+                    foreach (var candidate in ordinaryCamera ? new float[][] { null } : ClearViewCandidates)
                     {
-                        var near = distance * candidate[0];
-                        var direction = Quaternion.Euler(0f, yaw + candidate[1], 0f) * focus.forward;
-                        transform.position = origin + direction * near + Vector3.up * (lookHeight + (height - lookHeight) * candidate[0]);
-                        transform.rotation = Quaternion.LookRotation(look - transform.position);
-                        camera.fieldOfView = 2f * Mathf.Atan(halfHeight / near) * Mathf.Rad2Deg;
+                        var near = candidate == null ? 0f : distance * candidate[0];
+                        var candidateYaw = candidate == null ? 0f : yaw + candidate[1];
+                        if (candidate != null)
+                        {
+                            var direction = Quaternion.Euler(0f, candidateYaw, 0f) * focus.forward;
+                            transform.position = origin + direction * near + Vector3.up * (lookHeight + (height - lookHeight) * candidate[0]);
+                            transform.rotation = Quaternion.LookRotation(look - transform.position);
+                            camera.fieldOfView = 2f * Mathf.Atan(halfHeight / near) * Mathf.Rad2Deg;
+                        }
                         if (lightObject != null) lightObject.transform.position = transform.position + Vector3.up * 0.5f;
-                        var blocked = BlockingUnit(transform.position, look, focusUnit, riderUnit, mountUnit);
+                        var blocked = candidate == null ? null : BlockingUnit(transform.position, look, focusUnit, riderUnit, mountUnit);
                         var attempt = Screenshot.CapturePNG(camera);
                         var hidden = blocked != null ? 1f : SilhouetteFraction(attempt);
-                        tries.Add(new JObject { ["distance"] = near, ["yaw"] = yaw + candidate[1], ["silhouette"] = hidden, ["blockedBy"] = blocked });
-                        if (hidden < best) { best = hidden; bytes = attempt; row["distance"] = near; row["yaw"] = yaw + candidate[1]; }
+                        tries.Add(new JObject { ["distance"] = near, ["yaw"] = candidateYaw, ["silhouette"] = hidden, ["blockedBy"] = blocked });
+                        if (hidden < best) { best = hidden; bytes = attempt; row["distance"] = near; row["yaw"] = candidateYaw; bestPosition = transform.position; bestRotation = transform.rotation; bestFieldOfView = camera.fieldOfView; }
                         if (hidden <= clearFraction) break;
+                    }
+                    // Diagnostic only, same frame and camera: is the rider's own mesh whole with no mount geometry to hide it?
+                    if (withoutMount && mountUnit?.View != null && riderUnit?.View != null)
+                    {
+                        transform.position = bestPosition; transform.rotation = bestRotation; camera.fieldOfView = bestFieldOfView;
+                        var mountRenderers = mountUnit.View.GetComponentsInChildren<Renderer>(false).Where(value => value.enabled && !value.transform.IsChildOf(riderUnit.View.transform)).ToArray();
+                        byte[] isolated;
+                        try
+                        {
+                            foreach (var value in mountRenderers) value.enabled = false;
+                            isolated = Screenshot.CapturePNG(camera);
+                        }
+                        finally { foreach (var value in mountRenderers) value.enabled = true; }
+                        hiddenMountRow = WriteShot(evidenceRoot, name + "-nomount", isolated, new JObject { ["name"] = name + "-nomount", ["frame"] = Time.frameCount, ["diagnosticIsolation"] = "mount renderers hidden for this render only", ["hiddenRenderers"] = mountRenderers.Length });
                     }
                 }
                 finally
@@ -193,16 +216,28 @@ namespace KingmakerMountedCombat.Diagnostics
                         row["seat"] = new JObject { ["pelvisMountLocal"] = Vector(root.InverseTransformPoint(pelvis.position)),
                             ["leftFootMountLocal"] = Vector(root.InverseTransformPoint(left.position)), ["rightFootMountLocal"] = Vector(root.InverseTransformPoint(right.position)) };
                 }
-                var folder = Path.Combine(evidenceRoot, "movement-visuals"); Directory.CreateDirectory(folder);
-                var file = "sprint5-" + name + ".png";
-                File.WriteAllBytes(Path.Combine(folder, file), bytes);
-                using (var algorithm = SHA256.Create())
-                    row["sha256"] = BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
-                row["file"] = "movement-visuals/" + file; row["bytes"] = bytes.Length;
+                if (observe != null)
+                {
+                    try { row["boot"] = observe(); }
+                    catch (Exception exception) { row["bootError"] = exception.GetType().Name + ": " + exception.Message; }
+                }
+                WriteShot(evidenceRoot, name, bytes, row);
             }
             catch (Exception exception) { row["error"] = exception.GetType().Name + ": " + exception.Message; }
             shots.Add(row);
+            if (hiddenMountRow != null) shots.Add(hiddenMountRow);
             done();
+        }
+
+        private static JObject WriteShot(string evidenceRoot, string name, byte[] bytes, JObject row)
+        {
+            var folder = Path.Combine(evidenceRoot, "movement-visuals"); Directory.CreateDirectory(folder);
+            var file = "sprint5-" + name + ".png";
+            File.WriteAllBytes(Path.Combine(folder, file), bytes);
+            using (var algorithm = SHA256.Create())
+                row["sha256"] = BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+            row["file"] = "movement-visuals/" + file; row["bytes"] = bytes.Length;
+            return row;
         }
     }
 
@@ -214,8 +249,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsSprint5Dog => request.Scenario == Sprint5DogRealTime;
         internal const int Sprint5SchemaVersion = 49;
         internal const double Sprint5ScenarioDeadlineSeconds = 420.0d, Sprint5HostDeadlineSeconds = 540.0d;
-        internal static readonly string[] Sprint5HorseCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed" };
-        internal static readonly string[] Sprint5DogCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement" };
+        internal static readonly string[] Sprint5HorseCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed" };
+        internal static readonly string[] Sprint5DogCases = { "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement" };
+        // A diagnostic candidate ends the run after S5-boot, leaving a failed outer verdict and a complete row. No final candidate sets this.
+        private static readonly bool Sprint5BootDiagnosticOnly = true;
         // The race, sex and build extremes of the rig list. Their attack and cast frames stand in for the shapes between them.
         private static readonly string[] Sprint5ExtremeRigs = { "female-halfling-thin", "male-gnome-fat" };
         private string[] Sprint5Cases => IsSprint5Dog ? Sprint5DogCases : Sprint5HorseCases;
@@ -277,7 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string Sprint5MountName => IsSprint5Dog ? "dog" : "horse";
         private BlueprintFeature Sprint5CompanionFeature => IsSprint5Dog ? horseService.RidingDogFeature : horseService.HorseFeature;
 
-        private sealed class Sprint5Shot { internal string Name; internal UnitEntityData Focus; internal float Yaw, Height, Distance, FieldOfView, Look, Clear; internal bool FrameRider; }
+        private sealed class Sprint5Shot { internal string Name; internal UnitEntityData Focus; internal float Yaw, Height, Distance, FieldOfView, Look, Clear; internal bool FrameRider, Observe, WithoutMount, NoFill, OrdinaryCamera; }
 
         private void BeginSprint5Small()
         {
@@ -289,7 +326,7 @@ namespace KingmakerMountedCombat.Diagnostics
             castingCosts = new NativeActorAllocationTrace(rider, horse, combat);
             s5Shots = new JArray();
             s5Measure = new JObject {
-                ["contract"] = "native-small-riders-riding-dog-v2", ["cases"] = new JArray(Sprint5Cases), ["shots"] = s5Shots,
+                ["contract"] = "native-small-riders-riding-dog-v3", ["cases"] = new JArray(Sprint5Cases), ["shots"] = s5Shots,
                 ["mount"] = Sprint5MountName, ["controlRider"] = rider.UniqueId, ["controlMount"] = horse.UniqueId,
                 ["bodiesAreDisclosedSetup"] = true, ["policy"] = "Selections run the native level-up pipeline; each Mount and Dismount is the native ability click." };
             observations["sprint5Small"] = s5Measure;
@@ -328,6 +365,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S5-medium-control": TickSprint5MediumControl(); return;
                 case "S5-acquire": TickSprint5Acquire(); return;
                 case "S5-medium-refused": TickSprint5MediumRefused(); return;
+                case "S5-boot": TickSprint5Boot(); return;
                 case "S5-rigs": TickSprint5Rigs(); return;
                 case "S5-actions": TickSprint5Actions(); return;
                 case "S5-body-actions": TickSprint5Actions(); return;
@@ -565,6 +603,133 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private bool Sprint5BodyReady() => Sprint5Fixture.BodyReady(s5Owner);
+
+        // ---- the near boot: one affected rig against one good control and one mirror, same gear ---------------------
+        private sealed class Sprint5BootCase { internal string Label; internal int Rig; internal bool LeftHanded; }
+        private static readonly Sprint5BootCase[] Sprint5BootCases =
+        {
+            new Sprint5BootCase { Label = "female-halfling", Rig = 1 },
+            new Sprint5BootCase { Label = "male-halfling", Rig = 0 },
+            new Sprint5BootCase { Label = "female-halfling-left-handed", Rig = 1, LeftHanded = true }
+        };
+        private GameObject s5FootExperimentOwner;
+        private Quaternion s5LeftFootLocal, s5RightFootLocal;
+
+        private void QueueSprint5Boot(string name, UnitEntityData focus, float yaw, float height, bool observe = false, bool withoutMount = false, bool noFill = false) =>
+            s5Queue.Enqueue(new Sprint5Shot { Name = name, Focus = focus, Yaw = yaw, Height = height, Look = 0.1f, Clear = 0.03f, FrameRider = true, FieldOfView = 28f,
+                Distance = IsSprint5Dog ? (focus != horse ? 3.6f * 0.7f : 3.6f) : 2.52f, Observe = observe, WithoutMount = withoutMount, NoFill = noFill });
+
+        private void TickSprint5Boot()
+        {
+            if (s5RigIndex == Sprint5BootCases.Length)
+            {
+                s5Facts["cases"] = s5RigRows;
+                FinishSprint5Row(s5RigRows.All(row => row.Value<bool>("mounted") && row.Value<bool>("remounted")), "The near boot compared on an affected rig, a control and a mirror.", !Sprint5BootDiagnosticOnly);
+                return;
+            }
+            var entry = Sprint5BootCases[s5RigIndex];
+            var rig = Sprint5Rigs[entry.Rig];
+            var state = Sprint5Pair()?.State;
+            var name = Sprint5MountName + "-boot-" + entry.Label + "-";
+            switch (s5Step)
+            {
+                case 0:
+                    if (s5Pet == null || !s5Pet.IsInState || s5Pet.View?.AgentASP == null || state == RelationshipState.Mounted) return;
+                    Sprint5Fixture.ApplyBody(s5Owner, rig.RaceGuid, rig.Gender, entry.LeftHanded, rig.PresetGuid);
+                    s5RigRow = new JObject { ["label"] = entry.Label, ["rig"] = rig.Name, ["leftHanded"] = entry.LeftHanded, ["mounted"] = false, ["remounted"] = false };
+                    s5RigRows.Add(s5RigRow); s5Frames = 0; s5Step = 1; ResetLeafClock(); return;
+                case 1:
+                    if (!Sprint5BodyReady() || ++s5Frames < Sprint5SettleFrames) return;
+                    var standingRoot = s5Owner.View.CharacterAvatar.transform;
+                    s5LeftFootLocal = Sprint5Bone(standingRoot, "L_foot").localRotation; s5RightFootLocal = Sprint5Bone(standingRoot, "R_foot").localRotation;
+                    s5RigRow["rigFacts"] = Sprint5RiderRig(s5Owner);
+                    s5RigRow["feetEquipped"] = s5Owner.Body.Feet.MaybeItem?.Blueprint?.name;
+                    s5RigRow["armorEquipped"] = s5Owner.Body.Armor.MaybeItem?.Blueprint?.name;
+                    QueueSprint5Boot(name + "standing-near", s5Owner, 90f, 0.25f, true);
+                    QueueSprint5Boot(name + "standing-far", s5Owner, 270f, 0.25f);
+                    QueueSprint5Boot(name + "standing-front", s5Owner, 0f, 0.5f, true);
+                    QueueSprint5Boot(name + "standing-near-ordinary-light", s5Owner, 90f, 0.25f, noFill: true);
+                    s5Step = 2; ResetLeafClock(); return;
+                case 2:
+                    if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 3; ResetLeafClock(); }
+                    return;
+                case 3:
+                    if (state != RelationshipState.Mounted || ++s5Frames < Sprint5SettleFrames) return;
+                    s5RigRow["mounted"] = true; s5RigRow["mountedRig"] = Sprint5RiderRig(s5Owner); s5RigRow["resolved"] = SupportedMountedProfiles.Resolve(s5Owner, s5Pet)?.Id;
+                    QueueSprint5Boot(name + "mounted-near", s5Pet, 90f, 0.25f, true, true);
+                    QueueSprint5Boot(name + "mounted-far", s5Pet, 270f, 0.25f, true);
+                    QueueSprint5Boot(name + "mounted-front", s5Pet, 30f, 0.7f, true, true);
+                    QueueSprint5Boot(name + "mounted-three-quarter", s5Pet, 60f, 0.5f);
+                    QueueSprint5Boot(name + "mounted-near-ordinary-light", s5Pet, 90f, 0.25f, noFill: true);
+                    s5Step = 4; ResetLeafClock(); return;
+                case 4:
+                    Game.Instance.UI.GetCameraRig().ScrollTo(s5Pet.Position);
+                    s5StepAt = Time.time + 1f; s5Step = 5; ResetLeafClock(); return;
+                case 5:
+                    if (Time.time < s5StepAt) return;
+                    s5Queue.Enqueue(new Sprint5Shot { Name = name + "mounted-ordinary-camera", Focus = s5Pet, NoFill = true, OrdinaryCamera = true });
+                    s5Step = 6; ResetLeafClock(); return;
+                case 6:
+                    // Does the boot read correctly when the foot follows the shin instead of the animation's world rotation?
+                    var mountedRoot = s5Owner.View.CharacterAvatar.transform;
+                    var follow = s5Owner.View.gameObject.AddComponent<Sprint5FootFollowExperiment>();
+                    follow.LeftFoot = Sprint5Bone(mountedRoot, "L_foot"); follow.RightFoot = Sprint5Bone(mountedRoot, "R_foot");
+                    follow.LeftLocal = s5LeftFootLocal; follow.RightLocal = s5RightFootLocal;
+                    s5FootExperimentOwner = follow.gameObject;
+                    s5Frames = 0; s5Step = 7; ResetLeafClock(); return;
+                case 7:
+                    if (++s5Frames < 5) return;
+                    QueueSprint5Boot(name + "experiment-foot-follows-near", s5Pet, 90f, 0.25f, true);
+                    QueueSprint5Boot(name + "experiment-foot-follows-front", s5Pet, 30f, 0.7f);
+                    s5Step = 8; ResetLeafClock(); return;
+                case 8:
+                    UnityEngine.Object.Destroy(s5FootExperimentOwner.GetComponent<Sprint5FootFollowExperiment>());
+                    s5Armor = s5Owner.Body.Armor.MaybeItem;
+                    if (s5Armor != null) s5Owner.Body.Armor.RemoveItem();
+                    s5Frames = 0; s5Step = 9; ResetLeafClock(); return;
+                case 9:
+                    if (++s5Frames < Sprint5SettleFrames) return;
+                    s5RigRow["armorOff"] = Sprint5PairFacts(state);
+                    QueueSprint5Boot(name + "armor-off-near", s5Pet, 90f, 0.25f, true, true);
+                    QueueSprint5Boot(name + "armor-off-far", s5Pet, 270f, 0.25f);
+                    s5Step = 10; ResetLeafClock(); return;
+                case 10:
+                    if (s5Armor != null) s5Owner.Body.Armor.InsertItem(s5Armor);
+                    s5Frames = 0; s5Step = 11; ResetLeafClock(); return;
+                case 11:
+                    if (++s5Frames < Sprint5SettleFrames) return;
+                    s5RigRow["armorOn"] = Sprint5PairFacts(state);
+                    QueueSprint5Boot(name + "armor-restored-near", s5Pet, 90f, 0.25f);
+                    s5Step = 12; ResetLeafClock(); return;
+                case 12:
+                    if (Sprint5Click(s5Owner, nativeControls.DismountAbility, s5Owner)) { s5Step = 13; ResetLeafClock(); }
+                    return;
+                case 13:
+                    if (state == RelationshipState.Mounted || !s5Owner.Commands.Empty) return;
+                    s5StepAt = Time.time + 1f; s5Step = 14; ResetLeafClock(); return;
+                case 14:
+                    if (Time.time < s5StepAt) return;
+                    s5RigRow["afterDismountRig"] = Sprint5RiderRig(s5Owner);
+                    QueueSprint5Boot(name + "dismounted-near", s5Owner, 90f, 0.25f);
+                    s5Step = 15; ResetLeafClock(); return;
+                case 15:
+                    if (Sprint5Click(s5Owner, nativeControls.MountAbility, s5Pet)) { s5Frames = 0; s5Step = 16; ResetLeafClock(); }
+                    return;
+                case 16:
+                    if (state != RelationshipState.Mounted || ++s5Frames < Sprint5SettleFrames) return;
+                    s5RigRow["remounted"] = true; s5RigRow["remountedResolved"] = SupportedMountedProfiles.Resolve(s5Owner, s5Pet)?.Id;
+                    QueueSprint5Boot(name + "remounted-near", s5Pet, 90f, 0.25f, true);
+                    s5Step = 17; ResetLeafClock(); return;
+                case 17:
+                    if (Sprint5Click(s5Owner, nativeControls.DismountAbility, s5Owner)) { s5Step = 18; ResetLeafClock(); }
+                    return;
+                case 18:
+                    if (state == RelationshipState.Mounted || !s5Owner.Commands.Empty) return;
+                    s5Step = 19; ResetLeafClock(); return;
+                default:
+                    s5RigIndex++; s5Step = 0; s5Frames = 0; ResetLeafClock(); return;
+            }
+        }
 
         // ---- actions on one rig: gear, cast, turn, attack, dismount, remount ----------------------------------------
         private void TickSprint5Actions()
@@ -1012,7 +1177,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 s5CaptureActive = false;
                 ResetLeafClock();
-            }, shot.Look, shot.Clear, shot.FrameRider, true));
+            }, shot.Look, shot.Clear, shot.FrameRider, !shot.NoFill, shot.OrdinaryCamera, shot.WithoutMount,
+                shot.Observe ? (Func<JObject>)(() => Sprint5BootObservation.Observe(s5Owner, s5Pet, Sprint5Pair()?.State == RelationshipState.Mounted)) : null));
         }
 
         private bool DrainSprint5Fixture()
