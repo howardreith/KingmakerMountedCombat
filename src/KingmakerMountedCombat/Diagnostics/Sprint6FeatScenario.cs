@@ -104,7 +104,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string s6NextPlan;
         private TurnController s6Turn;
         private int s6OpportunityFrame;
-        private const int Sprint6OpportunityFrames = 20;
+        private const int Sprint6OpportunityFrames = 20, Sprint6HostileAttackSetup = 20;
 
         private void BeginSprint6Feat()
         {
@@ -274,7 +274,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     var acquired = NativeHorseFixtureAcquisition.Create(s6Owner, horseService, logger, acquisition);
                     acquisition["acquired"] = acquired;
                     if (!acquired) { FailSprint6Row("The second pair's native companion did not commit."); return; }
-                    s6Frames = 0; s6Step = 3; return;
+                    s6Frames = 0; s6Step = 5; return;
+                // The second pair is mounted in exploration, the ordinary way, before any combat.
+                case 5:
+                    s6OwnerPet = s6Owner.Descriptor.Pet;
+                    if (s6OwnerPet == null || !s6OwnerPet.IsInState || s6OwnerPet.View?.AgentASP == null || !s6Owner.Commands.Empty || ++s6Frames < Sprint6SettleFrames) return;
+                    s6Rules.Watch(s6OwnerPet);
+                    if (Sprint5Fixture.Click(nativeControls, s6Owner, nativeControls.MountAbility, s6OwnerPet)) { s6Frames = 0; s6Step = 6; ResetLeafClock(); }
+                    return;
+                case 6:
+                    if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted) return;
+                    if (++s6Frames < Sprint6SettleFrames) return;
+                    s6Step = 3; return;
                 case 3:
                     Sprint6EnsureLevels(rider, 1);
                     s6Facts["riderCombatChoice"] = Sprint6CommitLevel(rider, "FighterFeatSelection", 0);
@@ -401,6 +412,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Sprint6SpawnTarget(string suffix)
         {
             BeginTarget(3.5f, suffix); ruleProbe.Arm(target, false);
+            // Setup only: the fixture hostile hits AC 23 on a natural 20 alone (r04). The die still rolls and still decides.
+            target.Stats.AdditionalAttackBonus.AddModifier(Sprint6HostileAttackSetup, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Competence);
+            s6Measure["hostileAttackSetup"] = Sprint6HostileAttackSetup;
             s6Rules.Watch(target);
             castingCosts.BeginEncounter(request.RunId + ":" + suffix);
         }
@@ -489,14 +503,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.Descriptor.State.RemoveCondition(UnitCondition.LoseDexterityToAC); Sprint6Step("flatFootedRefused"); s6Step = 6; return;
                 // The second pair, independent of the first.
                 case 6:
-                    if (!s6Owner.Commands.Empty) return;
-                    s6OwnerPet = s6Owner.Descriptor.Pet;
-                    if (s6OwnerPet == null || !s6OwnerPet.IsInState) { FailSprint6Row("The second companion is not in the world."); return; }
-                    s6Rules.Watch(s6OwnerPet);
-                    if (Sprint5Fixture.Click(nativeControls, s6Owner, nativeControls.MountAbility, s6OwnerPet)) { s6Frames = 0; s6Step = 7; ResetLeafClock(); }
-                    return;
+                    if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted) { FailSprint6Row("The second pair is no longer mounted."); return; }
+                    s6Frames = 0; s6Step = 7; return;
                 case 7:
-                    if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted) { if (!s6Owner.Commands.Empty) ResetLeafClock(); return; }
                     if (++s6Frames < Sprint6SettleFrames || !Sprint6RealTimeUsageFree(rider) || !s6Owner.CombatState.CanActInCombat) return;
                     s6Facts["secondPair"] = new JObject { ["rider"] = s6Owner.UniqueId, ["mount"] = s6OwnerPet.UniqueId, ["ownerStateBefore"] = Sprint6State(s6Owner) };
                     s6NextPlan = "success"; s6Step = 8; return;
