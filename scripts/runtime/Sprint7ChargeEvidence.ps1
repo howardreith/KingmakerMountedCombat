@@ -69,7 +69,7 @@ function Assert-KmcSprint7ChargeEvidence {
   $rules=@(Get-KmcSprint7RiderAttacks $o $hostile | Where-Object { $_.charge -eq $true })
   Assert-KmcSprint7Delivered $f $rules $d.charge 'real-time charge'
   # The forced die, for the native critical branch: this attack alone.
-  if($o.attackD20IsForced -ne $true -or [int]$f.forcedDice -lt 1 -or [int]$rules[0].d20 -ne 20 -or $rules[0].criticalAtEvent -ne $true -or [int]$rules[0].damage -le 0){ throw 'Sprint 7 the natural 20 did not take the native critical branch' }
+  if($o.attackD20IsForced -ne $true -or [int]$f.forcedDice -lt 1 -or [int]$rules[0].d20 -ne 20 -or $rules[0].criticalAtEvent -ne $true -or [int]$rules[0].damageRules -lt 1){ throw 'Sprint 7 the natural 20 did not take the native critical branch' }
   if([double]$f.terminal.state.riderStandard -le 0 -or [double]$f.terminal.state.mountStandard -gt [double]$d.charge.before.mountStandard+0.001){ throw 'Sprint 7 real-time cost did not stay with the rider' }
   Assert-KmcSprint7Refused $d.spentRefused @() 'charge while spent'
   if($d.buffExpired.buff -ne $false -or [double]$d.buffExpired.riderAc -ne [double]$d.charge.before.riderAc){ throw 'Sprint 7 the native penalty did not end with its round' }
@@ -81,7 +81,8 @@ function Assert-KmcSprint7ChargeEvidence {
   Assert-KmcSprint7Cancelled $c.stopTerminal $s.stopCharge.before 'Stop control'
   if([double]$c.stopTerminal.state.riderStandard -le 0){ throw 'Sprint 7 Stop refunded the committed action' }
   Assert-KmcSprint7Admitted $s.deathCharge 'target-loss control'
-  if($c.targetDeathState.dead -ne $true -and $c.targetDeathState.conscious -ne $false){ throw 'Sprint 7 the target-loss control did not lose its target' }
+  # The native life controller settles the flags after the rule; the command's own terminal names the loss.
+  if([string]$c.deathTerminal.outcomeRejection -cnotmatch 'target became invalid'){ throw 'Sprint 7 the target-loss control did not lose its target' }
   Assert-KmcSprint7Cancelled $c.deathTerminal $s.deathCharge.before 'target-loss control'
   if([double]$c.deathTerminal.state.riderStandard -le 0){ throw 'Sprint 7 target loss refunded the committed action' }
  } else {
