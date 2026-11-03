@@ -659,6 +659,7 @@ namespace KingmakerMountedCombat.Tests
             ScopedDiagnosticAiLeaseTests.Register(runner);
             ExpectedAttackDispatchLedgerTests.Register(runner);
             ExactAppendOnlyArrayLeaseTests.Register(runner);
+            MountedCombatDefensePolicyTests.Register(runner);
             HorseCompanionLifeTransitionPolicyTests.Register(runner);
             HorseCompanionProgressionPolicyTests.Register(runner);
             HorseCompanionScenarioDeadlinePolicyTests.Register(runner);

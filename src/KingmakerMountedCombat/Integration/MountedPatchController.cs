@@ -42,7 +42,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger, MountedCombatDefenseService defense)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
@@ -56,6 +56,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            PatchBridge.Defense = defense ?? throw new ArgumentNullException(nameof(defense));
             harmony = HarmonyInstance.Create(HarmonyId);
             try
             {
@@ -65,6 +66,7 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Exact Kingmaker Assembly-CSharp MVID mismatch: " + observedMvid + ".");
                 }
 
+                PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(Kingmaker.Player), "DismissCompanion", 0x06000DD7,
                     new[] { typeof(UnitEntityData) }, null, null,
@@ -279,6 +281,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.SaveAuthorization = null;
                     PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
+                    PatchBridge.Defense = null;
                 }
                 throw;
             }
@@ -304,6 +307,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.SaveAuthorization = null;
             PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
+            PatchBridge.Defense = null;
             disposed = true;
         }
 
@@ -377,6 +381,7 @@ namespace KingmakerMountedCombat.Integration
             internal static MountedCombatController CombatFor(UnitEntityData actor) => Owner(actor)?.CombatOwner;
             internal static MountedCombatController CombatFor(UnitCommands commands) => Owner(commands)?.CombatOwner;
             internal static MountedPairServices[] Pairs => World?.Pairs;
+            internal static MountedCombatDefenseService Defense;
         }
 
         private static class PatchMethods
@@ -831,6 +836,9 @@ namespace KingmakerMountedCombat.Integration
             internal static IEnumerable<CodeInstruction> PairedBuffTimerTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.BuffTimerEligibility(instructions, Hook(nameof(PairedBuffTimerActor)));
             private static MethodInfo Hook(string name) => typeof(PatchMethods).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic);
+            internal static void MountedCombatDefense(Kingmaker.RuleSystem.Rules.RuleAttackRoll roll) => PatchBridge.Defense?.ResolveAttack(roll);
+            internal static IEnumerable<CodeInstruction> MountedCombatDefenseTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationTranspilers.AttackRollResolved(instructions, Hook(nameof(MountedCombatDefense)));
             internal static IEnumerable<CodeInstruction> PairedSelectorTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.Selector(instructions, Hook(nameof(SkipPairedCandidate)));
             internal static IEnumerable<CodeInstruction> PairedEligibilityTranspiler(IEnumerable<CodeInstruction> instructions) =>

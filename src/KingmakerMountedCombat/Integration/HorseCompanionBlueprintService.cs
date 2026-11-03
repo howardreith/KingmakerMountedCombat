@@ -71,7 +71,7 @@ namespace KingmakerMountedCombat.Integration
         public string Size { get; set; }
     }
 
-    internal sealed class HorseCompanionBlueprintService : IDisposable
+    internal sealed partial class HorseCompanionBlueprintService : IDisposable
     {
         internal const string UnitGuid = "4016c7db400ab721ff125aef9e65e202";
         internal const string FeatureGuid = "7db7c50677e39f09feef56f3831fc723";
@@ -116,7 +116,15 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.RidingDog.Size.Name", "Riding Dog Build" },
             { "KMC.RidingDog.Size.Description", "A riding dog is Medium from the start." },
             { "KMC.RidingDog.Upgrade.Name", "Riding Dog Advancement" },
-            { "KMC.RidingDog.Upgrade.Description", "At animal-companion rank 4, the riding dog gains +2 Strength and +2 Constitution. It does not grow larger." }
+            { "KMC.RidingDog.Upgrade.Description", "At animal-companion rank 4, the riding dog gains +2 Strength and +2 Constitution. It does not grow larger." },
+            { "KMC.MountedCombat.Name", "Mounted Combat" },
+            { "KMC.MountedCombat.Description", "Prerequisite: 1 rank in Mobility. Once per round, when your mount is hit by an attack, you attempt a Mobility check as an immediate action. If your check result is greater than the attack result, the hit is negated. Used on your turn, this spends that turn's swift action. Used on another's turn, it spends your next turn's swift action, and you cannot use another immediate or swift action until after that turn. In real time, it spends your swift action for 6 seconds. The reaction is used automatically on the first hit you can react to; turn it off with the Mounted Combat Reaction toggle." },
+            { "KMC.MountedCombat.Toggle.Name", "Mounted Combat Reaction" },
+            { "KMC.MountedCombat.Toggle.Description", "While this is on, you automatically attempt the Mounted Combat reaction on the first hit on your mount that you can react to. Turning it off or on never restores a reaction or a swift action you have already spent." },
+            { "KMC.MountedCombat.Spent.Name", "Mounted Combat: Reaction Used" },
+            { "KMC.MountedCombat.Spent.Description", "You have used your Mounted Combat reaction this round." },
+            { "KMC.MountedCombat.Owed.Name", "Mounted Combat: Swift Action Owed" },
+            { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
         private readonly Dictionary<string, HorseActivationObservation> observedActivationByOwner =
@@ -581,6 +589,8 @@ namespace KingmakerMountedCombat.Integration
                 RemoveRidingDog(library);
             }
 
+            RegisterMountedCombatFeatReported(library);
+
             biteGuid = bite.AssetGuid;
             biteName = bite.name;
             hoofName = hoof.name;
@@ -725,6 +735,7 @@ namespace KingmakerMountedCombat.Integration
         private bool ApplySelectionDesired(out string error)
         {
             ApplyRidingDogSelectionsReported(selectionDesired);
+            ApplyMountedCombatSelectionsReported(selectionDesired);
             return ApplyRangerSelection(out error);
         }
 
@@ -788,6 +799,7 @@ namespace KingmakerMountedCombat.Integration
         private bool TryRestoreSelection(out string error)
         {
             ApplyRidingDogSelectionsReported(false);
+            ApplyMountedCombatSelectionsReported(false);
             return TryRestoreRangerSelection(out error);
         }
 
@@ -1007,7 +1019,7 @@ namespace KingmakerMountedCombat.Integration
             target.DlcType = Kingmaker.Blueprints.Root.DlcType.None;
         }
 
-        private static void SetFeaturePresentation(BlueprintFeature target, LocalizedString name, LocalizedString description, Sprite icon)
+        private static void SetFeaturePresentation(BlueprintUnitFact target, LocalizedString name, LocalizedString description, Sprite icon)
         {
             DisplayNameField.SetValue(target, name);
             DescriptionField.SetValue(target, description);
@@ -1181,6 +1193,7 @@ namespace KingmakerMountedCombat.Integration
                 TryRestoreSelection(out ignored);
             }
             RemoveRidingDog(library);
+            RemoveMountedCombatFeat(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
             RemoveExact(library, blueprintList, UnitGuid, horseUnit);

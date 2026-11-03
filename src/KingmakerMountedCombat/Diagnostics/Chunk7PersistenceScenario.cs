@@ -168,7 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
                 var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || CapitalArrivalCase || SixPairCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
-                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 || CapitalArrivalCase && stage == 50 ? 150 : 35);
+                    (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20 || stage == 21 || stage == 22) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 || CapitalArrivalCase && stage == 50 ? 150 : 35);
                 // The first ordinary Small cold load reached all four native PostLoads
                 // but not presentation. On a recurrence, retain the exact read-only
                 // boundary that withheld stage 0 before cleanup disposes the world.
@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
-                        if (RidingDogCase)
+                        if (RidingDogCase || FeatDebtCase)
                         {
                             // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
                             var progression = secondRider.Descriptor.Progression;
@@ -308,12 +308,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     case 5:
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
+                        if (FeatDebtCase) CommitFeatDebtBeforeSave();
                         RequestSave(); Next(4); break;
                     case 20:
                         if (!checkpoint.UpdateContinuation()) return;
                         if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
-                        Pass("C7-persistence-native-combat-continuation"); BeginCleanup(); break;
+                        Pass("C7-persistence-native-combat-continuation");
+                        if (FeatDebtCase && Cold) { Next(21); break; }
+                        BeginCleanup(); break;
+                    case 21:
+                        if (!UpdateFeatDebtRenewal(false)) return;
+                        Next(22); break;
+                    case 22:
+                        if (!UpdateFeatDebtRenewal(true)) return;
+                        Pass("C7-persistence-feat-debt-renewal"); BeginCleanup(); break;
                     case 10:
                         AssertOwners();
                         if (AreaAutosaveCase || Chunk7OwnedPairsSelection.IsManticoreManualCold(request.PersistenceCase))
