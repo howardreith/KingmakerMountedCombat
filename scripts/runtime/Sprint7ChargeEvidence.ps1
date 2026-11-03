@@ -116,3 +116,30 @@ function Assert-KmcSprint7ChargeEvidence {
   if([double]$d.partnerSpentRefused.before.mountStandard -le 0 -or [double]$d.partnerSpentRefused.afterClick.mountStandard -lt [double]$d.partnerSpentRefused.before.mountStandard-0.05){ throw 'Sprint 7 the spent partner was reset' }
  }
 }
+# The cold half: the delivered charge's cost and native penalty survive, nothing resumes, and the next native turn renews.
+function Assert-KmcSprint7ChargeContinuation($Value,$Ids){
+ $noPrepare=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq'saved-charge-no-prepare'})
+ $before=@($Value.continuation|Where-Object{$_.PSObject.Properties['label']-and$_.label-ceq'continuation-before-input'})
+ if($noPrepare.Count-ne1-or$before.Count-ne1){throw 'Sprint 7 the restored charge turn has no boundary observation'}
+ if($noPrepare[0].currentActor-cne$Ids[0]){throw 'Sprint 7 the restored turn is not the rider''s'}
+ foreach($id in $Ids){$a=@($before[0].grants|Where-Object actorId -CEQ $id);$b=@($noPrepare[0].grants|Where-Object actorId -CEQ $id);if($a.Count-ne1-or$b.Count-ne1-or$a[0].count-ne$b[0].count){throw 'Sprint 7 the restored charge manufactured a preparation'}}
+}
+function Assert-KmcSprint7ChargePersistence($Observations,$Archive,[bool]$Cold){
+ if(-not $Cold){
+  $c=$Observations.chargeCommit
+  if($null -eq $c -or $c.clicked -ne $true -or [string]$c.result -cne 'Success' -or $c.sequenceLawful -ne $true -or $c.lease.buffHandedToNative -ne $true){ throw 'Sprint 7 the save did not follow a delivered ordinary charge' }
+  $charges=@($c.rules | Where-Object { $_.charge -eq $true })
+  if($charges.Count -ne 1){ throw ('Sprint 7 the save followed '+$charges.Count+' charge attacks') }
+  $a=$c.after
+  if([double]$a.riderStandard -lt 5.9 -or [double]$a.riderMove -lt 2.9 -or [double]$a.mountStandard -ne 0 -or [double]$a.mountMove -le 0 -or [int]$a.buffCount -ne 1 -or $a.chargeOwned -ne $false -or $a.riderCharging -ne $false){ throw 'Sprint 7 the saved state is not a committed charge' }
+  return
+ }
+ $s=$Observations.chargeCold.state
+ if($Observations.chargeCold.hasShell -ne $false -or $s.chargeOwned -ne $false -or $s.activeCommand -ne $false -or $s.riderCharging -ne $false -or $s.mountCharging -ne $false){ throw 'Sprint 7 the cold load resumed a charge' }
+ if([int]$s.buffCount -ne 1){ throw 'Sprint 7 the cold load lost or duplicated the native penalty' }
+ if([double]$s.riderStandard -lt 5.9 -or [double]$s.riderMove -lt 2.9 -or [double]$s.mountMove -le 0){ throw 'Sprint 7 the cold load refunded committed actions' }
+ if($s.available -ne $false){ throw 'Sprint 7 the cold load offered a free charge' }
+ $n=$Observations.chargeRenewal
+ if($null -eq $n -or [int]$n.castRequests -ne [int]$Observations.chargeCold.castRequests -or @($n.rulesAfterLoad | Where-Object { $_.charge -eq $true }).Count -ne 0){ throw 'Sprint 7 the cold load delivered a duplicate charge' }
+ if([double]$n.state.riderStandard -ne 0 -or [double]$n.state.riderMove -ne 0 -or $n.state.turnUnit -cne $s.turnUnit){ throw 'Sprint 7 the next native turn did not renew the rider' }
+}

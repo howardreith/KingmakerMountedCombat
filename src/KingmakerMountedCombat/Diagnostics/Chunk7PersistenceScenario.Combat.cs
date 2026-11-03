@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7CombatCheckpointKind CheckpointKind => PendingOnlyCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
             ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
             TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
-        private static bool IsCombatCheckpoint(string value) => value == FeatDebtCaseName || value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
+        private static bool IsCombatCheckpoint(string value) => value == ChargeCommitCaseName || value == FeatDebtCaseName || value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
             value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual" ||
             value == "pending-schema3-control-manual";
 
@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CombatCase)
             {
                 checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);
-                checkpoint.StartSource(actors); Next(5);
+                checkpoint.CommittedCharge = ChargeCommitCase; checkpoint.StartSource(actors); Next(5);
             }
             else if (OwnedSchema1SourceCase) BeginOwnedSchema1Source();
             else if (PendingMountSave) BeginPendingMountSave();
@@ -124,7 +124,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!expectedOwners.ContainsKey(Guid.Parse(participant.OwnerId))) expectedOwners.Add(Guid.Parse(participant.OwnerId), participant.Generation);
             AssertCombatOwners(); slots = saved.Slots; AssertSlots();
             checkpoint = new Chunk7CombatCheckpointDriver(request, world, controls, logger, CheckpointKind, inherited);
-            checkpoint.BindCold(actors, saved); checkpoint.ValidateArchive(saved);
+            checkpoint.CommittedCharge = ChargeCommitCase; checkpoint.BindCold(actors, saved); checkpoint.ValidateArchive(saved);
             Require(persistence.SemanticRestoreCount == saved.Combat.Actors.Length && persistence.ArchivePostLoadObservedCount == saved.Combat.Actors.Length &&
                 persistence.PresentationRestoreCount == saved.Pairs.Length && controls.NativeCastRequestCount == 0 && persistence.SnapshotCount == 0,
                 "Cold combat replayed commands, omitted an actor or restored owner state more than once.");
@@ -149,6 +149,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
             AssertCombatDebt(saved);
             if (FeatDebtCase) ObserveFeatDebtCold();
+            if (ChargeCommitCase) ObserveChargeCold();
             evidence["worldAfterNativeRestore"] = Chunk7ArchiveNativeSnapshot.Capture(world, saved);
             snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-cold-all-pair-identity-and-no-prepare");
         }
