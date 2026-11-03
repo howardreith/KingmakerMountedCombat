@@ -419,6 +419,7 @@
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
+    <Compile Include="Domain\MountedCombatDefensePolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionScenarioDeadlinePolicy.cs" />
@@ -519,9 +520,13 @@
     <Compile Include="Domain\TwoBonePoseSolver.cs" />
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Diagnostics\Sprint5SmallScenario.cs" />
+    <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
     <Compile Include="Diagnostics\Sprint5BootObservation.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
+    <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />

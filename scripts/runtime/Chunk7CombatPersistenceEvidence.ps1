@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7CombatDebtDiagnosticsEvidence.ps1')
-function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
+function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('mounted-combat-feat-tb-debt-manual','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
     $pairCount=if($zero){0}elseif($legacy){1}else{2};$ownerCount=if($legacy){1}else{2};$slotCount=$pairCount*2
@@ -327,7 +327,7 @@ function Get-KmcChunk7IndependentTurnLabelPrefix($Request){
     return 'independent-native-mount-'
 }
 function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$Cold) {
-    $case=$Request.persistenceCase;$kind=switch($case){'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
+    $case=$Request.persistenceCase;$kind=switch($case){'mounted-combat-feat-tb-debt-manual'{'TurnBasedDebts'};'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
     Assert-KmcChunk7Boolean $Value.ready $true;Assert-KmcChunk7Boolean $Value.continuationComplete $true
     $provenance=if($Cold){'cold-native-archive-binding'}else{'source-native-setup'}
     if($Value.kind-cne$kind-or$Value.provenance-cne$provenance-or$Value.actorIds-isnot[Array]-or$Value.actorIds.Count-ne4-or
@@ -506,6 +506,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     $archive=if($cold){$o.loadedArchive}else{$o.nativeWrite.archive};Assert-KmcChunk7CombatArchive $archive $Request
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold-or$legacy){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     Assert-KmcChunk7CheckpointContinuation $o.combatContinuation $archive $Request $cold
+    if($Request.persistenceCase-ceq'mounted-combat-feat-tb-debt-manual'){Assert-KmcSprint6FeatPersistence $Request $o $cold}
     $continuation=$o.combatContinuation;$ids=@($continuation.actorIds)
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'};$snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact native archive snapshot is missing or duplicated.'}

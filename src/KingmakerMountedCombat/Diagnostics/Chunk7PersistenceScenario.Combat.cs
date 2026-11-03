@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7CombatCheckpointKind CheckpointKind => PendingOnlyCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
             ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
             TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
-        private static bool IsCombatCheckpoint(string value) => value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
+        private static bool IsCombatCheckpoint(string value) => value == FeatDebtCaseName || value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
             value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual" ||
             value == "pending-schema3-control-manual";
 
@@ -148,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sha256"] = descriptor.Sha256, ["length"] = descriptor.Length, ["lastWriteTimeUtcTicks"] = descriptor.LastWriteTimeUtcTicks,
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
             AssertCombatDebt(saved);
+            if (FeatDebtCase) ObserveFeatDebtCold();
             evidence["worldAfterNativeRestore"] = Chunk7ArchiveNativeSnapshot.Capture(world, saved);
             snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-cold-all-pair-identity-and-no-prepare");
         }

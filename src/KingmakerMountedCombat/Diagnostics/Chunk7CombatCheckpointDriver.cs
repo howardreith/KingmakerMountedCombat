@@ -54,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int stage, continuationOffset, sourceRound;
         private bool cold, ready, beganContinuation, continuationComplete, cleanup, cleanupComplete, disposed, ownsObservers, repeatedCleanup, riderReentryObserved;
         internal bool Ready => ready;
+        internal UnitEntityData CombatTarget => target;
         internal bool ContinuationComplete => continuationComplete;
         internal bool CleanupComplete => cleanupComplete;
 

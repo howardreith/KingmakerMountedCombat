@@ -12,6 +12,25 @@ namespace KingmakerMountedCombat.Integration
     // back the entire project Harmony installation.
     internal static class PairedActivationTranspilers
     {
+        // RuleAttackRoll.OnTrigger, at "IsSneakAttack &= IsHit": the attack result and any native parry are final, and the
+        // sneak-attack mask and the IAttackHandler event have not yet run. Their branches keep landing on the hook.
+        internal static IEnumerable<CodeInstruction> AttackRollResolved(IEnumerable<CodeInstruction> source, MethodInfo hook)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count - 6).Where(i =>
+                code[i].opcode == OpCodes.Ldarg_0 && code[i + 1].opcode == OpCodes.Ldarg_0 && Named(code[i + 2], "get_IsSneakAttack") &&
+                code[i + 3].opcode == OpCodes.Ldarg_0 && Named(code[i + 4], "get_IsHit") && code[i + 5].opcode == OpCodes.And &&
+                Named(code[i + 6], "set_IsSneakAttack")).ToArray();
+            Require(sites.Length == 1, "RuleAttackRoll.OnTrigger sneak-attack mask");
+            var index = sites[0];
+            var injected = new CodeInstruction(OpCodes.Ldarg_0);
+            injected.labels.AddRange(code[index].labels); code[index].labels.Clear();
+            code.InsertRange(index, new[] { injected, new CodeInstruction(OpCodes.Call, hook) });
+            return code;
+        }
+
+        private static bool Named(CodeInstruction instruction, string name) => instruction.operand is MethodBase method && method.Name == name;
+
         internal static IEnumerable<CodeInstruction> Selector(IEnumerable<CodeInstruction> source, MethodInfo skip)
         {
             var code = source.ToList();

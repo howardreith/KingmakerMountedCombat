@@ -98,6 +98,9 @@ namespace KingmakerMountedCombat.Integration
             HorseCompanionBlueprintService.UpgradeGuid, HorseCompanionBlueprintService.PortraitGuid,
             HorseCompanionBlueprintService.RidingDogUnitGuid, HorseCompanionBlueprintService.RidingDogFeatureGuid,
             HorseCompanionBlueprintService.RidingDogUpgradeGuid, HorseCompanionBlueprintService.RidingDogSizeGuid,
+            HorseCompanionBlueprintService.MountedCombatFeatureGuid, HorseCompanionBlueprintService.MountedCombatToggleGuid,
+            HorseCompanionBlueprintService.MountedCombatToggleBuffGuid, HorseCompanionBlueprintService.MountedCombatSpentBuffGuid,
+            HorseCompanionBlueprintService.MountedCombatOwedBuffGuid, HorseCompanionBlueprintService.MountedCombatWindowBuffGuid,
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
             NativeMountedControlService.MountedChargeAbilityGuid
@@ -197,6 +200,8 @@ namespace KingmakerMountedCombat.Integration
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog companion feature");
                 if (horseCompanion.RidingDogUpgrade != null && descriptor.GetFact(horseCompanion.RidingDogUpgrade) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog advancement feature");
+                if (horseCompanion.MountedCombatFeature != null && descriptor.GetFact(horseCompanion.MountedCombatFeature) != null)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Combat feat");
             }
             return references;
         }
