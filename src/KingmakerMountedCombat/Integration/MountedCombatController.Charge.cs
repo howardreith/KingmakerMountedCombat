@@ -118,9 +118,11 @@ namespace KingmakerMountedCombat.Integration
                 TargetVisible = target != null && target.IsVisibleForPlayer,
                 TargetHostile = rider != null && target != null && rider.IsEnemy(target),
                 TargetAttackable = rider != null && target != null && rider.CanAttack(target),
-                AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
+                // Like the stock charge, a new charge replaces the pair's ordinary attack or move. The native brain has one running
+                // most of the time in real-time combat. A door, a running charge or a mount's swing already released cannot be replaced.
+                AlreadyActiveCommand = HasActiveDoorInteraction || context == null && chargeOwner?.Command != null ||
                     chargeOwner != null && context != null && !OwnsChargeDelivery(context),
-                MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
+                MountCommandsIdle = mount?.Commands != null && mount.Commands.Raw.All(command => command == null || command.IsInterruptible),
                 DeliveringOwnShell = DeliveringOwnChargeShell(context, caster),
                 MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
                 MountAddressable = !turnBased || unifiedTurn.CanAddressActor(mount, turn),
@@ -243,6 +245,17 @@ namespace KingmakerMountedCombat.Integration
                 ClearStockAttackIntent("mounted charge replaced stock attack intent", true);
                 ClearObservedStockRequest();
             }
+
+            // What the shared decision called replaceable is replaced here, before the mount is asked to carry.
+            ReleaseCarriedApproach("mounted charge admitted");
+            var replaced = activeCommand;
+            activeCommand = null;
+            if (replaced != null && !replaced.IsFinished)
+            {
+                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
+                replaced.Interrupt();
+            }
+            relationship.Mount.Commands.InterruptAll(existing => true);
 
             NativeSingleAttackWeaponSelection mountPrimary;
             CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);

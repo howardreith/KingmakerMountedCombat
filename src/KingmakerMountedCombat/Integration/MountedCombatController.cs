@@ -1297,6 +1297,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void TryDriveStockAttackIntent()
         {
+            if (chargeOwner != null) return; // A charge from admission to its end owns the pair's attack.
             var target = stockIntentTarget;
             if (disposed || target == null)
             {
