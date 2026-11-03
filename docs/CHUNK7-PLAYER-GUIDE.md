@@ -40,8 +40,7 @@ Paired turns are the normal configuration. Historical experimental turn modes an
 the old attack overlay are not ordinary settings. Charge is off by default; change
 it outside combat with every pair dismounted. Supported real-time Charge requires
 its documented native eligibility. Turn-based Charge remains unavailable and
-refuses without spending actions. The defensive Mounted Combat feat is not
-implemented.
+refuses without spending actions. The Mounted Combat feat is now selectable; see\n[its Sprint 6 record](SPRINT6-MOUNTED-COMBAT-FEAT.md).
 
 Settings: the Kingmaker Mounted Combat page in UMM (Ctrl+F10) has one setting, **Enable optional
 real-time Mounted Charge**. It is off by default and can be changed only outside combat with every pair
