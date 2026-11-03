@@ -80,7 +80,8 @@ function Assert-KmcSprint5Boot($Evidence,$Shots,[string]$Mount,[string]$Root){
    # A seated rider's rig is whole: the native merge mapped every bone of every part, so both legs follow their own bones.
    if($view -cne 'standing-near'){
     if(@($shot.boot.parts | Where-Object { $null -ne $_.PSObject.Properties['mappingStoppedAt'] }).Count -ne 0){ throw ('Sprint 5 a seated rig still stops the native merge: '+$prefix+$view) }
-    if([int]$shot.boot.rightBoot.count -le 0 -or [int]$shot.boot.rightBoot.count -ne [int]$shot.boot.leftBoot.count){ throw ('Sprint 5 a seated rig has no matching lower legs: '+$prefix+$view) }
+    # The sides are not vertex-for-vertex equal on any rig: the male control is natively 312 and 308 (runs h1, h2).
+    if([int]$shot.boot.leftBoot.count -le 0 -or [int]$shot.boot.rightBoot.count -lt 0.95*[int]$shot.boot.leftBoot.count -or [int]$shot.boot.leftBoot.count -lt 0.95*[int]$shot.boot.rightBoot.count){ throw ('Sprint 5 a seated rig has no matching lower legs: '+$prefix+$view) }
    }
   }
  }
