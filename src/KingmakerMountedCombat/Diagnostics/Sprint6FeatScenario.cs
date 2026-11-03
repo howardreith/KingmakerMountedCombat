@@ -252,9 +252,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (Sprint6Case == "S6-rider-feat") { s6Step = 3; return; }
                     s6Owner = Game.Instance.Player.PartyCharacters.Select(reference => reference.Value).Where(member =>
                         member != null && member != rider && !member.Descriptor.IsPet && member.Descriptor.Pet == null && member.IsInGame && member.Descriptor.State.IsConscious &&
-                        member.Descriptor.State.Size == Size.Medium && member.Stats.SkillMobility.BaseValue == 0 && member.Descriptor.Progression.GetClassLevel(ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid)) == 0)
-                        .OrderByDescending(member => member.Stats.SkillMobility.ModifiedValue).FirstOrDefault();
-                    if (s6Owner == null) { FailSprint6Row("No Medium party member without a companion and without Mobility ranks can make the ordinary choice."); return; }
+                        member.Descriptor.State.Size == Size.Medium && member.Descriptor.Progression.GetClassLevel(ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid)) == 0)
+                        .OrderBy(member => member.Stats.SkillMobility.BaseValue).FirstOrDefault();
+                    if (s6Owner == null) { FailSprint6Row("No Medium party member without a companion can make the ordinary choice."); return; }
+                    // Setup on the disposable fixture: the choice is measured from zero trained ranks.
+                    s6Facts["ownerRanksSetup"] = new JObject { ["unit"] = s6Owner.UniqueId, ["ranksBefore"] = s6Owner.Stats.SkillMobility.BaseValue };
+                    s6Owner.Stats.SkillMobility.BaseValue = 0;
                     s6Rules.Watch(s6Owner);
                     s6Step = 1; return;
                 case 1:
