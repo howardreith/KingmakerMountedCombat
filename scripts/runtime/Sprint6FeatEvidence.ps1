@@ -86,7 +86,7 @@ function Assert-KmcSprint6FeatEvidence {
   $d=$rows['S6-rt-defense'].evidence.steps; $c='S6-rt-defense'
   $r=Get-KmcSprint6Record $o $c 2
   if([string]$r.mode -cne 'RT' -or [string]$r.commitment -cne 'RealTimeWindow' -or $r.forced -ne $true -or [int]$r.checkResult -ne [int]$r.attackResult+1 -or $r.stateAfter.window -ne $true -or [double]$r.swiftAfter -lt 5.5){ throw 'Sprint 6 real-time success differs' }
-  if((Get-KmcSprint6Rule $o $r).opportunity -ne $false){ throw 'Sprint 6 real-time success was not an ordinary attack' }
+  if([string](Get-KmcSprint6Rule $o $r).attackerCommand -cne 'UnitAttack'){ throw 'Sprint 6 real-time success was not the hostile''s ordinary attack' }
   Assert-KmcSprint6Negated $o $r 'real-time success'
   Assert-KmcSprint6Refused $o (Get-KmcSprint6Record $o $c 3) 'UsageSpent' 'second real-time attack'
   if($d.renewedByNativeWindow.rider.window -ne $false -or $d.renewedByNativeWindow.rider.hasSwift -ne $true){ throw 'Sprint 6 real-time renewal differs' }
@@ -125,7 +125,6 @@ function Assert-KmcSprint6FeatEvidence {
   $d=$rows['S6-tb-economy'].evidence.steps; $c='S6-tb-economy'
   $r=Get-KmcSprint6Record $o $c 2
   if([string]$r.mode -cne 'TB' -or $r.riderTurn -ne $true -or [string]$r.commitment -cne 'SpendCurrentSwift' -or $r.stateAfter.spent -ne $true -or $r.stateAfter.owed -ne $false -or [double]$r.swiftAfter -lt [double]$r.swiftBefore+5.9){ throw 'Sprint 6 own-turn reaction is not that turn''s Swift action' }
-  if($r.opportunity -ne $true){ throw 'Sprint 6 own-turn strike is not an opportunity attack' }
   Assert-KmcSprint6Negated $o $r 'own-turn success'
   Assert-KmcSprint6Refused $o (Get-KmcSprint6Record $o $c 3) 'UsageSpent' 'second own-turn attack'
   $r=Get-KmcSprint6Record $o $c 5
@@ -149,7 +148,7 @@ function Assert-KmcSprint6FeatEvidence {
   $r=Get-KmcSprint6Record $o $c 14
   if($r.riderTurn -ne $false -or [string]$r.commitment -cne 'BorrowNextSwift' -or $r.stateAfter.owed -ne $true){ throw 'Sprint 6 renewal after a debt did not permit a further reaction' }
   Assert-KmcSprint6Negated $o $r 'renewal after the debt'
-  if(@($rules | Where-Object { $_.opportunity -eq $false -and [string]$_.target -ceq [string]$o.mount }).Count -lt 1){ throw 'Sprint 6 no ordinary hostile attack reached the mount in turn-based combat' }
+  if(@($rules | Where-Object { [string]$_.attackerCommand -ceq 'UnitAttack' -and [string]$_.target -ceq [string]$o.mount }).Count -lt 1){ throw 'Sprint 6 no ordinary hostile attack reached the mount in turn-based combat' }
  }
 }
 # The cold half of the persistence case: a save with a borrowed Swift and a spent use, restored without refund, then renewed.

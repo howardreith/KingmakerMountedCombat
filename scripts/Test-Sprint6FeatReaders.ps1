@@ -15,7 +15,7 @@ function Add-S6Attack($M,[string]$Case,[int]$Step,[string]$Plan,[string]$Refusal
  $negated=$attempted -and $check -gt $total
  $result=$(if($negated){'Parried'}else{'Hit'})
  $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$Who;mountId=$On;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');negated=$negated;checkD20=$(if($attempted){10}else{0});checkResult=$check;checkDc=$(if($attempted){26}else{0});swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwiftBefore=6.0;mountSwiftAfter=6.0}
- $M.attackRules+=[pscustomobject]@{identity=$script:id;attacker=$hostile;target=$On;d20=15;bonus=10;autoHit=$false;opportunity=$Opportunity;resultAtEvent=$result;isHitAtEvent=(-not $negated);criticalAtEvent=$false;sneakAtEvent=$false;resultAfterRule=$result;isHitAfterRule=(-not $negated);damageRules=$(if($negated){0}else{1});damage=$(if($negated){0}else{4})}
+ $M.attackRules+=[pscustomobject]@{identity=$script:id;attacker=$hostile;target=$On;d20=15;bonus=10;autoHit=$false;opportunity=$Opportunity;attackerCommand=$(if($Opportunity){$null}else{'UnitAttack'});resultAtEvent=$result;isHitAtEvent=(-not $negated);criticalAtEvent=$false;sneakAtEvent=$false;resultAfterRule=$result;isHitAfterRule=(-not $negated);damageRules=$(if($negated){0}else{1});damage=$(if($negated){0}else{4})}
  if($attempted){ $M.skillChecks+=[pscustomobject]@{actor=$Who;d20=10;result=$check;dc=26;passed=$negated} }
 }
 function New-S6Envelope($Scenario,$M,$Rows){
@@ -114,7 +114,7 @@ $r=Copy-S6 $turn; (RecordOf $r $t 14).commitment='None'; (RecordOf $r $t 14).ref
 $r=Copy-S6 $turn; (RowOf $r $t).steps.renewedNoDebt.rider.spent=$true; Reject $r 'sprint6-feat-tb' 'no renewal at the next preparation refuses'
 $r=Copy-S6 $turn; (RowOf $r $t).payingTurnMove.metres=0.0; Reject $r 'sprint6-feat-tb' 'a paying turn that could not move refuses'
 $r=Copy-S6 $turn; $r.observations.sprint6Feat.records[0].mountSwiftAfter=12.0; Reject $r 'sprint6-feat-tb' 'mount resources in a record refuse'
-$r=Copy-S6 $turn; foreach($row in @($r.observations.sprint6Feat.attackRules)){ $row.opportunity=$true }; Reject $r 'sprint6-feat-tb' 'no ordinary hostile attack in turn-based combat refuses'
+$r=Copy-S6 $turn; foreach($row in @($r.observations.sprint6Feat.attackRules)){ $row.attackerCommand=$null }; Reject $r 'sprint6-feat-tb' 'no ordinary hostile attack in turn-based combat refuses'
 # Isolation
 $i='S6-rt-isolation'
 $r=Copy-S6 $real; (RowOf $r $i).attemptsAfterUnrelated=8; Reject $r 'sprint6-feat-rt' 'an attack on the rider or an unrelated unit that was evaluated refuses'

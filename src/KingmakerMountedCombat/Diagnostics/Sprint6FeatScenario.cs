@@ -31,8 +31,8 @@ using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    // FEAT-01 rows. The feat comes through the native level-up controller. Attacks are the hostile's native UnitAttack, or a
-    // native RuleAttackWithWeapon marked as an opportunity attack where the row needs a further strike at an exact phase; each
+    // FEAT-01 rows. The feat comes through the native level-up controller. Attacks are the hostile's native UnitAttack, the native engagement
+    // controller's attack of opportunity, or a plain native RuleAttackWithWeapon where the row needs a hit in an exact phase; each
     // rolls natively. The check is native, with its d20 replaced only here, so success, equality and failure are exact without
     // rerolling for a convenient die. The reader owns PASS/FAIL.
     internal sealed class Sprint6RuleObserver : IDisposable, IAttackHandler,
@@ -53,7 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!rows.TryGetValue(rule, out row))
             {
                 row = new JObject { ["identity"] = RuntimeHelpers.GetHashCode(rule), ["attacker"] = rule.Initiator.UniqueId, ["target"] = rule.Target.UniqueId, ["frame"] = Time.frameCount,
-                    ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true,
+                    ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, ["attackerCommand"] = rule.Initiator.Commands.Standard?.GetType().Name,
                     ["resultAtEvent"] = rule.Result.ToString(), ["isHitAtEvent"] = rule.IsHit, ["criticalAtEvent"] = rule.IsCriticalConfirmed, ["sneakAtEvent"] = rule.IsSneakAttack, ["damageRules"] = 0, ["damage"] = 0 };
                 rows[rule] = row; if (Attacks.Count < 256) Attacks.Add(row);
             }
@@ -103,6 +103,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private MountedCombatDefenseService s6Service;
         private string s6NextPlan;
         private TurnController s6Turn;
+        private int s6OpportunityFrame;
+        private const int Sprint6OpportunityFrames = 20;
 
         private void BeginSprint6Feat()
         {
@@ -372,8 +374,22 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Sprint6RuleStrike(UnitEntityData victim)
         {
             var weapon = target.GetThreatHand()?.Weapon ?? target.Body.EmptyHandWeapon;
-            Rulebook.Trigger(new RuleAttackWithWeapon(target, victim, weapon, 0) { IsAttackOfOpportunity = true });
+            Rulebook.Trigger(new RuleAttackWithWeapon(target, victim, weapon, 0));
             s6StrikesThisStep++;
+        }
+
+        // The native engagement controller's own attack of opportunity where the hostile is engaged, then a plain rule strike if
+        // that one missed or was not delivered, so a step always reaches a hit in its exact phase.
+        private void Sprint6OpportunityStrike(UnitEntityData victim)
+        {
+            if (s6StrikesThisStep == 0 && target.CombatState.IsEngage(victim))
+            {
+                Game.Instance.CombatEngagementController.ForceAttackOfOpportunity(target, victim);
+                s6OpportunityFrame = Time.frameCount; s6StrikesThisStep++;
+                return;
+            }
+            if (Time.frameCount - s6OpportunityFrame < Sprint6OpportunityFrames) return;
+            Sprint6RuleStrike(victim);
         }
 
         // The latest defense record since this step began, once a hit produced one.
@@ -405,7 +421,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sprint6Step("negated"); s6NextPlan = "natural"; s6Step = 3; return;
                 // A further hit in the same round is refused without a roll, and stands.
                 case 3:
-                    if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
+                    if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
                     Sprint6Step("sameRoundRefused"); s6Step = 4; return;
                 case 4: if (!Sprint6RealTimeUsageFree(rider)) return; Sprint6Step("renewedByNativeWindow"); s6NextPlan = "equal"; s6Step = 5; return;
                 case 5:
@@ -539,10 +555,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!rider.HasSwiftAction() || !Sprint6RiderTurn(turn)) return;
                     s6Turn = turn; Sprint6Step("ownTurnBefore"); s6NextPlan = "success"; s6Step = 2; return;
                 case 2:
-                    if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
+                    if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
                     Sprint6Step("ownTurnNegated"); s6NextPlan = "natural"; s6Step = 3; return;
                 case 3:
-                    if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
+                    if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
                     Sprint6Step("ownTurnSecondRefused"); s6Step = 4; return;
                 // The hostile's own turn in the same round window: still spent, by its ordinary attack.
                 case 4:
