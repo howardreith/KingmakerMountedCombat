@@ -64,7 +64,7 @@ function Assert-KmcSprint6FeatEvidence {
   if([string]$rule.identity -cin $identities){ throw 'Sprint 6 a natural miss was evaluated' }
   if([int]$rule.damageRules -ne 0){ throw 'Sprint 6 a miss reached damage' }
  }
- foreach($r in $records){ if([double]$r.mountSwift -ne 0){ throw 'Sprint 6 the mount paid the rider''s Swift action' } }
+ foreach($r in $records){ if([double]$r.mountSwiftAfter -ne [double]$r.mountSwiftBefore){ throw 'Sprint 6 the mount paid the rider''s Swift action' } }
  if(@($records | Where-Object { [string]$_.mountId -ceq [string]$_.rider }).Count -ne 0){ throw 'Sprint 6 an actor rode itself' }
 
  if($Request.scenario -ceq 'sprint6-feat-rt'){
@@ -144,6 +144,8 @@ function Assert-KmcSprint6FeatEvidence {
   $r=Get-KmcSprint6Record $o $c 12
   if($r.riderTurn -ne $true){ throw 'Sprint 6 paying-turn strike was off-turn' }
   Assert-KmcSprint6Refused $o $r 'SwiftUnavailable' 'attack on the paying turn'
+  $mv=$rows['S6-tb-economy'].evidence.payingTurnMove
+  if($mv.sameTurn -ne $true -or $mv.mounted -ne $true -or [double]$mv.metres -lt 0.5){ throw 'Sprint 6 the paying turn could not move by the ordinary ground click' }
   $r=Get-KmcSprint6Record $o $c 14
   if($r.riderTurn -ne $false -or [string]$r.commitment -cne 'BorrowNextSwift' -or $r.stateAfter.owed -ne $true){ throw 'Sprint 6 renewal after a debt did not permit a further reaction' }
   Assert-KmcSprint6Negated $o $r 'renewal after the debt'
@@ -152,8 +154,8 @@ function Assert-KmcSprint6FeatEvidence {
 }
 # The cold half of the persistence case: a save with a borrowed Swift and a spent use, restored without refund, then renewed.
 function Assert-KmcSprint6FeatPersistence($Request,$Observations,[bool]$Cold){
- $save=$Observations.featDebt
  if(-not $Cold){
+  $save=$Observations.featDebt
   if($null -eq $save -or $save.commitment -cne 'BorrowNextSwift' -or $save.state.spent -ne $true -or $save.state.owed -ne $true -or $save.riderTurn -ne $false){ throw 'Sprint 6 the save did not follow a committed off-turn use' }
   return
  }

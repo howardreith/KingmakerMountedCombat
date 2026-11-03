@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
+using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.Controllers.Combat;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Classes;
@@ -164,7 +165,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["negated"] = r.Negated,
                 ["checkD20"] = r.CheckD20, ["checkStat"] = r.CheckStat, ["checkBonus"] = r.CheckBonus, ["checkResult"] = r.CheckResult, ["checkDc"] = r.CheckDc,
                 ["swiftBefore"] = r.SwiftBefore, ["swiftAfter"] = r.SwiftAfter, ["stateBefore"] = Sprint6StateOf(r.StateBefore), ["stateAfter"] = Sprint6StateOf(r.StateAfter),
-                ["mountSwift"] = horse.CombatState.Cooldown.SwiftAction, ["mountDamageAtRecord"] = horse.Damage });
+                ["mountSwiftBefore"] = r.MountSwiftBefore, ["mountSwiftAfter"] = r.MountSwiftAfter, ["mountDamageAtRecord"] = horse.Damage });
             ResetLeafClock();
         }
 
@@ -477,7 +478,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 case 7:
                     if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted) { if (!s6Owner.Commands.Empty) ResetLeafClock(); return; }
-                    if (++s6Frames < Sprint6SettleFrames || !Sprint6RealTimeUsageFree(rider)) return;
+                    if (++s6Frames < Sprint6SettleFrames || !Sprint6RealTimeUsageFree(rider) || !s6Owner.CombatState.CanActInCombat) return;
                     s6Facts["secondPair"] = new JObject { ["rider"] = s6Owner.UniqueId, ["mount"] = s6OwnerPet.UniqueId, ["ownerStateBefore"] = Sprint6State(s6Owner) };
                     s6NextPlan = "success"; s6Step = 8; return;
                 case 8:
@@ -579,7 +580,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 // On that turn no reaction is available, and the use is not lost by the refusal.
                 case 12:
                     if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
-                    Sprint6Step("payingTurnRefused"); s6Step = 13; return;
+                    Sprint6Step("payingTurnRefused");
+                    var paying = Sprint6Step("payingTurnSurface"); paying["canDelay"] = turn.CanDelay(); paying["canMoveCursor"] = turn.CanMove; paying["acted"] = turn.IsActed();
+                    s6Step = 21; return;
+                // The paying turn's Swift is gone; the turn itself still moves by the ordinary ground click.
+                case 21:
+                    if (turn?.Unit != rider || !rider.Commands.Empty || !horse.Commands.Empty) return;
+                    var from = horse.Position; var goal = FindWalkablePoint(horse.Position, 3f, .75f);
+                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(goal, false);
+                    s6Facts["payingTurnMove"] = new JObject { ["from"] = CapturePosition(from), ["goal"] = CapturePosition(goal), ["frame"] = Time.frameCount };
+                    s6Frames = 0; s6Step = 22; return;
+                case 22:
+                    if (++s6Frames < 10 || horse.View?.AgentASP?.IsReallyMoving == true || combat.HasActiveGroundMovement || !horse.Commands.Empty) return;
+                    var moved = (JObject)s6Facts["payingTurnMove"];
+                    moved["to"] = CapturePosition(horse.Position); moved["sameTurn"] = ReferenceEquals(turn, s6Turn); moved["mounted"] = relationship.State == RelationshipState.Mounted;
+                    moved["metres"] = HorizontalDistance(horse.Position, new Vector3((float)moved["from"]["x"], (float)moved["from"]["y"], (float)moved["from"]["z"]));
+                    s6Step = 13; return;
                 // Positive renewal after the debt: a further off-turn reaction, negating the hit.
                 case 13:
                     if (!Sprint6AdvanceTo(turn, target)) return;

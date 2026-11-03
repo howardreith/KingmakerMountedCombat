@@ -2,7 +2,9 @@ using System;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.EntitySystem.Stats;
+using Kingmaker.GameModes;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem;
 using Kingmaker.RuleSystem.Rules;
@@ -26,7 +28,7 @@ namespace KingmakerMountedCombat.Integration
         internal MountedCombatDefenseCommitment Commitment;
         internal int AttackD20, AttackBonus, AttackResult, TargetAc, CheckD20, CheckStat, CheckBonus, CheckResult, CheckDc, Round, Frame;
         internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced;
-        internal float SwiftBefore, SwiftAfter;
+        internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
         internal RuleAttackRoll Rule;
     }
@@ -120,7 +122,7 @@ namespace KingmakerMountedCombat.Integration
                 Rider = rider.UniqueId, Mount = mount.UniqueId, Attacker = rule.Initiator.UniqueId, Weapon = rule.Weapon?.Blueprint?.name,
                 Rule = rule, ResultBefore = rule.Result.ToString(), Mode = turnBased ? "TB" : "RT", AttackD20 = rule.Roll, AttackBonus = rule.AttackBonus,
                 AttackResult = attackResult, TargetAc = rule.TargetAC, CriticalBefore = rule.IsCriticalConfirmed, RiderTurn = riderTurn,
-                AttackOfOpportunity = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, SwiftBefore = rider.CombatState.Cooldown.SwiftAction,
+                AttackOfOpportunity = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, SwiftBefore = rider.CombatState.Cooldown.SwiftAction, MountSwiftBefore = mount.CombatState.Cooldown.SwiftAction,
                 Round = Game.Instance.TurnBasedCombatController?.RoundNumber ?? 0, Frame = Time.frameCount, StateBefore = before };
             var state = rider.Descriptor.State;
             var facts = new MountedCombatDefenseFacts {
@@ -141,6 +143,7 @@ namespace KingmakerMountedCombat.Integration
             record.ResultAfter = rule.Result.ToString();
             record.CriticalAfter = rule.IsCriticalConfirmed;
             record.SwiftAfter = rider.CombatState.Cooldown.SwiftAction;
+            record.MountSwiftAfter = mount.CombatState.Cooldown.SwiftAction;
             record.StateAfter = ReadState(rider);
             LastRecord = record;
             Observed?.Invoke(record);
@@ -162,9 +165,11 @@ namespace KingmakerMountedCombat.Integration
             record.Negated = MountedCombatDefensePolicy.Negates(check.RollResult, record.AttackResult);
             if (record.Negated)
             {
-                // AttackResult.Parried is the engine's own negated hit: IsHit is false, so a melee resolve deals no damage
-                // and a projectile takes its miss path. A negated critical also stops threatening its critical-only triggers.
-                rule.SetFake(AttackResult.Parried);
+                // AttackResult.Parried is the engine's own negated hit: IsHit is false, so a melee resolve deals no damage. A
+                // projectile has no Parried path, and a triggered Duelist parry that failed must not read as its own success
+                // (its riposte and log entry key on Parried), so those take the ordinary miss. A negated critical also stops
+                // threatening its critical-only triggers.
+                rule.SetFake(rule.Weapon.Blueprint.IsMelee && rule.Parry?.IsTriggered != true ? AttackResult.Parried : AttackResult.Miss);
                 var no = new object[] { false };
                 CriticalConfirmed.Invoke(rule, no);
                 CriticalRoll.Invoke(rule, no);
@@ -222,14 +227,22 @@ namespace KingmakerMountedCombat.Integration
             if (present == wanted) return true;
             if (!wanted) { rider.Descriptor.Buffs.RemoveFact(blueprint); return true; }
             var applied = rider.Descriptor.Buffs.AddBuff(blueprint, rider, duration);
-            if (applied != null) return true;
+            if (applied != null)
+            {
+                // A dispel is not one of the rule's renewals.
+                applied.IsNotDispelable = true;
+                return true;
+            }
             logger.Warning("The native rule refused Mounted Combat state " + blueprint.name + " on " + rider.UniqueId + ".");
             return false;
         }
 
+        // IsInTurnBasedCombat also reads false during a cutscene, which is not the mode changing.
+        private bool RealTimeObservable => !CombatController.IsInTurnBasedCombat() && Game.Instance.CurrentMode != GameModeType.Cutscene && !restorationPending();
+
         private void ObserveRealTime(UnitEntityData rider)
         {
-            if (CombatController.IsInTurnBasedCombat() || restorationPending()) return;
+            if (!RealTimeObservable) return;
             var state = ReadState(rider);
             if (state.Spent || state.Owed) Apply(rider, state, MountedCombatDefensePolicy.RealTimeObserved(state));
         }
@@ -240,7 +253,7 @@ namespace KingmakerMountedCombat.Integration
             if (!Ready || Time.frameCount < nextObservationFrame) return;
             nextObservationFrame = Time.frameCount + RealTimeObservationFrames;
             var party = Game.Instance?.Player?.PartyCharacters;
-            if (party == null || CombatController.IsInTurnBasedCombat() || restorationPending()) return;
+            if (party == null || !RealTimeObservable) return;
             foreach (var reference in party)
             {
                 var rider = reference.Value;
@@ -259,12 +272,17 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitJoinCombat(UnitEntityData unit) { }
 
-        // A round ends with its combat; a reload does not pass through here.
+        // Leaving combat is no renewal: a rejoin or the next encounter can start within the same six seconds. What is owed is
+        // charged, and the use runs its native window. A world being replaced is the archive's, not this rider's.
         public void HandleUnitLeaveCombat(UnitEntityData unit)
         {
-            if (!Ready || unit?.Descriptor == null || restorationPending()) return;
-            var state = ReadState(unit);
-            if (state.Any) Apply(unit, state, new MountedCombatDefenseTransition());
+            if (!Ready || unit?.Descriptor == null || restorationPending() || LoadingProcess.Instance?.IsLoadingInProcess == true) return;
+            try
+            {
+                var state = ReadState(unit);
+                if (state.Spent || state.Owed) Apply(unit, state, MountedCombatDefensePolicy.RealTimeObserved(state));
+            }
+            catch (Exception exception) { logger.Exception("Mounted Combat combat-end state", exception); }
         }
     }
 }
