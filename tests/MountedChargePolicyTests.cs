@@ -129,6 +129,7 @@ namespace KingmakerMountedCombat.Tests
                 Refuses(request => { tb(request); request.TurnActingOrPreparing = false; }, MountedCombatRejectionCode.WrongTurn, "an ending turn");
                 Refuses(request => { tb(request); request.RiderMoveCooldown = 1f; }, MountedCombatRejectionCode.WrongActionState, "a rider whose Move is spent");
                 Refuses(request => { tb(request); request.TurnTimeMoved = 0.5f; }, MountedCombatRejectionCode.WrongActionState, "a turn that already moved");
+                Refuses(request => { tb(request); request.MountAddressable = false; }, MountedCombatRejectionCode.WrongActionState, "a mount the paired turn cannot address");
                 Refuses(request => { tb(request); request.MountHasMoved = true; }, MountedCombatRejectionCode.WrongActionState, "a mount that already moved");
                 Refuses(request => { tb(request); request.MountStandardSpent = true; }, MountedCombatRejectionCode.WrongActionState, "a mount whose action is spent");
                 TestRunner.True(Evaluate(request => { request.MountHasMoved = true; request.MountStandardSpent = true; }).IsAllowed,

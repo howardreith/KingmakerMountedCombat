@@ -28,10 +28,10 @@ function New-S7Tb([string]$Scenario){
  $after=New-S7State @{riderStandard=6.0;riderMove=3.0;mountMove=1.2;partnerTimeMoved=1.2;partnerTimeForced=1.2;partnerCanMove=$false;buff=$true;buffCount=1;riderAc=18;distance=3.9}
  $f=[pscustomobject]@{order=[pscustomobject]@{riderInitiative=$(if($riderFirst){40}else{-40});mountInitiative=$(if($riderFirst){-40}else{40})};sameTurn=$true;
   whileCharging=(New-S7State @{buff=$true;buffCount=1;riderCharging=$true;riderAc=18;mountCharging=$true;mountMoving=$true;speedOverride=10.16});
-  terminal=(New-S7Terminal $after 'Success' 1 $true);mountOwnAttackRules=@(New-S7Rule 7 $mount $false 12 6 $false 5);
+  terminal=(New-S7Terminal $after 'Success' 1 $true);secondTerminal=(New-S7Terminal (New-S7State @{buff=$true;buffCount=1;riderAc=18;riderStandard=6.0;riderMove=3.0}) 'Success' 1 $true);mountOwnAttackRules=@(New-S7Rule 7 $mount $false 12 6 $false 5);
   steps=[pscustomobject]@{tooNear=(New-S7Click $before $false 'OutsideSupportedRange');charge=(New-S7Click $before $true $null);spentRefused=(New-S7Click $after $false 'WrongActionState');
-   nextTurn=(New-S7State @{activationSequence=2;round=3;distance=3.9});partnerSpentRefused=(New-S7Click (New-S7State @{mountStandard=6.0;activationSequence=2;round=3}) $false 'WrongActionState')}}
- New-S7Envelope (New-S7Measure $Scenario $(if($riderFirst){'rider-first'}else{'mount-first'}) @((New-S7Rule 1 $rider $true 11 9 $false 0),(New-S7Rule 7 $mount $false 12 6 $false 5))) @(New-S7Row 'S7-tb-charge' $f)
+   secondCharge=(New-S7Click (New-S7State @{activationSequence=3;round=4}) $true $null);nextTurn=(New-S7State @{activationSequence=2;round=3;distance=3.9;buffSecondsLeft=0.0});partnerSpentRefused=(New-S7Click (New-S7State @{mountStandard=6.0;activationSequence=2;round=3}) $false 'WrongActionState')}}
+ New-S7Envelope (New-S7Measure $Scenario $(if($riderFirst){'rider-first'}else{'mount-first'}) @((New-S7Rule 1 $rider $true 11 9 $false 0),(New-S7Rule 7 $mount $false 12 6 $false 5),(New-S7Rule 8 $rider $true 9 9 $false 0))) @(New-S7Row 'S7-tb-charge' $f)
 }
 function New-S7Rt {
  $before=New-S7State; $spent=New-S7State @{riderStandard=5.0;buff=$true;buffCount=1;riderAc=18;distance=3.9}
@@ -85,7 +85,9 @@ $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').terminal.state.mountStandard=6.0; Reje
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').terminal.state.partnerCanMove=$true; Reject $r 'sprint7-charge-tb' 'a mount left with more movement refuses'
 $r=Copy-S7 $tb; $r.observations.sprint7Charge.attackD20IsForced=$true; Reject $r 'sprint7-charge-tb' 'a forced die on the turn-based charge refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').mountOwnAttackRules[0].charge=$true; Reject $r 'sprint7-charge-tb' 'a mount attack that inherits the charge refuses'
-$r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.nextTurn.buff=$true; Reject $r 'sprint7-charge-tb' 'a penalty on the next turn refuses'
+$r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.nextTurn.buff=$true; (Facts $r 'S7-tb-charge').steps.nextTurn.buffCount=1; (Facts $r 'S7-tb-charge').steps.nextTurn.buffSecondsLeft=4.0; Reject $r 'sprint7-charge-tb' 'a penalty well into the next turn refuses'
+$r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').secondTerminal.state.buffCount=2; Reject $r 'sprint7-charge-tb' 'a second charge duplicating the modifier refuses'
+$r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.secondCharge.clicked=$false; Reject $r 'sprint7-charge-tb' 'a refused next-round charge refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.nextTurn.activationSequence=3; Reject $r 'sprint7-charge-tb' 'a skipped activation refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.before.mountStandard=0.0; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.afterClick.mountStandard=0.0; Reject $r 'sprint7-charge-tb' 'a spent partner that was reset refuses'
 $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.clicked=$true; Reject $r 'sprint7-charge-tb' 'a charge admitted over a spent partner refuses'

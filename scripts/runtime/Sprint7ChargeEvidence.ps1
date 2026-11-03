@@ -91,7 +91,11 @@ function Assert-KmcSprint7ChargeEvidence {
   Assert-KmcSprint7Refused $d.tooNear @('OutsideSupportedRange') 'too-near charge on the turn'
   Assert-KmcSprint7Admitted $d.charge 'turn-based charge'
   $rules=@(Get-KmcSprint7RiderAttacks $o $hostile | Where-Object { $_.charge -eq $true })
-  Assert-KmcSprint7Delivered $f $rules $d.charge 'turn-based charge'
+  if($rules.Count -ne 2){ throw ('Sprint 7 two charges were expected to attack once each, observed '+$rules.Count) }
+  Assert-KmcSprint7Delivered $f @($rules[0]) $d.charge 'turn-based charge'
+  Assert-KmcSprint7Admitted $d.secondCharge 'next round''s charge'
+  Assert-KmcSprint7Lease $f.secondTerminal 'next round''s charge'
+  if([string]$f.secondTerminal.result -cne 'Success' -or [int]$f.secondTerminal.rules -ne 1 -or [int]$f.secondTerminal.state.buffCount -ne 1){ throw 'Sprint 7 the next round''s charge did not deliver once with one native penalty' }
   if($o.attackD20IsForced -eq $true){ throw 'Sprint 7 the turn-based charge used a forced die' }
   $b=$d.charge.before; $a=$f.terminal.state
   if($b.turnUnit -cne $o.rider -or $f.sameTurn -ne $true -or [string]$a.activation -cne [string]$b.activation -or [int]$a.activationSequence -ne [int]$b.activationSequence -or [int]$a.round -ne [int]$b.round){ throw 'Sprint 7 the charge minted another activation or left its turn' }
@@ -104,7 +108,9 @@ function Assert-KmcSprint7ChargeEvidence {
   $n=$d.nextTurn
   if([int]$n.activationSequence -ne [int]$b.activationSequence+1 -or $n.turnUnit -cne $o.rider){ throw 'Sprint 7 the next activation is not the next native paired turn' }
   if([double]$n.riderStandard -ne 0 -or [double]$n.riderMove -ne 0){ throw 'Sprint 7 the next native preparation did not renew the rider' }
-  if($n.buff -ne $false -or [double]$n.riderAc -ne [double]$b.riderAc){ throw 'Sprint 7 the native penalty outlived its round' }
+  # Native buffs tick at turn start with game time frozen inside a turn, so the last moment of a round can reach this turn: never more.
+  if($n.buff -eq $true){ if([double]$n.buffSecondsLeft -gt 1.0 -or [int]$n.buffCount -ne 1){ throw 'Sprint 7 the native penalty outlived its round' } }
+  elseif([double]$n.riderAc -ne [double]$b.riderAc){ throw 'Sprint 7 the penalty outlived its buff' }
   Assert-KmcSprint7Refused $d.partnerSpentRefused @('WrongActionState') 'charge with a spent partner'
   if([double]$d.partnerSpentRefused.before.mountStandard -le 0 -or [double]$d.partnerSpentRefused.afterClick.mountStandard -lt [double]$d.partnerSpentRefused.before.mountStandard-0.05){ throw 'Sprint 7 the spent partner was reset' }
  }

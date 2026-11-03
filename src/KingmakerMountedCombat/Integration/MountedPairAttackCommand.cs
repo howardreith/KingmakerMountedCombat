@@ -369,7 +369,8 @@ namespace KingmakerMountedCombat.Integration
                 TargetVisible = attackTarget != null && attackTarget.IsVisibleForPlayer,
                 TargetHostile = rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
                 TargetAttackable = rider != null && attackTarget != null && rider.CanAttack(attackTarget),
-                StraightRoute = MountedChargeGeometry.StraightLane(mount, rider, attackTarget),
+                StraightRoute = MountedChargeGeometry.StraightRoute(mount, attackTarget),
+                MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
                 LandingBlocked = MountedChargeGeometry.LandingBlocked(mount, rider, attackTarget),
                 MountAvoidanceDisabled = MountedChargeGeometry.MountAvoidanceDisabled(mount),
                 Distance = mount == null || attackTarget == null
@@ -989,6 +990,12 @@ namespace KingmakerMountedCombat.Integration
             if (chargeMode && chargeLease != null && !delegatedMove.IsFinished &&
                 TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
+                // The stock routine ends the same way, and a tripped mount must not hold the turn to the bound.
+                if (!mount.Descriptor.State.CanMove && TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                {
+                    return;
+                }
+
                 chargeLease.Maintain(true);
             }
 

@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Domain
         public bool RelationshipMounted;
         public bool ExactPair;
         public bool LifecycleBoundary;
+        public bool MountCanMove = true;
 
         // Ownership, checked with the opposite sense to admission: the charge must still own what it took.
         // The carrier owns the mount's Move slot while approaching and must have released it by attack start.
@@ -146,6 +147,11 @@ namespace KingmakerMountedCombat.Domain
             {
                 return Invalid("The mounted charge target is no longer attackable.",
                     MountedCombatRejectionCode.TargetNotAttackable);
+            }
+
+            if (!request.MountCanMove && request.Phase != MountedChargeRevalidationPhase.BeforeAttackStart)
+            {
+                return Invalid("The mounted charge lost a mount that can move.", MountedCombatRejectionCode.WrongActionState);
             }
 
             // Ownership. The charge must still own exactly what it took; this is the admission policy's

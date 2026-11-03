@@ -174,8 +174,8 @@ namespace KingmakerMountedCombat.Integration
             if (BuffHandedToNative) return true;
             // Pooled enchantment visuals have no native owner to go to, and an uncertain fact is never given away: those keep the removal.
             if (!buffOwnership.Acquired || buffOwnership.RemovalAttempted || buffOwnership.Fault != null || buff == null || !buff.Active ||
-                !BuffLifecycleSettled(buff) || buffChildren == null || !buffChildren.TryHandOff() ||
-                !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)))
+                !BuffLifecycleSettled(buff) || buffChildren == null ||
+                !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)) || !buffChildren.TryHandOff())
                 return false;
             buffCondition?.HandOff();
             BuffHandedToNative = true;
@@ -337,8 +337,11 @@ namespace KingmakerMountedCombat.Integration
             }
 
             appliedBuffCollection = rider.Buffs;
+            // An earlier charge's buff still in its native round belongs to the engine, and its native Replace stacking would take it
+            // off here too; this lease owns only the fresh one. Native round timing can leave it alive into the next turn.
+            appliedBuffCollection.Enumerable.FirstOrDefault(buff => buff.Blueprint == chargeBuff)?.Remove();
             if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
-                throw new InvalidOperationException("An existing Charge buff cannot be adopted by this transaction.");
+                throw new InvalidOperationException("An earlier Charge buff could not be replaced by this transaction.");
             buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
             var surface = RequireAvailableBuffSurface(chargeBuff, rider);
             buffStats = rider.Descriptor.Stats.GetList().ToArray();
@@ -357,18 +360,20 @@ namespace KingmakerMountedCombat.Integration
             finally { acquiringBuffLease = previous; CaptureBuffResidue(); }
         }
 
-        private static void RequireChargeBuffSurface(BlueprintBuff chargeBuff)
-        {
-            MountedChargeBuffSurface.Read(chargeBuff);
-        }
+        private static BlueprintBuff validatedSurfaceRoot;
+        private static MountedChargeBuffSurface validatedSurface;
 
         private static MountedChargeBuffSurface RequireAvailableBuffSurface(BlueprintBuff chargeBuff, UnitEntityData rider)
         {
-            RequireChargeBuffSurface(chargeBuff);
-            var surface = MountedChargeBuffSurface.Read(chargeBuff);
-            foreach (var enchantment in surface.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
-            if (rider?.Buffs == null || rider.Buffs.Enumerable.Any(buff => ReferenceEquals(buff.Blueprint, chargeBuff) ||
-                surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
+            // The structure of one loaded blueprint does not change, and this is asked on every availability check.
+            if (!ReferenceEquals(validatedSurfaceRoot, chargeBuff))
+            {
+                var read = MountedChargeBuffSurface.Read(chargeBuff);
+                foreach (var enchantment in read.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
+                validatedSurface = read; validatedSurfaceRoot = chargeBuff;
+            }
+            var surface = validatedSurface;
+            if (rider?.Buffs == null || rider.Buffs.Enumerable.Any(buff => surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
                 throw new InvalidOperationException("An existing Charge lifetime buff cannot be replaced or adopted.");
             return surface;
         }
