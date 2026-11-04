@@ -67,7 +67,7 @@ Stale checks corrected, none weakening a product claim:
 | Paladin save continuity | S8 `t02`, `t03` | Retained |
 | Mixed class, celestial tiers | S8 `q05`, `t01` | Retained |
 | Removal with no permanent references, mod absent | `20261104-c7e-final-B902-r31`, `-r32`. The validator requires that run-name form | **Run** |
-| Removal refused with references | `e01` scan names the bond and Horse; `g19`, `g20` retained reader scans | **Run**, scan only: the refusal button itself was not clicked on a dependent campaign |
+| Removal refused with references | `e01` scan names the bond and Horse. Feat and Dog detection is source and Sprint 8 review, not rerun | **Run** for the bond and Horse, scan only: the refusal button itself was not clicked on a dependent campaign |
 | On-screen level-up, action list, overall appearance | Never clicked by an agent | **Owner script** |
 | **Trap** | TRAP-01 has never executed. Bounded inspection of all nine owner seeds this sprint: nearest active trap 54.6 m at another elevation (Old Sycamore); the dungeon floor's are 87 to 92 m behind hostiles | **Owner item, unresolved** |
 | **TB door** | Never demonstrated; no reachable combat-usable door in existing inputs | **Limitation** |
