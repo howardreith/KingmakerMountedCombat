@@ -756,6 +756,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
             // Celestial Smite through the pet's own ability: the marked evil target takes the pet's Hit Dice in damage.
             s8Hostile.Descriptor.Alignment.Set(Alignment.NeutralEvil); // disclosed setup: the spawned target is not evil
+            // In real time too, a far request is refused at input, and no command of the pet's own carries it.
+            var rtHome = s8Hostile.Position;
+            var farRealTime = new JObject(); s8Facts["smiteFarRealTime"] = farRealTime;
+            var rtFar = S8TbFarClick(farRealTime, pet, s8Hostile);
+            while (rtFar.MoveNext()) yield return null;
+            s8Hostile.Translocate(rtHome, null);
+            pet.Commands.InterruptAll(); s8Owner.Commands.InterruptAll();
+            for (var frame = 0; frame < 60 && !(s8Owner.Commands.Empty && pet.Commands.Empty); frame++) yield return null;
             var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
             s8Facts["smite"] = smite;
             var weapon = pet.GetFirstWeapon();
@@ -1069,7 +1077,7 @@ namespace KingmakerMountedCombat.Diagnostics
             yield return null;
             farMoving["sameMoveCommand"] = moveCommand != null && pet.Commands.Raw.Contains(moveCommand) && !moveCommand.IsFinished;
             farMoving["movingAfterClick"] = pet.View?.AgentASP?.IsReallyMoving == true;
-            farMoving["refusals"] = S8SmiteRefusals - movingRefusals;
+            farMoving["refusals"] = S8SmiteRefusals - movingRefusals; farMoving["feedback"] = relationship.World.ForActor(s8Owner).Combat.LastFeedback;
             for (var frame = 0; frame < 900 && (pet.View?.AgentASP?.IsReallyMoving == true || !pet.Commands.Empty); frame++) { S8Refresh(); yield return null; }
             farMoving["moveResult"] = moveCommand?.Result.ToString(); farMoving["travelled"] = Vector3.Distance(pet.Position, moveFrom);
             farMoving["after"] = S8SmiteResources(pet, second);
@@ -1102,7 +1110,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 command = combatOwner.OwnedChargeCommand ?? command;
                 if (command != null && command.IsFinished && !combatOwner.HasChargeOwnership) break;
-                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                S8Refresh();
                 yield return null;
             }
             charge["result"] = command?.Result.ToString();
@@ -1119,14 +1127,14 @@ namespace KingmakerMountedCombat.Diagnostics
             attack["clicked"] = new ClickUnitHandler().OnClick(s8Hostile.View.gameObject, s8Hostile.Position, 0, false, false);
             for (var frame = 0; frame < 600 && s8Rules.Attacks.Skip(rulesBefore).All(row => row.Value<string>("attacker") != pet.UniqueId); frame++)
             {
-                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                S8Refresh();
                 yield return null;
             }
             attack["rules"] = s8Rules.Attacks.Skip(rulesBefore).Count(row => row.Value<string>("attacker") == pet.UniqueId);
             attack["additionalDamage"] = s8Probe.LastAdditionalDamage;
             for (var frame = 0; frame < 600 && !pet.Commands.Empty; frame++)
             {
-                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                S8Refresh();
                 yield return null;
             }
             if (!pet.Commands.Empty) { pet.Commands.InterruptAll(); yield return null; }
@@ -1141,7 +1149,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // The fight ends with the fixture's own target; the owner then dismounts through the ordinary control.
             var destroyed = false;
             for (var frame = 0; frame < 900 && !(destroyed = s8SecondTargetService.DestroyAndVerify()); frame++) yield return null;
-            if (destroyed) { s8SecondTargetService.Dispose(); s8SecondTargetService = null; destroyed = false; }
+            if (!destroyed) throw new InvalidOperationException("The second turn-based target was not verified destroyed.");
+            s8SecondTargetService.Dispose(); s8SecondTargetService = null; destroyed = false;
             for (var frame = 0; frame < 900 && !(destroyed = s8TargetService.DestroyAndVerify()); frame++) yield return null;
             s8Facts["targetDestroyed"] = destroyed;
             if (!destroyed) throw new InvalidOperationException("The Sprint 8 turn-based target was not verified destroyed.");

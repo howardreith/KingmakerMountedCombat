@@ -225,10 +225,11 @@ namespace KingmakerMountedCombat.Integration
         internal int MountedSmiteRefusalCount { get; private set; }
 
         // Nothing is spent and this request's own command is all that ends: the pair's accepted work carries on.
-        internal void ReportMountedSmiteRefusal(UnitCommand residentCommand)
+        internal void ReportMountedSmiteRefusal(UnitCommand residentCommand, bool outOfReach)
         {
-            MountedSmiteRefusalCount++;
             if (residentCommand != null && !residentCommand.IsFinished) residentCommand.Interrupt();
+            if (!outOfReach) return; // native's own reason, such as a target that fell or a spent use: nothing here to explain or move toward
+            MountedSmiteRefusalCount++;
             LastFeedback = DivineMountSmiteLogic.NeedsApproachMessage;
             ShowStockFeedback();
         }

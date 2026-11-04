@@ -58,7 +58,7 @@ function New-S8Tb { [pscustomobject]@{before=$tbOwner;final=$tbOwner;removalRefe
  charge=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;chargeRules=1;riderStandard=6;riderMove=3;buffCount=1;stillMarked=$true};
  mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};targetDestroyed=$true;combatCleared=$true;dismounted=$true;unmountedFar=[pscustomobject]@{needsApproach=$false;canTarget=$true};
  smiteFarPreparing=(New-S8Far $false -1);smiteMovedAway=(New-S8Far $true 1 -Empty);
- smiteFarWhileMoving=[pscustomobject]@{movingAtClick=$true;canTarget=$false;clicked=$false;sameMoveCommand=$true;movingAfterClick=$true;travelled=4;before=[pscustomobject]@{uses=1;mountSwift=0};after=[pscustomobject]@{uses=1;mountSwift=0;marked=$false}};
+ smiteFarWhileMoving=[pscustomobject]@{movingAtClick=$true;canTarget=$false;clicked=$false;refusals=1;feedback='Celestial Smite: move the pair into range first.';sameMoveCommand=$true;movingAfterClick=$true;travelled=4;before=[pscustomobject]@{uses=1;mountSwift=0;riderStandard=0;turnStatus='Acting'};after=[pscustomobject]@{uses=1;mountSwift=0;riderStandard=0;marked=$false}};
  smiteActing=[pscustomobject]@{turnStatus='Acting';clicked=$true;marked=$true;usesAfter=0;mountSwiftAfter=6;riderStandardAfter=0;firstTargetMarkRetired=$true;before=[pscustomobject]@{uses=1;riderStandard=0}}} }
 Check (Accepts ${function:Assert-KmcS8TurnBasedCase} (New-S8Tb)) 'the turn-based Paladin neighbor is accepted'
 $r=New-S8Tb; $r.call.usesAfter=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Call that spent nothing'
@@ -75,6 +75,10 @@ $r=New-S8Tb; $r.smiteFarPreparing.feedback=''; Refuses ${function:Assert-KmcS8Tu
 $r=New-S8Tb; $r.smiteMovedAway.after.commands=@('UnitUseAbility'); Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a resident request after its target moved away'
 $r=New-S8Tb; $r.smiteMovedAway.after.marked=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a stale mark after the target moved away'
 $r=New-S8Tb; $r.smiteFarWhileMoving.sameMoveCommand=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a refusal that replaced the pair move'
+$r=New-S8Tb; $r.smiteFarWhileMoving.refusals=0; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a silent refusal while Acting'
+$rtFar=[pscustomobject]@{needsApproach=$true;canTarget=$false;clicked=$false;refusals=1;feedback='Celestial Smite: move the pair into range first.';before=[pscustomobject]@{uses=1};after=[pscustomobject]@{uses=1;marked=$false;commands=@('UnitMoveTo')}}
+Check (Accepts ${function:Assert-KmcS8RealTimeFar} $rtFar) 'the real-time far refusal is accepted beside the brain''s own move'
+$rtFar.after.commands=@('UnitUseAbility'); Refuses ${function:Assert-KmcS8RealTimeFar} $rtFar 'a far Smite command that survives in real time'
 $r=New-S8Tb; $r.smiteActing.marked=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'no effect while Acting'
 $r=New-S8Tb; $r.unmountedFar.canTarget=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'an unmounted Smite that lost its approach'
 $r=New-S8Tb; $r.smite.marked=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite never delivered (the a02 defect)'

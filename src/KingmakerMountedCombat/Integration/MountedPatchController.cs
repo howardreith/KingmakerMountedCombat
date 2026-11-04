@@ -291,6 +291,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.HorseCompanion = null;
             DivineMountCallLogic.IsMountedPairMember = null;
             DivineMountSmiteLogic.IsMountedMount = null;
+            DivineMountSmiteLogic.ReportLateRefusal = null;
                 }
                 throw;
             }
@@ -480,8 +481,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 var logic = ability?.Blueprint.GetComponent<DivineMountSmiteLogic>();
                 var victim = target == null ? null : target.GetComponentInParent<Kingmaker.View.UnitEntityView>()?.EntityData;
-                if (logic == null || victim == null || !logic.NeedsApproach(ability.Caster.Unit, victim)) return;
-                PatchBridge.World?.ForActor(ability.Caster.Unit)?.Combat.ReportMountedSmiteRefusal(null);
+                if (logic == null || victim == null || !logic.IsLegalTarget(ability.Caster.Unit, victim) || !logic.NeedsApproach(ability.Caster.Unit, victim)) return;
+                PatchBridge.World?.ForActor(ability.Caster.Unit)?.Combat.ReportMountedSmiteRefusal(null, true);
             }
 
             internal static bool ChargeEnqueueOrRunPrefix(UnitCommands __instance, UnitCommand cmd, bool first) =>
