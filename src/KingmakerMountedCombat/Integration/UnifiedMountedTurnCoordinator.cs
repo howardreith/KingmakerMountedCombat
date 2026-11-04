@@ -497,7 +497,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal void AdmitExactMountCommand(UnitCommand command, ref bool result)
         {
-            if (PairedLifecycleEnabled) return; // Eligibility is extended inside native guards.
+            if (PairedLifecycleEnabled)
+            {
+                // Eligibility is extended inside native guards. Native leaves Preparing only on the principal's own command, so the mount's
+                // Swift ability as the turn's first action starts here; once it runs the native turn moves on as for any first action.
+                if (!result && command != null && combat != null && combat.IsMountOwnSwiftAbility(command) && Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status == TurnController.TurnStatus.Preparing &&
+                    !command.IsStarted && ((UnitUseAbility)command).Spell.IsAvailableForCast && NativeActorEligibleForCommand(command.Executor, command)) result = true;
+                return;
+            }
             if (disposed || command == null)
             {
                 return;
