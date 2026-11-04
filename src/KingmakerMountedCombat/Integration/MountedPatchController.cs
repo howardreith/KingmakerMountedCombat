@@ -42,7 +42,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger, MountedCombatDefenseService defense)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger, MountedCombatDefenseService defense, HorseCompanionBlueprintService horseCompanion)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
@@ -57,6 +57,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.LifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             PatchBridge.Defense = defense ?? throw new ArgumentNullException(nameof(defense));
+            PatchBridge.HorseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             harmony = HarmonyInstance.Create(HarmonyId);
             try
             {
@@ -67,6 +68,9 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
+                    new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
+                    nameof(PatchMethods.DivineBondLevelEntryFeatures));
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
                 PatchExact(typeof(Kingmaker.Player), "DismissCompanion", 0x06000DD7,
                     new[] { typeof(UnitEntityData) }, null, null,
@@ -284,6 +288,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.LifecycleLedger = null;
                     PatchBridge.Logger = null;
                     PatchBridge.Defense = null;
+            PatchBridge.HorseCompanion = null;
                 }
                 throw;
             }
@@ -384,10 +389,17 @@ namespace KingmakerMountedCombat.Integration
             internal static MountedCombatController CombatFor(UnitCommands commands) => Owner(commands)?.CombatOwner;
             internal static MountedPairServices[] Pairs => World?.Pairs;
             internal static MountedCombatDefenseService Defense;
+            internal static HorseCompanionBlueprintService HorseCompanion;
         }
 
         private static class PatchMethods
         {
+            // PAL-01: a class level entry reaches a mount-bonded paladin without the later weapon-bond upgrades.
+            internal static void DivineBondLevelEntryFeatures(Kingmaker.UnitLogic.UnitDescriptor unit, ref System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase> features)
+            {
+                if (PatchBridge.HorseCompanion != null) features = PatchBridge.HorseCompanion.FilterLevelEntryFeatures(unit, features);
+            }
+
             internal static bool MountedDismissAutoMerge(Kingmaker.Player player, UnitEntityData actor) =>
                 NativeMountedDismissInventorySafety.AutoMerge(PatchBridge.Service, player, actor);
             internal static IEnumerable<CodeInstruction> MountedDismissInventoryTranspiler(
