@@ -798,8 +798,16 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Owner.Descriptor.Resources.Restore(horseService.DivineMountCallResource);
             fallen["callAvailable"] = fallenCall?.IsAvailableForCast;
             pet.Descriptor.ResurrectAndFullRestore();
-            for (var frame = 0; frame < 30; frame++) yield return null;
+            var settled = 0;
+            for (; settled < 600 && !(pet.Descriptor.State.CanAct && s8Owner.Descriptor.Resources.GetResourceAmount(horseService.DivineMountCallResource) > 0 && fallenCall?.IsAvailableForCast == true); settled++) yield return null;
+            fallen["settleFrames"] = settled;
             fallen["consciousAfter"] = pet.Descriptor.State.IsConscious;
+            fallen["petCanActAfter"] = pet.Descriptor.State.CanAct;
+            fallen["petProneAfter"] = pet.Descriptor.State.Prone.Active;
+            fallen["callUsesAfter"] = s8Owner.Descriptor.Resources.GetResourceAmount(horseService.DivineMountCallResource);
+            fallen["ownerCanAct"] = s8Owner.Descriptor.State.CanAct;
+            fallen["ownerCommands"] = s8Owner.Commands.Empty;
+            fallen["callReason"] = fallenCall?.Blueprint.GetComponent<DivineMountCallLogic>()?.GetReason();
             fallen["callAvailableAfter"] = fallenCall?.IsAvailableForCast;
             fallen["petAfter"] = s8Owner.Descriptor.Pet?.UniqueId;
 
