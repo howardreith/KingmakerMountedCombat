@@ -4,7 +4,7 @@ function Get-KmcSprint8Cases([string]$Scenario){
   'sprint8-paladin-choice-rt' { return @('S8-inventory','S8-weapon','S8-existing','S8-retrain') }
   'sprint8-paladin-mount-rt' { return @('S8-mount-horse','S8-control') }
   'sprint8-paladin-dog-rt' { return @('S8-dog') }
-  'sprint8-paladin-mixed-rt' { return @('S8-mixed','S8-archetype') }
+  'sprint8-paladin-mixed-rt' { return @('S8-mixed','S8-mixed-reverse','S8-archetype') }
  }
  throw ('Sprint 8 scenario has no case list: '+$Scenario)
 }
@@ -18,9 +18,14 @@ function Assert-KmcS8Weapon($f,[string]$What){
  if($f.weaponBond -ne $true -or $f.mountBond -ne $false -or $null -ne $f.pet -or [int]$f.addPetFacts -ne 0 -or [int]$f.ownedPets -ne 0 -or $f.callAbility -ne $false -or [int]$f.callUses -ne 0 -or [int]$f.rank -ne 0){ throw ('Sprint 8 '+$What+': the weapon path holds mount facts, a pet or no weapon bond') }
  if([int]$f.weaponAbilities -lt 1 -or [int]$f.weaponResources -lt 1){ throw ('Sprint 8 '+$What+': the weapon path has no usable ability or uses') }
 }
-function Assert-KmcS8MountFacts($f,[string]$What,[string]$Unit,[string]$Choice){
+# Owner-side facts alone: a hired owner's pet spawns when the owner enters the world, not during the creation chain.
+function Assert-KmcS8MountOwnerFacts($f,[string]$What,[string]$Choice){
  if($f.weaponBond -ne $false -or [int]$f.weaponUpgradeRanks -ne 0 -or [int]$f.weaponAbilities -ne 0 -or [int]$f.weaponResources -ne 0){ throw ('Sprint 8 '+$What+': a weapon-bond benefit survives on the mount path') }
- if($f.mountBond -ne $true -or [string]$f.mountChoice -cne $Choice -or [int]$f.addPetFacts -ne 1 -or [int]$f.ownedPets -ne 1 -or $f.callAbility -ne $true){ throw ('Sprint 8 '+$What+': the mount bond, its one pet or its call is missing') }
+ if($f.mountBond -ne $true -or [string]$f.mountChoice -cne $Choice -or [int]$f.addPetFacts -ne 1 -or $f.callAbility -ne $true){ throw ('Sprint 8 '+$What+': the mount bond or its call is missing') }
+}
+function Assert-KmcS8MountFacts($f,[string]$What,[string]$Unit,[string]$Choice){
+ Assert-KmcS8MountOwnerFacts $f $What $Choice
+ if([int]$f.ownedPets -ne 1){ throw ('Sprint 8 '+$What+': the mount bond does not own exactly one pet') }
  $p=$f.pet
  if($null -eq $p -or [string]$p.blueprint -cne $Unit -or [string]$p.master -cne [string]$f.id){ throw ('Sprint 8 '+$What+': the companion is not the exact owned mount') }
  if([int]$f.rank -ne [int]$f.paladinLevel){ throw ('Sprint 8 '+$What+': effective rank '+$f.rank+' is not the paladin level '+$f.paladinLevel) }
@@ -68,9 +73,9 @@ function Assert-KmcS8MountCase($e){
  $five=Get-KmcS8LevelRecord $e.levels 5
  Assert-KmcS8SelectionOffered $five.DivineBondSelection @($script:KmcS8WeaponGuid,$script:KmcS8MountSel) @() 'mount level five'
  Assert-KmcS8SelectionOffered $five.DivineMountSelection @($script:KmcS8Horse) @($script:KmcS8Dog,$script:KmcS8Empty) 'Medium mount choice'
- Assert-KmcS8MountFacts $five.after 'mount at five' $script:KmcS8HorseUnit 'Horse'
+ Assert-KmcS8MountOwnerFacts $five.after 'mount at five' 'Horse'
  if([int]$five.after.rank -ne 5 -or [int]$five.after.callMax -ne 1){ throw 'Sprint 8 mount: level five is not rank 5 with one call' }
- $petId=[string]$five.after.pet.id
+ $petId=[string]$e.boundaries.'8'.after.pet.id
  $expected=@{'8'=@{uses=1;c=0;g=0;sr=0};'9'=@{uses=2;c=0;g=0;sr=0};'11'=@{uses=2;c=1;g=0;sr=0};'13'=@{uses=3;c=0;g=1;sr=0};'15'=@{uses=3;c=0;g=1;sr=26};'17'=@{uses=4;c=0;g=1;sr=28}}
  foreach($k in $expected.Keys){
   $b=$e.boundaries.$k; if($null -eq $b){ throw ('Sprint 8 mount: boundary '+$k+' is missing') }
@@ -117,6 +122,15 @@ function Assert-KmcS8MixedCase($e){
  if($f.weaponBond -ne $false -or $f.mountBond -ne $true -or [int]$f.pet.intelligenceBond -ne 1){ throw 'Sprint 8 mixed: the bond did not attach to the existing companion' }
  if([int]$f.rank -ne [int]$b.rank+[int]$f.paladinLevel){ throw ('Sprint 8 mixed: rank '+$f.rank+' does not stack '+$b.rank+' with paladin '+$f.paladinLevel) }
 }
+function Assert-KmcS8MixedReverseCase($e){
+ $b=$e.beforeRanger
+ Assert-KmcS8MountFacts $b 'reverse before Ranger' $script:KmcS8HorseUnit 'Horse'
+ $bond=@($e.levels|Where-Object{$null -ne $_.PSObject.Properties['AnimalCompanionSelectionRanger']})[0]
+ Assert-KmcS8SelectionOffered $bond.AnimalCompanionSelectionRanger @($script:KmcS8Empty) @('7db7c50677e39f09feef56f3831fc723','5c8e2b9a417f4d63a1d07e3bf26c9184','f894e003d31461f48a02f5caec4e3359') 'reverse companion choice'
+ $f=$e.final
+ if($e.samePet -ne $true -or [string]$f.pet.id -cne [string]$b.pet.id -or [int]$f.addPetFacts -ne 1 -or [int]$f.ownedPets -ne 1){ throw 'Sprint 8 reverse: a second animal or a lost mount' }
+ if([int]$f.rank -le [int]$f.paladinLevel){ throw ('Sprint 8 reverse: the later class did not stack: rank '+$f.rank) }
+}
 function Assert-KmcS8ArchetypeCase($e){
  if([string]::IsNullOrEmpty([string]$e.archetype)){ return } # Base game: no installed archetype replaces the bond.
  $five=Get-KmcS8LevelRecord $e.levels 5
@@ -147,6 +161,7 @@ function Assert-KmcSprint8PaladinEvidence {
    'S8-control' { Assert-KmcS8ControlCase $e }
    'S8-dog' { Assert-KmcS8DogCase $e }
    'S8-mixed' { Assert-KmcS8MixedCase $e }
+   'S8-mixed-reverse' { Assert-KmcS8MixedReverseCase $e }
    'S8-archetype' { Assert-KmcS8ArchetypeCase $e }
   }
  }

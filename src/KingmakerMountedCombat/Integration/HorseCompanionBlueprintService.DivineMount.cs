@@ -293,7 +293,7 @@ namespace KingmakerMountedCombat.Integration
                 var facts = component as AddFacts;
                 if (toCompanion != null)
                 {
-                    var copy = CreateOwned<AddFeatureToCompanion>("KMC_DivineMount_Stock_" + toCompanion.Feature?.name);
+                    var copy = CreateOwned<DivineMountPetBenefit>("KMC_DivineMount_Stock_" + toCompanion.Feature?.name);
                     copy.Feature = toCompanion.Feature;
                     components.Add(copy);
                 }
@@ -478,6 +478,14 @@ namespace KingmakerMountedCombat.Integration
             if (refused.Count == 0) return;
             divineMountFailure = "A Divine Bond level-5 slot changed outside KMC; no overwrite was attempted: " + string.Join(",", refused);
             logger.Error(divineMountFailure);
+        }
+
+        private void ApplyDivineMountPetBenefits(Kingmaker.EntitySystem.Entities.UnitEntityData owner, HorseActivationObservation observation, string ownerId)
+        {
+            HorseActivationObservation prior;
+            if (divineMountSelection == null || owner.Descriptor.Pet == null ||
+                observedActivationByOwner.TryGetValue(ownerId, out prior) && prior.Matches(observation)) return;
+            foreach (var benefit in owner.Descriptor.Progression.Features.SelectFactComponents<DivineMountPetBenefit>().ToArray()) benefit.TryApply();
         }
 
         // The native level-up's one choke point for class level entries. Nothing else about the level is touched.

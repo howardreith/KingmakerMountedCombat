@@ -134,7 +134,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (Archetype != null && controller.Preview.Progression.GetClassLevel(characterClass) == 0)
                     record["archetypeAdded"] = controller.AddArchetype(characterClass, characterClass.Archetypes.Single(value => value.AssetGuid == Archetype));
-                Require(controller.SelectClass(characterClass), "class " + characterClass.name);
+                if (!controller.SelectClass(characterClass))
+                    throw new InvalidOperationException("The native builder refused the class " + characterClass.name + " at " + controller.State.NextLevel + "; alignment=" + controller.Preview.Alignment.Value +
+                        "; failing=" + string.Join(",", characterClass.ComponentsArray.OfType<Kingmaker.Blueprints.Classes.Prerequisites.Prerequisite>().Where(value => !value.Check(null, controller.Preview, controller.State)).Select(value => value.GetType().Name).ToArray()));
             }
             record["class"] = controller.State.SelectedClass?.name;
             foreach (var stat in new[] { StatType.Strength, StatType.Charisma, StatType.Constitution, StatType.Dexterity, StatType.Wisdom, StatType.Intelligence })
@@ -151,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 while (controller.State.SkillPointsRemaining > 0 && controller.Preview.Stats.GetStat(skill).BaseValue < controller.State.NextLevel && controller.SpendSkillPoint(skill)) { }
             if (controller.State.CanSelectName) Require(controller.SelectName(Name), "name");
             if (controller.State.CanSelectAlignment)
-                Require(controller.SelectAlignment(Enum.GetValues(typeof(Alignment)).Cast<Alignment>().First(value => !controller.State.IsAlignmentRestricted(value))), "alignment");
+                Require(controller.SelectAlignment(!controller.State.IsAlignmentRestricted(Alignment.LawfulGood) ? Alignment.LawfulGood : Enum.GetValues(typeof(Alignment)).Cast<Alignment>().First(value => !controller.State.IsAlignmentRestricted(value))), "alignment");
             if (controller.State.CanSelectVoice)
                 Require(controller.SelectVoice((Gender == Gender.Male ? BlueprintRoot.Instance.CharGen.MaleVoices : BlueprintRoot.Instance.CharGen.FemaleVoices).First(value => value != null)), "voice");
         }
@@ -289,7 +291,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const double Sprint8ScenarioDeadlineSeconds = 400.0d, Sprint8HostDeadlineSeconds = 560.0d;
         private string[] Sprint8Cases => request.Scenario == Sprint8Choice ? new[] { "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain" } :
             request.Scenario == Sprint8Mount ? new[] { "S8-mount-horse", "S8-control" } :
-            request.Scenario == Sprint8Dog ? new[] { "S8-dog" } : new[] { "S8-mixed", "S8-archetype" };
+            request.Scenario == Sprint8Dog ? new[] { "S8-dog" } : new[] { "S8-mixed", "S8-mixed-reverse", "S8-archetype" };
         private const string Sprint8HumanRace = "0a5d473ead98b0646b94495af250fdc4";
 
         private int s8CaseIndex;
@@ -386,6 +388,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S8-control": return Sprint8ControlCase();
                 case "S8-dog": return Sprint8DogCase();
                 case "S8-mixed": return Sprint8MixedCase();
+                case "S8-mixed-reverse": return Sprint8MixedReverseCase();
                 case "S8-archetype": return Sprint8ArchetypeCase();
                 default: throw new InvalidOperationException("Unknown Sprint 8 case " + name);
             }
@@ -789,6 +792,30 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["petCommits"] = commits;
             var petLevels = Sprint8CommitPetLevels(unit.Pet, commits);
             while (petLevels.MoveNext()) yield return null;
+            s8Facts["final"] = Sprint8Snapshot(unit);
+            s8Owner = null;
+        }
+
+        // The other order: the bonded mount stays the one companion when a companion class comes later.
+        private IEnumerator Sprint8MixedReverseCase()
+        {
+            var build = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_Reverse");
+            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid);
+            build.ClassFor = next => next <= 5 ? horseService.PaladinClass : ranger;
+            build.Choices[HorseCompanionBlueprintService.HuntersBondGuid] = HorseCompanionBlueprintService.RangerSelectionGuid;
+            build.Choices[HorseCompanionBlueprintService.RangerSelectionGuid] = HorseCompanionBlueprintService.EmptyCompanionGuid;
+            var owner = Sprint8MountOwner(build, HorseCompanionBlueprintService.DivineMountHorseGuid, 5);
+            while (owner.MoveNext()) yield return null;
+            var unit = build.Hired;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
+            s8Facts["beforeRanger"] = Sprint8Snapshot(unit);
+            var original = unit.Pet;
+            var level = Sprint8LevelTo(build, unit, 9);
+            while (level.MoveNext()) yield return null;
+            for (var frame = 0; frame < 30; frame++) yield return null;
+            s8Facts["levels"] = build.Levels;
+            s8Facts["samePet"] = original != null && ReferenceEquals(original, unit.Pet) && !original.Destroyed;
             s8Facts["final"] = Sprint8Snapshot(unit);
             s8Owner = null;
         }
