@@ -60,6 +60,8 @@ namespace KingmakerMountedCombat.Integration
         internal const string DivineMountSmiteAbilityGuid = "37c8e2f5a09d4b16972d1ae4c6f5b08d";
         internal const string DivineMountSmiteResourceGuid = "ab60d94f13e7425c8bf9d2078e3a1c56";
         internal const string DivineMountSmiteBuffGuid = "6fd2a8c1e50b47d3a94e87b1c3d6f029";
+        internal const string DivineMountSmiteFeatureGuid = "b83c7e05d1f64a92ae60c4f71d928b36";
+        internal const string DivineMountSmiteLinkGuid = "41e9f6a2c8d0473db7f2085a3ec6d19c";
 
         internal static readonly string[] DivineMountOwnedGuids =
         {
@@ -67,7 +69,7 @@ namespace KingmakerMountedCombat.Integration
             DivineMountCallFeatureGuid, DivineMountCallAbilityGuid, DivineMountCallResourceGuid, DivineMountCallUseGuid,
             DivineMountIntelligenceLinkGuid, DivineMountIntelligenceGuid, DivineMountCelestialLinkGuid, DivineMountCelestialGuid,
             DivineMountGreaterCelestialLinkGuid, DivineMountGreaterCelestialGuid, DivineMountSpellResistanceLinkGuid, DivineMountSpellResistanceGuid,
-            DivineMountSmiteAbilityGuid, DivineMountSmiteResourceGuid, DivineMountSmiteBuffGuid
+            DivineMountSmiteAbilityGuid, DivineMountSmiteResourceGuid, DivineMountSmiteBuffGuid, DivineMountSmiteFeatureGuid, DivineMountSmiteLinkGuid
         };
 
         private const int ResourceMaxAmountFieldToken = 0x04005FA3, ResourceMaxFieldToken = 0x04005FA5;
@@ -102,7 +104,7 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature weaponBondFeature;
         private BlueprintCharacterClass paladinClass;
         private BlueprintFeatureSelection divineBondSelection, divineMountSelection;
-        private BlueprintFeature divineMountHorse, divineMountRidingDog, divineMountIntelligence, divineMountCelestial, divineMountGreaterCelestial, divineMountSpellResistance;
+        private BlueprintFeature divineMountSmite, divineMountHorse, divineMountRidingDog, divineMountIntelligence, divineMountCelestial, divineMountGreaterCelestial, divineMountSpellResistance;
         private BlueprintProgression divineMountProgression;
         private BlueprintAbility divineMountCallAbility, divineMountSmiteAbility;
         private BlueprintAbilityResource divineMountCallResource, divineMountSmiteResource;
@@ -119,6 +121,7 @@ namespace KingmakerMountedCombat.Integration
         internal BlueprintFeature DivineMountHorse => divineMountHorse;
         internal BlueprintFeature DivineMountRidingDog => divineMountRidingDog;
         internal BlueprintFeature DivineMountIntelligence => divineMountIntelligence;
+        internal BlueprintFeature DivineMountSmite => divineMountSmite;
         internal BlueprintFeature DivineMountCelestial => divineMountCelestial;
         internal BlueprintFeature DivineMountGreaterCelestial => divineMountGreaterCelestial;
         internal BlueprintFeature DivineMountSpellResistance => divineMountSpellResistance;
@@ -204,23 +207,18 @@ namespace KingmakerMountedCombat.Integration
             smiteUses.Resource = divineMountSmiteResource;
             smiteUses.RestoreAmount = true;
 
+            divineMountSmite = CreateBondFeature("DivineMountSmiteFeature", DivineMountSmiteFeatureGuid, "KMC.DivineMount.Smite", icon, false, smiteFacts, smiteUses, smiteBonus);
             divineMountCelestial = CreateBondFeature("DivineMountCelestialFeature", DivineMountCelestialGuid, "KMC.DivineMount.Celestial", icon, false,
-                CelestialComponents("Celestial", DivineMountPolicy.CelestialReduction, DivineMountPolicy.CelestialResistance, smiteFacts, smiteUses, smiteBonus));
-            var greaterFacts = CreateOwned<AddFacts>("KMC_DivineMount_GreaterSmiteFacts");
-            greaterFacts.Facts = smiteFacts.Facts;
-            var greaterUses = CreateOwned<AddAbilityResources>("KMC_DivineMount_GreaterSmiteUses");
-            greaterUses.Resource = divineMountSmiteResource;
-            greaterUses.RestoreAmount = true;
-            var greaterBonus = CreateOwned<DivineMountSmiteBonus>("KMC_DivineMount_GreaterSmiteBonus");
-            greaterBonus.Mark = divineMountSmiteBuff;
+                CelestialComponents("Celestial", DivineMountPolicy.CelestialReduction, DivineMountPolicy.CelestialResistance));
             divineMountGreaterCelestial = CreateBondFeature("DivineMountGreaterCelestialFeature", DivineMountGreaterCelestialGuid, "KMC.DivineMount.GreaterCelestial", icon, false,
-                CelestialComponents("GreaterCelestial", DivineMountPolicy.GreaterCelestialReduction, DivineMountPolicy.GreaterCelestialResistance, greaterFacts, greaterUses, greaterBonus));
+                CelestialComponents("GreaterCelestial", DivineMountPolicy.GreaterCelestialReduction, DivineMountPolicy.GreaterCelestialResistance));
             var spellResistance = CreateOwned<DivineMountSpellResistance>("KMC_DivineMount_SpellResistance");
             spellResistance.PaladinClass = paladinClass;
             divineMountSpellResistance = CreateBondFeature("DivineMountSpellResistanceFeature", DivineMountSpellResistanceGuid, "KMC.DivineMount.SpellResistance", icon, false, spellResistance);
 
             var intelligenceLink = CreateLink("DivineMountIntelligenceLink", DivineMountIntelligenceLinkGuid, "KMC.DivineMount.Intelligence", icon, divineMountIntelligence, null);
             var celestialLink = CreateLink("DivineMountCelestialLink", DivineMountCelestialLinkGuid, "KMC.DivineMount.Celestial", icon, divineMountCelestial, null);
+            var smiteLink = CreateLink("DivineMountSmiteLink", DivineMountSmiteLinkGuid, "KMC.DivineMount.Smite", icon, divineMountSmite, null);
             var greaterLink = CreateLink("DivineMountGreaterCelestialLink", DivineMountGreaterCelestialLinkGuid, "KMC.DivineMount.GreaterCelestial", icon, divineMountGreaterCelestial, divineMountCelestial);
             var resistanceLink = CreateLink("DivineMountSpellResistanceLink", DivineMountSpellResistanceLinkGuid, "KMC.DivineMount.SpellResistance", icon, divineMountSpellResistance, null);
 
@@ -254,7 +252,7 @@ namespace KingmakerMountedCombat.Integration
                 var entry = new LevelEntry { Level = level };
                 entry.Features.Add(rank);
                 if (DivineMountPolicy.GrantsAdditionalCall(level)) entry.Features.Add(additionalCall);
-                if (level == DivineMountPolicy.CelestialLevel) entry.Features.Add(celestialLink);
+                if (level == DivineMountPolicy.CelestialLevel) { entry.Features.Add(celestialLink); entry.Features.Add(smiteLink); }
                 if (level == DivineMountPolicy.GreaterCelestialLevel) entry.Features.Add(greaterLink);
                 if (level == DivineMountPolicy.SpellResistanceLevel) entry.Features.Add(resistanceLink);
                 return entry;
@@ -324,8 +322,8 @@ namespace KingmakerMountedCombat.Integration
             foreach (var blueprint in new BlueprintScriptableObject[]
             {
                 divineMountCallResource, divineMountSmiteResource, divineMountCallAbility, divineMountSmiteBuff, divineMountSmiteAbility,
-                divineMountIntelligence, divineMountCelestial, divineMountGreaterCelestial, divineMountSpellResistance,
-                intelligenceLink, celestialLink, greaterLink, resistanceLink, additionalCall, callFeature, divineMountProgression,
+                divineMountIntelligence, divineMountSmite, divineMountCelestial, divineMountGreaterCelestial, divineMountSpellResistance,
+                intelligenceLink, celestialLink, smiteLink, greaterLink, resistanceLink, additionalCall, callFeature, divineMountProgression,
                 divineMountHorse, divineMountRidingDog, divineMountSelection, divineBondSelection
             }.Where(item => item != null))
             {
@@ -346,7 +344,7 @@ namespace KingmakerMountedCombat.Integration
                 }
         }
 
-        private BlueprintComponent[] CelestialComponents(string prefix, int reduction, int resistance, params BlueprintComponent[] others)
+        private BlueprintComponent[] CelestialComponents(string prefix, int reduction, int resistance)
         {
             var dr = CreateOwned<AddDamageResistancePhysical>("KMC_DivineMount_" + prefix + "_DR");
             dr.Value = reduction;
@@ -360,7 +358,6 @@ namespace KingmakerMountedCombat.Integration
                 energy.Value = resistance;
                 list.Add(energy);
             }
-            list.AddRange(others);
             return list.ToArray();
         }
 
@@ -458,7 +455,7 @@ namespace KingmakerMountedCombat.Integration
             divineBondLeases.Clear();
             weaponBondUpgrades.Clear();
             divineBondSelection = null; divineMountSelection = null; divineMountProgression = null;
-            divineMountHorse = null; divineMountRidingDog = null; divineMountIntelligence = null;
+            divineMountSmite = null; divineMountHorse = null; divineMountRidingDog = null; divineMountIntelligence = null;
             divineMountCelestial = null; divineMountGreaterCelestial = null; divineMountSpellResistance = null;
             divineMountCallAbility = null; divineMountSmiteAbility = null; divineMountCallResource = null;
             divineMountSmiteResource = null; divineMountSmiteBuff = null;
