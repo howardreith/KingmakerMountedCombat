@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Integration
             internal bool ProcessObservationPending;
             internal string ProcessObservationError;
             internal bool Committed => Shell != null && Shell.IsActed;
+            internal bool AdmittedTurnBased;
         }
 
         private ChargeOwner chargeOwner;
@@ -73,7 +74,7 @@ namespace KingmakerMountedCombat.Integration
                     ["ended"] = p.IsEnded
                 })),
                 ["rider"] = owner.Rider?.UniqueId, ["mount"] = owner.Mount?.UniqueId, ["target"] = owner.Target?.UniqueId,
-                ["generation"] = owner.Generation, ["state"] = owner.Ownership.State.ToString(),
+                ["generation"] = owner.Generation, ["state"] = owner.Ownership.State.ToString(), ["admittedTurnBased"] = owner.AdmittedTurnBased,
                 ["cleanupRequested"] = owner.Ownership.CleanupRequested, ["attempts"] = owner.Ownership.AttemptCount,
                 ["committed"] = owner.Committed, ["commandTerminal"] = owner.Command == null || owner.Command.IsFinished,
                 ["riderSlotReleased"] = owner.Command == null || owner.RiderCommands.Standard != owner.Command,
@@ -107,9 +108,14 @@ namespace KingmakerMountedCombat.Integration
             return ability?.Spell?.Blueprint?.AssetGuid == NativeMountedControlService.MountedChargeAbilityGuid;
         }
 
+        // A charge in flight: not retired, its attack not finished, and its shell not interrupted before delivering one.
+        private static bool ChargeLive(ChargeOwner owner) => !owner.Ownership.CleanupRequested &&
+            (owner.Command != null ? !owner.Command.IsFinished : owner.Shell == null || owner.Shell.Result != UnitCommand.ResultType.Interrupt);
+
         // Called before any native queue mutation. Reentrant Run/AddToQueue for the same exact
-        // shell is lawful; an independent request may not steal or overwrite this owner.
-        internal bool AdmitChargeCommand(UnitCommands container, UnitCommand command)
+        // shell is lawful; an independent request may not steal or overwrite this owner, and
+        // nothing is destroyed here for a live charge: see MountedChargeRequestPolicy.
+        internal bool AdmitChargeCommand(UnitCommands container, UnitCommand command, MountedChargeRequestRoute route = MountedChargeRequestRoute.Run)
         {
             var current = chargeOwner;
             if (current != null &&
@@ -117,17 +123,31 @@ namespace KingmakerMountedCombat.Integration
             {
                 var ownedRequest = ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
                     current.Command?.OwnsChargeCarrier(command) == true;
-                // Native Run interrupts the old command before installing its replacement. Resolve
-                // our ownership first so a failure cannot strand debt behind a newly admitted action.
-                if (current.Ownership.CleanupRequested || !ownedRequest)
+                // The mount is also spoken for from the shell's admission: delivery's carrier would end whatever it was just given.
+                var mountContainer = ReferenceEquals(container, current.MountCommands);
+                var attackWaiting = current.Command != null ? !current.Command.IsStarted && !current.Command.IsFinished : mountContainer;
+                switch (MountedChargeRequestPolicy.Decide(route, ownedRequest, ChargeLive(current), attackWaiting, mountContainer,
+                    command?.AiAction != null, route == MountedChargeRequestRoute.Run && mountContainer && container.HasUniterrapitble()))
                 {
-                    if (!TryDrainChargeOwnership("pair-command-replacement")) return false;
-                    if (ownedRequest) return false; // retired shells/carriers may never resume
+                    case MountedChargeRequestDecision.Refuse: return false;
+                    case MountedChargeRequestDecision.RefuseMountEnqueue:
+                        LastFeedback = "The mount is carrying a charge. Give it its next order after the charge."; return false;
+                    case MountedChargeRequestDecision.RefuseStarting:
+                        LastFeedback = "The charge is starting. Stop it, or give the next order once it is under way."; return false;
+                    case MountedChargeRequestDecision.ReturnToQueue:
+                        container.Queue.AddFirst(command); return false;
+                    case MountedChargeRequestDecision.DrainElseReturnToQueue:
+                        if (TryDrainChargeOwnership("charge-over-successor")) break;
+                        container.Queue.AddFirst(command); return false;
+                    case MountedChargeRequestDecision.DrainThenRefuse:
+                        TryDrainChargeOwnership("charge-over-owned-request"); return false;
+                    case MountedChargeRequestDecision.DrainThenPass:
+                        if (!TryDrainChargeOwnership("charge-over-new-request")) return false;
+                        break;
                 }
             }
             if (!IsMountedChargeShell(command)) return true;
-            if (disposed || ChargeAdmissionFenced || !settings.EnableMountedCharge ||
-                TurnBased.Controllers.CombatController.IsInTurnBasedCombat() || ChargeNativeWorldLoading) return false;
+            if (disposed || ChargeAdmissionFenced || !settings.EnableMountedCharge || ChargeNativeWorldLoading) return false;
             var shell = (UnitUseAbility)command;
             if (chargeOwner != null)
                 return ReferenceEquals(chargeOwner.Shell, shell) && ReferenceEquals(container, chargeOwner.RiderCommands) &&
@@ -140,9 +160,12 @@ namespace KingmakerMountedCombat.Integration
             if (rider == null || !relationship.IsExactActivePairUnit(rider) || relationship.Mount == null ||
                 container != rider.Commands || shell.Spell.Caster?.Unit != rider)
                 return false;
-            // Native admission still evaluates targeting/action availability; this observer only
-            // takes custody of the exact shell, without starting it or spending anything.
+            // Only a request the shared decision allows may end the pair's accepted work. Whatever reaches this
+            // Run, including an automatic caster or a route without the click's own target check, is refused here first.
+            if (shell.AiAction != null || !EvaluateMountedChargeRequest(CaptureMountedChargeRequest(rider, shell.Target?.Unit), rider).IsAllowed) return false;
             CaptureNativeChargeOwner(rider, container, shell);
+            try { ReleaseReplaceablePairCommands(); }
+            catch (Exception exception) { logger.Exception("Charge admission release", exception); chargeOwner.Ownership.Retire(); }
             return true;
         }
 
@@ -154,6 +177,21 @@ namespace KingmakerMountedCombat.Integration
             chargeOwner = CreateChargeOwner(rider, relationship.Mount, shell.Target?.Unit, container,
                 relationship.Mount.Commands, shell, relationship.MountedPairGeneration, Time.frameCount);
             chargeOwner.PairOwner = relationship.Ownership.FindActive(rider);
+            chargeOwner.AdmittedTurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+        }
+
+        // Native AddToQueue runs at once when the slot is free, and that Run interrupts the paired slot: for a live charge it would
+        // displace what was asked only to follow it. A rider's request is queued as asked; the mount's is refused by the same decision.
+        internal bool AdmitChargeEnqueueOrRun(UnitCommands container, UnitCommand command, bool first)
+        {
+            if (!AdmitChargeCommand(container, command, MountedChargeRequestRoute.Enqueue)) return false;
+            var current = chargeOwner;
+            if (current == null || !ChargeLive(current) || !ReferenceEquals(container, current.RiderCommands) ||
+                ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
+                container.GetCommand(command.Type) != null) return true;
+            if (command.Executor == null) command.Init(current.Rider);
+            if (first) container.Queue.AddFirst(command); else container.Queue.AddLast(command);
+            return false;
         }
 
         internal Action<bool> BeginChargeNativeAction(UnitUseAbility shell)
@@ -243,9 +281,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool AllowChargeExecution(UnitCommand command)
         {
             if (!IsMountedChargeShell(command)) return true;
-            return !disposed && !ChargeAdmissionFenced && settings.EnableMountedCharge &&
-                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() && !ChargeNativeWorldLoading &&
-                chargeOwner != null && ReferenceEquals(chargeOwner.Shell, command) &&
+            return !disposed && !ChargeAdmissionFenced && settings.EnableMountedCharge && !ChargeNativeWorldLoading &&
+                chargeOwner != null && chargeOwner.AdmittedTurnBased == TurnBased.Controllers.CombatController.IsInTurnBasedCombat() && ReferenceEquals(chargeOwner.Shell, command) &&
                 !chargeOwner.Ownership.CleanupRequested && chargeOwner.Generation == relationship.MountedPairGeneration && IsCurrentChargePair(chargeOwner);
         }
 
@@ -406,11 +443,13 @@ namespace KingmakerMountedCombat.Integration
             if (owner == null) { ResumeChargeNativeBoundaries(); return; }
             ObserveChargeProcess(owner.Shell);
             if (owner.Ownership.CleanupRequested || !settings.EnableMountedCharge || !settings.EnableUnsafeMovementExperiment ||
-                TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
+                owner.AdmittedTurnBased != TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
                 owner.Generation != relationship.MountedPairGeneration || owner.Rider != relationship.Rider || owner.Mount != relationship.Mount ||
                 owner.Command != null && owner.Command.IsFinished ||
                 owner.Command == null && owner.ProcessEnded != null && owner.ProcessEnded() ||
                 owner.Command == null && owner.Shell != null && owner.Shell.Result == UnitCommand.ResultType.Interrupt ||
+                // Native Run cleared its queue without ending the waiting attack. It can never start now.
+                owner.Command != null && !owner.Command.IsStarted && Absent(owner.RiderCommands, owner.Command) ||
                 owner.Command == null && owner.Process == null && Time.frameCount > owner.AdmissionFrame && Absent(owner.RiderCommands, owner.Shell))
                 TryDrainChargeOwnership("bounded-update");
             ResumeChargeNativeBoundaries();

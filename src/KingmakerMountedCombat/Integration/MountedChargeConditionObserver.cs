@@ -57,6 +57,9 @@ namespace KingmakerMountedCombat.Integration
             owners.Remove(this);
         }
 
+        // The delivered buff's later native removal has no owner left to report to.
+        internal void HandOff() => owners.Remove(this);
+
         private static FieldInfo ResolveCounterField()
         {
             var field = typeof(UnitState).GetField("m_Conditions", BindingFlags.Instance | BindingFlags.NonPublic);

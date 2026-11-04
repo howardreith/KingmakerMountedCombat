@@ -93,7 +93,8 @@ namespace KingmakerMountedCombat
                 nativeControls.RetiredPrimaryHelpersSelected = runtimeAutomation != null && !runtimeAutomation.IsManualReview &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -364,9 +365,9 @@ namespace KingmakerMountedCombat
                 !persistence.HasSaveAdmissionFence && !persistence.LoadInFlight &&
                 world.Pairs.All(pair => !nativeControls.HasUnsettledShellFor(pair.Relationship));
             settings.EnableMountedCharge = GUILayout.Toggle(settings.EnableMountedCharge,
-                "Enable optional real-time Mounted Charge");
+                "Enable Mounted Charge (this session; on again at the next launch)");
             GUI.enabled = priorEnabled;
-            GUILayout.Label("Change Charge outside combat with every pair dismounted. Turn-based Charge is unavailable and refuses without spending actions.");
+            GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
             GUILayout.Label("Mounts: your supported Mammoth or the Horse chosen through Ranger companion progression. Unsupported sizes, forms and rigs refuse admission.");
             GUILayout.Label("Before removing KMC, prepare a clean save. A campaign containing a KMC Horse still requires the mod.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;

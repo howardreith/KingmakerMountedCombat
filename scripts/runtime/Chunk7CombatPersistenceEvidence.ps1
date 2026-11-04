@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7CombatDebtDiagnosticsEvidence.ps1')
-function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('mounted-combat-feat-tb-debt-manual','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
+function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('mounted-charge-tb-committed-manual','mounted-combat-feat-tb-debt-manual','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
     $pairCount=if($zero){0}elseif($legacy){1}else{2};$ownerCount=if($legacy){1}else{2};$slotCount=$pairCount*2
@@ -70,14 +70,15 @@ function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     if($current-gt1){throw 'Two owners claim the single native turn.'}
     if($tb) {
         if($combat.Round-lt1-or$combat.Roster.Count-eq0){throw 'Native TB roster/round absent.'}
-        if(-not$zero-and-not$legacy-and($combat.Current.ActorId-cne$second-or$current-ne1)){throw 'Two-pair TB checkpoint lost its saved second-rider turn.'}
+        $committedCharge=$Request.persistenceCase-ceq'mounted-charge-tb-committed-manual'
+        if(-not$zero-and-not$legacy-and($combat.Current.ActorId-cne$(if($committedCharge){$first}else{$second})-or$current-ne1)){throw 'Two-pair TB checkpoint lost its saved second-rider turn.'}
     } elseif($combat.Roster.Count-ne0-or$null-ne$combat.Current-or$null-ne$combat.NextActor){throw 'RT save contains a synthetic roster or current turn.'}
     if(-not$legacy) {
         $firstDebt=$native[([Guid]$first).ToString('N')].Native;$secondDebt=$native[([Guid]$second).ToString('N')].Native
         $a=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$first});$b=@($Archive.Participations|Where-Object{$_.State.RiderId-ceq$second})
         if($a.Count-ne1-or$b.Count-ne1){throw 'Two-pair checkpoint lost either independent owner.'}
         $mountB=$native[([Guid]$b[0].State.MountId).ToString('N')].Native
-        if($tb-and-not$zero-and($firstDebt.Standard-le0.1-or$firstDebt.Standard-gt6.001-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
+        if($tb-and-not$zero-and$Request.persistenceCase-cne'mounted-charge-tb-committed-manual'-and($firstDebt.Standard-le0.1-or$firstDebt.Standard-gt6.001-or$secondDebt.Standard-le0.1-or$mountB.Standard-ne0)){throw 'TB archive omitted the distinct completed/current native actor expenditures.'}
         if(-not$tb-and($firstDebt.Standard-le0.1-or$mountB.Standard-le0.1-or$secondDebt.Standard-ne0)){throw 'RT archive omitted the distinct rider/other-pair mount expenditures.'}
     }
     $allocations=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -327,7 +328,7 @@ function Get-KmcChunk7IndependentTurnLabelPrefix($Request){
     return 'independent-native-mount-'
 }
 function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$Cold) {
-    $case=$Request.persistenceCase;$kind=switch($case){'mounted-combat-feat-tb-debt-manual'{'TurnBasedDebts'};'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
+    $case=$Request.persistenceCase;$kind=switch($case){'mounted-charge-tb-committed-manual'{'TurnBasedDebts'};'mounted-combat-feat-tb-debt-manual'{'TurnBasedDebts'};'multi-rt-debt-manual'{'RealTimeDebts'};'multi-tb-debt-manual'{'TurnBasedDebts'};'zero-mounted-tb-retained-manual'{'ZeroMountedRetained'};'legacy-mounted-pending-tb-manual'{'MountedPendingOnly'};'owned-schema2-pending-current-manual'{'MountedPendingOnly'};'pending-schema3-control-manual'{'MountedPendingOnly'}}
     Assert-KmcChunk7Boolean $Value.ready $true;Assert-KmcChunk7Boolean $Value.continuationComplete $true
     $provenance=if($Cold){'cold-native-archive-binding'}else{'source-native-setup'}
     if($Value.kind-cne$kind-or$Value.provenance-cne$provenance-or$Value.actorIds-isnot[Array]-or$Value.actorIds.Count-ne4-or
@@ -343,7 +344,8 @@ function Assert-KmcChunk7CheckpointContinuation($Value,$Archive,$Request,[bool]$
     if($before.Count-ne1-or$after.Count-ne1){throw 'Native continuation boundary snapshots are absent.'};$before=$before[0];$after=$after[0]
     foreach($state in @($before,$after)){if(@($state.nativeActors).Count-ne4-or@($state.grants).Count-ne4){throw 'Native continuation omitted actor debt or grant counts.'};foreach($id in $ids){if(@($state.nativeActors|Where-Object Id -CEQ $id).Count-ne1-or@($state.grants|Where-Object actorId -CEQ $id).Count-ne1){throw 'Native continuation duplicates an actor debt or grant identity.'}}}
     $events=@($Value.trace.events|Where-Object{$_.sequence-gt$Value.continuationTraceOffset})
-    if($kind-cin@('RealTimeDebts','TurnBasedDebts')) {
+    if($case-ceq'mounted-charge-tb-committed-manual'){Assert-KmcSprint7ChargeContinuation $Value $ids}
+    elseif($kind-cin@('RealTimeDebts','TurnBasedDebts')) {
         $m=$Value.driver.movement;Assert-KmcChunk7Boolean $m.terminal $true
         if($m.executorId-cne$ids[3]-or$m.command-eq0-or$m.command-ne$Value.driver.movementCommand-or$Value.driver.movementExecutorId-cne$ids[3]){throw 'Continuation ground command routed to a different actor.'}
         $start=@($m.before.positions|Where-Object actorId -CEQ $ids[3]);$end=@($m.after.positions|Where-Object actorId -CEQ $ids[3])
@@ -507,6 +509,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold-or$legacy){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     Assert-KmcChunk7CheckpointContinuation $o.combatContinuation $archive $Request $cold
     if($Request.persistenceCase-ceq'mounted-combat-feat-tb-debt-manual'){Assert-KmcSprint6FeatPersistence $Request $o $cold}
+    if($Request.persistenceCase-ceq'mounted-charge-tb-committed-manual'){Assert-KmcSprint7ChargePersistence $o $archive $cold}
     $continuation=$o.combatContinuation;$ids=@($continuation.actorIds)
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'};$snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact native archive snapshot is missing or duplicated.'}

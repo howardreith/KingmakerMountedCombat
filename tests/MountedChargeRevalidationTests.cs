@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
                 TargetHostile = true,
                 TargetAttackable = true,
                 StraightRoute = true,
+                LaneClear = true,
                 LandingBlocked = false,
                 MountAvoidanceDisabled = false,
                 Distance = 6f,
@@ -61,6 +62,66 @@ namespace KingmakerMountedCombat.Tests
 
         internal static void Register(TestRunner runner)
         {
+
+            runner.Run("a forced line needs the lane as well as the centre, and a caller that omits it fails closed", () =>
+            {
+                var centreOnly = new MountedChargeRevalidationRequest();
+                centreOnly.Phase = MountedChargeRevalidationPhase.BeforeRepath;
+                centreOnly.StraightRoute = true; centreOnly.RelationshipMounted = true; centreOnly.ExactPair = true; centreOnly.TargetValid = true; centreOnly.TargetVisible = true;
+                centreOnly.TargetHostile = true; centreOnly.TargetAttackable = true; centreOnly.RiderOwnsAttackSlot = true; centreOnly.CarrierOwnsMountMoveSlot = true; centreOnly.MountQueueEmpty = true;
+                centreOnly.Distance = 5f; centreOnly.MaximumRange = 30f;
+                var refused = MountedChargeRevalidation.Evaluate(centreOnly);
+                TestRunner.True(!refused.IsValid && refused.RejectionCode == MountedCombatRejectionCode.NoPath, "A centre-clear, flank-unread line was authorized.");
+                centreOnly.LaneClear = true;
+                TestRunner.True(MountedChargeRevalidation.Evaluate(centreOnly).IsValid, "A clear lane was refused: " + MountedChargeRevalidation.Evaluate(centreOnly).Reason);
+            });
+
+            runner.Run("the lane decision reads the mount's own width along the line to the landing point", () =>
+            {
+                // A corridor 1.0 either side of the centre, narrowed to 0.5 between 3 and 4 metres along.
+                System.Func<float, float, bool> corridor = (along, lateral) => lateral <= (along >= 3f && along <= 4f ? 0.5f : 1.0f);
+                TestRunner.True(MountedChargeLane.Clear(10f, 2f, 0.5f, corridor), "A narrow mount was refused a gap it fits.");
+                TestRunner.True(!MountedChargeLane.Clear(10f, 2f, 1.0f, corridor), "A wide mount was given a gap too narrow for its flanks.");
+                TestRunner.True(MountedChargeLane.Clear(3f, 2f, 1.0f, (along, lateral) => along >= 0.9f), "The ground under the mount was asked.");
+                TestRunner.True(MountedChargeLane.Clear(3f, 2f, 2f, (along, lateral) => false), "A stop inside the body's own length asked its own ground.");
+                TestRunner.True(!MountedChargeLane.Clear(5f, 2f, 2f, (along, lateral) => along < 3f), "A stop past the body did not read its landing footprint.");
+                TestRunner.True(MountedChargeLane.Clear(2f, 2f, 1f, (along, lateral) => false), "A target already in reach has no lane to read.");
+                var sampled = new System.Collections.Generic.List<float>();
+                MountedChargeLane.Clear(6f, 2f, 1f, (along, lateral) => { sampled.Add(along); return true; });
+                TestRunner.True(sampled[0] == 1f && sampled[sampled.Count - 1] == 4f && sampled.Count == 7, "The lane was not sampled at half corpulence up to its landing point.");
+            });
+
+            runner.Run("only a stopped line on a live carrier asks to be forced again", () =>
+            {
+                TestRunner.True(MountedChargeLane.MustAuthorizeReforce(true, true, false), "A latched force mode with no path hid a stopped line.");
+                TestRunner.True(MountedChargeLane.MustAuthorizeReforce(true, false, true), "A lost force mode was not read.");
+                TestRunner.True(!MountedChargeLane.MustAuthorizeReforce(true, true, true), "A running line asked for a lane scan every tick.");
+                TestRunner.True(!MountedChargeLane.MustAuthorizeReforce(false, false, false), "A finished carrier asked to be forced.");
+            });
+
+            runner.Run("a live charge is never destroyed by the route a request took", () =>
+            {
+                System.Func<MountedChargeRequestRoute, bool, bool, bool, bool, bool, MountedChargeRequestDecision> decide = (r, o, l, w, m, b) => MountedChargeRequestPolicy.Decide(r, o, l, w, m, b);
+                TestRunner.True(MountedChargeRequestPolicy.Decide(MountedChargeRequestRoute.Run, false, true, false, true, false, true) == MountedChargeRequestDecision.RefuseMountEnqueue, "A mount Run that native would queue could mark the carrier to end.");
+                TestRunner.True(MountedChargeRequestPolicy.Decide(MountedChargeRequestRoute.Run, true, true, false, true, false, true) == MountedChargeRequestDecision.Pass, "The carrier was refused by the same rule.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Enqueue, false, true, false, false, false) == MountedChargeRequestDecision.Pass, "A rider's pending follow-up did not pass.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Run, false, true, false, false, false) == MountedChargeRequestDecision.Pass, "A Run was not left to its later gates.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Enqueue, false, true, false, true, false) == MountedChargeRequestDecision.RefuseMountEnqueue, "A mount enqueue would be dropped by the next carrier.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Run, false, true, true, false, false) == MountedChargeRequestDecision.RefuseStarting, "A Run would clear the waiting attack.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Run, false, true, false, false, true) == MountedChargeRequestDecision.Refuse, "A brain proposal did not wait.");
+                TestRunner.True(decide(MountedChargeRequestRoute.QueuePromotion, false, true, false, false, false) == MountedChargeRequestDecision.ReturnToQueue, "A promotion during a charge would be lost.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Run, true, true, true, true, false) == MountedChargeRequestDecision.Pass, "The charge's own command was refused.");
+                foreach (MountedChargeRequestRoute route in System.Enum.GetValues(typeof(MountedChargeRequestRoute)))
+                {
+                    foreach (var waiting in new[] { false, true }) foreach (var mount in new[] { false, true }) foreach (var brain in new[] { false, true }) foreach (var owned in new[] { false, true })
+                    {
+                        var live = decide(route, owned, true, waiting, mount, brain);
+                        TestRunner.True(live != MountedChargeRequestDecision.DrainThenPass && live != MountedChargeRequestDecision.DrainThenRefuse && live != MountedChargeRequestDecision.DrainElseReturnToQueue, "A live charge was drained: " + live);
+                    }
+                }
+                TestRunner.True(decide(MountedChargeRequestRoute.QueuePromotion, false, false, false, false, false) == MountedChargeRequestDecision.DrainElseReturnToQueue, "A successor after the charge could be lost to its cleanup.");
+                TestRunner.True(decide(MountedChargeRequestRoute.Run, true, false, false, false, false) == MountedChargeRequestDecision.DrainThenRefuse, "A retired shell or carrier could resume.");
+            });
             runner.Run("a charge whose conditions still hold revalidates at every phase", () =>
             {
                 foreach (var phase in AllPhases)
