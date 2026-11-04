@@ -341,7 +341,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;
-                        Move(secondRider, secondMount, AreaAutosaveCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
+                        Move(secondRider, secondMount, AreaAutosaveCase || PaladinBondCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
                     case 12:
                         AssertOwners(); if (!MovementSettled()) return;
                         Pass("C7-persistence-native-continuation"); snapshots.Add(Capture("continuation-complete"));
