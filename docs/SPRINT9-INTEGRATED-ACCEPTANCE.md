@@ -1,6 +1,6 @@
 # Sprint 9: integrated acceptance and release candidate
 
-**RELEASE CANDIDATE READY - OWNER ACCEPTANCE PENDING.** No merge, tag, publication or installation is selected. Owner acceptance is not produced by an agent, and none is recorded here.
+**RELEASED BY OWNER ORDER as preview.103.** The owner accepted PR #14 and ordered this release on 2026-11-04. No per-item play results have been supplied, so the owner script's items and the limits below stay open until they are. Evidence below stands on preview.102 and earlier binaries. The released binary is a rebuild from `main` that changes only the version; the GitHub release records its hashes.
 
 ## Identity
 
