@@ -58,3 +58,9 @@ Candidate-a passed 8 stages (3.96 min) before selector correction; later focused
 Meter checkpoint: 10.12/60 min; 0/3 real launches. No installation mutation/transaction/restoration. Current UI setting is enabled (owner confirmed), but this session cannot start its Windows sandbox helper (`codex-windows-sandbox-setup.exe`, program not found); independent trusted Node route fails too. Native/visible/performance acceptance remains TODO. No repeated settings/fixture requests.
 
 Automatic approval review rejected direct push and requires the exact guarded feature-branch helper. Existing helper is stale for F1's exact branch/worktree/new art; original unchanged. Reviewed narrow proposal and read-only positive/negative tests exist outside product source; owner approval pending. Full template-based handoff with exact identities/outcomes/limits: `C:\Dev\KingmakerMountedCombatLab\artifacts\finalize-f1-review-handoff.md`. No PR yet, no release selected.
+
+## Guarded publication resolved (2026-11-04)
+
+Howie approved the reviewed push-guard update and draft PR. Original helper backed up; approved helper SHA256 fad5336008c771f72852f04216933d4d00ee991c73ed10dba26c350819775343. Exact helper WhatIf PASS, then guarded push verified remote 4832086d8a42ce274cc32d52952d9cfeb54f5eec. Draft PR #16: https://github.com/howardreith/KingmakerMountedCombat/pull/16. Compiled source fd7f64f5 independently confirmed published through GitHub's commit API. Later handoff documentation does not change DLL/package identity.
+
+Meter 10.13/60 minutes at publication; real launches 0/3. One UI client retry after approval still failed to start codex-windows-sandbox-setup.exe (program not found). Native acceptance remains TODO. No runtime transaction/installation replacement/restoration. No new build, Candidate replay or expanded campaign selected.
