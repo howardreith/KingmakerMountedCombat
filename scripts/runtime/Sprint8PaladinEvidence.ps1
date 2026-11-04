@@ -83,6 +83,7 @@ function Assert-KmcS8MountCase($e){
   $level=$script:KmcS8RankLevel[[int]$f.rank]
   if([int]$f.pet.characterLevel -ne $level -or $f.pet.canLevelUp -ne $false){ throw ('Sprint 8 mount: at '+$k+' the pet stands at level '+$f.pet.characterLevel+', not the rank table''s '+$level) }
   if($f.pet.upgrade -ne $true){ throw ('Sprint 8 mount: the species advancement is missing at '+$k) }
+  if([int]$k -ge 11 -and ([int]$f.pet.smiteFact -ne 1 -or $f.pet.smiteAbility -ne $true -or [int]$f.pet.smiteUses -lt 1)){ throw ('Sprint 8 mount: the mount has no usable smite at '+$k) }
  }
  if(@($e.petCommits|Where-Object{$_.committed -ne $true}).Count -ne 0 -or @($e.petCommits).Count -lt 8){ throw 'Sprint 8 mount: the pet levels were not native commits' }
  if($e.boundaries.'11'.after.pet.reductionSources -cnotcontains 'AddDamageResistancePhysical=5'){ throw 'Sprint 8 mount: DR 5/evil is not live at 11' }
@@ -94,7 +95,7 @@ function Assert-KmcS8ControlCase($e){
  if($c.available -ne $true -or [double]$c.distanceBefore -lt 6 -or [double]$c.distanceAfter -gt 4 -or [int]$c.usesBefore-[int]$c.usesAfter -ne 1){ throw 'Sprint 8 control: the call did not bring the mount for one use' }
  if($e.mounted -ne $true -or [string]$e.mountedProfile -cne 'medium-humanoid-horse-v1' -or $e.callWhileMounted.available -ne $false){ throw 'Sprint 8 control: mounting or the mounted refusal of the call failed' }
  if([double]$e.movedMetres -lt 2 -or [double]$e.riderWithMount -gt 2){ throw 'Sprint 8 control: the mounted pair did not travel together' }
- if($e.attack.clicked -ne $true -or $e.attack.commanded -ne $true){ throw 'Sprint 8 control: the ordinary attack input was not taken' }
+ if($e.attack.clicked -ne $true -or [int]$e.attack.riderAttacks -lt 1 -or $e.attack.mounted -ne $true){ throw 'Sprint 8 control: the mounted rider did not attack from the ordinary input' }
  if($e.dismounted -ne $true){ throw 'Sprint 8 control: the pair did not dismount' }
  $s=$e.smite
  if($s.marked -ne $true -or $s.canTarget -ne $true -or [int]$s.usesBefore-[int]$s.usesAfter -ne 1 -or [int]$s.additionalDamageMarked-[int]$s.additionalDamageUnmarked -ne [int]$s.petHitDice){ throw 'Sprint 8 control: Celestial Smite did not mark or add the pet''s Hit Dice' }

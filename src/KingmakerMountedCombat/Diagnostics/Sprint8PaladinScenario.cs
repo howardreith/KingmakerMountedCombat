@@ -234,7 +234,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["callUses"] = unit.Resources.GetResourceAmount(service.DivineMountCallResource),
                 ["callMax"] = service.DivineMountCallResource.GetMaxAmount(unit),
                 ["weaponUsesMax"] = service.WeaponBondFeature.GetComponents<AddAbilityResources>().Sum(value => value.Resource.GetMaxAmount(unit)),
-                ["ownedPets"] = Game.Instance.State.Units.Where(value => value.Descriptor.IsPet && value.Descriptor.Master.Value == unit.Unit).Select(value => value.UniqueId).Count()
+                ["ownedPets"] = Game.Instance.State.Units.Concat(Game.Instance.Player.CrossSceneState.AllEntityData.OfType<UnitEntityData>()).Where(value => value.Descriptor.IsPet && value.Descriptor.Master.Value == unit.Unit).Select(value => value.UniqueId).Distinct().Count()
             };
             facts["pet"] = pet == null ? null : Pet(service, pet);
             return facts;
@@ -256,7 +256,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["greaterCelestial"] = features.GetRank(service.DivineMountGreaterCelestial), ["spellResistanceFact"] = features.GetRank(service.DivineMountSpellResistance),
                 ["spellResistance"] = resistance == null ? 0 : resistance.GetValue(null),
                 ["reductionSources"] = new JArray((reduction?.AllSources ?? Enumerable.Empty<AddDamageResistanceBase>()).Select(source => source.GetType().Name + "=" + source.GetCurrentValue())),
-                ["smiteAbility"] = pet.Descriptor.Abilities.GetAbility(service.DivineMountSmiteAbility) != null,
+                ["smiteFact"] = features.GetRank(service.DivineMountSmite), ["smiteAbility"] = pet.Descriptor.Abilities.GetAbility(service.DivineMountSmiteAbility) != null,
                 ["smiteUses"] = pet.Descriptor.Resources.GetResourceAmount(service.DivineMountSmiteResource) };
         }
     }
@@ -298,6 +298,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData s8Weapon, s8Owner;
         private Sprint8SmiteProbe s8Probe;
         private bool s8SelectionDisabled;
+        private DiagnosticCombatTargetService s8TargetService;
+        private UnitEntityData s8Hostile;
+        private Sprint6RuleObserver s8Rules;
 
         private void BeginSprint8Paladin()
         {
@@ -323,6 +326,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool DrainSprint8Fixture()
         {
             if (s8Probe != null) { s8Probe.Dispose(); s8Probe = null; }
+            if (s8Rules != null) { s8Rules.Dispose(); s8Rules = null; }
+            if (s8TargetService != null)
+            {
+                if (!s8TargetService.DestroyAndVerify()) return false;
+                s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
+            }
             if (s8SelectionDisabled) { horseService.SetSelectionEnabled(true); s8SelectionDisabled = false; }
             var builder = Game.Instance.UI.CharacterBuildController;
             if (builder?.LevelUpController != null && builder.Unit != null) { builder.LevelUpController.Cancel(); builder.Show(false); }
@@ -600,6 +609,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var owner = Sprint8MountOwner(build, HorseCompanionBlueprintService.DivineMountHorseGuid, 5);
             while (owner.MoveNext()) yield return null;
             var unit = s8Owner.Descriptor;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
             var commits = new JArray();
             s8Facts["petCommits"] = commits;
             var boundaries = new JObject();
@@ -609,6 +620,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var progress = Sprint8LevelTo(build, unit, level);
                 while (progress.MoveNext()) yield return null;
+                for (var frame = 0; frame < 10; frame++) yield return null; // the live companion sync runs once per update
                 var before = Sprint8Snapshot(unit);
                 var pet = unit.Pet;
                 var petLevels = Sprint8CommitPetLevels(pet, commits);
@@ -619,13 +631,18 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["final"] = Sprint8Snapshot(unit);
         }
 
+        private IEnumerator Sprint8Field()
+        {
+            Sprint8Build.BringToField(s8Owner, rider.Position + rider.OrientationDirection * 4f);
+            var pet = s8Owner.Descriptor.Pet;
+            for (var frame = 0; frame < 60 && (pet == null || pet.View?.AgentASP == null || !pet.IsInState); frame++) yield return null;
+            for (var frame = 0; frame < 30; frame++) yield return null;
+        }
+
         private IEnumerator Sprint8ControlCase()
         {
             if (s8Owner == null) throw new InvalidOperationException("The Divine Mount owner is missing.");
             var pet = s8Owner.Descriptor.Pet;
-            Sprint8Build.BringToField(s8Owner, rider.Position + rider.OrientationDirection * 4f);
-            for (var frame = 0; frame < 60 && (pet.View?.AgentASP == null || !pet.IsInState); frame++) yield return null;
-            for (var frame = 0; frame < 30; frame++) yield return null;
             s8Facts["inField"] = new JObject { ["owner"] = s8Owner.IsInGame, ["pet"] = pet.IsInGame, ["profile"] = SupportedMountedProfiles.Resolve(s8Owner, pet)?.Id };
             s8Facts["before"] = Sprint8Snapshot(s8Owner.Descriptor);
 
@@ -658,57 +675,58 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["movedMetres"] = Vector3.Distance(pet.Position, from);
             s8Facts["riderWithMount"] = Vector3.Distance(pet.Position, s8Owner.Position);
 
-            // A compact attack neighbour: the ordinary hostile click, and the pair settling afterwards.
-            s8Facts["attack"] = new JObject { ["clicked"] = false };
-            if (target != null)
+            // A compact attack neighbour: the ordinary hostile click on a native target, the same way every mounted row attacks.
+            s8TargetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            s8Hostile = s8TargetService.Spawn(s8Owner, pet, FindWalkablePoint(s8Owner.Position, 4.5f, 1f), request.RunId + "-s8", true, true);
+            if (!s8TargetService.PrepareForPlayerClick(s8Hostile) || !s8TargetService.QueueBidirectionalCombatMemory(s8Owner, s8Hostile))
+                throw new InvalidOperationException("The Sprint 8 target's visibility or combat-memory lease failed.");
+            s8TargetService.BeginExpectedAttackDispatch(s8Hostile);
+            s8Rules = new Sprint6RuleObserver(s8Hostile);
+            for (var frame = 0; frame < 20; frame++) yield return null;
+            SelectionManager.Instance.SelectUnit(s8Owner.View, true, true, false);
+            var attack = new JObject();
+            s8Facts["attack"] = attack;
+            using (var input = new NativeOrdinaryAttackInput(s8Hostile)) attack["clicked"] = input.Click();
+            var until = Time.time + 12f;
+            while (Time.time < until && !s8Rules.Attacks.Any(row => row.Value<string>("attacker") == s8Owner.UniqueId))
             {
-                target.Position = FindWalkablePoint(pet.Position, 3f, 1f);
+                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
                 yield return null;
-                var attacksBefore = 0;
-                SelectionManager.Instance.SelectUnit(s8Owner.View, true, true, false);
-                using (var input = new NativeOrdinaryAttackInput(target))
-                    s8Facts["attack"] = new JObject { ["clicked"] = input.Click(), ["attacksBefore"] = attacksBefore };
-                for (var frame = 0; frame < 240; frame++)
-                {
-                    if (!s8Owner.Commands.Empty) ((JObject)s8Facts["attack"])["commanded"] = true;
-                    yield return null;
-                }
-                s8Owner.Commands.InterruptAll();
-                pet.Commands.InterruptAll();
-                for (var frame = 0; frame < 60 && !(s8Owner.Commands.Empty && pet.Commands.Empty); frame++) yield return null;
             }
+            attack["riderAttacks"] = s8Rules.Attacks.Count(row => row.Value<string>("attacker") == s8Owner.UniqueId);
+            attack["mounted"] = state() == RelationshipState.Mounted;
+            s8Owner.Commands.InterruptAll();
+            pet.Commands.InterruptAll();
+            for (var frame = 0; frame < 60 && !(s8Owner.Commands.Empty && pet.Commands.Empty); frame++) yield return null;
+
+            // Celestial Smite through the pet's own ability: the marked evil target takes the pet's Hit Dice in damage.
+            s8Hostile.Descriptor.Alignment.Set(Alignment.NeutralEvil); // disclosed setup: the spawned target is not evil
+            var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
+            s8Facts["smite"] = smite;
+            var weapon = pet.GetFirstWeapon();
+            s8Probe = new Sprint8SmiteProbe(pet);
+            Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, weapon, 0));
+            smite["additionalDamageUnmarked"] = s8Probe.LastAdditionalDamage;
+            var ability = pet.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
+            var wrapper = new Kingmaker.Utility.TargetWrapper(s8Hostile);
+            smite["canTarget"] = ability?.CanTarget(wrapper);
+            pet.Commands.Run(new UnitUseAbility(ability, wrapper));
+            for (var frame = 0; frame < 240 && !pet.Commands.Empty; frame++) { s8TargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            for (var frame = 0; frame < 10; frame++) yield return null;
+            smite["usesAfter"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
+            smite["marked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+            Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, weapon, 0));
+            smite["additionalDamageMarked"] = s8Probe.LastAdditionalDamage;
+            smite["petHitDice"] = pet.Descriptor.Progression.CharacterLevel;
+            s8Probe.Dispose(); s8Probe = null;
+            s8Rules.Dispose(); s8Rules = null;
+            for (var frame = 0; frame < 300 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
+            s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
 
             for (var frame = 0; frame < 240 && !Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.DismountAbility, s8Owner); frame++) yield return null;
             for (var frame = 0; frame < 600 && state() == RelationshipState.Mounted; frame++) yield return null;
             s8Facts["dismounted"] = state() != RelationshipState.Mounted;
             for (var frame = 0; frame < 30; frame++) yield return null;
-
-            // Celestial Smite through the pet's own ability: the marked evil target takes the pet's Hit Dice in damage.
-            if (target != null)
-            {
-                target.Descriptor.Alignment.Set(Alignment.NeutralEvil);
-                var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
-                s8Facts["smite"] = smite;
-                var weapon = pet.GetFirstWeapon();
-                s8Probe = new Sprint8SmiteProbe(pet);
-                target.Position = FindWalkablePoint(pet.Position, 2f, 1f);
-                yield return null;
-                Rulebook.Trigger(new RuleAttackWithWeapon(pet, target, weapon, 0));
-                smite["additionalDamageUnmarked"] = s8Probe.LastAdditionalDamage;
-                var ability = pet.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
-                smite["canTarget"] = ability?.CanTarget(new Kingmaker.Utility.TargetWrapper(target));
-                pet.Commands.Run(new UnitUseAbility(ability, new Kingmaker.Utility.TargetWrapper(target)));
-                for (var frame = 0; frame < 240 && !pet.Commands.Empty; frame++) yield return null;
-                for (var frame = 0; frame < 10; frame++) yield return null;
-                smite["usesAfter"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
-                smite["marked"] = target.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
-                Rulebook.Trigger(new RuleAttackWithWeapon(pet, target, weapon, 0));
-                smite["additionalDamageMarked"] = s8Probe.LastAdditionalDamage;
-                smite["petHitDice"] = pet.Descriptor.Progression.CharacterLevel;
-                s8Probe.Dispose(); s8Probe = null;
-                var mark = target.Descriptor.Buffs.GetFact(horseService.DivineMountSmiteBuff);
-                if (mark != null) target.Descriptor.RemoveFact(mark);
-            }
             s8Facts["after"] = Sprint8Snapshot(s8Owner.Descriptor);
         }
 
@@ -719,14 +737,13 @@ namespace KingmakerMountedCombat.Diagnostics
             while (owner.MoveNext()) yield return null;
             var unit = s8Owner.Descriptor;
             var pet = unit.Pet;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
             var commits = new JArray();
             s8Facts["petCommits"] = commits;
             var levels = Sprint8CommitPetLevels(pet, commits);
             while (levels.MoveNext()) yield return null;
             s8Facts["levels"] = build.Levels;
-            Sprint8Build.BringToField(s8Owner, rider.Position + rider.OrientationDirection * 4f);
-            for (var frame = 0; frame < 60 && (pet.View?.AgentASP == null || !pet.IsInState); frame++) yield return null;
-            for (var frame = 0; frame < 30; frame++) yield return null;
             s8Facts["profile"] = SupportedMountedProfiles.Resolve(s8Owner, pet)?.Id;
             s8Facts["refusal"] = SupportedMountedProfiles.DescribeRefusal(s8Owner, pet);
             for (var frame = 0; frame < 240 && !Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.MountAbility, pet); frame++) yield return null;
@@ -760,6 +777,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var unit = build.Hired;
             s8Facts["beforePaladin"] = Sprint8Snapshot(unit);
             var original = unit.Pet;
+            s8Owner = unit.Unit;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
             var level = Sprint8LevelTo(build, unit, 9);
             while (level.MoveNext()) yield return null;
             for (var frame = 0; frame < 30; frame++) yield return null;
