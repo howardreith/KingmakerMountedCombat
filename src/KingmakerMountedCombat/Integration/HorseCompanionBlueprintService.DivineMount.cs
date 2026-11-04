@@ -337,9 +337,13 @@ namespace KingmakerMountedCombat.Integration
                 divineMountOwned.Add(blueprint);
             }
 
-            emptyCompanionList = empty.GetComponent<PrerequisiteFeaturesFromList>() ?? throw new InvalidOperationException("The mixed-class companion choice has no companion list.");
-            emptyCompanionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(emptyCompanionList.Features,
+            // Call of the Wild gives the mixed-class choice a list of companions; the base game gates it otherwise and has nothing to append to (Sprint 9 e08).
+            emptyCompanionList = empty.GetComponent<PrerequisiteFeaturesFromList>();
+            emptyCompanionLease = emptyCompanionList == null ? null : new ExactAppendOnlyArrayLease<BlueprintFeature>(emptyCompanionList.Features,
                 new[] { horseFeature, ridingDogFeature, divineMountHorse, divineMountRidingDog }.Where(item => item != null).ToArray());
+            logger.Info("Divine Mount mixed-class choice: list=" + (emptyCompanionList == null ? "none" : emptyCompanionList.Features.Length.ToString()) +
+                "; components=" + string.Join(",", (empty.ComponentsArray ?? new BlueprintComponent[0]).Select(component => component == null ? "null" :
+                    component.GetType().Name + (component is PrerequisitePet pet ? ":NoCompanion=" + pet.NoCompanion : "")).ToArray()));
             divineBondLeases.Add(new FeatureSlotLease(progression.name, slots[0].entry.Features, slots[0].index, weaponBondFeature, divineBondSelection));
             // CanAddArchetype compares removals with the live entry: an archetype that replaces the stock bond must now name the choice.
             foreach (var archetype in blueprintList.OfType<BlueprintArchetype>().Where(value => value.RemoveFeatures != null))
@@ -481,8 +485,8 @@ namespace KingmakerMountedCombat.Integration
         {
             if (divineBondLeases.Count == 0) { divineBondApplied = false; return; }
             var refused = divineBondLeases.Where(lease => !lease.TryApply(desired)).Select(lease => lease.Owner).ToList();
-            var currentList = emptyCompanionList.Features;
-            if (!(desired ? emptyCompanionLease.MatchesAppended(currentList) : emptyCompanionLease.MatchesOriginal(currentList)))
+            var currentList = emptyCompanionList?.Features;
+            if (emptyCompanionList != null && !(desired ? emptyCompanionLease.MatchesAppended(currentList) : emptyCompanionLease.MatchesOriginal(currentList)))
             {
                 if (desired ? emptyCompanionLease.MatchesOriginal(currentList) : emptyCompanionLease.MatchesAppended(currentList))
                     emptyCompanionList.Features = desired ? emptyCompanionLease.CreateAppendedValue() : emptyCompanionLease.CreateOriginalValue();
@@ -493,7 +497,7 @@ namespace KingmakerMountedCombat.Integration
             else if (desired)
             {
                 foreach (var lease in divineBondLeases) lease.TryApply(false);
-                if (emptyCompanionLease.MatchesAppended(emptyCompanionList.Features)) emptyCompanionList.Features = emptyCompanionLease.CreateOriginalValue();
+                if (emptyCompanionList != null && emptyCompanionLease.MatchesAppended(emptyCompanionList.Features)) emptyCompanionList.Features = emptyCompanionLease.CreateOriginalValue();
             }
             if (refused.Count == 0) return;
             divineMountFailure = "A Divine Bond level-5 slot changed outside KMC; no overwrite was attempted: " + string.Join(",", refused);
