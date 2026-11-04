@@ -246,15 +246,15 @@ function Assert-KmcS8TurnBasedCase($e){
  $m=$e.callWhileMounted
  if($null -eq $m -or $m.available -ne $false -or [string]$m.reason -cne 'Your mount is already with you.' -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
  $s=$e.smite
- # Delivered first, or on the same turn once the rider has acted; never on the rider's actions.
- $first=$s.marked -eq $true; $late=if($e.PSObject.Properties['smiteAfterRider']){$e.smiteAfterRider}else{$null}; $d=if($first){$s}else{$late}
+ # The turn's first action: never on the rider's actions, and never a second try. a01 to a03 hold the failures before the repair.
+ $first=$s.marked -eq $true; $d=if($first){$s}else{$null}
  if($null -eq $d -or $d.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$d.usesAfter -ne 0 -or $d.marked -ne $true -or [double]$d.mountSwiftAfter -le 0 -or ($first -and [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore)){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
  $g=$e.charge
  if($null -eq $g -or $g.clicked -ne $true -or [string]$g.result -cne 'Success' -or $g.sequenceLawful -ne $true -or [int]$g.chargeRules -ne 1 -or [double]$g.riderStandard -lt 5.9 -or [double]$g.riderMove -lt 2.9 -or [int]$g.buffCount -ne 1){ throw 'Sprint 9 the Paladin rider''s charge was not one lawful native delivery' }
  if($first -and $g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
  $a=$e.mountAttack
  if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }
- if([int]$s.additionalDamageUnmarked -ne 0 -or [int]$s.additionalDamageMarked -ne [int]$e.final.pet.characterLevel -or [int]$s.charismaBonus -lt 1 -or ([int]$s.attackBonusMarked-[int]$s.attackBonusUnmarked) -ne [int]$s.charismaBonus){ throw 'Sprint 9 the mark did not add Charisma to hit and Hit Dice to damage, against an unmarked read' }
+ if([int]$s.additionalDamageUnmarked -ne 0 -or [int]$s.additionalDamageMarked -ne [int]$e.final.pet.characterLevel -or [int]$s.charismaBonus -lt 1 -or ([int]$s.attackBonusMarked-[int]$s.attackBonusUnmarked) -lt [int]$s.charismaBonus){ throw 'Sprint 9 the mark did not add Charisma to hit and Hit Dice to damage, against an unmarked read' }
  if($e.targetDestroyed -ne $true -or $e.combatCleared -ne $true -or $e.dismounted -ne $true){ throw 'Sprint 9 the fight did not end cleanly with the owner dismounted' }
 }
 function Assert-KmcSprint8PaladinEvidence {
