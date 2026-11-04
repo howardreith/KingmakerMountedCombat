@@ -51,8 +51,8 @@ function New-S3HostileRow{
 function New-S3RangedRow{
  $row=New-S3Common 'S3-ranged-distant' (New-S3State 0 $false 0) (New-S3State 0 $false 0) (New-S3Carried 'Ability' 9.8)
  $e=$row.evidence;$e|Add-Member cast (New-S3Cast $snowball $hostile 18.4);$e|Add-Member hostileRetreat ([pscustomobject]@{distanceBefore=8.1;distanceAfter=18.4});$e|Add-Member rangeMetres 10.6
- $e.events=@([pscustomobject]@{kind='cast-after';actor=$rider;spellFailed=$false})
- $e.rules=[pscustomobject]@{events=@([pscustomobject]@{kind='attack-roll';actor=$rider;target=$hostile;attackType='RangedTouch';result='Miss'})}
+ $e.events=@([pscustomobject]@{kind='cast-after';actor=$rider;spellFailed=$false;frame=100})
+ $e.rules=[pscustomobject]@{events=@([pscustomobject]@{kind='attack-roll';actor=$rider;target=$hostile;attackType='Melee';result='Miss';frame=50},[pscustomobject]@{kind='attack-roll';actor=$rider;target=$hostile;attackType='RangedTouch';result='Miss';frame=100})}
  $row
 }
 function New-S3TbRow([bool]$insufficient){

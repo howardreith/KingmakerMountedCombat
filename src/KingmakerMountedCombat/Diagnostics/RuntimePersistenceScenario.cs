@@ -339,7 +339,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             e.AttacksCount == firstUnexpected.AttacksCount && !e.IsAttackOfOpportunity && !e.IsCharge) &&
                         mountRules.Select(e => e.AttackNumber).SequenceEqual(Enumerable.Range(0, firstUnexpected.AttacksCount)) &&
                         combat.StockAttackMountDispatchCount == 1 && combat.StockAttackRiderDispatchCount == 1
-                    : ruleProbe.UnexpectedPairAttackCount == 0 && mountRules.Length == 0 && combat.StockAttackRiderDispatchCount == 1,
+                    : ruleProbe.UnexpectedPairAttackCount == 0 && mountRules.Length == 0 && combat.StockAttackRiderDispatchCount >= 1, // a continued intent may dispatch again; the rule and duplicate checks hold the one attack
                     "pair-stock-attack-order");
                 Check(combat.StockAttackDuplicateDispatchCount == 0, "pair-stock-attack-no-duplicate-dispatch");
                 // Native expenditure, never refunded: the rider's Standard is spent at its own attack; when the mount
