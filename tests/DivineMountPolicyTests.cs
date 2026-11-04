@@ -4,6 +4,14 @@ namespace KingmakerMountedCombat.Tests
 {
     internal static class DivineMountPolicyTests
     {
+        internal static void MountedSmiteWorksFromWhereTheMountStands()
+        {
+            TestRunner.Equal(false, DivineMountPolicy.MountedSmiteNeedsApproach(false, 900f, 10f, true), "An unmounted Smite keeps its native approach.");
+            TestRunner.Equal(true, DivineMountPolicy.MountedSmiteNeedsApproach(true, 101f, 10f, false), "A mounted Smite beyond range needs an approach.");
+            TestRunner.Equal(false, DivineMountPolicy.MountedSmiteNeedsApproach(true, 100f, 10f, false), "A mounted Smite at exactly its range is in place.");
+            TestRunner.Equal(true, DivineMountPolicy.MountedSmiteNeedsApproach(true, 1f, 10f, true), "A mounted Smite with no line of sight needs an approach.");
+        }
+
         internal static void CallUsesFollowTheRule()
         {
             TestRunner.Equal(0, DivineMountPolicy.CallUses(4), "Divine Mount value changed.");

@@ -237,6 +237,9 @@ function Assert-KmcS8SmiteCase($e){
  if([int]$e.usesAtEnd.a -ne 0 -or [int]$e.usesAtEnd.b -ne 0){ throw 'Sprint 8 smite: a use came back without a rest' }
 }
 # Sprint 9: Call, the mounted refusal, Smite, a real attack with its bonus and a charge, on one Divine Mount paladin in turn-based combat.
+function Assert-KmcS8SmiteFarUnchanged($r,[string]$What){
+ if($null -eq $r -or $r.after.marked -ne $false -or [int]$r.after.uses -ne [int]$r.before.uses -or [double]$r.after.mountSwift -ne [double]$r.before.mountSwift -or [double]$r.after.riderStandard -ne [double]$r.before.riderStandard -or [double]$r.mountMoved -gt 0.05 -or [string]$r.after.turnStatus -cne [string]$r.before.turnStatus){ throw ('Sprint 9 '+$What+': a mark, a cost, a phase change or a mount movement followed') }
+}
 function Assert-KmcS8TurnBasedCase($e){
  Assert-KmcS8MountFacts $e.before 'turn-based owner' $script:KmcS8HorseUnit 'Horse'
  if(@($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Horse'}).Count -lt 1 -or @($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Divine Mount bond'}).Count -ne 1){ throw 'Sprint 9 the removal scan missed the bonded owner or its Horse' }
@@ -246,7 +249,17 @@ function Assert-KmcS8TurnBasedCase($e){
  $m=$e.callWhileMounted
  if($null -eq $m -or $m.available -ne $false -or [string]$m.reason -cne 'Your mount is already with you.' -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
  $s=$e.smite
- # The turn's first action: never on the rider's actions, and never a second try. a01 to a03 hold the failures before the repair.
+ Assert-KmcS8SmiteFarUnchanged $e.smiteFarPreparing 'far click in Preparing'
+ if($e.smiteFarPreparing.canTarget -ne $false -or $e.smiteFarPreparing.needsApproach -ne $true -or $e.smiteFarPreparing.clicked -ne $false -or [int]$e.smiteFarPreparing.refusals -ne 1 -or [string]$e.smiteFarPreparing.after.turnStatus -cne 'Preparing'){ throw 'Sprint 9 the far click in Preparing was not refused at input with a message, or moved the turn on' }
+ if([string]$e.smiteFarPreparing.feedback -cnotlike 'Celestial Smite: move the pair into range*'){ throw 'Sprint 9 the far click gave no useful message' }
+ Assert-KmcS8SmiteFarUnchanged $e.smiteMovedAway 'target moved after the click'
+ if($e.smiteMovedAway.clicked -ne $true -or [int]$e.smiteMovedAway.refusals -ne 1 -or @($e.smiteMovedAway.after.commands).Count -ne 0){ throw 'Sprint 9 the request whose target moved away was not ended with its own command' }
+ $mv=$e.smiteFarWhileMoving
+ if($null -eq $mv -or $mv.movingAtClick -ne $true -or $mv.canTarget -ne $false -or $mv.clicked -ne $false -or $mv.sameMoveCommand -ne $true -or $mv.movingAfterClick -ne $true -or [double]$mv.travelled -lt 0.5 -or $mv.after.marked -ne $false -or [int]$mv.after.uses -ne [int]$mv.before.uses -or [double]$mv.after.mountSwift -ne [double]$mv.before.mountSwift){ throw 'Sprint 9 a refused Smite disturbed the pair''s accepted move, or spent something' }
+ $ac=$e.smiteActing
+ if($null -eq $ac -or [string]$ac.turnStatus -cne 'Acting' -or $ac.clicked -ne $true -or $ac.marked -ne $true -or [int]$ac.usesAfter -ne ([int]$ac.before.uses-1) -or [double]$ac.mountSwiftAfter -le 0 -or [double]$ac.riderStandardAfter -ne [double]$ac.before.riderStandard -or $ac.firstTargetMarkRetired -ne $true){ throw 'Sprint 9 the in-reach Smite while Acting was not one effect on the mount''s own use and Swift' }
+ if($null -eq $e.unmountedFar -or $e.unmountedFar.needsApproach -ne $false -or $e.unmountedFar.canTarget -ne $true){ throw 'Sprint 9 the unmounted Smite lost its native approach' }
+ # The turn's first action: never on the rider's actions. a01 to a03 hold the failures before the repair.
  $first=$s.marked -eq $true; $d=if($first){$s}else{$null}
  if($null -eq $d -or $d.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$d.usesAfter -ne 0 -or $d.marked -ne $true -or [double]$d.mountSwiftAfter -le 0 -or ($first -and [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore)){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
  $g=$e.charge
