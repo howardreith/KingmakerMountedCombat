@@ -40,7 +40,7 @@ function Assert-KmcS8Inventory($e){
 function Assert-KmcS8WeaponCase($e){
  $five=Get-KmcS8LevelRecord $e.levels 5
  Assert-KmcS8SelectionOffered $five.DivineBondSelection @($script:KmcS8WeaponGuid,$script:KmcS8MountSel) @() 'weapon level five'
- if(@($five.choices) -cnotcontains 'DivineBondSelection=WeaponBondFeature'){ throw 'Sprint 8 weapon: the level-five commit did not choose the weapon' }
+ if($five.after.bondSelectionFact -ne $true -or $five.after.weaponBond -ne $true){ throw 'Sprint 8 weapon: the level-five commit did not choose the weapon' }
  Assert-KmcS8Weapon $five.after 'weapon at five'
  if([int]$five.after.weaponUpgradeRanks -ne 0){ throw 'Sprint 8 weapon: an upgrade arrived early' }
  Assert-KmcS8Weapon $e.final 'weapon at nine'
@@ -69,7 +69,7 @@ function Assert-KmcS8MountCase($e){
  Assert-KmcS8SelectionOffered $five.DivineBondSelection @($script:KmcS8WeaponGuid,$script:KmcS8MountSel) @() 'mount level five'
  Assert-KmcS8SelectionOffered $five.DivineMountSelection @($script:KmcS8Horse) @($script:KmcS8Dog,$script:KmcS8Empty) 'Medium mount choice'
  Assert-KmcS8MountFacts $five.after 'mount at five' $script:KmcS8HorseUnit 'Horse'
- if([int]$five.after.rank -ne 5 -or [int]$five.after.callUses -ne 1){ throw 'Sprint 8 mount: level five is not rank 5 with one call' }
+ if([int]$five.after.rank -ne 5 -or [int]$five.after.callMax -ne 1){ throw 'Sprint 8 mount: level five is not rank 5 with one call' }
  $petId=[string]$five.after.pet.id
  $expected=@{'8'=@{uses=1;c=0;g=0;sr=0};'9'=@{uses=2;c=0;g=0;sr=0};'11'=@{uses=2;c=1;g=0;sr=0};'13'=@{uses=3;c=0;g=1;sr=0};'15'=@{uses=3;c=0;g=1;sr=26};'17'=@{uses=4;c=0;g=1;sr=28}}
  foreach($k in $expected.Keys){
@@ -77,7 +77,7 @@ function Assert-KmcS8MountCase($e){
   $f=$b.after; $x=$expected[$k]
   Assert-KmcS8MountFacts $f ('mount at '+$k) $script:KmcS8HorseUnit 'Horse'
   if([int]$f.paladinLevel -ne [int]$k -or [string]$f.pet.id -cne $petId){ throw ('Sprint 8 mount: level or pet identity changed at '+$k) }
-  if([int]$f.callUses -ne $x.uses){ throw ('Sprint 8 mount: calls at '+$k+' were '+$f.callUses) }
+  if([int]$f.callMax -ne $x.uses){ throw ('Sprint 8 mount: calls at '+$k+' were '+$f.callMax) }
   if([int]$f.pet.celestial -ne $x.c -or [int]$f.pet.greaterCelestial -ne $x.g){ throw ('Sprint 8 mount: celestial facts at '+$k+' were '+$f.pet.celestial+'/'+$f.pet.greaterCelestial) }
   if([int]$f.pet.spellResistance -ne $x.sr){ throw ('Sprint 8 mount: spell resistance at '+$k+' was '+$f.pet.spellResistance) }
   $level=$script:KmcS8RankLevel[[int]$f.rank]
