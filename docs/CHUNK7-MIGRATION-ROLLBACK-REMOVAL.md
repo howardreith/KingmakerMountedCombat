@@ -1,5 +1,7 @@
 # Kingmaker Mounted Combat: install, upgrade, rollback and removal (Chunk 7)
 
+> **Written for Chunk 7.** Its settings, Charge and rider limits predate Sprints 1 to 9. For the current candidate read [the Sprint 9 release notes](SPRINT9-RELEASE-NOTES.md) first.
+
 Status: private engineering qualification PASS. It is not a public release, and it does not
 authorize installing into a human campaign. F7 preview.96 qualification passed;
 see the [engineering closeout](CHUNK7-ENGINEERING-CLOSEOUT-2026-10-27.md) for exact package identity.
