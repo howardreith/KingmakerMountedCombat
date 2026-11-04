@@ -162,10 +162,11 @@ function Assert-KmcSprint3RangedRow($Row,[string]$Rider,[string]$Mount,[string]$
  Assert-KmcSprint3CarriedRow $Row $Rider $Mount
  $c=Get-KmcSprint3LastCarried $Row
  if($c.satisfied -ne $true -or [double]$c.distanceAtSatisfaction -gt [double]$e.rangeMetres+0.05 -or [double]$c.distanceAtSatisfaction -le 3){ throw 'S3 ranged: the approach did not stop at the spell''s own range' }
- $rolls=@($e.rules.events | Where-Object { [string]$_.kind -ceq 'attack-roll' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $Hostile })
- if($rolls.Count -ne 1){ throw 'S3 ranged: exactly one native ranged attack roll was required' }
  $casts=@(Get-KmcSprint3Events $Row 'cast-after' | Where-Object { [string]$_.actor -ceq $Rider })
  if($casts.Count -ne 1){ throw 'S3 ranged: exactly one native cast was required' }
+ # The live rider may swing at the adjacent hostile before it retreats (r16 and e02 alike); the spell's own roll is the one at or after the cast.
+ $rolls=@($e.rules.events | Where-Object { [string]$_.kind -ceq 'attack-roll' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $Hostile -and [long]$_.frame -ge [long]$casts[0].frame })
+ if($rolls.Count -ne 1){ throw 'S3 ranged: exactly one native ranged attack roll was required' }
 }
 function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[string]$Recipient,[bool]$Insufficient) {
  Assert-KmcSprint3TouchRow $Row $Rider $Mount $Recipient $false $true
