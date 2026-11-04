@@ -81,6 +81,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var progression = old.Descriptor.Progression;
             var needed = BlueprintRoot.Instance.Progression.XPTable.GetBonus(progression.CharacterLevel + 1);
             if (progression.Experience < needed) progression.AdvanceExperienceTo(needed, false);
+            // A loaded remote companion has no view until it joins a scene, and the native commit refreshes its equipment there.
+            if (old.View == null) old.AttachToViewOnLoad(null);
             var build = new Sprint8Build(logger) { ClassFor = next => horses.PaladinClass };
             var level = build.CommitOwnLevel(old.Descriptor);
             record["oldWeaponNextLevel"] = level;

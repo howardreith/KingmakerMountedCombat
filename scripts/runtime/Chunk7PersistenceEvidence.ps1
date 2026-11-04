@@ -303,7 +303,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
             Assert-KmcChunk7Boolean $row.clicked $true;Assert-KmcChunk7Boolean $row.terminal $true
         }
         }
-        if(-not$owned){
+        if(-not$owned-and$Request.persistenceCase-cne'paladin-bond-exploration-manual'){
         Assert-KmcChunk7NativeCounters $o.acquisition @('nativeRangerCommitCount','huntersBondSelectionLevel','rangerCompanionSelectionLevel','horseFactRankAtCommit')
         Assert-KmcChunk7Boolean $o.acquisition.horsePresentAtNativeCommit $true
         if($o.acquisition.nativeRangerCommitCount-ne4-or$o.acquisition.huntersBondSelectionLevel-ne4-or$o.acquisition.rangerCompanionSelectionLevel-ne4-or
