@@ -50,12 +50,16 @@ Check (-not (Test-KmcPhase3dSchemaRegistration 52 'sprint7-charge-rt')) 'the Spr
 Check ('paladin-bond-exploration-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the Paladin save case is registered'
 $tbPet=[pscustomobject]@{blueprint=$script:KmcS8HorseUnit;master='o';intelligenceBond=1;intelligence=6;characterLevel=9}
 $tbOwner=[pscustomobject]@{id='o';weaponBond=$false;weaponUpgradeRanks=0;weaponAbilities=0;weaponResources=0;mountBond=$true;mountChoice='Horse';addPetFacts=1;callAbility=$true;ownedPets=1;rank=11;paladinLevel=11;pet=$tbPet}
+function New-S8Far([bool]$Clicked,[int]$Dummy,[switch]$Empty){ $st={[pscustomobject]@{marked=$false;uses=1;mountSwift=0;riderStandard=0;turnStatus='Preparing';commands=@()}}; [pscustomobject]@{canTarget=$false;needsApproach=$true;clicked=$Clicked;refusals=1;feedback='Celestial Smite: move the pair into range first.';mountMoved=0;before=(& $st);after=(& $st)} }
 function New-S8Tb { [pscustomobject]@{before=$tbOwner;final=$tbOwner;removalReferences=@('unit X [1] is the KMC Horse','character O [2] has the KMC Divine Mount bond');
  call=[pscustomobject]@{availableAfterSelect=$true;clicked=$true;usesBefore=2;usesAfter=1;distanceBefore=12;distanceAfter=1.6;standard=6};mounted=$true;
  callWhileMounted=[pscustomobject]@{available=$false;clicked=$false;reason='Your mount is already with you.';usesBefore=1;usesAfter=1};
  smite=[pscustomobject]@{clicked=$true;usesBefore=1;usesAfter=0;marked=$true;mountSwiftAfter=6;riderStandardBefore=0;riderStandardAfter=0;canEndTurnAfter=$true;nextTurnReached=$true;markOnNextTurn=$true;usesOnNextTurn=0;charismaBonus=2;additionalDamageUnmarked=0;additionalDamageMarked=9;attackBonusUnmarked=8;attackBonusMarked=10};
  charge=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;chargeRules=1;riderStandard=6;riderMove=3;buffCount=1;stillMarked=$true};
- mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};targetDestroyed=$true;combatCleared=$true;dismounted=$true} }
+ mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};targetDestroyed=$true;combatCleared=$true;dismounted=$true;unmountedFar=[pscustomobject]@{needsApproach=$false;canTarget=$true};
+ smiteFarPreparing=(New-S8Far $false -1);smiteMovedAway=(New-S8Far $true 1 -Empty);
+ smiteFarWhileMoving=[pscustomobject]@{movingAtClick=$true;canTarget=$false;clicked=$false;sameMoveCommand=$true;movingAfterClick=$true;travelled=4;before=[pscustomobject]@{uses=1;mountSwift=0};after=[pscustomobject]@{uses=1;mountSwift=0;marked=$false}};
+ smiteActing=[pscustomobject]@{turnStatus='Acting';clicked=$true;marked=$true;usesAfter=0;mountSwiftAfter=6;riderStandardAfter=0;firstTargetMarkRetired=$true;before=[pscustomobject]@{uses=1;riderStandard=0}}} }
 Check (Accepts ${function:Assert-KmcS8TurnBasedCase} (New-S8Tb)) 'the turn-based Paladin neighbor is accepted'
 $r=New-S8Tb; $r.call.usesAfter=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Call that spent nothing'
 $r=New-S8Tb; $r.callWhileMounted.available=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Call offered while mounted'
@@ -64,6 +68,15 @@ $r=New-S8Tb; $r.charge.chargeRules=2; Refuses ${function:Assert-KmcS8TurnBasedCa
 $r=New-S8Tb; $r.mountAttack.additionalDamage=0; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mount attack without the mark''s damage'
 $r=New-S8Tb; $r.callWhileMounted.reason='You have no mount to call.'; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mounted refusal for another reason'
 $r=New-S8Tb; $r.smite.usesOnNextTurn=1; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite use returned by the next turn'
+$r=New-S8Tb; $r.smiteFarPreparing.clicked=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a far click that was accepted'
+$r=New-S8Tb; $r.smiteFarPreparing.mountMoved=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mount that moved after a refusal'
+$r=New-S8Tb; $r.smiteFarPreparing.after.uses=0; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a refusal that spent the use'
+$r=New-S8Tb; $r.smiteFarPreparing.feedback=''; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a silent refusal'
+$r=New-S8Tb; $r.smiteMovedAway.after.commands=@('UnitUseAbility'); Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a resident request after its target moved away'
+$r=New-S8Tb; $r.smiteMovedAway.after.marked=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a stale mark after the target moved away'
+$r=New-S8Tb; $r.smiteFarWhileMoving.sameMoveCommand=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a refusal that replaced the pair move'
+$r=New-S8Tb; $r.smiteActing.marked=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'no effect while Acting'
+$r=New-S8Tb; $r.unmountedFar.canTarget=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'an unmounted Smite that lost its approach'
 $r=New-S8Tb; $r.smite.marked=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite never delivered (the a02 defect)'
 $r=New-S8Tb; $r.smite.attackBonusMarked=8; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mark with no Charisma to hit'
 $r=New-S8Tb; $r.targetDestroyed=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'an unverified target'

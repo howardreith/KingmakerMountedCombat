@@ -67,6 +67,7 @@ namespace KingmakerMountedCombat
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
+                DivineMountSmiteLogic.IsMountedMount = actor => { var pair = world.ForActor(actor); return pair != null && pair.Relationship.State == RelationshipState.Mounted && pair.Relationship.Mount == actor; };
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -371,7 +372,7 @@ namespace KingmakerMountedCombat
             GUI.enabled = priorEnabled;
             GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
             GUILayout.Label("Mounts: your supported Mammoth, or the Horse or Riding Dog from a Ranger's companion choice or a Paladin's Divine Bond. Unsupported sizes, forms and rigs refuse admission.");
-            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod, and a Paladin at level 5 or above under KMC holds a Divine Bond on either choice.");
+            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod. A Paladin who passes through KMC's level-five selection keeps that reference on either choice.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
             if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();
             GUI.enabled = priorEnabled;

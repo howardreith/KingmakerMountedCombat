@@ -220,7 +220,18 @@ namespace KingmakerMountedCombat.Integration
         // a command with a real duration would need ticks a preparing turn does not give it.
         internal bool IsMountOwnSwiftAbility(UnitCommand command) =>
             command is UnitUseAbility ability && command.Type == UnitCommand.CommandType.Swift && ability.Spell?.Caster?.Unit == relationship.Mount &&
-            ability.Spell.Blueprint.GetComponent<DivineMountSmiteLogic>() != null;
+            relationship.State == RelationshipState.Mounted && ability.Spell.Blueprint.GetComponent<DivineMountSmiteLogic>() != null;
+
+        internal int MountedSmiteRefusalCount { get; private set; }
+
+        // Nothing is spent and this request's own command is all that ends: the pair's accepted work carries on.
+        internal void ReportMountedSmiteRefusal(UnitCommand residentCommand)
+        {
+            MountedSmiteRefusalCount++;
+            if (residentCommand != null && !residentCommand.IsFinished) residentCommand.Interrupt();
+            LastFeedback = DivineMountSmiteLogic.NeedsApproachMessage;
+            ShowStockFeedback();
+        }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
         internal bool TryConfigurePairedActivation(bool enabled) => unifiedTurn.TryConfigurePairedActivation(enabled);

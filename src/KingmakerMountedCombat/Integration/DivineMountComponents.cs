@@ -190,14 +190,28 @@ namespace KingmakerMountedCombat.Integration
             var unit = target?.Unit;
             var bonus = BonusOf(caster);
             return unit != null && bonus != null && unit != caster && unit.Descriptor.State.IsConscious &&
-                unit.Descriptor.Alignment.Value.HasComponent(AlignmentComponent.Evil) && bonus.MayMark(unit);
+                unit.Descriptor.Alignment.Value.HasComponent(AlignmentComponent.Evil) && bonus.MayMark(unit) && !NeedsApproach(caster, unit);
+        }
+
+        // Set by the composition root: the actor is the mount of a pair that is mounted now.
+        internal static Func<UnitEntityData, bool> IsMountedMount;
+        internal const string NeedsApproachMessage = "Celestial Smite: move the pair into range first. A ridden mount smites from where it stands.";
+
+        // The same facts native UnitCommand.IsUnitEnoughClose reads for this ability: its approach distance, mechanics distance and line of sight.
+        internal bool NeedsApproach(UnitEntityData caster, UnitEntityData unit)
+        {
+            if (IsMountedMount?.Invoke(caster) != true) return false;
+            var data = caster.Descriptor.Abilities.Enumerable.FirstOrDefault(fact => fact.Blueprint.GetComponent<DivineMountSmiteLogic>() == this)?.Data;
+            if (data == null) return true;
+            return DivineMountPolicy.MountedSmiteNeedsApproach(true, GeometryUtils.SqrMechanicsDistance(unit.Position, caster.Position), data.GetApproachDistance(unit),
+                Kingmaker.Visual.FogOfWar.LineOfSightGeometry.Instance.HasObstacle(caster.EyePosition, unit.Position, 0));
         }
 
         public override IEnumerator<AbilityDeliveryTarget> Deliver(AbilityExecutionContext context, TargetWrapper target)
         {
             var unit = target?.Unit;
             var bonus = BonusOf(context?.Caster);
-            if (unit == null || bonus == null) yield break;
+            if (unit == null || bonus == null || NeedsApproach(context.Caster, unit)) yield break; // a target that moved away after the commitment takes no mark
             bonus.BeginMark(unit, context);
             yield return new AbilityDeliveryTarget(target);
         }
