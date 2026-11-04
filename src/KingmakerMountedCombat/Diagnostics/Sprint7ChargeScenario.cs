@@ -436,10 +436,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sprint7ObserveTravel();
                     if (!Sprint7ChargeTerminal()) return;
                     Sprint7RecordTerminal("followTerminal"); s7Step = 4; return;
-                // The follow-up runs after the charge, on its own, whatever native cooldown it waits for.
+                // The follow-up becomes the active command after the charge. A raw queued attack cannot itself close the rider's distance, so the row releases it there.
                 case 4:
-                    if (!s7FollowUp.IsStarted && !s7FollowUp.IsFinished) return;
-                    s7Facts["followUpRan"] = new JObject { ["started"] = s7FollowUp.IsStarted, ["finished"] = s7FollowUp.IsFinished, ["result"] = s7FollowUp.Result.ToString(), ["inQueue"] = rider.Commands.Queue.Contains(s7FollowUp) };
+                    var promoted = ReferenceEquals(rider.Commands.Standard, s7FollowUp);
+                    if (!promoted && !s7FollowUp.IsStarted && !s7FollowUp.IsFinished) return;
+                    s7Facts["followUpRan"] = new JObject { ["promoted"] = promoted, ["started"] = s7FollowUp.IsStarted, ["finished"] = s7FollowUp.IsFinished, ["result"] = s7FollowUp.Result.ToString(), ["inQueue"] = rider.Commands.Queue.Contains(s7FollowUp), ["chargeOwned"] = combat.HasChargeOwnership };
+                    if (!s7FollowUp.IsFinished) s7FollowUp.Interrupt();
                     s7Step = 5; return;
                 case 5:
                     if (Sprint7Buff() != null || !s7FollowUp.IsFinished) return;

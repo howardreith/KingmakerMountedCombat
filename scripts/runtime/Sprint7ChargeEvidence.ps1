@@ -72,7 +72,7 @@ function Assert-KmcSprint7ChargeEvidence {
   if($q.followUpPending -ne $true){ throw 'Sprint 7 the follow-up did not wait in the queue' }
   Assert-KmcSprint7Lease $q.followTerminal 'charge with a follow-up'
   if([string]$q.followTerminal.result -cne 'Success' -or [int]$q.followTerminal.rules -lt 1 -or $q.followTerminal.lease.buffHandedToNative -ne $true){ throw 'Sprint 7 the follow-up cost the charge its delivery' }
-  if($q.followUpRan.started -ne $true -or $q.followUpRan.inQueue -ne $false){ throw 'Sprint 7 the follow-up did not run after the charge' }
+  if($q.followUpRan.promoted -ne $true -or $q.followUpRan.inQueue -ne $false){ throw 'Sprint 7 the follow-up did not become active after the charge' }
   Assert-KmcSprint7Admitted $q.steps.replaceCharge 'charge with a replacement'
   Assert-KmcSprint7Cancelled $q.replaceTerminal $q.steps.replaceCharge.before 'replaced charge'
   if([double]$q.replaceTerminal.state.riderStandard -le 0 -or [int]$q.replaceTerminal.rules -ne 0){ throw 'Sprint 7 the replacement refunded or delivered' }

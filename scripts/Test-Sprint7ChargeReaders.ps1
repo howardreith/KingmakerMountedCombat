@@ -60,7 +60,7 @@ $r=Copy-S7 $po; $r.rows[0].evidence.mountPounceAttack.fullAttack=$true; Reject $
 $r=Copy-S7 $po; $r.rows[0].evidence.mountPounceTerminal.rules=2; Reject $r 'sprint7-charge-pounce-rt' 'a second rider attack from the mount''s Pounce refuses'
 $r=Copy-S7 $po; $r.rows[0].evidence.riderPounceAttack.fullAttack=$false; Reject $r 'sprint7-charge-pounce-rt' 'a rider''s own Pounce refused its full attack refuses'
 function New-S7Queue(){ $b=New-S7State; $id=[pscustomobject]@{sameCommand=$true;finished=$false;cleanupAttempts=0;forcedPaths=1;riderStandard=5.0;riderQueue=0;mountQueue=0}; $done=New-S7Terminal (New-S7State @{buff=$true;buffCount=1;riderAc=18;riderStandard=4.0;distance=3.9}) 'Success' 1 $true; $done.lease | Add-Member forcedPathCount 2; $cut=New-S7Terminal (New-S7State @{riderStandard=5.5;distance=8.0}) 'Interrupt' 0 $false 8.0; $cut.revalidationReason='The charge line no longer clears the mount''s body.'; $cut.lease | Add-Member forcedPathCount 1
- $q=[pscustomobject]@{beforeRequests=$id;afterRejected=$id;afterMountEnqueue=$id;afterMountStandardEnqueue=$id;afterFollowUp=$id;followUpPending=$true;followTerminal=$done;followUpRan=[pscustomobject]@{started=$true;inQueue=$false};replaceTerminal=$cut;successorMetres=5.0;steps=[pscustomobject]@{followCharge=(New-S7Click $b $true $null);replaceCharge=(New-S7Click $b $true $null)}}
+ $q=[pscustomobject]@{beforeRequests=$id;afterRejected=$id;afterMountEnqueue=$id;afterMountStandardEnqueue=$id;afterFollowUp=$id;followUpPending=$true;followTerminal=$done;followUpRan=[pscustomobject]@{promoted=$true;inQueue=$false};replaceTerminal=$cut;successorMetres=5.0;steps=[pscustomobject]@{followCharge=(New-S7Click $b $true $null);replaceCharge=(New-S7Click $b $true $null)}}
  $l=[pscustomobject]@{validBefore=$id;validTerminal=$done;blockedTerminal=$cut;flankBlocked=[pscustomobject]@{none=$false;identity=$id};steps=[pscustomobject]@{blockedCharge=(New-S7Click $b $true $null)}}
  New-S7Envelope (New-S7Measure 'sprint7-charge-queue-rt' $null @()) @((New-S7Row 'S7-queue' $q),(New-S7Row 'S7-lane' $l)) }
 $qu=New-S7Queue; Check (Accept $qu 'sprint7-charge-queue-rt') 'complete queue and lane evidence accepted'
@@ -68,7 +68,7 @@ foreach($mut in @(
  @{n='a rejected request that drained the charge';f={param($r) $r.rows[0].evidence.afterRejected=[pscustomobject]@{sameCommand=$false;finished=$true;cleanupAttempts=1;forcedPaths=1;riderStandard=5.0;mountQueue=0}}},
  @{n='an accepted mount enqueue';f={param($r) $r.rows[0].evidence.afterMountEnqueue=[pscustomobject]@{sameCommand=$true;finished=$false;cleanupAttempts=0;forcedPaths=1;riderStandard=5.0;mountQueue=1}}},
  @{n='a follow-up that never waited';f={param($r) $r.rows[0].evidence.followUpPending=$false}},
- @{n='a follow-up that never ran';f={param($r) $r.rows[0].evidence.followUpRan.started=$false}},
+ @{n='a follow-up that never ran';f={param($r) $r.rows[0].evidence.followUpRan.promoted=$false}},
  @{n='a follow-up that cost the delivery';f={param($r) $r.rows[0].evidence.followTerminal.result='Interrupt'}},
  @{n='a stopped successor';f={param($r) $r.rows[0].evidence.successorMetres=0.1}},
  @{n='a replacement that refunded';f={param($r) $r.rows[0].evidence.replaceTerminal.state.riderStandard=0.0}},
