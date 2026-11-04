@@ -171,16 +171,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     ((BlueprintFeatureSelection)pending.Selection).CanSelect(controller.Preview, controller.State, pending, item))
                     .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).FirstOrDefault(item => controller.SelectFeature(pending, item));
                 if (chosen == null) throw new InvalidOperationException("No legal choice in " + selection.name + ".");
-                var taken = record["choices"] as JArray ?? new JArray();
-                record["choices"] = taken;
-                taken.Add(selection.name + "=" + chosen.Feature.name);
+                RecordChoice(record, selection.name + "=" + chosen.Feature.name);
                 return;
             }
             if (chosen == null) throw new InvalidOperationException("No legal choice in " + selection.name + ".");
             if (!controller.SelectFeature(pending, chosen)) throw new InvalidOperationException("The native controller refused " + chosen.Feature.name + " in " + selection.name + ".");
-            var choices = record["choices"] as JArray ?? new JArray();
-            record["choices"] = choices;
-            choices.Add(selection.name + "=" + chosen.Feature.name);
+            RecordChoice(record, selection.name + "=" + chosen.Feature.name);
+        }
+
+        private static void RecordChoice(JObject record, string choice)
+        {
+            var choices = record["choices"] as JArray;
+            if (choices == null) { choices = new JArray(); record["choices"] = choices; }
+            choices.Add(choice);
         }
 
         private static void Require(bool accepted, string what)
@@ -229,6 +232,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["addPetFacts"] = features.Enumerable.Count(value => value.Get<AddPet>() != null),
                 ["callAbility"] = unit.Abilities.GetAbility(service.DivineMountCallAbility) != null,
                 ["callUses"] = unit.Resources.GetResourceAmount(service.DivineMountCallResource),
+                ["callMax"] = service.DivineMountCallResource.GetMaxAmount(unit),
+                ["weaponUsesMax"] = service.WeaponBondFeature.GetComponents<AddAbilityResources>().Sum(value => value.Resource.GetMaxAmount(unit)),
                 ["ownedPets"] = Game.Instance.State.Units.Where(value => value.Descriptor.IsPet && value.Descriptor.Master.Value == unit.Unit).Select(value => value.UniqueId).Count()
             };
             facts["pet"] = pet == null ? null : Pet(service, pet);
