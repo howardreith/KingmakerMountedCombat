@@ -861,6 +861,30 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private IEnumerator Sprint8TbSmiteAttempt(JObject record, UnitEntityData pet)
+        {
+            var ability = pet.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
+            var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            record["turnUnit"] = turn?.Unit?.UniqueId; record["turnStatus"] = turn?.Status.ToString();
+            record["available"] = ability?.IsAvailableForCast; record["canTarget"] = ability?.CanTarget(new Kingmaker.Utility.TargetWrapper(s8Hostile));
+            record["maySelectPartner"] = relationship.World.ForActor(s8Owner) != null && SelectionManager.Instance != null;
+            record["clicked"] = Sprint5Fixture.Click(nativeControls, pet, horseService.DivineMountSmiteAbility, s8Hostile);
+            record["selected"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId;
+            record["selectedIsPet"] = SelectionManager.Instance.SingleSelectedUnit == pet;
+            for (var frame = 0; frame < 5; frame++) yield return null;
+            record["commandsAfterClick"] = new JArray(pet.Commands.Raw.Where(command => command != null).Select(command => command.GetType().Name + ":started=" + command.IsStarted + ":finished=" + command.IsFinished));
+            record["queueAfterClick"] = pet.Commands.Queue.Count();
+            record["statusAfterClick"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Status.ToString();
+            var settle = Sprint8TbSettle(pet, 300);
+            while (settle.MoveNext()) yield return null;
+            record["commandsAfterSettle"] = new JArray(pet.Commands.Raw.Where(command => command != null).Select(command => command.GetType().Name + ":started=" + command.IsStarted + ":finished=" + command.IsFinished + ":result=" + command.Result));
+            record["usesAfter"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
+            record["marked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+            record["mountSwiftAfter"] = pet.CombatState.Cooldown.SwiftAction;
+            record["riderStandardAfter"] = s8Owner.CombatState.Cooldown.StandardAction;
+            if (!pet.Commands.Empty) pet.Commands.InterruptAll();
+        }
+
         private IEnumerator Sprint8TurnBasedCase()
         {
             var build = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_TurnBased");
@@ -900,8 +924,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var wait = Sprint8TbTurn(s8Owner);
             while (wait.MoveNext()) yield return null;
             var data = unit.Abilities.GetAbility(horseService.DivineMountCallAbility)?.Data;
-            var call = new JObject { ["available"] = data?.IsAvailableForCast, ["usesBefore"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource), ["distanceBefore"] = Vector3.Distance(pet.Position, s8Owner.Position) };
+            var call = new JObject { ["available"] = data?.IsAvailableForCast, ["reason"] = data?.Blueprint.GetComponent<DivineMountCallLogic>()?.GetReason(), ["petCanAct"] = pet.Descriptor.State.CanAct, ["petInGame"] = pet.IsInGame, ["petInPair"] = DivineMountCallLogic.IsMountedPairMember?.Invoke(pet),
+                ["turnStatus"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Status.ToString(), ["usesBefore"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource), ["distanceBefore"] = Vector3.Distance(pet.Position, s8Owner.Position) };
             s8Facts["call"] = call;
+            call["availableAfterSelect"] = null;
+            SelectionManager.Instance.SelectUnit(s8Owner.View, true, true, false);
+            yield return null;
+            call["availableAfterSelect"] = data?.IsAvailableForCast;
             call["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, horseService.DivineMountCallAbility, s8Owner);
             var settle = Sprint8TbSettle(s8Owner);
             while (settle.MoveNext()) yield return null;
@@ -943,13 +972,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, pet.GetFirstWeapon(), 0));
             smite["additionalDamageUnmarked"] = s8Probe.LastAdditionalDamage;
             smite["attackBonusUnmarked"] = s8Probe.LastAttackBonus;
-            smite["clicked"] = Sprint5Fixture.Click(nativeControls, pet, horseService.DivineMountSmiteAbility, s8Hostile);
-            settle = Sprint8TbSettle(pet);
-            while (settle.MoveNext()) yield return null;
-            smite["usesAfter"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
-            smite["marked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
-            smite["mountSwiftAfter"] = pet.CombatState.Cooldown.SwiftAction;
-            smite["riderStandardAfter"] = s8Owner.CombatState.Cooldown.StandardAction;
+            var attempt = Sprint8TbSmiteAttempt(smite, pet);
+            while (attempt.MoveNext()) yield return null;
 
             var charge = new JObject(); s8Facts["charge"] = charge;
             var combatOwner = relationship.World.ForActor(s8Owner).Combat;
@@ -975,6 +999,13 @@ namespace KingmakerMountedCombat.Diagnostics
             charge["riderMove"] = s8Owner.CombatState.Cooldown.MoveAction;
             charge["buffCount"] = MountedChargeFixture.NativeBuffCount(s8Owner);
             charge["stillMarked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+            // A first Smite that was not delivered gets one more try now that the turn is acting: this tells a preparing-turn gate from a mount that can never cast.
+            if (!s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff))
+            {
+                var second = new JObject(); s8Facts["smiteAfterRider"] = second;
+                attempt = Sprint8TbSmiteAttempt(second, pet);
+                while (attempt.MoveNext()) yield return null;
+            }
 
             var attack = new JObject(); s8Facts["mountAttack"] = attack;
             var rulesBefore = s8Rules.Attacks.Count;
