@@ -1,6 +1,6 @@
-# Kingmaker Mounted Combat: release candidate preview.102 (draft notes)
+# Kingmaker Mounted Combat: Sprint 9 release, preview.103
 
-**Not published.** Owner acceptance is pending, and publication needs the owner's explicit decision. Package and hashes: [the acceptance record](SPRINT9-INTEGRATED-ACCEPTANCE.md).
+Released by owner order on 2026-11-04, after the owner accepted PR #14. Package and hashes: [the acceptance record](SPRINT9-INTEGRATED-ACCEPTANCE.md).
 
 ## Supported
 
