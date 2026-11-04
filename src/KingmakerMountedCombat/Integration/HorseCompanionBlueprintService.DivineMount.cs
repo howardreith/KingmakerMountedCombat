@@ -107,6 +107,8 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintAbility divineMountCallAbility, divineMountSmiteAbility;
         private BlueprintAbilityResource divineMountCallResource, divineMountSmiteResource;
         private BlueprintBuff divineMountSmiteBuff;
+        private PrerequisiteFeaturesFromList emptyCompanionList;
+        private ExactAppendOnlyArrayLease<BlueprintFeature> emptyCompanionLease;
         private string divineMountFailure;
         private bool divineBondApplied;
 
@@ -286,6 +288,24 @@ namespace KingmakerMountedCombat.Integration
             var linkOnApply = CreateOwned<AddFeatureOnApply>("KMC_DivineMount_IntelligenceLink");
             linkOnApply.Feature = intelligenceLink;
             components.Add(progressionOnApply); components.Add(callOnApply); components.Add(linkOnApply);
+            // Whatever the stock companion selection gives its owner and its pet, the bond gives too.
+            foreach (var component in rangerSelection.ComponentsArray)
+            {
+                var toCompanion = component as AddFeatureToCompanion;
+                var facts = component as AddFacts;
+                if (toCompanion != null)
+                {
+                    var copy = CreateOwned<AddFeatureToCompanion>("KMC_DivineMount_Stock_" + toCompanion.Feature?.name);
+                    copy.Feature = toCompanion.Feature;
+                    components.Add(copy);
+                }
+                else if (facts != null)
+                {
+                    var copy = CreateOwned<AddFacts>("KMC_DivineMount_StockFacts");
+                    copy.Facts = CloneArray(facts.Facts);
+                    components.Add(copy);
+                }
+            }
             divineMountSelection.ComponentsArray = components.ToArray();
 
             divineBondSelection = CreateOwned<BlueprintFeatureSelection>("DivineBondSelection");
@@ -313,6 +333,9 @@ namespace KingmakerMountedCombat.Integration
                 divineMountOwned.Add(blueprint);
             }
 
+            emptyCompanionList = empty.GetComponent<PrerequisiteFeaturesFromList>() ?? throw new InvalidOperationException("The mixed-class companion choice has no companion list.");
+            emptyCompanionLease = new ExactAppendOnlyArrayLease<BlueprintFeature>(emptyCompanionList.Features,
+                new[] { horseFeature, ridingDogFeature, divineMountHorse, divineMountRidingDog }.Where(item => item != null).ToArray());
             divineBondLeases.Add(new FeatureSlotLease(progression.name, slots[0].entry.Features, slots[0].index, weaponBondFeature, divineBondSelection));
             // CanAddArchetype compares removals with the live entry: an archetype that replaces the stock bond must now name the choice.
             foreach (var archetype in blueprintList.OfType<BlueprintArchetype>().Where(value => value.RemoveFeatures != null))
@@ -362,6 +385,14 @@ namespace KingmakerMountedCombat.Integration
             return CreateBondFeature(name, guid, key, icon, true, link);
         }
 
+        // The stock companions carry this; the choice of a second animal is refused, and the mixed-class choice is offered instead.
+        private PrerequisitePet CreateNoCompanionPrerequisite(string name)
+        {
+            var prerequisite = CreateOwned<PrerequisitePet>(name);
+            prerequisite.NoCompanion = true;
+            return prerequisite;
+        }
+
         private BlueprintFeature CreateMountChoice(string name, string guid, string key, UnityEngine.Sprite icon, BlueprintUnit unit, BlueprintFeature upgrade, bool smallOnly)
         {
             var addPet = CreateOwned<HorseCompanionAddPet>("KMC_" + name + "_AddPet");
@@ -369,9 +400,7 @@ namespace KingmakerMountedCombat.Integration
             addPet.LevelRank = levelRank;
             addPet.UpgradeFeature = upgrade;
             addPet.UpgradeLevel = 4;
-            var noPet = CreateOwned<PrerequisitePet>("KMC_" + name + "_NoPet");
-            noPet.NoCompanion = true;
-            var components = new List<BlueprintComponent> { noPet, addPet };
+            var components = new List<BlueprintComponent> { CreateNoCompanionPrerequisite("KMC_" + name + "_NoPet"), addPet };
             if (smallOnly) components.Insert(0, CreateOwned<DivineMountRiderSizePrerequisite>("KMC_" + name + "_Small"));
             return CreateBondFeature(name, guid, key, icon, true, components.ToArray());
         }
@@ -440,9 +469,16 @@ namespace KingmakerMountedCombat.Integration
         private void ApplyDivineBondReported(bool desired)
         {
             if (divineBondLeases.Count == 0) { divineBondApplied = false; return; }
-            var refused = divineBondLeases.Where(lease => !lease.TryApply(desired)).Select(lease => lease.Owner).ToArray();
-            divineBondApplied = desired && refused.Length == 0;
-            if (refused.Length == 0) return;
+            var refused = divineBondLeases.Where(lease => !lease.TryApply(desired)).Select(lease => lease.Owner).ToList();
+            var currentList = emptyCompanionList.Features;
+            if (!(desired ? emptyCompanionLease.MatchesAppended(currentList) : emptyCompanionLease.MatchesOriginal(currentList)))
+            {
+                if (desired ? emptyCompanionLease.MatchesOriginal(currentList) : emptyCompanionLease.MatchesAppended(currentList))
+                    emptyCompanionList.Features = desired ? emptyCompanionLease.CreateAppendedValue() : emptyCompanionLease.CreateOriginalValue();
+                else refused.Add("AnimalCompanionEmptyCompanion");
+            }
+            divineBondApplied = desired && refused.Count == 0;
+            if (refused.Count == 0) return;
             divineMountFailure = "A Divine Bond level-5 slot changed outside KMC; no overwrite was attempted: " + string.Join(",", refused);
             logger.Error(divineMountFailure);
         }

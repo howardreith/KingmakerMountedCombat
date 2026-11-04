@@ -597,7 +597,7 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeFeature = horseUpgrade;
             addPet.UpgradeLevel = 4;
             upgradeLevel = addPet.UpgradeLevel;
-            horseFeature.ComponentsArray = new BlueprintComponent[] { addPet };
+            horseFeature.ComponentsArray = new BlueprintComponent[] { addPet, CreateNoCompanionPrerequisite("KMC_Horse_NoCompanion") };
 
             AddExactBlueprintRegistration(library, horsePortrait);
             AddExactBlueprintRegistration(library, horseUnit);
@@ -744,7 +744,7 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeFeature = ridingDogUpgrade;
             // The published rank. The stock Dog's own level differs by installation (7 in the base game, 4 under Call of the Wild).
             addPet.UpgradeLevel = 4;
-            ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet };
+            ridingDogFeature.ComponentsArray = new BlueprintComponent[] { addPet, CreateNoCompanionPrerequisite("KMC_RidingDog_NoCompanion") };
             logger.Info("Riding Dog registered from the stock Dog: stockSize=" + dogUnit.Size + "; sizeStep=" + size.SizeDelta +
                 "; stockFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Select(fact => fact?.name)) +
                 "; droppedSizeFacts=" + string.Join(",", CloneArray(dogUnit.AddFacts).Where(SetsSize).Select(fact => fact.name)) +

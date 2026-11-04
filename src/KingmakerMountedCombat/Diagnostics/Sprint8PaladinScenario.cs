@@ -166,9 +166,16 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Choices.TryGetValue(selection.AssetGuid, out wanted))
                 chosen = items.Single(item => item.Feature?.AssetGuid == wanted);
             else
-                chosen = items.Where(item => item.Feature != null && item.Feature.GetComponent<AddPet>() == null &&
+            {
+                chosen = items.Where(item => item.Feature != null && item.Feature.GetComponent<AddPet>() == null && !(item.Feature is BlueprintParametrizedFeature) &&
                     ((BlueprintFeatureSelection)pending.Selection).CanSelect(controller.Preview, controller.State, pending, item))
-                    .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).ThenBy(item => item.Param == null ? string.Empty : item.Param.ToString(), StringComparer.Ordinal).FirstOrDefault();
+                    .OrderBy(item => item.Feature.AssetGuid, StringComparer.Ordinal).FirstOrDefault(item => controller.SelectFeature(pending, item));
+                if (chosen == null) throw new InvalidOperationException("No legal choice in " + selection.name + ".");
+                var taken = record["choices"] as JArray ?? new JArray();
+                record["choices"] = taken;
+                taken.Add(selection.name + "=" + chosen.Feature.name);
+                return;
+            }
             if (chosen == null) throw new InvalidOperationException("No legal choice in " + selection.name + ".");
             if (!controller.SelectFeature(pending, chosen)) throw new InvalidOperationException("The native controller refused " + chosen.Feature.name + " in " + selection.name + ".");
             var choices = record["choices"] as JArray ?? new JArray();
@@ -196,6 +203,58 @@ namespace KingmakerMountedCombat.Diagnostics
         }
     }
 
+    // The persisted facts both rows and the cold load read.
+    internal static class Sprint8Facts
+    {
+        internal static JObject Owner(HorseCompanionBlueprintService service, UnitDescriptor unit)
+        {
+            var progression = unit.Progression;
+            var features = progression.Features;
+            var pet = unit.Pet;
+            var paladin = service.PaladinClass;
+            var mountBond = features.HasFact(service.DivineMountSelection);
+            var facts = new JObject {
+                ["id"] = unit.Unit.UniqueId, ["characterLevel"] = progression.CharacterLevel, ["paladinLevel"] = progression.GetClassLevel(paladin), ["size"] = unit.OriginalSize.ToString(),
+                ["archetypes"] = new JArray(progression.Classes.SelectMany(data => data.Archetypes).Select(value => value.name)),
+                ["classes"] = new JArray(progression.Classes.Select(data => data.CharacterClass.name + ":" + data.Level)),
+                ["rank"] = unit.GetFact(service.LevelRank)?.GetRank() ?? 0,
+                ["weaponBond"] = features.HasFact(service.WeaponBondFeature),
+                ["weaponUpgradeRanks"] = service.WeaponBondUpgrades.OfType<BlueprintFeature>().Sum(value => features.GetRank(value)),
+                ["weaponAbilities"] = unit.ActivatableAbilities.Enumerable.Count(value => value.Blueprint.name.StartsWith("WeaponBond", StringComparison.Ordinal)) +
+                    unit.Abilities.Enumerable.Count(value => value.Blueprint.name.StartsWith("WeaponBond", StringComparison.Ordinal)),
+                ["weaponResources"] = service.WeaponBondFeature.GetComponents<AddAbilityResources>().Sum(value => unit.Resources.GetResourceAmount(value.Resource)),
+                ["bondSelectionFact"] = features.HasFact(service.DivineBondSelection),
+                ["mountBond"] = mountBond,
+                ["mountChoice"] = features.HasFact(service.DivineMountHorse) ? "Horse" : service.DivineMountRidingDog != null && features.HasFact(service.DivineMountRidingDog) ? "RidingDog" : null,
+                ["addPetFacts"] = features.Enumerable.Count(value => value.Get<AddPet>() != null),
+                ["callAbility"] = unit.Abilities.GetAbility(service.DivineMountCallAbility) != null,
+                ["callUses"] = unit.Resources.GetResourceAmount(service.DivineMountCallResource),
+                ["ownedPets"] = Game.Instance.State.Units.Where(value => value.Descriptor.IsPet && value.Descriptor.Master.Value == unit.Unit).Select(value => value.UniqueId).Count()
+            };
+            facts["pet"] = pet == null ? null : Pet(service, pet);
+            return facts;
+        }
+
+        internal static JObject Pet(HorseCompanionBlueprintService service, UnitEntityData pet)
+        {
+            var progression = pet.Descriptor.Progression;
+            var features = progression.Features;
+            var resistance = pet.Descriptor.Get<UnitPartSpellResistance>();
+            var reduction = pet.Descriptor.Get<UnitPartDamageReduction>();
+            var petClass = pet.Blueprint.GetComponent<AddClassLevels>()?.CharacterClass;
+            return new JObject {
+                ["id"] = pet.UniqueId, ["blueprint"] = pet.Blueprint.AssetGuid, ["master"] = pet.Descriptor.Master.Value?.UniqueId, ["characterLevel"] = progression.CharacterLevel,
+                ["classLevel"] = petClass == null ? 0 : progression.GetClassLevel(petClass), ["experience"] = progression.Experience, ["canLevelUp"] = LevelUpController.CanLevelUp(pet.Descriptor),
+                ["strength"] = pet.Stats.Strength.ModifiedValue, ["constitution"] = pet.Stats.Constitution.ModifiedValue, ["intelligence"] = pet.Stats.Intelligence.ModifiedValue, ["charisma"] = pet.Stats.Charisma.ModifiedValue,
+                ["upgrade"] = (service.HorseUpgrade != null && features.HasFact(service.HorseUpgrade)) || (service.RidingDogUpgrade != null && features.HasFact(service.RidingDogUpgrade)),
+                ["intelligenceBond"] = features.GetRank(service.DivineMountIntelligence), ["celestial"] = features.GetRank(service.DivineMountCelestial),
+                ["greaterCelestial"] = features.GetRank(service.DivineMountGreaterCelestial), ["spellResistanceFact"] = features.GetRank(service.DivineMountSpellResistance),
+                ["spellResistance"] = resistance == null ? 0 : resistance.GetValue(null),
+                ["reductionSources"] = new JArray((reduction?.AllSources ?? Enumerable.Empty<AddDamageResistanceBase>()).Select(source => source.GetType().Name + "=" + source.GetCurrentValue())),
+                ["smiteAbility"] = pet.Descriptor.Abilities.GetAbility(service.DivineMountSmiteAbility) != null,
+                ["smiteUses"] = pet.Descriptor.Resources.GetResourceAmount(service.DivineMountSmiteResource) };
+        }
+    }
     // Observes the additional damage a smite adds while the inner attack roll is being made.
     internal sealed class Sprint8SmiteProbe : IGlobalRulebookHandler<RuleAttackRoll>, IDisposable
     {
@@ -320,60 +379,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // ---- facts ------------------------------------------------------------------------------------------------------
         private static JArray S8ComponentTypes(BlueprintScriptableObject blueprint) =>
-            new JArray((blueprint?.ComponentsArray ?? new BlueprintComponent[0]).Select(component => component?.GetType().Name + (component is AddFeatureOnApply apply ? ":" + apply.Feature?.name : "")));
+            new JArray((blueprint?.ComponentsArray ?? new BlueprintComponent[0]).Select(component => component?.GetType().Name + (component is AddFeatureOnApply apply ? ":" + apply.Feature?.name : component is AddFeatureToCompanion companion ? ":" + companion.Feature?.name : component is AddFacts add ? ":" + string.Join("+", add.Facts.Select(fact => fact?.name).ToArray()) : component is Kingmaker.Blueprints.Classes.Prerequisites.PrerequisiteFeaturesFromList list ? ":" + string.Join("+", list.Features.Select(fact => fact?.name).ToArray()) : "")));
 
         private static JObject S8Blueprint(BlueprintFeature feature) => feature == null ? null : new JObject {
             ["name"] = feature.name, ["guid"] = feature.AssetGuid, ["ranks"] = feature.Ranks, ["classFeature"] = feature.IsClassFeature, ["hidden"] = feature.HideInUI,
             ["groups"] = new JArray(feature.Groups.Select(group => group.ToString())), ["components"] = S8ComponentTypes(feature) };
 
-        private JObject Sprint8Snapshot(UnitDescriptor unit)
-        {
-            var progression = unit.Progression;
-            var features = progression.Features;
-            var pet = unit.Pet;
-            var paladin = horseService.PaladinClass;
-            var mountBond = features.HasFact(horseService.DivineMountSelection);
-            var facts = new JObject {
-                ["id"] = unit.Unit.UniqueId, ["characterLevel"] = progression.CharacterLevel, ["paladinLevel"] = progression.GetClassLevel(paladin), ["size"] = unit.OriginalSize.ToString(),
-                ["archetypes"] = new JArray(progression.Classes.SelectMany(data => data.Archetypes).Select(value => value.name)),
-                ["classes"] = new JArray(progression.Classes.Select(data => data.CharacterClass.name + ":" + data.Level)),
-                ["rank"] = unit.GetFact(horseService.LevelRank)?.GetRank() ?? 0,
-                ["weaponBond"] = features.HasFact(horseService.WeaponBondFeature),
-                ["weaponUpgradeRanks"] = horseService.WeaponBondUpgrades.OfType<BlueprintFeature>().Sum(value => features.GetRank(value)),
-                ["weaponAbilities"] = unit.ActivatableAbilities.Enumerable.Count(value => value.Blueprint.name.StartsWith("WeaponBond", StringComparison.Ordinal)) +
-                    unit.Abilities.Enumerable.Count(value => value.Blueprint.name.StartsWith("WeaponBond", StringComparison.Ordinal)),
-                ["weaponResources"] = horseService.WeaponBondFeature.GetComponents<AddAbilityResources>().Sum(value => unit.Resources.GetResourceAmount(value.Resource)),
-                ["bondSelectionFact"] = features.HasFact(horseService.DivineBondSelection),
-                ["mountBond"] = mountBond,
-                ["mountChoice"] = features.HasFact(horseService.DivineMountHorse) ? "Horse" : horseService.DivineMountRidingDog != null && features.HasFact(horseService.DivineMountRidingDog) ? "RidingDog" : null,
-                ["addPetFacts"] = features.Enumerable.Count(value => value.Get<AddPet>() != null),
-                ["callAbility"] = unit.Abilities.GetAbility(horseService.DivineMountCallAbility) != null,
-                ["callUses"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource),
-                ["ownedPets"] = Game.Instance.State.Units.Where(value => value.Descriptor.IsPet && value.Descriptor.Master.Value == unit.Unit).Select(value => value.UniqueId).Count()
-            };
-            facts["pet"] = pet == null ? null : Sprint8PetFacts(pet);
-            return facts;
-        }
+        private JObject Sprint8Snapshot(UnitDescriptor unit) => Sprint8Facts.Owner(horseService, unit);
 
-        private JObject Sprint8PetFacts(UnitEntityData pet)
-        {
-            var progression = pet.Descriptor.Progression;
-            var features = progression.Features;
-            var resistance = pet.Descriptor.Get<UnitPartSpellResistance>();
-            var reduction = pet.Descriptor.Get<UnitPartDamageReduction>();
-            var petClass = pet.Blueprint.GetComponent<AddClassLevels>()?.CharacterClass;
-            return new JObject {
-                ["id"] = pet.UniqueId, ["blueprint"] = pet.Blueprint.AssetGuid, ["master"] = pet.Descriptor.Master.Value?.UniqueId, ["characterLevel"] = progression.CharacterLevel,
-                ["classLevel"] = petClass == null ? 0 : progression.GetClassLevel(petClass), ["experience"] = progression.Experience, ["canLevelUp"] = LevelUpController.CanLevelUp(pet.Descriptor),
-                ["strength"] = pet.Stats.Strength.ModifiedValue, ["constitution"] = pet.Stats.Constitution.ModifiedValue, ["intelligence"] = pet.Stats.Intelligence.ModifiedValue, ["charisma"] = pet.Stats.Charisma.ModifiedValue,
-                ["upgrade"] = (horseService.HorseUpgrade != null && features.HasFact(horseService.HorseUpgrade)) || (horseService.RidingDogUpgrade != null && features.HasFact(horseService.RidingDogUpgrade)),
-                ["intelligenceBond"] = features.GetRank(horseService.DivineMountIntelligence), ["celestial"] = features.GetRank(horseService.DivineMountCelestial),
-                ["greaterCelestial"] = features.GetRank(horseService.DivineMountGreaterCelestial), ["spellResistanceFact"] = features.GetRank(horseService.DivineMountSpellResistance),
-                ["spellResistance"] = resistance == null ? 0 : resistance.GetValue(null),
-                ["reductionSources"] = new JArray((reduction?.AllSources ?? Enumerable.Empty<AddDamageResistanceBase>()).Select(source => source.GetType().Name + "=" + source.GetCurrentValue())),
-                ["smiteAbility"] = pet.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility) != null,
-                ["smiteUses"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
-        }
+        private JObject Sprint8PetFacts(UnitEntityData pet) => Sprint8Facts.Pet(horseService, pet);
 
         private Sprint8Build Sprint8NewBuild(string race, Gender gender, string name)
         {
