@@ -1,18 +1,18 @@
-# Sprint 7: usable Mounted Charge (2026-11-03)
+# Sprint 8: Paladin Divine Mount (2026-11-04)
 
-**SPRINT 7 ENGINEERING COMPLETE - READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** No merge, release or installation is selected.
+**SPRINT 8 ENGINEERING COMPLETE - READY FOR FINAL REVIEW; OWNER PLAY ACCEPTANCE SEPARATE.** No merge, release or installation is selected.
 
-Branch `codex/mounted-combat-sprint7-charge` from `main` `4efd45a0`. Final compiled candidate sprint7l (`ca10a71d`; DLL `aa211023...`, MVID `49f21a56...`). Later commits change docs only. Corrective runs q02 and q03 are on sprint7l; a01 to a05 stay on sprint7i and a06 on sprint7j. Budget `sprint7`: 77.75 of 90 minutes, 15 launches.
+Branch `codex/mounted-combat-sprint8-paladin-mount`, PR #13, from `main` `6a3f2e88`. Final compiled candidate sprint8m (`3a8f0c66`; DLL `a094ecb2...`, MVID `ba06a57e...`). Later commits change docs only. Budget `sprint8`: 103.42 of 115 minutes, 33 launches.
 
-- **CHARGE-01:** Mounted Charge is on by default in real time and turn-based combat, through the rider's ordinary ability and the native target handler.
-- One forced travel on the mount; one native rider attack with the native modifiers. The rider pays the native full round. In turn-based combat the mount pays its travel from its own Move and keeps its Standard.
-- Charge replaces the pair's ordinary attack or move. The native brain waits for a running charge. A delivered charge leaves the native buff to its round; a cancelled one removes it.
-- A committed charge survives a cold load with no refund and no duplicate delivery.
+- **PAL-01:** at Paladin 5 the native level-up holds for a choice of Weapon Bond or Divine Mount. Weapon Bond is unchanged and creates no animal; the mount path holds no weapon-bond fact, resource or upgrade.
+- **Progression:** paladin level is the effective druid level. Actual pet levels are native commits. Call of the mount, Intelligence 6, celestial defenses and smite unlocked at 11, spell resistance at 15.
+- **Review corrections:** a smite mark belongs to the mount that placed it, with one current target per mount. Celestial defenses follow the pet's actual Hit Dice, exactly one tier at a time.
+- **Bodies:** Medium takes the Horse; Small takes the Horse or the Riding Dog.
+- **Existing characters** are not rewritten; the native respec changes the choice both ways. Another class's companion stays the one companion and levels stack. Archetypes replacing the bond stay legal.
+- **UI-01 is deferred.**
 
-- A pending or refused request leaves a live charge untouched; only an admitted replacement ends it, once. Every forced line reads the mount's body lane.
+Stated for review: the CRPG adaptations, limits and unexecuted list in the report, including that clean uninstallation has not been demonstrated. Evidence stands on its own binaries: t01 to t04 on sprint8m, q01 to q05 on sprint8l, a04 and a10 on sprint8k.
 
-Stated for review: the adaptations, the mount-queue limitation and the unexecuted list in the report.
+Record: [docs/SPRINT8-PALADIN-MOUNT.md](docs/SPRINT8-PALADIN-MOUNT.md). Prior state: [CURRENT before Sprint 8](docs/history/CURRENT-before-sprint8-2026-11-04.md).
 
-Record: [docs/SPRINT7-MOUNTED-CHARGE.md](docs/SPRINT7-MOUNTED-CHARGE.md). Prior state: [CURRENT before Sprint 7](docs/history/CURRENT-before-sprint7-2026-11-03.md).
-
-Live installation at closeout: Mods tree empty, the same as each run's captured start; protected saves restored; no transaction lock or game process; no candidate installed. Owner play acceptance of Sprints 1 to 7 and the Sprint 3 trap check remain separate.
+Live installation at closeout: Mods tree empty, the same as each run's captured start; protected saves restored; no transaction or game process; no candidate installed. Owner play acceptance of Sprints 1 to 8 and the Sprint 3 trap check remain separate.

@@ -364,7 +364,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // and MovementSettled keeps the same travel/residual requirements.
         private UnityEngine.Vector3 SelectAreaContinuationGoal(UnitEntityData mover, string label)
         {
-            Require(AreaAutosaveCase && mover?.View?.AgentASP != null && AstarPath.active != null,
+            Require((AreaAutosaveCase || PaladinBondCase) && mover?.View?.AgentASP != null && AstarPath.active != null,
                 "Area continuation has no exact stock movement/navmesh boundary.");
             var start = mover.Position;
             Require(FiniteAreaPoint(start) && FiniteAreaNumber(mover.View.Corpulence) && mover.View.Corpulence > 0f,

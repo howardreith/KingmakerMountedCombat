@@ -74,7 +74,7 @@ selection change do not grant actions.
 
 - The action bar is not pre-filled. Place Mount Companion and Dismount by hand.
 - Turn-based Charge is unavailable. Real-time Charge is off by default and needs a melee weapon.
-- The Mounted Combat feat is selectable (see [its Sprint 6 record](SPRINT6-MOUNTED-COMBAT-FEAT.md)). Paladin Divine Steed and other class mounts are
+- The Mounted Combat feat is selectable (see [its Sprint 6 record](SPRINT6-MOUNTED-COMBAT-FEAT.md)). The Paladin's Divine Mount is selectable (see [its Sprint 8 record](SPRINT8-PALADIN-MOUNT.md)). Other class mounts are
   out of scope.
 - Capital and similar areas dismount companion pairs on arrival.
 - A campaign that contains a KMC Horse needs KMC installed.
