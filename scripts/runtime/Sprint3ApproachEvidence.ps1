@@ -5,6 +5,7 @@ function Get-KmcSprint3ApproachCases([string]$Scenario) {
  if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-insufficient-movement','S3-tb-touch-friendly') }
  # The named ownership neighbor: one selected existing row, never reported as the full real-time set.
  if($Scenario -ceq 'sprint3-approach-rt-neighbor'){ return @('S3-touch-held-charge') }
+ if($Scenario -ceq 'sprint3-approach-rt-spells'){ return @('S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant') }
  # The trap row alone (PR #8 second review), with its one declared door preparation; never the full real-time set.
  if($Scenario -ceq 'sprint3-approach-rt-trap'){ return @('S3-trap-disarm') }
  @('S3-trap-disarm','S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant')
@@ -187,7 +188,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
 }
 function Assert-KmcSprint3ApproachEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 3 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.

@@ -178,6 +178,19 @@ function Assert-KmcSprint7ChargeContinuation($Value,$Ids){
  if($noPrepare[0].currentActor-cne$Ids[0]){throw 'Sprint 7 the restored turn is not the rider''s'}
  foreach($id in $Ids){$a=@($before[0].grants|Where-Object actorId -CEQ $id);$b=@($noPrepare[0].grants|Where-Object actorId -CEQ $id);if($a.Count-ne1-or$b.Count-ne1-or$a[0].count-ne$b[0].count){throw 'Sprint 7 the restored charge manufactured a preparation'}}
 }
+# Sprint 9: the feat's half of the integrated save. The charge half is Assert-KmcSprint7ChargePersistence, unchanged.
+function Assert-KmcSprint9IntegratedPersistence($Observations,[bool]$Cold){
+ if(-not $Cold){
+  $d=$Observations.featDebt; $s=$Observations.featAtSave
+  if($null -eq $d -or $d.commitment -cne 'BorrowNextSwift' -or $d.state.spent -ne $true -or $d.state.owed -ne $true -or $d.riderTurn -ne $false){ throw 'Sprint 9 the charge did not follow a committed off-turn borrow' }
+  if($null -eq $s -or $s.afterPreparation.spent -ne $false -or $s.afterPreparation.owed -ne $false -or $s.afterPreparation.hasSwift -ne $false -or [double]$s.afterPreparation.swift -le 0){ throw 'Sprint 9 the debt was not paid at the preparation before the charge' }
+  return
+ }
+ $c=$Observations.featCold; $n=$Observations.featRenewal
+ if($null -eq $c -or $c.hasFeat -ne $true -or $c.preferenceOn -ne $true -or $c.state.spent -ne $false -or $c.state.owed -ne $false -or [double]$c.swift -le 0){ throw 'Sprint 9 the cold load changed the paid debt or refunded the Swift action' }
+ if($null -eq $n -or [int]$n.chargesAtPreparation -ne 0 -or $n.afterPreparation.owed -ne $false -or $n.afterPreparation.hasSwift -ne $true){ throw 'Sprint 9 the paid debt was charged again at the next preparation' }
+ if($n.commitment -cne 'BorrowNextSwift' -or $n.attempted -ne $true -or $n.riderTurn -ne $false -or $n.stateAfter.owed -ne $true){ throw 'Sprint 9 no legal reaction followed the integrated load' }
+}
 function Assert-KmcSprint7ChargePersistence($Observations,$Archive,[bool]$Cold){
  if(-not $Cold){
   $c=$Observations.chargeCommit

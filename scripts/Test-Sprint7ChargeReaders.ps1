@@ -120,6 +120,18 @@ $r=Copy-S7 $tb; (Facts $r 'S7-tb-charge').steps.partnerSpentRefused.clicked=$tru
 $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; try { Assert-KmcSprint7ChargeEvidence ([pscustomobject]@{scenario='sprint7-charge-rt'}) $r 'FAIL'; Check $true 'an explicit failed prefix is preserved without qualification' } catch { Check $false 'an explicit failed prefix is preserved without qualification' }
 $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; Reject $r 'sprint7-charge-rt' 'a failed artifact cannot be reported PASS'
 Check ('mounted-charge-tb-committed-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the committed-charge save case is registered'
+Check (Test-KmcChunk7CombatPersistenceCase 'integrated-tb-feat-charge-manual') 'the integrated save case is a combat checkpoint'
+function New-S9Save { [pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=[pscustomobject]@{spent=$true;owed=$true}};featAtSave=[pscustomobject]@{afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6}}} }
+function New-S9Cold { [pscustomobject]@{featCold=[pscustomobject]@{hasFeat=$true;preferenceOn=$true;swift=6;state=[pscustomobject]@{spent=$false;owed=$false}};featRenewal=[pscustomobject]@{chargesAtPreparation=0;afterPreparation=[pscustomobject]@{owed=$false;hasSwift=$true};commitment='BorrowNextSwift';attempted=$true;riderTurn=$false;stateAfter=[pscustomobject]@{owed=$true}}} }
+Assert-KmcSprint9IntegratedPersistence (New-S9Save) $false; Assert-KmcSprint9IntegratedPersistence (New-S9Cold) $true; Check $true 'the integrated reader accepts both halves'
+foreach($bad in @(
+ @{Name='a save with an unpaid debt';Save=$true;Edit={param($v) $v.featAtSave.afterPreparation.owed=$true}},
+ @{Name='a save with no borrow';Save=$true;Edit={param($v) $v.featDebt.commitment='None'}},
+ @{Name='a cold load that refunds the Swift';Save=$false;Edit={param($v) $v.featCold.swift=0}},
+ @{Name='a second debt charge';Save=$false;Edit={param($v) $v.featRenewal.chargesAtPreparation=1}},
+ @{Name='no later reaction';Save=$false;Edit={param($v) $v.featRenewal.attempted=$false}})){
+ $v=if($bad.Save){New-S9Save}else{New-S9Cold}; & $bad.Edit $v; $refused=$false; try{Assert-KmcSprint9IntegratedPersistence $v (-not $bad.Save)}catch{$refused=$true}; Check $refused ('the integrated reader refuses '+$bad.Name)
+}
 Check (Test-KmcChunk7CombatPersistenceCase 'mounted-charge-tb-committed-manual') 'the committed-charge save case is a combat checkpoint'
 $st=[pscustomobject]@{riderStandard=6.0;riderMove=3.0;mountStandard=0.0;mountMove=1.2;buffCount=1;chargeOwned=$false;activeCommand=$false;riderCharging=$false;mountCharging=$false;available=$false;turnUnit=$rider}
 $obs=[pscustomobject]@{chargeCommit=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;lease=[pscustomobject]@{buffHandedToNative=$true};rules=@([pscustomobject]@{charge=$true});after=$st};chargeCold=[pscustomobject]@{hasShell=$false;state=$st;castRequests=0};chargeRenewal=[pscustomobject]@{castRequests=0;rulesAfterLoad=@();state=[pscustomobject]@{riderStandard=0.0;riderMove=0.0;turnUnit=$rider}}}

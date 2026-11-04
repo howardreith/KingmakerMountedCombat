@@ -20,7 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         internal const string FeatDebtCaseName = "mounted-combat-feat-tb-debt-manual";
-        private bool FeatDebtCase => request.PersistenceCase == FeatDebtCaseName;
+        private bool FeatDebtCase => request.PersistenceCase == FeatDebtCaseName || IntegratedCase;
         private const int FeatStrikeBound = 200;
         private int featChargesBefore, featAttemptsBefore;
         private TurnController featEndedTurn;
