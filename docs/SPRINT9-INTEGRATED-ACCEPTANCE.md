@@ -1,84 +1,112 @@
 # Sprint 9: integrated acceptance and release candidate
 
-**PLANNING RECORD, written before any Sprint 9 launch. Results are added below as they exist.** No merge, tag, publication or installation is selected. Owner acceptance is not produced by an agent.
+**RELEASE CANDIDATE READY - OWNER ACCEPTANCE PENDING.** No merge, tag, publication or installation is selected. Owner acceptance is not produced by an agent, and none is recorded here.
 
-## Baseline
+## Identity
 
 | | |
 |---|---|
-| Integrated `main` | `e14bee6b`, the real merge of PR #13 by owner order on 2026-11-04. Its tree has no diff against the reviewed head `91735ae0` |
+| Integrated baseline | `main` `e14bee6b`, the real merge of PR #13 by owner order on 2026-11-04. Its tree has no diff against the reviewed head `91735ae0` |
 | Branch | `codex/mounted-combat-sprint9-integration-release` |
-| Last compiled candidate | sprint8m, `3a8f0c66`, DLL `a094ecb2...`, MVID `ba06a57e...`, 8,844,800 bytes |
-| Negative control | `codex/mounted-combat-sprint8-negative-control` (`10044985`) is local, not an ancestor of `main`, and has no remote ref. Never packaged |
-| Live state at planning | Mods tree empty, no game process, no open budget entry; Steam running |
-| Budget | New record `sprint9`, 90 minutes. Sprint 8's 103.42/115 is untouched |
+| Final compiled source | `bc088965`, candidate sprint9g. Later commits are docs only |
+| Version | `0.1.0-chunk7b-preview.101`. Readers branch on `^0.1.0-chunk7b-preview.N$`, so the shape is kept; a release name can differ |
+| DLL | SHA-256 `345b9784ccd3aa20d331394cbe48b4a6719e4fd0642a10a50186792b3ff29c83`, MVID `6054e0d8-ff14-44f9-bd5e-f287049c8090`, 8,860,160 bytes (limit 9 MiB) |
+| Package | `artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.101-sprint9g-diagnostic.zip`, SHA-256 `3f85b86f38181df49d23c28ba97ab3648d89a5bd513bfdaedb0db6a46d6dd567`. Holds exactly `Info.json` and the DLL. The `-diagnostic` name is the established route's. The automation host runs only for an explicit command-line request, and `f01` ran with none |
+| Suite | `sprint9g-bc088965-20261104` |
+| Earlier candidates | sprint9d `f27b8a93` DLL `3fe41598...`; sprint9e `0e234ecb` DLL `72754ce9...`; sprint9f `af9140c9` DLL `afe83532...` |
+| Negative control | `codex/mounted-combat-sprint8-negative-control` (`10044985`) is local, not an ancestor, has no remote ref and was not packaged |
 
-Product files changed since each sprint's final compiled source, from `git diff --name-only` excluding `Diagnostics/`: Sprint 1 53, Sprint 2 46, Sprint 3 43, Sprint 4 39, Sprint 5 27, Sprint 6 23, Sprint 7 8 (all Paladin class work plus one level-entry patch), Sprint 8 0. No Small-rider, seat or rig file has changed since sprint5v. Saving product code has not changed since sprint1q except a 3-line authorization file.
+**Byte differences that matter below.** sprint9e to sprint9g: Divine Mount registration no longer requires the mixed-class list, plus one diagnostic assertion. sprint9d to sprint9g: that, plus the Smite admission narrowed from any mount Swift ability to Celestial Smite, and a range check on the first-action path. None touches saving, movement or the feat. These runs are reported on their own bytes and are not relabelled.
 
-## Candidate decisions made before freezing
+## Defects this sprint found and fixed
 
-- **Version `0.1.0-chunk7b-preview.101`.** Readers branch on `^0.1.0-chunk7b-preview.N$`, so a new version shape would silently change what they check. The release name can differ from the version string.
-- **UMM page text is a defect, not a cosmetic edit.** It still tells players Rider Primary and Mount Primary select an attack (retired in Sprint 4) and names only the Ranger Horse and only the KMC Horse as a save dependency. Fixed before the freeze.
-- **`docs/CHUNK7-SUPPORT-CONFIG.md` is stale.** It says Charge is off by default, TB Charge is unavailable and one Small profile exists. Replaced by a current support section for this candidate.
-- **Package route.** The established `scripts/Package.ps1`. Its `-diagnostic` file name is historical; contents are checked, not inferred from the name: exactly `Info.json` and the DLL. The automation host starts only for an explicit command-line request, which the request-free normal-player control exercises.
+| Defect | How found | Failing evidence | Repair |
+|---|---|---|---|
+| **Divine Mount never registered on a base-game install.** The Paladin safely kept the stock bond, but the Sprint 8 feature did not exist without Call of the Wild, which is the owner's own configuration | Request-free base-game control | `e08`, FAIL: "The mixed-class companion choice has no companion list" | The list is optional. Native record in `f01`: the base-game choice carries `PrerequisitePet:NoCompanion=False`, so it is offered only to someone who already has a companion, with nothing to append |
+| **A mounted Divine Mount could not use Celestial Smite in turn-based combat.** The click was accepted and the command never started, in Preparing or Acting, with no message | New TB neighbor row | `a02`, `a03` | The paired gate admits exactly this command. Native availability and the mount's own Swift cost are unchanged |
+| **UMM page text** named the retired Rider Primary and Mount Primary and only the Horse as a save dependency | Source read while planning | none native | Text corrected |
+| **Support documentation** described Charge as off by default and TB Charge as unavailable | Source read | none native | Current notes in [the release notes](SPRINT9-RELEASE-NOTES.md); pointers added to the older pages |
 
-## Two narrow additions, both in existing families
+Stale checks corrected, none weakening a product claim:
 
-- **`integrated-tb-feat-charge-manual`** (persistence producer and separate-process consumer). One rider in one TB fight: real off-turn Mounted Combat borrow, the debt charged once at the next native preparation, a real ordinary Mounted Charge on that turn, then a native Manual save with the second pair independent. Cold: nothing refunded or replayed, native renewal with no second charge, one further legal reaction. Replaces two separate feat and charge save pairs and is the coexistence claim.
-- **`sprint8-paladin-tb`** (the small unexecuted neighbor). A native Divine Mount paladin on its Horse in TB: Call, refusal while mounted, Mount, Celestial Smite, a real attack carrying the bonus, Mounted Charge. Also reads the removal assessment for that owner.
-- **`sprint3-approach-rt-spells`** selects the existing RT spell rows without the trap row, which cannot pass on this fixture and would otherwise force an aggregate FAIL.
+- **`S3-ranged-distant` reader.** It had always stopped at the trap row before reaching this check, and it counted a live rider's swing made before the hostile retreated. `r16` from Sprint 3 shows the identical pattern.
+- **`pair-stock-attack-order` assertion.** It required exactly one rider dispatch; Sprint 4's continued intent legitimately dispatches twice. The one-rule and no-duplicate checks remain.
+- **`Test-ScenarioDispatchEvidence.ps1`.** Fails identically on the accepted Sprint 8 tree: a stale hard-coded list outside the gates. Classified as pre-existing and left unchanged.
 
-## Outcome map
+## Outcome map and results
 
-"Run" = current-binary native check in the named batch. "Retain" = earlier evidence on its own bytes, not current-binary execution, with the reason. Costs are budget minutes from earlier sprints' measurements.
+"Current" = sprint9g. Runs are under `runtime-evidence\`, prefix `20261104-sprint9-` unless named. Every run in the sprint, pass or fail, reports `modsRestored` and `saveProtectionPassed` true.
 
-| Outcome | Supported configuration | Latest evidence and dependency since | Decision | Route and prerequisites | Cost, batch |
-|---|---|---|---|---|---|
-| Base-game load, no auto-start, IDs register once | Kingmaker 2.1.7, UMM, KMC only | F7 r42 on preview.96; much changed since | **Run** | `chunk7-normal-player-control`, `-BaseGameOnly`, observer package, no KMC request, source six-Horse Manual; `-TimeoutSeconds 900` | 3, b3 |
-| Conflicts fail clearly | Another mod editing the Ranger list or the bond slot | S8 a04 live drift (sprint8k); registration refusal offline | Retain, plus offline on candidate | Candidate tier | 0 |
-| Genuine Auto overwrite and area transition | Two owned pairs, area event | S1 r11/r12; save code unchanged | **Run** | `chunk7-owned-two-pair-campaign / multi-area-autosave`, owner seed, `-EngineShapedSaveRoot`, area target, existing Auto source | 5.5, b2 |
-| Quick rotation | Same | S1 r06/r07 | **Run** producer; retain cold r07 | `multi-exploration-rotation-quick` | 2.5, b2 |
-| Manual overwrite | Same | S1 r08; save path unchanged | Retain | Not re-run: new-slot Manual is exercised by three cold chains | 0 |
-| Meaningful mounted save, cold consumer | Working fixture, CotW and CMI | S6 c01, S7 a05, S8 t03 | **Run** | `integrated-tb-feat-charge-manual` save then load | 6.5, b1 |
-| Authentic earlier-release upgrade | preview.211 Quick `83e92e1a...` with exact CotW and CMI | S1 r13-r2, r17; inputs verified present by hash | **Run** | `persistence-p05-load -UpgradeChain`, `quick` then `manual`, retained dependency selection | 5, b2 |
-| Doors, ordinary movement, mount and dismount | Mammoth pair, RT | S2 r22 (sprint2v) | **Run** | `chunk4-traversal-core`, Working fixture | 3, b3 |
-| TB door | | Never demonstrated; S2 proved no reachable combat-usable door in inputs | **Limitation** | Owner script names it; no route revived | 0 |
-| Distant friendly touch | Mammoth pair, RT and TB | S3 r16, r17, r18; attack and movement changed since | **Run** both | `sprint3-approach-rt-spells`, `sprint3-approach-tb` | 5, b1 and b3 |
-| Trap | | TRAP-01 never executed natively. Bounded inspection in this sprint: every owner seed's nearest active trap is at least 54.6 m away at another elevation | **Owner item** | Owner script; no speculative exploration | 0 |
-| RT retarget, retired helpers, Haste, Stop, Hold, replacement | Mammoth pair | S4 r03, r08; S7 changed the pair attack command | **Run** | `sprint4-natural-rt` | 3, b4 |
-| Hold-on-move neighbors | | S4 r08 (sprint4i) | Retain unless reserve remains | `sprint4-intent-rt` | 2.5, optional |
-| TB ordinary actors and resources | Both actors | S4 r05 | **Run** | `sprint4-natural-tb` | 2.5, b4 |
-| Multiple-pair isolation | Two pairs | S6 `S6-rt-isolation`, S7 a04 | **Run** inside the integrated case and the feat row | Reader demands both independent owners | 0 extra |
-| Feat availability, RT defense, renewal | Riders with Mobility | S6 r07 | **Run** | `sprint6-feat-rt` | 2.5, b4 |
-| Feat TB debt, Charge TB | | S6 t02, S7 a02, q03 | **Run** through the integrated case; rest retained | Forced-hit, Pounce, mount-first and reforce unchanged since S7 | 0 extra |
-| Charge RT | Mammoth pair | S7 a01 (sprint7i) | **Run** | `sprint7-charge-rt` | 2.5, b4 |
-| Charge queue, lane | | S7 q02 (sprint7l); no combat product change since | Retain unless reserve remains | `sprint7-charge-queue-rt` | 2.5, optional |
-| Small female rig and geometry extreme, normal camera, Riding Dog acquisition | Halfling and Gnome on the Dog | S5 h2 (sprint5v DLL); no rig change since | **Run** | `sprint5-dog-rt`: also yields captures | 5.5, b5 |
-| Same on the Horse, full pose matrix | | S5 h3 (sprint5v) | Retain | No rig change | 0 |
-| Small dismount and cold load | Female Halfling, Dog | S5 f3/f4 (sprint5n) | **Run** | `riding-dog-exploration-manual` save then load | 5.5, b5 |
-| Paladin level five, weapon, retrain, old character | Hired companion, CotW | S8 a04 (sprint8k) | **Run** | `sprint8-paladin-choice-rt` | 3, b5 |
-| Mount path, pet progression, Call, Smite, Riding fallen mount | | S8 t04 (sprint8m) | **Run** | `sprint8-paladin-mount-rt` | 3.5, b5 |
-| TB Call and Smite | | Never run | **Run** | `sprint8-paladin-tb` | 3, b1 |
-| Paladin save continuity | | S8 t02/t03 (sprint8m) | Retain unless reserve remains; only UMM text and diagnostics differ | `paladin-bond-exploration-manual` | 6, optional |
-| Mixed class, celestial tiers | | S8 q05 (sprint8l), t01 (sprint8m) | Retain | t01 exercised a mixed owner on sprint8m | 0 |
-| Removal of a campaign with no permanent references | Stock Mammoth, mod absent | F7 r31, r32 | **Run** | `persistence-p07-save/prepare-removal`, then `p07-load/removal-no-dll`, `-OwnerStockRemoval`, run map; run id must match `*-c7e-final-B*-r31` | 5, b3 |
-| Removal refused with references | Horse, Dog, feat, bond | Offline and S8 scan | **Run** inside `sprint8-paladin-tb` | | 0 extra |
-| Clean uninstall from a dependent save | | **Not claimed** | Limitation | Rollback is the pre-upgrade save with its matching package | 0 |
-| On-screen level-up, action list, appearance | | Never clicked by an agent | **Owner script** | At most three sessions | 0 |
-
-Not selected: every old case; six-pair combat (no registry or world-lifetime product change since its last evidence); a pure-base-game playthrough. Base-game support is stated separately: registration and mounted control are run, but Paladin pet progression and smite refill without Call of the Wild are unobserved and are disclosed as unverified, not supported.
-
-## Launch and budget map
-
-| Step | What | Estimate |
+| Outcome | Evidence | Status |
 |---|---|---|
-| b1 pre-freeze | Package, suite; `integrated` save and load, `sprint8-paladin-tb`, `sprint3-approach-rt-spells` | 2.5 + 14.5 |
-| Freeze | Candidate tier once, then package and suite if HEAD moved | 7.5 |
-| b2 saves | Area Auto, its cold, Quick rotation, upgrade producer and consumer | 13 |
-| b3 install, world | Normal-player control, removal save and absent load, door, TB touch | 13.5 |
-| b4 combat | S4 RT, S4 TB, feat RT, Charge RT | 10.5 |
-| b5 small, paladin | Dog row, Dog save and cold, Paladin mount, Paladin choice | 17.5 |
-| **Total planned** | 23 launches | **about 78** |
-| Reserve | Defects, optional rows | about 12 |
+| Base-game load, no auto-start, IDs register once, no KMC error | `f01` on sprint9f, no automation request, observer confirms. Differs from current by one diagnostic assertion | **Run** |
+| Conflict fails clearly | Candidate offline on current; S8 `a04` live drift retained; `g19` inventory reruns the drift on current | **Run** |
+| Genuine Auto overwrite with area transition, cold | `e03`, `e04` on sprint9e | **Run** |
+| Quick rotation | `e05` on sprint9e; cold retained from S1 `r07` | **Run**, cold retained |
+| Manual new slot and cold | `a05`, `a06`, `g20`, `g21` | **Run** |
+| Manual overwrite | S1 `r08`; save code unchanged since | Retained |
+| Authentic earlier-release upgrade | `e06`, `e07` on sprint9e: preview.211 Quick `83e92e1a...` with its exact CotW and CMI, resaved `62c901f4...`, then cold in a separate process | **Run** |
+| Door, movement, turns, formation | `g11` | **Run** |
+| Area transition | `e03` | **Run** |
+| Distant friendly touch, RT | `e02` on sprint9e: original FAIL, re-evaluated PASS, `analysis-cache\sprint9\20261104-sprint9-e02-spells-rt-reader-reevaluation.json` | **Run** |
+| Distant friendly touch, TB | S3 `r17` | Retained, not run: the balance went to higher-value rows |
+| Retarget, retired helpers, Haste, Stop, Hold, replacement | `g13` | **Run** |
+| Hold-on-move neighbors | S4 `r08` | Retained |
+| TB ordinary actors and resources | `g14` | **Run** |
+| Multiple-pair isolation | `g15` isolation row; `a05`, `a06` reader demands both independent owners | **Run** |
+| Feat availability, RT defense, renewal | `g15` | **Run** |
+| **Coexistence: one rider, one TB fight: off-turn borrow, debt paid once at preparation, real Charge, Manual save; cold: no refund or replay, no second debt charge, a further legal reaction** | `a05`, `a06` on sprint9d | **Run** |
+| Charge RT | `g16` | **Run** |
+| Charge queue, lane, mount-first, Pounce, reforce | S7 `q02`, `q03`, `a03`, `a06` | Retained |
+| Female Small rig and geometry extreme on the Dog, normal camera, actions, acquisition, progression | `g17` | **Run** |
+| Small dismount and cold load | `g20`, `g21` | **Run** |
+| Same bodies on the Horse, full pose matrix | S5 `h3`; no rig file changed since | Retained |
+| Paladin level five, both bonds, old character, retrain | `g19` | **Run**, driven by the native controller |
+| Mount path, actual pet progression, RT Call and Smite, fallen mount | `g18` | **Run** |
+| **TB Call, mounted refusal, first-action Smite on the mount's Swift, End Turn, Charge, the mount's real attack at +9 for 9 HD, removal scan, dismount** | `e01` on sprint9e | **Run** |
+| Paladin save continuity | S8 `t02`, `t03` | Retained |
+| Mixed class, celestial tiers | S8 `q05`, `t01` | Retained |
+| Removal with no permanent references, mod absent | `20261104-c7e-final-B902-r31`, `-r32`. The validator requires that run-name form | **Run** |
+| Removal refused with references | `e01` scan names the bond and Horse; `g19`, `g20` retained reader scans | **Run**, scan only: the refusal button itself was not clicked on a dependent campaign |
+| On-screen level-up, action list, overall appearance | Never clicked by an agent | **Owner script** |
+| **Trap** | TRAP-01 has never executed. Bounded inspection of all nine owner seeds this sprint: nearest active trap 54.6 m at another elevation (Old Sycamore); the dungeon floor's are 87 to 92 m behind hostiles | **Owner item, unresolved** |
+| **TB door** | Never demonstrated; no reachable combat-usable door in existing inputs | **Limitation** |
+| **Clean uninstall from a dependent save** | Not claimed | **Limitation** |
+| **Authentic older mounted save with no CotW** | The only authentic archive needs CotW and CMI | **Limitation** |
 
-A b1 run on a DLL that the freeze leaves byte-identical counts as current-binary. A docs commit needs a new package, not new evidence. If the reserve goes, the optional rows stay retained and the matrix says so.
+## Base game versus Call of the Wild
+
+| | Base game | With CotW and CMI |
+|---|---|---|
+| Registration, no errors | **Run** (`f01`) | **Run** |
+| Mount, move, dismount, save, cold load on no-mods owner seeds | **Run** (`e03` to `e05`, `f01`) | **Run** |
+| Divine Mount, Riding Dog and feat gameplay rows | **Not run**: the Working fixture cannot load without CotW | **Run** |
+| Pet progression | **Unverified.** Stock `AddPet` should level and rest the pet itself, which would refill Smite. This is the owner's configuration, so it is in the owner script | Manual native levels, **Run** |
+
+## Accepted limits, stated for review
+
+- Agent rows use native controllers and the ordinary click handler, not on-screen clicks.
+- Of a mount's own abilities, only Celestial Smite is admitted on the paired TB turn. Others wait for a dismount, as they always have.
+- **Named unobserved risk.** A first-action Smite beyond range waits, with no message, until the rider acts. Once the turn is acting it is admitted, and native rules may then send the mount on its own approach, which could compete with the rider's order. Source review only: no row exercised it, and the remaining balance sits at the launch guard. A later candidate can refuse an out-of-range Smite outright if the owner hits this or wants it closed first.
+- In `e01` the mounted Call read as refused for the right reason, but the owner had no uses left, so "nothing spent" there is vacuous. RT `g18` holds it with uses available.
+- The Call reads as unavailable for one frame before its owner is selected. Delivered normally; players always select first.
+- A close camera in the diagnostic captures clips through geometry. Medium and normal views are clean.
+- Sprint 4 to Sprint 8 adaptations stand as documented: rider-charge model, smite target and one-day mark, Intelligence, template SR, companion death.
+
+## Reviews
+
+Independent source reviews before live use: pre-freeze diff (10 findings, row and reader corrections made), delta (reader strictness, re-evaluable), Smite repair (narrowed to Celestial Smite, range check added). The final product delta, after sprint9g's runs, left the out-of-range risk above, and asked whether a null list could hide Call of the Wild adding its list late. `g19` closes that on current: with CotW staged, the list holds the Horse, Riding Dog and both Divine Mount entries.
+
+## Budget and restoration
+
+Record `sprint9`: **79.73 of 90** minutes, 29 launches, 66 entries, no adjustment. Sprint 8's 103.42/115 is untouched. Batches `sprint9:b1`, `b1b`, `b1c`, `e1` to `e3`, `f1`, `g1` to `g3`. The balance is at the launch guard's admission floor, so no optional row followed.
+
+Offline on sprint9g: Candidate 9 of 9, 3.55 minutes, with the three focused reader suites.
+
+At closeout: Mods tree empty, the same as each run's captured start; no game process; no lock; no candidate installed; protected saves restored per each result.
+
+## Failed evidence retained
+
+`a01` row name unregistered; `a02`, `a03` Smite never started, then first action; `e02` reader, re-evaluated; `e08` base-game registration; `20261104-c7e-final-B901-r31` stale assertion, after removal itself passed; `-B901-r32` refused because its source had not passed. All under `runtime-evidence\`.
+
+Owner route: [owner play script](SPRINT9-OWNER-PLAY-SCRIPT.md). Notes: [release notes](SPRINT9-RELEASE-NOTES.md).
