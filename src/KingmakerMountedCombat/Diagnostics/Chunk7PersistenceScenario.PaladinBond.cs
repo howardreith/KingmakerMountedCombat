@@ -6,6 +6,7 @@ using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Enums;
 using Kingmaker.UI.SettingsUI;
+using Kingmaker.UnitLogic;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -18,7 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string PaladinBondCaseName = "paladin-bond-exploration-manual";
         private const string PaladinWeaponName = "KMC_S8_OldWeapon", PaladinHighName = "KMC_S8_HighOwner";
-        private UnitEntityData paladinHighOwner;
+        private UnitEntityData paladinHighOwner, paladinSmiteTarget;
+        private int paladinHighStep;
         private bool PaladinBondCase => request.PersistenceCase == PaladinBondCaseName;
 
         private bool AcquirePaladinBond(JObject record)
@@ -100,7 +102,34 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var pet = paladinHighOwner?.Descriptor?.Pet;
             if (pet?.View?.AgentASP == null || !pet.IsInState || !pet.Descriptor.Progression.Features.HasFact(horses.DivineMountSpellResistance)) return false;
-            ((JObject)evidence["acquisition"])["highOwner"] = Sprint8Facts.Owner(horses, paladinHighOwner.Descriptor);
+            var ability = pet.Descriptor.Abilities.GetAbility(horses.DivineMountSmiteAbility)?.Data;
+            switch (paladinHighStep)
+            {
+                case 0:
+                    var petClass = pet.Blueprint.GetComponent<AddClassLevels>().CharacterClass;
+                    for (var guard = 0; guard < 20 && Kingmaker.UnitLogic.Class.LevelUp.LevelUpController.CanLevelUp(pet.Descriptor); guard++)
+                        NativeHorseFixtureAcquisition.CommitPetLevel(pet, petClass, horses.HorseUpgrade, logger);
+                    // Disclosed setup: a distant idle stock unit made evil, holding a real mark across the save. It is not hostile, so the save stays out of combat.
+                    var stock = ResourcesLibrary.TryGetBlueprint<BlueprintFeature>(HorseCompanionBlueprintService.DogFeatureGuid).GetComponent<Kingmaker.UnitLogic.FactLogic.AddPet>().Pet;
+                    paladinSmiteTarget = Game.Instance.EntityCreator.SpawnUnit(stock, firstRider.Position + Vector3.left * 8f, Quaternion.identity, Game.Instance.State.LoadedAreaState.MainState);
+                    paladinHighStep = 1;
+                    return false;
+                case 1:
+                    if (paladinSmiteTarget.View == null) return false;
+                    paladinSmiteTarget.Descriptor.Alignment.Set(Alignment.NeutralEvil);
+                    ability.Spend();
+                    Kingmaker.RuleSystem.Rulebook.Trigger(new Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell(ability, new Kingmaker.Utility.TargetWrapper(paladinSmiteTarget)));
+                    paladinHighStep = 2;
+                    return false;
+                case 2:
+                    if (!paladinSmiteTarget.Descriptor.HasFact(horses.DivineMountSmiteBuff)) return false;
+                    paladinHighStep = 3;
+                    break;
+            }
+            var record = (JObject)evidence["acquisition"];
+            record["highOwner"] = Sprint8Facts.Owner(horses, paladinHighOwner.Descriptor);
+            record["markSources"] = new JArray(DivineMountSmiteBonus.MarkSources(paladinSmiteTarget, horses.DivineMountSmiteBuff).Select(source => source?.UniqueId));
+            record["markTarget"] = paladinSmiteTarget.UniqueId;
             return true;
         }
 
@@ -114,6 +143,23 @@ namespace KingmakerMountedCombat.Diagnostics
             record["ownerPetIsPairMount"] = ReferenceEquals(secondRider.Descriptor.Pet, secondMount);
             var high = Game.Instance.Player.AllCharacters.FirstOrDefault(unit => unit.CharacterName == PaladinHighName);
             record["highOwner"] = high == null ? null : Sprint8Facts.Owner(horses, high.Descriptor);
+            var highPet = high?.Descriptor?.Pet;
+            if (highPet != null)
+            {
+                // The mark as the save holds it: its source is the loaded mount, on the mount's current target, and the bonus reaches the real rule.
+                var marked = Game.Instance.State.Units.Where(unit => unit.Descriptor.HasFact(horses.DivineMountSmiteBuff)).ToArray();
+                var smite = new JObject { ["markedUnits"] = new JArray(marked.Select(unit => unit.UniqueId)), ["petHitDice"] = highPet.Descriptor.Progression.CharacterLevel,
+                    ["sources"] = new JArray(marked.SelectMany(unit => DivineMountSmiteBonus.MarkSources(unit, horses.DivineMountSmiteBuff)).Select(source => source?.UniqueId)) };
+                record["smite"] = smite;
+                if (marked.Length == 1)
+                {
+                    using (var probe = new Sprint8SmiteProbe(highPet))
+                    {
+                        Kingmaker.RuleSystem.Rulebook.Trigger(new Kingmaker.RuleSystem.Rules.RuleAttackWithWeapon(highPet, marked[0], highPet.GetFirstWeapon(), 0));
+                        smite["additionalDamage"] = probe.LastAdditionalDamage;
+                    }
+                }
+            }
             var old = Game.Instance.Player.AllCharacters.FirstOrDefault(unit => unit.CharacterName == PaladinWeaponName);
             record["oldWeaponFound"] = old != null;
             if (old == null) return;

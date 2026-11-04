@@ -5,6 +5,7 @@ function Get-KmcSprint8Cases([string]$Scenario){
   'sprint8-paladin-mount-rt' { return @('S8-mount-horse','S8-control') }
   'sprint8-paladin-dog-rt' { return @('S8-dog') }
   'sprint8-paladin-mixed-rt' { return @('S8-mixed','S8-mixed-reverse','S8-archetype') }
+  'sprint8-paladin-celestial-rt' { return @('S8-tiers','S8-smite') }
  }
  throw ('Sprint 8 scenario has no case list: '+$Scenario)
 }
@@ -160,9 +161,83 @@ function Assert-KmcS8ArchetypeCase($e){
  if(@($e.levels|Where-Object{$null -ne $_.PSObject.Properties['archetypeAdded'] -and $_.archetypeAdded -eq $false}).Count -ne 0 -or @($e.final.archetypes) -cnotcontains [string]$e.archetype){ throw 'Sprint 8 archetype: the native archetype was refused' }
  if($null -ne $five.PSObject.Properties['DivineBondSelection'] -or $e.final.weaponBond -ne $false -or $e.final.mountBond -ne $false -or $null -ne $e.final.pet){ throw 'Sprint 8 archetype: a replaced bond was still offered or granted' }
 }
+# The Bestiary's table, against the pet's own committed level: exactly one tier, with its live values.
+function Assert-KmcS8Tier($Pet,[string]$What){
+ $hd=[int]$Pet.characterLevel
+ $want=if($hd -ge 11){@{l=0;c=0;g=1;r=15;d=10}}elseif($hd -ge 5){@{l=0;c=1;g=0;r=10;d=5}}else{@{l=1;c=0;g=0;r=5;d=0}}
+ if([int]$Pet.lesserCelestial -ne $want.l -or [int]$Pet.celestial -ne $want.c -or [int]$Pet.greaterCelestial -ne $want.g){ throw ('Sprint 8 '+$What+': pet at '+$hd+' Hit Dice holds tiers '+$Pet.lesserCelestial+'/'+$Pet.celestial+'/'+$Pet.greaterCelestial) }
+ $sources=@($Pet.reductionSources)
+ if(@($sources|Where-Object{$_ -ceq ('AddDamageResistanceEnergy='+$want.r)}).Count -ne 3 -or @($sources|Where-Object{$_ -clike 'AddDamageResistanceEnergy=*'}).Count -ne 3){ throw ('Sprint 8 '+$What+': live resistances differ at '+$hd+' Hit Dice: '+($sources-join';')) }
+ $physical=@($sources|Where-Object{$_ -clike 'AddDamageResistancePhysical=*'})
+ if($want.d -eq 0){ if($physical.Count -ne 0){ throw ('Sprint 8 '+$What+': DR at '+$hd+' Hit Dice') } }
+ elseif($physical.Count -ne 1 -or $physical[0] -cne ('AddDamageResistancePhysical='+$want.d)){ throw ('Sprint 8 '+$What+': DR at '+$hd+' Hit Dice differs: '+($physical-join';')) }
+}
+function Assert-KmcS8NoTier($Pet,[string]$What){
+ if([int]$Pet.lesserCelestial+[int]$Pet.celestial+[int]$Pet.greaterCelestial -ne 0 -or @($Pet.reductionSources).Count -ne 0){ throw ('Sprint 8 '+$What+': a celestial defense is present') }
+}
+function Assert-KmcS8TiersCase($e){
+ if([int]$e.beforeUnlock.paladinLevel -ne 10){ throw 'Sprint 8 tiers: the input was not Paladin 10' }
+ Assert-KmcS8NoTier $e.beforeUnlock.pet 'before the unlock'
+ $u=$e.unlockUnlevelled
+ if([int]$u.paladinLevel -ne 11 -or [int]$u.rank -ne 11 -or $u.pet.canLevelUp -ne $true -or [int]$u.pet.characterLevel -ge 5 -or [int]$u.pet.smiteFact -ne 1){ throw 'Sprint 8 tiers: the unlock was not a pending underlevelled pet with its smite' }
+ Assert-KmcS8Tier $u.pet 'at the unlock with levels pending'
+ if([int]$e.smiteSpentForTransitions -ne 0){ throw 'Sprint 8 tiers: the use was not spent before the transitions' }
+ $steps=@($e.petSteps)
+ foreach($s in $steps){ Assert-KmcS8Tier $s.pet ('pet step '+$s.pet.characterLevel); if([int]$s.pet.smiteFact -ne 1 -or [int]$s.pet.smiteUses -ne 0){ throw ('Sprint 8 tiers: a transition changed the smite at '+$s.pet.characterLevel) } }
+ foreach($hd in 4,5,10,11){ if(@($steps|Where-Object{[int]$_.pet.characterLevel -eq $hd}).Count -ne 1){ throw ('Sprint 8 tiers: no native commit reached '+$hd+' Hit Dice') } }
+ $a=$e.ownerAheadOfPet
+ if([int]$a.paladinLevel -ne 13 -or $a.pet.canLevelUp -ne $true -or [int]$a.pet.characterLevel -ge 11){ throw 'Sprint 8 tiers: the owner was not ahead of its pet' }
+ Assert-KmcS8Tier $a.pet 'owner ahead of its pet'
+ $r=$e.resistanceAtFifteen
+ if([int]$r.paladinLevel -ne 15 -or [int]$r.pet.spellResistance -ne 26 -or [string]$r.pet.id -cne [string]$e.petIdentity){ throw 'Sprint 8 tiers: spell resistance at 15 or the pet differs' }
+ Assert-KmcS8Tier $r.pet 'at 15'
+ $m=$e.mixedBeforeUnlock
+ if([int]$m.paladinLevel -ne 10 -or [int]$m.pet.characterLevel -lt 11){ throw 'Sprint 8 tiers: the mixed pet was not above the boundary before the unlock' }
+ Assert-KmcS8NoTier $m.pet 'mixed before the unlock'
+ $n=$e.mixedAtUnlock
+ if([int]$n.paladinLevel -ne 11 -or [int]$n.pet.greaterCelestial -ne 1 -or [string]$n.pet.id -cne [string]$m.pet.id){ throw 'Sprint 8 tiers: Paladin 11 with an 11+ HD pet did not take the upper tier at once' }
+ Assert-KmcS8Tier $n.pet 'mixed at the unlock'
+ Assert-KmcS8NoTier $e.mixedLinkRemoved.pet 'link removed'
+ if([int]$e.mixedLinkRemoved.pet.smiteFact -ne 1 -or [int]$e.mixedLinkRemoved.pet.smiteUses -ne 0){ throw 'Sprint 8 tiers: removing the defenses touched the smite' }
+ Assert-KmcS8Tier $e.mixedLinkRestored.pet 'link restored'
+ if([int]$e.mixedLinkRestored.pet.smiteUses -ne 0){ throw 'Sprint 8 tiers: restoring the defenses refunded the smite' }
+ $x=$e.replaced
+ if($e.oldPetDestroyed -ne $true -or [int]$x.ownedPets -ne 1 -or [string]$x.pet.id -ceq [string]$e.petIdentity -or [int]$x.pet.characterLevel -ge 5 -or [int]$x.pet.spellResistance -ne 26){ throw 'Sprint 8 tiers: the replacement pet is not a new low-level mount' }
+ Assert-KmcS8Tier $x.pet 'replacement pet'
+}
+function Assert-KmcS8SmiteCase($e){
+ $a=[string]$e.mountA; $b=[string]$e.mountB; $x=[string]$e.targetX; $y=[string]$e.targetY
+ $reads=@{}; foreach($r in @($e.reads)){ $reads[[string]$r.label]=$r }
+ function Expect([string]$Label,[bool]$Bonus,[string[]]$Sources,[int]$Uses){
+  $r=$reads[$Label]; if($null -eq $r){ throw ('Sprint 8 smite: no read '+$Label) }
+  $want=if($Bonus){[int]$r.hitDice}else{0}
+  if([int]$r.additionalDamage -ne $want){ throw ('Sprint 8 smite: '+$Label+' added '+$r.additionalDamage+', expected '+$want) }
+  if((@($r.sources|Sort-Object)-join',') -cne (@($Sources|Sort-Object)-join',')){ throw ('Sprint 8 smite: '+$Label+' sources were '+(@($r.sources)-join',')) }
+  if([int]$r.uses -ne $Uses){ throw ('Sprint 8 smite: '+$Label+' uses were '+$r.uses) }
+ }
+ if([int]$e.usesAtStart.a -ne 1 -or [int]$e.usesAtStart.b -ne 1){ throw 'Sprint 8 smite: the mounts did not start with a use each' }
+ Expect 'a-x-unmarked' $false @() 1
+ Expect 'a-x-own-mark' $true @($a) 0
+ Expect 'b-x-a-mark-only' $false @($a) 1
+ if($e.bMayMarkX.canTarget -ne $true){ throw 'Sprint 8 smite: another mount''s mark blocked this one' }
+ if($e.aMayRemarkX.canTarget -ne $false){ throw 'Sprint 8 smite: a mount could spend a use re-marking its own current target' }
+ Expect 'a-x-both-marks' $true @($a,$b) 0
+ Expect 'b-x-both-marks' $true @($a,$b) 0
+ if([int]$e.aRested.uses -ne 1 -or (@($e.aRested.sourcesOnX|Sort-Object)-join',') -cne (@($a,$b|Sort-Object)-join',')){ throw 'Sprint 8 smite: the rest did not return a use and leave the marks' }
+ Expect 'a-x-after-rest' $true @($a,$b) 1
+ Expect 'a-x-after-changing-target' $false @($b) 0
+ Expect 'a-y-current' $true @($a) 0
+ Expect 'b-x-keeps-its-mark' $true @($b) 0
+ Expect 'b-y-a-mark-only' $false @($a) 0
+ Expect 'b-x-removed' $false @() 0
+ if([double]$e.aMarkHoursLeft -gt 24.01 -or [double]$e.aMarkHoursLeft -lt 23){ throw 'Sprint 8 smite: the mark does not last the declared day' }
+ Expect 'a-y-expired' $false @() 0
+ if($e.aMayMarkYAfterExpiry.canTarget -ne $true){ throw 'Sprint 8 smite: an expired mark still blocks a new one' }
+ if([int]$e.usesAtEnd.a -ne 0 -or [int]$e.usesAtEnd.b -ne 0){ throw 'Sprint 8 smite: a use came back without a rest' }
+}
 function Assert-KmcSprint8PaladinEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
+ if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 8 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -186,6 +261,8 @@ function Assert-KmcSprint8PaladinEvidence {
    'S8-mixed' { Assert-KmcS8MixedCase $e }
    'S8-mixed-reverse' { Assert-KmcS8MixedReverseCase $e }
    'S8-archetype' { Assert-KmcS8ArchetypeCase $e }
+   'S8-tiers' { Assert-KmcS8TiersCase $e }
+   'S8-smite' { Assert-KmcS8SmiteCase $e }
   }
  }
 }
@@ -198,6 +275,8 @@ function Assert-KmcSprint8PaladinPersistence($o,[bool]$Cold){
   Assert-KmcS8Weapon $a.oldWeapon 'producer old character'
   if(@($a.oldWeaponStockEntry) -cnotcontains 'WeaponBondFeature'){ throw 'The old character was not built on the stock class' }
   if([int]$a.highOwner.paladinLevel -ne 15 -or [int]$a.highOwner.pet.spellResistance -ne 26){ throw 'The high owner did not reach the save with its later benefits' }
+  Assert-KmcS8Tier $a.highOwner.pet 'producer high owner'
+  if($a.highOwner.pet.greaterCelestial -ne 1 -or (@($a.markSources)-join',') -cne [string]$a.highOwner.pet.id -or [int]$a.highOwner.pet.smiteUses -ne 0){ throw 'The producer has no spent smite with a mark from its own mount' }
   if([int]$a.owner.rank -ne 5 -or @($a.petCommits|Where-Object{$_.committed -ne $true}).Count -ne 0){ throw 'The Paladin producer did not reach rank 5 by native commits' }
   return
  }
@@ -208,7 +287,10 @@ function Assert-KmcSprint8PaladinPersistence($o,[bool]$Cold){
  if([string]$d.restoredProfile -cne 'medium-humanoid-horse-v1' -or [string]$d.resolvedProfile -cne 'medium-humanoid-horse-v1'){ throw 'The cold pair lost its profile' }
  $h=$d.highOwner
  Assert-KmcS8MountFacts $h 'cold high owner' $script:KmcS8HorseUnit 'Horse'
- if([int]$h.paladinLevel -ne 15 -or [int]$h.rank -ne 15 -or [int]$h.pet.greaterCelestial -ne 1 -or [int]$h.pet.smiteFact -ne 1 -or [int]$h.pet.spellResistance -ne 26 -or $h.pet.reductionSources -cnotcontains 'AddDamageResistancePhysical=10'){ throw 'The cold load lost a later bond benefit' }
+ if([int]$h.paladinLevel -ne 15 -or [int]$h.rank -ne 15 -or [int]$h.pet.greaterCelestial -ne 1 -or [int]$h.pet.smiteFact -ne 1 -or [int]$h.pet.spellResistance -ne 26){ throw 'The cold load lost a later bond benefit' }
+ Assert-KmcS8Tier $h.pet 'cold high owner'
+ $m=$d.smite
+ if($null -eq $m -or @($m.markedUnits).Count -ne 1 -or (@($m.sources)-join',') -cne [string]$h.pet.id -or [int]$m.additionalDamage -ne [int]$m.petHitDice -or [int]$h.pet.smiteUses -ne 0){ throw 'The cold load lost the mark''s source or target, or refunded its use' }
  Assert-KmcS8Weapon $d.oldWeapon 'cold old character'
  Assert-KmcS8Weapon $d.oldWeaponAfter 'cold old character after a level'
  if($d.oldWeapon.bondSelectionFact -ne $false -or $null -ne $d.oldWeaponNextLevel.PSObject.Properties['DivineBondSelection']){ throw 'The old character was offered or given the new choice' }

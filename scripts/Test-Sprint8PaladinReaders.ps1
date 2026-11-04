@@ -44,9 +44,24 @@ $r=Copy-S8 $w; $r.final.ownedPets=1; Refuses ${function:Assert-KmcS8WeaponCase} 
 $r=Copy-S8 $w; $r.final.weaponUpgradeRanks=0; Refuses ${function:Assert-KmcS8WeaponCase} $r 'lost weapon upgrades'
 $r=Copy-S8 $w; $r.levels[0].DivineBondSelection.completeBeforeChoice=$true; Refuses ${function:Assert-KmcS8WeaponCase} $r 'a level that never waited for the choice'
 Check ((Get-KmcPhase3dEvidenceDispatch 52 'sprint8-paladin-mount-rt').validator -ceq 'Assert-KmcSprint8PaladinEvidence') 'schema 52 dispatches to the Sprint 8 reader'
-foreach($s in 'sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt'){ Check (Test-KmcPhase3dSchemaRegistration 52 $s) ($s+' registers schema 52'); Check (Test-KmcCompoundRuntimeScenario $s) ($s+' is a compound scenario') }
+foreach($s in 'sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt'){ Check (Test-KmcPhase3dSchemaRegistration 52 $s) ($s+' registers schema 52'); Check (Test-KmcCompoundRuntimeScenario $s) ($s+' is a compound scenario') }
 Check (-not (Test-KmcPhase3dSchemaRegistration 51 'sprint8-paladin-mount-rt')) 'a Sprint 7 schema is refused for a Sprint 8 scenario'
 Check (-not (Test-KmcPhase3dSchemaRegistration 52 'sprint7-charge-rt')) 'the Sprint 8 schema is refused for a Sprint 7 scenario'
 Check ('paladin-bond-exploration-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the Paladin save case is registered'
+function New-S8TierPet([int]$Hd){ $t=if($Hd -ge 11){@(0,0,1,15,'AddDamageResistancePhysical=10')}elseif($Hd -ge 5){@(0,1,0,10,'AddDamageResistancePhysical=5')}else{@(1,0,0,5,$null)}; $s=@(1..3|ForEach-Object{'AddDamageResistanceEnergy='+$t[3]}); if($t[4]){$s+=$t[4]}; [pscustomobject]@{characterLevel=$Hd;lesserCelestial=$t[0];celestial=$t[1];greaterCelestial=$t[2];reductionSources=$s} }
+foreach($hd in 1,4,5,10,11,14){ Check (Accepts { param($p) Assert-KmcS8Tier $p 'test' } (New-S8TierPet $hd)) (''+$hd+' Hit Dice takes its table row') }
+$p=New-S8TierPet 9; $p.celestial=0; $p.greaterCelestial=1; Refuses { param($v) Assert-KmcS8Tier $v 'test' } $p 'a tier from the owner level above the pet''s Hit Dice'
+$p=New-S8TierPet 11; $p.celestial=1; Refuses { param($v) Assert-KmcS8Tier $v 'test' } $p 'two tiers at once'
+$p=New-S8TierPet 11; $p.reductionSources=@($p.reductionSources)+'AddDamageResistancePhysical=5'; Refuses { param($v) Assert-KmcS8Tier $v 'test' } $p 'a duplicated DR'
+$p=New-S8TierPet 4; $p.reductionSources=@($p.reductionSources)+'AddDamageResistancePhysical=5'; Refuses { param($v) Assert-KmcS8Tier $v 'test' } $p 'DR below 5 Hit Dice'
+function New-S8Read([string]$L,[int]$D,[int]$H,[string[]]$S,[int]$U){ [pscustomobject]@{label=$L;additionalDamage=$D;hitDice=$H;sources=@($S);uses=$U} }
+function New-S8Smite(){ [pscustomobject]@{mountA='a';mountB='b';targetX='x';targetY='y';usesAtStart=[pscustomobject]@{a=1;b=1};bMayMarkX=[pscustomobject]@{canTarget=$true};aMayRemarkX=[pscustomobject]@{canTarget=$false};aMayMarkYAfterExpiry=[pscustomobject]@{canTarget=$true};aMarkHoursLeft=24.0;usesAtEnd=[pscustomobject]@{a=0;b=0};aRested=[pscustomobject]@{uses=1;sourcesOnX=@('a','b')};
+ reads=@((New-S8Read 'a-x-unmarked' 0 1 @() 1),(New-S8Read 'a-x-own-mark' 1 1 @('a') 0),(New-S8Read 'b-x-a-mark-only' 0 12 @('a') 1),(New-S8Read 'a-x-both-marks' 1 1 @('a','b') 0),(New-S8Read 'b-x-both-marks' 12 12 @('a','b') 0),(New-S8Read 'a-x-after-rest' 1 1 @('a','b') 1),(New-S8Read 'a-x-after-changing-target' 0 1 @('b') 0),(New-S8Read 'a-y-current' 1 1 @('a') 0),(New-S8Read 'b-x-keeps-its-mark' 12 12 @('b') 0),(New-S8Read 'b-y-a-mark-only' 0 12 @('a') 0),(New-S8Read 'b-x-removed' 0 12 @() 0),(New-S8Read 'a-y-expired' 0 1 @() 0)) } }
+Check (Accepts ${function:Assert-KmcS8SmiteCase} (New-S8Smite)) 'complete smite ownership evidence is accepted'
+$s=Copy-S8 (New-S8Smite); ($s.reads|Where-Object label -ceq 'b-x-a-mark-only').additionalDamage=12; Refuses ${function:Assert-KmcS8SmiteCase} $s 'B taking a bonus from A''s mark'
+$s=Copy-S8 (New-S8Smite); $s.bMayMarkX.canTarget=$false; Refuses ${function:Assert-KmcS8SmiteCase} $s 'A''s mark blocking B'
+$s=Copy-S8 (New-S8Smite); ($s.reads|Where-Object label -ceq 'a-x-after-changing-target').sources=@('a','b'); Refuses ${function:Assert-KmcS8SmiteCase} $s 'two current targets for one mount'
+$s=Copy-S8 (New-S8Smite); ($s.reads|Where-Object label -ceq 'b-x-keeps-its-mark').sources=@(); Refuses ${function:Assert-KmcS8SmiteCase} $s 'A changing target erasing B''s mark'
+$s=Copy-S8 (New-S8Smite); $s.usesAtEnd.b=1; Refuses ${function:Assert-KmcS8SmiteCase} $s 'a use refunded without a rest'
 Write-Output ('TOTAL PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ throw 'Sprint 8 reader checks failed.' }

@@ -31,7 +31,8 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class DivineMountPetBenefit : OwnedGameLogicComponent<UnitDescriptor>
     {
         public BlueprintFeature Feature;
-        public BlueprintFeature Replaces;
+        // Set on the celestial link: Feature is then the lowest tier, and the pet's actual Hit Dice choose among the three.
+        public BlueprintFeature StandardTier, GreaterTier;
 
         public override void OnFactActivate() => TryApply();
 
@@ -44,15 +45,30 @@ namespace KingmakerMountedCombat.Integration
         public override void OnFactDeactivate()
         {
             var features = RealPetFeatures();
-            if (features != null && features.HasFact(Feature)) features.RemoveFact(Feature);
+            if (features == null) return;
+            foreach (var feature in new[] { Feature, StandardTier, GreaterTier })
+                if (feature != null && features.HasFact(feature)) features.RemoveFact(feature);
         }
 
         internal void TryApply()
         {
             var features = RealPetFeatures();
             if (features == null) return;
-            if (Replaces != null && features.HasFact(Replaces)) features.RemoveFact(Replaces);
-            if (!features.HasFact(Feature)) features.AddFeature(Feature);
+            var wanted = Wanted(Owner.Pet.Descriptor.Progression.CharacterLevel);
+            foreach (var feature in new[] { Feature, StandardTier, GreaterTier })
+                if (feature != null && !ReferenceEquals(feature, wanted) && features.HasFact(feature)) features.RemoveFact(feature);
+            if (!features.HasFact(wanted)) features.AddFeature(wanted);
+        }
+
+        private BlueprintFeature Wanted(int hitDice)
+        {
+            if (GreaterTier == null) return Feature;
+            switch (DivineMountPolicy.CelestialTier(hitDice))
+            {
+                case DivineMountCelestialTier.Greater: return GreaterTier;
+                case DivineMountCelestialTier.Standard: return StandardTier;
+                default: return Feature;
+            }
         }
 
         private FeatureCollection RealPetFeatures() =>
@@ -106,14 +122,50 @@ namespace KingmakerMountedCombat.Integration
         public override string GetUIText() => "Small rider";
     }
 
-    // The celestial template's smite: Charisma to attack and Hit Dice to damage against the marked evil target.
+    // The celestial template's smite: Charisma to attack and Hit Dice to damage against this mount's own marked evil target.
+    // A mark's source is its buff's native context; the current target travels with this fact.
     internal sealed class DivineMountSmiteBonus : RuleInitiatorLogicComponent<RuleAttackRoll>, IInitiatorRulebookHandler<RuleAttackWithWeapon>
     {
         public BlueprintBuff Mark;
 
+        [JsonProperty]
+        private UnitReference currentTarget;
+
+        internal static IEnumerable<UnitEntityData> MarkSources(UnitEntityData target, BlueprintBuff mark) =>
+            target.Descriptor.Buffs.Enumerable.Where(buff => ReferenceEquals(buff.Blueprint, mark)).Select(buff => buff.MaybeContext?.MaybeCaster);
+
+        private bool Applies(UnitEntityData target) => target != null &&
+            DivineMountPolicy.SmiteApplies(MarkSources(target, Mark), Owner.Unit, currentTarget.Value, target);
+
+        internal bool MayMark(UnitEntityData target) =>
+            DivineMountPolicy.MayMark(MarkSources(target, Mark), Owner.Unit, currentTarget.Value, target);
+
+        // Only this mount's own relation ends. Another mount's mark on the same target is its own buff.
+        private void Retire(UnitEntityData target)
+        {
+            if (target == null) return;
+            foreach (var buff in target.Descriptor.Buffs.Enumerable.Where(value => ReferenceEquals(value.Blueprint, Mark) && ReferenceEquals(value.MaybeContext?.MaybeCaster, Owner.Unit)).ToArray())
+                buff.Remove();
+        }
+
+        internal void BeginMark(UnitEntityData target, Kingmaker.UnitLogic.Mechanics.MechanicsContext context)
+        {
+            Retire(currentTarget.Value);
+            Retire(target);
+            currentTarget = target.Descriptor.AddBuff(Mark, context, TimeSpan.FromDays(1)) != null ? target : null;
+        }
+
+        public override void OnFactDeactivate()
+        {
+            base.OnFactDeactivate();
+            if (Owner.Unit?.HoldingState == null) return;
+            Retire(currentTarget.Value);
+            currentTarget = null;
+        }
+
         public override void OnEventAboutToTrigger(RuleAttackRoll evt)
         {
-            if (evt.Weapon == null || !evt.Target.Descriptor.HasFact(Mark)) return;
+            if (evt.Weapon == null || !Applies(evt.Target)) return;
             evt.AddTemporaryModifier(evt.Initiator.Stats.AdditionalAttackBonus.AddModifier(Math.Max(0, Owner.Stats.Charisma.Bonus), this, ModifierDescriptor.UntypedStackable));
         }
 
@@ -121,7 +173,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
         {
-            if (evt.Weapon == null || !evt.Target.Descriptor.HasFact(Mark)) return;
+            if (evt.Weapon == null || !Applies(evt.Target)) return;
             evt.AddTemporaryModifier(evt.Initiator.Stats.AdditionalDamage.AddModifier(Owner.Progression.CharacterLevel, this, ModifierDescriptor.UntypedStackable));
         }
 
@@ -130,20 +182,23 @@ namespace KingmakerMountedCombat.Integration
 
     internal sealed class DivineMountSmiteLogic : AbilityCustomLogic, IAbilityTargetChecker
     {
-        public BlueprintBuff Mark;
+        private static DivineMountSmiteBonus BonusOf(UnitEntityData caster) =>
+            caster?.Descriptor?.Progression?.Features.SelectFactComponents<DivineMountSmiteBonus>().FirstOrDefault();
 
         public bool CanTarget(UnitEntityData caster, TargetWrapper target)
         {
             var unit = target?.Unit;
-            return unit != null && caster != null && unit != caster && unit.Descriptor.State.IsConscious &&
-                unit.Descriptor.Alignment.Value.HasComponent(AlignmentComponent.Evil) && !unit.Descriptor.HasFact(Mark);
+            var bonus = BonusOf(caster);
+            return unit != null && bonus != null && unit != caster && unit.Descriptor.State.IsConscious &&
+                unit.Descriptor.Alignment.Value.HasComponent(AlignmentComponent.Evil) && bonus.MayMark(unit);
         }
 
         public override IEnumerator<AbilityDeliveryTarget> Deliver(AbilityExecutionContext context, TargetWrapper target)
         {
             var unit = target?.Unit;
-            if (unit == null) yield break;
-            unit.Descriptor.AddBuff(Mark, context, TimeSpan.FromDays(1));
+            var bonus = BonusOf(context?.Caster);
+            if (unit == null || bonus == null) yield break;
+            bonus.BeginMark(unit, context);
             yield return new AbilityDeliveryTarget(target);
         }
 
