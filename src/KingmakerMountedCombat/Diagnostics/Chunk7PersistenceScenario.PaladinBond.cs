@@ -8,6 +8,7 @@ using Kingmaker.Enums;
 using Kingmaker.UI.SettingsUI;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
@@ -16,7 +17,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         internal const string PaladinBondCaseName = "paladin-bond-exploration-manual";
-        private const string PaladinWeaponName = "KMC_S8_OldWeapon";
+        private const string PaladinWeaponName = "KMC_S8_OldWeapon", PaladinHighName = "KMC_S8_HighOwner";
+        private UnitEntityData paladinHighOwner;
         private bool PaladinBondCase => request.PersistenceCase == PaladinBondCaseName;
 
         private bool AcquirePaladinBond(JObject record)
@@ -42,6 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 commits.Add(NativeHorseFixtureAcquisition.CommitPetLevel(pet, petClass, horses.HorseUpgrade, logger));
             record["owner"] = Sprint8Facts.Owner(horses, secondRider.Descriptor);
             BuildOldWeaponCompanion(record);
+            BuildHighOwner(record);
             return record["owner"].Value<int>("rank") == 5 && record["owner"].Value<int>("addPetFacts") == 1;
         }
 
@@ -66,6 +69,41 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // A party member past every feature boundary, whose pet's celestial facts and spell resistance the save must carry.
+        private void BuildHighOwner(JObject record)
+        {
+            var original = SettingsRoot.Instance.AutoLevelup.CurrentValue;
+            try
+            {
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
+                var build = new Sprint8Build(logger) { ClassFor = next => horses.PaladinClass, Name = PaladinHighName, Gender = Kingmaker.Blueprints.Gender.Male,
+                    Race = BlueprintRoot.Instance.Progression.CharacterRaces.Single(value => value.name == "HumanRace") };
+                build.Choices[HorseCompanionBlueprintService.DivineBondSelectionGuid] = HorseCompanionBlueprintService.DivineMountSelectionGuid;
+                build.Choices[HorseCompanionBlueprintService.DivineMountSelectionGuid] = HorseCompanionBlueprintService.DivineMountHorseGuid;
+                build.StartHire();
+                for (var guard = 0; guard < 24 && build.CommitBuilderLevel(); guard++) { }
+                var progression = build.Hired.Progression;
+                while (progression.CharacterLevel < 15)
+                {
+                    var needed = BlueprintRoot.Instance.Progression.XPTable.GetBonus(progression.CharacterLevel + 1);
+                    if (progression.Experience < needed) progression.AdvanceExperienceTo(needed, false);
+                    build.CommitOwnLevel(build.Hired);
+                }
+                paladinHighOwner = build.Hired.Unit;
+                Sprint8Build.BringToField(paladinHighOwner, firstRider.Position + Vector3.left * 4f);
+            }
+            finally { SettingsRoot.Instance.AutoLevelup.CurrentValue = original; }
+        }
+
+        // The hired owner's pet arrives after it joins, and the live sync gives it the bond's benefits.
+        private bool PaladinHighOwnerReady()
+        {
+            var pet = paladinHighOwner?.Descriptor?.Pet;
+            if (pet?.View?.AgentASP == null || !pet.IsInState || !pet.Descriptor.Progression.Features.HasFact(horses.DivineMountSpellResistance)) return false;
+            ((JObject)evidence["acquisition"])["highOwner"] = Sprint8Facts.Owner(horses, paladinHighOwner.Descriptor);
+            return true;
+        }
+
         // The loaded world, as the save holds it, then one more ordinary level for the old character.
         private void RecordPaladinBondCold()
         {
@@ -74,6 +112,8 @@ namespace KingmakerMountedCombat.Diagnostics
             record["restoredProfile"] = saved.Pairs.Single(pair => pair.Rider.Id == secondRider.UniqueId).ProfileId;
             record["resolvedProfile"] = SupportedMountedProfiles.Resolve(secondRider, secondMount)?.Id;
             record["ownerPetIsPairMount"] = ReferenceEquals(secondRider.Descriptor.Pet, secondMount);
+            var high = Game.Instance.Player.AllCharacters.FirstOrDefault(unit => unit.CharacterName == PaladinHighName);
+            record["highOwner"] = high == null ? null : Sprint8Facts.Owner(horses, high.Descriptor);
             var old = Game.Instance.Player.AllCharacters.FirstOrDefault(unit => unit.CharacterName == PaladinWeaponName);
             record["oldWeaponFound"] = old != null;
             if (old == null) return;

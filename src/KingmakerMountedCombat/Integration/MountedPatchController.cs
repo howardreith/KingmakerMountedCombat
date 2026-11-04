@@ -289,6 +289,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Logger = null;
                     PatchBridge.Defense = null;
             PatchBridge.HorseCompanion = null;
+            DivineMountCallLogic.IsMountedPairMember = null;
                 }
                 throw;
             }

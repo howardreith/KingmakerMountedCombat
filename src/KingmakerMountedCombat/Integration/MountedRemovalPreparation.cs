@@ -200,6 +200,10 @@ namespace KingmakerMountedCombat.Integration
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog companion feature");
                 if (horseCompanion.RidingDogUpgrade != null && descriptor.GetFact(horseCompanion.RidingDogUpgrade) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog advancement feature");
+                if (horseCompanion.DivineBondSelection != null && descriptor.Progression?.Features.HasFact(horseCompanion.DivineBondSelection) == true)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Divine Bond choice");
+                if (horseCompanion.DivineMountSmiteBuff != null && descriptor.Buffs.GetFact(horseCompanion.DivineMountSmiteBuff) != null)
+                    references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] carries a KMC Celestial Smite mark");
                 if (horseCompanion.DivineMountSelection != null && descriptor.Progression?.Features.HasFact(horseCompanion.DivineMountSelection) == true)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Divine Mount bond");
                 if (horseCompanion.DivineMountIntelligence != null && descriptor.Progression?.Features.HasFact(horseCompanion.DivineMountIntelligence) == true)

@@ -287,19 +287,21 @@ namespace KingmakerMountedCombat.Integration
             linkOnApply.Feature = intelligenceLink;
             components.Add(progressionOnApply); components.Add(callOnApply); components.Add(linkOnApply);
             // Whatever the stock companion selection gives its owner and its pet, the bond gives too.
+            var stockIndex = 0;
             foreach (var component in rangerSelection.ComponentsArray)
             {
+                stockIndex++;
                 var toCompanion = component as AddFeatureToCompanion;
                 var facts = component as AddFacts;
                 if (toCompanion != null)
                 {
-                    var copy = CreateOwned<DivineMountPetBenefit>("KMC_DivineMount_Stock_" + toCompanion.Feature?.name);
+                    var copy = CreateOwned<DivineMountPetBenefit>("KMC_DivineMount_Stock_" + stockIndex);
                     copy.Feature = toCompanion.Feature;
                     components.Add(copy);
                 }
                 else if (facts != null)
                 {
-                    var copy = CreateOwned<AddFacts>("KMC_DivineMount_StockFacts");
+                    var copy = CreateOwned<AddFacts>("KMC_DivineMount_StockFacts_" + stockIndex);
                     copy.Facts = CloneArray(facts.Facts);
                     components.Add(copy);
                 }
@@ -475,24 +477,37 @@ namespace KingmakerMountedCombat.Integration
                 else refused.Add("AnimalCompanionEmptyCompanion");
             }
             divineBondApplied = desired && refused.Count == 0;
+            if (refused.Count == 0) divineMountFailure = null;
+            else if (desired)
+            {
+                foreach (var lease in divineBondLeases) lease.TryApply(false);
+                if (emptyCompanionLease.MatchesAppended(emptyCompanionList.Features)) emptyCompanionList.Features = emptyCompanionLease.CreateOriginalValue();
+            }
             if (refused.Count == 0) return;
             divineMountFailure = "A Divine Bond level-5 slot changed outside KMC; no overwrite was attempted: " + string.Join(",", refused);
             logger.Error(divineMountFailure);
         }
 
-        private void ApplyDivineMountPetBenefits(Kingmaker.EntitySystem.Entities.UnitEntityData owner, HorseActivationObservation observation, string ownerId)
+        private readonly Dictionary<string, string> divineMountPetByOwner = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        private void SyncDivineMountPetBenefits(Kingmaker.EntitySystem.Entities.UnitEntityData owner)
         {
-            HorseActivationObservation prior;
-            if (divineMountSelection == null || owner.Descriptor.Pet == null ||
-                observedActivationByOwner.TryGetValue(ownerId, out prior) && prior.Matches(observation)) return;
-            foreach (var benefit in owner.Descriptor.Progression.Features.SelectFactComponents<DivineMountPetBenefit>().ToArray()) benefit.TryApply();
+            if (divineMountSelection == null || owner?.Descriptor == null || !owner.Descriptor.Progression.Features.HasFact(divineMountSelection)) return;
+            var pet = owner.Descriptor.Pet?.UniqueId;
+            string prior;
+            if (pet == null) { divineMountPetByOwner.Remove(owner.UniqueId); return; }
+            if (divineMountPetByOwner.TryGetValue(owner.UniqueId, out prior) && string.Equals(prior, pet, StringComparison.Ordinal)) return;
+            divineMountPetByOwner[owner.UniqueId] = pet;
+            // A bond fault stays the bond's: this loop also carries every companion's progression.
+            try { foreach (var benefit in owner.Descriptor.Progression.Features.SelectFactComponents<DivineMountPetBenefit>().ToArray()) benefit.TryApply(); }
+            catch (Exception exception) { logger.Exception("Divine Mount pet benefits", exception); }
         }
 
         // The native level-up's one choke point for class level entries. Nothing else about the level is touched.
         internal IList<BlueprintFeatureBase> FilterLevelEntryFeatures(UnitDescriptor unit, IList<BlueprintFeatureBase> features)
         {
-            if (!divineBondApplied || unit == null || features == null) return features;
-            var substitute = DivineMountPolicy.SubstitutesStockBond(unit.IsPlayerFaction) && features.Contains(divineBondSelection);
+            if (divineMountSelection == null || unit == null || features == null) return features;
+            var substitute = divineBondApplied && DivineMountPolicy.SubstitutesStockBond(unit.IsPlayerFaction) && features.Contains(divineBondSelection);
             var hasMount = unit.Progression.Features.HasFact(divineMountSelection);
             if (!substitute && !hasMount) return features;
             var result = new List<BlueprintFeatureBase>(features.Count);

@@ -251,6 +251,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Next(1); break;
                     case 1:
                         if (secondMount?.View?.AgentASP == null || !secondMount.IsInState) return;
+                        if (PaladinBondCase && !PaladinHighOwnerReady()) return;
                         Require(secondMount.Blueprint?.AssetGuid == (RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid) &&
                             ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Acquired companion is not the exact reciprocal pet.");
                         if (RidingDogCase)
