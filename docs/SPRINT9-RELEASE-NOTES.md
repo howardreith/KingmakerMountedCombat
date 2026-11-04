@@ -1,10 +1,11 @@
-# Kingmaker Mounted Combat: release candidate preview.101 (draft notes)
+# Kingmaker Mounted Combat: release candidate preview.102 (draft notes)
 
 **Not published.** Owner acceptance is pending, and publication needs the owner's explicit decision. Package and hashes: [the acceptance record](SPRINT9-INTEGRATED-ACCEPTANCE.md).
 
 ## Supported
 
-- Kingmaker 2.1.7 with Unity Mod Manager. No other mod is required.
+- Kingmaker with Unity Mod Manager. No other mod is required. **Tested engine build: 2.1.7b only.** `Info.json` declares 2.1.7; other patch builds were not exercised.
+- **Validation boundary.** Without Call of the Wild, startup, registration, mounting, movement and saving are tested. **Divine Mount and Riding Dog acquisition, progression and combat were tested only with Call of the Wild and Craft Magic Items present**, because the test fixture needs them. On the base game they are owner-pending, not verified.
 - Ride your companion: the KMC Horse or Riding Dog from a Ranger's companion choice or a Paladin's Divine Bond, or a supported stock Mammoth.
 - Medium riders on the Horse or Mammoth. Halfling and Gnome riders on the Horse or Riding Dog.
 - Up to six mounted pairs. Two pairs are tested in combat. Six are tested for exploration and saving, not combat.
@@ -22,7 +23,7 @@
 ## Fixed in this candidate
 
 - Divine Mount now registers on a game without Call of the Wild. It previously left the Paladin on the stock bond.
-- A mounted Divine Mount can use Celestial Smite in turn-based combat, including as the turn's first action.
+- A mounted Divine Mount can use Celestial Smite in turn-based combat, including as the turn's first action. While ridden it works from where the mount stands: a target out of range or sight is refused with a message, nothing is spent, and you move the pair into range and try again.
 - The mod's UMM page no longer mentions retired actions, and it states the current save dependencies.
 
 ## Settings
@@ -37,7 +38,7 @@ Open them in UMM with Ctrl+F10. **Enable Mounted Charge** is on by default, can 
 - **Paladin** was driven through the native level-up controller, not on-screen clicks, and its class panel still lists weapon upgrades a mount path never receives.
 - **Adaptations:** Mounted Charge is the rider's own charge, with the mount paying its travel, rather than a mount charge. A Divine Mount is an ordinary persistent companion that recovers if it falls; it gets a flat +4 Intelligence and real celestial defenses, but is not reclassified as a magical beast and does not gain the template's own spell resistance.
 - **Celestial Smite** has one current target per mount and lasts one day. **A rest returns the use and does not clear the mark.**
-- Of a mount's own abilities, only Celestial Smite works from the saddle in turn-based combat. A first-action Smite beyond range waits until the rider acts, with no message, and the mount may then try to approach on its own; that path has not been played.
+- Of a mount's own abilities, only Celestial Smite works from the saddle in turn-based combat. A ridden mount does not approach to smite.
 - Other mods are untested beyond the Call of the Wild and Craft Magic Items the fixtures use. Borrowed, summoned, flying or exotic mounts, barding, Cavalier, enemy mounted AI and six-pair combat are not supported.
 
 ## Upgrade
@@ -53,7 +54,7 @@ Rollback is **your pre-upgrade backup plus the matching older package and its de
 
 ## Removal
 
-**These can tie a save to KMC:** a custom Horse or Riding Dog, the Mounted Combat feat, and Divine Bond. **Weapon Bond counts too** when chosen through KMC's level-5 selection. An older stock-bond character does not.
+**These can tie a save to KMC:** a custom Horse or Riding Dog, the Mounted Combat feat, and Divine Bond. **Weapon Bond counts too** for a Paladin who passes through KMC's level-five selection. A Paladin who is merely loaded with KMC, on the stock bond, does not, and is not converted.
 
 - **Clean uninstallation from a dependent save is unproven.** Keep the mod and its dependencies, or restore a pre-upgrade backup.
 - **Prepare to disable / remove KMC** (the UMM page) refuses and names each reference when it finds one.
