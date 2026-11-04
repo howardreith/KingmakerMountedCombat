@@ -241,15 +241,17 @@ function Assert-KmcS8TurnBasedCase($e){
  Assert-KmcS8MountFacts $e.before 'turn-based owner' $script:KmcS8HorseUnit 'Horse'
  if(@($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Horse'}).Count -lt 1 -or @($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Divine Mount bond'}).Count -ne 1){ throw 'Sprint 9 the removal scan missed the bonded owner or its Horse' }
  $c=$e.call
- if($null -eq $c -or $c.available -ne $true -or $c.clicked -ne $true -or [int]$c.usesAfter -ne ([int]$c.usesBefore-1) -or [double]$c.distanceBefore -lt 8 -or [double]$c.distanceAfter -gt 3 -or [double]$c.standard -lt 5.9){ throw 'Sprint 9 the turn-based Call did not spend one use and a native action to bring the mount' }
+ if($null -eq $c -or $c.availableAfterSelect -ne $true -or $c.clicked -ne $true -or [int]$c.usesAfter -ne ([int]$c.usesBefore-1) -or [double]$c.distanceBefore -lt 8 -or [double]$c.distanceAfter -gt 3 -or [double]$c.standard -lt 5.9){ throw 'Sprint 9 the turn-based Call did not spend one use and a native action to bring the mount' }
  if($e.mounted -ne $true){ throw 'Sprint 9 the owner did not mount in turn-based combat' }
  $m=$e.callWhileMounted
- if($null -eq $m -or $m.available -ne $false -or $m.clicked -ne $false -or [string]::IsNullOrEmpty([string]$m.reason) -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
+ if($null -eq $m -or $m.available -ne $false -or [string]$m.reason -cne 'Your mount is already with you.' -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
  $s=$e.smite
- if($null -eq $s -or $s.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$s.usesAfter -ne 0 -or $s.marked -ne $true -or [double]$s.mountSwiftAfter -le 0 -or [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
+ # Delivered first, or on the same turn once the rider has acted; never on the rider's actions.
+ $first=$s.marked -eq $true; $late=if($e.PSObject.Properties['smiteAfterRider']){$e.smiteAfterRider}else{$null}; $d=if($first){$s}else{$late}
+ if($null -eq $d -or $d.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$d.usesAfter -ne 0 -or $d.marked -ne $true -or [double]$d.mountSwiftAfter -le 0 -or ($first -and [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore)){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
  $g=$e.charge
  if($null -eq $g -or $g.clicked -ne $true -or [string]$g.result -cne 'Success' -or $g.sequenceLawful -ne $true -or [int]$g.chargeRules -ne 1 -or [double]$g.riderStandard -lt 5.9 -or [double]$g.riderMove -lt 2.9 -or [int]$g.buffCount -ne 1){ throw 'Sprint 9 the Paladin rider''s charge was not one lawful native delivery' }
- if($g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
+ if($first -and $g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
  $a=$e.mountAttack
  if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }
  if([int]$s.additionalDamageUnmarked -ne 0 -or [int]$s.additionalDamageMarked -ne [int]$e.final.pet.characterLevel -or [int]$s.charismaBonus -lt 1 -or ([int]$s.attackBonusMarked-[int]$s.attackBonusUnmarked) -ne [int]$s.charismaBonus){ throw 'Sprint 9 the mark did not add Charisma to hit and Hit Dice to damage, against an unmarked read' }
