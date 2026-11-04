@@ -1,16 +1,7 @@
-# Sprint 9 resume record (2026-11-04)
+# F1 resume â€” IN PROGRESS (2026-11-04)
 
-Machine: DESKTOP-SRJJ623. Worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\sprint9-integration-release`, branch `codex/mounted-combat-sprint9-integration-release`. The root repository stays on `main`.
+Branch `codex/kmc-finalize-f1-creation-ui-icons`, base `d2e26174d391a8c70fd159beed476035bb5f84eb`.
+Worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1`.
+Working changes: UMM concise page, native feat prerequisite/body copy, reaction copy, missing Charge localization registration. Fast compilation passed; Candidate-a PASS (8 stages, 3.96 min); subsequent selector adapter needs focused compilation. Not runtime-qualified yet. Original root worktree preserved.
 
-## Custody
-
-No native game, executor, transaction or lock remains. Retained under `runtime-evidence`, prefix `20261104-sprint9-`: `a01` to `a06`, `e01` to `e08`, `f01`, `g11` to `g21` where run, `h01` to `h03`, plus `20261104-c7e-final-B901-r31`, `-r32`, `-B902-r31`, `-r32`. Candidates sprint9a to sprint9h under `artifacts\`; the current one is sprint9h, version preview.102. Budget record `runtime-state\workflow-budgets\sprint9.json`: 91.73 of 105 after one +15 adjustment. A package plus more than one launch would fall below the admission guard and needs an owner decision.
-
-## Next action
-
-1. Review the Sprint 9 PR. Owner play acceptance stays separate: [the script](docs/SPRINT9-OWNER-PLAY-SCRIPT.md). Record only results the owner supplies.
-2. No merge, tag, publication or installation is selected.
-3. A further launch needs a new package, because the manifest binds the exact HEAD including docs commits.
-4. Tooling facts: `integrated-tb-feat-charge-manual` is a `chunk7-persistence-save` then `-load` case. `sprint8-paladin-tb` and `sprint3-approach-rt-spells` are the narrow selections. The base-game control is `chunk7-normal-player-control` with `-ObserverPackagePath`, `-TimeoutSeconds 900`. The removal chain needs run ids matching `*-c7e-final-B*-r31`/`r32` and a run map.
-
-Prior records: [AUTONOMOUS-RESUME before Sprint 9](docs/history/AUTONOMOUS-RESUME-before-sprint9-2026-11-04.md).
+Read `docs/FINALIZE-F1-CREATION-UI-ICONS.md` for exact intake, budget and source findings. Native launches 0/3; live Mods empty, no game process, no runtime transaction started. Owner supplied preview.103 and scroll-fix bytes, inspected with exact hashes in F1 report; creator diagnostics/staging safety prepared. Next command: finish Candidate-a, commit the reviewed checkpoint, package F1a once under the meter, freeze the suite and execute WhatIf before the bounded creator session. Narrow native stale-grouping/layout correction added; visible reproduction and disappearance diagnosis await Windows UI connection (missing native pipe on both tools). Owner asked once to reconnect. No native launch allowed while UI unavailable. Budget root must be explicitly set to lab runtime-state/workflow-budgets; budget id finalize-f1 (60 min). No old sprint allowance is reused.

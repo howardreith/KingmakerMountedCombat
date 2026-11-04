@@ -1,0 +1,50 @@
+# F1 creation/UI/icons — IN PROGRESS
+
+Selected by Howie on 2026-11-04. Base: integrated preview.103 `d2e26174d391a8c70fd159beed476035bb5f84eb`, verified against fetched origin/main. Branch: `codex/kmc-finalize-f1-creation-ui-icons`. Root worktree and its unknown empty untracked MountedCombatDefenseService.cs preserved.
+
+Package inspected under `C:\Dev\KingmakerMountedCombatLab\analysis-cache\finalization-intake\KMC_Finalization_Package`; original ZIP and screenshots retained outside Git. Read master, backlog, rules, delivery, art brief, evidence, owner notes and F1 mission. Recent efficient-development practices are in VALIDATION-POLICY.md (Oct 16–17 acceleration): focused regressions, one frozen Candidate, dependency-scoped runtime audits, immutable evidence and cumulative budget, two equivalent failures, one executor.
+
+Budget: `finalize-f1`, 60 minutes cumulative validation, maximum 3 real launches, 30-minute block and four-hour active-work ceilings. Root override required because this worktree is nested: `KMC_WORKFLOW_BUDGET_ROOT=C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets`. Reserve final confirmation plus packaging/WhatIf before optional checks. No native launch yet.
+
+## Intake and causal boundaries
+
+- No Kingmaker process; Steam running. Live Mods directory empty at intake. No KMC installed DLL or foreign scroll-fix assembly is available there. Owner screenshot stack is different; exact inventory/DLL location requested once while independent work continues. Do not claim this empty installation is the owner stack.
+- Native Assembly-CSharp SHA256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`; UMM SHA256 `f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9`.
+- Bounded local selector decompilation stays outside Git under `analysis-cache\finalize-f1-contracts`. Native same-selection FillData calls FillFeatureDataLight without refreshSort except when selection index changes. Light refresh updates eligibility/callbacks but does not regroup sibling rows by default. This explains a plausible stale grouping path; not yet a reproduced full disappearance cause. Native animated full refill captures selection state across an asynchronous fade; inspect preview replacement and foreign hook before adding overlap.
+- Charge keys are referenced by the blueprint but absent from its registration dictionary (direct cause of unresolved keys).
+- Mounted feat uses native PrerequisiteStatValue and duplicates its prerequisite in body. Feat and reaction share saddle image. Keep stable IDs and reaction economy.
+
+## Next
+
+Finish original icon exports and consumer bindings; inspect native preview lifecycle and foreign scroll hook when supplied. Focused compilation then independent review before any live use. UI-02/PERF-01 need actual visible sequence and timing; source inspection cannot close them. No selected outcome is yet PASS.
+
+## 2026-11-04 implementation checkpoint
+
+Owner supplied exact preview.103 ZIP and Level-Up Selection Scroll Fix ZIP in handoffs. KMC DLL SHA256 `0687e6fdeb2d079db70bf516506f85c1e72e6d303fe9cb6c7819e6d08159abfa`. Scroll DLL SHA256 `ca5c1cf454d1a66e44dc067dae2023c1d13cca3143730545e1ec5b317e440136`, Info version 1.0.0, Harmony owner `KingmakerLevelUpSelectionScrollFix`; patches CharBSelectionSwitchFeatures.SetupFeatureSelection postfix. Wraps collection-switcher ItemsContainer in ScrollRect once, updates content/viewport size, preserves normalized scroll position, forces layout. It does not patch CharBSelectorLayer.FillFeatureDataLight (the row regrouping path). Bounded decompilation remains local-only.
+
+Working code includes creator diagnostic session under existing runner, not a new campaign fixture. It skips the Working load, waits for two fresh creator cancellations, requires no loaded area, then performs normal settled completion/restoration. Metrics sample input entry to following frame after queued preview work; they are cheap CPU/frame bounds, not GPU presentation timestamps. CUA frames must establish actual visible correctness. A named session PASS alone establishes two cancellation lifetimes, never UI acceptance. Guarded owner-input staging retains exact source/hash/folder checks and never labels the owner download as a producer run. Three real-launch cap is explicit for finalize-f1. No native launch yet.
+
+Independent review found and corrected remaining routine UMM prose, a scalar runner-default typo, an accidentally broadened registration-audit list and nested navigation timing reset. Focused owner-input safety checks: seven positive/negative cases PASS. Fast #01 PASS (1050 component +149 source assertions); #02 compile FAIL preserved, corrected; #03 PASS; #04 source-policy FAIL caught accidental audit-list entry, corrected. Cumulative meter is authoritative; ~2.1 min at this checkpoint. No old evidence reattributed.
+
+## Narrow native refresh correction (source-backed; visible acceptance TODO)
+
+Exact installed method `CharBSelectorLayer.FillFeatureDataLight(FeatureSelectionState,bool)` token `0x06009F79`. `LevelUpController.UpdatePreview` replaces Preview and creates a new LevelUpState, then sends its late-update command. `CharBFeatureSelector.FillData` treats the same selection blueprint as reusable, passing false for refreshSort unless the index changed. Thus a replaced preview at the same index rebinds eligibility but retains old sibling grouping and omits UpdateLayout. The adapter asks this existing native light refresh to sort only when a new selection-state instance replaces the old one for the same KMC-offering selection; resets its native per-pass filter accumulators; schedules native layout invalidation. No custom sort, scroll reset, full library scan, every-frame redraw, blueprint mutation or added subscriptions. Foreign switcher hook is separate and unchanged.
+
+Regression scene: rank 0 -> rank 1 -> select -> Next -> Back, rank removal and cancel; second fresh creator must have no selected Mounted Combat fact or inherited callbacks. Compare native prerequisite feat and unrelated rows. Prepared F1 session is not a source-only proof of this scene. Disappearance after navigation remains unproven until visible replay; do not conflate it with the source-proven stale grouping path.
+
+Computer-use blocker observed before any launch: both Sky and unified CUA report missing Windows native pipe (os error 2); prescribed retry/reset failed. Owner asked to reconnect once while independent source/package work continues. No launches consumed or runtime surfaces staged.
+
+## Current contract / risk / qualification boundary
+
+| Contract | Implementation and evidence | Status |
+|---|---|---|
+| Same-index preview replacement | Native sorting/rebinding; conditional native layout update, exact token/MVID; only selections still publishing KMC feat | IN PROGRESS — visible scene pending |
+| Saved identity / economy | Existing feat, toggle, buff and control GUIDs and prerequisite rank unchanged; no action/resource code touched | PASS — source review |
+| Ordinary UMM failures | Routine persistence status behind Diagnostics; refusals/errors, removal outcome, save dependencies visible | IN PROGRESS — native page pending |
+| Original assets | Editable offline vector recipe, 512px masters, 64px RGBA runtime icons; no runtime authoring/dependencies; source/export hashes in assets-source/finalize-f1/manifest.json | PASS — technical source/export inspection; owner approval TODO |
+| Foreign compatibility input | Supplied Scroll Fix 1.0.0 exact pinned DLL and cloned read-only folder; original producer-provenance checks intact; seven safety cases plus launch-limit neighbors pass | PASS — offline only |
+| Native/visible acceptance | No game launched, no measured latency, no native frames; original owner screenshots retained with original identities | TODO |
+
+Concrete risks: the source-proven grouping correction may not resolve the distinct asynchronous disappearance report; scroll preservation needs native observation; current timing bound is input-to-next-frame after queued preview work rather than a GPU timestamp. The new observer's lifecycle PASS alone is not UI acceptance. Locale reload is not yet observed. No F2 controls/mechanics or save-schema changes are selected.
+
+Gunslinger reference inspected: approved rapid-reload 64px export, SHA256 `5c3280145815f7b161602da161264ac1f43fb3ac3c4bf47ff907b0919a2aa9d3`, under `assets-source/original-icons/icon-overhaul-v2/pilot/exports/rapid-reload.png`; guides read through authenticated read-only GitHub API. Reference pixels remain outside Git. Owner S03 native Missile Shield ring was also inspected; no reference pixels copied.

@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
         private bool disposed;
+        private bool showDiagnostics;
         // An update failure whose destructive cleanup was deferred because an
         // owned save was in flight; consumed by Update once that save settles.
         private bool failureCleanupPending;
@@ -350,19 +351,18 @@ namespace KingmakerMountedCombat
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Kingmaker Mounted Combat — release candidate");
-            GUILayout.Label("CRPG transport: the mount moves the pair; rider and mount retain their own actions, health and effects.");
-            GUILayout.Label("Select the rider, open their ability drawer, and use Mount Companion on their own eligible companion.");
-            GUILayout.Label("Use Dismount on the rider to separate them. You can drag a control to an empty action-bar slot.");
-            GUILayout.Label("Use ordinary movement, attacks and spells. Select the mount and click to give it its own attack.");
-            GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
-                " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
+            GUILayout.Label("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion);
+            GUILayout.Label("Use Mount Companion in your rider's abilities to ride an eligible animal companion. Use Dismount to get off.");
+            GUILayout.Label("Move, attack and cast with normal controls. Drag abilities to the action bar for quick access.");
             var selected = world.Selected;
             if (selected != null && !string.IsNullOrEmpty(selected.PlayerActions.LastFeedback))
                 GUILayout.Label(selected.PlayerActions.LastFeedback);
             if (selected != null && !string.IsNullOrEmpty(selected.Combat.LastFeedback))
                 GUILayout.Label(selected.Combat.LastFeedback);
-            GUILayout.Label(persistence.Feedback);
+            // Persistence refusals and failures stay visible in the ordinary view.
+            if (!persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
+            if (!string.IsNullOrEmpty(horseCompanion.MountedCombatFailure))
+                GUILayout.Label("Mounted Combat feat unavailable: " + horseCompanion.MountedCombatFailure);
             var priorEnabled = GUI.enabled;
             GUI.enabled = priorEnabled && unifiedTurn.CanConfigurePairedActivation &&
                 !nativeControls.HasUnsettledRelationshipTransition && !world.AnyChargeFenced &&
@@ -372,12 +372,18 @@ namespace KingmakerMountedCombat
                 "Enable Mounted Charge (this session; on again at the next launch)");
             GUI.enabled = priorEnabled;
             GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
-            GUILayout.Label("Mounts: your supported Mammoth, or the Horse or Riding Dog from a Ranger's companion choice or a Paladin's Divine Bond. Unsupported sizes, forms and rigs refuse admission.");
             GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod. A Paladin who passes through KMC's level-five selection keeps that reference on either choice.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
             if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();
             GUI.enabled = priorEnabled;
             GUILayout.Label(removal.Status);
+            showDiagnostics = GUILayout.Toggle(showDiagnostics, "Show diagnostics");
+            if (showDiagnostics)
+            {
+                if (persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
+                GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
+                    " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
+            }
         }
 
         public void Dispose()

@@ -2736,3 +2736,7 @@ Next: RUN-OFFLINE-PREVIEW129-RETRY1.ps1; preserve its distinct process/log/exit 
 ## 2026-10-12 — active Chunk 7B–7D dependencies
 
 IN PROGRESS; no critical stop is currently established. The reviewed source checkpoint has no native evidence yet. Preview.2 is ineligible after reproduced diagnostic cleanup defects; current repairs require preview.3, fresh suite/source/package identities and complete guarded WhatIf admission. First native two-pair inventory is the prerequisite for exact Small body selection and ordinary acquisition pins. Natural XP/funds/respec availability, disposable progression targets and a qualified six-pair fixture remain unproven prerequisites, not PASS or a reason to stop independent work. Historical campaigns above are provenance only under docs/VALIDATION-POLICY.md.
+
+## F1 2026-11-04 � IN PROGRESS: native UI connection
+
+Both available Windows UI routes report a missing native pipe (os error 2), including retry/reset. This prevents the selected visible creator replay, timings and screenshots. Requested reconnect once; no launches spent, no runtime staging or restoration pending. Continue independent source/package/WhatIf work; do not claim UI-02/PERF-01 accepted from source. Exact report: docs/FINALIZE-F1-CREATION-UI-ICONS.md.
