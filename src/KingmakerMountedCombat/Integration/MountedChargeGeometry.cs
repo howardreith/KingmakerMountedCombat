@@ -3,6 +3,8 @@ using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Utility;
 using Kingmaker.View;
+using KingmakerMountedCombat.Domain;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -31,6 +33,37 @@ namespace KingmakerMountedCombat.Integration
             }
 
             return ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, target.Position) == target.Position;
+        }
+
+        // The stopping radius the rider's planned attack is admitted from, measured from the mount.
+        private static float ReachRadius(UnitEntityData mount, UnitEntityData rider, UnitEntityData target) =>
+            mount.View.Corpulence + target.View.Corpulence + (rider?.GetFirstWeapon()?.AttackRange.Meters ?? 0f);
+
+        internal static bool WithinRiderReach(UnitEntityData mount, UnitEntityData rider, UnitEntityData target) =>
+            mount?.View != null && target?.View != null && rider?.GetFirstWeapon() != null &&
+            GeometryUtils.MechanicsDistance(mount.Position, target.Position) <= ReachRadius(mount, rider, target);
+
+        // The native line is the centre of a body, and the mount's body is what travels: the same rule at admission and before
+        // every forced line after it, from the mount's exact current place to the target's. See MountedChargeLane.
+        internal static bool FootprintClear(UnitEntityData mount, UnitEntityData rider, UnitEntityData target)
+        {
+            if (mount?.View == null || target?.View == null) return false;
+            var line = (target.Position - mount.Position).To2D();
+            var total = line.magnitude;
+            if (total <= 0f) return true;
+            var unit = line.normalized;
+            return MountedChargeLane.Clear(total, ReachRadius(mount, rider, target), mount.View.Corpulence, (along, lateral) =>
+            {
+                var centre = Vector3.Lerp(mount.Position, target.Position, along / total);
+                var side = new Vector2(-unit.y, unit.x) * lateral;
+                return FlankClear(centre, side) && FlankClear(centre, -side);
+            });
+        }
+
+        private static bool FlankClear(Vector3 centre, Vector2 side)
+        {
+            var flank = centre + side.To3D();
+            return (ObstacleAnalyzer.TraceAlongNavmesh(centre, flank).To2D() - flank.To2D()).sqrMagnitude < 0.0025f;
         }
 
         internal static bool MountAvoidanceDisabled(UnitEntityData mount)

@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
-                        if (RidingDogCase || FeatDebtCase)
+                        if (RidingDogCase || FeatDebtCase || ChargeCommitCase)
                         {
                             // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
                             var progression = secondRider.Descriptor.Progression;
@@ -309,13 +309,24 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
                         if (FeatDebtCase) CommitFeatDebtBeforeSave();
+                        if (ChargeCommitCase) { Next(60); break; }
                         RequestSave(); Next(4); break;
+                    case 60:
+                        if (!UpdateChargeCommit(false)) return;
+                        Next(61); break;
+                    case 61:
+                        if (!UpdateChargeCommit(true)) return;
+                        RequestSave(); Next(4); break;
+                    case 62:
+                        if (!UpdateChargeRenewal()) return;
+                        Pass("C7-persistence-charge-committed-renewal"); BeginCleanup(); break;
                     case 20:
                         if (!checkpoint.UpdateContinuation()) return;
                         if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
                         Pass("C7-persistence-native-combat-continuation");
                         if (FeatDebtCase && Cold) { Next(21); break; }
+                        if (ChargeCommitCase && Cold) { Next(62); break; }
                         BeginCleanup(); break;
                     case 21:
                         if (!UpdateFeatDebtRenewal(false)) return;

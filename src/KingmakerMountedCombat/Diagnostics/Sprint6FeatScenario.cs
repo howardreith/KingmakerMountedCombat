@@ -58,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!rows.TryGetValue(rule, out row))
             {
                 row = new JObject { ["identity"] = RuntimeHelpers.GetHashCode(rule), ["attacker"] = rule.Initiator.UniqueId, ["target"] = rule.Target.UniqueId, ["frame"] = Time.frameCount,
-                    ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, ["attackerCommand"] = rule.Initiator.Commands.Standard?.GetType().Name,
+                    ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, ["charge"] = rule.RuleAttackWithWeapon?.IsCharge == true, ["criticalAtEventConfirmed"] = rule.IsCriticalConfirmed, ["attackerCommand"] = rule.Initiator.Commands.Standard?.GetType().Name,
                     ["resultAtEvent"] = rule.Result.ToString(), ["isHitAtEvent"] = rule.IsHit, ["criticalAtEvent"] = rule.IsCriticalConfirmed, ["sneakAtEvent"] = rule.IsSneakAttack, ["damageRules"] = 0, ["damage"] = 0 };
                 rows[rule] = row; if (Attacks.Count < 256) Attacks.Add(row);
             }

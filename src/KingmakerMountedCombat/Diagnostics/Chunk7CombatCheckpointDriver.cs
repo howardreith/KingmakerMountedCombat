@@ -53,6 +53,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private double begunSeconds;
         private int stage, continuationOffset, sourceRound;
         private bool cold, ready, beganContinuation, continuationComplete, cleanup, cleanupComplete, disposed, ownsObservers, repeatedCleanup, riderReentryObserved;
+        // The save follows a delivered charge on the first rider's later turn, not the completed-A checkpoint.
+        internal bool CommittedCharge { get; set; }
+        internal void RefreshBeforeCommit() { source?.RefreshCheckpointEncounter(); CheckObservers(); }
         internal bool Ready => ready;
         internal UnitEntityData CombatTarget => target;
         internal bool ContinuationComplete => continuationComplete;
@@ -149,6 +152,13 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (zero)
                 Require(archive.Participations.All(p => p.MountedPairId == null && p.State.Activation?.Split == true &&
                     p.State.SplitReleaseRound == archive.Combat.Round), "Zero-mounted archive dropped original split ownership.");
+            else if (CommittedCharge)
+            {
+                Require(archive.Combat.Current?.ActorId == actors[0].UniqueId && debt(actors[0]).Standard >= 5.9f && debt(actors[0]).Move >= 2.9f &&
+                    debt(actors[1]).Standard == 0f && debt(actors[1]).Move > 0f && archive.Participations.Count(p => p.State.BoundaryIsCurrent) == 1,
+                    "Charge archive did not retain the rider's full round and the mount's own travel: current=" + archive.Combat.Current?.ActorId +
+                    " rider=" + debt(actors[0]).Standard + "/" + debt(actors[0]).Move + " mount=" + debt(actors[1]).Standard + "/" + debt(actors[1]).Move + ".");
+            }
             else if (tb)
             {
                 // Completed A keeps its native end expenditure, decayed natively by
@@ -247,6 +257,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private void TickTurnBasedContinuation()
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            if (CommittedCharge)
+            {
+                // The turn stays where the save left it, and only its native End moves on: a charge never resumes.
+                if (stage == 0)
+                {
+                    Require(ReferenceEquals(turn, originalTurn) && turn?.Unit == actors[0] && actors.All(a => trace.GrantCount(a) == grantsBefore[a]), "The restored charge turn was changed before input.");
+                    continuation.Add(Snapshot("saved-charge-no-prepare")); stage = 2;
+                }
+                if (stage == 2) { if (EndNative(turn)) stage = 3; return; }
+                if (ReferenceEquals(turn, originalTurn)) return;
+                CompleteContinuation(); return;
+            }
             if (stage == 0)
             {
                 Require(ReferenceEquals(turn, originalTurn) && turn?.Unit == actors[2] && Chunk7NativeFixture.ReadyForTurnInput(turn) &&

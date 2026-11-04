@@ -28,6 +28,13 @@ namespace KingmakerMountedCombat.Integration
     {
         internal const string MountedChargeDisabledReason = "Enable Mounted Charge in the KMC mod settings.";
 
+        // The exact reason the same shared decision gives for this target, for the native target refusal.
+        internal string DescribeMountedChargeTargetRejection(UnitEntityData caster, UnitEntityData target) =>
+            ChargeTargetReason(disposed ? null : EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster));
+
+        private static string ChargeTargetReason(MountedChargeAvailability result) =>
+            result == null ? "Mounted combat services are not active." : result.IsAllowed ? "The target cannot be charged." : result.Reason;
+
         // The stock minimum charge distance, read from the mount because the mount is the mover, and from the
         // turn-based mode setting exactly as AbilityCustomCharge.GetMinRangeMeters reads it.
         internal float GetMountedChargeMinimumRange(UnitEntityData caster)
@@ -76,6 +83,21 @@ namespace KingmakerMountedCombat.Integration
                 context.Caster == caster && blueprint.GetComponent<MountedChargeAbilityLogic>() != null;
         }
 
+        // What the shared decision called replaceable, ended from the shell's admission on: a running attack's next repath would
+        // otherwise order the mount and read as a deliberate replacement of the charge. A brain proposal waits (AdmitChargeCommand).
+        private void ReleaseReplaceablePairCommands()
+        {
+            ReleaseCarriedApproach("mounted charge admitted");
+            var replaced = activeCommand;
+            activeCommand = null;
+            if (replaced != null && !replaced.IsFinished)
+            {
+                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
+                replaced.Interrupt();
+            }
+            relationship.Mount.Commands.InterruptAll(existing => true);
+        }
+
         private MountedChargeRequest CaptureMountedChargeRequest(UnitEntityData caster, UnitEntityData target,
             AbilityExecutionContext context = null)
         {
@@ -111,10 +133,17 @@ namespace KingmakerMountedCombat.Integration
                 TargetVisible = target != null && target.IsVisibleForPlayer,
                 TargetHostile = rider != null && target != null && rider.IsEnemy(target),
                 TargetAttackable = rider != null && target != null && rider.CanAttack(target),
-                AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
+                // Like the stock charge, a new charge replaces the pair's ordinary attack or move. The native brain has one running
+                // most of the time in real-time combat. A door, a running charge or a mount's swing already released cannot be replaced.
+                AlreadyActiveCommand = HasActiveDoorInteraction || pendingDoorSettlement?.RecoveryMove != null || context == null && chargeOwner?.Command != null ||
                     chargeOwner != null && context != null && !OwnsChargeDelivery(context),
-                MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
-                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster)
+                MountCommandsIdle = mount?.Commands != null && mount.Commands.Raw.All(command => command == null || command.IsInterruptible),
+                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster),
+                MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
+                MountAddressable = !turnBased || unifiedTurn.CanAddressActor(mount, turn),
+                MountHasMoved = mount != null && (mount.CombatState.Cooldown.MoveAction > 0.001f ||
+                    unifiedTurn.PartnerContext != null && unifiedTurn.PartnerContext.TimeMoved > 0f),
+                MountStandardSpent = mount != null && mount.CombatState.Cooldown.StandardAction > 0.001f
             };
 
             if (mount?.View != null && target?.View != null)
@@ -123,7 +152,9 @@ namespace KingmakerMountedCombat.Integration
                 request.Distance = (target.Position - mount.Position).magnitude;
                 request.MinimumRange = MountedChargeMinimumRange(mount, target);
                 request.MaximumRange = MountedChargeMaximumRange(mount);
-                request.StraightRoute = endpoint == target.Position;
+                request.StraightRoute = endpoint == target.Position &&
+                    MountedChargeGeometry.FootprintClear(mount, rider, target);
+                request.TargetAlreadyInReach = MountedChargeGeometry.WithinRiderReach(mount, rider, target);
                 request.MountAvoidanceDisabled = mount.View.MovementAgent != null && mount.View.MovementAgent.AvoidanceDisabled;
                 request.LandingBlocked = MountedChargeLandingBlocked(mount, target);
             }
@@ -157,6 +188,7 @@ namespace KingmakerMountedCombat.Integration
             request.Distance = request.MinimumRange;
             request.StraightRoute = true;
             request.LandingBlocked = false;
+            request.TargetAlreadyInReach = false;
             var availability = EvaluateMountedChargeRequest(request, caster);
             return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Reason);
         }
@@ -229,8 +261,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearObservedStockRequest();
             }
 
-            NativeSingleAttackWeaponSelection mountPrimary;
-            CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
+            NativeSingleAttackWeaponSelection mountPrimary = null;
             MountedPairAttackCommand command = null;
             var queuedOnRider = false;
             // The exact owner this admission queues onto, captured before the queue call so a later
@@ -239,6 +270,8 @@ namespace KingmakerMountedCombat.Integration
             UnitCommands queuedContainer = null;
             try
             {
+                ReleaseReplaceablePairCommands();
+                CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
                 command = new MountedPairAttackCommand(
                     relationship,
                     relationship.Rider,
@@ -250,7 +283,8 @@ namespace KingmakerMountedCombat.Integration
                     logger,
                     HandleCommandTerminal,
                     true,
-                    true,
+                    // Only the rider's own native Pounce can lift the single attack; the engine decides from the rider alone.
+                    !relationship.Rider.Descriptor.State.Features.Pounce,
                     true);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
                 chargeOwner.Command = command;

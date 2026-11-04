@@ -82,7 +82,9 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix), null,
                     nameof(PatchMethods.NativeRunHoldTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
-                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
+                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix));
+                PatchExact(typeof(UnitCommands), "AddToQueueOrRun", 0x060026B9,
+                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueueOrRunPrefix));
                 PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
                 PatchExact(typeof(UnitCommand), "Tick", 0x060027A7, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
@@ -459,16 +461,22 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            internal static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd) =>
+            internal static bool ChargeEnqueueOrRunPrefix(UnitCommands __instance, UnitCommand cmd, bool first) =>
+                PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeEnqueueOrRun(__instance, cmd, first) != false;
+
+            internal static bool ChargeEnqueuePrefix(UnitCommands __instance, UnitCommand cmd) =>
+                ChargeAdmissionPrefix(__instance, cmd, MountedChargeRequestRoute.Enqueue);
+
+            private static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd, MountedChargeRequestRoute route) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
-                (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) != false) &&
+                (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd, route) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
             // Queue advancement reaches only this overload, so a queued automatic pair command is re-admitted here.
             internal static bool InternalRunPrefix(UnitCommands __instance, UnitCommand cmd, bool fromQueue)
             {
-                if (!ChargeAdmissionPrefix(__instance, cmd)) return false;
+                if (!ChargeAdmissionPrefix(__instance, cmd, fromQueue ? MountedChargeRequestRoute.QueuePromotion : MountedChargeRequestRoute.Run)) return false;
                 var automatic = fromQueue ? cmd as MountedPairSingleAttack : null;
                 if (automatic == null || !automatic.IsAutomaticOrigin) return true;
                 var combat = PatchBridge.CombatFor(__instance);

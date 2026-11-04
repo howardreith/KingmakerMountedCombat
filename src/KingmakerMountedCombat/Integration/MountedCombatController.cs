@@ -1297,6 +1297,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void TryDriveStockAttackIntent()
         {
+            if (chargeOwner != null) return; // A charge from admission to its end owns the pair's attack.
             var target = stockIntentTarget;
             if (disposed || target == null)
             {
@@ -2123,6 +2124,12 @@ namespace KingmakerMountedCombat.Integration
                 ? "Mounted pair attack completed."
                 : outcome.NativeRangedTailTermination ? "Ranged attacks completed; remaining melee attacks are out of reach."
                 : DescribeTerminalFailure(outcome);
+            // Native Run writes a successor's manual target right after this interruption, so the charge's own is released now.
+            if (command.ChargeMode && ReferenceEquals(chargeOwner?.Command, command))
+            {
+                try { ReleaseChargeManualTarget(chargeOwner); }
+                catch (Exception exception) { logger.Exception("Charge manual target release retained", exception); }
+            }
             logger.Info("Mounted combat command terminal: action=" + command.Action +
                 "; result=" + outcome.Result +
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +

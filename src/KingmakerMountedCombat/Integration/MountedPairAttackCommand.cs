@@ -357,7 +357,7 @@ namespace KingmakerMountedCombat.Integration
         // The mutable charge conditions, re-read from live state at one of the three transaction
         // boundaries. The request deliberately carries no action-cost input, so this can never refuse
         // the charge for the Standard action the enclosing shell has already paid.
-        private MountedChargeRevalidationOutcome RevalidateCharge(MountedChargeRevalidationPhase phase)
+        private MountedChargeRevalidationOutcome RevalidateCharge(MountedChargeRevalidationPhase phase, bool readLane)
         {
             var targetState = attackTarget?.Descriptor?.State;
             var commands = mount == null ? null : mount.Commands;
@@ -370,6 +370,9 @@ namespace KingmakerMountedCombat.Integration
                 TargetHostile = rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
                 TargetAttackable = rider != null && attackTarget != null && rider.CanAttack(attackTarget),
                 StraightRoute = MountedChargeGeometry.StraightRoute(mount, attackTarget),
+                // BeforeRepath is the one phase that precedes a forced line. Later phases have left the lane behind.
+                LaneClear = phase == MountedChargeRevalidationPhase.BeforeRepath && (!readLane || MountedChargeGeometry.FootprintClear(mount, rider, attackTarget)),
+                MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
                 LandingBlocked = MountedChargeGeometry.LandingBlocked(mount, rider, attackTarget),
                 MountAvoidanceDisabled = MountedChargeGeometry.MountAvoidanceDisabled(mount),
                 Distance = mount == null || attackTarget == null
@@ -402,14 +405,14 @@ namespace KingmakerMountedCombat.Integration
 
         // True when the charge was newly invalid and this transaction has been terminated without an
         // attack. The native shell cost, if the engine already took it, is deliberately left alone.
-        private bool TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase phase)
+        private bool TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase phase, bool readLane = true)
         {
             if (!chargeMode || IsFinished || transaction.IsTerminal)
             {
                 return false;
             }
 
-            var outcome = RevalidateCharge(phase);
+            var outcome = RevalidateCharge(phase, readLane);
             if (outcome.IsValid)
             {
                 return false;
@@ -477,6 +480,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool OwnsChargeCarrier(UnitCommand command) => chargeCarriers.Any(pair => ReferenceEquals(pair.Value, command));
 
+        // An order in the mount's Move or Standard slot that is not this charge's. A Free or Swift command, such as an attack of opportunity, moves nothing.
+        internal bool ForeignMountCommandActive() => chargeCarriers.Select(pair => pair.Key).Where(container => container != null).Distinct()
+            .Any(container => new[] { container.GetCommand(CommandType.Move), container.GetCommand(CommandType.Standard) }
+                .Any(command => command != null && !command.IsFinished && !OwnsChargeCarrier(command)));
+
+        // Only that order's own path is not this charge's to stop. The forced line under it is always ours: stopping it leaves the order free to request its path.
+        private bool ForeignPathActive() => ForeignMountCommandActive() && !(chargeLease != null && chargeLease.HoldsForcedLine);
+
         internal void TryDrainChargeCarrier()
         {
             var steps = new List<MountedChargeCompensationStep>();
@@ -499,6 +510,7 @@ namespace KingmakerMountedCombat.Integration
             steps.Add(new MountedChargeCompensationStep("stop-carrier-path", () =>
             {
                 if (!chargeCarrierMotionOwned) return;
+                if (ForeignPathActive()) { chargeCarrierMotionOwned = false; return; }
                 if (chargeCarrierView == null || chargeCarrierAgent == null) return;
                 chargeCarrierAgent.Stop();
                 if (chargeCarrierAgent.Path == null && !chargeCarrierAgent.IsReallyMoving)
@@ -829,6 +841,12 @@ namespace KingmakerMountedCombat.Integration
                 {
                     try { TryDrainChargeCarrier(); }
                     catch (Exception exception) { logger.Exception("Charge carrier cleanup retained", exception); }
+                    // A delivered charge keeps its native penalty for the native round. Anything less than delivery removes it.
+                    if (LastAttackRule != null && chargeLease != null)
+                    {
+                        try { chargeLease.HandBuffToNativeDuration(); }
+                        catch (Exception exception) { logger.Exception("Charge buff hand-off refused", exception); }
+                    }
                     try { TryDischargeChargeCleanupDebt(); }
                     catch (Exception exception) { logger.Exception("Charge lease cleanup retained", exception); }
                     if (Result == ResultType.Success && LastAttackRule != null &&
@@ -979,6 +997,21 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // As the stock turn-based routine does on every tick: the speed is re-asserted and a stopped line is forced again.
+            if (chargeMode && chargeLease != null && !delegatedMove.IsFinished &&
+                TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            {
+                // The stock routine ends the same way, and a tripped mount must not hold the turn to the bound. A stopped line
+                // is about to be forced again from where the mount now stands, so it answers to the same lane as any other.
+                if ((!mount.Descriptor.State.CanMove || chargeLease.NeedsReforce(true)) &&
+                    TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                {
+                    return;
+                }
+
+                chargeLease.Maintain(true);
+            }
+
             if (!NativePartnerMovement && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == rider)
             {
@@ -1024,7 +1057,9 @@ namespace KingmakerMountedCombat.Integration
 
             if (chargeMode && chargeLease != null)
             {
-                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                // Every tick here: the lane is read only when this tick will force a line.
+                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath,
+                    chargeLease.NeedsReforce(delegatedMove != null && !delegatedMove.IsFinished)))
                 {
                     return true;
                 }
@@ -1047,6 +1082,7 @@ namespace KingmakerMountedCombat.Integration
             return "repath=" + (transaction.RepathCount + 1) + ";" + cause + ";ticks=" + delegatedMoveTickCount +
                 ";moved=" + GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position).ToString("0.###", culture) +
                 ";targetDistance=" + mount.DistanceTo(attackTarget).ToString("0.###", culture) +
+                ";forceMode=" + (chargeLease?.ForceMode.ToString() ?? "<none>") +
                 ";moveResult=" + (delegatedMove == null ? "<none>" : delegatedMove.Result.ToString()) +
                 ";riderMove=" + rider.CombatState.Cooldown.MoveAction.ToString("0.###", culture) +
                 ";riderStandard=" + rider.CombatState.Cooldown.StandardAction.ToString("0.###", culture) +
@@ -1105,6 +1141,9 @@ namespace KingmakerMountedCombat.Integration
             };
             if (chargeMode)
             {
+                // The native turn-based approach would request its own path and so drop the forced line, the cause of the
+                // preview.176 failure: the stock charge holds no approaching move at all. The lease alone drives this carrier.
+                if (TurnBased.Controllers.CombatController.IsInTurnBasedCombat()) delegatedMove.NextApproachTime = TimeSpan.MaxValue;
                 chargeCarriers.Add(new KeyValuePair<UnitCommands, UnitMoveTo>(mount.Commands, delegatedMove));
                 chargeCarrierView = mount.View;
                 chargeCarrierAgent = mount.View?.AgentASP;
@@ -1169,7 +1208,7 @@ namespace KingmakerMountedCombat.Integration
                         return true;
                     }
 
-                    var pending = new MountedChargeLease(rider, mount, attackTarget, logger);
+                    var pending = new MountedChargeLease(rider, mount, attackTarget, logger) { ForeignMoverActive = ForeignPathActive };
                     try
                     {
                         pending.Apply();

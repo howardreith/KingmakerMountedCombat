@@ -676,7 +676,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(false, settings.EnableUnifiedMountedTurn, "The retired unified-turn experiment must default off.");
             TestRunner.Equal(false, settings.EnablePairedCommandScheduler, "The unqualified paired-command scheduler must default off.");
             TestRunner.Equal(true, settings.EnablePairedActivation, "The supported transport preset must use paired activation by default.");
-            TestRunner.Equal(false, settings.EnableMountedCharge, "Optional real-time Mounted Charge must default off.");
+            TestRunner.Equal(true, settings.EnableMountedCharge, "Mounted Charge is an ordinary default.");
             TestRunner.Equal(false, settings.EnableDiagnosticOverlay, "The legacy diagnostic overlay must default hidden.");
             TestRunner.Equal(0.10d, settings.MaximumAnchorResidualWorldUnits, "Residual threshold changed.");
             TestRunner.Equal(null, settings.Validate(), "Default settings must validate.");

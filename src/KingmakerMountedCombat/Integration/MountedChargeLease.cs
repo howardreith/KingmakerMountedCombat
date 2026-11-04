@@ -110,6 +110,13 @@ namespace KingmakerMountedCombat.Integration
             return field;
         }
 
+        internal Func<bool> ForeignMoverActive { private get; set; }
+
+        private ForcedPath forcedLine;
+
+        // Native completes a forced path synchronously and keeps that instance as its path, until another path replaces it.
+        internal bool HoldsForcedLine => forcedLine != null && MountAgent != null && ReferenceEquals(MountAgent.Path, forcedLine);
+
         internal bool Applied { get; private set; }
 
         // True when an application attempt failed and every completed mutation was undone. The carrier the
@@ -163,7 +170,25 @@ namespace KingmakerMountedCombat.Integration
         internal bool BuffApplied { get; private set; }
 
         // Whether the buff is still owned by this lease right now.
-        internal bool BuffOutstanding => buffOwnership.Outstanding || buffChildren != null && !buffChildren.Drained;
+        internal bool BuffOutstanding => !BuffHandedToNative && (buffOwnership.Outstanding || buffChildren != null && !buffChildren.Drained);
+
+        // After a delivered attack the buff is the engine's, exactly as the stock charge leaves it: it expires or saves natively.
+        internal bool BuffHandedToNative { get; private set; }
+
+        internal bool HandBuffToNativeDuration()
+        {
+            var buff = buffOwnership.Fact;
+            if (BuffHandedToNative) return true;
+            // Pooled enchantment visuals have no native owner to go to, and an uncertain fact is never given away: those keep the removal.
+            if (!buffOwnership.Acquired || buffOwnership.RemovalAttempted || buffOwnership.Fault != null || buff == null || !buff.Active ||
+                !BuffLifecycleSettled(buff) || buffChildren == null ||
+                !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)) || !buffChildren.TryHandOff())
+                return false;
+            buffCondition?.HandOff();
+            BuffHandedToNative = true;
+            Observe("buff-handed-to-native", "remaining=" + Format((float)buff.TimeLeft.TotalSeconds));
+            return true;
+        }
 
         internal bool RiderAgentTouched { get; private set; }
 
@@ -297,13 +322,18 @@ namespace KingmakerMountedCombat.Integration
             var agent = RequireMountAgent();
             ChargingObservedThroughout &= agent.IsCharging;
             agent.MaxSpeedOverride = Math.Max(agent.MaxSpeedOverride ?? 0f, SpeedOverrideApplied);
-            if (!carrierAlive || ForceMode)
+            // Native Stop leaves force mode latched with no path, so the latch alone does not mean the line is live.
+            if (!MountedChargeLane.MustAuthorizeReforce(carrierAlive, ForceMode, agent.Path != null))
             {
                 return;
             }
 
             ForcePathToTarget("re-force");
         }
+
+        // The caller reads the lane before this is true and Maintain forces it: nothing forces a line unread.
+        internal bool NeedsReforce(bool carrierAlive) => Applied && !Restored && MountAgent != null &&
+            MountedChargeLane.MustAuthorizeReforce(carrierAlive, ForceMode, MountAgent.Path != null);
 
         // The five steps. Each Apply takes exactly one mutation and records ownership of it; each Undo
         // returns exactly that field to the value captured before the attempt.
@@ -318,10 +348,14 @@ namespace KingmakerMountedCombat.Integration
             }
 
             appliedBuffCollection = rider.Buffs;
-            if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
-                throw new InvalidOperationException("An existing Charge buff cannot be adopted by this transaction.");
-            buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
+            // An earlier charge's buff still in its native round belongs to the engine, and its native Replace stacking would take it
+            // off here too; this lease owns only the fresh one. Native round timing can leave it alive into the next turn.
             var surface = RequireAvailableBuffSurface(chargeBuff, rider);
+            foreach (var earlier in appliedBuffCollection.Enumerable.Where(buff => buff.Blueprint == chargeBuff ||
+                surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))).ToArray()) earlier.Remove();
+            if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff || surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
+                throw new InvalidOperationException("An earlier Charge buff could not be replaced by this transaction.");
+            buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
             buffStats = rider.Descriptor.Stats.GetList().ToArray();
             buffOwnerThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
             buffAcquisitionContext = new MechanicsContext(rider, rider.Descriptor, chargeBuff);
@@ -338,20 +372,20 @@ namespace KingmakerMountedCombat.Integration
             finally { acquiringBuffLease = previous; CaptureBuffResidue(); }
         }
 
-        private static void RequireChargeBuffSurface(BlueprintBuff chargeBuff)
-        {
-            MountedChargeBuffSurface.Read(chargeBuff);
-        }
+        private static BlueprintBuff validatedSurfaceRoot;
+        private static MountedChargeBuffSurface validatedSurface;
 
         private static MountedChargeBuffSurface RequireAvailableBuffSurface(BlueprintBuff chargeBuff, UnitEntityData rider)
         {
-            RequireChargeBuffSurface(chargeBuff);
-            var surface = MountedChargeBuffSurface.Read(chargeBuff);
-            foreach (var enchantment in surface.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
-            if (rider?.Buffs == null || rider.Buffs.Enumerable.Any(buff => ReferenceEquals(buff.Blueprint, chargeBuff) ||
-                surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
-                throw new InvalidOperationException("An existing Charge lifetime buff cannot be replaced or adopted.");
-            return surface;
+            // The structure of one loaded blueprint does not change, and this is asked on every availability check.
+            if (chargeBuff == null || !ReferenceEquals(validatedSurfaceRoot, chargeBuff))
+            {
+                var read = MountedChargeBuffSurface.Read(chargeBuff);
+                foreach (var enchantment in read.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
+                validatedSurface = read; validatedSurfaceRoot = chargeBuff;
+            }
+            if (rider?.Buffs == null) throw new InvalidOperationException("The rider has no buff collection.");
+            return validatedSurface;
         }
 
         internal static string BuffAvailabilityReason(UnitEntityData rider)
@@ -566,6 +600,12 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            if (ForeignMoverActive?.Invoke() == true)
+            {
+                forcedPathOwned = false;
+                return true;
+            }
+
             appliedMountAgent.Stop();
             if (appliedMountAgent.Path != null || appliedMountAgent.IsReallyMoving) return false;
             forcedPathOwned = false;
@@ -685,7 +725,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var agent = RequireMountAgent();
 
-            agent.ForcePath(new ForcedPath(new List<Vector3> { mount.Position, target.Position }), ForcedApproachRadius);
+            forcedLine = new ForcedPath(new List<Vector3> { mount.Position, target.Position });
+            agent.ForcePath(forcedLine, ForcedApproachRadius);
             ForcedPathCount++;
             Observe("forced-path", reason + ";count=" + ForcedPathCount + ";forceMode=" + ForceMode +
                 ";distance=" + Format(mount.DistanceTo(target)));
@@ -719,6 +760,7 @@ namespace KingmakerMountedCombat.Integration
                 ["forcedPathOutstanding"] = ForcedPathOutstanding,
                 ["buffApplied"] = BuffApplied,
                 ["buffOutstanding"] = BuffOutstanding,
+                ["buffHandedToNative"] = BuffHandedToNative,
                 ["buffAcquisitionObserved"] = buffOwnership.Fact != null,
                 ["buffAcquisitionStarted"] = buffOwnership.Started,
                 ["buffCallbackDebt"] = buffOwnership.Outstanding ? buffOwnership.Fault : null,

@@ -59,6 +59,10 @@ namespace KingmakerMountedCombat.Domain
         public bool RelationshipMounted;
         public bool ExactPair;
         public bool LifecycleBoundary;
+        public bool MountCanMove = true;
+
+        // Read only before a forced line. Absent, the line is not authorized: a caller feeding the centre alone fails closed.
+        public bool LaneClear;
 
         // Ownership, checked with the opposite sense to admission: the charge must still own what it took.
         // The carrier owns the mount's Move slot while approaching and must have released it by attack start.
@@ -148,6 +152,11 @@ namespace KingmakerMountedCombat.Domain
                     MountedCombatRejectionCode.TargetNotAttackable);
             }
 
+            if (!request.MountCanMove && request.Phase == MountedChargeRevalidationPhase.BeforeRepath)
+            {
+                return Invalid("The mounted charge lost a mount that can move.", MountedCombatRejectionCode.WrongActionState);
+            }
+
             // Ownership. The charge must still own exactly what it took; this is the admission policy's
             // idle-pair rule read with the opposite sense.
             if (!request.RiderOwnsAttackSlot)
@@ -210,6 +219,12 @@ namespace KingmakerMountedCombat.Domain
             if (!request.StraightRoute)
             {
                 return Invalid("The charge line to the target is obstructed.",
+                    MountedCombatRejectionCode.NoPath);
+            }
+
+            if (request.Phase == MountedChargeRevalidationPhase.BeforeRepath && !request.LaneClear)
+            {
+                return Invalid("The charge line no longer clears the mount's body.",
                     MountedCombatRejectionCode.NoPath);
             }
 

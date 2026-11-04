@@ -138,6 +138,7 @@ namespace KingmakerMountedCombat.Tests
                 TargetHostile = true,
                 TargetAttackable = true,
                 StraightRoute = true,
+                LaneClear = true,
                 LandingBlocked = false,
                 MountAvoidanceDisabled = false,
                 Distance = 6f,
