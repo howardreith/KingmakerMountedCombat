@@ -1,4 +1,4 @@
-# Owner play script: release candidate preview.101
+# Owner play script: release candidate preview.102
 
 Three ordinary sessions. Run them on any computer, on your own install, in whatever order suits you. Each line has one thing to look for. Write "OK" or what you saw; only what you report gets recorded.
 
@@ -8,7 +8,7 @@ Three ordinary sessions. Run them on any computer, on your own install, in whate
 
 Run this with your usual setup. If that means no other mods, this is the first time the Paladin path has been played that way, so it is the most valuable session.
 
-1. Open UMM (Ctrl+F10). **Kingmaker Mounted Combat** shows `0.1.0-chunk7b-preview.101`, and its page reads sensibly.
+1. Open UMM (Ctrl+F10). **Kingmaker Mounted Combat** shows `0.1.0-chunk7b-preview.102`, and its page reads sensibly.
 2. Take a Paladin to level 5, or hire one at the mercenary manager. **Divine Bond** waits for a choice. Does it read clearly?
 3. Choose **Divine Mount**, then **Horse**. A Halfling or Gnome also sees **Riding Dog**. The mount appears and is yours.
 4. Level further. **Without Call of the Wild, does the mount level by itself, and does it heal when it does?** Note its level against your Paladin's.
@@ -31,7 +31,7 @@ Run this with your usual setup. If that means no other mods, this is the first t
 ## Session 3: the items no agent could reach (about 20 minutes)
 
 1. **Trap:** ride near a trap you have found, in the same room, and click it. Does the rider approach and attempt to disarm, with the game's own result? If you have a save where this is possible, keep it: it would also let the automated row run.
-2. **Turn-based Paladin:** at Paladin 11 with the mount leveled, in a turn-based fight while mounted, select the mount and use **Celestial Smite** first. It should fire at once. End the turn: no use returns. Next turn, attack with the mount: bonus damage. If you have a second smite available later, try it on a far-off enemy, then move the rider: what does the mount do?
+2. **Turn-based Paladin:** at Paladin 11 with the mount leveled, in a turn-based fight while mounted, select the mount and use **Celestial Smite** first. It should fire at once. End the turn: no use returns. Next turn, attack with the mount: bonus damage. Before smiting, try it on an enemy far across the map: it refuses with "move the pair into range first", the mount stays put and no use is spent. Ride into range and try again: it works.
 3. **Turn-based door:** in turn-based combat near a usable door, click it while mounted. This has never been demonstrated, so any result helps.
 
 ## If something goes wrong

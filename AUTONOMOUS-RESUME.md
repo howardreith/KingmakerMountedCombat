@@ -4,7 +4,7 @@ Machine: DESKTOP-SRJJ623. Worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\s
 
 ## Custody
 
-No native game, executor, transaction or lock remains. Retained under `runtime-evidence`, prefix `20261104-sprint9-`: `a01` to `a06`, `e01` to `e08`, `f01`, `g11` to `g21` where run, plus `20261104-c7e-final-B901-r31`, `-r32`, `-B902-r31`, `-r32`. Candidates sprint9a to sprint9g under `artifacts\`; the current one is sprint9g. Budget record `runtime-state\workflow-budgets\sprint9.json`: 79.73 of 90. A package plus another launch would fall below the admission guard and needs an owner decision.
+No native game, executor, transaction or lock remains. Retained under `runtime-evidence`, prefix `20261104-sprint9-`: `a01` to `a06`, `e01` to `e08`, `f01`, `g11` to `g21` where run, `h01` to `h03`, plus `20261104-c7e-final-B901-r31`, `-r32`, `-B902-r31`, `-r32`. Candidates sprint9a to sprint9h under `artifacts\`; the current one is sprint9h, version preview.102. Budget record `runtime-state\workflow-budgets\sprint9.json`: 91.73 of 105 after one +15 adjustment. A package plus more than one launch would fall below the admission guard and needs an owner decision.
 
 ## Next action
 
