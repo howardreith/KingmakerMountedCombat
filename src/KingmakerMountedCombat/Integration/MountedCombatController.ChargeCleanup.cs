@@ -123,9 +123,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 var ownedRequest = ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
                     current.Command?.OwnsChargeCarrier(command) == true;
-                var attackWaiting = current.Command != null && !current.Command.IsStarted && !current.Command.IsFinished;
-                switch (MountedChargeRequestPolicy.Decide(route, ownedRequest, ChargeLive(current), attackWaiting,
-                    ReferenceEquals(container, current.MountCommands), command?.AiAction != null))
+                // The mount is also spoken for from the shell's admission: delivery's carrier would end whatever it was just given.
+                var mountContainer = ReferenceEquals(container, current.MountCommands);
+                var attackWaiting = current.Command != null ? !current.Command.IsStarted && !current.Command.IsFinished : mountContainer;
+                switch (MountedChargeRequestPolicy.Decide(route, ownedRequest, ChargeLive(current), attackWaiting, mountContainer,
+                    command?.AiAction != null, route == MountedChargeRequestRoute.Run && mountContainer && container.HasUniterrapitble()))
                 {
                     case MountedChargeRequestDecision.Refuse: return false;
                     case MountedChargeRequestDecision.RefuseMountEnqueue:
@@ -176,6 +178,20 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount.Commands, shell, relationship.MountedPairGeneration, Time.frameCount);
             chargeOwner.PairOwner = relationship.Ownership.FindActive(rider);
             chargeOwner.AdmittedTurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+        }
+
+        // Native AddToQueue runs at once when the slot is free, and that Run interrupts the paired slot: for a live charge it would
+        // displace what was asked only to follow it. A rider's request is queued as asked; the mount's is refused by the same decision.
+        internal bool AdmitChargeEnqueueOrRun(UnitCommands container, UnitCommand command, bool first)
+        {
+            if (!AdmitChargeCommand(container, command, MountedChargeRequestRoute.Enqueue)) return false;
+            var current = chargeOwner;
+            if (current == null || !ChargeLive(current) || !ReferenceEquals(container, current.RiderCommands) ||
+                ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
+                container.GetCommand(command.Type) != null) return true;
+            if (command.Executor == null) command.Init(current.Rider);
+            if (first) container.Queue.AddFirst(command); else container.Queue.AddLast(command);
+            return false;
         }
 
         internal Action<bool> BeginChargeNativeAction(UnitUseAbility shell)

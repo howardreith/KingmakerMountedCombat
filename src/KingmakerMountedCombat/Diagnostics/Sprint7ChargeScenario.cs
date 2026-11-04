@@ -426,6 +426,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     s7Facts["afterRejected"] = Sprint7ChargeIdentity();
                     horse.Commands.AddToQueue(new UnitMoveTo(FindWalkablePoint(horse.Position, 4f, .75f)) { CreatedByPlayer = true });
                     s7Facts["afterMountEnqueue"] = Sprint7ChargeIdentity();
+                    horse.Commands.AddToQueue(new UnitAttack(target) { CreatedByPlayer = true });
+                    s7Facts["afterMountStandardEnqueue"] = Sprint7ChargeIdentity();
                     s7FollowUp = new UnitAttack(target) { CreatedByPlayer = true };
                     rider.Commands.AddToQueue(s7FollowUp);
                     s7Facts["afterFollowUp"] = Sprint7ChargeIdentity(); s7Facts["followUpPending"] = rider.Commands.Queue.Contains(s7FollowUp);

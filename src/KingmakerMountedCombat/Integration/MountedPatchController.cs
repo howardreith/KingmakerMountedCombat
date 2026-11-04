@@ -83,6 +83,8 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.NativeRunHoldTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix));
+                PatchExact(typeof(UnitCommands), "AddToQueueOrRun", 0x060026B9,
+                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueueOrRunPrefix));
                 PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
                 PatchExact(typeof(UnitCommand), "Tick", 0x060027A7, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
@@ -458,6 +460,9 @@ namespace KingmakerMountedCombat.Integration
                 __result = false;
                 return false;
             }
+
+            internal static bool ChargeEnqueueOrRunPrefix(UnitCommands __instance, UnitCommand cmd, bool first) =>
+                PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeEnqueueOrRun(__instance, cmd, first) != false;
 
             internal static bool ChargeEnqueuePrefix(UnitCommands __instance, UnitCommand cmd) =>
                 ChargeAdmissionPrefix(__instance, cmd, MountedChargeRequestRoute.Enqueue);
