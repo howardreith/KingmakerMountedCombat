@@ -244,7 +244,7 @@ function Assert-KmcS8TurnBasedCase($e){
  if($null -eq $c -or $c.available -ne $true -or $c.clicked -ne $true -or [int]$c.usesAfter -ne ([int]$c.usesBefore-1) -or [double]$c.distanceBefore -lt 8 -or [double]$c.distanceAfter -gt 3 -or [double]$c.standard -lt 5.9){ throw 'Sprint 9 the turn-based Call did not spend one use and a native action to bring the mount' }
  if($e.mounted -ne $true){ throw 'Sprint 9 the owner did not mount in turn-based combat' }
  $m=$e.callWhileMounted
- if($null -eq $m -or $m.available -ne $false -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
+ if($null -eq $m -or $m.available -ne $false -or $m.clicked -ne $false -or [string]::IsNullOrEmpty([string]$m.reason) -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
  $s=$e.smite
  if($null -eq $s -or $s.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$s.usesAfter -ne 0 -or $s.marked -ne $true -or [double]$s.mountSwiftAfter -le 0 -or [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
  $g=$e.charge
@@ -252,11 +252,12 @@ function Assert-KmcS8TurnBasedCase($e){
  if($g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
  $a=$e.mountAttack
  if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }
- if($e.dismounted -ne $true){ throw 'Sprint 9 the owner did not dismount after the fight' }
+ if([int]$s.additionalDamageUnmarked -ne 0 -or [int]$s.additionalDamageMarked -ne [int]$e.final.pet.characterLevel -or [int]$s.charismaBonus -lt 1 -or ([int]$s.attackBonusMarked-[int]$s.attackBonusUnmarked) -ne [int]$s.charismaBonus){ throw 'Sprint 9 the mark did not add Charisma to hit and Hit Dice to damage, against an unmarked read' }
+ if($e.targetDestroyed -ne $true -or $e.combatCleared -ne $true -or $e.dismounted -ne $true){ throw 'Sprint 9 the fight did not end cleanly with the owner dismounted' }
 }
 function Assert-KmcSprint8PaladinEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb','sprint8-paladin-tb') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
+ if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 8 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.

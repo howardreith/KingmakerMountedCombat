@@ -121,11 +121,13 @@ $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; try { Assert-KmcSpr
 $r=Copy-S7 $rt; $r.status='FAIL'; $r.subscenarioFailCount=1; Reject $r 'sprint7-charge-rt' 'a failed artifact cannot be reported PASS'
 Check ('mounted-charge-tb-committed-manual' -cin (Get-KmcChunk7PersistenceCases)) 'the committed-charge save case is registered'
 Check (Test-KmcChunk7CombatPersistenceCase 'integrated-tb-feat-charge-manual') 'the integrated save case is a combat checkpoint'
-function New-S9Save { [pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=[pscustomobject]@{spent=$true;owed=$true}};featAtSave=[pscustomobject]@{afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6}}} }
+function New-S9Save { [pscustomobject]@{featDebt=[pscustomobject]@{commitment='BorrowNextSwift';riderTurn=$false;state=[pscustomobject]@{spent=$true;owed=$true}};featAtSave=[pscustomobject]@{charges=1;afterPreparation=[pscustomobject]@{spent=$false;owed=$false;hasSwift=$false;swift=6}}} }
 function New-S9Cold { [pscustomobject]@{featCold=[pscustomobject]@{hasFeat=$true;preferenceOn=$true;swift=6;state=[pscustomobject]@{spent=$false;owed=$false}};featRenewal=[pscustomobject]@{chargesAtPreparation=0;afterPreparation=[pscustomobject]@{owed=$false;hasSwift=$true};commitment='BorrowNextSwift';attempted=$true;riderTurn=$false;stateAfter=[pscustomobject]@{owed=$true}}} }
 Assert-KmcSprint9IntegratedPersistence (New-S9Save) $false; Assert-KmcSprint9IntegratedPersistence (New-S9Cold) $true; Check $true 'the integrated reader accepts both halves'
 foreach($bad in @(
  @{Name='a save with an unpaid debt';Save=$true;Edit={param($v) $v.featAtSave.afterPreparation.owed=$true}},
+ @{Name='a double debt charge at the source';Save=$true;Edit={param($v) $v.featAtSave.charges=2}},
+ @{Name='a partial Swift refund at the load';Save=$false;Edit={param($v) $v.featCold.swift=3}},
  @{Name='a save with no borrow';Save=$true;Edit={param($v) $v.featDebt.commitment='None'}},
  @{Name='a cold load that refunds the Swift';Save=$false;Edit={param($v) $v.featCold.swift=0}},
  @{Name='a second debt charge';Save=$false;Edit={param($v) $v.featRenewal.chargesAtPreparation=1}},

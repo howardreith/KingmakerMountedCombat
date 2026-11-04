@@ -52,16 +52,19 @@ $tbPet=[pscustomobject]@{blueprint=$script:KmcS8HorseUnit;master='o';intelligenc
 $tbOwner=[pscustomobject]@{id='o';weaponBond=$false;weaponUpgradeRanks=0;weaponAbilities=0;weaponResources=0;mountBond=$true;mountChoice='Horse';addPetFacts=1;callAbility=$true;ownedPets=1;rank=11;paladinLevel=11;pet=$tbPet}
 function New-S8Tb { [pscustomobject]@{before=$tbOwner;final=$tbOwner;removalReferences=@('unit X [1] is the KMC Horse','character O [2] has the KMC Divine Mount bond');
  call=[pscustomobject]@{available=$true;clicked=$true;usesBefore=2;usesAfter=1;distanceBefore=12;distanceAfter=1.6;standard=6};mounted=$true;
- callWhileMounted=[pscustomobject]@{available=$false;usesBefore=1;usesAfter=1};
- smite=[pscustomobject]@{clicked=$true;usesBefore=1;usesAfter=0;marked=$true;mountSwiftAfter=6;riderStandardBefore=0;riderStandardAfter=0};
+ callWhileMounted=[pscustomobject]@{available=$false;clicked=$false;reason='Your mount is already with you.';usesBefore=1;usesAfter=1};
+ smite=[pscustomobject]@{clicked=$true;usesBefore=1;usesAfter=0;marked=$true;mountSwiftAfter=6;riderStandardBefore=0;riderStandardAfter=0;charismaBonus=2;additionalDamageUnmarked=0;additionalDamageMarked=9;attackBonusUnmarked=8;attackBonusMarked=10};
  charge=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;chargeRules=1;riderStandard=6;riderMove=3;buffCount=1;stillMarked=$true};
- mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};dismounted=$true} }
+ mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};targetDestroyed=$true;combatCleared=$true;dismounted=$true} }
 Check (Accepts ${function:Assert-KmcS8TurnBasedCase} (New-S8Tb)) 'the turn-based Paladin neighbor is accepted'
 $r=New-S8Tb; $r.call.usesAfter=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Call that spent nothing'
 $r=New-S8Tb; $r.callWhileMounted.available=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Call offered while mounted'
 $r=New-S8Tb; $r.smite.riderStandardAfter=6; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite paid from the rider''s Standard'
 $r=New-S8Tb; $r.charge.chargeRules=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'two charge attacks'
 $r=New-S8Tb; $r.mountAttack.additionalDamage=0; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mount attack without the mark''s damage'
+$r=New-S8Tb; $r.callWhileMounted.clicked=$true; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mounted Call click that was accepted'
+$r=New-S8Tb; $r.smite.attackBonusMarked=8; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mark with no Charisma to hit'
+$r=New-S8Tb; $r.targetDestroyed=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'an unverified target'
 $r=New-S8Tb; $r.removalReferences=@(); Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a removal scan that missed the owner'
 Check (((Get-KmcSprint8Cases 'sprint8-paladin-tb') -join ',') -ceq 'S8-tb') 'the turn-based selection is registered'
 Check (Test-KmcPhase3dSchemaRegistration 52 'sprint8-paladin-tb') 'schema 52 registers the turn-based selection'

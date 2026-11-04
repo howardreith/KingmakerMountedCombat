@@ -375,8 +375,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var builder = Game.Instance.UI.CharacterBuildController;
             if (builder?.LevelUpController != null && builder.Unit != null) { builder.LevelUpController.Cancel(); builder.Show(false); }
             var second = s8Owner == null ? null : relationship.World.Registry.FindActive(s8Owner)?.Boundary;
+            if (s8CharismaPet != null) { s8CharismaPet.Stats.Charisma.BaseValue = s8CharismaOriginal; s8CharismaPet = null; }
             if (second?.State == RelationshipState.Mounted)
             {
+                TryEndCastingCleanupTurn();
                 if (s8Owner.Commands.Empty) Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.DismountAbility, s8Owner);
                 return false;
             }
@@ -829,6 +831,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Sprint 9: the unexecuted turn-based neighbor. Every action is the ordinary ability or attack click on the actor's own native turn.
         private TurnBased.Controllers.TurnController s8EndedTurn;
+        private UnitEntityData s8CharismaPet;
+        private int s8CharismaOriginal;
         private IEnumerator Sprint8TbTurn(UnitEntityData actor)
         {
             for (var frame = 0; frame < 6000; frame++)
@@ -890,6 +894,8 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var frame = 0; frame < 900 && !(s8Owner.IsInCombat && pet.IsInCombat); frame++) { s8TargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
             if (!s8Owner.IsInCombat || !pet.IsInCombat) throw new InvalidOperationException("Turn-based combat did not start for the owner and its mount.");
 
+            s8Facts["order"] = new JObject { ["ownerInitiative"] = s8Owner.CombatState.Initiative, ["mountInitiative"] = pet.CombatState.Initiative, ["hostileInitiative"] = s8Hostile.CombatState.Initiative };
+
             // First turn: the Call, a full-round ability.
             var wait = Sprint8TbTurn(s8Owner);
             while (wait.MoveNext()) yield return null;
@@ -915,8 +921,12 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["mounted"] = state() == RelationshipState.Mounted;
             var whileMounted = unit.Abilities.GetAbility(horseService.DivineMountCallAbility)?.Data;
             var uses = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource);
-            s8Facts["callWhileMounted"] = new JObject { ["available"] = whileMounted?.IsAvailableForCast, ["usesBefore"] = uses, ["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, horseService.DivineMountCallAbility, s8Owner), ["usesAfter"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource) };
+            var mountedRefusal = new JObject { ["available"] = whileMounted?.IsAvailableForCast, ["reason"] = whileMounted?.Blueprint.GetComponent<DivineMountCallLogic>()?.GetReason(), ["usesBefore"] = uses };
+            s8Facts["callWhileMounted"] = mountedRefusal;
+            mountedRefusal["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, horseService.DivineMountCallAbility, s8Owner);
             Game.Instance.SelectedAbilityHandler?.DropAbility();
+            for (var frame = 0; frame < 30; frame++) yield return null;
+            mountedRefusal["usesAfter"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource);
 
             // Third turn: the mount's Smite on its own Swift action, the rider's charge, then the mount's own attack carrying the mark.
             ended = Game.Instance.TurnBasedCombatController.CurrentTurn;
@@ -925,10 +935,14 @@ namespace KingmakerMountedCombat.Diagnostics
             wait = Sprint8TbTurn(s8Owner);
             while (wait.MoveNext()) yield return null;
             s8Hostile.Descriptor.Alignment.Set(Alignment.NeutralEvil); // disclosed setup: the spawned target is not evil
-            var charisma = pet.Stats.Charisma.BaseValue;
+            s8CharismaPet = pet; s8CharismaOriginal = pet.Stats.Charisma.BaseValue;
             pet.Stats.Charisma.BaseValue = 14; // disclosed setup: a Charisma with a bonus, since a horse's has none to add
-            var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["riderStandardBefore"] = s8Owner.CombatState.Cooldown.StandardAction };
+            var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["riderStandardBefore"] = s8Owner.CombatState.Cooldown.StandardAction, ["charismaBonus"] = pet.Stats.Charisma.Bonus };
             s8Facts["smite"] = smite;
+            s8Probe = new Sprint8SmiteProbe(pet);
+            Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, pet.GetFirstWeapon(), 0));
+            smite["additionalDamageUnmarked"] = s8Probe.LastAdditionalDamage;
+            smite["attackBonusUnmarked"] = s8Probe.LastAttackBonus;
             smite["clicked"] = Sprint5Fixture.Click(nativeControls, pet, horseService.DivineMountSmiteAbility, s8Hostile);
             settle = Sprint8TbSettle(pet);
             while (settle.MoveNext()) yield return null;
@@ -964,7 +978,6 @@ namespace KingmakerMountedCombat.Diagnostics
 
             var attack = new JObject(); s8Facts["mountAttack"] = attack;
             var rulesBefore = s8Rules.Attacks.Count;
-            s8Probe = new Sprint8SmiteProbe(pet);
             SelectionManager.Instance.SelectUnit(pet.View, true, true, false);
             attack["clicked"] = new ClickUnitHandler().OnClick(s8Hostile.View.gameObject, s8Hostile.Position, 0, false, false);
             for (var frame = 0; frame < 600 && s8Rules.Attacks.Skip(rulesBefore).All(row => row.Value<string>("attacker") != pet.UniqueId); frame++)
@@ -974,15 +987,28 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             attack["rules"] = s8Rules.Attacks.Skip(rulesBefore).Count(row => row.Value<string>("attacker") == pet.UniqueId);
             attack["additionalDamage"] = s8Probe.LastAdditionalDamage;
+            for (var frame = 0; frame < 600 && !pet.Commands.Empty; frame++)
+            {
+                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                yield return null;
+            }
+            if (!pet.Commands.Empty) { pet.Commands.InterruptAll(); yield return null; }
+            Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, pet.GetFirstWeapon(), 0));
+            smite["additionalDamageMarked"] = s8Probe.LastAdditionalDamage;
+            smite["attackBonusMarked"] = s8Probe.LastAttackBonus;
             s8Facts["final"] = Sprint8Snapshot(unit);
             s8Probe.Dispose(); s8Probe = null;
             s8Rules.Dispose(); s8Rules = null;
-            pet.Stats.Charisma.BaseValue = charisma;
+            pet.Stats.Charisma.BaseValue = s8CharismaOriginal; s8CharismaPet = null;
 
             // The fight ends with the fixture's own target; the owner then dismounts through the ordinary control.
-            for (var frame = 0; frame < 900 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
+            var destroyed = false;
+            for (var frame = 0; frame < 900 && !(destroyed = s8TargetService.DestroyAndVerify()); frame++) yield return null;
+            s8Facts["targetDestroyed"] = destroyed;
+            if (!destroyed) throw new InvalidOperationException("The Sprint 8 turn-based target was not verified destroyed.");
             s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
-            for (var frame = 0; frame < 900 && s8Owner.IsInCombat; frame++) yield return null;
+            for (var frame = 0; frame < 1800 && (s8Owner.IsInCombat || Game.Instance.Player.IsInCombat); frame++) { TryEndCastingCleanupTurn(); yield return null; }
+            s8Facts["combatCleared"] = !s8Owner.IsInCombat && !Game.Instance.Player.IsInCombat;
             for (var frame = 0; frame < 240 && !Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.DismountAbility, s8Owner); frame++) yield return null;
             for (var frame = 0; frame < 600 && state() == RelationshipState.Mounted; frame++) yield return null;
             s8Facts["dismounted"] = state() != RelationshipState.Mounted;
