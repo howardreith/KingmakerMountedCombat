@@ -119,40 +119,40 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Fill(LevelUpController controller, JObject record)
         {
-            var state = controller.State;
-            if (state.CanSelectPortrait)
+            // A recalculated preview replaces the controller's state, so it is read afresh each time.
+            if (controller.State.CanSelectPortrait)
                 Require(controller.SelectPortrait(BlueprintRoot.Instance.CharGen.Portraits.First(value => value != null)), "portrait");
-            if (state.CanSelectRace) Require(controller.SelectRace(Race), "race");
-            if (state.CanSelectGender) Require(controller.SelectGender(Gender), "gender");
-            if (controller.Doll != null && (state.Mode == LevelUpState.CharBuildMode.CharGen || state.Mode == LevelUpState.CharBuildMode.Respec) && Race != null && Race.Presets.Length > 0)
+            if (controller.State.CanSelectRace) Require(controller.SelectRace(Race), "race");
+            if (controller.State.CanSelectGender) Require(controller.SelectGender(Gender), "gender");
+            if (controller.Doll != null && (controller.State.Mode == LevelUpState.CharBuildMode.CharGen || controller.State.Mode == LevelUpState.CharBuildMode.Respec) && Race != null && Race.Presets.Length > 0)
             {
                 controller.Doll.SetRacePreset(Race.Presets[0]);
                 controller.Doll.SetLeftHanded(false);
             }
-            var characterClass = ClassFor(state.NextLevel);
-            if (state.SelectedClass == null)
+            var characterClass = ClassFor(controller.State.NextLevel);
+            if (controller.State.SelectedClass == null)
             {
                 if (Archetype != null && controller.Preview.Progression.GetClassLevel(characterClass) == 0)
                     record["archetypeAdded"] = controller.AddArchetype(characterClass, characterClass.Archetypes.Single(value => value.AssetGuid == Archetype));
                 Require(controller.SelectClass(characterClass), "class " + characterClass.name);
             }
-            record["class"] = state.SelectedClass?.name;
+            record["class"] = controller.State.SelectedClass?.name;
             foreach (var stat in new[] { StatType.Strength, StatType.Charisma, StatType.Constitution, StatType.Dexterity, StatType.Wisdom, StatType.Intelligence })
-                while (!state.StatsDistribution.IsComplete() && state.StatsDistribution.CanAdd(stat) && controller.AddStatPoint(stat)) { }
-            if (state.CanSelectRaceStat) Require(controller.SelectRaceStat(StatType.Strength), "racial stat");
-            while (state.AttributePoints > 0) Require(controller.SpendAttributePoint(StatType.Strength), "attribute");
+                while (!controller.State.StatsDistribution.IsComplete() && controller.State.StatsDistribution.CanAdd(stat) && controller.AddStatPoint(stat)) { }
+            if (controller.State.CanSelectRaceStat) Require(controller.SelectRaceStat(StatType.Strength), "racial stat");
+            while (controller.State.AttributePoints > 0) Require(controller.SpendAttributePoint(StatType.Strength), "attribute");
             for (var pass = 0; pass < 32; pass++)
             {
-                var pending = state.Selections.FirstOrDefault(selection => !selection.Selected && selection.CanSelectAnything(state, controller.Preview));
+                var pending = controller.State.Selections.FirstOrDefault(selection => !selection.Selected && selection.CanSelectAnything(controller.State, controller.Preview));
                 if (pending == null) break;
                 Choose(controller, pending, record);
             }
             foreach (var skill in StatTypeHelper.Skills)
-                while (state.SkillPointsRemaining > 0 && controller.Preview.Stats.GetStat(skill).BaseValue < state.NextLevel && controller.SpendSkillPoint(skill)) { }
-            if (state.CanSelectName) Require(controller.SelectName(Name), "name");
-            if (state.CanSelectAlignment)
-                Require(controller.SelectAlignment(Enum.GetValues(typeof(Alignment)).Cast<Alignment>().First(value => !state.IsAlignmentRestricted(value))), "alignment");
-            if (state.CanSelectVoice)
+                while (controller.State.SkillPointsRemaining > 0 && controller.Preview.Stats.GetStat(skill).BaseValue < controller.State.NextLevel && controller.SpendSkillPoint(skill)) { }
+            if (controller.State.CanSelectName) Require(controller.SelectName(Name), "name");
+            if (controller.State.CanSelectAlignment)
+                Require(controller.SelectAlignment(Enum.GetValues(typeof(Alignment)).Cast<Alignment>().First(value => !controller.State.IsAlignmentRestricted(value))), "alignment");
+            if (controller.State.CanSelectVoice)
                 Require(controller.SelectVoice((Gender == Gender.Male ? BlueprintRoot.Instance.CharGen.MaleVoices : BlueprintRoot.Instance.CharGen.FemaleVoices).First(value => value != null)), "voice");
         }
 
