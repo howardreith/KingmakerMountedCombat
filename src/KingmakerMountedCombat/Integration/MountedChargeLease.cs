@@ -112,6 +112,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal Func<bool> ForeignMoverActive { private get; set; }
 
+        private ForcedPath forcedLine;
+
+        // Native completes a forced path synchronously and keeps that instance as its path, until another path replaces it.
+        internal bool HoldsForcedLine => forcedLine != null && MountAgent != null && ReferenceEquals(MountAgent.Path, forcedLine);
+
         internal bool Applied { get; private set; }
 
         // True when an application attempt failed and every completed mutation was undone. The carrier the
@@ -720,7 +725,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var agent = RequireMountAgent();
 
-            agent.ForcePath(new ForcedPath(new List<Vector3> { mount.Position, target.Position }), ForcedApproachRadius);
+            forcedLine = new ForcedPath(new List<Vector3> { mount.Position, target.Position });
+            agent.ForcePath(forcedLine, ForcedApproachRadius);
             ForcedPathCount++;
             Observe("forced-path", reason + ";count=" + ForcedPathCount + ";forceMode=" + ForceMode +
                 ";distance=" + Format(mount.DistanceTo(target)));

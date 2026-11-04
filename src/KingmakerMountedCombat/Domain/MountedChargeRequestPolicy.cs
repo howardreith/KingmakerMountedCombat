@@ -28,7 +28,7 @@ namespace KingmakerMountedCombat.Domain
     public static class MountedChargeRequestPolicy
     {
         public static MountedChargeRequestDecision Decide(MountedChargeRequestRoute route, bool ownedRequest, bool chargeLive,
-            bool attackWaitingInQueue, bool mountContainer, bool brainProposal)
+            bool attackWaitingInQueue, bool mountContainer, bool brainProposal, bool mountRunWouldQueue = false)
         {
             if (!chargeLive)
             {
@@ -44,8 +44,9 @@ namespace KingmakerMountedCombat.Domain
             if (brainProposal) return MountedChargeRequestDecision.Refuse;
             // Native Run clears the queue that holds the waiting attack, so nothing may race the shell's few frames.
             if (attackWaitingInQueue) return MountedChargeRequestDecision.RefuseStarting;
-            // A carrier's own native Run clears the mount's queue, so an order accepted here would be dropped silently.
-            if (route == MountedChargeRequestRoute.Enqueue && mountContainer) return MountedChargeRequestDecision.RefuseMountEnqueue;
+            // A carrier's own native Run clears the mount's queue, so an order accepted here would be dropped silently. A Run that
+            // native would queue first marks the carrier to end, so it is the same request and is refused before that mark.
+            if (mountContainer && (route == MountedChargeRequestRoute.Enqueue || mountRunWouldQueue)) return MountedChargeRequestDecision.RefuseMountEnqueue;
             return MountedChargeRequestDecision.Pass;
         }
     }
@@ -60,10 +61,11 @@ namespace KingmakerMountedCombat.Domain
         public static bool Clear(float total, float reach, float corpulence, Func<float, float, bool> flankClear)
         {
             var landing = total - reach;
-            if (landing <= 0f) return true;
+            // A stop inside the body's own length stands on ground it already occupies. The native landing check still reads other units.
+            if (landing <= corpulence) return true;
             var lateral = corpulence * FlankShare;
             var step = Math.Max(corpulence * 0.5f, 0.25f);
-            for (var along = Math.Min(corpulence, landing); along < landing; along += step)
+            for (var along = corpulence; along < landing; along += step)
                 if (!flankClear(along, lateral)) return false;
             return flankClear(landing, lateral);
         }

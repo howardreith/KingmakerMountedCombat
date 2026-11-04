@@ -93,7 +93,13 @@ public static class Sprint7AdmissionProbe {
    var removed=false;try{Call(w.Command,"TryDrainChargeCarrier");}catch(Exception){}
    removed=!ReferenceEquals(((Array)Get(w.Mount,"m_Commands")).GetValue(3),successor)||(bool)successor.GetType().GetProperty("IsFinished").GetValue(successor,null);
    Check(!removed,"carrier cleanup leaves the active successor in the mount's slot, unfinished");
-   Check((bool)Call(w.Command,"ForeignMountCommandActive"),"carrier cleanup recognises a live successor, so it stops no one else's path");});
+   Check((bool)Call(w.Command,"ForeignMountCommandActive"),"carrier cleanup recognises a live successor, so it stops no one else's path");
+   ((Array)Get(w.Mount,"m_Commands")).SetValue(null,3);((Array)Get(w.Mount,"m_Commands")).SetValue(Move(),0);((Array)Get(w.Mount,"m_Commands")).SetValue(Move(),2);
+   Check(!(bool)Call(w.Command,"ForeignMountCommandActive"),"a Free or Swift command on the mount does not own its movement");});
+  Attempt("add to queue with a free slot",()=>{var w=Live(true);var follow=Move();
+   Set(follow,"<Type>k__BackingField",Enum.Parse(commandType.GetProperty("Type",F).PropertyType,"Move"));Set(follow,"<Executor>k__BackingField",Blank(native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true)));
+   var run=(bool)Call(w.Controller,"AdmitChargeEnqueueOrRun",w.Rider,follow,false);
+   Check(!run&&Unchanged(w)&&QueueHas(w.Rider,follow)&&((Array)Get(w.Rider,"m_Commands")).GetValue(3)==null&&ReferenceEquals(((Array)Get(w.Rider,"m_Commands")).GetValue(1),w.Command),"AddToQueue with a free paired slot stays pending and never reaches the Run that would interrupt the charge");});
  }
 }
 '@

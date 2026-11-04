@@ -83,7 +83,8 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(MountedChargeLane.Clear(10f, 2f, 0.5f, corridor), "A narrow mount was refused a gap it fits.");
                 TestRunner.True(!MountedChargeLane.Clear(10f, 2f, 1.0f, corridor), "A wide mount was given a gap too narrow for its flanks.");
                 TestRunner.True(MountedChargeLane.Clear(3f, 2f, 1.0f, (along, lateral) => along >= 0.9f), "The ground under the mount was asked.");
-                TestRunner.True(!MountedChargeLane.Clear(3f, 2f, 2f, (along, lateral) => along < 1f), "A short hop did not read its landing footprint.");
+                TestRunner.True(MountedChargeLane.Clear(3f, 2f, 2f, (along, lateral) => false), "A stop inside the body's own length asked its own ground.");
+                TestRunner.True(!MountedChargeLane.Clear(5f, 2f, 2f, (along, lateral) => along < 3f), "A stop past the body did not read its landing footprint.");
                 TestRunner.True(MountedChargeLane.Clear(2f, 2f, 1f, (along, lateral) => false), "A target already in reach has no lane to read.");
                 var sampled = new System.Collections.Generic.List<float>();
                 MountedChargeLane.Clear(6f, 2f, 1f, (along, lateral) => { sampled.Add(along); return true; });
@@ -100,7 +101,9 @@ namespace KingmakerMountedCombat.Tests
 
             runner.Run("a live charge is never destroyed by the route a request took", () =>
             {
-                System.Func<MountedChargeRequestRoute, bool, bool, bool, bool, bool, MountedChargeRequestDecision> decide = MountedChargeRequestPolicy.Decide;
+                System.Func<MountedChargeRequestRoute, bool, bool, bool, bool, bool, MountedChargeRequestDecision> decide = (r, o, l, w, m, b) => MountedChargeRequestPolicy.Decide(r, o, l, w, m, b);
+                TestRunner.True(MountedChargeRequestPolicy.Decide(MountedChargeRequestRoute.Run, false, true, false, true, false, true) == MountedChargeRequestDecision.RefuseMountEnqueue, "A mount Run that native would queue could mark the carrier to end.");
+                TestRunner.True(MountedChargeRequestPolicy.Decide(MountedChargeRequestRoute.Run, true, true, false, true, false, true) == MountedChargeRequestDecision.Pass, "The carrier was refused by the same rule.");
                 TestRunner.True(decide(MountedChargeRequestRoute.Enqueue, false, true, false, false, false) == MountedChargeRequestDecision.Pass, "A rider's pending follow-up did not pass.");
                 TestRunner.True(decide(MountedChargeRequestRoute.Run, false, true, false, false, false) == MountedChargeRequestDecision.Pass, "A Run was not left to its later gates.");
                 TestRunner.True(decide(MountedChargeRequestRoute.Enqueue, false, true, false, true, false) == MountedChargeRequestDecision.RefuseMountEnqueue, "A mount enqueue would be dropped by the next carrier.");

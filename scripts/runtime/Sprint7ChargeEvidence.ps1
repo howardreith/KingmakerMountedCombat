@@ -67,8 +67,8 @@ function Assert-KmcSprint7ChargeEvidence {
  if($Request.scenario -ceq 'sprint7-charge-queue-rt'){
   $q=$rows['S7-queue'].evidence
   Assert-KmcSprint7Admitted $q.steps.followCharge 'charge with a follow-up'
-  foreach($n in 'afterRejected','afterMountEnqueue','afterFollowUp'){ $s=$q.$n; if($s.sameCommand -ne $true -or $s.finished -ne $false -or [int]$s.cleanupAttempts -ne [int]$q.beforeRequests.cleanupAttempts -or [int]$s.forcedPaths -ne [int]$q.beforeRequests.forcedPaths -or [double]$s.riderStandard -gt [double]$q.beforeRequests.riderStandard){ throw ('Sprint 7 '+$n+' changed the live charge') } }
-  if([int]$q.afterMountEnqueue.mountQueue -ne 0){ throw 'Sprint 7 the mount enqueue was accepted' }
+  foreach($n in 'afterRejected','afterMountEnqueue','afterMountStandardEnqueue','afterFollowUp'){ $s=$q.$n; if($s.sameCommand -ne $true -or $s.finished -ne $false -or [int]$s.cleanupAttempts -ne [int]$q.beforeRequests.cleanupAttempts -or [int]$s.forcedPaths -ne [int]$q.beforeRequests.forcedPaths -or [double]$s.riderStandard -gt [double]$q.beforeRequests.riderStandard){ throw ('Sprint 7 '+$n+' changed the live charge') } }
+  if([int]$q.afterMountEnqueue.mountQueue -ne 0 -or [int]$q.afterMountStandardEnqueue.mountQueue -ne 0){ throw 'Sprint 7 the mount enqueue was accepted' }
   if($q.followUpPending -ne $true){ throw 'Sprint 7 the follow-up did not wait in the queue' }
   Assert-KmcSprint7Lease $q.followTerminal 'charge with a follow-up'
   if([string]$q.followTerminal.result -cne 'Success' -or [int]$q.followTerminal.rules -lt 1 -or $q.followTerminal.lease.buffHandedToNative -ne $true){ throw 'Sprint 7 the follow-up cost the charge its delivery' }
