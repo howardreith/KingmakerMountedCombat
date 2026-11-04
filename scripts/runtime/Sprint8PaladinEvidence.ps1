@@ -6,6 +6,7 @@ function Get-KmcSprint8Cases([string]$Scenario){
   'sprint8-paladin-dog-rt' { return @('S8-dog') }
   'sprint8-paladin-mixed-rt' { return @('S8-mixed','S8-mixed-reverse','S8-archetype') }
   'sprint8-paladin-celestial-rt' { return @('S8-tiers','S8-smite') }
+  'sprint8-paladin-tb' { return @('S8-tb') }
  }
  throw ('Sprint 8 scenario has no case list: '+$Scenario)
 }
@@ -235,9 +236,27 @@ function Assert-KmcS8SmiteCase($e){
  if($e.aMayMarkYAfterExpiry.canTarget -ne $true){ throw 'Sprint 8 smite: an expired mark still blocks a new one' }
  if([int]$e.usesAtEnd.a -ne 0 -or [int]$e.usesAtEnd.b -ne 0){ throw 'Sprint 8 smite: a use came back without a rest' }
 }
+# Sprint 9: Call, the mounted refusal, Smite, a real attack with its bonus and a charge, on one Divine Mount paladin in turn-based combat.
+function Assert-KmcS8TurnBasedCase($e){
+ Assert-KmcS8MountFacts $e.before 'turn-based owner' $script:KmcS8HorseUnit 'Horse'
+ if(@($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Horse'}).Count -lt 1 -or @($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Divine Mount bond'}).Count -ne 1){ throw 'Sprint 9 the removal scan missed the bonded owner or its Horse' }
+ $c=$e.call
+ if($null -eq $c -or $c.available -ne $true -or $c.clicked -ne $true -or [int]$c.usesAfter -ne ([int]$c.usesBefore-1) -or [double]$c.distanceBefore -lt 8 -or [double]$c.distanceAfter -gt 3 -or [double]$c.standard -lt 5.9){ throw 'Sprint 9 the turn-based Call did not spend one use and a native action to bring the mount' }
+ if($e.mounted -ne $true){ throw 'Sprint 9 the owner did not mount in turn-based combat' }
+ $m=$e.callWhileMounted
+ if($null -eq $m -or $m.available -ne $false -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
+ $s=$e.smite
+ if($null -eq $s -or $s.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$s.usesAfter -ne 0 -or $s.marked -ne $true -or [double]$s.mountSwiftAfter -le 0 -or [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
+ $g=$e.charge
+ if($null -eq $g -or $g.clicked -ne $true -or [string]$g.result -cne 'Success' -or $g.sequenceLawful -ne $true -or [int]$g.chargeRules -ne 1 -or [double]$g.riderStandard -lt 5.9 -or [double]$g.riderMove -lt 2.9 -or [int]$g.buffCount -ne 1){ throw 'Sprint 9 the Paladin rider''s charge was not one lawful native delivery' }
+ if($g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
+ $a=$e.mountAttack
+ if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }
+ if($e.dismounted -ne $true){ throw 'Sprint 9 the owner did not dismount after the fight' }
+}
 function Assert-KmcSprint8PaladinEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
+ if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb','sprint8-paladin-tb') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 8 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -263,6 +282,7 @@ function Assert-KmcSprint8PaladinEvidence {
    'S8-archetype' { Assert-KmcS8ArchetypeCase $e }
    'S8-tiers' { Assert-KmcS8TiersCase $e }
    'S8-smite' { Assert-KmcS8SmiteCase $e }
+   'S8-tb' { Assert-KmcS8TurnBasedCase $e }
   }
  }
 }

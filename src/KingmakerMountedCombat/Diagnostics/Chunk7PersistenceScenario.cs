@@ -317,16 +317,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         Next(61); break;
                     case 61:
                         if (!UpdateChargeCommit(true)) return;
+                        if (IntegratedCase) evidence["featAtSave"] = new JObject { ["afterPreparation"] = FeatRenewalState(MountedCombatDefenseService.Current), ["charges"] = MountedCombatDefenseService.Current.SwiftChargeCount };
                         RequestSave(); Next(4); break;
                     case 62:
                         if (!UpdateChargeRenewal()) return;
-                        Pass("C7-persistence-charge-committed-renewal"); BeginCleanup(); break;
+                        Pass("C7-persistence-charge-committed-renewal");
+                        if (IntegratedCase) { UpdateFeatDebtRenewal(false); Next(22); break; }
+                        BeginCleanup(); break;
                     case 20:
                         if (!checkpoint.UpdateContinuation()) return;
                         if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
                         Pass("C7-persistence-native-combat-continuation");
-                        if (FeatDebtCase && Cold) { Next(21); break; }
+                        if (FeatDebtCase && !IntegratedCase && Cold) { Next(21); break; }
                         if (ChargeCommitCase && Cold) { Next(62); break; }
                         BeginCleanup(); break;
                     case 21:

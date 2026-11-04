@@ -152,7 +152,8 @@ $launcher=Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'
 $tokens=$null;$errors=$null;$launchAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$errors)
 Check ($errors.Count-eq0) 'actual guarded launcher parses'
 $bindOnly=[scriptblock]::Create($launchAst.ParamBlock.Extent.Text+"`n'bound-without-launch'")
-foreach($scenario in @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb')){
+Check ((Get-KmcSprint3ApproachCases 'sprint3-approach-rt-spells') -cnotcontains 'S3-trap-disarm') 'the spell selection holds no trap row'
+foreach($scenario in @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb')){
  Check ((& $bindOnly -Scenario $scenario -RunId 's3-registration-probe')-ceq'bound-without-launch') ('actual native parameter guard admits '+$scenario)
  Check ((Get-KmcSaveBackedRuntimeScenarios)-ccontains$scenario) ('request registry agrees '+$scenario)
  Check ((Test-KmcCompoundRuntimeScenario $scenario)) ('compound registry agrees '+$scenario)

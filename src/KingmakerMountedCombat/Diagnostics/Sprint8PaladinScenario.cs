@@ -312,14 +312,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal const string Sprint8Choice = "sprint8-paladin-choice-rt", Sprint8Mount = "sprint8-paladin-mount-rt", Sprint8Dog = "sprint8-paladin-dog-rt", Sprint8Mixed = "sprint8-paladin-mixed-rt", Sprint8Celestial = "sprint8-paladin-celestial-rt";
-        internal static bool IsSprint8PaladinScenario(string scenario) => scenario == Sprint8Choice || scenario == Sprint8Mount || scenario == Sprint8Dog || scenario == Sprint8Mixed || scenario == Sprint8Celestial;
+        internal const string Sprint8Choice = "sprint8-paladin-choice-rt", Sprint8Mount = "sprint8-paladin-mount-rt", Sprint8Dog = "sprint8-paladin-dog-rt", Sprint8Mixed = "sprint8-paladin-mixed-rt", Sprint8Celestial = "sprint8-paladin-celestial-rt", Sprint8TurnBased = "sprint8-paladin-tb";
+        internal static bool IsSprint8PaladinScenario(string scenario) => scenario == Sprint8Choice || scenario == Sprint8Mount || scenario == Sprint8Dog || scenario == Sprint8Mixed || scenario == Sprint8Celestial || scenario == Sprint8TurnBased;
         private bool IsSprint8Paladin => IsSprint8PaladinScenario(request.Scenario);
         internal const int Sprint8SchemaVersion = 52;
         internal const double Sprint8ScenarioDeadlineSeconds = 400.0d, Sprint8HostDeadlineSeconds = 560.0d;
         private string[] Sprint8Cases => request.Scenario == Sprint8Choice ? new[] { "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain" } :
             request.Scenario == Sprint8Mount ? new[] { "S8-mount-horse", "S8-control" } :
             request.Scenario == Sprint8Celestial ? new[] { "S8-tiers", "S8-smite" } :
+            request.Scenario == Sprint8TurnBased ? new[] { "S8-tb" } :
             request.Scenario == Sprint8Dog ? new[] { "S8-dog" } : new[] { "S8-mixed", "S8-mixed-reverse", "S8-archetype" };
         private const string Sprint8HumanRace = "0a5d473ead98b0646b94495af250fdc4";
 
@@ -428,6 +429,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S8-archetype": return Sprint8ArchetypeCase();
                 case "S8-tiers": return Sprint8TiersCase();
                 case "S8-smite": return Sprint8SmiteCase();
+                case "S8-tb": return Sprint8TurnBasedCase();
                 default: throw new InvalidOperationException("Unknown Sprint 8 case " + name);
             }
         }
@@ -823,6 +825,167 @@ namespace KingmakerMountedCombat.Diagnostics
             fallen["petAfter"] = s8Owner.Descriptor.Pet?.UniqueId;
 
             s8Facts["after"] = Sprint8Snapshot(s8Owner.Descriptor);
+        }
+
+        // Sprint 9: the unexecuted turn-based neighbor. Every action is the ordinary ability or attack click on the actor's own native turn.
+        private TurnBased.Controllers.TurnController s8EndedTurn;
+        private IEnumerator Sprint8TbTurn(UnitEntityData actor)
+        {
+            for (var frame = 0; frame < 6000; frame++)
+            {
+                var game = Game.Instance; var turn = game.TurnBasedCombatController.CurrentTurn;
+                s8TargetService?.ObserveTargetLifeState(); s8TargetService?.RefreshBidirectionalCombatMemoryLease();
+                if (turn?.Unit == actor && !ReferenceEquals(turn, s8EndedTurn) && Chunk7NativeFixture.ReadyForTurnInput(turn) && actor.Commands.Empty && !actor.AreHandsBusyWithAnimation) yield break;
+                if (turn?.Unit != null && turn.Unit.IsDirectlyControllable && !ReferenceEquals(turn, s8EndedTurn) && turn.Unit.Commands.Empty && !turn.Unit.AreHandsBusyWithAnimation &&
+                    turn.CanEndTurnAndNoActing() && !game.TurnBasedCombatController.WaitingForUI && MountedPairTurnParticipant.NativeNextCandidate(game.TurnBasedCombatController) == null)
+                {
+                    game.PauseBind();
+                    s8EndedTurn = turn;
+                }
+                yield return null;
+            }
+            throw new InvalidOperationException("The native turn of " + actor.CharacterName + " never became ready.");
+        }
+
+        private IEnumerator Sprint8TbSettle(UnitEntityData actor, int bound = 900)
+        {
+            for (var frame = 0; frame < 20; frame++) yield return null;
+            for (var frame = 0; frame < bound && (!actor.Commands.Empty || actor.AreHandsBusyWithAnimation); frame++)
+            {
+                s8TargetService?.ObserveTargetLifeState(); s8TargetService?.RefreshBidirectionalCombatMemoryLease();
+                yield return null;
+            }
+        }
+
+        private IEnumerator Sprint8TurnBasedCase()
+        {
+            var build = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_TurnBased");
+            var owner = Sprint8MountOwner(build, HorseCompanionBlueprintService.DivineMountHorseGuid, 5);
+            while (owner.MoveNext()) yield return null;
+            var unit = s8Owner.Descriptor;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
+            var progress = Sprint8LevelTo(build, unit, 11);
+            while (progress.MoveNext()) yield return null;
+            for (var frame = 0; frame < 10; frame++) yield return null;
+            var pet = unit.Pet;
+            var commits = new JArray(); s8Facts["petCommits"] = commits;
+            var petLevels = Sprint8CommitPetLevels(pet, commits);
+            while (petLevels.MoveNext()) yield return null;
+            s8Facts["before"] = Sprint8Snapshot(unit);
+            s8Facts["removalReferences"] = new JArray(MountedRemovalPreparation.FindPermanentReferences(Game.Instance, horseService).ToArray());
+
+            // Disclosed setup: the turn-based mode, a target, and the pet sent away so the Call has something to do.
+            if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+            while (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); yield return null; }
+            if (pairedAutomaticEndProbe == null) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
+            pet.Translocate(FindWalkablePoint(s8Owner.Position, 12f, 3f), null);
+            yield return null;
+            s8TargetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            s8Hostile = s8TargetService.Spawn(s8Owner, pet, FindWalkablePoint(s8Owner.Position, 7f, 1f), request.RunId + "-s8tb", true, true);
+            if (!s8TargetService.PrepareForPlayerClick(s8Hostile) || !s8TargetService.QueueBidirectionalCombatMemory(s8Owner, s8Hostile))
+                throw new InvalidOperationException("The Sprint 8 turn-based target's visibility or combat-memory lease failed.");
+            s8TargetService.BeginExpectedAttackDispatch(s8Hostile);
+            s8Rules = new Sprint6RuleObserver(s8Hostile);
+            for (var frame = 0; frame < 900 && !(s8Owner.IsInCombat && pet.IsInCombat); frame++) { s8TargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            if (!s8Owner.IsInCombat || !pet.IsInCombat) throw new InvalidOperationException("Turn-based combat did not start for the owner and its mount.");
+
+            // First turn: the Call, a full-round ability.
+            var wait = Sprint8TbTurn(s8Owner);
+            while (wait.MoveNext()) yield return null;
+            var data = unit.Abilities.GetAbility(horseService.DivineMountCallAbility)?.Data;
+            var call = new JObject { ["available"] = data?.IsAvailableForCast, ["usesBefore"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource), ["distanceBefore"] = Vector3.Distance(pet.Position, s8Owner.Position) };
+            s8Facts["call"] = call;
+            call["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, horseService.DivineMountCallAbility, s8Owner);
+            var settle = Sprint8TbSettle(s8Owner);
+            while (settle.MoveNext()) yield return null;
+            call["distanceAfter"] = Vector3.Distance(pet.Position, s8Owner.Position);
+            call["usesAfter"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource);
+            call["standard"] = s8Owner.CombatState.Cooldown.StandardAction;
+
+            // Second turn: mount, then the Call refuses.
+            var ended = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            for (var frame = 0; frame < 600 && !(ended.CanEndTurnAndNoActing() && !Game.Instance.TurnBasedCombatController.WaitingForUI); frame++) yield return null;
+            Game.Instance.PauseBind(); s8EndedTurn = ended;
+            wait = Sprint8TbTurn(s8Owner);
+            while (wait.MoveNext()) yield return null;
+            s8Facts["mountClicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.MountAbility, pet);
+            Func<RelationshipState?> state = () => relationship.World.Registry.FindActive(s8Owner)?.Boundary?.State;
+            for (var frame = 0; frame < 900 && state() != RelationshipState.Mounted; frame++) { s8TargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            s8Facts["mounted"] = state() == RelationshipState.Mounted;
+            var whileMounted = unit.Abilities.GetAbility(horseService.DivineMountCallAbility)?.Data;
+            var uses = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource);
+            s8Facts["callWhileMounted"] = new JObject { ["available"] = whileMounted?.IsAvailableForCast, ["usesBefore"] = uses, ["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, horseService.DivineMountCallAbility, s8Owner), ["usesAfter"] = unit.Resources.GetResourceAmount(horseService.DivineMountCallResource) };
+            Game.Instance.SelectedAbilityHandler?.DropAbility();
+
+            // Third turn: the mount's Smite on its own Swift action, the rider's charge, then the mount's own attack carrying the mark.
+            ended = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            for (var frame = 0; frame < 600 && !(ended.CanEndTurnAndNoActing() && !Game.Instance.TurnBasedCombatController.WaitingForUI); frame++) yield return null;
+            Game.Instance.PauseBind(); s8EndedTurn = ended;
+            wait = Sprint8TbTurn(s8Owner);
+            while (wait.MoveNext()) yield return null;
+            s8Hostile.Descriptor.Alignment.Set(Alignment.NeutralEvil); // disclosed setup: the spawned target is not evil
+            var charisma = pet.Stats.Charisma.BaseValue;
+            pet.Stats.Charisma.BaseValue = 14; // disclosed setup: a Charisma with a bonus, since a horse's has none to add
+            var smite = new JObject { ["usesBefore"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["riderStandardBefore"] = s8Owner.CombatState.Cooldown.StandardAction };
+            s8Facts["smite"] = smite;
+            smite["clicked"] = Sprint5Fixture.Click(nativeControls, pet, horseService.DivineMountSmiteAbility, s8Hostile);
+            settle = Sprint8TbSettle(pet);
+            while (settle.MoveNext()) yield return null;
+            smite["usesAfter"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
+            smite["marked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+            smite["mountSwiftAfter"] = pet.CombatState.Cooldown.SwiftAction;
+            smite["riderStandardAfter"] = s8Owner.CombatState.Cooldown.StandardAction;
+
+            var charge = new JObject(); s8Facts["charge"] = charge;
+            var combatOwner = relationship.World.ForActor(s8Owner).Combat;
+            JObject lane;
+            if (!MountedChargeFixture.TryPlaceOnLane(pet, s8Owner, s8Hostile, new[] { 12f, 10f, 14f, 9f, 16f, 8f }, out lane)) throw new InvalidOperationException("No clear charge lane exists for the Paladin rider.");
+            charge["lane"] = lane;
+            var handler = Game.Instance.SelectedAbilityHandler;
+            try { charge["clicked"] = Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.MountedChargeAbility, s8Hostile); }
+            finally { handler?.DropAbility(); }
+            charge["refusal"] = combatOwner.LastMountedChargeRefusal;
+            MountedPairAttackCommand command = null;
+            for (var frame = 0; frame < 1800; frame++)
+            {
+                command = combatOwner.OwnedChargeCommand ?? command;
+                if (command != null && command.IsFinished && !combatOwner.HasChargeOwnership) break;
+                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                yield return null;
+            }
+            charge["result"] = command?.Result.ToString();
+            charge["sequenceLawful"] = command?.ChargeSequenceLawful;
+            charge["chargeRules"] = s8Rules.Attacks.Count(row => row.Value<bool?>("charge") == true);
+            charge["riderStandard"] = s8Owner.CombatState.Cooldown.StandardAction;
+            charge["riderMove"] = s8Owner.CombatState.Cooldown.MoveAction;
+            charge["buffCount"] = MountedChargeFixture.NativeBuffCount(s8Owner);
+            charge["stillMarked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+
+            var attack = new JObject(); s8Facts["mountAttack"] = attack;
+            var rulesBefore = s8Rules.Attacks.Count;
+            s8Probe = new Sprint8SmiteProbe(pet);
+            SelectionManager.Instance.SelectUnit(pet.View, true, true, false);
+            attack["clicked"] = new ClickUnitHandler().OnClick(s8Hostile.View.gameObject, s8Hostile.Position, 0, false, false);
+            for (var frame = 0; frame < 600 && s8Rules.Attacks.Skip(rulesBefore).All(row => row.Value<string>("attacker") != pet.UniqueId); frame++)
+            {
+                s8TargetService.ObserveTargetLifeState(); s8TargetService.RefreshBidirectionalCombatMemoryLease();
+                yield return null;
+            }
+            attack["rules"] = s8Rules.Attacks.Skip(rulesBefore).Count(row => row.Value<string>("attacker") == pet.UniqueId);
+            attack["additionalDamage"] = s8Probe.LastAdditionalDamage;
+            s8Facts["final"] = Sprint8Snapshot(unit);
+            s8Probe.Dispose(); s8Probe = null;
+            s8Rules.Dispose(); s8Rules = null;
+            pet.Stats.Charisma.BaseValue = charisma;
+
+            // The fight ends with the fixture's own target; the owner then dismounts through the ordinary control.
+            for (var frame = 0; frame < 900 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
+            s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
+            for (var frame = 0; frame < 900 && s8Owner.IsInCombat; frame++) yield return null;
+            for (var frame = 0; frame < 240 && !Sprint5Fixture.Click(nativeControls, s8Owner, nativeControls.DismountAbility, s8Owner); frame++) yield return null;
+            for (var frame = 0; frame < 600 && state() == RelationshipState.Mounted; frame++) yield return null;
+            s8Facts["dismounted"] = state() != RelationshipState.Mounted;
         }
 
         private IEnumerator Sprint8DogCase()

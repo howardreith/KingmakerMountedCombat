@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Chunk7CombatCheckpointKind CheckpointKind => PendingOnlyCase ? Chunk7CombatCheckpointKind.MountedPendingOnly :
             ZeroMountedCase ? Chunk7CombatCheckpointKind.ZeroMountedRetained :
             TurnBasedCase ? Chunk7CombatCheckpointKind.TurnBasedDebts : Chunk7CombatCheckpointKind.RealTimeDebts;
-        private static bool IsCombatCheckpoint(string value) => value == ChargeCommitCaseName || value == FeatDebtCaseName || value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
+        private static bool IsCombatCheckpoint(string value) => value == ChargeCommitCaseName || value == IntegratedCaseName || value == FeatDebtCaseName || value == "multi-rt-debt-manual" || value == "multi-tb-debt-manual" ||
             value == "zero-mounted-tb-retained-manual" || value == "legacy-mounted-pending-tb-manual" || value == "owned-schema2-pending-current-manual" ||
             value == "pending-schema3-control-manual";
 
