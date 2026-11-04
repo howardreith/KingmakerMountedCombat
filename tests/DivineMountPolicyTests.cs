@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(true, DivineMountPolicy.MountedSmiteNeedsApproach(true, 101f, 10f, false), "A mounted Smite beyond range needs an approach.");
             TestRunner.Equal(false, DivineMountPolicy.MountedSmiteNeedsApproach(true, 100f, 10f, false), "A mounted Smite at exactly its range is in place.");
             TestRunner.Equal(true, DivineMountPolicy.MountedSmiteNeedsApproach(true, 1f, 10f, true), "A mounted Smite with no line of sight needs an approach.");
+            TestRunner.Equal(false, DivineMountPolicy.MountedSmiteNeedsApproach(true, 1f, 10f, false), "A mounted Smite in reach and in sight is in place.");
         }
 
         internal static void CallUsesFollowTheRule()

@@ -240,6 +240,10 @@ function Assert-KmcS8SmiteCase($e){
 function Assert-KmcS8SmiteFarUnchanged($r,[string]$What){
  if($null -eq $r -or $r.after.marked -ne $false -or [int]$r.after.uses -ne [int]$r.before.uses -or [double]$r.after.mountSwift -ne [double]$r.before.mountSwift -or [double]$r.after.riderStandard -ne [double]$r.before.riderStandard -or [double]$r.mountMoved -gt 0.05 -or [string]$r.after.turnStatus -cne [string]$r.before.turnStatus){ throw ('Sprint 9 '+$What+': a mark, a cost, a phase change or a mount movement followed') }
 }
+# The mount's own RT refusal. The live brain may still walk the pair to a far target, so the mount's position is not the reading here: no Smite command, cost or mark is.
+function Assert-KmcS8RealTimeFar($r){
+ if($null -eq $r -or $r.needsApproach -ne $true -or $r.canTarget -ne $false -or $r.clicked -ne $false -or [int]$r.refusals -ne 1 -or [string]$r.feedback -cnotlike 'Celestial Smite: move the pair into range*' -or $r.after.marked -ne $false -or [int]$r.after.uses -ne [int]$r.before.uses -or @($r.after.commands|Where-Object{[string]$_ -ceq 'UnitUseAbility'}).Count -ne 0){ throw 'Sprint 9 the real-time far Smite was not refused at input with nothing spent' }
+}
 function Assert-KmcS8TurnBasedCase($e){
  Assert-KmcS8MountFacts $e.before 'turn-based owner' $script:KmcS8HorseUnit 'Horse'
  if(@($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Horse'}).Count -lt 1 -or @($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Divine Mount bond'}).Count -ne 1){ throw 'Sprint 9 the removal scan missed the bonded owner or its Horse' }
@@ -255,7 +259,7 @@ function Assert-KmcS8TurnBasedCase($e){
  Assert-KmcS8SmiteFarUnchanged $e.smiteMovedAway 'target moved after the click'
  if($e.smiteMovedAway.clicked -ne $true -or [int]$e.smiteMovedAway.refusals -ne 1 -or @($e.smiteMovedAway.after.commands).Count -ne 0){ throw 'Sprint 9 the request whose target moved away was not ended with its own command' }
  $mv=$e.smiteFarWhileMoving
- if($null -eq $mv -or $mv.movingAtClick -ne $true -or $mv.canTarget -ne $false -or $mv.clicked -ne $false -or $mv.sameMoveCommand -ne $true -or $mv.movingAfterClick -ne $true -or [double]$mv.travelled -lt 0.5 -or $mv.after.marked -ne $false -or [int]$mv.after.uses -ne [int]$mv.before.uses -or [double]$mv.after.mountSwift -ne [double]$mv.before.mountSwift){ throw 'Sprint 9 a refused Smite disturbed the pair''s accepted move, or spent something' }
+ if($null -eq $mv -or [string]$mv.before.turnStatus -cne 'Acting' -or [int]$mv.refusals -ne 1 -or [string]$mv.feedback -cnotlike 'Celestial Smite: move the pair into range*' -or [double]$mv.after.riderStandard -ne [double]$mv.before.riderStandard -or $mv.movingAtClick -ne $true -or $mv.canTarget -ne $false -or $mv.clicked -ne $false -or $mv.sameMoveCommand -ne $true -or $mv.movingAfterClick -ne $true -or [double]$mv.travelled -lt 0.5 -or $mv.after.marked -ne $false -or [int]$mv.after.uses -ne [int]$mv.before.uses -or [double]$mv.after.mountSwift -ne [double]$mv.before.mountSwift){ throw 'Sprint 9 a refused Smite disturbed the pair''s accepted move, or spent something' }
  $ac=$e.smiteActing
  if($null -eq $ac -or [string]$ac.turnStatus -cne 'Acting' -or $ac.clicked -ne $true -or $ac.marked -ne $true -or [int]$ac.usesAfter -ne ([int]$ac.before.uses-1) -or [double]$ac.mountSwiftAfter -le 0 -or [double]$ac.riderStandardAfter -ne [double]$ac.before.riderStandard -or $ac.firstTargetMarkRetired -ne $true){ throw 'Sprint 9 the in-reach Smite while Acting was not one effect on the mount''s own use and Swift' }
  if($null -eq $e.unmountedFar -or $e.unmountedFar.needsApproach -ne $false -or $e.unmountedFar.canTarget -ne $true){ throw 'Sprint 9 the unmounted Smite lost its native approach' }
@@ -292,7 +296,7 @@ function Assert-KmcSprint8PaladinEvidence {
    'S8-existing' { Assert-KmcS8ExistingCase $e }
    'S8-retrain' { Assert-KmcS8RetrainCase $e }
    'S8-mount-horse' { Assert-KmcS8MountCase $e }
-   'S8-control' { Assert-KmcS8ControlCase $e }
+   'S8-control' { Assert-KmcS8ControlCase $e; Assert-KmcS8RealTimeFar $e.smiteFarRealTime }
    'S8-dog' { Assert-KmcS8DogCase $e }
    'S8-mixed' { Assert-KmcS8MixedCase $e }
    'S8-mixed-reverse' { Assert-KmcS8MixedReverseCase $e }

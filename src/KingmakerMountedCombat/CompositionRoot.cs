@@ -67,6 +67,7 @@ namespace KingmakerMountedCombat
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
+                DivineMountSmiteLogic.ReportLateRefusal = actor => world.ForActor(actor)?.Combat.ReportMountedSmiteRefusal(null, true);
                 DivineMountSmiteLogic.IsMountedMount = actor => { var pair = world.ForActor(actor); return pair != null && pair.Relationship.State == RelationshipState.Mounted && pair.Relationship.Mount == actor; };
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,

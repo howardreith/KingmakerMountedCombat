@@ -505,7 +505,7 @@ namespace KingmakerMountedCombat.Integration
                 var smite = (UnitUseAbility)command;
                 if (!command.IsUnitEnoughClose || !smite.Spell.IsAvailableForCast || !smite.Spell.CanTarget(smite.Target))
                 {
-                    combat.ReportMountedSmiteRefusal(command);
+                    combat.ReportMountedSmiteRefusal(command, !command.IsUnitEnoughClose);
                     result = false;
                     return;
                 }
