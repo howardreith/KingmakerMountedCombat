@@ -37,6 +37,10 @@ namespace KingmakerMountedCombat.Domain
             !SmiteApplies(markSources, attacker, currentTarget, target);
 
         // Uses of the call: one at the bond's level, one more every four levels, four at 17th.
+        // While mounted Celestial Smite works from where the mount stands. Unmounted, the native approach is untouched.
+        internal static bool MountedSmiteNeedsApproach(bool mounted, float sqrDistance, float approachRadius, bool lineBlocked) =>
+            mounted && (sqrDistance > approachRadius * approachRadius || lineBlocked);
+
         internal static int CallUses(int paladinLevel) =>
             paladinLevel < BondLevel ? 0 : 1 + (Math.Min(paladinLevel, 17) - BondLevel) / 4;
 

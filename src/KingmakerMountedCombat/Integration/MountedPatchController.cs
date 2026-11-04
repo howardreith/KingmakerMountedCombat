@@ -290,6 +290,8 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Defense = null;
             PatchBridge.HorseCompanion = null;
             DivineMountCallLogic.IsMountedPairMember = null;
+            DivineMountSmiteLogic.IsMountedMount = null;
+            DivineMountSmiteLogic.ReportLateRefusal = null;
                 }
                 throw;
             }
@@ -465,13 +467,22 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            internal static bool ChargeClickPrefix(ClickWithSelectedAbilityHandler __instance, int button,
+            internal static bool ChargeClickPrefix(ClickWithSelectedAbilityHandler __instance, UnityEngine.GameObject gameObject, int button,
                 bool simulate, bool muteEvents, ref bool __result)
             {
+                if (button == 0 && !simulate && !muteEvents) ObserveMountedSmiteClick(__instance.Ability, gameObject);
                 if (button != 0 || PatchBridge.ChargeSafety == null ||
                     PatchBridge.ChargeSafety.AllowClick(__instance.Ability, simulate, muteEvents)) return true;
                 __result = false;
                 return false;
+            }
+
+            private static void ObserveMountedSmiteClick(Kingmaker.UnitLogic.Abilities.AbilityData ability, UnityEngine.GameObject target)
+            {
+                var logic = ability?.Blueprint.GetComponent<DivineMountSmiteLogic>();
+                var victim = target == null ? null : target.GetComponentInParent<Kingmaker.View.UnitEntityView>()?.EntityData;
+                if (logic == null || victim == null || !logic.IsLegalTarget(ability.Caster.Unit, victim) || !logic.NeedsApproach(ability.Caster.Unit, victim)) return;
+                PatchBridge.World?.ForActor(ability.Caster.Unit)?.Combat.ReportMountedSmiteRefusal(null, true);
             }
 
             internal static bool ChargeEnqueueOrRunPrefix(UnitCommands __instance, UnitCommand cmd, bool first) =>

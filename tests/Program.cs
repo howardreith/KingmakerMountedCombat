@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Tests
             CastingFixtureSlotSnapshotTests.Register(runner);
             CastingSummonResidueTests.Register(runner);
             DeclaredMemberCommandPolicyTests.Register(runner);
+            runner.Run("A ridden mount smites from where it stands", DivineMountPolicyTests.MountedSmiteWorksFromWhereTheMountStands);
             runner.Run("Divine Mount call uses follow the rule", DivineMountPolicyTests.CallUsesFollowTheRule);
 runner.Run("Divine Mount spell resistance starts at fifteen and follows the level", DivineMountPolicyTests.SpellResistanceStartsAtFifteenAndFollowsTheLevel);
 runner.Run("Divine Mount rank is the paladin level", DivineMountPolicyTests.RankIsThePaladinLevel);

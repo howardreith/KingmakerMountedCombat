@@ -5,6 +5,7 @@ function Get-KmcSprint3ApproachCases([string]$Scenario) {
  if($Scenario -ceq 'sprint3-approach-tb'){ return @('S3-tb-insufficient-movement','S3-tb-touch-friendly') }
  # The named ownership neighbor: one selected existing row, never reported as the full real-time set.
  if($Scenario -ceq 'sprint3-approach-rt-neighbor'){ return @('S3-touch-held-charge') }
+ if($Scenario -ceq 'sprint3-approach-rt-spells'){ return @('S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant') }
  # The trap row alone (PR #8 second review), with its one declared door preparation; never the full real-time set.
  if($Scenario -ceq 'sprint3-approach-rt-trap'){ return @('S3-trap-disarm') }
  @('S3-trap-disarm','S3-touch-friendly-distant','S3-touch-held-charge','S3-touch-hostile','S3-ranged-distant')
@@ -161,10 +162,11 @@ function Assert-KmcSprint3RangedRow($Row,[string]$Rider,[string]$Mount,[string]$
  Assert-KmcSprint3CarriedRow $Row $Rider $Mount
  $c=Get-KmcSprint3LastCarried $Row
  if($c.satisfied -ne $true -or [double]$c.distanceAtSatisfaction -gt [double]$e.rangeMetres+0.05 -or [double]$c.distanceAtSatisfaction -le 3){ throw 'S3 ranged: the approach did not stop at the spell''s own range' }
- $rolls=@($e.rules.events | Where-Object { [string]$_.kind -ceq 'attack-roll' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $Hostile })
- if($rolls.Count -ne 1){ throw 'S3 ranged: exactly one native ranged attack roll was required' }
  $casts=@(Get-KmcSprint3Events $Row 'cast-after' | Where-Object { [string]$_.actor -ceq $Rider })
  if($casts.Count -ne 1){ throw 'S3 ranged: exactly one native cast was required' }
+ # The live rider may swing at the adjacent hostile before it retreats (r16 and e02 alike); the spell's own roll is the one at or after the cast.
+ $rolls=@($e.rules.events | Where-Object { [string]$_.kind -ceq 'attack-roll' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $Hostile -and [long]$_.frame -ge [long]$casts[0].frame })
+ if($rolls.Count -ne 1){ throw 'S3 ranged: exactly one native ranged attack roll was required' }
 }
 function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[string]$Recipient,[bool]$Insufficient) {
  Assert-KmcSprint3TouchRow $Row $Rider $Mount $Recipient $false $true
@@ -187,7 +189,7 @@ function Assert-KmcSprint3TurnBasedRow($Row,[string]$Rider,[string]$Mount,[strin
 }
 function Assert-KmcSprint3ApproachEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-trap','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb') -or $Artifact.schemaVersion -ne 47){ throw 'Sprint 3 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 3 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.

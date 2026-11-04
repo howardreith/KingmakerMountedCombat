@@ -185,12 +185,30 @@ namespace KingmakerMountedCombat.Integration
         private static DivineMountSmiteBonus BonusOf(UnitEntityData caster) =>
             caster?.Descriptor?.Progression?.Features.SelectFactComponents<DivineMountSmiteBonus>().FirstOrDefault();
 
-        public bool CanTarget(UnitEntityData caster, TargetWrapper target)
+        public bool CanTarget(UnitEntityData caster, TargetWrapper target) => IsLegalTarget(caster, target?.Unit) && !NeedsApproach(caster, target.Unit);
+
+        internal bool IsLegalTarget(UnitEntityData caster, UnitEntityData unit)
         {
-            var unit = target?.Unit;
             var bonus = BonusOf(caster);
             return unit != null && bonus != null && unit != caster && unit.Descriptor.State.IsConscious &&
                 unit.Descriptor.Alignment.Value.HasComponent(AlignmentComponent.Evil) && bonus.MayMark(unit);
+        }
+
+        // Set by the composition root: tells the player a committed Smite found its target gone from reach at delivery.
+        internal static Action<UnitEntityData> ReportLateRefusal;
+
+        // Set by the composition root: the actor is the mount of a pair that is mounted now.
+        internal static Func<UnitEntityData, bool> IsMountedMount;
+        internal const string NeedsApproachMessage = "Celestial Smite: move the pair into range first. A ridden mount smites from where it stands.";
+
+        // The same facts native UnitCommand.IsUnitEnoughClose reads for this ability: its approach distance, mechanics distance and line of sight.
+        internal bool NeedsApproach(UnitEntityData caster, UnitEntityData unit)
+        {
+            if (IsMountedMount?.Invoke(caster) != true) return false;
+            var data = caster.Descriptor.Abilities.Enumerable.FirstOrDefault(fact => fact.Blueprint.GetComponent<DivineMountSmiteLogic>() == this)?.Data;
+            if (data == null) return true;
+            return DivineMountPolicy.MountedSmiteNeedsApproach(true, GeometryUtils.SqrMechanicsDistance(unit.Position, caster.Position), data.GetApproachDistance(unit),
+                Kingmaker.Visual.FogOfWar.LineOfSightGeometry.Instance.HasObstacle(caster.EyePosition, unit.Position, 0));
         }
 
         public override IEnumerator<AbilityDeliveryTarget> Deliver(AbilityExecutionContext context, TargetWrapper target)
@@ -198,6 +216,8 @@ namespace KingmakerMountedCombat.Integration
             var unit = target?.Unit;
             var bonus = BonusOf(context?.Caster);
             if (unit == null || bonus == null) yield break;
+            // Native has committed by now and its cost stands, as for any ability whose effect finds nothing. A target that moved away takes no mark.
+            if (NeedsApproach(context.Caster, unit)) { ReportLateRefusal?.Invoke(context.Caster); yield break; }
             bonus.BeginMark(unit, context);
             yield return new AbilityDeliveryTarget(target);
         }

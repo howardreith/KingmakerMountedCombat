@@ -6,6 +6,7 @@ function Get-KmcSprint8Cases([string]$Scenario){
   'sprint8-paladin-dog-rt' { return @('S8-dog') }
   'sprint8-paladin-mixed-rt' { return @('S8-mixed','S8-mixed-reverse','S8-archetype') }
   'sprint8-paladin-celestial-rt' { return @('S8-tiers','S8-smite') }
+  'sprint8-paladin-tb' { return @('S8-tb') }
  }
  throw ('Sprint 8 scenario has no case list: '+$Scenario)
 }
@@ -235,9 +236,48 @@ function Assert-KmcS8SmiteCase($e){
  if($e.aMayMarkYAfterExpiry.canTarget -ne $true){ throw 'Sprint 8 smite: an expired mark still blocks a new one' }
  if([int]$e.usesAtEnd.a -ne 0 -or [int]$e.usesAtEnd.b -ne 0){ throw 'Sprint 8 smite: a use came back without a rest' }
 }
+# Sprint 9: Call, the mounted refusal, Smite, a real attack with its bonus and a charge, on one Divine Mount paladin in turn-based combat.
+function Assert-KmcS8SmiteFarUnchanged($r,[string]$What){
+ if($null -eq $r -or $r.after.marked -ne $false -or [int]$r.after.uses -ne [int]$r.before.uses -or [double]$r.after.mountSwift -ne [double]$r.before.mountSwift -or [double]$r.after.riderStandard -ne [double]$r.before.riderStandard -or [double]$r.mountMoved -gt 0.05 -or [string]$r.after.turnStatus -cne [string]$r.before.turnStatus){ throw ('Sprint 9 '+$What+': a mark, a cost, a phase change or a mount movement followed') }
+}
+# The mount's own RT refusal. The live brain may still walk the pair to a far target, so the mount's position is not the reading here: no Smite command, cost or mark is.
+function Assert-KmcS8RealTimeFar($r){
+ if($null -eq $r -or $r.needsApproach -ne $true -or $r.canTarget -ne $false -or $r.clicked -ne $false -or [int]$r.refusals -ne 1 -or [string]$r.feedback -cnotlike 'Celestial Smite: move the pair into range*' -or $r.after.marked -ne $false -or [int]$r.after.uses -ne [int]$r.before.uses -or @($r.after.commands|Where-Object{[string]$_ -ceq 'UnitUseAbility'}).Count -ne 0){ throw 'Sprint 9 the real-time far Smite was not refused at input with nothing spent' }
+}
+function Assert-KmcS8TurnBasedCase($e){
+ Assert-KmcS8MountFacts $e.before 'turn-based owner' $script:KmcS8HorseUnit 'Horse'
+ if(@($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Horse'}).Count -lt 1 -or @($e.removalReferences|Where-Object{[string]$_ -clike '*KMC Divine Mount bond'}).Count -ne 1){ throw 'Sprint 9 the removal scan missed the bonded owner or its Horse' }
+ $c=$e.call
+ if($null -eq $c -or $c.availableAfterSelect -ne $true -or $c.clicked -ne $true -or [int]$c.usesAfter -ne ([int]$c.usesBefore-1) -or [double]$c.distanceBefore -lt 8 -or [double]$c.distanceAfter -gt 3 -or [double]$c.standard -lt 5.9){ throw 'Sprint 9 the turn-based Call did not spend one use and a native action to bring the mount' }
+ if($e.mounted -ne $true){ throw 'Sprint 9 the owner did not mount in turn-based combat' }
+ $m=$e.callWhileMounted
+ if($null -eq $m -or $m.available -ne $false -or [string]$m.reason -cne 'Your mount is already with you.' -or [int]$m.usesAfter -ne [int]$m.usesBefore){ throw 'Sprint 9 the Call was offered while mounted' }
+ $s=$e.smite
+ Assert-KmcS8SmiteFarUnchanged $e.smiteFarPreparing 'far click in Preparing'
+ if($e.smiteFarPreparing.canTarget -ne $false -or $e.smiteFarPreparing.needsApproach -ne $true -or $e.smiteFarPreparing.clicked -ne $false -or [int]$e.smiteFarPreparing.refusals -ne 1 -or [string]$e.smiteFarPreparing.after.turnStatus -cne 'Preparing'){ throw 'Sprint 9 the far click in Preparing was not refused at input with a message, or moved the turn on' }
+ if([string]$e.smiteFarPreparing.feedback -cnotlike 'Celestial Smite: move the pair into range*'){ throw 'Sprint 9 the far click gave no useful message' }
+ Assert-KmcS8SmiteFarUnchanged $e.smiteMovedAway 'target moved after the click'
+ if($e.smiteMovedAway.clicked -ne $true -or [int]$e.smiteMovedAway.refusals -ne 1 -or @($e.smiteMovedAway.after.commands).Count -ne 0){ throw 'Sprint 9 the request whose target moved away was not ended with its own command' }
+ $mv=$e.smiteFarWhileMoving
+ if($null -eq $mv -or [string]$mv.before.turnStatus -cne 'Acting' -or [int]$mv.refusals -ne 1 -or [string]$mv.feedback -cnotlike 'Celestial Smite: move the pair into range*' -or [double]$mv.after.riderStandard -ne [double]$mv.before.riderStandard -or $mv.movingAtClick -ne $true -or $mv.canTarget -ne $false -or $mv.clicked -ne $false -or $mv.sameMoveCommand -ne $true -or $mv.movingAfterClick -ne $true -or [double]$mv.travelled -lt 0.5 -or $mv.after.marked -ne $false -or [int]$mv.after.uses -ne [int]$mv.before.uses -or [double]$mv.after.mountSwift -ne [double]$mv.before.mountSwift){ throw 'Sprint 9 a refused Smite disturbed the pair''s accepted move, or spent something' }
+ $ac=$e.smiteActing
+ if($null -eq $ac -or [string]$ac.turnStatus -cne 'Acting' -or $ac.clicked -ne $true -or $ac.marked -ne $true -or [int]$ac.usesAfter -ne ([int]$ac.before.uses-1) -or [double]$ac.mountSwiftAfter -le 0 -or [double]$ac.riderStandardAfter -ne [double]$ac.before.riderStandard -or $ac.firstTargetMarkRetired -ne $true){ throw 'Sprint 9 the in-reach Smite while Acting was not one effect on the mount''s own use and Swift' }
+ if($null -eq $e.unmountedFar -or $e.unmountedFar.needsApproach -ne $false -or $e.unmountedFar.canTarget -ne $true){ throw 'Sprint 9 the unmounted Smite lost its native approach' }
+ # The turn's first action: never on the rider's actions. a01 to a03 hold the failures before the repair.
+ $first=$s.marked -eq $true; $d=if($first){$s}else{$null}
+ if($null -eq $d -or $d.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$d.usesAfter -ne 0 -or $d.marked -ne $true -or [double]$d.mountSwiftAfter -le 0 -or ($first -and [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore)){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
+ $g=$e.charge
+ if($null -eq $g -or $g.clicked -ne $true -or [string]$g.result -cne 'Success' -or $g.sequenceLawful -ne $true -or [int]$g.chargeRules -ne 1 -or [double]$g.riderStandard -lt 5.9 -or [double]$g.riderMove -lt 2.9 -or [int]$g.buffCount -ne 1){ throw 'Sprint 9 the Paladin rider''s charge was not one lawful native delivery' }
+ if($s.canEndTurnAfter -ne $true -or $s.nextTurnReached -ne $true -or $s.markOnNextTurn -ne $true -or [int]$s.usesOnNextTurn -ne 0){ throw 'Sprint 9 End Turn after a first-action Smite did not reach the next turn with the mark and no use returned' }
+ if($first -and $g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
+ $a=$e.mountAttack
+ if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }
+ if([int]$s.additionalDamageUnmarked -ne 0 -or [int]$s.additionalDamageMarked -ne [int]$e.final.pet.characterLevel -or [int]$s.charismaBonus -lt 1 -or ([int]$s.attackBonusMarked-[int]$s.attackBonusUnmarked) -lt [int]$s.charismaBonus){ throw 'Sprint 9 the mark did not add Charisma to hit and Hit Dice to damage, against an unmarked read' }
+ if($e.targetDestroyed -ne $true -or $e.combatCleared -ne $true -or $e.dismounted -ne $true){ throw 'Sprint 9 the fight did not end cleanly with the owner dismounted' }
+}
 function Assert-KmcSprint8PaladinEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
+ if($Request.scenario -cnotin @('sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb') -or $Artifact.schemaVersion -ne 52){ throw 'Sprint 8 evidence belongs to another scenario or schema' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 8 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -256,13 +296,14 @@ function Assert-KmcSprint8PaladinEvidence {
    'S8-existing' { Assert-KmcS8ExistingCase $e }
    'S8-retrain' { Assert-KmcS8RetrainCase $e }
    'S8-mount-horse' { Assert-KmcS8MountCase $e }
-   'S8-control' { Assert-KmcS8ControlCase $e }
+   'S8-control' { Assert-KmcS8ControlCase $e; Assert-KmcS8RealTimeFar $e.smiteFarRealTime }
    'S8-dog' { Assert-KmcS8DogCase $e }
    'S8-mixed' { Assert-KmcS8MixedCase $e }
    'S8-mixed-reverse' { Assert-KmcS8MixedReverseCase $e }
    'S8-archetype' { Assert-KmcS8ArchetypeCase $e }
    'S8-tiers' { Assert-KmcS8TiersCase $e }
    'S8-smite' { Assert-KmcS8SmiteCase $e }
+   'S8-tb' { Assert-KmcS8TurnBasedCase $e }
   }
  }
 }
