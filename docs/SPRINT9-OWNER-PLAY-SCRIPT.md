@@ -1,4 +1,4 @@
-# Owner play script: release candidate preview.102
+# Owner play script: release preview.103
 
 Three ordinary sessions. Run them on any computer, on your own install, in whatever order suits you. Each line has one thing to look for. Write "OK" or what you saw; only what you report gets recorded.
 
@@ -8,7 +8,7 @@ Three ordinary sessions. Run them on any computer, on your own install, in whate
 
 Run this with your usual setup. If that means no other mods, this is the first time the Paladin path has been played that way, so it is the most valuable session.
 
-1. Open UMM (Ctrl+F10). **Kingmaker Mounted Combat** shows `0.1.0-chunk7b-preview.102`, and its page reads sensibly.
+1. Open UMM (Ctrl+F10). **Kingmaker Mounted Combat** shows `0.1.0-chunk7b-preview.103`, and its page reads sensibly.
 2. Take a Paladin to level 5, or hire one at the mercenary manager. **Divine Bond** waits for a choice. Does it read clearly?
 3. Choose **Divine Mount**, then **Horse**. A Halfling or Gnome also sees **Riding Dog**. The mount appears and is yours.
 4. Level further. **Without Call of the Wild, does the mount level by itself, and does it heal when it does?** Note its level against your Paladin's.
