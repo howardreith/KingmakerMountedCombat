@@ -110,6 +110,8 @@ namespace KingmakerMountedCombat.Integration
             return field;
         }
 
+        internal Func<bool> ForeignMoverActive { private get; set; }
+
         internal bool Applied { get; private set; }
 
         // True when an application attempt failed and every completed mutation was undone. The carrier the
@@ -316,13 +318,17 @@ namespace KingmakerMountedCombat.Integration
             ChargingObservedThroughout &= agent.IsCharging;
             agent.MaxSpeedOverride = Math.Max(agent.MaxSpeedOverride ?? 0f, SpeedOverrideApplied);
             // Native Stop leaves force mode latched with no path, so the latch alone does not mean the line is live.
-            if (!carrierAlive || ForceMode && agent.Path != null)
+            if (!MountedChargeLane.MustAuthorizeReforce(carrierAlive, ForceMode, agent.Path != null))
             {
                 return;
             }
 
             ForcePathToTarget("re-force");
         }
+
+        // The caller reads the lane before this is true and Maintain forces it: nothing forces a line unread.
+        internal bool NeedsReforce(bool carrierAlive) => Applied && !Restored && MountAgent != null &&
+            MountedChargeLane.MustAuthorizeReforce(carrierAlive, ForceMode, MountAgent.Path != null);
 
         // The five steps. Each Apply takes exactly one mutation and records ownership of it; each Undo
         // returns exactly that field to the value captured before the attempt.
@@ -587,6 +593,12 @@ namespace KingmakerMountedCombat.Integration
             if (appliedMountView == null || appliedMountAgent == null)
             {
                 return false;
+            }
+
+            if (ForeignMoverActive?.Invoke() == true)
+            {
+                forcedPathOwned = false;
+                return true;
             }
 
             appliedMountAgent.Stop();

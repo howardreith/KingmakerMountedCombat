@@ -3,6 +3,7 @@ using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Utility;
 using Kingmaker.View;
+using KingmakerMountedCombat.Domain;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -42,24 +43,21 @@ namespace KingmakerMountedCombat.Integration
             mount?.View != null && target?.View != null && rider?.GetFirstWeapon() != null &&
             GeometryUtils.MechanicsDistance(mount.Position, target.Position) <= ReachRadius(mount, rider, target);
 
-        // The native line is the centre of a body, and the mount's body is what travels. Along the lane, up to the landing point, both
-        // flanks at the 0.8 of corpulence the native landing check allows must stay on the navmesh. The ground the mount already
-        // occupies is not asked: it stands there lawfully, and a wall beside it does not close a lane leading away.
+        // The native line is the centre of a body, and the mount's body is what travels: the same rule at admission and before
+        // every forced line after it, from the mount's exact current place to the target's. See MountedChargeLane.
         internal static bool FootprintClear(UnitEntityData mount, UnitEntityData rider, UnitEntityData target)
         {
             if (mount?.View == null || target?.View == null) return false;
             var line = (target.Position - mount.Position).To2D();
             var total = line.magnitude;
-            var length = total - ReachRadius(mount, rider, target);
-            var corpulence = mount.View.Corpulence;
-            if (length <= corpulence) return true;
-            var side = new Vector2(-line.y, line.x).normalized * (corpulence * 0.8f);
-            for (var along = corpulence; ; along = Mathf.Min(along + Mathf.Max(corpulence * 0.5f, 0.25f), length))
+            if (total <= 0f) return true;
+            var unit = line.normalized;
+            return MountedChargeLane.Clear(total, ReachRadius(mount, rider, target), mount.View.Corpulence, (along, lateral) =>
             {
                 var centre = Vector3.Lerp(mount.Position, target.Position, along / total);
-                if (!FlankClear(centre, side) || !FlankClear(centre, -side)) return false;
-                if (along >= length) return true;
-            }
+                var side = new Vector2(-unit.y, unit.x) * lateral;
+                return FlankClear(centre, side) && FlankClear(centre, -side);
+            });
         }
 
         private static bool FlankClear(Vector3 centre, Vector2 side)

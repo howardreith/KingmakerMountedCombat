@@ -16,7 +16,7 @@ function New-S7Click($Before,[bool]$Clicked,[string]$Code,$After=$null){
  [pscustomobject]@{abilityPresent=$true;clicked=$Clicked;policyAllowed=$Clicked;policyCode=$Code;policyReason=$(if($Clicked){'Mounted Charge is available.'}else{'refused'});castDelta=$(if($Clicked){1}else{0});refusalDelta=0;shell=$Clicked;shellTarget=$(if($Clicked){$hostile}else{$null});before=$Before;afterClick=$(if($After){$After}else{$Before})}
 }
 function New-S7Terminal($State,[string]$Result,[int]$Rules,[bool]$Handed,[double]$Closest=4.0,[string]$Outcome=''){
- [pscustomobject]@{outcomeRejection=$Outcome;state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;mountRules=0;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
+ [pscustomobject]@{revalidationReason=$null;outcomeRejection=$Outcome;state=$State;sequenceLawful=$true;result=$Result;revalidationFailed=$false;rules=$Rules;mountRules=0;closestDistance=$Closest;peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
   lease=[pscustomobject]@{applied=$true;buffApplied=$true;forcedPathOutstanding=$false;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true;riderChargingRestoredExactly=$true;buffHandedToNative=$Handed;buffOutstanding=$false}}
 }
 function New-S7Rule([int]$Id,[string]$Attacker,[bool]$Charge,[int]$D20,[int]$Bonus,[bool]$Crit,[int]$Damage){ [pscustomobject]@{identity=$Id;attacker=$Attacker;target=$hostile;d20=$D20;bonus=$Bonus;charge=$Charge;opportunity=$false;resultAtEvent=$(if($Damage -gt 0){'Hit'}else{'Miss'});criticalAtEvent=$Crit;damageRules=$(if($Damage -gt 0){1}else{0});damage=$Damage} }
@@ -59,6 +59,24 @@ $po=New-S7Pounce; Check (Accept $po 'sprint7-charge-pounce-rt') 'complete Pounce
 $r=Copy-S7 $po; $r.rows[0].evidence.mountPounceAttack.fullAttack=$true; Reject $r 'sprint7-charge-pounce-rt' 'a mount''s Pounce lifting the rider''s attack refuses'
 $r=Copy-S7 $po; $r.rows[0].evidence.mountPounceTerminal.rules=2; Reject $r 'sprint7-charge-pounce-rt' 'a second rider attack from the mount''s Pounce refuses'
 $r=Copy-S7 $po; $r.rows[0].evidence.riderPounceAttack.fullAttack=$false; Reject $r 'sprint7-charge-pounce-rt' 'a rider''s own Pounce refused its full attack refuses'
+function New-S7Queue(){ $b=New-S7State; $id=[pscustomobject]@{sameCommand=$true;finished=$false;cleanupAttempts=0;forcedPaths=1;riderStandard=5.0;riderQueue=0;mountQueue=0}; $done=New-S7Terminal (New-S7State @{buff=$true;buffCount=1;riderAc=18;riderStandard=4.0;distance=3.9}) 'Success' 1 $true; $done.lease | Add-Member forcedPathCount 2; $cut=New-S7Terminal (New-S7State @{riderStandard=5.5;distance=8.0}) 'Interrupt' 0 $false 8.0; $cut.revalidationReason='The charge line no longer clears the mount''s body.'; $cut.lease | Add-Member forcedPathCount 1
+ $q=[pscustomobject]@{beforeRequests=$id;afterRejected=$id;afterMountEnqueue=$id;afterFollowUp=$id;followUpPending=$true;followTerminal=$done;followUpRan=[pscustomobject]@{started=$true;inQueue=$false};replaceTerminal=$cut;successorMetres=5.0;steps=[pscustomobject]@{followCharge=(New-S7Click $b $true $null);replaceCharge=(New-S7Click $b $true $null)}}
+ $l=[pscustomobject]@{validBefore=$id;validTerminal=$done;blockedTerminal=$cut;flankBlocked=[pscustomobject]@{none=$false;identity=$id};steps=[pscustomobject]@{blockedCharge=(New-S7Click $b $true $null)}}
+ New-S7Envelope (New-S7Measure 'sprint7-charge-queue-rt' $null @()) @((New-S7Row 'S7-queue' $q),(New-S7Row 'S7-lane' $l)) }
+$qu=New-S7Queue; Check (Accept $qu 'sprint7-charge-queue-rt') 'complete queue and lane evidence accepted'
+foreach($mut in @(
+ @{n='a rejected request that drained the charge';f={param($r) $r.rows[0].evidence.afterRejected=[pscustomobject]@{sameCommand=$false;finished=$true;cleanupAttempts=1;forcedPaths=1;riderStandard=5.0;mountQueue=0}}},
+ @{n='an accepted mount enqueue';f={param($r) $r.rows[0].evidence.afterMountEnqueue=[pscustomobject]@{sameCommand=$true;finished=$false;cleanupAttempts=0;forcedPaths=1;riderStandard=5.0;mountQueue=1}}},
+ @{n='a follow-up that never waited';f={param($r) $r.rows[0].evidence.followUpPending=$false}},
+ @{n='a follow-up that never ran';f={param($r) $r.rows[0].evidence.followUpRan.started=$false}},
+ @{n='a follow-up that cost the delivery';f={param($r) $r.rows[0].evidence.followTerminal.result='Interrupt'}},
+ @{n='a stopped successor';f={param($r) $r.rows[0].evidence.successorMetres=0.1}},
+ @{n='a replacement that refunded';f={param($r) $r.rows[0].evidence.replaceTerminal.state.riderStandard=0.0}},
+ @{n='a flank-blocked lane that was forced';f={param($r) $r.rows[1].evidence.blockedTerminal.lease.forcedPathCount=2}},
+ @{n='a flank-blocked lane ended for another reason';f={param($r) $r.rows[1].evidence.blockedTerminal.revalidationReason='other'}},
+ @{n='a moved target not followed';f={param($r) $r.rows[1].evidence.validTerminal.lease.forcedPathCount=1}}
+)){ $r=Copy-S7 $qu; & $mut.f $r; Reject $r 'sprint7-charge-queue-rt' ($mut.n+' refuses') }
+foreach($s in 'sprint7-charge-queue-rt','sprint7-charge-reforce-tb'){ Check (Test-KmcPhase3dSchemaRegistration 51 $s) ($s+' registers schema 51'); Check (Test-KmcCompoundRuntimeScenario $s) ($s+' reports case rows') }
 function Facts($Artifact,[string]$Row){ @($Artifact.rows | Where-Object name -CEQ $Row)[0].evidence }
 $r=Copy-S7 $rt; $r.observations.sprint7Charge.defaultFeatureEnabled=$false; Reject $r 'sprint7-charge-rt' 'a row not under the ordinary default refuses'
 $r=Copy-S7 $rt; (Facts $r 'S7-rt-charge').steps.tooNear.clicked=$true; Reject $r 'sprint7-charge-rt' 'an admitted too-near charge refuses'

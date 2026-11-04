@@ -365,7 +365,7 @@ namespace KingmakerMountedCombat
                 !persistence.HasSaveAdmissionFence && !persistence.LoadInFlight &&
                 world.Pairs.All(pair => !nativeControls.HasUnsettledShellFor(pair.Relationship));
             settings.EnableMountedCharge = GUILayout.Toggle(settings.EnableMountedCharge,
-                "Enable Mounted Charge");
+                "Enable Mounted Charge (this session; on again at the next launch)");
             GUI.enabled = priorEnabled;
             GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
             GUILayout.Label("Mounts: your supported Mammoth or the Horse chosen through Ranger companion progression. Unsupported sizes, forms and rigs refuse admission.");

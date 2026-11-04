@@ -51,17 +51,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal const string Sprint7ChargeRealTime = "sprint7-charge-rt", Sprint7ChargeTurnBased = "sprint7-charge-tb", Sprint7ChargeMountFirst = "sprint7-charge-tb-mount-first", Sprint7ChargePounce = "sprint7-charge-pounce-rt";
-        internal static bool IsSprint7ChargeScenario(string scenario) => scenario == Sprint7ChargeRealTime || scenario == Sprint7ChargeTurnBased || scenario == Sprint7ChargeMountFirst || scenario == Sprint7ChargePounce;
+        internal const string Sprint7ChargeRealTime = "sprint7-charge-rt", Sprint7ChargeTurnBased = "sprint7-charge-tb", Sprint7ChargeMountFirst = "sprint7-charge-tb-mount-first", Sprint7ChargePounce = "sprint7-charge-pounce-rt", Sprint7ChargeQueue = "sprint7-charge-queue-rt", Sprint7ChargeReforce = "sprint7-charge-reforce-tb";
+        internal static bool IsSprint7ChargeScenario(string scenario) => scenario == Sprint7ChargeRealTime || scenario == Sprint7ChargeTurnBased || scenario == Sprint7ChargeMountFirst || scenario == Sprint7ChargePounce || scenario == Sprint7ChargeQueue || scenario == Sprint7ChargeReforce;
         private bool IsSprint7Charge => IsSprint7ChargeScenario(request.Scenario);
-        private bool Sprint7Tb => request.Scenario == Sprint7ChargeTurnBased || request.Scenario == Sprint7ChargeMountFirst;
+        private bool Sprint7Tb => request.Scenario == Sprint7ChargeTurnBased || request.Scenario == Sprint7ChargeMountFirst || request.Scenario == Sprint7ChargeReforce;
         private bool Sprint7RiderFirst => request.Scenario == Sprint7ChargeTurnBased;
         internal const int Sprint7SchemaVersion = 51;
         internal const double Sprint7ScenarioDeadlineSeconds = 300.0d, Sprint7HostDeadlineSeconds = 460.0d;
         private static readonly string[] Sprint7RealTimeCases = { "S7-rt-charge", "S7-rt-cancel" };
         private static readonly string[] Sprint7TurnBasedCases = { "S7-tb-charge" };
         private static readonly string[] Sprint7PounceCases = { "S7-pounce" };
-        private string[] Sprint7Cases => request.Scenario == Sprint7ChargePounce ? Sprint7PounceCases : Sprint7Tb ? Sprint7TurnBasedCases : Sprint7RealTimeCases;
+        private static readonly string[] Sprint7QueueCases = { "S7-queue", "S7-lane" }, Sprint7ReforceCases = { "S7-reforce" };
+        private string[] Sprint7Cases => request.Scenario == Sprint7ChargeQueue ? Sprint7QueueCases : request.Scenario == Sprint7ChargeReforce ? Sprint7ReforceCases : request.Scenario == Sprint7ChargePounce ? Sprint7PounceCases : Sprint7Tb ? Sprint7TurnBasedCases : Sprint7RealTimeCases;
         private string Sprint7Case => Sprint7Cases[s7CaseIndex];
         private const float Sprint7StepBoundSeconds = 25f;
         private const int Sprint7SettleFrames = 20;
@@ -70,6 +71,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool s7InitiativeSet;
         private float s7BoundAt, s7ClosestDistance = float.MaxValue, s7PeakSpeedOverride;
         private bool s7MountClick, s7MountPounce, s7RiderPounce;
+        private UnitAttack s7FollowUp;
+        private Vector3 s7Goal;
         private JObject s7Facts, s7Measure;
         private Sprint6RuleObserver s7Rules;
         private MountedCombatRuleProbe s7Die;
@@ -181,6 +184,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S7-rt-cancel": TickSprint7Cancel(); return;
                 case "S7-tb-charge": TickSprint7TurnBased(turn); return;
                 case "S7-pounce": TickSprint7Pounce(); return;
+                case "S7-queue": TickSprint7Queue(); return;
+                case "S7-lane": TickSprint7Lane(); return;
+                case "S7-reforce": TickSprint7Reforce(turn); return;
                 default: throw new InvalidOperationException("Unknown Sprint 7 case " + Sprint7Case);
             }
         }
@@ -394,6 +400,177 @@ namespace KingmakerMountedCombat.Diagnostics
                     s7Facts["riderPounceAttack"] = new JObject { ["fullAttack"] = s7Command.IsFullAttack, ["planned"] = s7Command.AllAttacks.Count, ["riderPounce"] = (bool)rider.Descriptor.State.Features.Pounce, ["mountPounce"] = (bool)horse.Descriptor.State.Features.Pounce };
                     rider.Descriptor.State.Features.Pounce.Release(); s7RiderPounce = false;
                     FinishSprint7Row(true, "Pounce observations recorded."); return;
+            }
+        }
+
+        private bool Sprint7Travelling() => s7Command != null && horse.View.AgentASP.IsCharging && horse.View.AgentASP.IsReallyMoving;
+
+        private JObject Sprint7ChargeIdentity() => new JObject { ["sameCommand"] = ReferenceEquals(combat.OwnedChargeCommand, s7Command), ["finished"] = s7Command?.IsFinished, ["cleanupAttempts"] = combat.ChargeCleanupAttemptCount,
+            ["forcedPaths"] = s7Command?.CaptureChargeLeaseEvidence()?["forcedPathCount"], ["riderStandard"] = rider.CombatState.Cooldown.StandardAction, ["riderQueue"] = rider.Commands.Queue.Count, ["mountQueue"] = horse.Commands.Queue.Count, ["feedback"] = combat.LastFeedback };
+
+        // A live charge meets a refused order, a refused mount enqueue and a pending follow-up, then delivers. Then a real replacement ends the next one.
+        private void TickSprint7Queue()
+        {
+            switch (s7Step)
+            {
+                case 0: BeginTarget(10f, "s7-queue"); ruleProbe.Arm(target, false); s7Rules.Watch(target); s7Step = 1; return;
+                case 1:
+                    if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat || !target.IsVisibleForPlayer) return;
+                    if (Sprint7ChargeOnLane("followCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 2;
+                    return;
+                case 2:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    s7Facts["beforeRequests"] = Sprint7ChargeIdentity();
+                    rider.Commands.Run(new UnitAttack(target) { CreatedByPlayer = true });
+                    s7Facts["afterRejected"] = Sprint7ChargeIdentity();
+                    horse.Commands.AddToQueue(new UnitMoveTo(FindWalkablePoint(horse.Position, 4f, .75f)) { CreatedByPlayer = true });
+                    s7Facts["afterMountEnqueue"] = Sprint7ChargeIdentity();
+                    s7FollowUp = new UnitAttack(target) { CreatedByPlayer = true };
+                    rider.Commands.AddToQueue(s7FollowUp);
+                    s7Facts["afterFollowUp"] = Sprint7ChargeIdentity(); s7Facts["followUpPending"] = rider.Commands.Queue.Contains(s7FollowUp);
+                    s7Step = 3; return;
+                case 3:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("followTerminal"); s7Step = 4; return;
+                // The follow-up runs after the charge, on its own, whatever native cooldown it waits for.
+                case 4:
+                    if (!s7FollowUp.IsStarted && !s7FollowUp.IsFinished) return;
+                    s7Facts["followUpRan"] = new JObject { ["started"] = s7FollowUp.IsStarted, ["finished"] = s7FollowUp.IsFinished, ["result"] = s7FollowUp.Result.ToString(), ["inQueue"] = rider.Commands.Queue.Contains(s7FollowUp) };
+                    s7Step = 5; return;
+                case 5:
+                    if (Sprint7Buff() != null || !s7FollowUp.IsFinished) return;
+                    if (Sprint7ChargeOnLane("replaceCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 6;
+                    return;
+                case 6:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    s7Goal = FindWalkablePoint(horse.Position, 7f, .75f); s7Facts["replaceFrom"] = CapturePosition(horse.Position); s7Facts["replaceGoal"] = CapturePosition(s7Goal);
+                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    ClickGroundHandler.MoveSelectedUnitsToPoint(s7Goal, false);
+                    s7Step = 7; return;
+                case 7:
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("replaceTerminal"); s7Facts["successorAtTerminal"] = horse.Commands.Move != null && !horse.Commands.Move.IsFinished;
+                    s7Frames = 0; s7Step = 8; return;
+                case 8:
+                    if (++s7Frames < 45) return;
+                    s7Facts["successorMetres"] = HorizontalDistance(horse.Position, new Vector3((float)s7Facts["replaceFrom"]["x"], (float)s7Facts["replaceFrom"]["y"], (float)s7Facts["replaceFrom"]["z"]));
+                    FinishSprint7Row(true, "Queue and replacement observations recorded."); return;
+            }
+        }
+
+        // A point the centre line reaches and the mount's flanks do not, read from where the mount stands now.
+        private bool Sprint7FlankBlockedTarget()
+        {
+            var origin = horse.Position; var previous = target.Position;
+            foreach (var radius in new[] { 6f, 8f, 10f, 12f, 14f, 16f })
+                for (var angle = 0; angle < 360; angle += 10)
+                {
+                    var wanted = origin + Quaternion.Euler(0f, angle, 0f) * Vector3.forward * radius;
+                    var point = ObstacleAnalyzer.GetNearestNode(wanted).clampedPosition;
+                    if ((point.To2D() - wanted.To2D()).sqrMagnitude > 0.09f || HorizontalDistance(point, previous) < 1.5f || ObstacleAnalyzer.TraceAlongNavmesh(origin, point) != point) continue;
+                    target.Translocate(point, null);
+                    if (!MountedChargeGeometry.FootprintClear(horse, rider, target) && !MountedChargeGeometry.LandingBlocked(horse, rider, target) && target.IsVisibleForPlayer)
+                    {
+                        s7Facts["flankBlocked"] = new JObject { ["none"] = false, ["point"] = CapturePosition(point), ["radius"] = radius, ["angle"] = angle, ["corpulence"] = horse.View.Corpulence, ["identity"] = Sprint7ChargeIdentity() };
+                        return true;
+                    }
+                }
+            target.Translocate(previous, null);
+            s7Facts["flankBlocked"] = new JObject { ["none"] = true };
+            return false;
+        }
+
+        // A target that moves to another clear lane is followed. A target that moves to a centre-clear, flank-blocked lane is not.
+        private void TickSprint7Lane()
+        {
+            switch (s7Step)
+            {
+                case 0:
+                    if (Sprint7Buff() != null) return;
+                    if (Sprint7ChargeOnLane("validCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 1;
+                    return;
+                case 1:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    s7Facts["validBefore"] = Sprint7ChargeIdentity();
+                    if (!Sprint7PlaceOnLane(new[] { 10f, 12f, 9f, 14f })) { FailSprint7Row("No clear lane for the moved target."); return; }
+                    s7Step = 2; return;
+                case 2:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("validTerminal"); s7Step = 3; return;
+                case 3:
+                    if (Sprint7Buff() != null) return;
+                    if (Sprint7ChargeOnLane("blockedCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 4;
+                    return;
+                case 4:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    if (!Sprint7FlankBlockedTarget()) SelectionManager.Instance.Stop();
+                    s7Step = 5; return;
+                case 5:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("blockedTerminal");
+                    FinishSprint7Row(true, "Lane observations recorded."); return;
+            }
+        }
+
+        // Turn-based: a stopped line is forced again when its lane still holds, then a changed lane ends the next charge with its cost.
+        private void TickSprint7Reforce(TurnController turn)
+        {
+            switch (s7Step)
+            {
+                case 0:
+                    if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                    if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                    if (pairedAutomaticEndProbe == null) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
+                    BeginTarget(10f, "s7-reforce"); ruleProbe.Arm(target, false); s7Rules.Watch(target);
+                    castingCosts.BeginEncounter(request.RunId + ":s7-reforce");
+                    s7Step = 1; return;
+                case 1:
+                    if (!rider.IsInCombat || !horse.IsInCombat) return;
+                    if (WaitForNativeCastingPrincipal(true, turn?.Unit == rider, rider.CombatState.CanActInCombat, () => EndCastingNativeTurn(turn))) return;
+                    if (!Sprint7RiderInput(turn)) return;
+                    s7Turn = turn;
+                    if (Sprint7ChargeOnLane("stoppedCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 2;
+                    return;
+                case 2:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    s7Facts["stoppedBefore"] = Sprint7ChargeIdentity();
+                    horse.View.AgentASP.Stop(); // Disclosed: the path is gone, as a native stop leaves it, with the carrier still live.
+                    s7Step = 3; return;
+                case 3:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("stoppedTerminal"); s7Facts["stoppedSameTurn"] = ReferenceEquals(turn, s7Turn); s7Step = 4; return;
+                case 4:
+                    if (ReferenceEquals(turn, s7Turn)) { if (rider.Commands.Empty && horse.Commands.Empty) EndCastingNativeTurn(turn); return; }
+                    if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
+                    if (!Sprint7RiderInput(turn)) return;
+                    s7Turn = turn;
+                    if (Sprint7ChargeOnLane("blockedCharge", new[] { 16f, 14f, 12f, 10f })) s7Step = 5;
+                    return;
+                case 5:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7Travelling() || ++s7Frames < 3) return;
+                    if (Sprint7FlankBlockedTarget()) horse.View.AgentASP.Stop(); else SelectionManager.Instance.Stop();
+                    s7Step = 6; return;
+                case 6:
+                    Sprint7ObserveTravel();
+                    if (!Sprint7ChargeTerminal()) return;
+                    Sprint7RecordTerminal("blockedTerminal"); s7Facts["blockedSameTurn"] = ReferenceEquals(turn, s7Turn); s7Step = 7; return;
+                // The cancelled charge never holds the turn: the next native activation still comes.
+                case 7:
+                    if (ReferenceEquals(turn, s7Turn)) { if (rider.Commands.Empty && horse.Commands.Empty) EndCastingNativeTurn(turn); return; }
+                    if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
+                    if (!Sprint7RiderInput(turn)) return;
+                    Sprint7Step("nextTurn");
+                    FinishSprint7Row(true, "Re-force observations recorded."); return;
             }
         }
 

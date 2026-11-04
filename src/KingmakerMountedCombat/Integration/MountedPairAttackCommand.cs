@@ -370,6 +370,8 @@ namespace KingmakerMountedCombat.Integration
                 TargetHostile = rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
                 TargetAttackable = rider != null && attackTarget != null && rider.CanAttack(attackTarget),
                 StraightRoute = MountedChargeGeometry.StraightRoute(mount, attackTarget),
+                // BeforeRepath is the one phase that precedes a forced line. Later phases have left the lane behind.
+                LaneClear = phase == MountedChargeRevalidationPhase.BeforeRepath && MountedChargeGeometry.FootprintClear(mount, rider, attackTarget),
                 MountCanMove = mount?.Descriptor?.State != null && mount.Descriptor.State.CanMove,
                 LandingBlocked = MountedChargeGeometry.LandingBlocked(mount, rider, attackTarget),
                 MountAvoidanceDisabled = MountedChargeGeometry.MountAvoidanceDisabled(mount),
@@ -478,6 +480,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool OwnsChargeCarrier(UnitCommand command) => chargeCarriers.Any(pair => ReferenceEquals(pair.Value, command));
 
+        // An order that displaced the carrier owns the mover now, and its path is not this charge's to stop.
+        internal bool ForeignMountCommandActive() => chargeCarriers.Select(pair => pair.Key).Where(container => container != null).Distinct()
+            .Any(container => container.Raw.Any(command => command != null && !command.IsFinished && !OwnsChargeCarrier(command)));
+
         internal void TryDrainChargeCarrier()
         {
             var steps = new List<MountedChargeCompensationStep>();
@@ -500,6 +506,7 @@ namespace KingmakerMountedCombat.Integration
             steps.Add(new MountedChargeCompensationStep("stop-carrier-path", () =>
             {
                 if (!chargeCarrierMotionOwned) return;
+                if (ForeignMountCommandActive()) { chargeCarrierMotionOwned = false; return; }
                 if (chargeCarrierView == null || chargeCarrierAgent == null) return;
                 chargeCarrierAgent.Stop();
                 if (chargeCarrierAgent.Path == null && !chargeCarrierAgent.IsReallyMoving)
@@ -990,8 +997,10 @@ namespace KingmakerMountedCombat.Integration
             if (chargeMode && chargeLease != null && !delegatedMove.IsFinished &&
                 TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
-                // The stock routine ends the same way, and a tripped mount must not hold the turn to the bound.
-                if (!mount.Descriptor.State.CanMove && TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                // The stock routine ends the same way, and a tripped mount must not hold the turn to the bound. A stopped line
+                // is about to be forced again from where the mount now stands, so it answers to the same lane as any other.
+                if ((!mount.Descriptor.State.CanMove || chargeLease.NeedsReforce(true)) &&
+                    TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
                 {
                     return;
                 }
@@ -1193,7 +1202,7 @@ namespace KingmakerMountedCombat.Integration
                         return true;
                     }
 
-                    var pending = new MountedChargeLease(rider, mount, attackTarget, logger);
+                    var pending = new MountedChargeLease(rider, mount, attackTarget, logger) { ForeignMoverActive = ForeignMountCommandActive };
                     try
                     {
                         pending.Apply();

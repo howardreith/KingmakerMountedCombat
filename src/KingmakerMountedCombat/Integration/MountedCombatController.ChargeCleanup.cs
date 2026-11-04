@@ -108,9 +108,14 @@ namespace KingmakerMountedCombat.Integration
             return ability?.Spell?.Blueprint?.AssetGuid == NativeMountedControlService.MountedChargeAbilityGuid;
         }
 
+        // A charge in flight: not retired, its attack not finished, and its shell not interrupted before delivering one.
+        private static bool ChargeLive(ChargeOwner owner) => !owner.Ownership.CleanupRequested &&
+            (owner.Command != null ? !owner.Command.IsFinished : owner.Shell == null || owner.Shell.Result != UnitCommand.ResultType.Interrupt);
+
         // Called before any native queue mutation. Reentrant Run/AddToQueue for the same exact
-        // shell is lawful; an independent request may not steal or overwrite this owner.
-        internal bool AdmitChargeCommand(UnitCommands container, UnitCommand command)
+        // shell is lawful; an independent request may not steal or overwrite this owner, and
+        // nothing is destroyed here for a live charge: see MountedChargeRequestPolicy.
+        internal bool AdmitChargeCommand(UnitCommands container, UnitCommand command, MountedChargeRequestRoute route = MountedChargeRequestRoute.Run)
         {
             var current = chargeOwner;
             if (current != null &&
@@ -118,14 +123,25 @@ namespace KingmakerMountedCombat.Integration
             {
                 var ownedRequest = ReferenceEquals(command, current.Shell) || ReferenceEquals(command, current.Command) ||
                     current.Command?.OwnsChargeCarrier(command) == true;
-                // The native brain's proposal is not a deliberate order: it waits for the charge, and never ends it.
-                if (!ownedRequest && !current.Ownership.CleanupRequested && command?.AiAction != null) return false;
-                // Native Run interrupts the old command before installing its replacement. Resolve
-                // our ownership first so a failure cannot strand debt behind a newly admitted action.
-                if (current.Ownership.CleanupRequested || !ownedRequest)
+                var attackWaiting = current.Command != null && !current.Command.IsStarted && !current.Command.IsFinished;
+                switch (MountedChargeRequestPolicy.Decide(route, ownedRequest, ChargeLive(current), attackWaiting,
+                    ReferenceEquals(container, current.MountCommands), command?.AiAction != null))
                 {
-                    if (!TryDrainChargeOwnership("pair-command-replacement")) return false;
-                    if (ownedRequest) return false; // retired shells/carriers may never resume
+                    case MountedChargeRequestDecision.Refuse: return false;
+                    case MountedChargeRequestDecision.RefuseMountEnqueue:
+                        LastFeedback = "The mount is carrying a charge. Give it its next order after the charge."; return false;
+                    case MountedChargeRequestDecision.RefuseStarting:
+                        LastFeedback = "The charge is starting. Stop it, or give the next order once it is under way."; return false;
+                    case MountedChargeRequestDecision.ReturnToQueue:
+                        container.Queue.AddFirst(command); return false;
+                    case MountedChargeRequestDecision.DrainElseReturnToQueue:
+                        if (TryDrainChargeOwnership("charge-over-successor")) break;
+                        container.Queue.AddFirst(command); return false;
+                    case MountedChargeRequestDecision.DrainThenRefuse:
+                        TryDrainChargeOwnership("charge-over-owned-request"); return false;
+                    case MountedChargeRequestDecision.DrainThenPass:
+                        if (!TryDrainChargeOwnership("charge-over-new-request")) return false;
+                        break;
                 }
             }
             if (!IsMountedChargeShell(command)) return true;
@@ -416,6 +432,8 @@ namespace KingmakerMountedCombat.Integration
                 owner.Command != null && owner.Command.IsFinished ||
                 owner.Command == null && owner.ProcessEnded != null && owner.ProcessEnded() ||
                 owner.Command == null && owner.Shell != null && owner.Shell.Result == UnitCommand.ResultType.Interrupt ||
+                // Native Run cleared its queue without ending the waiting attack. It can never start now.
+                owner.Command != null && !owner.Command.IsStarted && Absent(owner.RiderCommands, owner.Command) ||
                 owner.Command == null && owner.Process == null && Time.frameCount > owner.AdmissionFrame && Absent(owner.RiderCommands, owner.Shell))
                 TryDrainChargeOwnership("bounded-update");
             ResumeChargeNativeBoundaries();

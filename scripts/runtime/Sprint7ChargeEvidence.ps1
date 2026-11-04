@@ -2,6 +2,8 @@
 function Get-KmcSprint7Cases([string]$Scenario){
  if($Scenario -ceq 'sprint7-charge-rt'){ return @('S7-rt-charge','S7-rt-cancel') }
  if($Scenario -ceq 'sprint7-charge-pounce-rt'){ return @('S7-pounce') }
+ if($Scenario -ceq 'sprint7-charge-queue-rt'){ return @('S7-queue','S7-lane') }
+ if($Scenario -ceq 'sprint7-charge-reforce-tb'){ return @('S7-reforce') }
  if($Scenario -cin @('sprint7-charge-tb','sprint7-charge-tb-mount-first')){ return @('S7-tb-charge') }
  throw ('Sprint 7 scenario has no case list: '+$Scenario)
 }
@@ -49,7 +51,7 @@ function Assert-KmcSprint7Cancelled($Terminal,$Before,[string]$What){
 }
 function Assert-KmcSprint7ChargeEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt') -or $Artifact.schemaVersion -ne 51){ throw 'Sprint 7 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb') -or $Artifact.schemaVersion -ne 51){ throw 'Sprint 7 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 7 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -62,6 +64,46 @@ function Assert-KmcSprint7ChargeEvidence {
  if(($o.cases | ConvertTo-Json -Compress) -cne ($expected | ConvertTo-Json -Compress)){ throw 'Sprint 7 registered row order differs' }
  $rows=@{}
  foreach($name in $expected){ $found=@($Artifact.rows | Where-Object name -CEQ $name); if($found.Count -ne 1){ throw ('Sprint 7 required row missing or duplicated: '+$name) }; $rows[$name]=$found[0] }
+ if($Request.scenario -ceq 'sprint7-charge-queue-rt'){
+  $q=$rows['S7-queue'].evidence
+  Assert-KmcSprint7Admitted $q.steps.followCharge 'charge with a follow-up'
+  foreach($n in 'afterRejected','afterMountEnqueue','afterFollowUp'){ $s=$q.$n; if($s.sameCommand -ne $true -or $s.finished -ne $false -or [int]$s.cleanupAttempts -ne [int]$q.beforeRequests.cleanupAttempts -or [int]$s.forcedPaths -ne [int]$q.beforeRequests.forcedPaths -or [double]$s.riderStandard -gt [double]$q.beforeRequests.riderStandard){ throw ('Sprint 7 '+$n+' changed the live charge') } }
+  if([int]$q.afterMountEnqueue.mountQueue -ne 0){ throw 'Sprint 7 the mount enqueue was accepted' }
+  if($q.followUpPending -ne $true){ throw 'Sprint 7 the follow-up did not wait in the queue' }
+  Assert-KmcSprint7Lease $q.followTerminal 'charge with a follow-up'
+  if([string]$q.followTerminal.result -cne 'Success' -or [int]$q.followTerminal.rules -lt 1 -or $q.followTerminal.lease.buffHandedToNative -ne $true){ throw 'Sprint 7 the follow-up cost the charge its delivery' }
+  if($q.followUpRan.started -ne $true -or $q.followUpRan.inQueue -ne $false){ throw 'Sprint 7 the follow-up did not run after the charge' }
+  Assert-KmcSprint7Admitted $q.steps.replaceCharge 'charge with a replacement'
+  Assert-KmcSprint7Cancelled $q.replaceTerminal $q.steps.replaceCharge.before 'replaced charge'
+  if([double]$q.replaceTerminal.state.riderStandard -le 0 -or [int]$q.replaceTerminal.rules -ne 0){ throw 'Sprint 7 the replacement refunded or delivered' }
+  if([double]$q.successorMetres -lt 1.0){ throw 'Sprint 7 cleanup stopped the order that replaced the charge' }
+  $l=$rows['S7-lane'].evidence
+  Assert-KmcSprint7Lease $l.validTerminal 'charge with a moved target'
+  if([string]$l.validTerminal.result -cne 'Success' -or [int]$l.validTerminal.rules -ne 1 -or [int]$l.validTerminal.lease.forcedPathCount -le [int]$l.validBefore.forcedPaths){ throw 'Sprint 7 a target moved to a clear lane was not followed' }
+  Assert-KmcSprint7Admitted $l.steps.blockedCharge 'charge toward a changed lane'
+  if($l.flankBlocked.none -ne $true){
+   $b=$l.blockedTerminal
+   Assert-KmcSprint7Cancelled $b $l.steps.blockedCharge.before 'flank-blocked lane'
+   if([string]$b.revalidationReason -cnotmatch 'clears the mount' -or [int]$b.rules -ne 0 -or [double]$b.state.riderStandard -le 0 -or [int]$b.lease.forcedPathCount -ne [int]$l.flankBlocked.identity.forcedPaths){ throw 'Sprint 7 a flank-blocked lane was forced or delivered' }
+  }
+  return
+ }
+ if($Request.scenario -ceq 'sprint7-charge-reforce-tb'){
+  $f=$rows['S7-reforce'].evidence
+  Assert-KmcSprint7Admitted $f.steps.stoppedCharge 'stopped-path charge'
+  $s=$f.stoppedTerminal
+  Assert-KmcSprint7Lease $s 'stopped-path charge'
+  if([string]$s.result -cne 'Success' -or [int]$s.rules -ne 1 -or $f.stoppedSameTurn -ne $true -or [int]$s.lease.forcedPathCount -le [int]$f.stoppedBefore.forcedPaths){ throw 'Sprint 7 a stopped lawful line was not forced again and delivered' }
+  Assert-KmcSprint7Admitted $f.steps.blockedCharge 'turn-based changed lane'
+  $b=$f.blockedTerminal
+  if($f.flankBlocked.none -ne $true){
+   Assert-KmcSprint7Cancelled $b $f.steps.blockedCharge.before 'turn-based flank-blocked lane'
+   if([string]$b.revalidationReason -cnotmatch 'clears the mount' -or [int]$b.lease.forcedPathCount -ne [int]$f.flankBlocked.identity.forcedPaths){ throw 'Sprint 7 a turn-based flank-blocked lane was forced' }
+  }
+  if([int]$b.rules -ne 0 -or [double]$b.state.riderStandard -lt 5.9 -or [double]$b.state.riderMove -lt 2.9 -or $f.blockedSameTurn -ne $true){ throw 'Sprint 7 the cancelled turn-based charge delivered or refunded' }
+  if([double]$f.steps.nextTurn.riderStandard -ne 0 -or $f.steps.nextTurn.turnUnit -cne $o.rider){ throw 'Sprint 7 the cancelled charge held the turn' }
+  return
+ }
  if($Request.scenario -ceq 'sprint7-charge-pounce-rt'){
   $f=$rows['S7-pounce'].evidence
   Assert-KmcSprint7Admitted $f.steps.mountPounce 'charge with a Pouncing mount'
