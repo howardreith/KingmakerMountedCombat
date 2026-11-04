@@ -397,7 +397,7 @@ namespace KingmakerMountedCombat.Integration
                 combatRestored = true; ArchiveRestorePhase = "shared-and-pair-participation-restored";
                 Report("Saved native world rebound once with " + data.Participations.Length +
                     " participation owners; round=" + controller.RoundNumber + "; current=" +
-                    (controller.CurrentTurn?.Unit.UniqueId ?? "none") + "; no Prepare or End.");
+                    (controller.CurrentTurn?.Unit.UniqueId ?? "none") + "; no Prepare or End.", true);
             }
             catch (Exception error)
             {
@@ -435,7 +435,7 @@ namespace KingmakerMountedCombat.Integration
             };
             ArchiveRestorePhase = "all-pair-presentation-restored";
             Report("Saved mounted world restored all " + data.Pairs.Length + " attachments and " + data.Participations.Length +
-                " participation owners without Mount execution or new native preparation.");
+                " participation owners without Mount execution or new native preparation.", true);
             return true;
         }
     }

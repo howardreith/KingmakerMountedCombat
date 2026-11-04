@@ -67,6 +67,9 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Exact Kingmaker Assembly-CSharp MVID mismatch: " + observedMvid + ".");
                 }
 
+                PatchExact(typeof(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer), "FillFeatureDataLight", 0x06009F79,
+                    new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState), typeof(bool) },
+                    nameof(PatchMethods.FeatSelectorRefreshPrefix), nameof(PatchMethods.FeatSelectorRefreshPostfix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -397,6 +400,16 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static void FeatSelectorRefreshPrefix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance,
+                Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState selectionState, ref bool refreshSort, out bool __state)
+            {
+                __state = MountedFeatSelectorRefreshService.BeforeRefresh(PatchBridge.HorseCompanion, __instance, selectionState, ref refreshSort);
+            }
+            internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)
+            {
+                MountedFeatSelectorRefreshService.AfterRefresh(__instance, __state);
+            }
+
             // PAL-01: a class level entry reaches a mount-bonded paladin without the later weapon-bond upgrades.
             internal static void DivineBondLevelEntryFeatures(Kingmaker.UnitLogic.UnitDescriptor unit, ref System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase> features)
             {

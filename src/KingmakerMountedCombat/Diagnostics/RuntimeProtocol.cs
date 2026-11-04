@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "finalize-f1-creation-ui",
             "chunk7-small-fixture-preparation", "chunk7-stock-mammoth-fixture-preparation", "chunk7-owned-two-pair-campaign", "chunk7-cumulative-acquisition", "chunk7-acquired-manual-derivative", "chunk7-manual-derived-acquisition", "chunk7-native-progression", "chunk7-assisted-fixture-preparation", "chunk7-assisted-cold-inventory", "chunk7-native-main-bootstrap", "chunk7-bootstrap-cold-inventory", "chunk7-bootstrap-manual-seed", "chunk7-small-profile-calibration", "chunk7-ordinary-field-admission", "chunk7-ordinary-acquisition", "chunk7-two-pair-exploration", "chunk7-persistence-save", "chunk7-persistence-load",
             "chunk7-two-pair-combat-rider-first", "chunk7-two-pair-combat-mount-first",
             "chunk7-two-pair-realtime-core", "chunk7-two-pair-realtime-casting", "chunk7-two-pair-realtime-charge",
@@ -1547,7 +1548,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C03-rapid-off-B", "C03-rapid-off-C", "C03-bab-B", "C03-bab-C", "C03-haste-B", "C03-haste-C",
             "C02-restricted-B", "C02-restricted-C", "C03-single-B", "C03-single-C", "C03-spent-standard-B", "C03-spent-standard-C",
             "C03-rider-move-B", "C03-carried-move-C", "C03-mixed-range-B", "C03-mixed-range-C",
-            "mod-load-smoke",
+            "mod-load-smoke", "finalize-f1-creation-ui",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",

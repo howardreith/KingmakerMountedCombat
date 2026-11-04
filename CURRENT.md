@@ -1,9 +1,9 @@
-# Sprint 9: released as preview.103 (2026-11-04)
+# F1 — character creation, clean text and distinct icons (2026-11-04)
 
-**Released by owner order.** The owner accepted PR #14 and ordered a release from `main` with the version incremented. No per-item play results have been supplied.
+**IN PROGRESS.** Selected by Howie from the finalization package. Scope: UI-01, UI-02, ART-01, PERF-01, UI-03 and UI-04 only. No merge, release or permanent installation.
 
-Evidence stands on its own binaries; the matrix names each. Open and stated: the trap, the turn-based door, Paladin and Riding Dog play without Call of the Wild, and clean uninstallation from a dependent save.
+Branch `codex/kmc-finalize-f1-creation-ui-icons`, integrated base preview.103 `d2e26174d391a8c70fd159beed476035bb5f84eb`. Isolated worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1`; root worktree and unknown state preserved.
 
-Record: [docs/SPRINT9-INTEGRATED-ACCEPTANCE.md](docs/SPRINT9-INTEGRATED-ACCEPTANCE.md). Notes: [docs/SPRINT9-RELEASE-NOTES.md](docs/SPRINT9-RELEASE-NOTES.md). Owner route: [docs/SPRINT9-OWNER-PLAY-SCRIPT.md](docs/SPRINT9-OWNER-PLAY-SCRIPT.md). Prior state: [CURRENT before Sprint 9](docs/history/CURRENT-before-sprint9-2026-11-04.md).
+Presentation/text/icon changes and guarded native-creator observation preparation are implemented. Native selector defect remains under investigation; UI-02 and PERF-01 are not accepted from source alone. No new real game launch yet. Meter `finalize-f1`: 60-minute cumulative validation ceiling, three-launch cap. Current installation at intake empty, no game process, no transaction started.
 
-The lab's live installation stays empty: a release is not an install.
+Record: [F1 implementation and evidence](docs/FINALIZE-F1-CREATION-UI-ICONS.md). Resume: [AUTONOMOUS-RESUME](AUTONOMOUS-RESUME.md). Prior release state: [CURRENT before F1](docs/history/CURRENT-before-finalize-f1-2026-11-04.md).

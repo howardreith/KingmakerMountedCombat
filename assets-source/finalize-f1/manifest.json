@@ -1,0 +1,38 @@
+{
+    "contract":  "kmc-original-finalize-f1-icons-v1",
+    "authoring":  "Original offline vector compositions; no imported pixels, game assets or font distribution",
+    "references":  "Owner S03 Missile Shield native combat emblem; read Gunslinger ICON-ART-GUIDE.md/FIREARM-FEAT-ICON-MAP.md; proprietary reference image stays outside Git",
+    "files":  [
+                  {
+                      "path":  "scripts/Export-FinalizationIcons.ps1",
+                      "sha256":  "b17e44f66c3e5297993d44ce6637d1ea6662f4300a99e43909cad2f704c1c61d"
+                  },
+                  {
+                      "path":  "assets-source/finalize-f1/MountedCombatFeat.512.png",
+                      "sha256":  "387f7f3c5ce2f416dbe4e0f7150eec6b03ae68cd78875246cda307cc2279605f"
+                  },
+                  {
+                      "path":  "assets-source/finalize-f1/MountedCombatReaction.512.png",
+                      "sha256":  "a3f4f494456378c05a304dd85972e9a379c5018c442c98b546389c9e2532ff29"
+                  },
+                  {
+                      "path":  "assets-source/finalize-f1/MountControlPilot.512.png",
+                      "sha256":  "f3692e236af1a27020f3dda2692d91f8786f34e76db541d4e8ea1c1c61ae675f"
+                  },
+                  {
+                      "path":  "src/KingmakerMountedCombat/Assets/MountedCombatFeat.png",
+                      "sha256":  "328f8e6ab637cdce11bf518cd19b2bf886382eb70e4ba63f104717e99c2ced9a"
+                  },
+                  {
+                      "path":  "src/KingmakerMountedCombat/Assets/MountedCombatReaction.png",
+                      "sha256":  "3c4745137da5b17e074d7089f2d8218e805a6d0b2ebfff265be8088e5946d36f"
+                  }
+              ],
+    "consumers":  {
+                      "MountedCombatReaction":  "3c81f5a02be74d96a4e07d1c92b6f385 plus its owned reaction status buffs",
+                      "MountControlPilot":  "F2 concept only, no runtime binding",
+                      "MountedCombatFeat":  "a7d2e94c6f1b4830b5c9e28d17f3a604"
+                  },
+    "ownerArtApproval":  "TODO",
+    "nativeVisualAcceptance":  "TODO"
+}

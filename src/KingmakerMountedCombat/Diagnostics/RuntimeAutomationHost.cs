@@ -657,6 +657,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (Chunk7PersistenceScenario.SupportsRequest(request) || Chunk7WorldScenarioEngine.SupportsRequest(request))
                     hostDeadline = request.OwnedPairs?.OwnerSeedSetup == true || request.OwnedPairs?.SmallThirdHorseSetup == true ||
                         request.OwnedPairs?.IsFourthHorse == true ? 780.0 : 420.0; // Native fixture setup adds bounded ordinary level-up choices.
+                if (request.Scenario == "finalize-f1-creation-ui") hostDeadline = 1100.0;
                 if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
                     if (IsLoadingProcessActive())
@@ -753,6 +754,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Save-backed authorization was not activated during host construction.");
             }
 
+            if (request.Scenario == "finalize-f1-creation-ui") { UpdateFinalizeF1Creation(); return; }
             // This exact opt-in owns its own pre-fixture native new-game path.
             // The historical Working loader remains unstarted, not "verified".
             if (Chunk7AssistedFixtureScenario.SupportsScenario(request.Scenario))
@@ -1460,6 +1462,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public void Dispose()
         {
+            finalizeF1Timing?.Dispose();
             if (disposed) return;
             RequireWorkingObserverReleasedForDispose();
             if (IsChunk7NativeFamily && !chunk7Completion.Settled)
@@ -1951,6 +1954,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void CompleteSaveBackedCore(string status, IReadOnlyList<string> errors)
         {
+            finalizeF1Timing?.Dispose();
             var finalErrors = errors == null ? new List<string>() : new List<string>(errors);
             FinalizeActiveScenarioEngines(finalErrors);
             // Chunk 7 reaches this method only after every native owner/worker has

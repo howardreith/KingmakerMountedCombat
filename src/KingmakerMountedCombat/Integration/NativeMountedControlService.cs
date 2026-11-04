@@ -89,6 +89,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 { "KMC.Native.Mount.Name", "Mount Companion" },
                 { "KMC.Native.Empty", "" },
+                { "KMC.Native.MountedCharge.Name", "Mounted Charge" },
+                { "KMC.Native.MountedCharge.Description", "Charge an enemy in a clear straight line using your mount. The rider spends a full-round action and makes the charge attack; the mount supplies the movement. Requires an eligible mounted pair." },
                 { "KMC.Native.Mount.Description", "Select your active Horse or Mammoth. Walk into reach and mount. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order. You can queue this order while gameplay is paused; it executes after unpausing." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
                 { "KMC.Native.Dismount.Description", "Get off your companion. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order." },

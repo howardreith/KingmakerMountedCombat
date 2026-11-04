@@ -81,6 +81,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool Enabled { get; set; }
         internal bool SaveSuspended => WorldRelationships.Any(r => r.SaveSerializationSuspended);
+        internal bool FeedbackIsRoutine { get; private set; } = true;
         internal string Feedback { get; private set; } = "No mounted save has been loaded.";
         internal int SnapshotCount { get; private set; }
         // The ordinary completion record, per operation. Set only on the path
@@ -741,6 +742,7 @@ namespace KingmakerMountedCombat.Integration
                 loaded = new MountedSaveReadResult(loadedArchive.Kind, loadedArchive.HistoricalData,
                     loadedArchive.OriginalJson, loadedArchive.Feedback, loadedArchive.SourceSchema);
                 presentationPending = NativeMountedSaveFormat.CanRestore(loadedArchive);
+                FeedbackIsRoutine = false;
                 Feedback = loadedArchive.Feedback ?? "Mounted world selected; awaiting all native entities.";
                 logger.Info(Feedback);
                 return;
@@ -751,6 +753,7 @@ namespace KingmakerMountedCombat.Integration
                 loaded = new MountedSaveReadResult(MountedSaveReadKind.Invalid, null, loaded.OriginalJson,
                     "Mounted metadata campaign/area differs from the selected native archive.");
             presentationPending = NativeMountedSaveFormat.CanRestore(loaded);
+            FeedbackIsRoutine = false;
             Feedback = loaded.Feedback ?? "Mounted save selected; awaiting native entities.";
             logger.Info(Feedback);
         }
@@ -832,7 +835,7 @@ namespace KingmakerMountedCombat.Integration
             if (!data.Mounted)
             {
                 controls.RestorePersistentSlots(data.Slots);
-                Report("Native unmounted save restored without inventing a pair.");
+                Report("Native unmounted save restored without inventing a pair.", true);
                 return;
             }
             var riders = game.State.Units.Where(u => u.UniqueId == data.Rider.Id).ToArray();
@@ -853,10 +856,10 @@ namespace KingmakerMountedCombat.Integration
             }
             controls.RestorePersistentSlots(data.Slots);
             PresentationRestoreCount++;
-            Report("Saved mounted relationship restored once without Mount execution or a new activation.");
+            Report("Saved mounted relationship restored once without Mount execution or a new activation.", true);
         }
 
-        private void Report(string feedback) { Feedback = feedback; logger.Info(feedback); }
+        private void Report(string feedback, bool routine = false) { Feedback = feedback; FeedbackIsRoutine = routine; logger.Info(feedback); }
 
         private sealed class LoadScope
         {
