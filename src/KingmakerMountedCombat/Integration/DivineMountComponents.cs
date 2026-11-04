@@ -24,7 +24,9 @@ using Kingmaker.Blueprints.Classes.Selection;
 namespace KingmakerMountedCombat.Integration
 {
     // The stock AddFeatureToCompanion writes through a level-up preview to the real pet, and a cancelled level-up leaves
-    // that write behind. A preview has no holding state (the test stock AddPet uses to not spawn from one).
+    // that write behind. A preview has no holding state (the test stock AddPet uses to not spawn from one). It also misses
+    // a pet that spawns after the owner's fact (a hired owner's pet arrives when the owner enters the world), so the live
+    // companion sync calls TryApply when an owner's pet changes.
     internal sealed class DivineMountPetBenefit : OwnedGameLogicComponent<UnitDescriptor>
     {
         public BlueprintFeature Feature;
@@ -44,7 +46,7 @@ namespace KingmakerMountedCombat.Integration
             if (features != null && features.HasFact(Feature)) features.RemoveFact(Feature);
         }
 
-        private void TryApply()
+        internal void TryApply()
         {
             var features = RealPetFeatures();
             if (features == null) return;

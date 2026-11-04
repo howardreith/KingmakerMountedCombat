@@ -320,6 +320,7 @@ namespace KingmakerMountedCombat.Integration
                             pet?.UniqueId ?? "<null>", pet?.Blueprint?.AssetGuid ?? "<null>",
                             pet?.Descriptor?.Master.Value?.UniqueId ?? "<null>", negativeSign);
                         var observedOwnerId = owner.UniqueId;
+                        ApplyDivineMountPetBenefits(owner, observation, observedOwnerId);
                         HorseActivationObservation prior;
                         if (!observedActivationByOwner.TryGetValue(observedOwnerId, out prior) ||
                             !prior.Matches(observation))
