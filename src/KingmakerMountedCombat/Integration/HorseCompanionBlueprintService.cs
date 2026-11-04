@@ -468,6 +468,7 @@ namespace KingmakerMountedCombat.Integration
             observedActivationByOwner.Clear();
             observedOwnersThisUpdate.Clear();
             expiredObservationOwners.Clear();
+            divineMountPetByOwner.Clear();
             disposed = true;
             state = HorseCompanionBlueprintState.Disposed;
         }

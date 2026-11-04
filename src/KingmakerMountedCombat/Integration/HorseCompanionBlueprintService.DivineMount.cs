@@ -143,9 +143,10 @@ namespace KingmakerMountedCombat.Integration
             try { RegisterDivineMount(library); }
             catch (Exception exception)
             {
+                RemoveDivineMount(library);
+                // After the removal: a restored lease clears the slot-drift failure this must outlast.
                 divineMountFailure = exception.GetType().Name + ": " + exception.Message;
                 logger.Error("Divine Mount was not registered, and the Paladin keeps the stock bond: " + divineMountFailure);
-                RemoveDivineMount(library);
             }
             logger.Info("Divine Bond leases: " + string.Join(",", divineBondLeases.Select(lease => lease.Owner).ToArray()) + "; failure=" + (divineMountFailure ?? "none") + ".");
         }
@@ -488,19 +489,31 @@ namespace KingmakerMountedCombat.Integration
             logger.Error(divineMountFailure);
         }
 
-        private readonly Dictionary<string, string> divineMountPetByOwner = new Dictionary<string, string>(StringComparer.Ordinal);
+        // The native object, not its id: a reload brings the same id on a new unit whose facts come from that save.
+        private readonly Dictionary<string, Kingmaker.EntitySystem.Entities.UnitEntityData> divineMountPetByOwner =
+            new Dictionary<string, Kingmaker.EntitySystem.Entities.UnitEntityData>(StringComparer.Ordinal);
+        private readonly HashSet<string> divineMountSyncFaultReported = new HashSet<string>(StringComparer.Ordinal);
 
         private void SyncDivineMountPetBenefits(Kingmaker.EntitySystem.Entities.UnitEntityData owner)
         {
-            if (divineMountSelection == null || owner?.Descriptor == null || !owner.Descriptor.Progression.Features.HasFact(divineMountSelection)) return;
-            var pet = owner.Descriptor.Pet?.UniqueId;
-            string prior;
+            if (divineMountSelection == null || owner?.Descriptor == null) return;
+            var pet = owner.Descriptor.Progression.Features.HasFact(divineMountSelection) ? owner.Descriptor.Pet : null;
+            Kingmaker.EntitySystem.Entities.UnitEntityData prior;
             if (pet == null) { divineMountPetByOwner.Remove(owner.UniqueId); return; }
-            if (divineMountPetByOwner.TryGetValue(owner.UniqueId, out prior) && string.Equals(prior, pet, StringComparison.Ordinal)) return;
-            divineMountPetByOwner[owner.UniqueId] = pet;
-            // A bond fault stays the bond's: this loop also carries every companion's progression.
-            try { foreach (var benefit in owner.Descriptor.Progression.Features.SelectFactComponents<DivineMountPetBenefit>().ToArray()) benefit.TryApply(); }
-            catch (Exception exception) { logger.Exception("Divine Mount pet benefits", exception); }
+            if (divineMountPetByOwner.TryGetValue(owner.UniqueId, out prior) && ReferenceEquals(prior, pet)) return;
+            // A bond fault stays the bond's: this loop also carries every companion's progression. A benefit that
+            // threw is tried again next update, and reported once.
+            var settled = true;
+            foreach (var benefit in owner.Descriptor.Progression.Features.SelectFactComponents<DivineMountPetBenefit>().ToArray())
+            {
+                try { benefit.TryApply(); }
+                catch (Exception exception)
+                {
+                    settled = false;
+                    if (divineMountSyncFaultReported.Add(owner.UniqueId)) logger.Exception("Divine Mount pet benefits", exception);
+                }
+            }
+            if (settled) divineMountPetByOwner[owner.UniqueId] = pet;
         }
 
         // The native level-up's one choke point for class level entries. Nothing else about the level is touched.
