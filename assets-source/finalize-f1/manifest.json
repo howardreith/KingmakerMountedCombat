@@ -5,7 +5,8 @@
     "files":  [
                   {
                       "path":  "scripts/Export-FinalizationIcons.ps1",
-                      "sha256":  "b17e44f66c3e5297993d44ce6637d1ea6662f4300a99e43909cad2f704c1c61d"
+                      "sha256":  "b17e44f66c3e5297993d44ce6637d1ea6662f4300a99e43909cad2f704c1c61d",
+                      "hashFormat":  "SHA-256 of LF-normalized UTF-8 without BOM (Git text source)"
                   },
                   {
                       "path":  "assets-source/finalize-f1/MountedCombatFeat.512.png",

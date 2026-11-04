@@ -2740,3 +2740,9 @@ IN PROGRESS; no critical stop is currently established. The reviewed source chec
 ## F1 2026-11-04 — IN PROGRESS: native UI connection
 
 Both available Windows UI routes report a missing native pipe (os error 2), including retry/reset. This prevents the selected visible creator replay, timings and screenshots. Requested reconnect once; no launches spent, no runtime staging or restoration pending. Continue independent source/package/WhatIf work; do not claim UI-02/PERF-01 accepted from source. Exact report: docs/FINALIZE-F1-CREATION-UI-ICONS.md.
+
+### F1 checkpoint: UI runtime and publication guard
+
+Owner confirmed Computer Use Any App is enabled and app open. Client kernel fails starting Windows sandbox setup helper (program not found); independent CUA runtime also exits. Not a missing app permission. Native acceptance remains TODO, launches zero.
+
+Direct push was rejected by automatic approval review, which requires the exact guarded helper. Existing helper's fixed old worktree/branch/image pins reject selected F1 scope. Original helper unchanged; narrow reviewed proposal plus read-only WhatIf/negative checks prepared, owner approval pending. No push or PR. See AUTONOMOUS-RESUME.md for exact paths and next command.
