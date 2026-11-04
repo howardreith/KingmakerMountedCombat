@@ -104,7 +104,7 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
             NativeMountedControlService.MountedChargeAbilityGuid
-        };
+        }.Concat(HorseCompanionBlueprintService.DivineMountOwnedGuids).ToArray();
 
         // Inspection only: nothing is dismounted, saved or mutated here. The
         // live scan covers the loaded world and the cross-scene party; units
@@ -200,6 +200,10 @@ namespace KingmakerMountedCombat.Integration
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog companion feature");
                 if (horseCompanion.RidingDogUpgrade != null && descriptor.GetFact(horseCompanion.RidingDogUpgrade) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Riding Dog advancement feature");
+                if (horseCompanion.DivineMountSelection != null && descriptor.Progression?.Features.HasFact(horseCompanion.DivineMountSelection) == true)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Divine Mount bond");
+                if (horseCompanion.DivineMountIntelligence != null && descriptor.Progression?.Features.HasFact(horseCompanion.DivineMountIntelligence) == true)
+                    references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] carries KMC Divine Mount benefits");
                 if (horseCompanion.MountedCombatFeature != null && descriptor.GetFact(horseCompanion.MountedCombatFeature) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Combat feat");
             }

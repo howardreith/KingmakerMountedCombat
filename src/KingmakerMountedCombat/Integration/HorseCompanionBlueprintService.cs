@@ -124,7 +124,29 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.MountedCombat.Spent.Name", "Mounted Combat: Reaction Used" },
             { "KMC.MountedCombat.Spent.Description", "You have used your Mounted Combat reaction this round." },
             { "KMC.MountedCombat.Owed.Name", "Mounted Combat: Swift Action Owed" },
-            { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." }
+            { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." },
+            { "KMC.DivineBond.Name", "Divine Bond" },
+            { "KMC.DivineBond.Description", "Upon reaching 5th level, a paladin forms a divine bond with her god: a bonded weapon or a bonded mount. Once the form is chosen, it can only be changed by retraining." },
+            { "KMC.DivineMount.Name", "Divine Mount" },
+            { "KMC.DivineMount.Description", "You gain the service of an unusually intelligent, strong and loyal steed. It is an animal companion using your paladin level as your effective druid level, and it does not grant a second companion if you already have one: your existing companion becomes your bonded mount and your levels stack. You can call it to your side. At 11th level it gains celestial protections and a smite, and at 15th level spell resistance equal to your paladin level + 11. It is an ordinary persistent companion: a fallen mount recovers as other companions do, with no 30-day penalty." },
+            { "KMC.DivineMount.Horse.Name", "Divine Mount: Horse" },
+            { "KMC.DivineMount.Horse.Description", "Your bonded mount is a Large horse. Medium and Small riders can ride it." },
+            { "KMC.DivineMount.RidingDog.Name", "Divine Mount: Riding Dog" },
+            { "KMC.DivineMount.RidingDog.Description", "Your bonded mount is a Medium riding dog. It can carry a Small rider; a Medium rider is too large for it." },
+            { "KMC.DivineMount.Call.Name", "Call Divine Mount" },
+            { "KMC.DivineMount.Call.Description", "As a full-round action, you call your mount to your side. Once per day at 5th level, plus once per day for every 4 levels thereafter, to four times per day at 17th level. It cannot be used while mounted or if your mount cannot act." },
+            { "KMC.DivineMount.CallUse.Name", "Call Divine Mount: Additional Use" },
+            { "KMC.DivineMount.CallUse.Description", "You can call your mount one more time per day." },
+            { "KMC.DivineMount.Intelligence.Name", "Bonded Mount: Intelligence" },
+            { "KMC.DivineMount.Intelligence.Description", "Your mount gains +4 Intelligence, so an ordinary animal companion has an Intelligence of 6." },
+            { "KMC.DivineMount.Celestial.Name", "Celestial Mount" },
+            { "KMC.DivineMount.Celestial.Description", "Your mount gains damage reduction 5/evil, resistance 10 to cold, acid and electricity, and Celestial Smite once per day. It remains an animal for spells that target animals." },
+            { "KMC.DivineMount.GreaterCelestial.Name", "Greater Celestial Mount" },
+            { "KMC.DivineMount.GreaterCelestial.Description", "Your mount's celestial protections improve to damage reduction 10/evil and resistance 15 to cold, acid and electricity." },
+            { "KMC.DivineMount.SpellResistance.Name", "Mount Spell Resistance" },
+            { "KMC.DivineMount.SpellResistance.Description", "Your mount has spell resistance equal to your paladin level + 11." },
+            { "KMC.DivineMount.Smite.Name", "Celestial Smite" },
+            { "KMC.DivineMount.Smite.Description", "As a swift action, once per day, the mount marks an evil target. Until the target is dead or the mark ends, the mount adds its Charisma bonus to attack rolls and its Hit Dice to damage rolls against it." }
         };
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
         private readonly Dictionary<string, HorseActivationObservation> observedActivationByOwner =
@@ -281,7 +303,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     var owner = reference.Value;
                     var fact = owner?.Descriptor?.GetFact(horseFeature) ??
-                        (ridingDogFeature == null ? null : owner?.Descriptor?.GetFact(ridingDogFeature));
+                        (ridingDogFeature == null ? null : owner?.Descriptor?.GetFact(ridingDogFeature)) ??
+                        (divineMountHorse == null ? null : owner?.Descriptor?.GetFact(divineMountHorse)) ??
+                        (divineMountRidingDog == null ? null : owner?.Descriptor?.GetFact(divineMountRidingDog));
                     var addPet = fact?.Get<HorseCompanionAddPet>();
                     if (fact != null)
                     {
@@ -610,6 +634,8 @@ namespace KingmakerMountedCombat.Integration
                 ridingDogSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
                     selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, ridingDogFeature)));
             }
+            // After the Ranger selection exists: the bond reads its group and mode.
+            RegisterDivineMountReported(library);
             logger.Info("Riding Dog selections: Ranger + " + string.Join(",", ridingDogSelections.Select(pair => pair.Key.name)) + "; failure=" + (ridingDogFailure ?? "none") + ".");
             string error;
             if (!ApplySelectionDesired(out error))
@@ -736,6 +762,7 @@ namespace KingmakerMountedCombat.Integration
         {
             ApplyRidingDogSelectionsReported(selectionDesired);
             ApplyMountedCombatSelectionsReported(selectionDesired);
+            ApplyDivineBondReported(selectionDesired);
             return ApplyRangerSelection(out error);
         }
 
@@ -800,6 +827,7 @@ namespace KingmakerMountedCombat.Integration
         {
             ApplyRidingDogSelectionsReported(false);
             ApplyMountedCombatSelectionsReported(false);
+            ApplyDivineBondReported(false);
             return TryRestoreRangerSelection(out error);
         }
 
@@ -1192,6 +1220,7 @@ namespace KingmakerMountedCombat.Integration
                 string ignored;
                 TryRestoreSelection(out ignored);
             }
+            RemoveDivineMount(library);
             RemoveRidingDog(library);
             RemoveMountedCombatFeat(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);

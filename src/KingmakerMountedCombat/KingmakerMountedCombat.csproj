@@ -522,12 +522,16 @@
     <Compile Include="Diagnostics\Sprint5SmallScenario.cs" />
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
+    <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />
     <Compile Include="Diagnostics\Sprint5BootObservation.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
+    <Compile Include="Integration\DivineMountComponents.cs" />
+    <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
