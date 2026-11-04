@@ -183,11 +183,11 @@ function Assert-KmcSprint9IntegratedPersistence($Observations,[bool]$Cold){
  if(-not $Cold){
   $d=$Observations.featDebt; $s=$Observations.featAtSave
   if($null -eq $d -or $d.commitment -cne 'BorrowNextSwift' -or $d.state.spent -ne $true -or $d.state.owed -ne $true -or $d.riderTurn -ne $false){ throw 'Sprint 9 the charge did not follow a committed off-turn borrow' }
-  if($null -eq $s -or $s.afterPreparation.spent -ne $false -or $s.afterPreparation.owed -ne $false -or $s.afterPreparation.hasSwift -ne $false -or [double]$s.afterPreparation.swift -le 0){ throw 'Sprint 9 the debt was not paid at the preparation before the charge' }
+  if($null -eq $s -or $s.afterPreparation.spent -ne $false -or $s.afterPreparation.owed -ne $false -or $s.afterPreparation.hasSwift -ne $false -or [double]$s.afterPreparation.swift -lt 5.9 -or [int]$s.charges -ne 1){ throw 'Sprint 9 the debt was not paid exactly once at the preparation before the charge' }
   return
  }
  $c=$Observations.featCold; $n=$Observations.featRenewal
- if($null -eq $c -or $c.hasFeat -ne $true -or $c.preferenceOn -ne $true -or $c.state.spent -ne $false -or $c.state.owed -ne $false -or [double]$c.swift -le 0){ throw 'Sprint 9 the cold load changed the paid debt or refunded the Swift action' }
+ if($null -eq $c -or $c.hasFeat -ne $true -or $c.preferenceOn -ne $true -or $c.state.spent -ne $false -or $c.state.owed -ne $false -or [double]$c.swift -lt 5.9){ throw 'Sprint 9 the cold load changed the paid debt or refunded the Swift action' }
  if($null -eq $n -or [int]$n.chargesAtPreparation -ne 0 -or $n.afterPreparation.owed -ne $false -or $n.afterPreparation.hasSwift -ne $true){ throw 'Sprint 9 the paid debt was charged again at the next preparation' }
  if($n.commitment -cne 'BorrowNextSwift' -or $n.attempted -ne $true -or $n.riderTurn -ne $false -or $n.stateAfter.owed -ne $true){ throw 'Sprint 9 no legal reaction followed the integrated load' }
 }
