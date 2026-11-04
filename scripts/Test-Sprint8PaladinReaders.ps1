@@ -34,6 +34,7 @@ $r=Copy-S8 $row; $r.boundaries.'13'.after.pet.celestial=1; Refuses ${function:As
 $r=Copy-S8 $row; $r.boundaries.'9'.after.callMax=1; Refuses ${function:Assert-KmcS8MountCase} $r 'a missing call use'
 $r=Copy-S8 $row; $r.levels[0].DivineMountSelection.items=@($r.levels[0].DivineMountSelection.items|ForEach-Object{$_.canSelect=$true;$_}); Refuses ${function:Assert-KmcS8MountCase} $r 'a Medium rider offered the Riding Dog'
 $r=Copy-S8 $row; $r.levels[0].DivineMountSelectionIllegalAttempts[0].accepted=$true; Refuses ${function:Assert-KmcS8MountCase} $r 'an illegal choice the controller accepted'
+$r=Copy-S8 $row; $r.levels[0].DivineMountSelectionIllegalAttempts=@(); Refuses ${function:Assert-KmcS8MountCase} $r 'a Medium choice with no illegal attempt'
 $r=Copy-S8 $row; $r.levels[0].DivineMountSelectionDuplicateAccepted=$true; Refuses ${function:Assert-KmcS8MountCase} $r 'a duplicate selection'
 $r=Copy-S8 $row; $r.boundaries.PSObject.Properties.Remove('15'); Refuses ${function:Assert-KmcS8MountCase} $r 'a missing observation is not a PASS'
 $w=[pscustomobject]@{levels=@([pscustomobject]@{nextLevel=5;DivineBondSelection=$bond;after=(New-S8Weapon 0)});final=(New-S8Weapon 2)}

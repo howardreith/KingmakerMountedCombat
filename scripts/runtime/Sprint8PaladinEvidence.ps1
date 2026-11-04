@@ -36,9 +36,9 @@ function Assert-KmcS8SelectionOffered($Record,[string[]]$Selectable,[string[]]$R
  foreach($g in $Selectable){ if(@($Record.items|Where-Object{[string]$_.guid -ceq $g -and $_.canSelect -eq $true}).Count -ne 1){ throw ('Sprint 8 '+$What+': option '+$g+' was not selectable') } }
  foreach($g in $Refused){ if(@($Record.items|Where-Object{[string]$_.guid -ceq $g -and $_.canSelect -eq $false}).Count -ne 1){ throw ('Sprint 8 '+$What+': option '+$g+' was not refused') } }
 }
-function Assert-KmcS8NativeRefusals($Record,[string]$Selection,[string]$What){
+function Assert-KmcS8NativeRefusals($Record,[string]$Selection,[string]$What,[bool]$RequireIllegal){
  $illegal=$Record.PSObject.Properties[$Selection+'IllegalAttempts']
- if($null -eq $illegal){ throw ('Sprint 8 '+$What+': no illegal attempt was made') }
+ if($null -eq $illegal -or ($RequireIllegal -and @($illegal.Value).Count -lt 1)){ throw ('Sprint 8 '+$What+': no illegal attempt was made') }
  if(@($illegal.Value|Where-Object{$_.accepted -ne $false}).Count -ne 0){ throw ('Sprint 8 '+$What+': the native controller accepted an illegal choice') }
  if($Record.PSObject.Properties[$Selection+'DuplicateAccepted'].Value -ne $false){ throw ('Sprint 8 '+$What+': a duplicate selection was accepted') }
 }
@@ -82,8 +82,8 @@ function Assert-KmcS8MountCase($e){
  $five=Get-KmcS8LevelRecord $e.levels 5
  Assert-KmcS8SelectionOffered $five.DivineBondSelection @($script:KmcS8WeaponGuid,$script:KmcS8MountSel) @() 'mount level five'
  Assert-KmcS8SelectionOffered $five.DivineMountSelection @($script:KmcS8Horse) @($script:KmcS8Dog,$script:KmcS8Empty) 'Medium mount choice'
- Assert-KmcS8NativeRefusals $five 'DivineMountSelection' 'Medium mount choice'
- Assert-KmcS8NativeRefusals $five 'DivineBondSelection' 'bond choice'
+ Assert-KmcS8NativeRefusals $five 'DivineMountSelection' 'Medium mount choice' $true
+ Assert-KmcS8NativeRefusals $five 'DivineBondSelection' 'bond choice' $false
  Assert-KmcS8MountOwnerFacts $five.after 'mount at five' 'Horse'
  if([int]$five.after.rank -ne 5 -or [int]$five.after.callMax -ne 1){ throw 'Sprint 8 mount: level five is not rank 5 with one call' }
  $petId=[string]$e.boundaries.'8'.after.pet.id
