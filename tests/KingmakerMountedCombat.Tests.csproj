@@ -58,6 +58,7 @@
     <Compile Include="MountedRelationshipTests.cs" />
     <Compile Include="TransformAttachmentSlotTests.cs" />
     <Compile Include="MountedPairOwnershipTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DivineMountPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairRegistry.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorApproachPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDoorOccupancyPolicy.cs" />
@@ -131,6 +132,7 @@
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
     <Compile Include="MountedChargeSafetyTests.cs" />
+    <Compile Include="DivineMountPolicyTests.cs" />
     <Compile Include="MountedChargePolicyTests.cs" />
     <Compile Include="MountedChargeApplicationTransactionTests.cs" />
     <Compile Include="MountedChargeCompensationTests.cs" />

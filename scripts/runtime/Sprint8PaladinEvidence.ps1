@@ -150,3 +150,23 @@ function Assert-KmcSprint8PaladinEvidence {
   }
  }
 }
+function Assert-KmcSprint8PaladinPersistence($o,[bool]$Cold){
+ if(-not $Cold){
+  $a=$o.acquisition
+  if($null -eq $a -or $null -eq $a.owner -or $null -eq $a.oldWeapon){ throw 'The Paladin save producer recorded no bond facts' }
+  Assert-KmcS8MountFacts $a.owner 'producer' $script:KmcS8HorseUnit 'Horse'
+  Assert-KmcS8Weapon $a.oldWeapon 'producer old character'
+  if(@($a.oldWeaponStockEntry) -cnotcontains 'WeaponBondFeature'){ throw 'The old character was not built on the stock class' }
+  if([int]$a.owner.rank -ne 5 -or @($a.petCommits|Where-Object{$_.committed -ne $true}).Count -ne 0){ throw 'The Paladin producer did not reach rank 5 by native commits' }
+  return
+ }
+ $d=$o.paladinBondCold
+ if($null -eq $d -or $d.oldWeaponFound -ne $true){ throw 'The cold load did not read both Paladin characters' }
+ Assert-KmcS8MountFacts $d.owner 'cold' $script:KmcS8HorseUnit 'Horse'
+ if([int]$d.owner.rank -ne 5 -or [int]$d.owner.pet.characterLevel -ne $script:KmcS8RankLevel[5] -or $d.ownerPetIsPairMount -ne $true){ throw 'The cold mount lost its rank, level or pair binding' }
+ if([string]$d.restoredProfile -cne 'medium-humanoid-horse-v1' -or [string]$d.resolvedProfile -cne 'medium-humanoid-horse-v1'){ throw 'The cold pair lost its profile' }
+ Assert-KmcS8Weapon $d.oldWeapon 'cold old character'
+ Assert-KmcS8Weapon $d.oldWeaponAfter 'cold old character after a level'
+ if($d.oldWeapon.bondSelectionFact -ne $false -or $null -ne $d.oldWeaponNextLevel.PSObject.Properties['DivineBondSelection']){ throw 'The old character was offered or given the new choice' }
+ if([int]$d.oldWeaponAfter.paladinLevel -ne [int]$d.oldWeapon.paladinLevel+1 -or [int]$d.oldWeaponAfter.weaponUpgradeRanks -lt [int]$d.oldWeapon.weaponUpgradeRanks){ throw 'The old character did not level on its own path' }
+}
