@@ -53,7 +53,7 @@ namespace KingmakerMountedCombat.Integration
         internal const string DivineMountIntelligenceGuid = "c4f207ab96e14d5f8e3b71d2a06c95e8";
         internal const string DivineMountCelestialLinkGuid = "83ad5f1ec07b4692b1d48c6e2f97a035";
         internal const string DivineMountCelestialGuid = "f60e92c7b1d34a58a7f2e39d184bc607";
-        internal const string DivineMountLesserCelestialGuid = "5ab7d30f28e94c61b04f97e6c2a1d38f";
+        internal const string DivineMountLesserCelestialGuid = "7c2e14d9a60b4f83b1e5d07fa93c6e21";
         internal const string DivineMountGreaterCelestialGuid = "2e91c6a4f7d0483bb96a5d03e8f1c742";
         internal const string DivineMountSpellResistanceLinkGuid = "98f3b1d6c4e2407aa5d7206ebf19c3e4";
         internal const string DivineMountSpellResistanceGuid = "d15a07e8b3f94c26b82e6fc4190da7b3";
@@ -377,6 +377,7 @@ namespace KingmakerMountedCombat.Integration
             feature.AssetGuid = guid;
             CopyFeatureContract(weaponBondFeature, feature);
             feature.IsClassFeature = true;
+            feature.ReapplyOnLevelUp = false;
             feature.HideInUI = !shown;
             feature.ComponentsArray = components;
             SetFeaturePresentation(feature, NewLocalizedString(key + ".Name"), NewLocalizedString(key + ".Description"), icon);
@@ -410,7 +411,9 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeLevel = 4;
             var components = new List<BlueprintComponent> { CreateNoCompanionPrerequisite("KMC_" + name + "_NoPet"), addPet };
             if (smallOnly) components.Insert(0, CreateOwned<DivineMountRiderSizePrerequisite>("KMC_" + name + "_Small"));
-            return CreateBondFeature(name, guid, key, icon, true, components.ToArray());
+            var choice = CreateBondFeature(name, guid, key, icon, true, components.ToArray());
+            choice.ReapplyOnLevelUp = weaponBondFeature.ReapplyOnLevelUp;
+            return choice;
         }
 
         private BlueprintAbilityResource CreateResource(string name, string guid, int amount)

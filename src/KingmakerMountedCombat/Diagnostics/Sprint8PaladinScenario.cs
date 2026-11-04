@@ -360,15 +360,15 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s8Probe != null) { s8Probe.Dispose(); s8Probe = null; }
             if (s8Rules != null) { s8Rules.Dispose(); s8Rules = null; }
-            if (s8TargetService != null)
-            {
-                if (!s8TargetService.DestroyAndVerify()) return false;
-                s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
-            }
             if (s8SecondTargetService != null)
             {
                 if (!s8SecondTargetService.DestroyAndVerify()) return false;
                 s8SecondTargetService.Dispose(); s8SecondTargetService = null;
+            }
+            if (s8TargetService != null)
+            {
+                if (!s8TargetService.DestroyAndVerify()) return false;
+                s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
             }
             if (s8SelectionDisabled) { horseService.SetSelectionEnabled(true); s8SelectionDisabled = false; }
             var builder = Game.Instance.UI.CharacterBuildController;
@@ -1072,6 +1072,9 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var frame = 0; frame < 480 && (caster.CombatState.HasCooldownForCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Swift) || !caster.Commands.Empty); frame++)
             { s8TargetService.RefreshBidirectionalCombatMemoryLease(); s8SecondTargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
             var ability = caster.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
+            if (ReferenceEquals(caster, s8MixedOwner.Descriptor.Pet) &&
+                (!s8TargetService.NonPairPartyAiLease.BeginDeclaredMemberCommand(caster) || !s8SecondTargetService.NonPairPartyAiLease.BeginDeclaredMemberCommand(caster)))
+                throw new InvalidOperationException("The target leases refused the other mount's one declared command.");
             caster.Commands.Run(new UnitUseAbility(ability, new Kingmaker.Utility.TargetWrapper(victim)));
             for (var frame = 0; frame < 240 && !caster.Commands.Empty; frame++)
             { s8TargetService.RefreshBidirectionalCombatMemoryLease(); s8SecondTargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
@@ -1139,10 +1142,10 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["aMayMarkYAfterExpiry"] = Sprint8SmiteTargetable(a, y);
             s8Facts["usesAtEnd"] = new JObject { ["a"] = a.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["b"] = b.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
 
-            for (var frame = 0; frame < 300 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
-            s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
             for (var frame = 0; frame < 300 && !s8SecondTargetService.DestroyAndVerify(); frame++) yield return null;
             s8SecondTargetService.Dispose(); s8SecondTargetService = null;
+            for (var frame = 0; frame < 300 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
+            s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
         }
 
         // An archetype that replaces the bond stays legal and is offered no bond.
