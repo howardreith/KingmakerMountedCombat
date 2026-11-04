@@ -52,7 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Sprint 5: the exploration Manual route with a female Halfling and her Riding Dog as the second pair.
         internal const string RidingDogCaseName = "riding-dog-exploration-manual", RidingDogPairProfile = "small-halfling-female-ridingdog-v1";
         private bool RidingDogCase => request.PersistenceCase == RidingDogCaseName;
-        private Kingmaker.Blueprints.Classes.BlueprintFeature SecondCompanionFeature => RidingDogCase ? horses.RidingDogFeature : horses.HorseFeature;
+        private Kingmaker.Blueprints.Classes.BlueprintFeature SecondCompanionFeature => PaladinBondCase ? horses.DivineMountHorse : RidingDogCase ? horses.RidingDogFeature : horses.HorseFeature;
         private bool ridingDogBodyApplied, ridingDogShotPending;
         private int ridingDogFrames;
         private readonly JArray ridingDogShots = new JArray();
@@ -238,7 +238,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             if (progression.Experience < needed) progression.AdvanceExperienceTo(needed, false);
                         }
                         bool acquired;
-                        try { acquired = NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition, SecondCompanionFeature,
+                        try { acquired = PaladinBondCase ? AcquirePaladinBond(acquisition) : NativeHorseFixtureAcquisition.Create(secondRider, horses, logger, acquisition, SecondCompanionFeature,
                             RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid); }
                         finally
                         {
@@ -251,6 +251,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Next(1); break;
                     case 1:
                         if (secondMount?.View?.AgentASP == null || !secondMount.IsInState) return;
+                        if (PaladinBondCase && !PaladinHighOwnerReady()) return;
                         Require(secondMount.Blueprint?.AssetGuid == (RidingDogCase ? HorseCompanionBlueprintService.RidingDogUnitGuid : HorseCompanionBlueprintService.UnitGuid) &&
                             ReferenceEquals(secondMount.Descriptor.Master.Value, secondRider), "Acquired companion is not the exact reciprocal pet.");
                         if (RidingDogCase)
@@ -341,10 +342,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;
-                        Move(secondRider, secondMount, AreaAutosaveCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
+                        Move(secondRider, secondMount, AreaAutosaveCase || PaladinBondCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
                     case 12:
                         AssertOwners(); if (!MovementSettled()) return;
                         Pass("C7-persistence-native-continuation"); snapshots.Add(Capture("continuation-complete"));
+                        if (PaladinBondCase && Cold) RecordPaladinBondCold();
                         if (RidingDogCase && Cold) { BeginRidingDogCold(); Next(50); break; }
                         BeginCleanup(); break;
                     case 50: case 51: case 52: case 53: case 54:

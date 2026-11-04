@@ -65,7 +65,8 @@ namespace KingmakerMountedCombat
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
+                DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -94,7 +95,8 @@ namespace KingmakerMountedCombat
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
