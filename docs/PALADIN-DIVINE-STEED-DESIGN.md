@@ -1,5 +1,8 @@
 # Paladin Divine Steed design
 
+Superseded (2026-11-04): Sprint 8 implemented the Paladin's mount bond. See [the Sprint 8 record](SPRINT8-PALADIN-MOUNT.md). What follows is the earlier design, kept as history.
+
+
 Dependency update (2026-09-05): Phase 3E ends `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`. The isolated pair-local command scheduler proved one exact mount action, but unified TB turn completion fired K9 after the bounded repair budget. Any future Divine Steed design must assume separate rider/steed native turns unless a separately authorized broader turn-controller mission qualifies another architecture. It must not enable the dormant paired scheduler, depend on unified initiative, or infer combat Mount/Dismount or five-foot-step acceptance. This document remains design-only; no blueprint, feature, progression, spell, companion, or Paladin implementation was added.
 
 Dependency update (2026-09-04T19:05:03-04:00): Phase 3E has user authorization for an original pair-local command scheduler and has qualified only its isolated mount-primary Gate 1 twice (`140/0`). Broader sequencing and lifecycle gates remain `IN PROGRESS`; the separate-turn fallback remains available. Dev.8/dev.9 are diagnostic-only combat-Mount intake work and add no Paladin authority, blueprint, feature, spell, progression, companion, or implementation. Paladin Divine Steed remains design-only and unauthorized.
