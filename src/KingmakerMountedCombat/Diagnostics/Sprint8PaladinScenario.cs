@@ -974,6 +974,15 @@ namespace KingmakerMountedCombat.Diagnostics
             smite["attackBonusUnmarked"] = s8Probe.LastAttackBonus;
             var attempt = Sprint8TbSmiteAttempt(smite, pet);
             while (attempt.MoveNext()) yield return null;
+            ended = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            for (var frame = 0; frame < 600 && !(ended.CanEndTurnAndNoActing() && !Game.Instance.TurnBasedCombatController.WaitingForUI); frame++) yield return null;
+            smite["canEndTurnAfter"] = ended.CanEndTurnAndNoActing();
+            Game.Instance.PauseBind(); s8EndedTurn = ended;
+            wait = Sprint8TbTurn(s8Owner);
+            while (wait.MoveNext()) yield return null;
+            smite["nextTurnReached"] = true;
+            smite["markOnNextTurn"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
+            smite["usesOnNextTurn"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
 
             var charge = new JObject(); s8Facts["charge"] = charge;
             var combatOwner = relationship.World.ForActor(s8Owner).Combat;

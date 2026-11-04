@@ -53,7 +53,7 @@ $tbOwner=[pscustomobject]@{id='o';weaponBond=$false;weaponUpgradeRanks=0;weaponA
 function New-S8Tb { [pscustomobject]@{before=$tbOwner;final=$tbOwner;removalReferences=@('unit X [1] is the KMC Horse','character O [2] has the KMC Divine Mount bond');
  call=[pscustomobject]@{availableAfterSelect=$true;clicked=$true;usesBefore=2;usesAfter=1;distanceBefore=12;distanceAfter=1.6;standard=6};mounted=$true;
  callWhileMounted=[pscustomobject]@{available=$false;clicked=$false;reason='Your mount is already with you.';usesBefore=1;usesAfter=1};
- smite=[pscustomobject]@{clicked=$true;usesBefore=1;usesAfter=0;marked=$true;mountSwiftAfter=6;riderStandardBefore=0;riderStandardAfter=0;charismaBonus=2;additionalDamageUnmarked=0;additionalDamageMarked=9;attackBonusUnmarked=8;attackBonusMarked=10};
+ smite=[pscustomobject]@{clicked=$true;usesBefore=1;usesAfter=0;marked=$true;mountSwiftAfter=6;riderStandardBefore=0;riderStandardAfter=0;canEndTurnAfter=$true;nextTurnReached=$true;markOnNextTurn=$true;usesOnNextTurn=0;charismaBonus=2;additionalDamageUnmarked=0;additionalDamageMarked=9;attackBonusUnmarked=8;attackBonusMarked=10};
  charge=[pscustomobject]@{clicked=$true;result='Success';sequenceLawful=$true;chargeRules=1;riderStandard=6;riderMove=3;buffCount=1;stillMarked=$true};
  mountAttack=[pscustomobject]@{clicked=$true;rules=1;additionalDamage=9};targetDestroyed=$true;combatCleared=$true;dismounted=$true} }
 Check (Accepts ${function:Assert-KmcS8TurnBasedCase} (New-S8Tb)) 'the turn-based Paladin neighbor is accepted'
@@ -63,6 +63,7 @@ $r=New-S8Tb; $r.smite.riderStandardAfter=6; Refuses ${function:Assert-KmcS8TurnB
 $r=New-S8Tb; $r.charge.chargeRules=2; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'two charge attacks'
 $r=New-S8Tb; $r.mountAttack.additionalDamage=0; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mount attack without the mark''s damage'
 $r=New-S8Tb; $r.callWhileMounted.reason='You have no mount to call.'; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mounted refusal for another reason'
+$r=New-S8Tb; $r.smite.usesOnNextTurn=1; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite use returned by the next turn'
 $r=New-S8Tb; $r.smite.marked=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a Smite never delivered (the a02 defect)'
 $r=New-S8Tb; $r.smite.attackBonusMarked=8; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'a mark with no Charisma to hit'
 $r=New-S8Tb; $r.targetDestroyed=$false; Refuses ${function:Assert-KmcS8TurnBasedCase} $r 'an unverified target'
