@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("Divine Mount call uses follow the rule", DivineMountPolicyTests.CallUsesFollowTheRule);
 runner.Run("Divine Mount spell resistance starts at fifteen and follows the level", DivineMountPolicyTests.SpellResistanceStartsAtFifteenAndFollowsTheLevel);
 runner.Run("Divine Mount rank is the paladin level", DivineMountPolicyTests.RankIsThePaladinLevel);
+runner.Run("celestial tier follows actual Hit Dice", DivineMountPolicyTests.CelestialTierFollowsActualHitDice);
+runner.Run("a smite belongs to the mount that placed it", DivineMountPolicyTests.SmiteBelongsToTheMountThatPlacedIt);
 runner.Run("the mount path keeps no weapon upgrade", DivineMountPolicyTests.TheMountPathKeepsNoWeaponUpgrade);
 runner.Run("only a character outside the party takes the stock bond", DivineMountPolicyTests.OnlyACharacterOutsideThePartyTakesTheStockBond);
 runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAreSafe);

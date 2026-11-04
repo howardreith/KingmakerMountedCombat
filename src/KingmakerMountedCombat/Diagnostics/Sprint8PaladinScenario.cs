@@ -19,6 +19,7 @@ using Kingmaker.UI.SettingsUI;
 using Kingmaker.UI.LevelUp;
 using Kingmaker.UI.Selection;
 using Kingmaker.Controllers.Clicks.Handlers;
+using Kingmaker.Controllers.Rest;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Class.LevelUp;
 using Kingmaker.UnitLogic.Commands;
@@ -281,7 +282,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["classLevel"] = petClass == null ? 0 : progression.GetClassLevel(petClass), ["experience"] = progression.Experience, ["canLevelUp"] = LevelUpController.CanLevelUp(pet.Descriptor),
                 ["strength"] = pet.Stats.Strength.ModifiedValue, ["constitution"] = pet.Stats.Constitution.ModifiedValue, ["intelligence"] = pet.Stats.Intelligence.ModifiedValue, ["charisma"] = pet.Stats.Charisma.ModifiedValue,
                 ["upgrade"] = (service.HorseUpgrade != null && features.HasFact(service.HorseUpgrade)) || (service.RidingDogUpgrade != null && features.HasFact(service.RidingDogUpgrade)),
-                ["intelligenceBond"] = features.GetRank(service.DivineMountIntelligence), ["celestial"] = features.GetRank(service.DivineMountCelestial),
+                ["intelligenceBond"] = features.GetRank(service.DivineMountIntelligence), ["lesserCelestial"] = features.GetRank(service.DivineMountLesserCelestial), ["celestial"] = features.GetRank(service.DivineMountCelestial),
                 ["greaterCelestial"] = features.GetRank(service.DivineMountGreaterCelestial), ["spellResistanceFact"] = features.GetRank(service.DivineMountSpellResistance),
                 ["spellResistance"] = resistance == null ? 0 : resistance.GetValue(null),
                 ["reductionSources"] = new JArray((reduction?.AllSources ?? Enumerable.Empty<AddDamageResistanceBase>()).Select(source => source.GetType().Name + "=" + source.GetCurrentValue())),
@@ -311,13 +312,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal const string Sprint8Choice = "sprint8-paladin-choice-rt", Sprint8Mount = "sprint8-paladin-mount-rt", Sprint8Dog = "sprint8-paladin-dog-rt", Sprint8Mixed = "sprint8-paladin-mixed-rt";
-        internal static bool IsSprint8PaladinScenario(string scenario) => scenario == Sprint8Choice || scenario == Sprint8Mount || scenario == Sprint8Dog || scenario == Sprint8Mixed;
+        internal const string Sprint8Choice = "sprint8-paladin-choice-rt", Sprint8Mount = "sprint8-paladin-mount-rt", Sprint8Dog = "sprint8-paladin-dog-rt", Sprint8Mixed = "sprint8-paladin-mixed-rt", Sprint8Celestial = "sprint8-paladin-celestial-rt";
+        internal static bool IsSprint8PaladinScenario(string scenario) => scenario == Sprint8Choice || scenario == Sprint8Mount || scenario == Sprint8Dog || scenario == Sprint8Mixed || scenario == Sprint8Celestial;
         private bool IsSprint8Paladin => IsSprint8PaladinScenario(request.Scenario);
         internal const int Sprint8SchemaVersion = 52;
         internal const double Sprint8ScenarioDeadlineSeconds = 400.0d, Sprint8HostDeadlineSeconds = 560.0d;
         private string[] Sprint8Cases => request.Scenario == Sprint8Choice ? new[] { "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain" } :
             request.Scenario == Sprint8Mount ? new[] { "S8-mount-horse", "S8-control" } :
+            request.Scenario == Sprint8Celestial ? new[] { "S8-tiers", "S8-smite" } :
             request.Scenario == Sprint8Dog ? new[] { "S8-dog" } : new[] { "S8-mixed", "S8-mixed-reverse", "S8-archetype" };
         private const string Sprint8HumanRace = "0a5d473ead98b0646b94495af250fdc4";
 
@@ -330,6 +332,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private DiagnosticCombatTargetService s8TargetService;
         private UnitEntityData s8Hostile;
         private Sprint6RuleObserver s8Rules;
+        private DiagnosticCombatTargetService s8SecondTargetService;
+        private UnitEntityData s8TierOwner, s8MixedOwner;
 
         private void BeginSprint8Paladin()
         {
@@ -360,6 +364,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!s8TargetService.DestroyAndVerify()) return false;
                 s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
+            }
+            if (s8SecondTargetService != null)
+            {
+                if (!s8SecondTargetService.DestroyAndVerify()) return false;
+                s8SecondTargetService.Dispose(); s8SecondTargetService = null;
             }
             if (s8SelectionDisabled) { horseService.SetSelectionEnabled(true); s8SelectionDisabled = false; }
             var builder = Game.Instance.UI.CharacterBuildController;
@@ -417,6 +426,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S8-mixed": return Sprint8MixedCase();
                 case "S8-mixed-reverse": return Sprint8MixedReverseCase();
                 case "S8-archetype": return Sprint8ArchetypeCase();
+                case "S8-tiers": return Sprint8TiersCase();
+                case "S8-smite": return Sprint8SmiteCase();
                 default: throw new InvalidOperationException("Unknown Sprint 8 case " + name);
             }
         }
@@ -918,6 +929,220 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["samePet"] = original != null && ReferenceEquals(original, unit.Pet) && !original.Destroyed;
             s8Facts["final"] = Sprint8Snapshot(unit);
             s8Owner = null;
+        }
+
+        // The tier the live reconciliation left on the real pet, from the pet's own committed level.
+        private JObject Sprint8TierFacts(UnitEntityData owner, string label)
+        {
+            var facts = Sprint8Snapshot(owner.Descriptor);
+            facts["label"] = label;
+            return facts;
+        }
+
+        private IEnumerator Sprint8Settle()
+        {
+            for (var frame = 0; frame < 10; frame++) yield return null;
+        }
+
+        private IEnumerator Sprint8CommitPetTo(UnitEntityData pet, int hitDice, JArray steps, UnitEntityData owner)
+        {
+            var petClass = pet.Blueprint.GetComponent<AddClassLevels>().CharacterClass;
+            var upgrade = pet.Blueprint.AssetGuid == HorseCompanionBlueprintService.RidingDogUnitGuid ? horseService.RidingDogUpgrade : horseService.HorseUpgrade;
+            for (var guard = 0; guard < 20 && pet.Descriptor.Progression.CharacterLevel < hitDice && LevelUpController.CanLevelUp(pet.Descriptor); guard++)
+            {
+                var record = NativeHorseFixtureAcquisition.CommitPetLevel(pet, petClass, upgrade, logger);
+                if (record.Value<bool>("committed") != true) throw new InvalidOperationException("A native pet level did not commit: " + record);
+                var settle = Sprint8Settle();
+                while (settle.MoveNext()) yield return null;
+                steps.Add(Sprint8TierFacts(owner, "committed"));
+            }
+        }
+
+        private IEnumerator Sprint8TiersCase()
+        {
+            // A pure Paladin 11 whose pet has not taken its pending levels: the unlock is the owner's, the tier the pet's.
+            var build = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_Tiers");
+            var owner = Sprint8MountOwner(build, HorseCompanionBlueprintService.DivineMountHorseGuid, 7);
+            while (owner.MoveNext()) yield return null;
+            s8TierOwner = s8Owner;
+            var field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
+            var level = Sprint8LevelTo(build, s8TierOwner.Descriptor, 10);
+            while (level.MoveNext()) yield return null;
+            var settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["beforeUnlock"] = Sprint8TierFacts(s8TierOwner, "paladin-10");
+            level = Sprint8LevelTo(build, s8TierOwner.Descriptor, 11);
+            while (level.MoveNext()) yield return null;
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["unlockUnlevelled"] = Sprint8TierFacts(s8TierOwner, "paladin-11-pet-pending");
+            var pet = s8TierOwner.Descriptor.Pet;
+            // Disclosed setup: the day's use is already spent, through the native resource, so a refund would show.
+            pet.Descriptor.Resources.Spend(horseService.DivineMountSmiteResource, 1);
+            s8Facts["smiteSpentForTransitions"] = pet.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource);
+            var steps = new JArray();
+            s8Facts["petSteps"] = steps;
+            var commit = Sprint8CommitPetTo(pet, 20, steps, s8TierOwner);
+            while (commit.MoveNext()) yield return null;
+            // The owner moves ahead of the pet: Paladin 13 with a pet still below 11 Hit Dice keeps the lower tier.
+            level = Sprint8LevelTo(build, s8TierOwner.Descriptor, 13);
+            while (level.MoveNext()) yield return null;
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["ownerAheadOfPet"] = Sprint8TierFacts(s8TierOwner, "paladin-13-pet-pending");
+            commit = Sprint8CommitPetTo(pet, 20, steps, s8TierOwner);
+            while (commit.MoveNext()) yield return null;
+            level = Sprint8LevelTo(build, s8TierOwner.Descriptor, 15);
+            while (level.MoveNext()) yield return null;
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["resistanceAtFifteen"] = Sprint8TierFacts(s8TierOwner, "paladin-15");
+            s8Facts["petIdentity"] = pet.UniqueId;
+
+            // Mixed classes: above the upper boundary before the unlock, so the higher tier arrives at Paladin 11 itself.
+            var mixed = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_MixedTiers");
+            var ranger = ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid);
+            mixed.ClassFor = next => next <= 7 ? ranger : horseService.PaladinClass;
+            mixed.Choices[HorseCompanionBlueprintService.HuntersBondGuid] = HorseCompanionBlueprintService.RangerSelectionGuid;
+            mixed.Choices[HorseCompanionBlueprintService.RangerSelectionGuid] = HorseCompanionBlueprintService.DogFeatureGuid;
+            mixed.Choices[HorseCompanionBlueprintService.DivineBondSelectionGuid] = HorseCompanionBlueprintService.DivineMountSelectionGuid;
+            mixed.Choices[HorseCompanionBlueprintService.DivineMountSelectionGuid] = HorseCompanionBlueprintService.EmptyCompanionGuid;
+            var hire = Sprint8Hire(mixed, 7);
+            while (hire.MoveNext()) yield return null;
+            s8MixedOwner = mixed.Hired.Unit;
+            s8Owner = s8MixedOwner;
+            field = Sprint8Field();
+            while (field.MoveNext()) yield return null;
+            level = Sprint8LevelTo(mixed, s8MixedOwner.Descriptor, 17);
+            while (level.MoveNext()) yield return null;
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            var mixedPet = s8MixedOwner.Descriptor.Pet;
+            commit = Sprint8CommitPetTo(mixedPet, 20, new JArray(), s8MixedOwner);
+            while (commit.MoveNext()) yield return null;
+            s8Facts["mixedBeforeUnlock"] = Sprint8TierFacts(s8MixedOwner, "paladin-10");
+            level = Sprint8LevelTo(mixed, s8MixedOwner.Descriptor, 18);
+            while (level.MoveNext()) yield return null;
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["mixedAtUnlock"] = Sprint8TierFacts(s8MixedOwner, "paladin-11");
+
+            // Removal and return of the bond's celestial fact on the same pet: nothing stays behind, one tier comes back, the smite is untouched.
+            var features = s8MixedOwner.Descriptor.Progression.Features;
+            mixedPet.Descriptor.Resources.Spend(horseService.DivineMountSmiteResource, 1);
+            features.RemoveFact(horseService.DivineMountCelestialLink);
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["mixedLinkRemoved"] = Sprint8TierFacts(s8MixedOwner, "link-removed");
+            features.AddFeature(horseService.DivineMountCelestialLink);
+            settle = Sprint8Settle();
+            while (settle.MoveNext()) yield return null;
+            s8Facts["mixedLinkRestored"] = Sprint8TierFacts(s8MixedOwner, "link-restored");
+
+            // Replacement: a respec of the high owner brings a new pet at the bottom of the table, a real downgrade of the owner's tier.
+            var retrain = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_Tiers");
+            retrain.Choices[HorseCompanionBlueprintService.DivineBondSelectionGuid] = HorseCompanionBlueprintService.DivineMountSelectionGuid;
+            retrain.Choices[HorseCompanionBlueprintService.DivineMountSelectionGuid] = HorseCompanionBlueprintService.DivineMountHorseGuid;
+            var respec = Sprint8Respec(retrain, s8TierOwner.Descriptor);
+            while (respec.MoveNext()) yield return null;
+            for (var frame = 0; frame < 60; frame++) yield return null;
+            s8Facts["replaced"] = Sprint8TierFacts(s8TierOwner, "new-pet");
+            s8Facts["oldPetDestroyed"] = pet.Destroyed;
+            s8Owner = null;
+        }
+
+        private JObject Sprint8SmiteRead(UnitEntityData attacker, UnitEntityData victim, string label)
+        {
+            using (var probe = new Sprint8SmiteProbe(attacker))
+            {
+                Rulebook.Trigger(new RuleAttackWithWeapon(attacker, victim, attacker.GetFirstWeapon(), 0));
+                return new JObject { ["label"] = label, ["attacker"] = attacker.UniqueId, ["target"] = victim.UniqueId, ["hitDice"] = attacker.Descriptor.Progression.CharacterLevel,
+                    ["additionalDamage"] = probe.LastAdditionalDamage, ["attackBonus"] = probe.LastAttackBonus,
+                    ["uses"] = attacker.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource),
+                    ["sources"] = new JArray(DivineMountSmiteBonus.MarkSources(victim, horseService.DivineMountSmiteBuff).Select(source => source?.UniqueId)) };
+            }
+        }
+
+        private JObject Sprint8SmiteTargetable(UnitEntityData caster, UnitEntityData victim) => new JObject { ["caster"] = caster.UniqueId, ["target"] = victim.UniqueId,
+            ["canTarget"] = caster.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data?.CanTarget(new Kingmaker.Utility.TargetWrapper(victim)) };
+
+        private IEnumerator Sprint8CastSmite(UnitEntityData caster, UnitEntityData victim)
+        {
+            for (var frame = 0; frame < 480 && (caster.CombatState.HasCooldownForCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Swift) || !caster.Commands.Empty); frame++)
+            { s8TargetService.RefreshBidirectionalCombatMemoryLease(); s8SecondTargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            var ability = caster.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
+            caster.Commands.Run(new UnitUseAbility(ability, new Kingmaker.Utility.TargetWrapper(victim)));
+            for (var frame = 0; frame < 240 && !caster.Commands.Empty; frame++)
+            { s8TargetService.RefreshBidirectionalCombatMemoryLease(); s8SecondTargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            for (var frame = 0; frame < 10; frame++) yield return null;
+        }
+
+        // Two mounts and two targets: each mark belongs to the mount that placed it.
+        private IEnumerator Sprint8SmiteCase()
+        {
+            var a = s8TierOwner.Descriptor.Pet;
+            var b = s8MixedOwner.Descriptor.Pet;
+            RestController.ApplyRest(a.Descriptor);
+            RestController.ApplyRest(b.Descriptor);
+            s8TargetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            s8Hostile = s8TargetService.Spawn(s8TierOwner, a, FindWalkablePoint(a.Position, 4.5f, 1f), request.RunId + "-s8x", true, true);
+            s8SecondTargetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            var y = s8SecondTargetService.Spawn(s8TierOwner, a, FindWalkablePoint(a.Position, 5f, 1f), request.RunId + "-s8y", true, true);
+            if (!s8TargetService.PrepareForPlayerClick(s8Hostile) || !s8TargetService.QueueBidirectionalCombatMemory(s8TierOwner, s8Hostile) ||
+                !s8SecondTargetService.PrepareForPlayerClick(y) || !s8SecondTargetService.QueueBidirectionalCombatMemory(s8TierOwner, y))
+                throw new InvalidOperationException("The Sprint 8 targets' visibility or combat-memory lease failed.");
+            var x = s8Hostile;
+            // Disclosed setup: the spawned targets are not evil.
+            x.Descriptor.Alignment.Set(Alignment.NeutralEvil);
+            y.Descriptor.Alignment.Set(Alignment.NeutralEvil);
+            for (var frame = 0; frame < 20; frame++) yield return null;
+            var reads = new JArray();
+            s8Facts["reads"] = reads;
+            s8Facts["mountA"] = a.UniqueId; s8Facts["mountB"] = b.UniqueId; s8Facts["targetX"] = x.UniqueId; s8Facts["targetY"] = y.UniqueId;
+            s8Facts["usesAtStart"] = new JObject { ["a"] = a.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["b"] = b.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
+            reads.Add(Sprint8SmiteRead(a, x, "a-x-unmarked"));
+
+            var cast = Sprint8CastSmite(a, x);
+            while (cast.MoveNext()) yield return null;
+            reads.Add(Sprint8SmiteRead(a, x, "a-x-own-mark"));
+            reads.Add(Sprint8SmiteRead(b, x, "b-x-a-mark-only"));
+            s8Facts["bMayMarkX"] = Sprint8SmiteTargetable(b, x);
+            s8Facts["aMayRemarkX"] = Sprint8SmiteTargetable(a, x);
+
+            cast = Sprint8CastSmite(b, x);
+            while (cast.MoveNext()) yield return null;
+            reads.Add(Sprint8SmiteRead(a, x, "a-x-both-marks"));
+            reads.Add(Sprint8SmiteRead(b, x, "b-x-both-marks"));
+
+            // A rest returns the use and leaves the mark: the policy is a day, not the rest. The next mark retires the first.
+            RestController.ApplyRest(a.Descriptor);
+            s8Facts["aRested"] = new JObject { ["uses"] = a.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource),
+                ["sourcesOnX"] = new JArray(DivineMountSmiteBonus.MarkSources(x, horseService.DivineMountSmiteBuff).Select(source => source?.UniqueId)) };
+            reads.Add(Sprint8SmiteRead(a, x, "a-x-after-rest"));
+            cast = Sprint8CastSmite(a, y);
+            while (cast.MoveNext()) yield return null;
+            reads.Add(Sprint8SmiteRead(a, x, "a-x-after-changing-target"));
+            reads.Add(Sprint8SmiteRead(a, y, "a-y-current"));
+            reads.Add(Sprint8SmiteRead(b, x, "b-x-keeps-its-mark"));
+            reads.Add(Sprint8SmiteRead(b, y, "b-y-a-mark-only"));
+
+            // Removal: the mount loses its bonus and gets no use back. Expiry: game time alone ends the other.
+            var bMark = x.Descriptor.Buffs.Enumerable.First(buff => ReferenceEquals(buff.Blueprint, horseService.DivineMountSmiteBuff) && ReferenceEquals(buff.MaybeContext?.MaybeCaster, b));
+            bMark.Remove();
+            reads.Add(Sprint8SmiteRead(b, x, "b-x-removed"));
+            var aMark = y.Descriptor.Buffs.Enumerable.First(buff => ReferenceEquals(buff.Blueprint, horseService.DivineMountSmiteBuff) && ReferenceEquals(buff.MaybeContext?.MaybeCaster, a));
+            s8Facts["aMarkHoursLeft"] = (aMark.EndTime - Game.Instance.TimeController.GameTime).TotalHours;
+            Game.Instance.AdvanceGameTime(TimeSpan.FromHours(25));
+            for (var frame = 0; frame < 60; frame++) { s8TargetService.RefreshBidirectionalCombatMemoryLease(); s8SecondTargetService.RefreshBidirectionalCombatMemoryLease(); yield return null; }
+            reads.Add(Sprint8SmiteRead(a, y, "a-y-expired"));
+            s8Facts["aMayMarkYAfterExpiry"] = Sprint8SmiteTargetable(a, y);
+            s8Facts["usesAtEnd"] = new JObject { ["a"] = a.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource), ["b"] = b.Descriptor.Resources.GetResourceAmount(horseService.DivineMountSmiteResource) };
+
+            for (var frame = 0; frame < 300 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
+            s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
+            for (var frame = 0; frame < 300 && !s8SecondTargetService.DestroyAndVerify(); frame++) yield return null;
+            s8SecondTargetService.Dispose(); s8SecondTargetService = null;
         }
 
         // An archetype that replaces the bond stays legal and is offered no bond.

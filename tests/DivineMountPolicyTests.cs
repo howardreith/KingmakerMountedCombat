@@ -32,8 +32,6 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(5, DivineMountPolicy.ExpectedRankFromPaladin(5), "Divine Mount value changed.");
             TestRunner.Equal(20, DivineMountPolicy.ExpectedRankFromPaladin(20), "Divine Mount value changed.");
             TestRunner.Equal(5, HorseCompanionProgressionPolicy.ExpectedCharacterLevel(DivineMountPolicy.ExpectedRankFromPaladin(5)), "Divine Mount value changed.");
-            // The table reaches 11 Hit Dice at 13th, where the celestial protections step.
-            TestRunner.Equal(11, HorseCompanionProgressionPolicy.ExpectedCharacterLevel(DivineMountPolicy.GreaterCelestialLevel), "Divine Mount value changed.");
         }
 
         internal static void TheMountPathKeepsNoWeaponUpgrade()
@@ -41,6 +39,36 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!DivineMountPolicy.KeepsLevelEntryFeature(isWeaponBondUpgrade: true, hasDivineMount: true), "Divine Mount decision changed.");
             TestRunner.True(DivineMountPolicy.KeepsLevelEntryFeature(isWeaponBondUpgrade: true, hasDivineMount: false), "Divine Mount decision changed.");
             TestRunner.True(DivineMountPolicy.KeepsLevelEntryFeature(isWeaponBondUpgrade: false, hasDivineMount: true), "Divine Mount decision changed.");
+        }
+
+        // The Bestiary's table, read at its boundaries from the creature's own Hit Dice.
+        internal static void CelestialTierFollowsActualHitDice()
+        {
+            TestRunner.Equal((int)DivineMountCelestialTier.Lesser, (int)DivineMountPolicy.CelestialTier(1), "HD 1 tier changed.");
+            TestRunner.Equal((int)DivineMountCelestialTier.Lesser, (int)DivineMountPolicy.CelestialTier(4), "HD 4 tier changed.");
+            TestRunner.Equal((int)DivineMountCelestialTier.Standard, (int)DivineMountPolicy.CelestialTier(5), "HD 5 tier changed.");
+            TestRunner.Equal((int)DivineMountCelestialTier.Standard, (int)DivineMountPolicy.CelestialTier(10), "HD 10 tier changed.");
+            TestRunner.Equal((int)DivineMountCelestialTier.Greater, (int)DivineMountPolicy.CelestialTier(11), "HD 11 tier changed.");
+        }
+
+        private sealed class Unit { }
+
+        // The decision takes the mark's source from its buff, so it is tested with distinct sources.
+        internal static void SmiteBelongsToTheMountThatPlacedIt()
+        {
+            Unit a = new Unit(), b = new Unit(), x = new Unit(), y = new Unit();
+            var byA = new[] { a };
+            var byBoth = new[] { a, b };
+            var none = new Unit[0];
+            TestRunner.True(DivineMountPolicy.SmiteApplies(byA, a, x, x), "A's own mark on its current target lost its bonus.");
+            TestRunner.True(!DivineMountPolicy.SmiteApplies(byA, b, null, x), "B took a bonus from A's mark.");
+            TestRunner.True(DivineMountPolicy.MayMark(byA, b, null, x), "A's mark blocked B.");
+            TestRunner.True(!DivineMountPolicy.MayMark(byA, a, x, x), "A could mark its own current target again.");
+            TestRunner.True(DivineMountPolicy.SmiteApplies(byBoth, a, x, x) && DivineMountPolicy.SmiteApplies(byBoth, b, x, x), "Two marks on one target did not stay independent.");
+            TestRunner.True(!DivineMountPolicy.SmiteApplies(byBoth, a, y, x), "A kept a bonus on a former target.");
+            TestRunner.True(DivineMountPolicy.SmiteApplies(byBoth, b, x, x), "A changing target took B's bonus.");
+            TestRunner.True(!DivineMountPolicy.SmiteApplies(none, a, x, x), "An expired mark kept its bonus.");
+            TestRunner.True(DivineMountPolicy.MayMark(none, a, x, x), "An expired mark blocked a new one.");
         }
 
         internal static void OnlyACharacterOutsideThePartyTakesTheStockBond()
