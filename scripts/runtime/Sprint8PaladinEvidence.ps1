@@ -251,6 +251,7 @@ function Assert-KmcS8TurnBasedCase($e){
  if($null -eq $d -or $d.clicked -ne $true -or [int]$s.usesBefore -ne 1 -or [int]$d.usesAfter -ne 0 -or $d.marked -ne $true -or [double]$d.mountSwiftAfter -le 0 -or ($first -and [double]$s.riderStandardAfter -ne [double]$s.riderStandardBefore)){ throw 'Sprint 9 the turn-based Smite did not spend the mount''s own use and Swift action' }
  $g=$e.charge
  if($null -eq $g -or $g.clicked -ne $true -or [string]$g.result -cne 'Success' -or $g.sequenceLawful -ne $true -or [int]$g.chargeRules -ne 1 -or [double]$g.riderStandard -lt 5.9 -or [double]$g.riderMove -lt 2.9 -or [int]$g.buffCount -ne 1){ throw 'Sprint 9 the Paladin rider''s charge was not one lawful native delivery' }
+ if($s.canEndTurnAfter -ne $true -or $s.nextTurnReached -ne $true -or $s.markOnNextTurn -ne $true -or [int]$s.usesOnNextTurn -ne 0){ throw 'Sprint 9 End Turn after a first-action Smite did not reach the next turn with the mark and no use returned' }
  if($first -and $g.stillMarked -ne $true){ throw 'Sprint 9 the charge disturbed the mount''s mark' }
  $a=$e.mountAttack
  if($null -eq $a -or $a.clicked -ne $true -or [int]$a.rules -lt 1 -or [int]$a.additionalDamage -ne [int]$e.final.pet.characterLevel){ throw ('Sprint 9 the mount''s real attack did not carry its Hit Dice as smite damage: '+$a.additionalDamage) }

@@ -214,10 +214,12 @@ namespace KingmakerMountedCombat.Integration
                 IsMountOwnSwiftAbility(command));
         }
 
-        // The mount's own native Swift ability (Celestial Smite) on the paired turn. The mount has no separate turn while mounted, so without this
-        // the command never starts (Sprint 9 a02). Native still checks availability and charges the mount's own Swift action.
+        // Celestial Smite, an instant Swift ability, on the paired turn. The mount has no separate turn while mounted, so without this the command
+        // never starts (Sprint 9 a02). Native still checks availability and charges the mount's own Swift action. Other mount abilities are not admitted:
+        // a command with a real duration would need ticks a preparing turn does not give it.
         internal bool IsMountOwnSwiftAbility(UnitCommand command) =>
-            command is UnitUseAbility ability && command.Type == UnitCommand.CommandType.Swift && ability.Spell?.Caster?.Unit == relationship.Mount;
+            command is UnitUseAbility ability && command.Type == UnitCommand.CommandType.Swift && ability.Spell?.Caster?.Unit == relationship.Mount &&
+            ability.Spell.Blueprint.GetComponent<DivineMountSmiteLogic>() != null;
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;
         internal bool TryConfigurePairedActivation(bool enabled) => unifiedTurn.TryConfigurePairedActivation(enabled);
