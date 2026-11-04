@@ -171,7 +171,9 @@ namespace KingmakerMountedCombat.Integration
             return assessment;
         }
 
-        private List<string> FindPermanentReferences(Game game)
+        private List<string> FindPermanentReferences(Game game) => FindPermanentReferences(game, horseCompanion);
+
+        internal static List<string> FindPermanentReferences(Game game, HorseCompanionBlueprintService horseCompanion)
         {
             var references = new List<string>();
             var seen = new HashSet<string>(StringComparer.Ordinal);

@@ -30,7 +30,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsSprint3ApproachScenario(string scenario) =>
-            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-rt-neighbor" || scenario == "sprint3-approach-rt-trap" ||
+            scenario == "sprint3-approach-rt" || scenario == "sprint3-approach-rt-neighbor" || scenario == "sprint3-approach-rt-spells" || scenario == "sprint3-approach-rt-trap" ||
             scenario == "sprint3-approach-tb";
         private bool IsSprint3Approach => IsSprint3ApproachScenario(request.Scenario);
         internal const int Sprint3SchemaVersion = 47;
@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static readonly string[] Sprint3NeighborCases = { "S3-touch-held-charge" };
         // PR #8 second review: the trap row alone (with its declared door preparation), so the passed spell rows are not rerun.
         internal static readonly string[] Sprint3TrapCases = { "S3-trap-disarm" };
-        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : request.Scenario == "sprint3-approach-rt-neighbor" ? Sprint3NeighborCases :
+        private string[] Sprint3Cases => CastingTb ? Sprint3TurnBasedCases : request.Scenario == "sprint3-approach-rt-spells" ? Sprint3RealTimeCases.Skip(1).ToArray() : request.Scenario == "sprint3-approach-rt-neighbor" ? Sprint3NeighborCases :
             request.Scenario == "sprint3-approach-rt-trap" ? Sprint3TrapCases : Sprint3RealTimeCases;
         private string Sprint3Case => Sprint3Cases[s3CaseIndex];
         private const float Sprint3FriendlyDistantMetres = 12f, Sprint3FriendlyHeldMetres = 6f, Sprint3HostileSpawnMetres = 8f,

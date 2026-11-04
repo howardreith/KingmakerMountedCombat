@@ -12,7 +12,10 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         internal const string ChargeCommitCaseName = "mounted-charge-tb-committed-manual";
-        private bool ChargeCommitCase => request.PersistenceCase == ChargeCommitCaseName;
+        private bool ChargeCommitCase => request.PersistenceCase == ChargeCommitCaseName || IntegratedCase;
+        // Sprint 9: one rider and one fight. The off-turn borrow, its debt paid at the next preparation, a real charge on that turn, then the save.
+        internal const string IntegratedCaseName = "integrated-tb-feat-charge-manual";
+        private bool IntegratedCase => request.PersistenceCase == IntegratedCaseName;
         private TurnController chargeEndedTurn;
         private MountedPairAttackCommand chargeCommitCommand;
         private Sprint6RuleObserver chargeRules;

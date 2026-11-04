@@ -67,6 +67,8 @@ namespace KingmakerMountedCombat
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
+                DivineMountSmiteLogic.ReportLateRefusal = actor => world.ForActor(actor)?.Combat.ReportMountedSmiteRefusal(null, true);
+                DivineMountSmiteLogic.IsMountedMount = actor => { var pair = world.ForActor(actor); return pair != null && pair.Relationship.State == RelationshipState.Mounted && pair.Relationship.Mount == actor; };
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -348,11 +350,11 @@ namespace KingmakerMountedCombat
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Kingmaker Mounted Combat — private engineering candidate");
+            GUILayout.Label("Kingmaker Mounted Combat — release candidate");
             GUILayout.Label("CRPG transport: the mount moves the pair; rider and mount retain their own actions, health and effects.");
             GUILayout.Label("Select the rider, open their ability drawer, and use Mount Companion on their own eligible companion.");
             GUILayout.Label("Use Dismount on the rider to separate them. You can drag a control to an empty action-bar slot.");
-            GUILayout.Label("Use ordinary movement, attacks and spells. Rider Primary and Mount Primary select the corresponding actor's attack.");
+            GUILayout.Label("Use ordinary movement, attacks and spells. Select the mount and click to give it its own attack.");
             GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
                 " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
             var selected = world.Selected;
@@ -370,8 +372,8 @@ namespace KingmakerMountedCombat
                 "Enable Mounted Charge (this session; on again at the next launch)");
             GUI.enabled = priorEnabled;
             GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
-            GUILayout.Label("Mounts: your supported Mammoth or the Horse chosen through Ranger companion progression. Unsupported sizes, forms and rigs refuse admission.");
-            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign containing a KMC Horse still requires the mod.");
+            GUILayout.Label("Mounts: your supported Mammoth, or the Horse or Riding Dog from a Ranger's companion choice or a Paladin's Divine Bond. Unsupported sizes, forms and rigs refuse admission.");
+            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod. A Paladin who passes through KMC's level-five selection keeps that reference on either choice.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
             if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();
             GUI.enabled = priorEnabled;

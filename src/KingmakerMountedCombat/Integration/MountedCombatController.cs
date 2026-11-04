@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Kingmaker.Blueprints;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
@@ -210,7 +211,27 @@ namespace KingmakerMountedCombat.Integration
             return ReferenceEquals(commands.GetCommand(command.Type), command) &&
                 (OwnsExactUnifiedMountCommand(command) || ReferenceEquals(command, activeRiderTurnGroundMove) ||
                  ReferenceEquals(command, activeCommand?.DelegatedMove) || ReferenceEquals(command, activeDoorInteraction?.DelegatedMove) ||
-                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove) || ReferenceEquals(command, carriedApproach?.DelegatedMove));
+                 ReferenceEquals(command, pendingDoorSettlement?.RecoveryMove) || ReferenceEquals(command, carriedApproach?.DelegatedMove) ||
+                IsMountOwnSwiftAbility(command));
+        }
+
+        // Celestial Smite, an instant Swift ability, on the paired turn. The mount has no separate turn while mounted, so without this the command
+        // never starts (Sprint 9 a02). Native still checks availability and charges the mount's own Swift action. Other mount abilities are not admitted:
+        // a command with a real duration would need ticks a preparing turn does not give it.
+        internal bool IsMountOwnSwiftAbility(UnitCommand command) =>
+            command is UnitUseAbility ability && command.Type == UnitCommand.CommandType.Swift && ability.Spell?.Caster?.Unit == relationship.Mount &&
+            relationship.State == RelationshipState.Mounted && ability.Spell.Blueprint.GetComponent<DivineMountSmiteLogic>() != null;
+
+        internal int MountedSmiteRefusalCount { get; private set; }
+
+        // Nothing is spent and this request's own command is all that ends: the pair's accepted work carries on.
+        internal void ReportMountedSmiteRefusal(UnitCommand residentCommand, bool outOfReach)
+        {
+            if (residentCommand != null && !residentCommand.IsFinished) residentCommand.Interrupt();
+            if (!outOfReach) return; // native's own reason, such as a target that fell or a spent use: nothing here to explain or move toward
+            MountedSmiteRefusalCount++;
+            LastFeedback = DivineMountSmiteLogic.NeedsApproachMessage;
+            ShowStockFeedback();
         }
 
         internal bool PairedActivationEnabled => settings.EnablePairedActivation;

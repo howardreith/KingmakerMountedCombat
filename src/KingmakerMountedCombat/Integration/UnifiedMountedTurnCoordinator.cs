@@ -497,7 +497,23 @@ namespace KingmakerMountedCombat.Integration
 
         internal void AdmitExactMountCommand(UnitCommand command, ref bool result)
         {
-            if (PairedLifecycleEnabled) return; // Eligibility is extended inside native guards.
+            if (PairedLifecycleEnabled)
+            {
+                // Eligibility is extended inside native guards. A ridden mount's Smite never acquires its own approach: an unstarted request whose target
+                // has moved out of reach, or that native no longer allows, ends here in every phase and mode, before native could tick an approach.
+                if (command == null || combat == null || !combat.IsMountOwnSwiftAbility(command) || command.IsStarted || command.IsFinished) return;
+                var smite = (UnitUseAbility)command;
+                if (!command.IsUnitEnoughClose || !smite.Spell.IsAvailableForCast || !smite.Spell.CanTarget(smite.Target))
+                {
+                    combat.ReportMountedSmiteRefusal(command, !command.IsUnitEnoughClose);
+                    result = false;
+                    return;
+                }
+                // Native leaves Preparing only on the principal's own command, so the Smite as the turn's first action starts here.
+                if (!result && Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Status == TurnController.TurnStatus.Preparing &&
+                    NativeActorEligibleForCommand(command.Executor, command)) result = true;
+                return;
+            }
             if (disposed || command == null)
             {
                 return;

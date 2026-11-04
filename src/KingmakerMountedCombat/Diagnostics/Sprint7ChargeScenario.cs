@@ -25,6 +25,24 @@ namespace KingmakerMountedCombat.Diagnostics
     // after its row. The rows record native observations; the reader owns PASS/FAIL.
     internal static class MountedChargeFixture
     {
+        // Disclosed setup: a walkable point beyond the given reach of the mount.
+        internal static bool TryPlaceBeyond(UnitEntityData mount, UnitEntityData hostile, float reach, out JObject place)
+        {
+            place = null;
+            var origin = mount.Position;
+            foreach (var extra in new[] { 3f, 5f, 8f, 12f, 18f })
+                for (var angle = 0; angle < 360; angle += 15)
+                {
+                    var wanted = origin + Quaternion.Euler(0f, angle, 0f) * Vector3.forward * (reach + extra);
+                    var point = ObstacleAnalyzer.GetNearestNode(wanted).clampedPosition;
+                    if ((point.To2D() - wanted.To2D()).sqrMagnitude > 0.09f) continue;
+                    hostile.Translocate(point, null);
+                    place = new JObject { ["reach"] = reach, ["extra"] = extra, ["angle"] = angle, ["distance"] = Vector3.Distance(point, origin) };
+                    return true;
+                }
+            return false;
+        }
+
         internal static int NativeBuffCount(UnitEntityData rider) => rider.Buffs.Enumerable.Count(fact => fact.Blueprint == BlueprintRoot.Instance.SystemMechanics.ChargeBuff);
 
         // Disclosed setup: the hostile is placed on the nearest clear lane. Nothing about the lane is changed.

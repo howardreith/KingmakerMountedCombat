@@ -1,5 +1,7 @@
 # Kingmaker Mounted Combat: Chunk 7 release notes (DRAFT)
 
+> **Written for Chunk 7.** Its settings, Charge and rider limits predate Sprints 1 to 9. For the current candidate read [the Sprint 9 release notes](SPRINT9-RELEASE-NOTES.md) first.
+
 **This is not a public release.** It is a private engineering candidate. Owner/HUMAN PLAY acceptance is
 pending, F7 engineering qualification is PASS, and nothing here authorizes installing into a human
 campaign.
