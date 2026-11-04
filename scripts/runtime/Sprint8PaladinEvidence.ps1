@@ -134,7 +134,7 @@ function Assert-KmcS8MixedReverseCase($e){
 function Assert-KmcS8ArchetypeCase($e){
  if([string]::IsNullOrEmpty([string]$e.archetype)){ return } # Base game: no installed archetype replaces the bond.
  $five=Get-KmcS8LevelRecord $e.levels 5
- if($five.archetypeAdded -eq $false -or @($e.final.archetypes) -cnotcontains [string]$e.archetype){ throw 'Sprint 8 archetype: the native archetype was refused' }
+ if(@($e.levels|Where-Object{$null -ne $_.PSObject.Properties['archetypeAdded'] -and $_.archetypeAdded -eq $false}).Count -ne 0 -or @($e.final.archetypes) -cnotcontains [string]$e.archetype){ throw 'Sprint 8 archetype: the native archetype was refused' }
  if($null -ne $five.PSObject.Properties['DivineBondSelection'] -or $e.final.weaponBond -ne $false -or $e.final.mountBond -ne $false -or $null -ne $e.final.pet){ throw 'Sprint 8 archetype: a replaced bond was still offered or granted' }
 }
 function Assert-KmcSprint8PaladinEvidence {
