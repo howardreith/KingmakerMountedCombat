@@ -2746,3 +2746,5 @@ Both available Windows UI routes report a missing native pipe (os error 2), incl
 Owner confirmed Computer Use Any App is enabled and app open. Client kernel fails starting Windows sandbox setup helper (program not found); independent CUA runtime also exits. Not a missing app permission. Native acceptance remains TODO, launches zero.
 
 Direct push was rejected by automatic approval review, which requires the exact guarded helper. Existing helper's fixed old worktree/branch/image pins reject selected F1 scope. Original helper unchanged; narrow reviewed proposal plus read-only WhatIf/negative checks prepared, owner approval pending. No push or PR. See AUTONOMOUS-RESUME.md for exact paths and next command.
+
+F1 guarded publication blocker resolved by explicit owner approval: reviewed exact helper installed with backup, WhatIf passed, guarded push verified. Draft PR #16 open. Native UI startup blocker remains; no game launch. Meter 10.13/60 at publication, 0/3 launches; package/source unchanged.
