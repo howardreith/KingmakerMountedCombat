@@ -170,7 +170,8 @@ function Assert-KmcSprint8PaladinPersistence($o,[bool]$Cold){
  if(-not $Cold){
   $a=$o.acquisition
   if($null -eq $a -or $null -eq $a.owner -or $null -eq $a.oldWeapon){ throw 'The Paladin save producer recorded no bond facts' }
-  Assert-KmcS8MountFacts $a.owner 'producer' $script:KmcS8HorseUnit 'Horse'
+  Assert-KmcS8MountOwnerFacts $a.owner 'producer' 'Horse'
+  if([string]$a.owner.pet.blueprint -cne $script:KmcS8HorseUnit -or [string]$a.owner.pet.master -cne [string]$a.owner.id -or [int]$a.owner.pet.intelligence -lt 6){ throw 'The Paladin producer has no exact owned mount' }
   Assert-KmcS8Weapon $a.oldWeapon 'producer old character'
   if(@($a.oldWeaponStockEntry) -cnotcontains 'WeaponBondFeature'){ throw 'The old character was not built on the stock class' }
   if([int]$a.owner.rank -ne 5 -or @($a.petCommits|Where-Object{$_.committed -ne $true}).Count -ne 0){ throw 'The Paladin producer did not reach rank 5 by native commits' }
