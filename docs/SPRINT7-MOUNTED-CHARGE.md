@@ -7,13 +7,13 @@
 | | |
 |---|---|
 | Baseline | `main` `4efd45a0`, the real merge of PR #11 |
-| Final compiled source | `5f7c214b`, candidate sprint7j. Later commits are docs only |
-| DLL | SHA-256 `b1cfd8d40f5d8f03955ef6a123176c66f5b7d6b4ceed387f4b425642645cd649`, MVID `6af2075f-5a09-4494-8d50-a3e73c007b09`, 8,718,848 bytes (limit 9 MiB) |
-| Package | `KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint7j-diagnostic.zip`, SHA-256 `e65b0ccff8ffd2f310a22ec3a1861d0e571f07cd0400503b22aa8de124f2e2f3` |
-| Suite | `sprint7j-5f7c214b-20261103` |
-| Accepted product runs' candidate | sprint7i, `31f48c19`, DLL `cc7ffb1eed2454fc80c1fc9d0935caffe66894ca0f6651880e3fba0250f16ad6`, MVID `bf09bc6f-ba41-478f-a44d-c31867ba5e07`, package `222d0af4eb53e77255003e3367d09512c819f5aed1c2009ab669b46ccea7d293`, suite `sprint7i-31f48c19-20261103` |
+| Final compiled source | `ca10a71d`, candidate sprint7l. Later commits are docs only |
+| DLL | SHA-256 `aa21102355b6714005537d706a0413806c404b167926ba020f0f9efdc057f80d`, MVID `49f21a56-9601-4ca1-a5da-0525394ddd9c`, 8,730,112 bytes (limit 9 MiB) |
+| Package | `KingmakerMountedCombat-0.1.0-chunk7b-preview.100-sprint7l-diagnostic.zip`, SHA-256 `825bc569941708aa3aa0213d2b8a2150ef6efa8badb26e59497bf078f7b9e648` |
+| Suite | `sprint7l-ca10a71d-20261103` |
+| Earlier accepted candidates | sprint7i, `31f48c19`, DLL `cc7ffb1eed2454fc80c1fc9d0935caffe66894ca0f6651880e3fba0250f16ad6`, MVID `bf09bc6f-ba41-478f-a44d-c31867ba5e07` (a01 to a05). sprint7j, `5f7c214b`, DLL `b1cfd8d40f5d8f03955ef6a123176c66f5b7d6b4ceed387f4b425642645cd649`, MVID `6af2075f-5a09-4494-8d50-a3e73c007b09` (a06) |
 
-sprint7j differs from sprint7i only by the Pounce control row and reader registrations: `git diff 31f48c19..5f7c214b -- src` touches `Diagnostics` alone. So a01 to a05 stay on sprint7i's bytes and a06 on sprint7j's. Candidate passed on both. No old PASS is relabelled.
+The final source changes shared admission, cleanup and lane code since sprint7i and sprint7j. a01 to a06 stay on their own bytes and are not relabelled; see Evidence for what the corrective runs do and do not re-exercise.
 
 ## What was wrong and what changed
 
@@ -60,7 +60,7 @@ Declared CRPG adaptations, for review:
 
 ## Evidence
 
-Budget `sprint7`: 63.88 of 90 minutes, no adjustment, 12 launches. Runs are under `runtime-evidence\`, prefix `20261103-sprint7-`. Each restored exactly: the Mods tree was empty before and after, the same as each run's captured start.
+Budget `sprint7`: 77.75 of 90 minutes at the final Candidate, no adjustment, 15 launches including the corrections below. Runs are under `runtime-evidence\`, prefix `20261103-sprint7-`. Each restored exactly: the Mods tree was empty before and after, the same as each run's captured start.
 
 | Run | Candidate | What | Verdict |
 |---|---|---|---|
@@ -83,9 +83,9 @@ Preserved earlier attempts, all restored:
 | `r06-tbm` | sprint7f | FAIL retained: schema 51 absent from a master list; the artifact passes the reader |
 | `s01-save` | sprint7g | FAIL retained: reader expected the second rider's turn; re-evaluated PASS |
 
-Re-evaluations: `analysis-cache\sprint7\`. Reader: `scripts\runtime\Sprint7ChargeEvidence.ps1`; synthetic checks `scripts\Test-Sprint7ChargeReaders.ps1` (68 PASS). Candidate passed on sprint7i and sprint7j with `Test-Chunk6bCharge` focused (502 reader checks). `Test-Chunk6bChargePath` (142) passed directly on `7e8eccd2`, before the later corrections, and was not rerun.
+Re-evaluations: `analysis-cache\sprint7\`. Reader: `scripts\runtime\Sprint7ChargeEvidence.ps1`; synthetic checks `scripts\Test-Sprint7ChargeReaders.ps1` (68 PASS). Candidate passed on sprint7i, sprint7j and sprint7l with `Test-Chunk6bCharge` focused (502 reader checks). `Test-Chunk6bChargePath` (142) passed directly on `7e8eccd2`, before the later corrections, and was not rerun.
 
-Reviews: one independent production review before live use (corrections in `7e8eccd2`) and one delta review (corrections in `3dda516a`).
+Reviews: one independent production review before live use (corrections in `7e8eccd2`), one delta review (corrections in `3dda516a`), and one delta review of the queue and lane correction before its live use (corrections in `e45dba6c`).
 
 **Baseline failures, reproduced once on accepted Sprint 6 `8da3272d`, not caused here:** `Test-ChargeOwnershipContracts.ps1` stops at "compiled two-pair native adapter refuses a third reservation"; `Test-ChargeBuffSurface.ps1` fails resolving an installed path.
 
@@ -101,6 +101,56 @@ Reviews: one independent production review before live use (corrections in `7e8e
 - A rider with real iterative attacks under Pounce.
 
 **Stale historical diagnostics, not selected:** `C7-combat-tb-charge-refusal` (`ProveChargeRefusal`) and the `chunk6b-charge-tb` refusal row prove the retired TB refusal. They would need rewriting before any re-run. Older charge persistence rows that expect no buff after delivery may need the same.
+
+## Review corrections: queue ownership and body-clearance revalidation
+
+Two control-flow findings from the review of PR #12 at `e21625d2`. The review was static and reproduced no gameplay failure.
+
+**A. A pending or refused request must not cancel a live Charge.** Admission used to drain the charge on any unowned request, before it knew what the request would become.
+
+Native contracts inspected:
+- Public `Run` clears the queue, then may merge, queue (`TryAddToQueueInsteadOfRunImmediately`) or displace.
+- `AddToQueue` runs at once when the slot is free, and that `Run` interrupts the paired slot.
+- `AddToQueueInternal` is the true enqueue.
+- Promotion is private `Run(fromQueue: true)`, after `RemoveFirst`, with both slots empty.
+
+`MountedChargeRequestPolicy` now decides by route, and nothing it returns for a live charge is destructive:
+
+| Request during a live charge | Result |
+|---|---|
+| The charge's own shell, attack or carrier | Admitted |
+| Brain proposal | Waits; never ends the charge |
+| Rider enqueue, including `AddToQueue` with a free slot | Pending; never reaches the `Run` that would interrupt |
+| Mount enqueue, or a mount `Run` native would queue | Refused with a message, nothing changed |
+| Any request while the attack waits in the queue, or a mount order during the shell's frames | Refused with a message: native `Run` would clear the attack, or delivery would end the order |
+| Queue promotion | Goes back on the queue, neither dropped nor displacing |
+| Public `Run` on the rider or mount | Decided by the later gates. A refusal changes nothing. If admitted, native displaces the exact command or carrier, and the charge reaches its own terminal once, keeping the cost |
+
+**Narrow limitation, chosen on purpose:** the mount cannot hold a queued order during a charge, because each carrier's native `Run` clears the mount's queue and the order would vanish silently. It is refused with a message instead. The blanket mount-queue checks in revalidation and carrier admission stay valid for the same reason.
+
+Terminal cleanup leaves a successor alone. The charge's manual target is released at its terminal, before native `Run` writes the successor's. The forced path is stopped unless a Move or Standard order holds a path of its own, decided by path identity (`HoldsForcedLine`), so a Free or Swift command such as an attack of opportunity cannot leave the line running. An attack cleared from the queue by native `Run` is detected and drained.
+
+**B. A forced line must meet the same body rule.** Revalidation fed only the centre trace.
+- `MountedChargeLane` is now the one rule: both flanks at 0.8 corpulence, at half-corpulence steps, including the landing footprint, skipping ground the body already covers. Admission and revalidation share it.
+- `LaneClear` defaults to false in the `BeforeRepath` phase, the only phase that precedes a forced line, so a caller feeding the centre alone fails closed.
+- Enforced at: the first `Apply`, every `Repath`, each new carrier's re-force, and the stopped-line re-force (`NeedsReforce` gates `Maintain`). A running line reads nothing, so there is no per-frame scan; the legacy tick reads the lane only before a re-force.
+- Later phases are unchanged: the native attack admission, landing check and final range still decide arrival. Minimum distance and free actions are not re-asked after commitment.
+
+**Focused checks** (`Test-Sprint7ChargeAdmission.ps1`, the compiled controller and carrier on real native container and command types; `MountedChargeRevalidationTests`). Against the reviewed DLL `b1cfd8d4...`, the admission script reported **PASS=2 FAIL=6**, including a drain on a merely pending follow-up. After: **PASS=11 FAIL=0**. The lane and route decisions are unit tests of the production functions with narrow and wide mounts, and readers now have 83 synthetic checks. A brain proposal's `AiAction` is a Unity object whose null test needs the engine, so that case is covered by the policy test and the native rows, not the adapter.
+
+**Native confirmation:**
+
+| Run | Candidate | What | Verdict |
+|---|---|---|---|
+| `20261104-sprint7-q01-rt` | sprint7k | The refusals and pending follow-up held with the same command, forced-path count, cleanup count and cost, and the charge delivered. The row then stalled: a raw queued rider attack cannot close its own distance | FAIL retained; fixture, not Charge |
+| `20261104-sprint7-q02-rt` | sprint7l | Same requests with the brain live. Follow-up promoted after delivery. A ground order replaced a charge: Interrupt, cost kept, no attack, no buff, and the successor moved 2.11 m. A target moved to a clear lane: followed and delivered, forced count 2. **A live centre-clear, flank-blocked lane:** "no longer clears the mount's body", forced count stayed 1, no attack, cost kept | PASS |
+| `20261104-sprint7-q03-tb` | sprint7l | A stopped lawful line re-forced and delivered, forced count 2, rider 6/3. A flank-blocked lane cancelled in the turn: rider 6/3, mount Move 0.02, no attack or buff, next activation arrives | PASS |
+
+Limits of this confirmation:
+- In q03 the target moved past the repath distance as well as the path stopping, so the repath's lane read decided it. A stopped path with a lane changed by a smaller move is covered only by `MustAuthorizeReforce` and the same call site.
+- The promoted raw attack shows the successor becoming active, not attacking: raw queued rider attacks are not a route ordinary play reaches for a mounted rider.
+- Only a Mammoth pair ran natively. Narrow and wide bodies are unit tests of the lane decision, not native evidence.
+- Mount-first, the committed save and cold load, and Pounce were not repeated on the corrective source. Those paths share the admission and cleanup code, and a01 to a06 remain on their own bytes.
 
 ## Owner play checklist
 
