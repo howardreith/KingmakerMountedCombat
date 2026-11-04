@@ -302,6 +302,7 @@ namespace KingmakerMountedCombat.Integration
                 foreach (var reference in party)
                 {
                     var owner = reference.Value;
+                    SyncDivineMountPetBenefits(owner);
                     var fact = owner?.Descriptor?.GetFact(horseFeature) ??
                         (ridingDogFeature == null ? null : owner?.Descriptor?.GetFact(ridingDogFeature)) ??
                         (divineMountHorse == null ? null : owner?.Descriptor?.GetFact(divineMountHorse)) ??
@@ -320,7 +321,6 @@ namespace KingmakerMountedCombat.Integration
                             pet?.UniqueId ?? "<null>", pet?.Blueprint?.AssetGuid ?? "<null>",
                             pet?.Descriptor?.Master.Value?.UniqueId ?? "<null>", negativeSign);
                         var observedOwnerId = owner.UniqueId;
-                        ApplyDivineMountPetBenefits(owner, observation, observedOwnerId);
                         HorseActivationObservation prior;
                         if (!observedActivationByOwner.TryGetValue(observedOwnerId, out prior) ||
                             !prior.Matches(observation))

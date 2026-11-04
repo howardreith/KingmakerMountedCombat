@@ -110,6 +110,26 @@ namespace KingmakerMountedCombat.Diagnostics
             return record;
         }
 
+        internal JObject CancelOwnLevel(UnitDescriptor unit)
+        {
+            var original = SettingsRoot.Instance.AutoLevelup.CurrentValue;
+            LevelUpController controller = null;
+            var record = new JObject { ["nextLevel"] = unit.Progression.CharacterLevel + 1 };
+            try
+            {
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = AutolevelupState.Off;
+                controller = LevelUpController.StartWithoutAssigningStaticInstance(unit);
+                Fill(controller, record);
+                record["complete"] = controller.State.IsComplete();
+            }
+            finally
+            {
+                controller?.Cancel();
+                SettingsRoot.Instance.AutoLevelup.CurrentValue = original;
+            }
+            return record;
+        }
+
         private void Finish(JObject record)
         {
             if (Snapshot != null && Hired != null) record["after"] = Snapshot(Hired);
@@ -166,7 +186,13 @@ namespace KingmakerMountedCombat.Diagnostics
             string wanted;
             IFeatureSelectionItem chosen;
             if (Choices.TryGetValue(selection.AssetGuid, out wanted))
+            {
                 chosen = items.Single(item => item.Feature?.AssetGuid == wanted);
+                var refusals = new JArray();
+                record[selection.name + "IllegalAttempts"] = refusals;
+                foreach (var illegal in items.Where(item => !((BlueprintFeatureSelection)pending.Selection).CanSelect(controller.Preview, controller.State, pending, item)))
+                    refusals.Add(new JObject { ["name"] = illegal.Feature.name, ["accepted"] = controller.SelectFeature(pending, illegal) });
+            }
             else
             {
                 chosen = items.Where(item => item.Feature != null && item.Feature.GetComponent<AddPet>() == null && !(item.Feature is BlueprintParametrizedFeature) &&
@@ -178,6 +204,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chosen == null) throw new InvalidOperationException("No legal choice in " + selection.name + ".");
             if (!controller.SelectFeature(pending, chosen)) throw new InvalidOperationException("The native controller refused " + chosen.Feature.name + " in " + selection.name + ".");
+            record[selection.name + "DuplicateAccepted"] = controller.SelectFeature(pending, chosen);
             RecordChoice(record, selection.name + "=" + chosen.Feature.name);
         }
 
@@ -276,7 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (evt.Initiator != attacker) return;
             LastAdditionalDamage = attacker.Stats.AdditionalDamage.ModifiedValue;
-            LastAttackBonus = attacker.Stats.AdditionalAttackBonus.ModifiedValue;
+            LastAttackBonus = evt.AttackBonus;
         }
 
         public void Dispose() => EventBus.Unsubscribe(this);
@@ -514,6 +541,16 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["druidRankClasses"] = rangerRank == null ? null : new JArray(rangerRank.Classes.Select(value => value.name));
             s8Facts["party"] = new JArray(Game.Instance.Player.PartyCharacters.Select(reference => reference.Value).Select(unit => new JObject { ["id"] = unit.UniqueId, ["blueprint"] = unit.Blueprint.name,
                 ["level"] = unit.Descriptor.Progression.CharacterLevel, ["pet"] = unit.Descriptor.Pet?.Blueprint?.name, ["size"] = unit.Descriptor.OriginalSize.ToString() }));
+            var bondEntry = progression.LevelEntries.Single(value => value.Level == 5 && value.Features.Contains(horseService.DivineBondSelection));
+            var slot = bondEntry.Features.IndexOf(horseService.DivineBondSelection);
+            var foreign = progression.LevelEntries.First(value => value.Level == 4).Features[0];
+            bondEntry.Features[slot] = foreign;
+            var drift = new JObject { ["enableAccepted"] = horseService.SetSelectionEnabled(true), ["applied"] = horseService.DivineBondApplied, ["failure"] = horseService.DivineMountFailure, ["slotKept"] = ReferenceEquals(bondEntry.Features[slot], foreign) };
+            s8Facts["drift"] = drift;
+            bondEntry.Features[slot] = horseService.DivineBondSelection;
+            horseService.SetSelectionEnabled(true);
+            drift["reapplied"] = horseService.DivineBondApplied;
+            drift["failureAfter"] = horseService.DivineMountFailure;
             var mammoth = library.TryGetValue(HorseCompanionBlueprintService.MammothUnitGuid, out var unitValue) ? unitValue as BlueprintUnit : null;
             s8Facts["petFacts"] = mammoth == null ? null : new JArray(mammoth.AddFacts.Select(fact => fact?.name));
             yield break;
@@ -708,8 +745,13 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Facts["smite"] = smite;
             var weapon = pet.GetFirstWeapon();
             s8Probe = new Sprint8SmiteProbe(pet);
+            // Disclosed setup: a Charisma with a bonus, since a horse's has none to add.
+            var charisma = pet.Stats.Charisma.BaseValue;
+            pet.Stats.Charisma.BaseValue = 14;
+            smite["charismaBonus"] = pet.Stats.Charisma.Bonus;
             Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, weapon, 0));
             smite["additionalDamageUnmarked"] = s8Probe.LastAdditionalDamage;
+            smite["attackBonusUnmarked"] = s8Probe.LastAttackBonus;
             var ability = pet.Descriptor.Abilities.GetAbility(horseService.DivineMountSmiteAbility)?.Data;
             var wrapper = new Kingmaker.Utility.TargetWrapper(s8Hostile);
             smite["canTarget"] = ability?.CanTarget(wrapper);
@@ -720,9 +762,23 @@ namespace KingmakerMountedCombat.Diagnostics
             smite["marked"] = s8Hostile.Descriptor.HasFact(horseService.DivineMountSmiteBuff);
             Rulebook.Trigger(new RuleAttackWithWeapon(pet, s8Hostile, weapon, 0));
             smite["additionalDamageMarked"] = s8Probe.LastAdditionalDamage;
+            smite["attackBonusMarked"] = s8Probe.LastAttackBonus;
+            pet.Stats.Charisma.BaseValue = charisma;
+            var mark = s8Hostile.Descriptor.Buffs.GetFact(horseService.DivineMountSmiteBuff) as Kingmaker.UnitLogic.Buffs.Buff;
+            smite["markExpires"] = mark != null && !mark.IsPermanent;
             smite["petHitDice"] = pet.Descriptor.Progression.CharacterLevel;
             s8Probe.Dispose(); s8Probe = null;
             s8Rules.Dispose(); s8Rules = null;
+            // With the choice switched off, a mount-bonded character still takes no weapon upgrade.
+            horseService.SetSelectionEnabled(false);
+            s8SelectionDisabled = true;
+            s8Facts["whileDisabled"] = new JObject { ["applied"] = horseService.DivineBondApplied,
+                ["entry"] = new JArray(horseService.FilterLevelEntryFeatures(s8Owner.Descriptor, horseService.WeaponBondUpgrades.ToList()).Select(value => value.name)) };
+            horseService.SetSelectionEnabled(true);
+            s8SelectionDisabled = false;
+            // A character outside the party keeps the stock bond at the same entry.
+            var entryFeatures = new System.Collections.Generic.List<BlueprintFeatureBase> { horseService.DivineBondSelection };
+            s8Facts["outsideParty"] = new JObject { ["playerFaction"] = s8Hostile.Descriptor.IsPlayerFaction, ["entry"] = new JArray(horseService.FilterLevelEntryFeatures(s8Hostile.Descriptor, entryFeatures).Select(value => value.name)) };
             for (var frame = 0; frame < 300 && !s8TargetService.DestroyAndVerify(); frame++) yield return null;
             s8TargetService.Dispose(); s8TargetService = null; s8Hostile = null;
 
@@ -730,6 +786,23 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var frame = 0; frame < 600 && state() == RelationshipState.Mounted; frame++) yield return null;
             s8Facts["dismounted"] = state() != RelationshipState.Mounted;
             for (var frame = 0; frame < 30; frame++) yield return null;
+
+            // A fallen mount: the call refuses, and the same companion comes back by the native rule, its facts intact.
+            var fallen = new JObject { ["petBefore"] = pet.UniqueId };
+            s8Facts["fallen"] = fallen;
+            pet.Damage = pet.MaxHP + 1;
+            for (var frame = 0; frame < 240 && pet.Descriptor.State.IsConscious; frame++) yield return null;
+            fallen["conscious"] = pet.Descriptor.State.IsConscious;
+            fallen["dead"] = pet.Descriptor.State.IsFinallyDead;
+            var fallenCall = s8Owner.Descriptor.Abilities.GetAbility(horseService.DivineMountCallAbility)?.Data;
+            s8Owner.Descriptor.Resources.Restore(horseService.DivineMountCallResource);
+            fallen["callAvailable"] = fallenCall?.IsAvailableForCast;
+            pet.Descriptor.ResurrectAndFullRestore();
+            for (var frame = 0; frame < 30; frame++) yield return null;
+            fallen["consciousAfter"] = pet.Descriptor.State.IsConscious;
+            fallen["callAvailableAfter"] = fallenCall?.IsAvailableForCast;
+            fallen["petAfter"] = s8Owner.Descriptor.Pet?.UniqueId;
+
             s8Facts["after"] = Sprint8Snapshot(s8Owner.Descriptor);
         }
 
@@ -763,6 +836,16 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var frame = 0; frame < 600 && state() == RelationshipState.Mounted; frame++) yield return null;
             s8Facts["dismounted"] = state() != RelationshipState.Mounted;
             s8Facts["final"] = Sprint8Snapshot(unit);
+
+            // The native paid dismissal: the owner leaves and takes the companion with it.
+            for (var frame = 0; frame < 60; frame++) yield return null;
+            var petId = pet.UniqueId;
+            var ownerId = s8Owner.UniqueId;
+            Game.Instance.Player.DismissCompanion(s8Owner);
+            s8Owner = null;
+            for (var frame = 0; frame < 60; frame++) yield return null;
+            s8Facts["dismissal"] = new JObject { ["ownerInParty"] = Game.Instance.Player.AllCharacters.Any(value => value.UniqueId == ownerId), ["petDestroyed"] = pet.Destroyed,
+                ["petMaster"] = pet.Destroyed ? null : pet.Descriptor.Master.Value?.UniqueId, ["orphanPets"] = Game.Instance.State.Units.Count(value => value.UniqueId == petId && !value.Destroyed) };
         }
 
         // A companion from another class stays the one companion, and the levels stack.
@@ -783,6 +866,15 @@ namespace KingmakerMountedCombat.Diagnostics
             s8Owner = unit.Unit;
             var field = Sprint8Field();
             while (field.MoveNext()) yield return null;
+            original = unit.Pet;
+            s8Facts["beforePaladin"] = Sprint8Snapshot(unit);
+            var approach = Sprint8LevelTo(build, unit, 8);
+            while (approach.MoveNext()) yield return null;
+            // The bond chosen in a level that is then abandoned leaves the owner and the real pet as they were.
+            Sprint8GrantExperienceFor(unit, 9);
+            s8Facts["cancelled"] = build.CancelOwnLevel(unit);
+            yield return null;
+            s8Facts["afterCancel"] = Sprint8Snapshot(unit);
             var level = Sprint8LevelTo(build, unit, 9);
             while (level.MoveNext()) yield return null;
             for (var frame = 0; frame < 30; frame++) yield return null;
@@ -824,7 +916,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private IEnumerator Sprint8ArchetypeCase()
         {
             var paladin = horseService.PaladinClass;
-            var archetype = paladin.Archetypes.FirstOrDefault(value => (value.RemoveFeatures ?? new LevelEntry[0]).Any(entry => entry.Level == 5 && entry.Features.Contains(horseService.DivineBondSelection)));
+            var archetype = paladin.Archetypes.FirstOrDefault(value => (value.RemoveFeatures ?? new LevelEntry[0]).Any(entry => entry.Level == 5 && (entry.Features.Contains(horseService.DivineBondSelection) || entry.Features.Contains(horseService.WeaponBondFeature))));
             s8Facts["archetype"] = archetype?.name;
             if (archetype == null) yield break;
             var build = Sprint8NewBuild(Sprint8HumanRace, Gender.Male, "KMC_S8_Archetype");

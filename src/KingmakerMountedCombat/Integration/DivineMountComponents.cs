@@ -18,6 +18,7 @@ using Kingmaker.UnitLogic.Parts;
 using Kingmaker.Utility;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
+using Newtonsoft.Json;
 using UnityEngine;
 using Kingmaker.Blueprints.Classes.Selection;
 
@@ -62,6 +63,7 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class DivineMountSpellResistance : OwnedGameLogicComponent<UnitDescriptor>, IUnitGainLevelHandler, IGlobalSubscriber
     {
         public BlueprintCharacterClass PaladinClass;
+        [JsonProperty]
         private int? appliedId;
 
         public override void OnTurnOn()
@@ -141,7 +143,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var unit = target?.Unit;
             if (unit == null) yield break;
-            unit.Descriptor.AddBuff(Mark, context, null);
+            unit.Descriptor.AddBuff(Mark, context, TimeSpan.FromDays(1));
             yield return new AbilityDeliveryTarget(target);
         }
 
