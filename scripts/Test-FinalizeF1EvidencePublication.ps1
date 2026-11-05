@@ -9,7 +9,8 @@ foreach($name in @('Get-KmcReviewedOriginalAssetSha256','Test-KmcReviewedOrigina
  . ([scriptblock]::Create($node.Extent.Text))
 }
 $manifest=Read-KmcJson (Join-Path (Get-KmcRepositoryRoot) 'docs/evidence/finalize-f1/native-evidence.json');$count=0
-foreach($row in $manifest.images){
+$finish=Read-KmcJson (Join-Path (Get-KmcRepositoryRoot) 'docs/evidence/finalize-f1/finish-native-evidence.json')
+foreach($row in @($manifest.images)+@($finish.images)){
  $sha=Get-KmcSha256 (Join-Path (Get-KmcRepositoryRoot) $row.path)
  if(-not(Test-KmcReviewedOriginalAsset $row.path $sha)-or$sha-cne$row.sha256){throw 'Declared native PNG not admitted'};$count++
  if(Test-KmcReviewedOriginalAsset $row.path ('0'*64)){throw 'Modified native PNG admitted'};$count++

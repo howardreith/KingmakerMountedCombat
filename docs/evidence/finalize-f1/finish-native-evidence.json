@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "nativeRunId": "20261105-finalize-f1-finish-02",
+  "nativeVerdict": "PASS",
+  "verdictScope": "Lifecycle, identity, restoration and native-transition reader verdict. Visual outcomes below are inspection of these frames, not reader assertions.",
+  "operator": "Claude: synthetic Win32 mouse/keyboard input and full-screen GDI capture from PowerShell, refused unless the game window was foreground. Computer-use tooling was not available in this session.",
+  "productSource": "39a153cf9524683d615f9efef60ff38c45fcd123",
+  "executionHead": "a53e6275c033dc87c30390513ddc05242caddc91",
+  "dllSha256": "8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072",
+  "packageSha256": "4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39",
+  "observer": {
+    "version": "0.1.0-observer.7",
+    "packageSha256": "a90df23f839209b2e196ecefb64f368d58e570d8ed0ba6d5efa4520438fca966",
+    "dllSha256": "5c60d6ff428c05b095802c4a54032de4fad6beda4cb1355f2a6128bd4b254516"
+  },
+  "resultSha256": {
+    "runtimeResult": "578e79b3286efc8a9d97ac613c1ff9f29c8c462d4d9523e045cb6781db9c8bbd",
+    "observerResult": "d677e59c0e404f97dc8992657d950ad0f8aadfd5c0dfcba14f0bb427c46187a4",
+    "gameResult": "4184303d907a3818fa4c19d429ff3a6d373b923df0184c24844c18c3ee2b5e7c",
+    "observations": "45f3cabe2b4b0f4bf60f401813e8d7c1be0a30138dafd9c2439993d22926f3f3"
+  },
+  "configuration": "Kingmaker2.1.7b;UMM0.33.2.0;KMCpreview103-F1c;ScrollFix1.0.0;Observer0.1.0-observer.7;2560x1440;first creator Elf/Rogue1;fresh creator Elf/Slayer1;scene Manual_308 rider 73681ef2 mounted by native command, Mounted Combat granted in memory",
+  "images": [
+    { "path": "docs/evidence/finalize-f1/captures/finish-removal-eligible-group.png", "sha256": "fb6ad205fa337eab597dd22131cd137ddaf28c341466d41b5787c6e74a67803a", "sourceFrame": "19-eligible-gap", "observation": "Rank 0: eligible group runs Martial Weapons Proficiency directly to Persuasive; Mounted Combat has left it and the feat slot is empty." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-removal-unavailable-tooltip.png", "sha256": "8686905b4f216d308842e48927d2cfd18e98dfc154ab5fdc94ad432c5925bfdf", "sourceFrame": "24-removed-tooltip", "observation": "Rank 0: Mounted Combat is in the alphabetical unavailable group with a red Mobility 1 prerequisite. OPEN DEFECT: the row keeps the black selected style with a nearly unreadable label although the selection is cleared." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-fresh-row-selected.png", "sha256": "b94234074f5f5e5f518cd4d6c9d0d0958baae88e5adc647b2dfc255302e0ca09", "sourceFrame": "29-fresh-row-selected", "observation": "Fresh preview after cancellation: clicking Alertness selects it and fills the feat slot." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-fresh-mounted-combat-unavailable.png", "sha256": "da9c4be4adfbd0378c52fccf988e813e125a0753c68380a56a201e3ab2dae58a", "sourceFrame": "31-fresh-mc-red", "observation": "Fresh preview at rank 0: Mounted Combat is an ordinary red unavailable row with a readable label; no inherited selected style." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-reaction-on-tooltip.png", "sha256": "f7d429e795510961d95582cbf8ccc44dd09cb37b2aeff70c4a3fc15b12aa8da6", "sourceFrame": "33-reaction-on-tooltip", "observation": "Real toolbar reaction icon on, with its resolved tooltip." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-reaction-off.png", "sha256": "d015cf3fefb65290b26d4abb9499b436b8204b48d9ed28e2ea48e601ac348b3f", "sourceFrame": "35-reaction-off", "observation": "Same icon off: green frame gone, glyph unchanged and readable. Native on/off transitions were also observed by the observer." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-charge-tooltip.png", "sha256": "71f0fdec12c2e230739ae8f797c3059a0f5f1a913d542952dc307af4b2bdd9ee", "sourceFrame": "39-ab5", "observation": "Mounted Charge tooltip with fully resolved name, restriction and description; no raw key." },
+    { "path": "docs/evidence/finalize-f1/captures/finish-umm-kmc-page.png", "sha256": "1b2f26b24d9e457f88f99b974781e13d15d57099d1db3a293d0919121543bfb4", "sourceFrame": "43-umm-kmc", "observation": "Ordinary KMC UMM page after mount, toggle and a ground command: version, how-to, setting, save-dependency warning, removal action and collapsed diagnostics; one player-readable feedback line." }
+  ]
+}

@@ -1,27 +1,16 @@
-# F1 resume — PARTIAL; native admission no longer fits
+# F1 resume — review stop
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1; branch codex/kmc-finalize-f1-creation-ui-icons; draft PR16. Read CURRENT.md and docs/FINALIZE-F1-REVIEW-HANDOFF.md. Preserve newer work. Do not restart intake or historical campaigns.
 
-Product source39a153cf9524683d615f9efef60ff38c45fcd123, unchanged F1c main package4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39; DLL8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072. Existing freeze/suite/detached source unchanged.
+State: the finishing run 20261105-finalize-f1-finish-02 passed and restored. All three F1 starts are used. Nothing runs from this resume: no launch, allowance increase or F2 is authorized.
 
-New external finishing mode compiled and reviewed. ObserverC source4454a7b3136d4245303a711d888d56b58b423cdf, version.7, ZIPa90df23f839209b2e196ecefb64f368d58e570d8ed0ba6d5efa4520438fca966, DLL5c60d6ff428c05b095802c4a54032de4fad6beda4cb1355f2a6128bd4b254516/MVIDd904cee8-a9b9-42f9-8cf7-a5b127d0308e. Artifact lab artifacts/KmcRemovalObserver-0.1.0-observer.7-finalize-f1-finish-c-diagnostic.zip. Exact F1 source admission allows only unchanged compiled observer/import tree on clean producer descendants; legacy exactHEAD unchanged. Do not rebuild it for docs.
+Waiting on one decision: fix the stale black row after rank removal under a new bounded allowance, or accept it as a limitation and close F1. A fix changes frozen product 39a153cf, so it needs a new package, suite, observer identity check and start; do not relabel run -02's evidence onto it.
 
-Prepared run20261105-finalize-f1-finish-01 uses new scenariofinalize-f1-finish and original Manual308 SHA b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291, exact declared rider/Horse. Existing16 closed checkpoint pins rechecked; no arbitrary cache. Two creator cancels/removal/current-disabledrow/fresh-no-fact gate precedes load. Native SaveManager save requests blocked; only native in-memory feature grant on disposable rider, no acquisition/writeback claim. Native Mount then hold for UI; toggle transitions and visible observer Finish button;1100s timeout. Own-intake preference restoration, not old recovery pins. Original creator-only no-area rule untouched.
+Facts for a successor:
+- WhatIf stops before Test-RuntimeRequest, so a WhatIf PASS does not prove the live request is admissible. Run the validator directly on a generated request.
+- The observer's refresh-scroll probe returns -99 because no parent ScrollRect is found from the layer. It needs correcting before it can answer the scroll-reset question.
+- Creator Next requires all ability and skill points spent. Reaching the feat page takes 14 ability clicks and all skill points.
+- UMM's Ctrl+F10 needs real scan codes under synthetic input. Confirm the window opened before clicking.
+- The publishing helper registers images by exact path and SHA, and each new image needs owner approval; see docs/evidence/finalize-f1/publishing-authority.json.
 
-No final game start or staging occurred.22 new focused cases and52 legacy neighbors PASS;17 publication/frozen-observer boundary cases and upfront full1320s refusal PASS. Corrected development WhatIf PASS69s. Two earlier WhatIf calls omitted DevelopmentScopedAudit and spent370.8/273.3s hashing entire historical lab; interrupted exact owned read-only processes before staging and charged full wall. Logs/interrupted entries retained. Source-pin reuse was not the whole bottleneck diagnosis. Initial missingGUI module/allowlist and reflection-loaded DLL-lock packaging failures retained; fresh isolated package passed.
-
-Wrapper scripts/runtime/Invoke-FinalizeF1Finish.ps1 defaults to existing -WhatIf -DevelopmentScopedAudit. -Launch requires1200s+120s available before invoking native runner, whose own last-start re-admission remains. Do NOT pass DevelopmentScopedAudit on live: runner explicitly refuses it; broad archive audit exists only in ShouldProcess-false branch. Reviewer withdrew contrary finding after checking source.
-
-Budget final engineering checkpoint72.47/90min,17.53remaining,2/3 actual starts; publication audit appended/read latest. Initial60→75 and final75→90 approvals both retained. Full1200s cannot fit. No automatic increase/reset/reservation change, new launch or new batch is authorized by this resume. Current batch remains finalize-f1:capture-restored-1; owner-operated-1 never activated.
-
-Native evidence remains original second run20261105-finalize-f1c-owner-creator-01, source39a/executionfe1a. Codex observed0→1 grouping/selectNextBack and cleared selection on removal; no disappearance in exercised path. Original1100s deadline FAIL retained; cancellation/fresh-preview incomplete. Cold rendered38.22ms; warm10 mixed native rows median302.52,worst341.52. Howie accepted absence of matched baseline as explicit comparison limitation; no performance comparison/foreign-cause PASS.6 actual PNGs and small manifest now docs/evidence/finalize-f1/, not new observer execution.
-
-Windows observation works through standard Alt+Print then a SEPARATE tool call to Paint paste/save, with explicit documented sky window activation. A same-call immediate focus switch captured Paint once; wrong frame retained, Explorer desktop-confirmed.png opened. No WGC reset/rebind/settings loop or owner-operated request. Built-in capture remains unreliable, not claimed repaired.
-
-Publishing helper changed only6 exact PNG path/SHA entries under explicit owner authorization. BeforeSHAfad5336008c771f72852f04216933d4d00ee991c73ed10dba26c350819775343; after36f9cc8786f00e190f7ef201543a6ac8152003ebfa6f1a068ff2f142ef613f93. Scope/backup in docs/evidence/finalize-f1/publishing-authority.json. Use same guarded helper; no direct push/force/merge/release.
-
-Restoration intact, no game/active lock/candidate. Corrected WhatIf proved current Mods/saves unchanged. Prior exact14-preference recovery receipt remains separate from native FAIL. Second-run intake exact; first-run7 cache differences remain separately qualified, not relabeled. No owner saves/foreign installs changed or save worker killed; only exact owned CPU-only dry-run validators stopped.
-
-Selected TODO: correct rank-removal regroup; cancel/fresh usable feat screen; reaction toolbar/tooltip/on-off; Charge tooltip; ordinary UMM after actions. UI-03 native PASS, other scoped evidence/limitations in handoff. Owner art approval/owner-stack acceptance separate. Stop at review; no manual test/save request or F2.
-
-First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f1.json. No launch from this resume.
+First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f1.json.
