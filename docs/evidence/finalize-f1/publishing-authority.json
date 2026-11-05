@@ -1,0 +1,34 @@
+{
+    "authorization":  "Howie F1 final bounded completion: selected F1 PNG evidence/manifest to PR16; helper exception limited to exact selected evidence paths; preserve all other checks",
+    "approvedBeforeSha256":  "fad5336008c771f72852f04216933d4d00ee991c73ed10dba26c350819775343",
+    "afterSha256":  "36f9cc8786f00e190f7ef201543a6ac8152003ebfa6f1a068ff2f142ef613f93",
+    "onlyChange":  "Six exact PNG path/SHA pairs added to existing registry. No path regex, branch/origin, cleanliness, secret scan or fast-forward guard changed.",
+    "selectedPaths":  [
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/rank0-unavailable.png",
+                              "sha256":  "840a1520860496741bbed4718b895d203e981003e0bf3067b301355fd35cb060"
+                          },
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/native-comparison.png",
+                              "sha256":  "dab3dd6af52bf02cf81638eee86ba82a8b67942682c1f7337e87af7572fa26fd"
+                          },
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/mobility-rank1.png",
+                              "sha256":  "6d61a030e6ec6747a5f602f663bf77f9f3b63d6512fd6cad4ce8e60a35f15f67"
+                          },
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/rank1-eligible.png",
+                              "sha256":  "f5842dcb844a58ae8b86f61356ed18236ac7f360a6a4b75c6f4a3bbc62408920"
+                          },
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/selected-tooltip.png",
+                              "sha256":  "662995b959b09265515de3dee63dbd945dbac17f9b265738d7a3216405fae5b6"
+                          },
+                          {
+                              "path":  "docs/evidence/finalize-f1/captures/after-next-back.png",
+                              "sha256":  "62fd0acf8ee4b6a798e32a52b4a5e0c241684756caf4e0b3c0dea4f8000a07d8"
+                          }
+                      ],
+    "backup":  "analysis-cache/finalize-f1-contracts/push-helper-before-native-evidence.ps1",
+    "focusedResult":  "17/0 evidence and frozen-observer boundaries, plus full1320s launch-reservation refusal before staging/start"
+}
