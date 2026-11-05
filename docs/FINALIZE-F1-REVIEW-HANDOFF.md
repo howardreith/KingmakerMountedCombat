@@ -1,88 +1,90 @@
-# F1 review handoff — IN PROGRESS
+# F1 review handoff
 
-F1 is partial. The requested accounting and presentation corrections, preview fixes and focused checks are finished. Native acceptance for UI-01, UI-02, ART-01, PERF-01, UI-03 and UI-04 remains TODO: Windows frame capture fails for Explorer and Kingmaker. Owner art approval is separate. Keep PR #16 draft.
+## Disposition
+
+**F1: PARTIAL — READY FOR REVIEW; OWNER ACCEPTANCE SEPARATE.** UI-03 has direct native confirmation; UI-02 and ART-01 have substantial creator evidence, and PERF-01 now has actual rendered-endpoint measurements. Cancellation/fresh-preview, reaction toolbar, Charge tooltip and ordinary in-game UMM inspection remain selected work, so this is not engineering completion.
+
+This is Codex-operated testing. The prepared run/directory names contain “owner” because they predate the owner's request for autonomous operation; no observation is attributed to Howie.
 
 ## Identities
 
-- Repository howardreith/KingmakerMountedCombat; branch codex/kmc-finalize-f1-creation-ui-icons; [PR #16](https://github.com/howardreith/KingmakerMountedCombat/pull/16). Base d2e26174d391a8c70fd159beed476035bb5f84eb. Product source **39a153cf9524683d615f9efef60ff38c45fcd123**; subsequent e60fee3d2e78499be28488d246949a9223279c4e changes external harness/recovery only. Later documentation does not change product bytes.
-- Version 0.1.0-chunk7b-preview.103, qualifier finalize-f1c. DLL SHA256 **8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072**, MVID **89c5fdb6-6d04-499a-b072-762f96c4a23f**, 8,884,736 bytes.
-- Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1c-diagnostic.zip`, SHA256 **4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39**. Exactly Info.json and mod DLL under KingmakerMountedCombat/, including embedded original icons. Manifest SHA256 **5d78e232981d251d362d21c737d058abd794d87c05c194560e0f7b5ddd0ec22e**.
-- Suite finalize-f1c-39a153cf-20261104, snapshot SHA256 **11072f7c478d64d4cef942f213f22a0296b6ef07857ac10a667f4fd513c3c950**. Clean detached product worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1c-39a153cf`. Freeze `analysis-cache\finalize-f1-contracts\f1c-product-freeze.json`, SHA256 **1c0889f3de44e4021cb547944064001a11c34e407794e3fc9a5decd026445360**. Use existing FrozenProductSource admission after harness/docs commits; preserve the package.
-- Engine Assembly-CSharp SHA256 **3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb**, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Actual startup log reports **Kingmaker 2.1.7b / UMM 0.33.2.0**, KMC and Scroll Fix1.0.0 active,2/2 loaded. UMM SHA256 **f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9**. Structured loader inventory was not produced.
-- Supplied Scroll Fix DLL SHA256 **ca5c1cf454d1a66e44dc067dae2023c1d13cca3143730545e1ec5b317e440136**; selection `analysis-cache\finalize-f1-contracts\owner-scroll-selection.json`. This lab stack differs from Howie's incompletely inventoried laptop (screenshot UMM0.33.0 and extra mods).
+- Repository howardreith/KingmakerMountedCombat; draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16); branch codex/kmc-finalize-f1-creation-ui-icons. Integrated base d2e26174d391a8c70fd159beed476035bb5f84eb. Native execution head fe1a0514a458890ded4681b53e3cc1b9f9ca7992; later changes are recovery/tests/reporting only.
+- Frozen product source **39a153cf9524683d615f9efef60ff38c45fcd123**, version0.1.0-chunk7b-preview.103, qualifier finalize-f1c. DLL SHA256 **8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072**, MVID **89c5fdb6-6d04-499a-b072-762f96c4a23f**,8,884,736 bytes.
+- Existing package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1c-diagnostic.zip`, SHA256 **4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39**. Exactly Info.json and mod DLL under KingmakerMountedCombat/, original icons embedded. Manifest SHA256 **5d78e232981d251d362d21c737d058abd794d87c05c194560e0f7b5ddd0ec22e**. No rebuild this continuation.
+- Suite finalize-f1c-39a153cf-20261104 SHA256 **11072f7c478d64d4cef942f213f22a0296b6ef07857ac10a667f4fd513c3c950**. Freeze analysis-cache/finalize-f1-contracts/f1c-product-freeze.json SHA256 **1c0889f3de44e4021cb547944064001a11c34e407794e3fc9a5decd026445360**; detached product worktree finalize-f1c-39a153cf.
+- Actual second-start stack: **Kingmaker2.1.7b, UMM0.33.2.0, KMCpreview103-F1c and Scroll Fix1.0.0,2/2 enabled**,2560x1440, Elf/Rogue level1 preview. Structured loader inventory exists for this run. This is distinct from Howie's incompletely inventoried laptop stack.
+- Engine Assembly-CSharp SHA256 **3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb**; UMM SHA256 **f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9**. Scroll Fix DLL SHA256 **ca5c1cf454d1a66e44dc067dae2023c1d13cca3143730545e1ec5b317e440136**.
+- New run **20261105-finalize-f1c-owner-creator-01**, actual start2026-11-05T03:43:04.3617922Z. Evidence under lab runtime-evidence/same-run. Retained output log SHA256 **30e6a38275ef65fe11ed7a949f3f9ec1ff746217e24c1c87984da52b8aaebf46**. Raw game result SHA256 **ba99cb4489595e6230b1818da1a512ecb4d042b5fec4ce6a0e8d8600efaf56e1**; original outer result **e765aa6339fe0c8ed4a2a4fc407281b25bf7c48c984330a536244e1fd5df17c0**.
 
-## Causal correction and requirement disposition
+## Causal findings and correction
 
-| Requirement | Before / causal boundary | Change and outcome |
-|---|---|---|
-| UI-01 | Routine accepted/active feedback exposed RiderMelee and movement-authority prose | Exact routine allowlist moves it behind Diagnostics. Errors/refusals/unknown feedback, version, settings, removal and save warnings remain visible. Behavioral check PASS; ordinary native page TODO. |
-| UI-02 | Source: same-index replacement skips grouping/layout. Native ReInit compares selection states by value, so equal-value replacement can leave old row state/tooltip references. Owner disappearance not reproduced. | Conditional native sort/layout plus exact ReInit prefix delegates skipped replacement to native Init with current callback. Native comparator, identity and unrelated rows retained; no full redraw, added listeners or facts. Actual rank/select/Next/Back/removal/cancel/fresh/control sequence TODO. |
-| ART-01 | Shared saddle did not identify feat | Original combat-ring emblem, cached export; exact identities in assets-source/finalize-f1/manifest.json. Technical source/export review PASS; native row/selected/disabled/sheet TODO; owner art approval separate. |
-| PERF-01 | Lag report on broader stack; no causal timing | Bounded SetFeature endpoint reaches rendered frame with current-preview-bound rows, settled layout and visible canvas alpha in either pane. Older next-frame bound stays separately labeled. Cold=0,warm=0; median/worst unavailable. No performance PASS or external blame. |
-| UI-03 | Manually repeated prerequisite | Preserve native one-trained-Mobility-rank metadata, remove duplicate body line. Source/key checks PASS; actual tooltip formatting TODO. |
-| UI-04 | Shared reaction art and awkward wording | Distinct defensive glyph and concise setting copy; economy unchanged. Source/export review PASS; native toolbar/on/off TODO. |
-| Charge neighbor | Two referenced localization keys absent | Register both in existing family;23 consumer keys checked. Actual tooltip TODO. Single-Charge behavior stays F2. |
+| Requirement | Before / causal boundary | Change | Direct outcome |
+|---|---|---|---|
+| UI-01 | Accepted/active UMM feedback exposed RiderMelee and movement authority terminology | Routine allowlist behind Diagnostics; errors/refusals/unknown feedback, version/settings/removal/save warnings retained | Source/focused PASS retained. Ordinary in-game page after actions TODO. |
+| UI-02 | Same-index preview replacement skips grouping/layout; native equal-value ReInit can retain old state references | Narrow native sort/layout invalidation and Init on replaced equal-value KMC offering; no new listeners, facts or per-frame redraw | Native rank0 red unavailable → rank1 eligible alphabetical M group → select → Next → Back: usable list and KMC selection retained. Rank removal cleared selection. No disappearance observed in exercised path. Cancellation/fresh preview and exact regroup after removal TODO. |
+| ART-01 | Shared saddle did not distinguish the feat | Original combat-ring emblem; source/export/consumer identities in assets-source/finalize-f1/manifest.json | Native ordinary/disabled/selected feat row and tooltip icon readable. Native reaction toolbar TODO; owner art approval separate. |
+| PERF-01 | Owner lag report had no attributed timing | Existing bounded current-preview rendered endpoint | Cold1=38.22ms; warm10 median302.52ms,worst341.52ms. Same lab configuration. No matched baseline/control, so no regression or external-cause PASS. |
+| UI-03 | Duplicate body prerequisite | Native trained Mobility1 metadata retained; redundant body line removed | Native tooltip shows red Mobility:1 at rank0 and green at rank1, with no repeated body prerequisite. Missile Shield provides native neighboring prerequisite comparison. PASS for observed formatting. |
+| UI-04 | Shared reaction artwork and awkward reaction prose | Original defensive glyph and revised copy, economy unchanged | Feat tooltip copy resolves natively. Reaction toolbar/on/off inspection TODO. |
+| Charge neighbor | Two missing localization keys | Existing-family registration |23 consumer-key source check retained; native Charge tooltip TODO. No F2 mechanic work. |
 
-Scroll Fix Harmony owner KingmakerLevelUpSelectionScrollFix patches CharBSelectionSwitchFeatures.SetupFeatureSelection postfix. Its collection-switcher scroll wrapper does not directly patch the row light refresh. Foreign code/installation unchanged.
+The black selected row is the ordinary native selected style, separately observed from the reported disappearing list. Scroll returns to the top after selection/re-entry on this stack; this invalidated the intended fixed-coordinate MountedCombat/Martial alternation. Neighboring Alertness/Armor Proficiency selections still worked. The ten warm samples are changed native feat rows, not ten verified Mounted Combat reselections. No claim of preserved scroll position or a foreign root cause is made.
 
-Launch accounting commits actualGameStartAttemptUtc immediately before the start callback. Preflight failures retain failure/time without consuming a real launch; thrown starts count; three actual attempts refuse a fourth. Historical entries, reservations and equivalent-failure policy remain intact. Both request validators additionally admit only the exact selected F1 branch; foreign/case/suffix variants are refused.
+Scroll Fix owner **KingmakerLevelUpSelectionScrollFix**, SetupFeatureSelection postfix. Native log shows one wrapper creation, reused by subsequent setups (first five postfix invocations logged). It does not directly patch ReInit. Foreign source/install unchanged. No clean A/B was spent because no disappearing-list failure was reproduced here; this does not close owner-stack acceptance.
 
-## Evidence, including original failures
+## Evidence
 
-| Evidence | Result and identity boundary |
+All new captures are original normal-resolution2560x1440 PNGs, opened and inspected. Small review set in **C:\Dev\KingmakerMountedCombatLab\artifacts\finalize-f1-owner-operated-1\captures**:
+
+| Frame | Direct observation |
 |---|---|
-| Candidate-b |10 stages PASS,4.05min;1051 component/149 source plus accounting/compatibility/localization. Predates final row/visible-endpoint corrections. Candidate includes Fast. |
-| Final row/endpoint focused Fast |4 stages PASS,0.62min;1051 component,149 source,777 assembly checks. Direct assembly script used default Both,read-only; no Wrath launch/mutation. |
-| Exact branch fix |Fast build/components/source PASS; focused fixture initially FAIL for BOM; corrected no-BOM test10/0 PASS. New product source39a153cf. |
-| F1c package |Clean build and11 package assertions PASS. F1a/F1b remain immutable. F1b outer completion-status error remains recorded FAIL despite successful package creation. |
-| Symbol cache safety |8 positive/negative cases PASS; independent review; exact recovery WhatIf and execution PASS. Modified/orphaned/missing-source symbols and wrong DLL cache refused. External harness only. |
-| F1b preflight |Original FAIL for old branch prefix; zero actual starts; Mods/saves restored. Evidence `runtime-evidence\20261104-finalize-f1b-creator-scroll`. |
-| F1c creator WhatIf |Development-scoped PASS on exact package/suite with supplied Scroll Fix. Not native acceptance or whole-lab purity. |
-| F1c actual launch |Original FAIL; actual start2026-11-05T00:43:34.9629865Z. Normal game exit before atomic result because screenshot host failed. No creator inputs, timings or screenshots. |
+| creator-021.png | Mobility0, red unavailable Mounted Combat, native prerequisite and resolved copy |
+| creator-022.png | Native Missile Shield prerequisite comparison and unrelated unavailable rows |
+| creator-024.png | Mobility rank1 in skill editor |
+| creator-026.png | Mounted Combat in eligible alphabetical group |
+| creator-027.png | Selected dark row, acquired feat icon and green prerequisite |
+| creator-032.png | After actual Mounted Combat select/Next/Back: nonempty list and selected top feat icon |
 
-Retained startup log `runtime-evidence\20261104-finalize-f1c-creator-scroll\retained-output-log-after-exit.txt`, SHA256 **2c55f55b5df7073dce14d99b21098f0ca68edcc119677f94e3f1ed61ec8b8b86**. Confirms versions/active mods and retains a native BugReportCanvas.OnEnable NullReferenceException without assigning cause or claiming a clean control.
+creator-029.png separately shows the intervening Character page. creator-033.png shows the nonempty list with selected icon cleared after rank removal. Static frames supplement the actual navigation inputs and native log; no frame alone proves asynchronous correctness. Images remain local review artifacts, not hosted GitHub attachments. The approved push helper's binary allowlist was preserved; browser attachment host was unavailable. The local handoff links these files directly.
 
-Original art is openable at [pilot-thumbnails.png](../assets-source/finalize-f1/pilot-thumbnails.png). No current native frames exist; neither art pilot nor owner screenshots substitute for new-build visual evidence. Older qualification remains labeled at its original identity in the implementation record.
+Timing evidence: lab runtime-evidence/20261105-finalize-f1c-owner-creator-01/**observed-ui-and-timing-summary.json**, with raw log, sample values, image paths/hashes and endpoint. First SetFeature rendered sample38.22ms; next ten comparable selector changes341.52,312.32,324.65,302.13,315.55,300.46,295.13,302.91,296.17,299.16ms. Additional reselection306.38ms is outside that ten-sample summary. Endpoint: **end-of-rendered-frame-current-preview-bound-rows**,160 bound rows, selected/current preview references and layout/canvas completion checked. It is a Unity rendered-frame endpoint, not a physical display scanout timestamp.
 
-## Concrete external blocker
+Separate processing bound: first SetFeature nextFrameMs41.33; next ten median272.70ms,worst309.49ms. Do not substitute it for rendered latency. No allocations were measured; no FPS target is inferred. Shader fallback warnings and BugReportCanvas.OnEnable NullReferenceException remain in the raw log, without causal attribution.
 
-Fresh CUA recovered inventory, accessibility and keyboard input. Explorer observation and Escape succeeded before staging. A pixel capture should also have been verified before launch; accessibility alone did not establish game supervision. Kingmaker capture returned `FrameArrived timed out`, then `window capture timed out: timed out waiting on channel`. Alt+Enter did not recover it. Explorer fails identically after the game exits and after refreshing its binding. No blind gameplay inputs were sent; Alt+F4 closed the test game normally.
+| Evidence | Original result / identity |
+|---|---|
+| Candidate-b |10 stages PASS,4.05min; predates final row/endpoint corrections. Includes Fast. |
+| Final row/endpoint Fast |4 stages PASS,0.62min;1051 component,149 source,777 assembly checks. Retained on original bytes. |
+| Branch/accounting/localization | Prior focused results retained; exact branch10 cases, package11 assertions. Original BOM fixture failure and F1b package outer-status failure retained. |
+| Copied-PDB recovery |8 positive/negative cases and independent review; first-start original FAIL retained, separate restoration receipt. |
+| Second-start preflight | Current frozen-product/current-harness/package/suite/WhatIf checks passed; no Candidate replay. |
+| Second native start | **FAIL**: observer1100-second deadline. Only one creator opened; no two-close PASS, no cancellation/fresh-preview acceptance. |
+| Creator preference recovery | Initial normal restore refused changed key set. One-run exact recovery: focused8/0, WhatIf PASS, independent safety review and execution PASS. Initial recovery check exposed PowerShell array serialization; corrected. First execution refused its own exclusive lock read before writes; corrected held-lock check. Both failures retained in transcript/log record. |
 
-All independent corrections/checks are finished. Asked once for a full ChatGPT desktop restart with Windows unlocked/display on and a ready reply. No Any App setting change requested. First proof after recovery must be an actual Explorer screenshot plus harmless input before further staging. The computer-use skill prescribes refreshing selection and one retry, then reporting the exact capture error; no unofficial runtime or alternate UI protocol used.
+Launch accounting retains preflight time/failures while counting only actual start attempts, including failed starts. No budget history was removed.
 
-## Spend and restoration
+## Review-worthy risks / explicit remaining work
 
-Authoritative meter `runtime-state\workflow-budgets\finalize-f1.json`; checkpoint **22.23/60min,37.77min remaining,1/3 actual starts**. Prelaunch branch failure has launch=true reservation but no actual-start marker. All failures/time retained. Restoration time excluded by existing runner. Roughly45min continuation work plus prior recorded~42min, separated from owner idle; four-hour active ceiling remains. No hidden allowance/parallel executor/shortened1200s reservation.
+Selected blockers remain: cancellation/fresh preview without inherited facts/callbacks; reaction toolbar/on/off; resolved Charge tooltip; ordinary UMM page after actions; credible performance regression attribution. Owner art approval and broader owner-stack acceptance remain separate.
 
-Original F1c runtime result remains FAIL with modsRestored=false: copied PDB was originally unexpected. Live Mods had already been restored byte-exact. Exact reviewed recovery preserves original combined bytes, runtime result and Mods findings, reclassifies unchanged quarantine, proves current suite/protected saves/Mods, writes a separate receipt and closes the stale lock. Current combined lifecycle is restored; native verdict unchanged.
+The creator route correctly refuses campaign areas. The qualified Manual308 normal-control fixture lacks the feat/toggle and automatically drives/exits; older feat/Charge routes enter combat or the explicitly excluded legacy fixture. No existing inspected route covers both missing creator and presentation observations in one remaining start. Combining them needs a narrowly reviewed external observer route, focused verification, packaging and WhatIf, not a blind launch or a renamed legacy scenario. The earlier assertion that a suitable presentation route was already pinned was incorrect.
 
-- Review receipt: `runtime-evidence\20261104-finalize-f1c-creator-scroll\reviewed-symbol-restoration.json`; original combined copy `combined-before-symbol-review.json`, SHA256 **e731c0c08bb672c05a8fa2994aa8ab3d906a872380cb2d329846ef7024caba82**.
-- Original Mods state SHA256 **3bca2b6a00ae43b2e5bdacf32713ff27922fbcf846ad1fbaf53e6a60925b2ff9**. Quarantine retained, digest **4feba695ffd72d2ebfc8843e37c0df3b0d94b1320f703aff59f15d2990dc7a0d**. Cached/original PDB both **b3b3342d7008304590d8735a8367db2b0ca4a1ab9f8a3979e9515b6bd4bb29e2**.
-- Current Mods digest **e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855**; protected-save metadata digest **60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1**. Protected content proved against suite; baseline immutable, Working restored, allowlist passed.
-- No Kingmaker process, live executor, sentinel/lock or installed candidate remains. Profile is not byte-exact: **seven** admitted achievement/analytics cache deltas are enumerated in profile-cache-changes.json, with profileBytesRestoredExactly=false under existing policy. Do not claim all caches restored exactly.
+At53.50/75min, only21.50min remains before any further validation. Full1200s final reservation leaves90s for all required preparation; the prior creator plan also reserved120s preparation. No credible current qualified finishing plan fits. No third start was consumed and no allowance/batch/cap was silently raised. This is a preparation/allowance gap, not an outstanding Full Access permission or a request for another settings recovery loop.
+
+## Spend and state
+
+Same authoritative finalize-f1 record: **53.50/75min,21.50min remaining,2/3 actual starts** after retained-log extraction. Owner explicitly approved60→75; adjustment appended with original history and cap intact. Capture-restored-1 was activated only after successful Windows pixel capture and visible harmless Explorer selection; changed-autonomous-batch.json preserves earlier failures/corrections. Owner-operated-1 was not activated.
+
+Latest native validation entry charged the full interval through deadline/readers (approximately18.85min); restoration excluded by existing policy. Subsequent exact recovery and its checks are cleanup, not another native attempt. Current continuation authoring/review and cleanup remain separately recorded; no parallel live executor. No product rebuild, historical campaign or optional clean launch.
+
+Second-run Mods and protected saves restored to current snapshots: Mods digest **e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855**, save metadata digest **60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1**. Baseline immutable; Working restored; save allowlist passed and suite content checked. Profile snapshot SHA256 **90588536e15c3116194a4b82272cc706c12f7c23e97d47dba38f0bd0b50b27c5**. Exact one-run recovery restores14 captured preferences (including two removed native keys) and original UMM parameters; separate reviewed-preferences-restoration.json. This run's profile had zero accepted cache changes and restores exactly to its own intake.
+
+First-run original native/restoration FAIL remains unchanged; separate reviewed-symbol-restoration.json records recovery. Its **seven admitted native cache deltas** remain qualified and are not erased by second-run exact restoration to a newer intake. Do not claim the whole historical profile byte-exact.
+
+No Kingmaker process, active transaction lock or installed candidate remains. No human save, foreign mod or other product was modified. Production package remains frozen and unchanged.
 
 ## Next decision
 
-Keep draft. After capture recovery, reuse unchanged F1c product/freeze with updated harness, fresh run-owned IDs and current WhatIf. Read newer meter before work. A successful Explorer frame is the required new observation before another native attempt. Existing batch now contains two differently caused failures; do not reset its guard silently. Any materially changed supervised experiment needs an explicit documented batch disposition while retaining finalize-f1 cumulative allowance and1/3 actual starts. Reserve last1200s native confirmation plus preparation.
+Keep PR16 draft. Reviewer must select a bounded continuation that fits both the missing native path and existing safety/accounting constraints; this handoff does not authorize extra starts, a new batch or increased allowance. Do not impose the known engineering preparation gap on Howie as a new campaign-save/test request. The eventual small owner playcheck remains Mobility/select/navigation plus art/copy/UMM; no merge, release, permanent installation or F2.
 
-Finish the creator sequence/cold+8–10 warm rendered-endpoint timings, then one bounded existing disposable scene for reaction/Charge/ordinary UMM. No fixture hunt, owner campaign-save request or broad combat campaign. Owner check remains original Mobility/select/navigation plus art/copy/UMM, with separate art approval. Stop at review; no merge/tag/release/permanent install/F2.
-
-Final read-only frozen-product/current-harness and restored-admission checks PASS at harness009766fb. No further build or native attempt. Final meter22.23/60min,37.77min remaining,1/3 actual starts.
-
-## F1c continuation capture gate (2026-11-05 01:39 UTC)
-
-Verified clean reviewed head f93245b28c8183e41c304f05c0e3071644af3aab and existing finalize-f1 meter before execution. Explorer pixel capture failed with `window capture timed out: timed out waiting on channel`. After a fresh CUA runtime reset and current-window rebind, the retry failed with `FrameArrived timed out: timed out waiting on channel`. No readable frame or visibly verified harmless input was obtained. No staging, game start, package rebuild, offline campaign, or settings change occurred.
-
-The owner's conditional batch finalize-f1:capture-restored-1 is selected only after successful pixels; it was NOT activated. The prior branch-admission and game-capture failures, their corrections and separate restoration review remain intact. Frozen product/package/freeze remain F1c. Metered8.9 seconds of reported tool wall time as a capture-FAIL accounting import (completed import is not a PASS verdict). Current meter22.38/60min,37.62min remaining,1/3 actual starts. Evidence: analysis-cache/finalize-f1-contracts/capture-prerequisite-20261105T013914Z.json. Native acceptance remains TODO; host capture recovery is still required. No repeated settings request or further launch is authorized on accessibility alone.
-
-Owner-operated creator preparation PASS at docs head1d73bcf5: development-scoped WhatIf for20261105-finalize-f1c-owner-creator-01 on unchanged F1c and supplied Scroll Fix; native run/evidence directory remains absent. Log logs/finalize-f1c-owner-creator-whatif.log. Meter22.72/60min,37.28min remaining,1/3 starts. Final1320s planning reserve retained. Manual Explorer image/operator availability and exact suitable presentation-scene reference remain prerequisites; neither owner-operated-1 nor capture-restored-1 activated. No product build/Candidate replay/installation/launch/CUA retry.
-
-## Autonomous observation channel established (2026-11-05)
-
-Howie requested Codex operate the test instead of delegating UI input. No owner screenshot is now needed to establish observation: standard Windows Alt+Print capture, pasted/saved through the normal Paint UI using documented Computer Use commands, produced readable Explorer PNGs. Native Computer Use sky.click selected the capture-check file; a second saved PNG visibly confirms the change from OPERATOR-CHECKLIST to that file. This is Codex-operated evidence, not an owner-operated observation. The built-in window screenshot API still times out; it is not claimed repaired. No custom capture/input driver or protocol, permission change or blind game input was used.
-
-Evidence: artifacts/finalize-f1-owner-operated-1/captures/00-autonomous-explorer.png and01-autonomous-selection.png; autonomous-capture-receipt.json records the method and accounting. Both images were opened. No Kingmaker launch/staging occurred; actual starts remain1/3; conditional batches remain unactivated pending executable finishing plan.
-
-The full capture-validation wall interval was charged using Paint's native process-start time through confirmation, plus a conservative180s for preceding Snipping Tool/built-in attempts. Current finalize-f1 spend34.63/60min,25.37min remaining. The planned creator660s + final1200s + preparation120s needs1980s versus1522s left. Asked once for explicit adjustment of the SAME record to75min, retaining all entries/cap/reservations; no adjustment made without approval. Native execution cannot consume the final reservation while that decision is pending.
-
-Presentation preparation also established that the existing normal-player-control route's qualified six-Horse archive contains neither the Mounted Combat feature nor reaction toggle GUID in party/player members. Its automatic drive/exit is not silently relabeled as an F1 presentation session. The precise qualified suitable scene/guarded entry point remains unpinned; the prior handoff assertion was not a valid qualification. No fixture mutated or new campaign save requested. Product/package remain unchanged F1c; completed offline checks are retained, not repeated.
+Earlier detailed results and original chronology remain in [the preserved pre-native handoff](history/FINALIZE-F1-HANDOFF-before-native-20261105.md) and [implementation record](FINALIZE-F1-CREATION-UI-ICONS.md).
