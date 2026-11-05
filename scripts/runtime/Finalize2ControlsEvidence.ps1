@@ -82,6 +82,19 @@ function Assert-KmcFinalize2ControlsEvidence {
   elseif($null -eq $now[$j] -or [string]$now[$j] -cne [string]$before[$j]){ Fail ('unrelated main-bar slot '+$j+' changed') }
  }
  Yes (P $p 'placementRecorded') 'the placement is not recorded for the rider'
+ # A full bar at load: the load's own placement wrote nothing; the first placement then took the one slot the player freed.
+ $freed=P $p 'freedSlot'
+ if($null -ne $freed){
+  $load=P $p 'loadObservation'
+  $loadRecords=@(P $load 'placements')
+  if($loadRecords.Count -ne 1 -or (Int (P $loadRecords[0] 'index') 'load placement index') -ne -1){ Fail 'the full-bar load did not record exactly one placement attempt with nothing placed' }
+  $loadBefore=@(P $loadRecords[0] 'mainBarBefore'); $loadNow=@(P $load 'mainBarNow')
+  if($loadBefore.Count -ne 14 -or $loadNow.Count -ne 14 -or @($loadBefore | Where-Object { [string]$_ -ceq '' }).Count -ne 0){ Fail 'the load-time main bar was not full' }
+  for($j=0;$j -lt 14;$j++){ if([string]$loadNow[$j] -cne [string]$loadBefore[$j]){ Fail ('the full main bar changed at slot '+$j) } }
+  if(@(P $load 'controlIndices').Count -ne 0){ Fail 'a public control appeared on the full bar' }
+  if((Int $freed 'freed slot') -ne $index){ Fail 'the first placement did not take the freed slot' }
+  for($j=0;$j -lt 14;$j++){ if($j -ne $index -and [string]$before[$j] -cne [string]$loadBefore[$j]){ Fail ('slot '+$j+' changed between the load and the first placement') } }
+ }
  Yes (P $p 'factActive') 'the public control fact is not active'
  Yes (P $p 'slotHoldsLiveFact') 'the placed slot is not bound to the live fact'
  if((Int (P (P $p 'countersAtRow') 'initialPlacement') 'placement count') -lt 1){ Fail 'no initial placement was counted' }

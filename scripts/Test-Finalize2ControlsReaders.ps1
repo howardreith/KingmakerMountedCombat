@@ -133,6 +133,19 @@ function Shot($Artifact,[string]$Name){ @($Artifact.observations.finalize2Contro
 
 $base=New-F2Artifact
 Check (Accept $base) 'complete F2 evidence accepted'
+# The Working fixture's full main bar: nothing placed at load, then the first placement into the slot the player freed.
+function New-F2FullBar {
+ $f=Copy-F2 $base; $p=Row $f 'F2-placement'
+ $full=@(); for($i=0;$i -lt 14;$i++){ $full+=('g'+$i) }
+ $before=@($full); $before[$cycle]=''; $now=@($full); $now[$cycle]=$id.publicControl
+ $p.placements[0].mainBarBefore=$before; $p.mainBarNow=$now; $p | Add-Member -NotePropertyName freedSlot -NotePropertyValue $cycle -Force
+ $p | Add-Member -NotePropertyName loadObservation -NotePropertyValue ([pscustomobject]@{placements=@([pscustomobject]@{index=-1;frame=3;mainBarBefore=$full});controlIndices=@();mainBarNow=$full;fullBarCount=1;placedCount=0}) -Force
+ $f
+}
+Check (Accept (New-F2FullBar)) 'full bar at load, then the first placement into the freed slot, accepted'
+$r=New-F2FullBar; (Row $r 'F2-placement').loadObservation.mainBarNow[5]='overwritten'; Reject $r 'a full bar changed at load refuses'
+$r=New-F2FullBar; (Row $r 'F2-placement').loadObservation.placements[0].index=4; Reject $r 'a load placement over a full bar refuses'
+$r=New-F2FullBar; (Row $r 'F2-placement').freedSlot=7; Reject $r 'a first placement outside the freed slot refuses'
 # Registration
 Check (Test-KmcPhase3dSchemaRegistration 53 'finalize-f2-controls-rt') 'finalize-f2-controls-rt registers schema 53'
 Check (-not (Test-KmcPhase3dSchemaRegistration 52 'finalize-f2-controls-rt')) 'the Sprint 8 schema is refused for the F2 scenario'

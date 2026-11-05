@@ -485,6 +485,32 @@ namespace KingmakerMountedCombat.Diagnostics
             // The placement belongs to the load; the row waits a bounded moment for it to have been recorded.
             if (!nativeControls.IsPlacementRecorded(rider) && ++f2Frames < 120) return;
             var slots = rider.UISettings?.Slots;
+            if (f2Step == 0)
+            {
+                // Phase 1: what the load's own placement did. The Working fixture rider's main bar is full, so the native-route
+                // outcome is "nothing placed, nothing overwritten". Recorded, then one slot is freed for a first placement.
+                var first = nativeControls.InitialPlacements.Where(placement => placement.UnitId == rider.UniqueId).ToArray();
+                var mainNow = new JArray();
+                for (var index = 0; index < MountedControlSlotPolicy.MainBarSlotCount; index++)
+                    mainNow.Add(slots != null && index < slots.Length ? F2SlotKey(slots[index]) : null);
+                f2Facts["loadObservation"] = new JObject { ["placements"] = new JArray(first.Select(placement => new JObject { ["index"] = placement.Index,
+                        ["frame"] = placement.Frame, ["mainBarBefore"] = new JArray(placement.MainBarBefore ?? new string[0]) })),
+                    ["controlIndices"] = new JArray(F2Indices(nativeControls.MountStateAbility)), ["mainBarNow"] = mainNow,
+                    ["fullBarCount"] = nativeControls.InitialPlacementFullBarCount, ["placedCount"] = nativeControls.InitialPlacementCount };
+                if (first.Length == 1 && first[0].Index < 0 && slots != null && slots.Length > MountedControlSlotPolicy.MainBarSlotCount - 1)
+                {
+                    var freed = MountedControlSlotPolicy.MainBarSlotCount - 1;
+                    f2Facts["freedSlot"] = freed;
+                    f2Facts["freedSlotHeld"] = F2SlotKey(slots[freed]);
+                    rider.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = rider }, freed);
+                    F2Disclose("The full main bar's last slot (" + freed + ") was emptied, as a player removes an ability from it.");
+                    nativeControls.BeginLoadedWorld();
+                    F2Disclose("The placement records were forgotten as a newly loaded world's are, so the eligible rider gets its first placement.");
+                    f2Step = 1; f2Frames = 0;
+                    return;
+                }
+                f2Facts["freedSlot"] = null;
+            }
             var fact = rider.Descriptor.Abilities.GetAbility(nativeControls.MountStateAbility);
             var indices = F2Indices(nativeControls.MountStateAbility);
             var main = new JArray();
