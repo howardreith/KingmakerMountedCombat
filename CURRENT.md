@@ -8,6 +8,6 @@ External finalize-f1-finish mode is implemented and offline/WhatIf-qualified, no
 
 I omitted DevelopmentScopedAudit in two dry runs, invoking whole historical-lab hashing. Both interruptions/full time retained. Corrected development WhatIf PASS69s; no staging or game. The earlier fixture-gate diagnosis was incomplete. Correct wrapper now defaults development WhatIf and requires1320s before Launch.
 
-Same finalize-f1 record: owner-approved90min,72.45 spent/17.55 remaining at engineering checkpoint,2/3 starts. Read newer authoritative meter/publication audit. Full1200s no longer fits; no third start, cap/reset/automatic increase. Cancellation/fresh-preview and reaction/Charge/ordinary UMM acceptance remain TODO. Keep draft; not F1 complete.
+Same finalize-f1 record: owner-approved90min,72.47 spent/17.53 remaining at engineering checkpoint,2/3 starts. Read newer authoritative meter/publication audit. Full1200s no longer fits; no third start, cap/reset/automatic increase. Cancellation/fresh-preview and reaction/Charge/ordinary UMM acceptance remain TODO. Keep draft; not F1 complete.
 
 Restoration intact: Mods/saves unchanged, baseline immutable/Working restored; previous14-preference recovery separate from native FAIL. No game, lock or installed candidate. Second-run profile exact to its intake; first-run seven native cache qualifications remain separate. No new manual test/save request, merge/release/install/F2.
