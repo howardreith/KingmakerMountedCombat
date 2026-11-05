@@ -68,3 +68,9 @@ Keep draft. After capture recovery, reuse unchanged F1c product/freeze with upda
 Finish the creator sequence/cold+8–10 warm rendered-endpoint timings, then one bounded existing disposable scene for reaction/Charge/ordinary UMM. No fixture hunt, owner campaign-save request or broad combat campaign. Owner check remains original Mobility/select/navigation plus art/copy/UMM, with separate art approval. Stop at review; no merge/tag/release/permanent install/F2.
 
 Final read-only frozen-product/current-harness and restored-admission checks PASS at harness009766fb. No further build or native attempt. Final meter22.23/60min,37.77min remaining,1/3 actual starts.
+
+## F1c continuation capture gate (2026-11-05 01:39 UTC)
+
+Verified clean reviewed head f93245b28c8183e41c304f05c0e3071644af3aab and existing finalize-f1 meter before execution. Explorer pixel capture failed with `window capture timed out: timed out waiting on channel`. After a fresh CUA runtime reset and current-window rebind, the retry failed with `FrameArrived timed out: timed out waiting on channel`. No readable frame or visibly verified harmless input was obtained. No staging, game start, package rebuild, offline campaign, or settings change occurred.
+
+The owner's conditional batch finalize-f1:capture-restored-1 is selected only after successful pixels; it was NOT activated. The prior branch-admission and game-capture failures, their corrections and separate restoration review remain intact. Frozen product/package/freeze remain F1c. Metered8.9 seconds of reported tool wall time as a capture-FAIL accounting import (completed import is not a PASS verdict). Current meter22.38/60min,37.62min remaining,1/3 actual starts. Evidence: analysis-cache/finalize-f1-contracts/capture-prerequisite-20261105T013914Z.json. Native acceptance remains TODO; host capture recovery is still required. No repeated settings request or further launch is authorized on accessibility alone.
