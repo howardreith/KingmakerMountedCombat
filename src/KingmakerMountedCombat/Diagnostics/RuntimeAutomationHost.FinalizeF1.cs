@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
+using System.Linq;
 using System.Diagnostics;
 using System.Reflection;
 using Harmony12;
 using Kingmaker;
 using Kingmaker.UI.LevelUp;
+using Kingmaker.Assets.UI.LevelUp;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -50,6 +53,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private long started;
         private int inputFrame, sequence;
         private string input;
+        private int visibleGeneration;
+        private bool disposed;
+        private CharacterBuildController cachedBuilder;
+        private CharBFeatureSelector[] selectors;
+        private static readonly FieldInfo LayoutPending = typeof(CharBSelectorLayer).GetField("m_UpdateLayout", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo ContentGroup = typeof(CharBSelectorLayer).GetField("ContentCanvasGroup");
+        private static readonly PropertyInfo ContentAlpha = ContentGroup.FieldType.GetProperty("alpha");
         internal FinalizeF1Timing(Action<string> log)
         {
             this.log = log;
@@ -66,12 +76,69 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             catch { Dispose(); throw; }
         }
-        private static void Input(MethodBase __originalMethod)
+        private static void Input(MethodBase __originalMethod, object[] __args)
         {
             if (active == null) return;
             if (active.started != 0) active.log("F1 timing superseded: " + active.input);
             active.started = Stopwatch.GetTimestamp(); active.inputFrame = Time.frameCount;
             active.input = __originalMethod.Name;
+            var generation = ++active.visibleGeneration;
+            if (__originalMethod.Name == "SetFeature")
+            {
+                var builder = Game.Instance?.UI?.CharacterBuildController;
+                var selection = __args[0] as Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState;
+                if (builder != null && selection != null)
+                    builder.StartCoroutine(active.ObserveVisibleFeatureFrame(builder, generation, active.started,
+                        selection.Selection, selection.Index, selection.Level, __args[1]));
+            }
+        }
+
+        private IEnumerator ObserveVisibleFeatureFrame(CharacterBuildController builder, int generation, long start,
+            object selection, int index, int level, object selectedItem)
+        {
+            if (!ReferenceEquals(cachedBuilder, builder))
+            {
+                cachedBuilder = builder;
+                selectors = builder.GetComponentsInChildren<CharBFeatureSelector>(true);
+            }
+            var deadline = Time.realtimeSinceStartup + 20f;
+            while (!disposed && generation == visibleGeneration && Time.realtimeSinceStartup < deadline)
+            {
+                yield return new WaitForEndOfFrame();
+                if (disposed || generation != visibleGeneration) yield break;
+                var controller = builder.LevelUpController;
+                if (controller == null) yield break;
+                if ((bool)PreviewPending.GetValue(controller)) continue;
+                foreach (var selector in selectors)
+                {
+                    if (selector == null || !selector.gameObject.activeInHierarchy) continue;
+                    for (var pane = 0; pane < 2; pane++)
+                    {
+                    var layer = pane == 0 ? selector.SelectorLayerBody : selector.SelectorLayerBodySecond;
+                    var state = layer?.CurrentSelectionState;
+                    if (state == null || !ReferenceEquals(state.Selection, selection) || state.Index != index || state.Level != level ||
+                        !ReferenceEquals(state.SelectedItem, selectedItem) ||
+                        !controller.State.Selections.Any(current => ReferenceEquals(current, state)) ||
+                        !layer.gameObject.activeInHierarchy ||
+                        (bool)LayoutPending.GetValue(layer)) continue;
+                    var group = ContentGroup.GetValue(layer);
+                    if (group == null || (float)ContentAlpha.GetValue(group, null) < 0.99f) continue;
+                    var rows = 0;
+                    var bound = true;
+                    foreach (var row in layer.SelectorItems)
+                    {
+                        if (row == null || !row.gameObject.activeInHierarchy) continue;
+                        rows++;
+                        bound &= ReferenceEquals(row.FeatureSelection, state);
+                    }
+                    if (!bound || rows == 0) continue;
+                    log("F1 visible input=SetFeature;endpoint=end-of-rendered-frame-current-preview-bound-rows;rows=" + rows +
+                        ";ms=" + ((Stopwatch.GetTimestamp() - start) * 1000.0 / Stopwatch.Frequency).ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+                    yield break;
+                    }
+                }
+            }
+            if (!disposed && generation == visibleGeneration) log("F1 visible input=SetFeature;endpoint-timeout=20s");
         }
         internal void Update()
         {
@@ -87,6 +154,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         public void Dispose()
         {
+            disposed = true;
+            visibleGeneration++;
+            cachedBuilder = null;
+            selectors = null;
             harmony.UnpatchAll("KingmakerMountedCombat.Diagnostics.FinalizeF1");
             if (ReferenceEquals(active, this)) active = null;
         }

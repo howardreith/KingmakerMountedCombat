@@ -512,6 +512,7 @@
     <Compile Include="Domain\NativeMountedControl.cs" />
     <Compile Include="Domain\NativeShellBindingPolicy.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
+    <Compile Include="Domain\MountedFeedbackPresentationPolicy.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\MountedRiderPoseProfile.cs" />

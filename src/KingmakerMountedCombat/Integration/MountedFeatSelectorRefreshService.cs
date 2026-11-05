@@ -6,8 +6,7 @@ using Kingmaker.UnitLogic.Class.LevelUp;
 
 namespace KingmakerMountedCombat.Integration
 {
-    // Native lightweight refresh already rebinds rows to the new preview's FeatureSelectionState.
-    // It skips sorting and layout for the same blueprint/index even when that preview was replaced.
+    // A replaced preview needs native sorting/layout and row/tooltip reference rebinding.
     internal static class MountedFeatSelectorRefreshService
     {
         internal static bool BeforeRefresh(HorseCompanionBlueprintService blueprints, CharBSelectorLayer layer,
@@ -31,6 +30,21 @@ namespace KingmakerMountedCombat.Integration
             if (!regrouped || layer == null || !layer.gameObject.activeInHierarchy) return;
             layer.UpdateLayout();
 
+        }
+
+        internal static bool RebindEqualPreviewRow(HorseCompanionBlueprintService blueprints, CharBuildSelectorItem row,
+            FeatureSelectionState state, Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem feature,
+            CharBSelectorLayer layer, UnityEngine.Events.UnityAction action)
+        {
+            if (row == null || state == null || feature == null || layer == null || row.FeatureSelection == null || blueprints == null ||
+                ReferenceEquals(row.FeatureSelection, state) || !state.Equals(row.FeatureSelection) ||
+                !ReferenceEquals(row.Feature, feature) ||
+                !blueprints.MountedCombatSelections.Any(selection => ReferenceEquals(selection, state.Selection) &&
+                    selection.AllFeatures != null && selection.AllFeatures.Contains(blueprints.MountedCombatFeature))) return false;
+            // Native ReInit's value equality skips this exact case. Use the native initializer
+            // with the caller's current callback so tooltip, recommendation and fact binding move together.
+            row.Init(state, feature, layer, action);
+            return true;
         }
     }
 }

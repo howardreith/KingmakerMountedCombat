@@ -64,3 +64,19 @@ Automatic approval review rejected direct push and requires the exact guarded fe
 Howie approved the reviewed push-guard update and draft PR. Original helper backed up; approved helper SHA256 fad5336008c771f72852f04216933d4d00ee991c73ed10dba26c350819775343. Exact helper WhatIf PASS, then guarded push verified remote 4832086d8a42ce274cc32d52952d9cfeb54f5eec. Draft PR #16: https://github.com/howardreith/KingmakerMountedCombat/pull/16. Compiled source fd7f64f5 independently confirmed published through GitHub's commit API. Later handoff documentation does not change DLL/package identity.
 
 Meter 10.13/60 minutes at publication; real launches 0/3. One UI client retry after approval still failed to start codex-windows-sandbox-setup.exe (program not found). Native acceptance remains TODO. No runtime transaction/installation replacement/restoration. No new build, Candidate replay or expanded campaign selected.
+
+## F1 continuation: corrected candidate preparation (2026-11-04)
+
+Owner-selected Full Access is authorized; only the obsolete global blanket prohibition was replaced in codex-home/AGENTS.md, retaining all project launch/save/restoration/publication guards. Desktop CUA connection recovered after a fresh runtime reset: current Explorer handoffs window observed and Escape input succeeded before any game staging. No further settings request is needed.
+
+Actual-launch cap now uses an atomic actualGameStartAttemptUtc marker immediately before Start-Process. Preflight reservation failures retain time and verdict, but consume no actual launch; a failed start consumes one. Focused isolated accounting and compatibility tests passed. Historical entries and equivalent-failure rules are unchanged.
+
+Routine PlayerActions/Combat feedback is hidden behind Diagnostics by an exact allowlist; errors, refusals and unknown feedback remain visible. Version, settings, removal outcome and save-dependency warnings remain ordinary UI.
+
+Native ReInit token 0x06009FA8 compares FeatureSelectionState by value. A replacement preview equal by value can therefore leave a row bound to the old state. The narrow prefix reuses native Init with the current caller callback only for this skipped KMC-offering case. Other rows retain native behavior. Independent source review found no remaining concrete regression; visible acceptance remains required.
+
+The observer now times SetFeature through the rendered frame with current-preview reference-bound rows, settled native layout and visible canvas alpha, targeting the clicked selection/item in either selector pane. The older next-frame timer stays separately labeled as a preview-processing bound. No source/observer result alone establishes UI acceptance.
+
+Candidate-b initial pass: 10 stages PASS, 4.05 minutes, including accounting/compatibility/localization, 1051 component and 149 source assertions. It predates the final row/observer review corrections; affected compile/contracts follow separately. Meter at that pass: 14.22/60 minutes, zero actual game-start attempts. F1a binary and its original evidence remain immutable. New product code requires a new F1b package; no old native result will be relabeled.
+
+Affected final row/observer verification: Fast 4 stages PASS (0.62 min), 1051 component,149 source,777 assembly-backed assertions including the new exact ReInit contract. Focused Test-AssemblyContracts used its default Both (read-only local Kingmaker/Wrath inspection); no Wrath launch/mutation. Meter14.83/60 min,0 actual starts. Log logs/finalize-f1b-row-focused.log.

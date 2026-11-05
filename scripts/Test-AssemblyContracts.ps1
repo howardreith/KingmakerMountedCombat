@@ -431,6 +431,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Feature',0x04001521,'<Source>k__BackingField'),
         @('Kingmaker.UnitLogic.Class.LevelUp.Actions.SelectFeature',0x060028E4,'Apply'),
         @('Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer',0x06009F79,'FillFeatureDataLight'),
+        @('Kingmaker.Assets.UI.LevelUp.CharBuildSelectorItem',0x06009FA8,'ReInit'),
         @('Kingmaker.ElementsSystem.ElementsContext',0x060083E5,'GetData'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),
