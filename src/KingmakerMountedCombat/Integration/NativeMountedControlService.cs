@@ -55,6 +55,8 @@ namespace KingmakerMountedCombat.Integration
         internal const string RiderPrimaryAbilityGuid = "27364df661b3c121eabb97a31aa73a83";
         internal const string MountPrimaryAbilityGuid = "f88a50d6fdbebbd709c3e323d2f52f5e";
         internal const string MountedChargeAbilityGuid = "d79eaec224a7a832e738eb81baef9d49";
+        // F2 CTRL-02: the one public Mount / Dismount control.
+        internal const string MountStateAbilityGuid = "26151090ad4744ea96dbb7e0537a4a7f";
 
         private const int DisplayNameFieldToken = 0x04006955;
         private const int DescriptionFieldToken = 0x04006956;
@@ -89,8 +91,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 { "KMC.Native.Mount.Name", "Mount Companion" },
                 { "KMC.Native.Empty", "" },
-                { "KMC.Native.MountedCharge.Name", "Mounted Charge" },
-                { "KMC.Native.MountedCharge.Description", "Charge an enemy in a clear straight line using your mount. The rider spends a full-round action and makes the charge attack; the mount supplies the movement. Requires an eligible mounted pair." },
+                // The hidden delivery shell of the ordinary Charge while mounted: logs and target selection read "Charge".
+                { "KMC.Native.MountedCharge.Name", "Charge" },
+                { "KMC.Native.MountedCharge.Description", "Charge an enemy in a clear straight line. While mounted, your mount carries the charge and you make the charge attack; this takes a full-round action." },
+                { "KMC.Native.MountState.Name", "Mount / Dismount" },
+                { "KMC.Native.MountState.Description", "Mount your eligible companion, or dismount if you are already riding. Outside combat this is free. In combat it costs a Move action." },
                 { "KMC.Native.Mount.Description", "Select your active Horse or Mammoth. Walk into reach and mount. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order. You can queue this order while gameplay is paused; it executes after unpausing." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
                 { "KMC.Native.Dismount.Description", "Get off your companion. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order." },
@@ -106,6 +111,12 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintAbility riderPrimaryAbility;
         private BlueprintAbility mountPrimaryAbility;
         private BlueprintAbility mountedChargeAbility;
+        private BlueprintAbility mountStateAbility;
+        private LocalizationPack localizedPack;
+        // CTRL-03: actors that had their one automatic placement, placed or migrated a control, or removed it. Belongs to
+        // the loaded world; saved as archive placement records and cleared when a new load begins.
+        private readonly HashSet<string> placementRecorded = new HashSet<string>(StringComparer.Ordinal);
+        private bool restoringSlots;
         private bool registered;
         private bool enabled;
         private bool subscribed;
@@ -142,6 +153,21 @@ namespace KingmakerMountedCombat.Integration
         internal BlueprintAbility RiderPrimaryAbility => riderPrimaryAbility;
 
         internal BlueprintAbility MountPrimaryAbility => mountPrimaryAbility;
+
+        internal BlueprintAbility MountStateAbility => mountStateAbility;
+
+        // Set by persistence: false while a selected load still has slot bindings to restore. Null means no persistence.
+        internal Func<bool> PlacementSettled { get; set; }
+
+        internal long InitialPlacementCount { get; private set; }
+
+        internal long InitialPlacementFullBarCount { get; private set; }
+
+        internal long LegacySlotRepairCount { get; private set; }
+
+        internal long PublicControlCommandRefusedCount { get; private set; }
+
+        internal bool IsPlacementRecorded(UnitEntityData unit) => unit?.UniqueId != null && placementRecorded.Contains(unit.UniqueId);
 
         internal bool SerializationSuspended => serializationSuspended;
 
@@ -866,6 +892,12 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            // A locale change replaces the native pack; the owned keys are registered again on the new one.
+            if (!ReferenceEquals(LocalizationManager.CurrentPack, localizedPack) && !EnsureLocalization())
+            {
+                return;
+            }
+
             ReconcileFacts();
         }
 
@@ -880,6 +912,12 @@ namespace KingmakerMountedCombat.Integration
             if (!RetiredPrimaryHelpersSelected && NativeMountedControlPolicy.IsRetiredPrimaryHelper(kind))
             {
                 return new NativeMountedControlAvailability(false, false, "Attack with ordinary controls.");
+            }
+            if (kind == NativeMountedControlKind.MountState)
+            {
+                // The public control never vanishes; its availability and reason are the current shell's.
+                var shell = Evaluate(ResolveMountStateIntent(caster), caster);
+                return new NativeMountedControlAvailability(true, shell.IsEnabled, shell.IsTransitionReady, shell.Reason);
             }
 
             var relationship = ResolveControlBoundary(caster, kind == NativeMountedControlKind.MountCompanion);
@@ -1388,7 +1426,8 @@ namespace KingmakerMountedCombat.Integration
                 DismountAbilityGuid,
                 RiderPrimaryAbilityGuid,
                 MountPrimaryAbilityGuid,
-                MountedChargeAbilityGuid
+                MountedChargeAbilityGuid,
+                MountStateAbilityGuid
             })
             {
                 AssertGuidAbsent(library, guid);
@@ -1403,6 +1442,10 @@ namespace KingmakerMountedCombat.Integration
             if (saddleIcon == null || horseCompanion.DismountSaddleIcon == null)
             {
                 throw new InvalidOperationException("The original KMC saddle icon is unavailable for Mount/Dismount controls.");
+            }
+            if (horseCompanion.MountStateIcon == null)
+            {
+                throw new InvalidOperationException("The original KMC mount-state icon is unavailable for the Mount / Dismount control.");
             }
 
             mountAbility = CreateAbility(
@@ -1455,13 +1498,31 @@ namespace KingmakerMountedCombat.Integration
                 horseIcon);
 
             mountedChargeAbility = CreateMountedChargeAbility(horseIcon);
+            // F2: one public control. It never executes itself: a click runs the current Mount or Dismount shell.
+            mountStateAbility = CreateAbility(
+                "KMC_MountStateAbility",
+                MountStateAbilityGuid,
+                "KMC.Native.MountState.Name",
+                "KMC.Native.MountState.Description",
+                NativeMountedControlKind.MountState,
+                AbilityRange.Personal,
+                false,
+                false,
+                true,
+                UnitCommand.CommandType.Move,
+                horseCompanion.MountStateIcon);
+            // The delivery shells stay registered, leased and resolvable for saves, but leave the ability drawer: the
+            // player sees Mount / Dismount and the ordinary Charge (Ability.Hidden reads Blueprint.Hidden).
+            mountAbility.Hidden = true;
+            dismountAbility.Hidden = true;
+            mountedChargeAbility.Hidden = true;
             foreach (var ability in EnumerateBlueprints())
             {
                 library.BlueprintsByAssetId.Add(ability.AssetGuid, ability);
                 blueprintList.Add(ability);
             }
             registered = true;
-            logger.Info("Registered five original KMC native mounted-control abilities with action-bar autofill disabled; the Mounted Charge shell is leased only while its setting is on.");
+            logger.Info("Registered six original KMC native mounted-control abilities with action-bar autofill disabled; Mount / Dismount is the public control and Mount, Dismount and the Mounted Charge shell are hidden delivery identities.");
         }
 
         internal float GetMountedChargeMinimumRange(UnitEntityData caster)
@@ -1553,7 +1614,52 @@ namespace KingmakerMountedCombat.Integration
         internal bool IsPlayerOnlyRelationshipControl(AbilityData ability)
         {
             return ability?.Blueprint != null &&
-                (ReferenceEquals(ability.Blueprint, mountAbility) || ReferenceEquals(ability.Blueprint, dismountAbility));
+                (ReferenceEquals(ability.Blueprint, mountAbility) || ReferenceEquals(ability.Blueprint, dismountAbility) ||
+                 ReferenceEquals(ability.Blueprint, mountStateAbility));
+        }
+
+        private NativeMountedControlKind ResolveMountStateIntent(UnitEntityData unit)
+        {
+            var owner = ResolveControlBoundary(unit, false);
+            return NativeMountedControlPolicy.ResolveMountStateIntent(
+                owner?.State == RelationshipState.Mounted,
+                owner?.State == RelationshipState.Faulted,
+                owner != null && unit != null && unit == owner.Rider);
+        }
+
+        // The AbilityData the public slot runs right now: the current Mount or Dismount shell for the public control, or
+        // the mounted rider's Charge shell for the ordinary Charge. Null keeps the slot's own AbilityData.
+        internal AbilityData ResolvePublicSlotDelivery(MechanicActionBarSlotAbility slot, bool mountedCharge)
+        {
+            var unit = slot?.Unit;
+            var blueprint = slot?.Ability?.Blueprint;
+            if (blueprint == null || unit?.Descriptor?.Abilities == null || disposed || !enabled || !registered ||
+                serializationSuspended || areaSuspended) return null;
+            BlueprintAbility shell = null;
+            if (ReferenceEquals(blueprint, mountStateAbility))
+                shell = ResolveMountStateIntent(unit) == NativeMountedControlKind.Dismount ? dismountAbility : mountAbility;
+            else if (mountedCharge)
+                shell = mountedChargeAbility;
+            var fact = shell == null ? null : unit.Descriptor.Abilities.GetAbility(shell);
+            return fact != null && fact.Active ? fact.Data : null;
+        }
+
+        // The public control is never a command of its own; any route that tries to cast it directly is refused before
+        // the engine can charge for it.
+        internal bool AdmitPublicControlCommand(UnitCommand command)
+        {
+            var cast = command as UnitUseAbility;
+            if (mountStateAbility == null || cast?.Spell?.Blueprint == null ||
+                !ReferenceEquals(cast.Spell.Blueprint, mountStateAbility)) return true;
+            PublicControlCommandRefusedCount++;
+            logger.Info("Refused a direct Mount / Dismount command; the public control runs its current shell from the slot.");
+            return false;
+        }
+
+        // A new native load begins: the previous world's placement records do not belong to it.
+        internal void BeginLoadedWorld()
+        {
+            placementRecorded.Clear();
         }
 
         private void ReconcileFacts()
@@ -1590,6 +1696,8 @@ namespace KingmakerMountedCombat.Integration
                     logger.Info("Native mounted control fact leased: ability=" + ability.name +
                         "; unitId=" + unit.UniqueId + ".");
                 }
+                ReconcilePublicControlSlots(unit);
+                TryInitialPlacement(unit);
             }
 
             foreach (var prior in observedUnits.ToArray())
@@ -1626,6 +1734,87 @@ namespace KingmakerMountedCombat.Integration
                 RetiredPrimaryAutoUseCleared++;
                 logger.Info("Retired mounted primary auto-use selection cleared: unitId=" + unit.UniqueId + ".");
             }
+        }
+
+        // F2: an exact old Mount, Dismount or Mounted Charge binding becomes the public control it now stands for, in
+        // the same slot; every other slot keeps its content and position. A stale binding of the public control is
+        // rebound to the live fact. Idempotent every update; nothing is matched by display name.
+        private void ReconcilePublicControlSlots(UnitEntityData unit)
+        {
+            var slots = unit?.UISettings?.Slots;
+            var abilities = unit?.Descriptor?.Abilities;
+            if (slots == null || abilities == null || mountStateAbility == null) return;
+            var publicControl = abilities.GetAbility(mountStateAbility);
+            var publicActive = publicControl != null && publicControl.Active;
+            for (var index = 0; index < slots.Length; index++)
+            {
+                var bound = (slots[index] as MechanicActionBarSlotAbility)?.Ability;
+                var kind = ResolveKind(bound?.Blueprint);
+                if (kind == NativeMountedControlKind.MountState)
+                {
+                    if (!publicActive) continue;
+                    if (unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
+                    if (!ReferenceEquals(bound, publicControl.Data))
+                        unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, index);
+                    continue;
+                }
+                var repair = MountedControlSlotPolicy.RepairLiveSlot(kind);
+                if (repair == MountedControlSlotRepair.Keep) continue;
+                var replacement = repair == MountedControlSlotRepair.MountState
+                    ? (publicActive && !SlotsHold(slots, mountStateAbility) ? publicControl.Data : null)
+                    : ResolveStockChargeForSlot(unit, slots);
+                unit.UISettings.SetSlot(replacement == null
+                    ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = unit }
+                    : new MechanicActionBarSlotAbility { Unit = unit, Ability = replacement }, index);
+                if (repair == MountedControlSlotRepair.MountState && unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
+                LegacySlotRepairCount++;
+                logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
+                    "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
+            }
+            var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
+            if (autoUse == NativeMountedControlKind.MountCompanion || autoUse == NativeMountedControlKind.Dismount ||
+                autoUse == NativeMountedControlKind.MountedCharge || autoUse == NativeMountedControlKind.MountState)
+                unit.AutoUseAbility = null;
+        }
+
+        // CTRL-03: the native new-ability placement, once per actor, into an empty main-bar slot. Never over a slot;
+        // a full main bar records the attempt. Waits for the selected load's restored bindings and the native setting.
+        private void TryInitialPlacement(UnitEntityData unit)
+        {
+            if (mountStateAbility == null || unit?.UniqueId == null || unit.UISettings == null) return;
+            var publicControl = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+            var settled = !restoringSlots && (PlacementSettled == null || PlacementSettled());
+            var autofill = Kingmaker.UI.SettingsUI.SettingsRoot.Instance?.AutofillActionbarSlots?.CurrentValue == true;
+            if (!MountedControlSlotPolicy.ShouldAttemptInitialPlacement(publicControl != null && publicControl.Active,
+                placementRecorded.Contains(unit.UniqueId), settled, autofill)) return;
+            placementRecorded.Add(unit.UniqueId);
+            if (unit.UISettings.Slots != null && SlotsHold(unit.UISettings.Slots, mountStateAbility)) return;
+            var empty = new bool[MountedControlSlotPolicy.MainBarSlotCount];
+            for (var index = 0; index < empty.Length; index++)
+                empty[index] = unit.UISettings.GetSlot(index, unit) is MechanicActionBarSlotEmpty;
+            var chosen = MountedControlSlotPolicy.SelectInitialPlacementIndex(empty);
+            if (chosen < 0)
+            {
+                InitialPlacementFullBarCount++;
+                logger.Info("Mount / Dismount was not placed: the main action bar is full; unitId=" + unit.UniqueId + ".");
+                return;
+            }
+            unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, chosen);
+            InitialPlacementCount++;
+            logger.Info("Mount / Dismount placed once on the main action bar: unitId=" + unit.UniqueId + "; slot=" + chosen + ".");
+        }
+
+        private bool SlotsHold(MechanicActionBarSlot[] slots, BlueprintAbility blueprint) =>
+            slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, blueprint));
+
+        // The unit's own exact stock Charge, unless it is already on the bar (one Charge per bar, not a second copy).
+        private static AbilityData ResolveStockChargeForSlot(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            var charge = unit.Descriptor.Abilities.Enumerable.FirstOrDefault(fact => fact.Active &&
+                MountedChargeSafetyService.IsExactNativeCharge(fact.Data));
+            if (charge == null) return null;
+            return slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, charge.Blueprint))
+                ? null : charge.Data;
         }
 
         internal long RetiredPrimarySlotsCleared { get; private set; }
@@ -1735,14 +1924,17 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        internal SavedMountedSlot[] CapturePersistentSlots()
+        // legacySchema: the held schema-2 writer only knows kinds 1-4, so the public control is written as the shell it
+        // runs now and F2's placement records are omitted.
+        internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false)
         {
             var result = new List<SavedMountedSlot>();
             foreach (var unit in CollectCurrentCandidateUnits())
             {
                 var slots = unit?.UISettings?.Slots;
                 if (slots == null) continue;
-                for (var i = 0; i < slots.Length; i++)
+                // Saved indices are bounded to 0-127 by the archive contract; a binding further out is not persisted.
+                for (var i = 0; i < slots.Length && i <= 127; i++)
                 {
                     var ability = (slots[i] as MechanicActionBarSlotAbility)?.Ability;
                     var kind = ResolveKind(ability?.Blueprint);
@@ -1751,33 +1943,76 @@ namespace KingmakerMountedCombat.Integration
                     // Native hotbars can retain AbilityData after its runtime fact
                     // was removed by a real dismount. That is not a live control
                     // binding and must not require inventing a fact after loading.
-                    if (fact != null && fact.Active && ReferenceEquals(fact.Data, ability) &&
-                        ability.Caster?.Unit == unit)
-                        result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = (int)kind });
+                    if (fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability) || ability.Caster?.Unit != unit) continue;
+                    var savedKind = legacySchema && kind == NativeMountedControlKind.MountState
+                        ? (int)ResolveMountStateIntent(unit) : (int)kind;
+                    if (legacySchema && savedKind > MountedControlSlotPolicy.SavedMountPrimary) continue;
+                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = savedKind });
                 }
+                // The one-placement record travels with a live public control only, so a disabled or removed KMC writes none.
+                var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+                if (!legacySchema && enabled && publicControl != null && publicControl.Active && unit.UniqueId != null &&
+                    placementRecorded.Contains(unit.UniqueId))
+                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = 0,
+                        Kind = MountedControlSlotPolicy.SavedPlacementRecord });
             }
             return result.ToArray();
         }
 
         internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
         {
-            Update();
-            var candidates = CollectCandidateUnits();
+            // Records first, so the placement that Update may otherwise attempt cannot run ahead of this load's bindings.
             foreach (var binding in bindings)
+                if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) placementRecorded.Add(binding.ActorId);
+            restoringSlots = true;
+            try
             {
-                var units = candidates.Where(u => u.UniqueId == binding.ActorId).ToArray();
-                if (units.Length != 1) continue;
-                var unit = units[0];
-                var slots = unit.UISettings?.Slots;
-                if (slots == null || binding.Index >= slots.Length) continue;
-                var current = slots[binding.Index];
-                var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
-                if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
-                if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;
-                var blueprint = EnumerateBlueprints().SingleOrDefault(b => (int)ResolveKind(b) == binding.Kind);
-                var fact = blueprint == null ? null : unit.Descriptor.Abilities.GetAbility(blueprint);
-                if (fact != null && fact.Active)
-                    unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = fact.Data }, binding.Index);
+                Update();
+                var candidates = CollectCandidateUnits();
+                foreach (var binding in bindings)
+                {
+                    if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) continue;
+                    var units = candidates.Where(u => u.UniqueId == binding.ActorId).ToArray();
+                    if (units.Length != 1) continue;
+                    var unit = units[0];
+                    var slots = unit.UISettings?.Slots;
+                    if (slots == null || binding.Index >= slots.Length) continue;
+                    var current = slots[binding.Index];
+                    var repair = MountedControlSlotPolicy.RestoreSavedSlot(binding.Kind);
+                    if (repair == MountedControlSlotRepair.MountState) placementRecorded.Add(binding.ActorId);
+                    var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
+                    if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
+                    if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;
+                    AbilityData restored = null;
+                    if (repair == MountedControlSlotRepair.MountState)
+                    {
+                        // Mount, Dismount and the public control collapse to one public control at the first saved index.
+                        var publicControl = mountStateAbility == null ? null : unit.Descriptor.Abilities.GetAbility(mountStateAbility);
+                        if (publicControl != null && publicControl.Active && !SlotsHold(slots, mountStateAbility)) restored = publicControl.Data;
+                    }
+                    else if (repair == MountedControlSlotRepair.StockCharge)
+                    {
+                        restored = ResolveStockChargeForSlot(unit, slots);
+                    }
+                    else
+                    {
+                        var blueprint = EnumerateBlueprints().SingleOrDefault(b => (int)ResolveKind(b) == binding.Kind);
+                        var fact = blueprint == null ? null : unit.Descriptor.Abilities.GetAbility(blueprint);
+                        if (fact != null && fact.Active) restored = fact.Data;
+                    }
+                    if (restored == null) continue;
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = restored }, binding.Index);
+                    if (repair != MountedControlSlotRepair.Keep && binding.Kind != MountedControlSlotPolicy.SavedMountState)
+                    {
+                        LegacySlotRepairCount++;
+                        logger.Info("Saved KMC control slot migrated: unitId=" + unit.UniqueId + "; slot=" + binding.Index +
+                            "; savedKind=" + binding.Kind + "; to=" + restored.Blueprint.name + ".");
+                    }
+                }
+            }
+            finally
+            {
+                restoringSlots = false;
             }
         }
 
@@ -2135,6 +2370,7 @@ namespace KingmakerMountedCombat.Integration
             if (ReferenceEquals(ability, riderPrimaryAbility)) { return NativeMountedControlKind.RiderPrimary; }
             if (ReferenceEquals(ability, mountPrimaryAbility)) { return NativeMountedControlKind.MountPrimary; }
             if (ReferenceEquals(ability, mountedChargeAbility)) { return NativeMountedControlKind.MountedCharge; }
+            if (ReferenceEquals(ability, mountStateAbility)) { return NativeMountedControlKind.MountState; }
             return NativeMountedControlKind.None;
         }
 
@@ -2145,6 +2381,7 @@ namespace KingmakerMountedCombat.Integration
             if (riderPrimaryAbility != null) { yield return riderPrimaryAbility; }
             if (mountPrimaryAbility != null) { yield return mountPrimaryAbility; }
             if (mountedChargeAbility != null) { yield return mountedChargeAbility; }
+            if (mountStateAbility != null) { yield return mountStateAbility; }
         }
 
         private void RemoveRegisteredBlueprints()
@@ -2194,6 +2431,7 @@ namespace KingmakerMountedCombat.Integration
                     pack.Strings.Add(entry.Key, entry.Value);
                 }
             }
+            localizedPack = pack;
             return true;
         }
 

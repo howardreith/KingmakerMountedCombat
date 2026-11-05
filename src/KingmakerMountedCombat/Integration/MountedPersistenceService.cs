@@ -71,6 +71,7 @@ namespace KingmakerMountedCombat.Integration
         // and block the very teardown it is meant to protect.
         internal bool LoadInFlight =>
             restoreLoad != null && LoadingProcess.Instance != null && LoadingProcess.Instance.IsLoadingInProcess;
+        internal bool ControlPlacementSettled => !presentationPending && !LoadInFlight;
         private long loadSequence;
         private LoadScope restoreLoad;
         private MountedSaveReadResult loaded;
@@ -129,6 +130,8 @@ namespace KingmakerMountedCombat.Integration
         {
             this.relationship = relationship;
             this.controls = controls;
+            // F2 CTRL-03: first placement waits for the selected load's own restored control bindings.
+            if (controls != null) controls.PlacementSettled = () => ControlPlacementSettled;
             this.unifiedTurn = unifiedTurn;
             this.settings = settings;
             this.logger = logger;
@@ -633,7 +636,7 @@ namespace KingmakerMountedCombat.Integration
                 ProfileId = mounted ? relationship.Runtime.MountProfileId : null,
                 Rider = mounted ? CaptureActor(relationship.Rider) : null,
                 Mount = mounted ? CaptureActor(relationship.Mount) : null,
-                Slots = controls.CapturePersistentSlots(),
+                Slots = controls.CapturePersistentSlots(true),
                 Combat = combat
             };
         }
@@ -682,6 +685,7 @@ namespace KingmakerMountedCombat.Integration
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();
+                controls?.BeginLoadedWorld();
                 SelectLoad(save);
             }, () =>
             {
