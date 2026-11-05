@@ -440,9 +440,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("runId is outside the exact runtime allowlist.");
             }
 
-            if (string.IsNullOrEmpty(Branch) || !Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal))
+            if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
+                !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal)))
             {
-                errors.Add("branch must use the codex/mounted-combat- prefix.");
+                errors.Add("branch must use the KMC prefix or the exact selected F1 branch.");
             }
 
             if (!IsLowerHex(Commit, 40))
