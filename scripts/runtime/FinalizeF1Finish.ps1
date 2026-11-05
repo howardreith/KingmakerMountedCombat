@@ -15,7 +15,7 @@ function Get-KmcF1FinishSource {
 
 # The one corrected candidate this scenario may run. Earlier F1c and observer.7 runs keep their own identities.
 function Get-KmcF1CandidatePins {
- [pscustomobject]@{commit='PENDING';dllSha256='PENDING';dllMvid='PENDING';packageSha256='PENDING'}
+ [pscustomobject]@{commit='8c5be488d11bb31b00a91b3213e18d12e617d250';dllSha256='cd16000d24440d72fe9500fc630dc3d6ee7f71d13f6d09cc4c83d96fa0cc6a34';dllMvid='d72ca1ea-02fc-4796-938a-608b38d73b22';packageSha256='40c47185253fe2babb7e19e94954bb2b48d133f778880f7290bf23d78dc75eae';suiteId='finalize-f1d-8c5be488-20261105';suiteSha256='13dec54e92437da65e9c3e46ce6887a2e7502900561feb1daf0013f4bd543198'}
 }
 
 function Get-KmcF1FinishChecks {

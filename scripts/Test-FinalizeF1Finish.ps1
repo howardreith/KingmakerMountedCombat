@@ -65,11 +65,11 @@ Refuse {$bad=Clone $result;$bad.observations.f1Creators.comparison.featureGuid='
 Refuse {$bad=Clone $result;$bad.observations.presenceLoaded.modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active');Assert-KmcF1FinishObserverResult $r ([pscustomobject](Clone $observer)) $bad}
 # The request validator runs only inside the live transaction; WhatIf never reaches it.
 # The next request's exact shape: the retained refused request under the corrected identities.
-$packageManifest=Join-Path $lab 'artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1d-diagnostic.zip.manifest.json'
+$packageManifest=Join-Path $lab 'artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1d-diagnostic-diagnostic.zip.manifest.json'
 $observerManifest=Read-KmcJson (Join-Path $lab 'artifacts/KmcRemovalObserver-0.1.0-observer.8-finalize-f1d-diagnostic.zip.manifest.json')
 $next=Read-KmcJson (Join-Path $lab 'runtime-evidence/20261105-finalize-f1-finish-01/runtime-request.json')
 $next.commit=$candidate.commit;$next.dllSha256=$candidate.dllSha256;$next.dllMvid=$candidate.dllMvid
-$next.qualificationSuite.suiteId='finalize-f1d-'+$candidate.commit.Substring(0,8);$next.qualificationSuite.snapshotSha256='0'*64
+$next.qualificationSuite.suiteId=$candidate.suiteId;$next.qualificationSuite.snapshotSha256=$candidate.suiteSha256
 $next.normalPlayer.observer.version=[string]$observerManifest.version;$next.normalPlayer.observer.commit=[string]$observerManifest.commit;$next.normalPlayer.observer.packageSha256=[string]$observerManifest.packageSha256;$next.normalPlayer.observer.dllSha256=[string]$observerManifest.dllSha256;$next.normalPlayer.observer.dllMvid=[string]$observerManifest.dllMvid
 $preflight=Join-Path (Get-KmcRepositoryRoot) 'obj/f1-next-request.json';[void](New-Item -ItemType Directory -Force (Split-Path $preflight))
 function WritePreflight($Value){[IO.File]::WriteAllText($preflight,($Value|ConvertTo-Json -Depth 40),(New-Object Text.UTF8Encoding $false))}

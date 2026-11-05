@@ -169,7 +169,7 @@ namespace KmcRemovalObserver
             var previous = NormalPlayer != null && NormalPlayer.PreviousPackageLoad;
             var f1 = NormalPlayer != null && NormalPlayer.F1Finish;
             if (NormalPlayer != null && NormalPlayer.Mode != "controls" && !previous && !f1) errors.Add("The normal-player mode is not one of the closed modes.");
-            if (f1 && (Candidate == null || Candidate.Commit != "39a153cf9524683d615f9efef60ff38c45fcd123" || Candidate.DllSha256 != "8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072" || NormalPlayer.KmcPackageSha256 != "4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39")) errors.Add("F1 finishing mode requires the frozen F1c candidate.");
+            if (f1 && (Candidate == null || Candidate.Commit != "8c5be488d11bb31b00a91b3213e18d12e617d250" || Candidate.DllSha256 != "cd16000d24440d72fe9500fc630dc3d6ee7f71d13f6d09cc4c83d96fa0cc6a34" || NormalPlayer.KmcPackageSha256 != "40c47185253fe2babb7e19e94954bb2b48d133f778880f7290bf23d78dc75eae")) errors.Add("F1 finishing mode requires the frozen corrected candidate.");
             if (previous)
             {
                 if (Archive == null || Archive.InternalName != "KMC C7 NO MODS OWNER SEED" || Archive.FileName != "Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks" ||
