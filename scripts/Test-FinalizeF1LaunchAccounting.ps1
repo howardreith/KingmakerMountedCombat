@@ -30,15 +30,21 @@ try {
         param($budget)
         $budget.Record.entries+=@([pscustomobject]@{entryId='start2';launch=$true;actualGameStartAttemptUtc='2026-11-04T00:01:00Z'},
             [pscustomobject]@{entryId='start3';launch=$true;actualGameStartAttemptUtc='2026-11-04T00:02:00Z'},
-            [pscustomobject]@{entryId='start4';kind='native';launch=$true;status='running'})
+            [pscustomobject]@{entryId='start4';kind='native';launch=$true;status='running'},
+            [pscustomobject]@{entryId='start5';kind='native';launch=$true;status='running'})
     }
-    $admission.EntryId='start4'; $script:called=$false; $refused=$false
-    try { Invoke-KmcFinalizeF1GameStart $repo $admission { $script:called=$true } } catch { $refused=$true }
-    if(!$refused-or$script:called){throw 'Fourth actual attempt was not refused before process start'}
+    $admission.EntryId='start4'; $script:called=$false
+    Invoke-KmcFinalizeF1GameStart $repo $admission { $script:called=$true }
     $record=(Read-KmcWorkflowBudget $repo 'finalize-f1').Record
-    if($record.entries[0].seconds-ne17-or$null-ne$record.entries[4].PSObject.Properties['actualGameStartAttemptUtc']){throw 'Refusal rewrote history or consumed an attempt'}
+    if(!$script:called-or$null-eq$record.entries[4].PSObject.Properties['actualGameStartAttemptUtc']){throw 'Authorized fourth actual attempt was not admitted and marked'}
+    Write-Host 'PASS the authorized fourth actual attempt is admitted and marked before process start'
+    $admission.EntryId='start5'; $script:called=$false; $refused=$false
+    try { Invoke-KmcFinalizeF1GameStart $repo $admission { $script:called=$true } } catch { $refused=$true }
+    if(!$refused-or$script:called){throw 'Fifth actual attempt was not refused before process start'}
+    $record=(Read-KmcWorkflowBudget $repo 'finalize-f1').Record
+    if($record.entries[0].seconds-ne17-or$null-ne$record.entries[5].PSObject.Properties['actualGameStartAttemptUtc']){throw 'Refusal rewrote history or consumed an attempt'}
     Assert-KmcFinalizeF1LaunchAllowance $record $true
-    Write-Host 'PASS three actual attempts refuse a fourth; history and WhatIf preserved'
+    Write-Host 'PASS four actual attempts refuse a fifth; history and WhatIf preserved'
 } finally {
     $env:KMC_WORKFLOW_BUDGET_ROOT=$priorRoot
     $env:KMC_WORKFLOW_BUDGET_ENTRY=$priorEntry

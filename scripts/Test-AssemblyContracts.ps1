@@ -318,6 +318,9 @@ if($Target-eq'Kingmaker'){
     $unityCore=[Reflection.Assembly]::ReflectionOnlyLoadFrom($unityCorePath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $unityCorePath).Hash.ToLowerInvariant()-ceq'3a76df7f709d465e3273502e08edbffb536b1c2f78c3a132b8668e59fddd2803') 'UnityEngine.CoreModule SHA-256'
     Assert-Contract ($unityCore.ManifestModule.ModuleVersionId.ToString()-ceq'bd5ffe06-494e-4588-a068-c8443cc48c47') 'UnityEngine.CoreModule MVID'
+    $unityUi=[Reflection.Assembly]::ReflectionOnlyLoadFrom((Join-Path $managed 'UnityEngine.UI.dll'))
+    $toggleGroup=$unityUi.GetType('UnityEngine.UI.ToggleGroup',$false)
+    Assert-Contract ($toggleGroup.GetMethod('AnyTogglesOn',[Type[]]@()).MetadataToken-eq0x060004F8-and$toggleGroup.GetMethod('SetAllTogglesOff',[Type[]]@()).MetadataToken-eq0x060004FA) 'native ToggleGroup members reached by the feat row clear'
     $imageConversionPath=Join-Path $managed 'UnityEngine.ImageConversionModule.dll'
     $imageConversion=[Reflection.Assembly]::ReflectionOnlyLoadFrom($imageConversionPath)
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $imageConversionPath).Hash.ToLowerInvariant()-ceq'1b30743ab1830b9b45e79f88c1acefd7517eafcef4fd1a7a3eb853a07ca5bb17') 'UnityEngine.ImageConversionModule SHA-256'
@@ -432,6 +435,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.UnitLogic.Class.LevelUp.Actions.SelectFeature',0x060028E4,'Apply'),
         @('Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer',0x06009F79,'FillFeatureDataLight'),
         @('Kingmaker.Assets.UI.LevelUp.CharBuildSelectorItem',0x06009FA8,'ReInit'),
+        @('Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer',0x04006D56,'ToggleGroup'),@('Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer',0x04006D65,'IgnoreAction'),
         @('Kingmaker.ElementsSystem.ElementsContext',0x060083E5,'GetData'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F17,'SetMaster'),
         @('Kingmaker.UnitLogic.UnitDescriptor',0x06001F16,'RemoveMaster'),

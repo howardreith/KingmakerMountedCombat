@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Harmony12;
@@ -24,14 +25,19 @@ namespace KmcRemovalObserver
         private const string F1Toggle = "3c81f5a02be74d96a4e07d1c92b6f385";
         private HarmonyInstance f1SaveGuard;
         private static NormalPlayerSession f1Active;
-        private object f1FirstController, f1CurrentController;
-        private bool f1Open, f1HadRank, f1Removed, f1Fresh, f1On, f1Off, f1CreatorsDone;
+        private object f1FirstController;
+        private bool f1Open, f1Removed, f1Fresh, f1On, f1Off, f1CreatorsDone;
         private int f1Closed;
         private double f1NextRead;
         private ActivatableAbility f1ToggleFact;
         private bool? f1LastOn;
         private readonly JArray f1Events = new JArray();
-        private int f1RefreshEvents;
+        private int f1RefreshEvents, f1RemovedReads;
+        private JObject f1SelectedBefore, f1RemovedRow, f1Reselected, f1FreshMounted, f1Comparison, f1PreSyncStale;
+        private bool f1SelectedRowLeft, f1SelectedNavigation, f1ReselectedRowLeft, f1ReselectedNavigation, f1RemovedStale, f1ComparisonOverlap;
+        private object f1HeldSelection;
+        private int f1HeldIndex;
+        private readonly HashSet<string> f1ComparisonFeatures = new HashSet<string>();
 
         private void ArmF1Finish()
         {
@@ -40,10 +46,13 @@ namespace KmcRemovalObserver
             var method = typeof(SaveManager).GetMethod("PrepareSave", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(SaveInfo) }, null);
             if (method == null || method.MetadataToken != 0x06008025) throw new InvalidOperationException("F1 save guard contract differs.");
             f1SaveGuard.Patch(method, new HarmonyMethod(typeof(NormalPlayerSession).GetMethod(nameof(F1DenySave), BindingFlags.Static | BindingFlags.NonPublic)), null, null);
+            // Ahead of KMC's own postfix, so this sees what the native refresh alone left behind.
+            var afterRefresh = new HarmonyMethod(typeof(NormalPlayerSession).GetMethod(nameof(F1ScrollAfter), BindingFlags.Static | BindingFlags.NonPublic));
+            afterRefresh.prioritiy = Priority.First;
             f1SaveGuard.Patch(typeof(CharBSelectorLayer).GetMethod("FillFeatureDataLight"),
                 new HarmonyMethod(typeof(NormalPlayerSession).GetMethod(nameof(F1ScrollBefore), BindingFlags.Static | BindingFlags.NonPublic)),
-                new HarmonyMethod(typeof(NormalPlayerSession).GetMethod(nameof(F1ScrollAfter), BindingFlags.Static | BindingFlags.NonPublic)), null);
-            Write("f1-creator-ready", new JObject { ["instructions"] = "Mobility1 then remove to0; inspect disabled regroup; cancel; fresh preview has no inherited selection; cancel again. No campaign entry." });
+                afterRefresh, null);
+            Write("f1-creator-ready", new JObject { ["instructions"] = "Keep unavailable feats shown throughout. Mobility1, select Mounted Combat, Next and Back; remove to0 and inspect the row; regain, reselect, Next and Back; cancel; fresh preview, select two plain native feats in turn; cancel again. No campaign entry." });
         }
         private static bool F1DenySave() { f1Active?.Fail("F1 finishing mode forbids every native save request."); return false; }
         private static void F1ScrollBefore(CharBSelectorLayer __instance, out float __state) { __state = F1ScrollPosition(__instance); }
@@ -51,8 +60,122 @@ namespace KmcRemovalObserver
         private static void F1ScrollAfter(CharBSelectorLayer __instance, bool refreshSort, float __state)
         {
             var active = f1Active;
-            if (active == null || active.f1RefreshEvents++ >= 30) return;
+            if (active == null) return;
+            active.ObserveF1NativeRefreshResidue(__instance);
+            if (active.f1RefreshEvents++ >= 30) return;
             active.Write("f1-native-light-refresh-scroll", new JObject { ["sorted"] = refreshSort, ["before"] = __state, ["after"] = F1ScrollPosition(__instance), ["layer"] = __instance.name });
+        }
+        private void ObserveF1NativeRefreshResidue(CharBSelectorLayer layer)
+        {
+            var state = layer.CurrentSelectionState;
+            if (f1PreSyncStale != null || f1HeldSelection == null || state == null || state.SelectedItem != null || layer.SelectorItems == null ||
+                !ReferenceEquals(state.Selection, f1HeldSelection) || state.Index != f1HeldIndex) return;
+            var stale = layer.SelectorItems.Where(r => r != null && r.Toggle != null && r.Toggle.IsActive() && r.Toggle.isOn && r.Feature?.Feature?.AssetGuid == F1Feat).ToArray();
+            if (stale.Length == 0) return;
+            f1PreSyncStale = new JObject { ["rows"] = new JArray(stale.Select(F1RowState)), ["seconds"] = clock.Elapsed.TotalSeconds };
+            Write("f1-native-refresh-left-stale-row", (JObject)f1PreSyncStale.DeepClone());
+        }
+        private static JObject F1RowState(CharBuildSelectorItem row)
+        {
+            var toggle = row.Toggle;
+            var group = toggle.group;
+            var state = row.FeatureSelection;
+            var graphic = toggle.graphic;
+            var renderer = graphic == null ? null : typeof(Graphic).GetProperty("canvasRenderer").GetValue(graphic, null);
+            var label = typeof(CharBuildSelectorItem).GetField("m_ItemName", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(row);
+            return new JObject
+            {
+                ["featureGuid"] = row.Feature?.Feature?.AssetGuid,
+                ["name"] = row.Feature?.Name,
+                ["selectionGuid"] = (state?.Selection as Kingmaker.Blueprints.BlueprintScriptableObject)?.AssetGuid,
+                ["selectionIndex"] = state == null ? (int?)null : state.Index,
+                ["toggleIsOn"] = toggle.isOn,
+                ["interactable"] = toggle.interactable,
+                ["groupAllowSwitchOff"] = group == null ? (bool?)null : group.allowSwitchOff,
+                ["groupAnyOn"] = group == null ? (bool?)null : group.AnyTogglesOn(),
+                ["graphicAlpha"] = renderer == null ? (float?)null : (float)renderer.GetType().GetMethod("GetAlpha").Invoke(renderer, null),
+                ["selectedInCurrentPreview"] = state != null && state.SelectedItem != null && state.SelectedItem == row.Feature,
+                ["labelColor"] = label == null ? null : label.GetType().GetProperty("color").GetValue(label, null).ToString(),
+                ["labelSelectedColor"] = typeof(CharBuildSelectorItem).GetField("m_SelectedColor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(row).ToString(),
+                ["labelNonSelectedColor"] = typeof(CharBuildSelectorItem).GetField("m_NonSelectedColor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(row).ToString()
+            };
+        }
+        private void ObserveF1FirstCreatorRow(Kingmaker.UnitLogic.Class.LevelUp.LevelUpController controller, int rank, CharBuildSelectorItem[] rows)
+        {
+            var row = rows.FirstOrDefault(r => r.Feature?.Feature?.AssetGuid == F1Feat && r.FeatureSelection != null &&
+                (f1HeldSelection == null || (ReferenceEquals(r.FeatureSelection.Selection, f1HeldSelection) && r.FeatureSelection.Index == f1HeldIndex)));
+            var selected = controller.State.Selections.Any(s => s.SelectedItem?.Feature?.AssetGuid == F1Feat);
+            var bound = row != null && controller.State.Selections.Any(s => ReferenceEquals(s, row.FeatureSelection));
+            var selectedRow = rank >= 1 && selected && bound && row.Toggle.isOn;
+            if (f1SelectedBefore == null)
+            {
+                if (!selectedRow) return;
+                f1SelectedBefore = F1RowState(row);
+                f1HeldSelection = row.FeatureSelection.Selection;
+                f1HeldIndex = row.FeatureSelection.Index;
+                Write("f1-row-selected-before-removal", (JObject)f1SelectedBefore.DeepClone());
+                return;
+            }
+            if (!f1Removed)
+            {
+                if (row == null && rank >= 1) f1SelectedRowLeft = true;
+                if (selectedRow && f1SelectedRowLeft && !f1SelectedNavigation)
+                {
+                    f1SelectedNavigation = true;
+                    Write("f1-selected-row-returned-after-navigation", F1RowState(row));
+                }
+            }
+            if (rank == 0 && !selected && bound && !row.Toggle.interactable)
+            {
+                // Three reads a fifth of a second apart: the layout and the 0.1 s crossfade have settled.
+                if (++f1RemovedReads >= 3)
+                {
+                    f1RemovedRow = F1RowState(row);
+                    f1RemovedStale |= (bool)f1RemovedRow["toggleIsOn"] || (float?)f1RemovedRow["graphicAlpha"] >= 0.01f;
+                    if (!f1Removed)
+                    {
+                        f1Removed = true;
+                        Check(true, "f1-rank-removal-rebinds-current-preview-disabled-row-and-clears-selection");
+                        Write("f1-rank-removed", (JObject)f1RemovedRow.DeepClone());
+                    }
+                }
+            }
+            else f1RemovedReads = 0;
+            if (!f1Removed) return;
+            if (selectedRow)
+            {
+                if (f1Reselected == null)
+                {
+                    f1Reselected = F1RowState(row);
+                    Write("f1-row-reselected", (JObject)f1Reselected.DeepClone());
+                }
+                else if (f1ReselectedRowLeft && !f1ReselectedNavigation)
+                {
+                    f1ReselectedNavigation = true;
+                    Write("f1-reselected-row-returned-after-navigation", F1RowState(row));
+                }
+            }
+            if (f1Reselected != null && row == null) f1ReselectedRowLeft = true;
+        }
+        private void ObserveF1FreshCreatorRows(Kingmaker.UnitLogic.Class.LevelUp.LevelUpController controller, int rank, CharBuildSelectorItem[] rows)
+        {
+            var mounted = rows.FirstOrDefault(r => r.Feature?.Feature?.AssetGuid == F1Feat);
+            if (rank == 0 && mounted != null)
+            {
+                if (f1FreshMounted == null) Write("f1-fresh-mounted-row", F1RowState(mounted));
+                f1FreshMounted = F1RowState(mounted);
+            }
+            var on = rows.Where(r => r.Toggle.isOn && r.FeatureSelection != null && controller.State.Selections.Any(s => ReferenceEquals(s, r.FeatureSelection))).ToArray();
+            var comparison = on.FirstOrDefault(r => r.Feature?.Feature?.AssetGuid != F1Feat && r.FeatureSelection.SelectedItem != null && r.FeatureSelection.SelectedItem == r.Feature);
+            if (comparison != null)
+            {
+                f1Comparison = F1RowState(comparison);
+                f1Comparison["activeOnRows"] = on.Length;
+                f1ComparisonOverlap |= on.Length != 1;
+                if (f1ComparisonFeatures.Add((string)f1Comparison["featureGuid"])) Write("f1-fresh-comparison-row", (JObject)f1Comparison.DeepClone());
+                f1Comparison["distinctFeaturesSelected"] = f1ComparisonFeatures.Count;
+                f1Comparison["overlapSeen"] = f1ComparisonOverlap;
+            }
         }
         private static bool F1ScrollFixPresent(UnityModManager.ModEntry[] entries)
         {
@@ -69,7 +192,6 @@ namespace KmcRemovalObserver
             var open = controller != null;
             if (open && !f1Open)
             {
-                f1CurrentController = controller;
                 if (f1FirstController == null) f1FirstController = controller;
                 f1Events.Add(new JObject { ["event"] = "creator-open", ["ordinal"] = f1Closed + 1, ["seconds"] = clock.Elapsed.TotalSeconds });
             }
@@ -92,24 +214,22 @@ namespace KmcRemovalObserver
                     Check(f1Fresh, "f1-fresh-controller-has-no-inherited-MountedCombat-fact-or-selection");
                     if (!f1Fresh) { Complete("FAIL"); return false; }
                 }
-                if (ReferenceEquals(f1CurrentController, f1FirstController) && rank >= 1) f1HadRank = true;
-                if (ReferenceEquals(f1CurrentController, f1FirstController) && f1HadRank && rank == 0 && !f1Removed)
-                {
-                    var rows = UnityEngine.Object.FindObjectsOfType<CharBuildSelectorItem>();
-                    var row = rows.FirstOrDefault(r => r.gameObject.activeInHierarchy && r.Feature?.Feature?.AssetGuid == F1Feat);
-                    if (row != null && !row.Toggle.interactable && row.FeatureSelection != null &&
-                        controller.State.Selections.Any(s => ReferenceEquals(s, row.FeatureSelection)) &&
-                        !controller.State.Selections.Any(s => s.SelectedItem?.Feature?.AssetGuid == F1Feat))
-                    {
-                        f1Removed = true;
-                        Check(true, "f1-rank-removal-rebinds-current-preview-disabled-row-and-clears-selection");
-                        Write("f1-rank-removed", new JObject { ["rank"] = rank, ["disabled"] = true, ["currentPreviewBound"] = true });
-                    }
-                }
+                var rows = UnityEngine.Object.FindObjectsOfType<CharBuildSelectorItem>().Where(r => r.gameObject.activeInHierarchy && r.Toggle != null).ToArray();
+                if (ReferenceEquals(controller, f1FirstController)) ObserveF1FirstCreatorRow(controller, rank, rows);
+                else ObserveF1FreshCreatorRows(controller, rank, rows);
             }
-            observations["f1Creators"] = new JObject { ["events"] = f1Events, ["closed"] = f1Closed, ["rankRemoved"] = f1Removed, ["fresh"] = f1Fresh };
+            observations["f1Creators"] = new JObject { ["events"] = f1Events, ["closed"] = f1Closed, ["rankRemoved"] = f1Removed, ["fresh"] = f1Fresh,
+                ["nativeRefreshResidue"] = f1PreSyncStale, ["selectedBefore"] = f1SelectedBefore, ["selectedNavigation"] = f1SelectedNavigation, ["removedRow"] = f1RemovedRow, ["removedRowStaleRead"] = f1RemovedStale,
+                ["reselected"] = f1Reselected, ["reselectedNavigation"] = f1ReselectedNavigation, ["freshMounted"] = f1FreshMounted, ["comparison"] = f1Comparison };
             if (f1Closed < 2) return false;
             Check(f1Removed && f1Fresh, "f1-two-cancellations-follow-rank-removal-and-genuinely-fresh-preview");
+            Check(f1SelectedBefore != null, "f1-mounted-combat-row-selected-before-rank-removal");
+            Check(f1PreSyncStale != null, "f1-native-refresh-left-the-stale-row-before-the-clear");
+            Check(f1RemovedRow != null && !f1RemovedStale, "f1-removed-row-native-state-unselected-after-layout");
+            Check(f1Reselected != null, "f1-reselected-row-native-state-selected-after-regaining-rank");
+            Check(f1SelectedNavigation && f1ReselectedNavigation, "f1-selected-rows-survive-next-and-back");
+            Check(f1FreshMounted != null && !(bool)f1FreshMounted["toggleIsOn"], "f1-fresh-mounted-combat-row-native-state-unselected");
+            Check(f1Comparison != null && f1ComparisonFeatures.Count >= 2 && !f1ComparisonOverlap, "f1-fresh-native-comparison-rows-select-exclusively");
             if (errors.Count != 0) { Complete("FAIL"); return false; }
             f1CreatorsDone = true;
             return true;
@@ -142,6 +262,8 @@ namespace KmcRemovalObserver
         {
             if (!roles.F1Finish || completed) return;
             GUILayout.Label("F1 finishing observer: " + f1Closed + " cancelled creators; rank removal=" + f1Removed + "; fresh=" + f1Fresh + "; stage=" + stage);
+            GUILayout.Label("First creator: selected=" + (f1SelectedBefore != null) + "; navigated=" + f1SelectedNavigation + "; native residue=" + (f1PreSyncStale != null) + "; removed row stale=" + f1RemovedStale +
+                "; reselected=" + (f1Reselected != null) + "; navigated=" + f1ReselectedNavigation + ". Fresh creator: row=" + (f1FreshMounted != null) + "; comparison features=" + f1ComparisonFeatures.Count);
             GUILayout.Label("Presentation grant is disposable in-memory test setup. No ordinary acquisition or save writeback is claimed.");
             if (stage != 9) return;
             GUILayout.Label("Capture reaction on/off and tooltip, Charge tooltip, then ordinary KMC page after actions. This button only closes the supervised native run.");

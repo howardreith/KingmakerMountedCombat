@@ -33,9 +33,11 @@ try {
 . (Join-Path $PSScriptRoot 'runtime\FinalizeF1LaunchAdmission.ps1')
 $record=[pscustomobject]@{budgetId='finalize-f1';entries=@([pscustomobject]@{launch=$true;actualGameStartAttemptUtc='2026-11-04T00:00:00Z'},[pscustomobject]@{launch=$true;actualGameStartAttemptUtc='2026-11-04T00:01:00Z'},[pscustomobject]@{launch=$true;status='failed';seconds=17})}
 Assert-KmcFinalizeF1LaunchAllowance $record $false
-Write-Host 'PASS two attempts admit one remaining launch'
 $record.entries+= [pscustomobject]@{launch=$true;status='failed';actualGameStartAttemptUtc='2026-11-04T00:02:00Z'}
-$refused=$false; try { Assert-KmcFinalizeF1LaunchAllowance $record $false } catch { $refused=$true }; if(!$refused){throw 'Fourth F1 launch admitted'}
-Write-Host 'PASS three attempts including failure refuse a fourth launch'
+Assert-KmcFinalizeF1LaunchAllowance $record $false
+Write-Host 'PASS three attempts admit the authorized fourth launch'
+$record.entries+= [pscustomobject]@{launch=$true;status='failed';actualGameStartAttemptUtc='2026-11-04T00:03:00Z'}
+$refused=$false; try { Assert-KmcFinalizeF1LaunchAllowance $record $false } catch { $refused=$true }; if(!$refused){throw 'Fifth F1 launch admitted'}
+Write-Host 'PASS four attempts including failure refuse a fifth launch'
 Assert-KmcFinalizeF1LaunchAllowance $record $true
 Write-Host 'PASS WhatIf remains available without a new launch'

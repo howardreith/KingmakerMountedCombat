@@ -48,6 +48,7 @@ namespace KmcRemovalObserver
         private readonly JObject observations = new JObject();
         private readonly JArray inputs = new JArray();
         private readonly List<string> kmcLog = new List<string>(), firstLogErrors = new List<string>();
+        private string firstExceptionStack;
         private readonly List<float> windowFrames = new List<float>();
         private int logErrors, logExceptions, kmcLogErrors, kmcLogWarnings, kmcLogLines, observationSequence;
         private bool loadCallback, completed;
@@ -436,7 +437,7 @@ namespace KmcRemovalObserver
             completed = true;
             if (f1SaveGuard != null) { f1SaveGuard.UnpatchAll("KmcRemovalObserver.F1Finish"); f1SaveGuard = null; }
             Application.logMessageReceived -= HandleLog;
-            observations["log"] = new JObject { ["errors"] = logErrors, ["exceptions"] = logExceptions, ["first"] = new JArray(firstLogErrors),
+            observations["log"] = new JObject { ["errors"] = logErrors, ["exceptions"] = logExceptions, ["first"] = new JArray(firstLogErrors), ["firstExceptionStack"] = firstExceptionStack,
                 ["kmcLines"] = kmcLogLines, ["kmcWarnings"] = kmcLogWarnings, ["kmcErrors"] = kmcLogErrors, ["kmcFirst"] = new JArray(kmcLog) };
             if (observations["inputs"] == null) observations["inputs"] = inputs;
             var passed = checks.Count(c => (bool)c["passed"]);
@@ -474,6 +475,7 @@ namespace KmcRemovalObserver
             if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
             logErrors++;
             if (type == LogType.Exception) logExceptions++;
+            if (type == LogType.Exception && firstExceptionStack == null) firstExceptionStack = (stackTrace ?? string.Empty).Length > 800 ? stackTrace.Substring(0, 800) : stackTrace ?? string.Empty;
             if (firstLogErrors.Count < 10) firstLogErrors.Add(type + ": " + (text.Length > 400 ? text.Substring(0, 400) : text));
         }
 

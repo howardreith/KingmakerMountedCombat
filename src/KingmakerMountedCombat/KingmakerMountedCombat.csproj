@@ -541,6 +541,7 @@
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
+    <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
