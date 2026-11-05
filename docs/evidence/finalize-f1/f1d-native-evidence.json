@@ -1,0 +1,57 @@
+{
+    "schemaVersion":  1,
+    "nativeRunId":  "20261105-finalize-f1d-native-01",
+    "nativeVerdict":  "PASS",
+    "verdictScope":  "Lifecycle, identity, native row state and restoration reader verdict. Legibility is inspection of these frames, not a reader assertion.",
+    "operator":  "Claude: synthetic Win32 mouse/keyboard input and full-screen GDI capture from PowerShell, refused unless the game window was foreground.",
+    "productSource":  "8c5be488d11bb31b00a91b3213e18d12e617d250",
+    "executionHead":  "84cc0c99392d2ef0b45c8326dcb22f084d9b5d9e",
+    "dllSha256":  "cd16000d24440d72fe9500fc630dc3d6ee7f71d13f6d09cc4c83d96fa0cc6a34",
+    "dllMvid":  "d72ca1ea-02fc-4796-938a-608b38d73b22",
+    "packageSha256":  "40c47185253fe2babb7e19e94954bb2b48d133f778880f7290bf23d78dc75eae",
+    "observer":  {
+                     "version":  "0.1.0-observer.8",
+                     "commit":  "259d6106f34e9f5d1393c4e63b7d9dd91ca1717f",
+                     "packageSha256":  "b40a2c06908694c1d83e62c14627d6e64da7965f552a917e3e0c6793524079c2",
+                     "dllSha256":  "8f478aced99656e203e5483e5da76db62119a2de49121a783597c8ea334e4561",
+                     "dllMvid":  "aee2d386-c516-4232-ba5d-5e31aa7ccb51"
+                 },
+    "resultSha256":  {
+                         "runtimeResult":  "eb737e28b164be2968c32b7dc294c6fda1859a697832700740f287334c5ab704",
+                         "observerResult":  "922b3d45ffb66e3c903566fde39e115ea3d4927632c633157b0614dd46579827",
+                         "gameResult":  "f56c3ae675d3e5f77fced8fd81ad81d5b6d922b390e9871270959c43c0f5860a",
+                         "observations":  "0c91d5e7fc03024674b7b2f923097c6bdb1884e23ce99dc19ff8a8ee62257d6f"
+                     },
+    "configuration":  "Kingmaker2.1.7b;UMM0.33.2.0;KMC preview103-F1d;ScrollFix1.0.0;Observer0.1.0-observer.8;2560x1440;both creators Elf/Rogue1",
+    "nativeRowStates":  {
+                            "nativeRefreshLeftBehind":  "toggleIsOn true, interactable false, groupAllowSwitchOff false, graphicAlpha 1.0, selectedInCurrentPreview false",
+                            "afterClearSettled":  "toggleIsOn false, interactable false, groupAnyOn false, graphicAlpha 0.0, label RGBA(55,55,55) on the unavailable row",
+                            "reselected":  "toggleIsOn true, interactable true, graphicAlpha 1.0, label RGBA(245,214,168)"
+                        },
+    "images":  [
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/f1d-removed-row-readable.png",
+                       "sha256":  "83a4ddbf8eaa2c41647c20d7c1e58a2e4bdf7a1150a4c046ed67bfcc19719125",
+                       "sourceFrame":  "d12-removed-row",
+                       "observation":  "Rank 0 after removal, same row position as the F1c defect: ordinary red unavailable row with a readable label; feat slot empty. Settled state toggleIsOn false, graphicAlpha 0."
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/f1d-reselected-after-next-back.png",
+                       "sha256":  "b1d940d5d35bc69ce6c8882114bdd1a3477254cb61089f3cb3109b0b40b9fe41",
+                       "sourceFrame":  "d15-reselected-after-next-back",
+                       "observation":  "Rank regained, Mounted Combat selected again, Next then Back: native selected style with a light readable label, slot filled, no close/reopen."
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/f1d-fresh-native-comparison.png",
+                       "sha256":  "501b5cddc175a901f0ebda701c091bee8a6241f133c03f89e9ae9bf08a19e4de",
+                       "sourceFrame":  "d19-fresh-comparison-second",
+                       "observation":  "Fresh preview: Alertness then Blind Fight selected in turn; Blind Fight black with a light label, Alertness back to ordinary, slot follows."
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/f1d-fresh-mounted-combat-row.png",
+                       "sha256":  "c8450a9e405725f5a2069216079a5a1fce0c77b5252e5ddf6039bdd94a09f8d8",
+                       "sourceFrame":  "d20-fresh-mc-row",
+                       "observation":  "Fresh preview at rank 0 with Blind Fight selected: Mounted Combat is an ordinary readable unavailable row; nothing inherited."
+                   }
+               ]
+}

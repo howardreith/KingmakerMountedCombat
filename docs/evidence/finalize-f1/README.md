@@ -31,3 +31,16 @@ These 2560×1440 PNGs come from Claude-operated run `20261105-finalize-f1-finish
 | [Ordinary KMC UMM page](captures/finish-umm-kmc-page.png) | Version, how-to, setting, save warning, removal action, collapsed diagnostics |
 
 [Finishing manifest](finish-native-evidence.json) binds each image to its source frame, SHA256 and run identities.
+
+## F1d repair
+
+These 2560×1440 PNGs come from Claude-operated run `20261105-finalize-f1d-native-01`, product source `8c5be488`, execution head `84cc0c99`, observer.8. Native verdict PASS, restored exactly. That verdict covers lifecycle, identity and native row state; legibility is inspection of these frames. The earlier F1c frame `finish-removal-unavailable-tooltip.png` above is the failing-before state.
+
+| Capture | Observation |
+|---|---|
+| [Row after removal](captures/f1d-removed-row-readable.png) | Same position as the F1c defect: ordinary red unavailable row, readable label, empty slot |
+| [Reselected after Next/Back](captures/f1d-reselected-after-next-back.png) | Rank regained and feat reselected: native selected style with a light label |
+| [Fresh native comparison](captures/f1d-fresh-native-comparison.png) | Blind Fight replaced Alertness exclusively; Alertness back to ordinary |
+| [Fresh Mounted Combat row](captures/f1d-fresh-mounted-combat-row.png) | Ordinary readable unavailable row; nothing inherited |
+
+[F1d manifest](f1d-native-evidence.json) binds each image to its source frame, SHA256, run identities and the recorded row states.

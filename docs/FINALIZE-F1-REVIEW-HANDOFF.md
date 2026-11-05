@@ -2,77 +2,80 @@
 
 ## Disposition
 
-**F1: PARTIAL — READY FOR REVIEW; OWNER ACCEPTANCE SEPARATE.** The prepared finishing run completed natively with a PASS verdict and exact restoration, and every remaining selected observation was made. One concrete visual defect is open in UI-02: after a rank removal the Mounted Combat row keeps the black selected style, with a nearly unreadable label, although the selection really is cleared. All three F1 starts are used, so a corrected build needs a new owner decision.
+**F1 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE.** The one requested-change outcome in UI-02 is repaired and confirmed on the actual screen: after a rank removal the Mounted Combat row is an ordinary readable unavailable row. The performance, scroll, owner-stack and art limitations below stay open as accepted or separate items.
 
-No new manual test or campaign save is requested from Howie.
+No new manual test or campaign save is requested from Howie. PR16 stays draft for the reviewer. No merge, tag, release, permanent installation or F2 was performed.
 
 ## Identities
 
-- Repository howardreith/KingmakerMountedCombat; draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch `codex/kmc-finalize-f1-creation-ui-icons`. Integrated base `d2e26174d391a8c70fd159beed476035bb5f84eb`. Finishing-run execution head `a53e6275c033dc87c30390513ddc05242caddc91`.
-- Frozen product source `39a153cf9524683d615f9efef60ff38c45fcd123`, version 0.1.0-chunk7b-preview.103, F1c. DLL SHA256 `8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072`, MVID `89c5fdb6-6d04-499a-b072-762f96c4a23f`, 8,884,736 bytes.
-- Main package, unchanged: lab `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1c-diagnostic.zip`, SHA256 `4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39`. Exactly Info.json and the DLL. Product freeze `1c0889f3de44e4021cb547944064001a11c34e407794e3fc9a5decd026445360`; suite `finalize-f1c-39a153cf-20261104`, SHA256 `11072f7c478d64d4cef942f213f22a0296b6ef07857ac10a667f4fd513c3c950`.
-- External observer, unchanged: 0.1.0-observer.7, producer `4454a7b3136d4245303a711d888d56b58b423cdf`, package SHA256 `a90df23f839209b2e196ecefb64f368d58e570d8ed0ba6d5efa4520438fca966`, DLL SHA256 `5c60d6ff428c05b095802c4a54032de4fad6beda4cb1355f2a6128bd4b254516`, MVID `d904cee8-a9b9-42f9-8cf7-a5b127d0308e`.
-- Native inventory observed in UMM: Kingmaker 2.1.7b, UMM 0.33.2.0, KMC preview.103 F1c, Level-Up Selection Scroll Fix 1.0.0, KMC Removal Observer 0.1.0-observer.7, all active, 2560×1440. This is narrower than Howie's laptop stack.
-- Scene `Manual_308_KMC_C7_SIX_HORSE_WORLD.zks`, SHA256 `b1e817a60c8bbe35b5947b4eab3b3f35060493ca20873d5de5fdf8a81efbc291`. Disposable rider `73681ef2-b281-4bc6-bc05-2de68c1616cb`, Horse `30b79228-3fe5-48ac-aa88-2de9085837b7`.
+- Repository howardreith/KingmakerMountedCombat; draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch `codex/kmc-finalize-f1-creation-ui-icons`. Integrated base `d2e26174d391a8c70fd159beed476035bb5f84eb`. Review baseline `d81913dea5ebc8ee4854847ec9f502c04f4bf38f`. Execution head of the F1d run `84cc0c99392d2ef0b45c8326dcb22f084d9b5d9e`.
+- **New candidate F1d:** source `8c5be488d11bb31b00a91b3213e18d12e617d250`, version 0.1.0-chunk7b-preview.103. DLL SHA256 `cd16000d24440d72fe9500fc630dc3d6ee7f71d13f6d09cc4c83d96fa0cc6a34`, MVID `d72ca1ea-02fc-4796-938a-608b38d73b22`.
+- Package: lab `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1d-diagnostic-diagnostic.zip`, SHA256 `40c47185253fe2babb7e19e94954bb2b48d133f778880f7290bf23d78dc75eae`. The doubled suffix came from my qualifier; I kept the one build rather than rebuild for a name. Suite `finalize-f1d-8c5be488-20261105`, SHA256 `13dec54e92437da65e9c3e46ce6887a2e7502900561feb1daf0013f4bd543198`. Freeze `b77c58bc0f12c5d4ac0ecbb44934d9b70db3db6003acda155c8d60a04b311f35`; frozen worktree `finalize-f1d-8c5be488` retained.
+- Observer 0.1.0-observer.8: producer `259d6106f34e9f5d1393c4e63b7d9dd91ca1717f`, package `KmcRemovalObserver-0.1.0-observer.8-finalize-f1d-diagnostic.zip`, SHA256 `b40a2c06908694c1d83e62c14627d6e64da7965f552a917e3e0c6793524079c2`, DLL SHA256 `8f478aced99656e203e5483e5da76db62119a2de49121a783597c8ea334e4561`, MVID `aee2d386-c516-4232-ba5d-5e31aa7ccb51`.
+- **Retained, unchanged:** F1c source `39a153cf9524683d615f9efef60ff38c45fcd123`, DLL `8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072`, package `4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39`; observer.7; run `20261105-finalize-f1-finish-02` at its own 41/0 PASS and narrower scope. None of these is relabeled as F1d.
+- Native inventory seen in UMM: Kingmaker 2.1.7b, UMM 0.33.2.0, KMC F1d, Level-Up Selection Scroll Fix 1.0.0, observer.8, all active, 2560×1440. This is narrower than Howie's laptop stack.
 
-## Causal findings and outcomes
+## Root cause and correction
 
-| Requirement | Causal boundary / correction | Outcome on native evidence |
-|---|---|---|
-| UI-01 | Routine engineering prose moved behind diagnostics; errors, version, settings, removal and save warnings kept | **Observed.** After real actions the ordinary page shows version, how-to, Charge setting, save-dependency warning, removal action and collapsed diagnostics. Limit: a genuine failure message was not provoked. The page also carried one sticky feedback line, "Mounted combat cancelled: ground command", from a ground click. |
-| UI-02 | Same-index preview replacement missed grouping/layout; equal-value ReInit skipped new state and callback references. Narrow native sorting/layout and Init correction | **Grouping, clearing, cancel and fresh preview observed; one defect open.** Removing the rank moved Mounted Combat from the eligible group to the unavailable group, cleared the feat slot and showed a red prerequisite. Two cancellations and a fresh controller followed, with no inherited fact or selection, and a row click worked. **Open:** the removed row keeps the black selected style. Fresh previews do not show it. Cause not established. |
-| ART-01 | Original distinct feat and reaction artwork | **Observed readable** in the feat row, slot and real toolbar, on and off. Owner art approval separate. |
-| PERF-01 | Existing rendered-frame endpoint | Earlier descriptive samples retained: cold 38.22 ms, warm 10 mixed rows median 302.52 ms, worst 341.52 ms. **Howie accepted the missing matched baseline as an F1 limitation.** No improvement, no-regression or external-cause claim. No new timing was collected. |
-| UI-03 | Keep native prerequisite, remove duplicate body line | **PASS,** retained from the second run and seen again: red native prerequisite, resolved body. |
-| UI-04 | Distinct glyph and revised wording, same rank and economy | **Observed.** Real toolbar icon, resolved tooltip, and native off and on transitions. Presentation grant only; ordinary acquisition not proven here. |
-| Charge neighbor | Register two localization keys | **Observed.** Mounted Charge tooltip fully resolved, no raw key. It remains a separate public ability until F2 owns the single-Charge interaction. |
+**Cause.** The native light refresh clears rows with `Toggle.isOn = false`. Installed `Toggle.Set` turns the toggle back on when it is active, in a group, no other toggle is on and the group disallows switch-off. So the last selected row stays on, with its black graphic, when nothing replaces it. `Mark(Forbidden)` meanwhile gives the label its dark non-selected colour, which is why the row was dark text on black. Only the native full refresh calls `SetAllTogglesOff`. It was not a retained selection, event-system focus, hover or the disabled transition.
 
-Black row: the selection state was empty and the observer's `f1-rank-removed` passed, so this is a presentation fault, not a retained selection. The likely area is the row's toggle state surviving the rebind in `MountedFeatSelectorRefreshService`/native `Init`, but that is a hypothesis; I did not trace it. The product was not changed, because F1c is frozen and no start remains to confirm a fix.
+**Direct proof on F1d, run `20261105-finalize-f1d-native-01`.** An observer postfix ahead of KMC's recorded what the native refresh alone left, and the settled row after KMC's clear:
 
-Scroll: the list kept its position through a selection and returned to the top after Next from Skills. The new before/after refresh observer returned only its -99 sentinel on all six events, because no parent `ScrollRect` was found from the layer. It gives no scroll evidence, so a native or foreign reset writer remains **not causally established**.
+| Moment | toggleIsOn | interactable | groupAllowSwitchOff | graphicAlpha | label |
+|---|---|---|---|---|---|
+| Selected before removal | true | true | false | 0.93 (mid-fade) | RGBA(245,214,168) |
+| **Native refresh left behind** | **true** | false | false | **1.0** | RGBA(55,55,55) |
+| After clear, settled | false | false | false | 0.0 | RGBA(55,55,55) |
+| Reselected | true | true | false | 1.0 | RGBA(245,214,168) |
+| Fresh preview row | false | false | false | 0.0 | RGBA(55,55,55) |
+
+**Correction.** `MountedFeatSelectorRefreshService.ClearStaleRowSelection` runs from the existing `FillFeatureDataLight` postfix. In a selection offering Mounted Combat, with nothing selected and a toggle still on, it calls the native `SetAllTogglesOff` under the native `IgnoreAction` guard. No callback, grant, skill or blueprint change; no repaint, per-frame work or new subscription. A valid selection is untouched, and a selected successor still uses native `NotifyToggleOn`. `FeatSelectorSelectionPolicy` holds the decision. The members are reached by exact token through reflection because the package allowlist keeps `UnityEngine.UI` out of the product's references, and I did not weaken it. Scroll Fix was not involved and is unchanged.
+
+**Scope limit.** Selections not offering Mounted Combat stay native and would keep the same native fault. A native row losing its prerequisite inside the offering selection is covered by the state-transition regression, not exercised on screen.
 
 ## Evidence
 
-[Native captures](evidence/finalize-f1/README.md), with [the finishing manifest](evidence/finalize-f1/finish-native-evidence.json) and [the earlier manifest](evidence/finalize-f1/native-evidence.json). Earlier images keep their original second-run identity. Static frames supplement actual inputs and the observer log; they do not alone establish asynchronous behavior.
+[Captures](evidence/finalize-f1/README.md), with [the F1d manifest](evidence/finalize-f1/f1d-native-evidence.json). Failing-before evidence is the retained F1c frame [finish-removal-unavailable-tooltip.png](evidence/finalize-f1/captures/finish-removal-unavailable-tooltip.png), the "before the fix" regression, and the native residue row above. I inspected each F1d frame; numeric state does not by itself prove legibility.
 
-| Check / attempt | Original outcome and limit |
+| Check / attempt | Outcome and limit |
 |---|---|
-| Earlier Candidate-b, final row Fast | 10 and 4 stages PASS on their original inputs; not replayed. |
-| First and second native F1c launches | Both original **FAIL** (capture failure; 1100 s deadline). Partial observations retained at their identities. Their separate recoveries remain separate. |
-| Corrected development WhatIf | PASS, 69 s, reused. It does not reach the request validator. |
-| `20261105-finalize-f1-finish-01` | **FAIL before game start,** no actual start counted: `Schema-v2 scenario is outside the save-backed mission allowlist.` `finalize-f1-finish` was missing from `Test-RuntimeRequest.ps1`. Restored; 36 s charged. Evidence retained. |
-| Validator correction `a53e6275` | One allowlist entry and one regression. Real validator on the refused request: 33/0, and it refuses an unlisted scenario. Focused finishing suite 23/0. Went live without a separate independent review, on a single-string change. |
-| `20261105-finalize-f1-finish-02` | **PASS.** Third start. Observer checks 41/0; readers 33/0 and 29/0. Result SHA256 `578e79b3286efc8a9d97ac613c1ff9f29c8c462d4d9523e045cb6781db9c8bbd`, observer `d677e59c0e404f97dc8992657d950ad0f8aadfd5c0dfcba14f0bb427c46187a4`. |
-| Publication boundary check | First run failed on its existing clean-worktree requirement after the image checks; retained on the meter. Rerun on the committed tree: see the PR. |
+| Component regressions (9 new) | PASS within 1060/0: losing and regaining the prerequisite, valid rebind, native comparison, same fault on a native row, outside-scope selection, hidden row, new preview, no unguarded change. They model the installed contracts and reach the production decision; rendering stays a screen claim. |
+| Assembly contracts | 756/0, including the exact group field and method tokens. |
+| Fast / Candidate on `8c5be488` | Fast 5/0 on each pass. Candidate 7/0, 3.95 min. The first build failed because I referenced `UnityEngine.UI`; that attempt is retained on the meter. |
+| Independent read-only review | No blockers; causal reasoning and fix held. 5 should-fix items fixed before freeze: native residue now required, stale reads latch, filter instruction and live status, Next/Back enforced, fixture and guard tests updated. Not repeated. Its note on an Animator re-assert did not occur: the settled reads stayed clear. |
+| Exact-request preflight | Real `Test-RuntimeRequest.ps1` accepts the next request's exact shape and refuses an unlisted scenario and a wrong DLL. Focused suite 42/0; identity boundaries 33/0. |
+| Fourth-start guard | Offline: fourth admitted and marked, fifth refused, history preserved. Cap raised once, from three to exactly four. |
+| Development WhatIf | PASS, 31.5 s. Not whole-lab qualification. |
+| **`20261105-finalize-f1d-native-01`** | **PASS.** Fourth and final start. Observer 48/0; readers 33/0 and 29/0. Route: rank 0 → rank 1 → select → Next/Back → remove → inspect → regain → reselect → Next/Back → cancel → fresh Rogue → Alertness then Blind Fight → cancel. Result SHA256 `eb737e28b164be2968c32b7dc294c6fda1859a697832700740f287334c5ab704`, observer `922b3d45ffb66e3c903566fde39e115ea3d4927632c633157b0614dd46579827`. |
+| Earlier outcomes | UMM page, prerequisite and body formatting, art, reaction on/off and Charge keys stay at their recorded runs, chiefly `finish-02`; not rerun on F1d apart from the disposable scene's reaction toggle. |
 
-Run facts: the first creator was Elf/Rogue 1. The fresh creator came out Elf/Slayer 1 because my click landed one row off; this does not affect the fresh-controller check, but the fresh row interaction is Slayer, not Rogue. My first Ctrl+F10 did not register, and the following click became a ground command that moved the party a short way in the disposable scene. That is the source of the UMM feedback line. Native saves stayed blocked, and the combat-free scene rule held.
+The presentation grant still proves presentation only, not ordinary feat acquisition. The reader at this head requires observer.8's row state, so it does not re-evaluate `finish-02`; that run's original verdict stands as recorded.
 
-Game log: 3 errors and 1 exception, none attributed: one `NullReferenceException` and two AssetBundle duplicate-load errors. KMC log errors: 0.
-
-Operation: Claude drove the game with synthetic Win32 input and GDI full-screen capture, refused unless the game was foreground. Howie authorized the screen takeover for this run.
+**Log classification.** F1d's one exception is `BugReportCanvas.OnEnable`, from the stack the observer now keeps: a native startup path, unrelated to feat rows. KMC errors 0. `finish-02` kept only the message line, so its exception is unclassified at its own identity, though it has the same count and order. The earlier F1c log also shows a native `DollRoom.SetFogOfWarEnabled` exception at exit. The two duplicate AssetBundle errors recur and are unclassified; no repair selected.
 
 ## Review-worthy risks / explicit remaining work
 
-- **Selected blocker:** the stale black row after rank removal. A fix changes the product and needs a new package, a new start and a separately authorized allowance.
-- Owner art approval and broader owner-stack acceptance are separate. The owner's original report was on a larger stack.
-- Limitation: scroll cause and performance comparison remain unestablished; a genuine failure message on the UMM page was not exercised.
-- The in-memory grant proves presentation only, not ordinary feat acquisition.
+- No selected blocker remains.
+- **Accepted:** no matched performance baseline. Earlier samples stay descriptive; no improvement, no-regression or foreign-cause claim, and no new timing.
+- **Limitation:** the `-99` ScrollRect probe gives no valid scroll observation, so a native or foreign reset is not established. Visibly, the list kept its place through Next/Back and returned to the top coming back from Skills.
+- **Separate:** owner art approval; owner-stack acceptance on Howie's larger mod stack.
+- **F2 owns** the single public Charge and persistent Mount/Dismount control; Mounted Charge remains a separate ability.
 
 ## Spend and state
 
-Authoritative **finalize-f1** record: **100 minute ceiling, 3/3 actual starts.** Spend was 83.95 minutes at this document's commit; the PR records the figure after publication, and [the checkpoint](evidence/finalize-f1/final-spend-after-finish.json) records the allowance history. Howie's 90→100 increase is appended; every earlier approval and entry is preserved. Finishing run charged 650 s, with 27 s of restoration excluded by the meter. Block ceiling and the single live executor held. No reset or further increase.
+Authoritative **finalize-f1**: **120 minute ceiling, 4/4 actual starts.** Howie's 100→120 and three-to-four-start authorization is appended; every earlier entry is preserved. Spend was 84.22 before this work, 100.17 at the F1d run's end, and the PR records the figure after publication. Run charged 368 s with 27 s of restoration excluded. Full 1320 s was available at admission. [Checkpoint](evidence/finalize-f1/final-spend-after-f1d.json). Block and active-work limits and the single live executor held. No fifth start or further increase.
 
-Restoration, read from run -02's own records:
+Restoration, read from this run's own records:
 
 - Mods digest `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` before and after (the live tree was empty at intake).
 - Save inventory `60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1` before and after; baseline immutable; Working restored; write allowlist passed.
-- 13 creation preferences restored exactly to this run's own intake; profile bytes exact, with no accepted cache changes.
+- 13 creation preferences restored exactly to this run's intake; profile bytes exact, no accepted cache changes.
 - No game process, lock or installed candidate remains. Owner saves and foreign installations untouched.
 
-[Publishing authority](evidence/finalize-f1/publishing-authority.json) records Howie's approvals. The helper gained exactly 8 further PNG path/hash lines; all other guards are unchanged.
+Operation: Claude drove the game with synthetic Win32 input and GDI capture, refused unless the game was foreground. Howie authorized this screen takeover separately. [Publishing authority](evidence/finalize-f1/publishing-authority.json) records his approvals; the helper gained exactly 4 further PNG path/hash lines and no other guard changed.
 
 ## Next decision
 
-One decision for the manager or Howie: fix the black row in F1 under a new bounded allowance, or accept it as a known limitation and close F1 into F2. Keep PR16 draft until then. The original small owner playcheck remains Mobility/selection/navigation plus art, copy and UMM. No merge, tag, release, permanent installation or F2 was performed.
+Final review of PR16. The owner playcheck stays small: Mobility, selection and navigation, plus art, copy and UMM, with art approval separate. A corrected build needs an approved handoff; this workflow installs nothing.
 
-Earlier chronology: [before finishing](history/FINALIZE-F1-HANDOFF-before-finish-20261105.md), [before native](history/FINALIZE-F1-HANDOFF-before-native-20261105.md), [implementation record](FINALIZE-F1-CREATION-UI-ICONS.md).
+Earlier chronology: [before F1d](history/FINALIZE-F1-HANDOFF-before-f1d-20261105.md), [before finishing](history/FINALIZE-F1-HANDOFF-before-finish-20261105.md), [before native](history/FINALIZE-F1-HANDOFF-before-native-20261105.md), [implementation record](FINALIZE-F1-CREATION-UI-ICONS.md).

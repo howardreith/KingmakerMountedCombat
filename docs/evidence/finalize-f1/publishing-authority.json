@@ -71,5 +71,30 @@
                                                      }
                                                  ],
                                "backup":  "analysis-cache/finalize-f1-contracts/push-helper-before-finish-evidence.ps1"
-                           }
+                           },
+    "f1dExtension":  {
+                         "authorization":  "Howie 2026-11-05, answering an explicit question: add 4 F1d run PNGs to the existing exact registry, same form as the earlier approvals",
+                         "approvedBeforeSha256":  "6ac2db6e89b5bc8dd87993bcbc26117da6136952a45bc785e1a764e256c4b541",
+                         "afterSha256":  "47bca4dc096a128ee3722464d104db9d6e1fe7ada39e195f7a77b2f0f24ac80d",
+                         "onlyChange":  "One comment and four exact PNG path/SHA pairs added to the existing registry. No path regex, branch/origin, cleanliness, secret scan or fast-forward guard changed.",
+                         "selectedPaths":  [
+                                               {
+                                                   "path":  "docs/evidence/finalize-f1/captures/f1d-removed-row-readable.png",
+                                                   "sha256":  "83a4ddbf8eaa2c41647c20d7c1e58a2e4bdf7a1150a4c046ed67bfcc19719125"
+                                               },
+                                               {
+                                                   "path":  "docs/evidence/finalize-f1/captures/f1d-reselected-after-next-back.png",
+                                                   "sha256":  "b1d940d5d35bc69ce6c8882114bdd1a3477254cb61089f3cb3109b0b40b9fe41"
+                                               },
+                                               {
+                                                   "path":  "docs/evidence/finalize-f1/captures/f1d-fresh-native-comparison.png",
+                                                   "sha256":  "501b5cddc175a901f0ebda701c091bee8a6241f133c03f89e9ae9bf08a19e4de"
+                                               },
+                                               {
+                                                   "path":  "docs/evidence/finalize-f1/captures/f1d-fresh-mounted-combat-row.png",
+                                                   "sha256":  "c8450a9e405725f5a2069216079a5a1fce0c77b5252e5ddf6039bdd94a09f8d8"
+                                               }
+                                           ],
+                         "backup":  "analysis-cache/finalize-f1-contracts/push-helper-before-f1d-evidence.ps1"
+                     }
 }
