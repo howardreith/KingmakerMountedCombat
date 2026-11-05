@@ -1,9 +1,9 @@
-# F1 — ENGINEERING COMPLETE, ready for final review (2026-11-05)
+# F2 — PARTIAL, ready for review (2026-11-05)
 
-Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. [Current handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md) has the root cause, identities, retained evidence and restoration.
+Branch codex/kmc-finalize-f2-canonical-controls from main 66e96f90 (F1 PR #16 merged). [Handoff](docs/FINALIZE-F2-REVIEW-HANDOFF.md), [identity table](docs/FINALIZE-F2-CANONICAL-CONTROLS.md).
 
-Candidate F1d, source 8c5be488, repairs the stale selected row after a rank removal: native Toggle.Set re-asserted the last active toggle, and KMC now takes the native group clear under the native action guard. Run 20261105-finalize-f1d-native-01: native PASS (observer.8, 48/0), exact restoration, row readable on screen. [Captures](docs/evidence/finalize-f1/README.md). Earlier F1c evidence stays at its own identities.
+One persistent Mount / Dismount control, the ordinary Charge mounted and unmounted, one-time placement and old-slot repair, new icon. Native runs r01–r03 at their own identities (all FAIL, retained; restoration exact). r03 (F2c) showed every behaviour except the toolbar repaint after an automatic placement; corrected candidate F2d (source 7879e463, DLL 70b55746) fixes it and has not run. Save → cold-load round trip not run natively; a draft case is on local branch codex/kmc-finalize-f2-persistence-draft.
 
-finalize-f1: 120 min ceiling, 4/4 starts. No start or increase remains. Limitations stay explicit: no matched performance baseline (accepted), no valid scroll observation, owner art approval and owner-stack acceptance separate. F2 owns the single Charge and persistent Mount/Dismount control.
+finalize-f2: 20.97/60 min, 3/3 starts. No further start without a new owner decision. No game, lock or installed candidate. No merge, release, install or F3.
 
-No game, lock or installed candidate. No merge, release, install or F2.
+F1 record: [F1 handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md).
