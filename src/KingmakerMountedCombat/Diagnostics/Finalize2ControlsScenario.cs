@@ -291,7 +291,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject { ["name"] = name, ["requestedFrame"] = Time.frameCount };
             var runner = UnityModManager.UI.Instance;
             if (runner == null) { row["error"] = "The end-of-frame runner is missing."; f2Shots.Add(row); return; }
-            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            // Native SelectUnit clears the pointer mode, which drops a selected ability (run 20261105-finalize-f2-r02 lost
+            // its Charge target-selection frame this way). Select the rider only when it is not already the one selection.
+            var selection = SelectionManager.Instance.SelectedUnits;
+            if (selection == null || selection.Count != 1 || selection[0] != rider)
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            row["selectedAbilityAtRequest"] = Game.Instance.SelectedAbilityHandler?.Ability?.Blueprint?.AssetGuid;
             var generation = ++f2CaptureGeneration;
             f2CaptureActive = true; f2CaptureStartedAt = Time.realtimeSinceStartup;
             runner.StartCoroutine(F2Capture(row, generation));

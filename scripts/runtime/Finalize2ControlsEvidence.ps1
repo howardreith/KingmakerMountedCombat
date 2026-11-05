@@ -181,7 +181,9 @@ function Assert-KmcFinalize2ControlsEvidence {
  $injection=P $a 'injection'
  $k1=Int (P $injection 'k1') 'k1'; $k2=Int (P $injection 'k2') 'k2'
  if($k1 -lt 0 -or $k2 -lt 0 -or $k1 -eq $k2){ Fail 'the old bindings were not injected into two slots' }
- No (P $injection 'outsideMainBar') 'the old bindings were not injected on the main bar'
+ # Reader correction after run 20261105-finalize-f2-r02: an exact old slot is repaired in place wherever it is. With the
+ # fixture's full main bar the injection rightly used empty slots of the additional panel; only the persisted range matters.
+ if($k1 -gt 127 -or $k2 -gt 127){ Fail 'the old bindings were injected outside the persisted slot range' }
  if((Text (P $injection 'k1Guid')) -cnotin @($id.mountShell,$id.dismountShell) -or (Text (P $injection 'k2Guid')) -cne $id.mountedChargeShell){ Fail 'the injected bindings are not the exact old identities' }
  $barBefore=P $injection 'barBefore'; $keysBefore=@(P $barBefore 'keys'); $typesBefore=@(P $barBefore 'types')
  $repaired=P $a 'repaired'; $keysAfter=@(P (P $repaired 'bar') 'keys'); $typesAfter=@(P (P $repaired 'bar') 'types')
@@ -223,7 +225,13 @@ function Assert-KmcFinalize2ControlsEvidence {
  if($null -eq $probe -or (P $probe 'available') -ne $true -or (P $probe 'canTarget') -ne $true){ Fail 'the mounted rider''s ordinary Charge was not available and targetable on a clear lane' }
  $chargeTarget=P $cs 'chargeTarget'
  if($null -eq $chargeTarget -or (P $chargeTarget 'clicked') -ne $true -or (Text (P $chargeTarget 'handlerAbility')) -cne $id.mountedChargeShell){ Fail 'the hostile click did not take the mounted Charge' }
- if((Int (P $chargeTarget 'admittedDelta') 'admitted delta') -ne 1 -or (P $chargeTarget 'shell') -ne $true){ Fail 'the mounted Charge was not admitted exactly once' }
+ # Reader correction after run 20261105-finalize-f2-r02: the click creates the one shell command; the pair transaction is
+ # admitted when that shell delivers, a few frames later. Count admissions from before the selection to the terminal.
+ $castDelta=Int (P $chargeTarget 'castDelta') 'cast delta'
+ $shellCommands=@(@(P $chargeTarget 'commands') | Where-Object { (Text (P $_ 'blueprint')) -ceq $id.mountedChargeShell })
+ $admittedBefore=Int (P (P $cs 'afterSelectionDrop') 'admitted') 'admitted before the charge'
+ $admittedAfter=Int (P (P $c 'terminal') 'state' | ForEach-Object { P $_ 'admitted' }) 'admitted at the terminal'
+ if((P $chargeTarget 'shell') -ne $true -or $castDelta -ne 1 -or $shellCommands.Count -ne 1 -or ($admittedAfter-$admittedBefore) -ne 1){ Fail 'the mounted Charge was not admitted exactly once' }
  $hostile=Text (P $chargeTarget 'shellTarget')
  if([string]::IsNullOrEmpty($hostile) -or $hostile -cne (Text (P $chargeTarget 'clickedId'))){ Fail 'the mounted Charge shell names another target' }
  $terminal=P $c 'terminal'
