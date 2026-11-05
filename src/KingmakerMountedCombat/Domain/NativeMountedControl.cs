@@ -9,7 +9,9 @@ namespace KingmakerMountedCombat.Domain
         Dismount,
         RiderPrimary,
         MountPrimary,
-        MountedCharge
+        MountedCharge,
+        // F2 CTRL-02: the one public Mount / Dismount control. Mount and Dismount remain the hidden delivery shells.
+        MountState
     }
 
     public sealed class NativeMountedControlAvailability
@@ -136,6 +138,23 @@ namespace KingmakerMountedCombat.Domain
                 (relationshipMounted || relationshipFaulted) && unitIsRider;
         }
 
+        // The shell the public control runs right now. Read at the click, so the command created is already a Mount
+        // or a Dismount; the shell binding then refuses it if the relationship changes before delivery.
+        public static NativeMountedControlKind ResolveMountStateIntent(
+            bool relationshipMounted,
+            bool relationshipFaulted,
+            bool unitIsRider)
+        {
+            return (relationshipMounted || relationshipFaulted) && unitIsRider
+                ? NativeMountedControlKind.Dismount
+                : NativeMountedControlKind.MountCompanion;
+        }
+
+        public static bool IsRelationshipShell(NativeMountedControlKind kind)
+        {
+            return kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount;
+        }
+
         public static bool IsRetiredPrimaryHelper(NativeMountedControlKind kind)
         {
             return kind == NativeMountedControlKind.RiderPrimary || kind == NativeMountedControlKind.MountPrimary;
@@ -178,6 +197,13 @@ namespace KingmakerMountedCombat.Domain
             if (IsDismountEscape(kind, relationshipMounted, relationshipFaulted, unitIsRider))
             {
                 return true;
+            }
+
+            // The public face of both shells stays leased through every state change, and also while the feature
+            // is off, where it shows the reason instead of vanishing from the player's bar.
+            if (kind == NativeMountedControlKind.MountState)
+            {
+                return relationshipMounted || relationshipFaulted ? unitIsRider : ownerHasSupportedMount;
             }
 
             if (!featureEnabled)
