@@ -6,6 +6,6 @@ Accounting, routine UMM feedback, native replaced-preview row binding, visible t
 
 Current restoration verified through guarded reviewed-symbol recovery; original native/restoration failures and quarantine retained. Mods/protected saves exact; baseline immutable/Working restored; no game, lock or installed candidate. Seven native profile-cache deltas are explicitly recorded, not described as exact bytes.
 
-Meter finalize-f1 checkpoint21.88/60min,1/3 actual starts; read authoritative record. Host restart requested once. Require an actual Explorer frame before staging again. Keep1200s reservation and all cumulative limits.
+Meter finalize-f1 checkpoint22.23/60min,1/3 actual starts; read authoritative record. Host restart requested once. Require an actual Explorer frame before staging again. Keep1200s reservation and all cumulative limits.
 
 Current template-based [handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md), [implementation record](docs/FINALIZE-F1-CREATION-UI-ICONS.md), [resume](AUTONOMOUS-RESUME.md). Prior integrated state retained in [history](docs/history/CURRENT-before-finalize-f1-2026-11-04.md).

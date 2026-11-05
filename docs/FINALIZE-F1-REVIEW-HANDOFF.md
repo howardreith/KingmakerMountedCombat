@@ -52,7 +52,7 @@ All independent corrections/checks are finished. Asked once for a full ChatGPT d
 
 ## Spend and restoration
 
-Authoritative meter `runtime-state\workflow-budgets\finalize-f1.json`; checkpoint **21.88/60min,38.12min remaining,1/3 actual starts**. Prelaunch branch failure has launch=true reservation but no actual-start marker. All failures/time retained. Restoration time excluded by existing runner. Roughly45min continuation work plus prior recorded~42min, separated from owner idle; four-hour active ceiling remains. No hidden allowance/parallel executor/shortened1200s reservation.
+Authoritative meter `runtime-state\workflow-budgets\finalize-f1.json`; checkpoint **22.23/60min,37.77min remaining,1/3 actual starts**. Prelaunch branch failure has launch=true reservation but no actual-start marker. All failures/time retained. Restoration time excluded by existing runner. Roughly45min continuation work plus prior recorded~42min, separated from owner idle; four-hour active ceiling remains. No hidden allowance/parallel executor/shortened1200s reservation.
 
 Original F1c runtime result remains FAIL with modsRestored=false: copied PDB was originally unexpected. Live Mods had already been restored byte-exact. Exact reviewed recovery preserves original combined bytes, runtime result and Mods findings, reclassifies unchanged quarantine, proves current suite/protected saves/Mods, writes a separate receipt and closes the stale lock. Current combined lifecycle is restored; native verdict unchanged.
 
@@ -66,3 +66,5 @@ Original F1c runtime result remains FAIL with modsRestored=false: copied PDB was
 Keep draft. After capture recovery, reuse unchanged F1c product/freeze with updated harness, fresh run-owned IDs and current WhatIf. Read newer meter before work. A successful Explorer frame is the required new observation before another native attempt. Existing batch now contains two differently caused failures; do not reset its guard silently. Any materially changed supervised experiment needs an explicit documented batch disposition while retaining finalize-f1 cumulative allowance and1/3 actual starts. Reserve last1200s native confirmation plus preparation.
 
 Finish the creator sequence/cold+8–10 warm rendered-endpoint timings, then one bounded existing disposable scene for reaction/Charge/ordinary UMM. No fixture hunt, owner campaign-save request or broad combat campaign. Owner check remains original Mobility/select/navigation plus art/copy/UMM, with separate art approval. Stop at review; no merge/tag/release/permanent install/F2.
+
+Final read-only frozen-product/current-harness and restored-admission checks PASS at harness009766fb. No further build or native attempt. Final meter22.23/60min,37.77min remaining,1/3 actual starts.
