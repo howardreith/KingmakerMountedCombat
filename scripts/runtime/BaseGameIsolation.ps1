@@ -332,7 +332,8 @@ function Read-KmcRetainedDependencySelection {
     Assert-KmcNotReparsePoint $full 'retained dependency selection';Assert-KmcNotHardLink $full 'retained dependency selection'
     $selection=Read-KmcJson $full
     Assert-KmcExactProperties $selection @('contract','dependencies') 'retained dependency selection'
-    if([string]$selection.contract-cne'retained-dependency-staging-v1'){throw 'Retained dependency selection contract differs.'}
+    $ownerF1=[string]$selection.contract-ceq'owner-handoff-finalize-f1-scroll-v1'
+    if(-not$ownerF1-and[string]$selection.contract-cne'retained-dependency-staging-v1'){throw 'Retained dependency selection contract differs.'}
     $rows=@($selection.dependencies)
     if($rows.Count-lt1-or$rows.Count-gt4){throw 'Retained dependency selection is empty or unbounded.'}
     $ids=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
@@ -343,9 +344,22 @@ function Read-KmcRetainedDependencySelection {
         if([string]$row.sourceRunId-cnotmatch'^[A-Za-z0-9._-]{1,120}$'-or[string]$row.dllName-cnotmatch'^[A-Za-z0-9._-]{1,120}\.dll$'-or
             [string]$row.dllSha256-cnotmatch'^[0-9a-f]{64}$'-or[string]$row.digest-cnotmatch'^[0-9a-f]{64}$'-or
             ($row.fileCount-isnot[int]-and$row.fileCount-isnot[long])-or$row.fileCount-lt1){throw 'Retained dependency pins are malformed.'}
+        if ($ownerF1) {
+            # Owner-selected F1 compatibility input, never labelled as a producer run.
+            if ($rows.Count-ne1-or$id-cne'KingmakerLevelUpSelectionScrollFix'-or
+                [string]$row.sourceRunId-cne'owner-handoff-finalize-f1'-or
+                [string]$row.dllSha256-cne'ca5c1cf454d1a66e44dc067dae2023c1d13cca3143730545e1ec5b317e440136') {
+                throw 'F1 owner compatibility input differs from the supplied scroll-fix identity.'
+            }
+            $expectedSource=Join-Path $lab 'analysis-cache\finalize-f1-contracts\scroll-fix\KingmakerLevelUpSelectionScrollFix'
+            $source=Assert-KmcChildPath ([IO.Path]::GetFullPath([string]$row.sourcePath)) (Join-Path $lab 'analysis-cache') 'owner F1 compatibility input'
+            if ($source.TrimEnd('\')-cne$expectedSource) { throw 'F1 owner compatibility source differs.' }
+        } else {
         $expectedSource=[IO.Path]::GetFullPath((Join-Path (Join-Path (Join-Path (Join-Path $lab 'runtime-staging') ([string]$row.sourceRunId)) 'Mods-staged-after') $id)).TrimEnd('\')
         $source=Assert-KmcChildPath ([IO.Path]::GetFullPath([string]$row.sourcePath)) (Join-Path $lab 'runtime-staging') 'retained dependency source'
         if($source.TrimEnd('\')-cne$expectedSource){throw 'Retained dependency source is not the retained staged-after folder of its producer run.'}
+
+        }
         if(-not(Test-Path -LiteralPath $source -PathType Container)){throw 'Retained dependency source is missing.'}
         Assert-KmcNotReparsePoint $source 'retained dependency source';Assert-KmcDirectoryTreeCloneable $source 'retained dependency source'
         $info=@(Get-ChildItem -LiteralPath $source -File -Force|Where-Object {$_.Name-ieq'Info.json'})

@@ -2,7 +2,7 @@
 param(
     [ValidateSet(
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
-        'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
+        'mod-load-smoke','finalize-f1-creation-ui','finalize-f1-finish','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt','sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb','sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-unified-combat-tb-suite','phase3d-horse-presentation-suite',
@@ -380,7 +380,7 @@ if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The
 $isNormalPlayer=Test-KmcChunk7NormalPlayerScenario $Scenario
 if(-not$isObserver-and-not$isNormalPlayer-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case and the normal-player control take an observer package.'}
 if($isNormalPlayer-and(-not$BaseGameOnly-or-not$SaveAccessAllowed-or[string]::IsNullOrWhiteSpace($ObserverPackagePath)-or-not[string]::IsNullOrEmpty($PersistenceCase)-or
-    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization-or$TimeoutSeconds-ne900)){
+    -not[string]::IsNullOrEmpty($OwnedPairsSelectionPath)-or$F11NativeAllocationProbe-or$ObserveWorkingDeserialization-or$TimeoutSeconds-ne$(if($Scenario-ceq'finalize-f1-finish'){1200}else{900}))){
     # 900 s outlasts the observer's own 600 s timeout plus boot and load, so a stalled
     # observer always writes its FAIL and quits before the runner deadline.
     throw 'The request-free normal-player control requires isolated base-game staging, save access, its observer package and a 900 s budget, and selects nothing else.'
@@ -423,6 +423,9 @@ if($BootstrapOfflineCloudEvidence -and $isSaveBacked){
 # by the budget; settlement/restoration is recorded separately.
 . (Join-Path $PSScriptRoot '..\WorkflowBudget.ps1')
 $workflowBatchKey=$Scenario+'/'+$(if([string]::IsNullOrWhiteSpace($PersistenceCase)){'-'}else{$PersistenceCase})
+. (Join-Path $PSScriptRoot 'FinalizeF1LaunchAdmission.ps1')
+$f1Budget=Read-KmcWorkflowBudget $repoRoot (Get-KmcWorkflowBudgetId '')
+Assert-KmcFinalizeF1LaunchAllowance $f1Budget.Record $requestedWhatIf
 $workflowAdmission=Request-KmcWorkflowAdmission -RepoRoot $repoRoot -Kind native `
     -Selection ($workflowBatchKey+'/'+$(if($requestedWhatIf){'whatif'}else{'launch'})+'/'+$(if([string]::IsNullOrWhiteSpace($RunId)){'auto'}else{$RunId})) `
     -EstimatedSeconds $(if($requestedWhatIf){$null}else{$TimeoutSeconds}) -Launch:(-not$requestedWhatIf) -BatchKey $workflowBatchKey
@@ -456,6 +459,7 @@ if(-not[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){
     $retainedDependencies=@(Read-KmcRetainedDependencySelection $RetainedDependencySelectionPath)
     Write-Host ('Retained dependencies selected (never installed; staged beside KMC in the owned transaction): '+(($retainedDependencies|ForEach-Object{$_.id+' '+$_.version+' dll='+$_.dllSha256.Substring(0,8)+' digest='+$_.digest.Substring(0,8)})-join ', '))
 }
+if($Scenario-ceq'finalize-f1-finish'-and($retainedDependencies.Count-ne1-or$retainedDependencies[0].id-cne'KingmakerLevelUpSelectionScrollFix'-or$retainedDependencies[0].dllSha256-cne'ca5c1cf454d1a66e44dc067dae2023c1d13cca3143730545e1ec5b317e440136')){throw 'F1 finish requires the exact supplied Scroll Fix input.'}
 $legacyContinuityPinNames=@(
     'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
     'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
@@ -503,7 +507,7 @@ $observerManifest=$null
 if($isNormalPlayer){
     $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
     & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
-    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath
+    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath -FrozenF1Observer:($Scenario-ceq'finalize-f1-finish')
 }
 if($isObserver){
     # The observer is built from the exact candidate commit; the candidate DLL
@@ -555,7 +559,7 @@ if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
     $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $upgradeCarrySource $upgradeCarry
 }
 $upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
-function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
+function Get-KmcRunNormalPlayerSource{if($Scenario-ceq'finalize-f1-finish'){Get-KmcF1FinishSource}elseif($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
 $normalPlayerSource=if($isNormalPlayer){Get-KmcRunNormalPlayerSource}else{$null}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}
@@ -721,7 +725,7 @@ try{
     if(Test-KmcChunk7StockMammothFixtureScenario $Scenario){$request['stockMammothFixture']=$stockMammothFixtureInput.selection}
     if(Test-KmcChunk7FieldScenario $Scenario){$request['ordinaryField']=$fieldSelectionInput.selection}
     if(Test-KmcChunk7OwnedPairsScenario $Scenario){$request['ownedPairs']=$ownedPairsInput.selection}
-    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest $upgradeSection}
+    if($isNormalPlayer){$request['normalPlayer']=New-KmcChunk7NormalPlayerSection $normalPlayerSource $ObserverPackagePath $observerManifest $upgradeSection $Scenario}
     if(Test-KmcChunk7AssistedFixtureScenario $Scenario){$request['assistedFixture']=$assistedFixtureInput.selection}
     if(Test-KmcChunk7AcquiredManualScenario $Scenario){$request['acquiredManual']=$acquiredManualInput.selection}
     if(Test-KmcChunk7ManualDerivedScenario $Scenario){$request['manualDerived']=$manualDerivedInput.selection}
@@ -1194,7 +1198,9 @@ try{
     # restores the staged installation normally; a game or save worker is never interrupted.
     Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('game launch '+$workflowBatchKey) -EstimatedSeconds $TimeoutSeconds
     $workflowLaunchStarted=[DateTime]::UtcNow
-    [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
+    Invoke-KmcFinalizeF1GameStart -RepoRoot $repoRoot -Admission $workflowAdmission -StartGame {
+        [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
+    }
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
     while([DateTimeOffset]::UtcNow-lt$launchDeadline-and$null-eq$process){
@@ -1632,6 +1638,7 @@ finally{
                     }catch{$errors.Add('Areas restoration receipt failed: '+$_.Exception.Message);$saveProtection=$false}
                 }
             }
+            if($Scenario-ceq'finalize-f1-finish'){Restore-KmcF1FinishCreationPreferences -Lock $lock -Snapshot $profileSnapshot -EvidenceRoot $evidenceRoot}
             Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -RemovalObserver:$isObserver -BaseGameOnly:$baseGameStaged -Confirm:$false
             # Admitted native achievement-cache churn is an expected external
             # change, not restored bytes, so it is recorded rather than implied

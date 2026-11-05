@@ -74,6 +74,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="SpeedLegSamplerTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFeedbackPresentationPolicy.cs"><Link>Shared\Domain\MountedFeedbackPresentationPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationReadiness.cs" />
@@ -133,6 +134,8 @@
     <Compile Include="MountedStockAttackPolicyTests.cs" />
     <Compile Include="MountedChargeSafetyTests.cs" />
     <Compile Include="DivineMountPolicyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\FeatSelectorSelectionPolicy.cs" />
+    <Compile Include="FeatSelectorSelectionPolicyTests.cs" />
     <Compile Include="MountedChargePolicyTests.cs" />
     <Compile Include="MountedChargeApplicationTransactionTests.cs" />
     <Compile Include="MountedChargeCompensationTests.cs" />

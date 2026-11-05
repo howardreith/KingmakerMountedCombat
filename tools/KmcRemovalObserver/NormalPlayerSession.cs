@@ -30,7 +30,7 @@ namespace KmcRemovalObserver
     // loads the reference-free owner seed under the released previous package and
     // observes one quiet idle window. It never calls KMC code, grants
     // facts or resources, writes a save, or changes a setting.
-    internal sealed class NormalPlayerSession : IObserverSession
+    internal sealed partial class NormalPlayerSession : IObserverSession
     {
         private const string ResultFileName = "observer-result.json";
         private const string ObservationsFileName = "observer-observations.jsonl";
@@ -48,6 +48,7 @@ namespace KmcRemovalObserver
         private readonly JObject observations = new JObject();
         private readonly JArray inputs = new JArray();
         private readonly List<string> kmcLog = new List<string>(), firstLogErrors = new List<string>();
+        private string firstExceptionStack;
         private readonly List<float> windowFrames = new List<float>();
         private int logErrors, logExceptions, kmcLogErrors, kmcLogWarnings, kmcLogLines, observationSequence;
         private bool loadCallback, completed;
@@ -71,6 +72,7 @@ namespace KmcRemovalObserver
             // Routing first: every native save-root resolution lands in the owned
             // profile before any menu or KMC persistence hook can resolve a path.
             NativeSaveRouting.Install(request.ProfileRoot);
+            if (request.NormalPlayer.F1Finish) session.ArmF1Finish();
             Application.logMessageReceived += session.HandleLog;
             session.observations["routing"] = new JObject { ["savePath"] = NativeSaveRouting.SavesRoot, ["stashFolder"] = NativeSaveRouting.StashFolder };
             session.Write("armed", new JObject { ["observerVersion"] = ObserverIdentity.ProductVersion, ["mode"] = "normal-player" });
@@ -85,6 +87,7 @@ namespace KmcRemovalObserver
             switch (stage)
             {
                 case 0:
+                    if (roles.F1Finish && !ObserveF1Creators(game)) return;
                     if (game == null || game.SaveManager == null || game.CurrentlyLoadedArea != null || !game.IsControllerMouse ||
                         !SceneManager.GetSceneByName(SceneName.MainMenu).isLoaded || game.UI == null || game.UI.MainMenu == null ||
                         LoadingScreen.Instance == null || LoadingProcess.Instance.IsLoadingInProcess) { frames = 0; return; }
@@ -98,13 +101,14 @@ namespace KmcRemovalObserver
                     ObserveLoadedWorld(game);
                     return;
                 case 2: if (CollectWindow()) { CloseWindow("idle-unmounted"); IssueAbility(game, rider, mount, roles.MountAbilityGuid, "mount"); stage = 3; } return;
-                case 3: if (AwaitAbility("mount", attached: true)) { OpenWindow("idle-mounted"); stage = 4; } return;
+                case 3: if (AwaitAbility("mount", attached: true)) { if (roles.F1Finish) { stage = 9; Write("f1-presentation-ready", new JObject()); } else { OpenWindow("idle-mounted"); stage = 4; } } return;
                 case 4: if (CollectWindow()) { CloseWindow("idle-mounted"); IssueGroundClick("mounted-move"); stage = 5; } return;
                 case 5: if (AwaitMove("mounted-move", pairMoves: true)) { IssueAbility(game, rider, rider, roles.DismountAbilityGuid, "dismount"); stage = 6; } return;
                 case 6: if (AwaitAbility("dismount", attached: false)) { IssueGroundClick("unmounted-move"); stage = 7; } return;
                 case 7: if (AwaitMove("unmounted-move", pairMoves: false)) Finish(game); return;
                 // Previous-package load: one quiet idle window after the ordinary load, then finish.
                 case 8: if (CollectWindow()) { CloseWindow("idle-loaded"); Finish(game); } return;
+                case 9: ObserveF1Presentation(game); return;
             }
         }
 
@@ -169,6 +173,7 @@ namespace KmcRemovalObserver
             riderOrigin = rider.Position; mountOrigin = mount.Position;
             neighborRiderOrigin = neighborRider.Position; neighborMountOrigin = neighborMount.Position;
             Write("loaded", new JObject { ["world"] = observations["world"].DeepClone() });
+            if (roles.F1Finish) { GrantF1PresentationFeature(); IssueAbility(game, rider, mount, roles.MountAbilityGuid, "mount"); stage = 3; return; }
             OpenWindow("idle-unmounted"); stage = 2;
         }
 
@@ -314,8 +319,8 @@ namespace KmcRemovalObserver
                 ["overlayObjects"] = overlays, ["effectiveSettings"] = settingValues };
             var prefix = "at-" + label + "-";
             Check(runtimeArguments.Length == 0, prefix + "no-KMC-automation-argument-reached-the-process");
-            Check(entries.Length == 2 && kmcEntry != null && kmcEntry.Active && observerEntry != null && observerEntry.Active,
-                prefix + "UMM-runs-exactly-KMC-and-the-observer-both-active");
+            Check((roles.F1Finish ? F1ScrollFixPresent(entries) : entries.Length == 2) && kmcEntry != null && kmcEntry.Active && observerEntry != null && observerEntry.Active,
+                prefix + (roles.F1Finish ? "UMM-runs-exactly-KMC-ScrollFix-and-observer-all-active" : "UMM-runs-exactly-KMC-and-the-observer-both-active"));
             Check(kmc != null && sha == request.Candidate.DllSha256 && mvid == request.Candidate.DllMvid,
                 prefix + (roles.PreviousPackageLoad ? "the-loaded-KMC-assembly-is-the-declared-previous-package" : "the-loaded-KMC-assembly-is-the-candidate"));
             Check(selfSha == request.Observer.DllSha256 && (string)presence["observerMvid"] == request.Observer.DllMvid, prefix + "the-running-observer-is-the-declared-package");
@@ -430,8 +435,9 @@ namespace KmcRemovalObserver
         {
             if (completed) return;
             completed = true;
+            if (f1SaveGuard != null) { f1SaveGuard.UnpatchAll("KmcRemovalObserver.F1Finish"); f1SaveGuard = null; }
             Application.logMessageReceived -= HandleLog;
-            observations["log"] = new JObject { ["errors"] = logErrors, ["exceptions"] = logExceptions, ["first"] = new JArray(firstLogErrors),
+            observations["log"] = new JObject { ["errors"] = logErrors, ["exceptions"] = logExceptions, ["first"] = new JArray(firstLogErrors), ["firstExceptionStack"] = firstExceptionStack,
                 ["kmcLines"] = kmcLogLines, ["kmcWarnings"] = kmcLogWarnings, ["kmcErrors"] = kmcLogErrors, ["kmcFirst"] = new JArray(kmcLog) };
             if (observations["inputs"] == null) observations["inputs"] = inputs;
             var passed = checks.Count(c => (bool)c["passed"]);
@@ -469,6 +475,7 @@ namespace KmcRemovalObserver
             if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
             logErrors++;
             if (type == LogType.Exception) logExceptions++;
+            if (type == LogType.Exception && firstExceptionStack == null) firstExceptionStack = (stackTrace ?? string.Empty).Length > 800 ? stackTrace.Substring(0, 800) : stackTrace ?? string.Empty;
             if (firstLogErrors.Count < 10) firstLogErrors.Add(type + ": " + (text.Length > 400 ? text.Substring(0, 400) : text));
         }
 

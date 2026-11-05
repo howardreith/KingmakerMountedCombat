@@ -4,8 +4,8 @@ Set-StrictMode -Version Latest
 # alone consumes a request. The fixture is the batch185 cold-qualified unmounted
 # six-Horse Manual308 through its unchanged source gate; pair 0 is driven and
 # pair 1 is the untouched neighbor.
-function Test-KmcChunk7NormalPlayerScenario([string]$Scenario){[string]$Scenario-ceq'chunk7-normal-player-control'}
-function Get-KmcChunk7NormalPlayerRows {@('chunk7-normal-player-control')}
+function Test-KmcChunk7NormalPlayerScenario([string]$Scenario){[string]$Scenario-cin@('chunk7-normal-player-control','finalize-f1-finish')}
+function Get-KmcChunk7NormalPlayerRows {@('chunk7-normal-player-control','finalize-f1-finish')}
 function Get-KmcChunk7NormalPlayerRoles {
  $roles=@(Get-KmcChunk7SixPairRoles)
  [pscustomobject][ordered]@{riderId=$roles[0];mountId=$roles[1];neighborRiderId=$roles[2];neighborMountId=$roles[3]}
@@ -30,7 +30,7 @@ function Get-KmcChunk7NormalPlayerChecks([switch]$PreviousPackageLoad) {
 
 # The observer is harness tooling: bound to the clean execution HEAD that built it,
 # never to the KMC product commit (which may be an archived frozen candidate).
-function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath){
+function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[switch]$FrozenF1Observer){
  $repoRoot=Get-KmcRepositoryRoot;$labRoot=Get-KmcLabRoot
  $package=[IO.Path]::GetFullPath($ObserverPackagePath)
  if(-not$package.StartsWith([IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Observer package is outside the KMC artifacts root.'}
@@ -41,8 +41,20 @@ function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath){
  Assert-KmcExactProperties $manifest @('schemaVersion','generator','generatedAtUtc','branch','commit','worktreeClean','qualificationEligible','version','packagePath','packageSha256','dllSha256','dllMvid','entries') 'observer package manifest'
  $head=(& git -C $repoRoot rev-parse HEAD).Trim();$branch=(& git -C $repoRoot branch --show-current).Trim()
  if(@(& git -C $repoRoot status --porcelain --untracked-files=all).Count-ne0){throw 'Observer identity requires a clean execution worktree.'}
+ $sourceMatches=[string]$manifest.commit-ceq$head
+ if($FrozenF1Observer){
+  # Preserve this exact reviewed observer across docs/external-runner changes.
+  # Its entire compiled source/import tree must remain identical to its producer.
+  if($manifest.commit-cne'259d6106f34e9f5d1393c4e63b7d9dd91ca1717f'-or$manifest.dllSha256-cne'8f478aced99656e203e5483e5da76db62119a2de49121a783597c8ea334e4561'-or
+     $manifest.packageSha256-cne'b40a2c06908694c1d83e62c14627d6e64da7965f552a917e3e0c6793524079c2'){throw 'Frozen F1 observer identity differs.'}
+  &git -C $repoRoot merge-base --is-ancestor $manifest.commit $head
+  if($LASTEXITCODE-ne0){throw 'Frozen F1 observer producer is not an ancestor.'}
+  $changed=@(&git -C $repoRoot diff --name-only $manifest.commit $head -- tools/KmcRemovalObserver LocalGamePaths.props Directory.Build.props Directory.Build.targets KingmakerMountedCombat.sln)
+  if($LASTEXITCODE-ne0-or$changed.Count-ne0){throw 'Frozen F1 observer compiled inputs changed.'}
+  $sourceMatches=$true
+ }
  if([int]$manifest.schemaVersion-ne2-or[string]$manifest.generator-cne'scripts/Package-Observer.ps1'-or$manifest.worktreeClean-ne$true-or
-  $manifest.qualificationEligible-ne$true-or[string]$manifest.commit-cne$head-or[string]$manifest.branch-cne$branch-or
+  $manifest.qualificationEligible-ne$true-or-not$sourceMatches-or[string]$manifest.branch-cne$branch-or
   [string]$manifest.packagePath-cne$package-or[string]$manifest.packageSha256-cne(Get-KmcSha256 $package)){
   throw 'Observer manifest does not bind the exact clean execution HEAD and observer ZIP.'
  }
@@ -52,10 +64,10 @@ function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath){
 # The request carries the source gate's own identities and both package identities,
 # each bound to its own bytes rather than to one shared commit.
 # An F12 previous-package load (u1/u3) loads the reference-free seed and drives no roles.
-function New-KmcChunk7NormalPlayerSection($Source,$ObserverPackagePath,$ObserverManifest,$UpgradeRehearsal=$null){
+function New-KmcChunk7NormalPlayerSection($Source,$ObserverPackagePath,$ObserverManifest,$UpgradeRehearsal=$null,[string]$Scenario='chunk7-normal-player-control'){
  $roles=Get-KmcChunk7NormalPlayerRoles
  $load=$null-ne$UpgradeRehearsal-and(Test-KmcChunk7UpgradePreviousStep ([string]$UpgradeRehearsal.step))
- $section=[ordered]@{contract='request-free-normal-player-control-v1';sourceRunId=$(if($load){$null}else{[string]$Source.qualificationRunId});archiveProducerRunId=$(if($load){$null}else{[string]$Source.archiveProducerRunId})
+ $section=[ordered]@{contract=$(if($Scenario-ceq'finalize-f1-finish'){'finalize-f1-finish-v1'}else{'request-free-normal-player-control-v1'});sourceRunId=$(if($load){$null}else{[string]$Source.qualificationRunId});archiveProducerRunId=$(if($load){$null}else{[string]$Source.archiveProducerRunId})
   riderId=$(if($load){$null}else{$roles.riderId});mountId=$(if($load){$null}else{$roles.mountId});neighborRiderId=$(if($load){$null}else{$roles.neighborRiderId});neighborMountId=$(if($load){$null}else{$roles.neighborMountId})
   kmcAutomationRequest=$false
   observer=[ordered]@{version=[string]$ObserverManifest.version;commit=[string]$ObserverManifest.commit;packageSha256=(Get-KmcSha256 $ObserverPackagePath)
@@ -72,6 +84,8 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
  Assert-KmcExactProperties $Request @('schemaVersion','runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','evidenceRoot',
   'fixture','qualificationSuite','persistenceLoad','normalPlayer') 'normal-player request'
  $n=$Request.normalPlayer;$roles=Get-KmcChunk7NormalPlayerRoles
+ $f1=[string]$Request.scenario-ceq'finalize-f1-finish'
+ if($f1-and([string]$Request.branch-cne'codex/kmc-finalize-f1-creation-ui-icons'-or[string]$Request.commit-cne(Get-KmcF1CandidatePins).commit-or[string]$Request.dllSha256-cne(Get-KmcF1CandidatePins).dllSha256-or$null-ne$n.PSObject.Properties['upgradeRehearsal'])){throw 'F1 finish requires the frozen corrected candidate and no upgrade rehearsal.'}
  $upgrade=$null-ne$n.PSObject.Properties['upgradeRehearsal']
  Assert-KmcExactProperties $n @(@('contract','sourceRunId','archiveProducerRunId','riderId','mountId','neighborRiderId','neighborMountId','kmcAutomationRequest','observer')+@(if($upgrade){'upgradeRehearsal'})) 'normal-player section'
  if($upgrade){Assert-KmcChunk7UpgradeRehearsalSection $Request}
@@ -92,7 +106,7 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
  Assert-KmcExactProperties $n.observer @('version','commit','packageSha256','manifestSha256','dllSha256','dllMvid') 'normal-player observer identity'
  $load=$Request.persistenceLoad
  Assert-KmcExactProperties $load @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'normal-player fixture descriptor'
- if([string]$n.contract-cne'request-free-normal-player-control-v1'-or$n.kmcAutomationRequest-isnot[bool]-or$n.kmcAutomationRequest-or
+ if([string]$n.contract-cne$(if($f1){'finalize-f1-finish-v1'}else{'request-free-normal-player-control-v1'})-or$n.kmcAutomationRequest-isnot[bool]-or$n.kmcAutomationRequest-or
   [string]$n.sourceRunId-cne'20261022-c7b-world185-b185s1-sixthhorse-cold'-or[string]$n.archiveProducerRunId-cne'20261022-c7b-world184-b184s1-sixthhorse-manual'-or
   [string]$n.riderId-cne$roles.riderId-or[string]$n.mountId-cne$roles.mountId-or[string]$n.neighborRiderId-cne$roles.neighborRiderId-or[string]$n.neighborMountId-cne$roles.neighborMountId-or
   [string]$n.observer.version-cnotmatch'^0\.1\.0-observer\.[0-9]+$'-or[string]$n.observer.commit-cnotmatch'^[0-9a-f]{40}$'-or
@@ -108,6 +122,7 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
 # What the observer process is bound to. KMC itself receives nothing.
 function New-KmcChunk7NormalPlayerObserverRequest($Request,[string]$Token,[string]$EvidenceRoot,[string]$ProfileRoot,[string]$ModsRoot,$Manifest){
  $n=$Request.normalPlayer;$load=Test-KmcChunk7NormalPlayerPreviousLoad $Request
+ $f1=[string]$Request.scenario-ceq'finalize-f1-finish'
  # The observer checks the loaded KMC assembly against the package actually staged.
  $staged=if($null-ne$n.PSObject.Properties['upgradeRehearsal']){$n.upgradeRehearsal.stagedKmc}else{$null}
  $candidate=if($null-ne$staged){[ordered]@{commit=[string]$staged.commit;productVersion=[string]$staged.version;dllSha256=[string]$staged.dllSha256;dllMvid=[string]$staged.dllMvid}}
@@ -120,10 +135,10 @@ function New-KmcChunk7NormalPlayerObserverRequest($Request,[string]$Token,[strin
   mammothBlueprintGuid='e7aa96d15a45238438ae4cfb476f6bb9'
   candidate=$candidate
   observer=[ordered]@{version=[string]$n.observer.version;packageSha256=[string]$n.observer.packageSha256;dllSha256=[string]$n.observer.dllSha256;dllMvid=[string]$n.observer.dllMvid}
-  timeoutSeconds=600;chargeSource=$null
+  timeoutSeconds=$(if($f1){1100}else{600});chargeSource=$null
   normalPlayer=[ordered]@{riderId=$(if($load){$null}else{[string]$n.riderId});mountId=$(if($load){$null}else{[string]$n.mountId});neighborRiderId=$(if($load){$null}else{[string]$n.neighborRiderId});neighborMountId=$(if($load){$null}else{[string]$n.neighborMountId})
    mountAbilityGuid='f053faad986631688defa003cd7bda0e';dismountAbilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';kmcPackageSha256=$(if($null-ne$staged){[string]$staged.packageSha256}else{[string]$Manifest.packageSha256});idleWindowFrames=240
-   mode=$(if($load){'previous-package-load'}else{'controls'})}}
+   mode=$(if($f1){'finalize-f1-finish'}elseif($load){'previous-package-load'}else{'controls'})}}
 }
 
 # Closed reader of the observer's own result. Every verdict is the observer's
@@ -143,6 +158,7 @@ function Assert-KmcChunk7NormalPlayerObserverResult($Request,$ObserverRequest,$R
  if([int]$Result.checkPassCount-ne$passed.Count-or[int]$Result.checkFailCount-ne$failed.Count-or
   (([string]$Result.status-ceq'PASS')-ne($failed.Count-eq0-and@($Result.errors).Count-eq0))){throw 'Normal-player status does not follow its own checks and errors.'}
  if([string]$Result.status-cne'PASS'){return}
+ if([string]$Request.scenario-ceq'finalize-f1-finish') { Assert-KmcF1FinishObserverResult $Request $ObserverRequest $Result; return }
  $load=Test-KmcChunk7NormalPlayerPreviousLoad $Request
  $staged=if($null-ne$Request.normalPlayer.PSObject.Properties['upgradeRehearsal']){$Request.normalPlayer.upgradeRehearsal.stagedKmc}else{$null}
  $expectedDll=if($null-ne$staged){[string]$staged.dllSha256}else{[string]$Request.dllSha256};$expectedMvid=if($null-ne$staged){[string]$staged.dllMvid}else{[string]$Request.dllMvid}
@@ -328,6 +344,7 @@ function Assert-KmcChunk7NormalPlayerUmmReceipt($Request,$OuterResult=$null){
 # run. An F12 rehearsal step is not that evidence: u1/u3 load preview.211 and u2 starts over a
 # carried previous folder state.
 function Assert-KmcChunk7NormalPlayerControlRow($Request,$GameEvidence){
+ if([string]$Request.scenario-cne'chunk7-normal-player-control'){throw 'Historical control row cannot consume F1 finish.'}
  if(-not(Test-KmcChunk7NormalPlayerScenario $Request.scenario)){throw 'Row 42 consumes only the request-free normal-player control.'}
  if($null-ne$Request.normalPlayer.PSObject.Properties['upgradeRehearsal']-or($null-ne$GameEvidence-and$null-ne$GameEvidence.PSObject.Properties['upgradeRehearsal']-and$null-ne$GameEvidence.upgradeRehearsal)){
   throw 'An F12 upgrade rehearsal step cannot stand in for the ordinary request-free control (row 42).'
