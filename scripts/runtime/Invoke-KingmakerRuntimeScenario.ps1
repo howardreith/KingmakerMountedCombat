@@ -507,7 +507,7 @@ $observerManifest=$null
 if($isNormalPlayer){
     $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
     & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
-    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath
+    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath -FrozenF1Observer:($Scenario-ceq'finalize-f1-finish')
 }
 if($isObserver){
     # The observer is built from the exact candidate commit; the candidate DLL
