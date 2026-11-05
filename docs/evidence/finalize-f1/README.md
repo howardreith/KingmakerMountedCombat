@@ -15,8 +15,7 @@ These original2560×1440 PNGs come from Codex-operated run `20261105-finalize-f1
 
 Static frames supplement actual input/navigation and the native log; they do not alone prove asynchronous correctness. Later observations are in the finishing section below. Owner art approval and broader owner-stack acceptance remain separate.
 
-## Finishing run`n
-
+## Finishing run
 
 These 2560×1440 PNGs come from Claude-operated run `20261105-finalize-f1-finish-02`, product source `39a153cf`, execution head `a53e6275`, observer.7. Native verdict PASS, restored exactly. That verdict covers lifecycle, identity and native transitions; the visual statements are inspection of these frames. The feat was granted in memory for presentation only.
 
