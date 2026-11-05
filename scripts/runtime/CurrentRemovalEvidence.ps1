@@ -28,7 +28,7 @@ function Assert-KmcCurrentRemovalProjection($Recorded,[string]$GameId,[string]$A
  foreach($key in @('ProfileId','Rider','Mount')){$expected=if($Mounted){$a.Pairs[0].$key}else{$null};if((ConvertTo-KmcChunk7Canonical $s.$key)-cne(ConvertTo-KmcChunk7Canonical $expected)){throw 'Current P07 projection substituted a pair, profile or native actor debt.'}}
 }
 function Get-KmcCurrentRemovalReferenceScan([string]$Path){
- $guids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49')
+ $guids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49','26151090ad4744ea96dbb7e0537a4a7f')
  Add-Type -AssemblyName System.IO.Compression;$stream=$null;$zip=$null;$count=0;$bytes=0L;$hits=[Collections.Generic.List[string]]::new();$seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
  try{$stream=[IO.FileStream]::new($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
   foreach($entry in $zip.Entries){if([string]::IsNullOrEmpty($entry.FullName)-or-not$seen.Add($entry.FullName)){throw 'Current P07 archive has unnamed or duplicate members.'}

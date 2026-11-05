@@ -56,7 +56,8 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("no Charge refusal tells the player to use a separate Mounted Charge", () =>
             {
-                foreach (var text in new[] { MountedChargeSafetyPolicy.Feedback, MountedChargeSafetyPolicy.MountFeedback })
+                foreach (var text in new[] { MountedChargeSafetyPolicy.Feedback, MountedChargeSafetyPolicy.MountFeedback,
+                    MountedChargeSafetyPolicy.SurpriseFeedback, MountedChargeSafetyPolicy.PresentPublicReason("Mounted Charge requires combat.") })
                     TestRunner.True(text.IndexOf("Mounted Charge", System.StringComparison.OrdinalIgnoreCase) < 0 &&
                         text.IndexOf("KMC.", System.StringComparison.Ordinal) < 0, "Dead-end or internal text: " + text);
             });

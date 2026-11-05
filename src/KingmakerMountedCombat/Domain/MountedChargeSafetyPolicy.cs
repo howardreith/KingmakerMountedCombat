@@ -18,12 +18,22 @@ namespace KingmakerMountedCombat.Domain
         // from automatic use. It is cancelled, never converted into the mounted Charge.
         public const string Feedback = "Charge was cancelled because the rider's mount state changed. Choose Charge again.";
         public const string MountFeedback = "While carrying a rider, the mount charges when the rider uses Charge.";
+        public const string SurpriseFeedback = "Charge cannot be made while mounted in a surprise round.";
 
         public static bool ShouldReject(RelationshipState state, bool belongsToPair,
             string blueprintId, bool exactNativeChargeLogic, bool alreadyActed = false)
         {
             return state == RelationshipState.Mounted && belongsToPair &&
                 blueprintId == ChargeBlueprintId && exactNativeChargeLogic && !alreadyActed;
+        }
+
+        // The ordinary Charge shows the mounted evaluator's reason in the player's terms: there is one Charge. The UMM
+        // setting keeps its own name, "Enable Mounted Charge".
+        public static string PresentPublicReason(string reason)
+        {
+            const string internalName = "Mounted Charge ";
+            return reason != null && reason.StartsWith(internalName, System.StringComparison.Ordinal)
+                ? "Charge " + reason.Substring(internalName.Length) : reason;
         }
 
         public static MountedChargeRoute Route(RelationshipState state, bool belongsToPair, bool unitIsRider,
