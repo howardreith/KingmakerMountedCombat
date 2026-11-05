@@ -30,5 +30,46 @@
                           }
                       ],
     "backup":  "analysis-cache/finalize-f1-contracts/push-helper-before-native-evidence.ps1",
-    "focusedResult":  "17/0 evidence and frozen-observer boundaries, plus full1320s launch-reservation refusal before staging/start"
+    "focusedResult":  "17/0 evidence and frozen-observer boundaries, plus full1320s launch-reservation refusal before staging/start",
+    "finishingExtension":  {
+                               "authorization":  "Howie 2026-11-05, answering an explicit question: add 8 finishing-run PNGs to the existing exact registry, same form as the earlier approval",
+                               "approvedBeforeSha256":  "36f9cc8786f00e190f7ef201543a6ac8152003ebfa6f1a068ff2f142ef613f93",
+                               "afterSha256":  "6ac2db6e89b5bc8dd87993bcbc26117da6136952a45bc785e1a764e256c4b541",
+                               "onlyChange":  "One comment and eight exact PNG path/SHA pairs added to the existing registry. No path regex, branch/origin, cleanliness, secret scan or fast-forward guard changed.",
+                               "selectedPaths":  [
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-removal-eligible-group.png",
+                                                         "sha256":  "fb6ad205fa337eab597dd22131cd137ddaf28c341466d41b5787c6e74a67803a"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-removal-unavailable-tooltip.png",
+                                                         "sha256":  "8686905b4f216d308842e48927d2cfd18e98dfc154ab5fdc94ad432c5925bfdf"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-fresh-row-selected.png",
+                                                         "sha256":  "b94234074f5f5e5f518cd4d6c9d0d0958baae88e5adc647b2dfc255302e0ca09"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-fresh-mounted-combat-unavailable.png",
+                                                         "sha256":  "da9c4be4adfbd0378c52fccf988e813e125a0753c68380a56a201e3ab2dae58a"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-reaction-on-tooltip.png",
+                                                         "sha256":  "f7d429e795510961d95582cbf8ccc44dd09cb37b2aeff70c4a3fc15b12aa8da6"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-reaction-off.png",
+                                                         "sha256":  "d015cf3fefb65290b26d4abb9499b436b8204b48d9ed28e2ea48e601ac348b3f"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-charge-tooltip.png",
+                                                         "sha256":  "71f0fdec12c2e230739ae8f797c3059a0f5f1a913d542952dc307af4b2bdd9ee"
+                                                     },
+                                                     {
+                                                         "path":  "docs/evidence/finalize-f1/captures/finish-umm-kmc-page.png",
+                                                         "sha256":  "1b2f26b24d9e457f88f99b974781e13d15d57099d1db3a293d0919121543bfb4"
+                                                     }
+                                                 ],
+                               "backup":  "analysis-cache/finalize-f1-contracts/push-helper-before-finish-evidence.ps1"
+                           }
 }
