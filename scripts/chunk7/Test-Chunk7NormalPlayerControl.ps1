@@ -22,7 +22,7 @@ function Clone($Value){$Value|ConvertTo-Json -Depth 60|ConvertFrom-Json}
 $base=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261022-c7b-world190-b190s1-sixmeasure/runtime-request.json')
 $load=(Read-KmcJson (Join-Path (Get-KmcLabRoot) 'runtime-evidence/20261022-c7b-world185-b185s1-sixthhorse-cold/runtime-request.json')).persistenceLoad
 $fakeObserver=Join-Path $OutputDirectory 'observer.zip';[IO.File]::WriteAllText($fakeObserver,'observer bytes');[IO.File]::WriteAllText($fakeObserver+'.manifest.json','{}')
-$observerManifest=[pscustomobject]@{version='0.1.0-observer.6';commit=('b'*40);dllSha256=('c'*64);dllMvid='11111111-2222-3333-4444-555555555555'}
+$observerManifest=[pscustomobject]@{version='0.1.0-observer.8';commit=('b'*40);dllSha256=('c'*64);dllMvid='11111111-2222-3333-4444-555555555555'}
 $source=[pscustomobject]@{qualificationRunId='20261022-c7b-world185-b185s1-sixthhorse-cold';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual'}
 $request=Clone $base;$request.scenario='chunk7-normal-player-control';$request.PSObject.Properties.Remove('ownedPairs');$request.persistenceLoad=Clone $load
 $request|Add-Member normalPlayer ([pscustomobject](New-KmcChunk7NormalPlayerSection $source $fakeObserver $observerManifest|ConvertTo-Json -Depth 8|ConvertFrom-Json))

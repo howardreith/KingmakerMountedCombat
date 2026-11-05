@@ -76,7 +76,8 @@ try {
     if ([string]$identity.informationalVersion -cne $expectedVersion) { throw 'Observer DLL product version does not match its identity source.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Observer DLL does not target exact .NET Framework 4.7.' }
     $checks += 3
-    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityModManager','Newtonsoft.Json','0Harmony12')
+    # External F1 mode inspects native rows and offers a bounded UMM finish button.
+    $allowedReferences = @('mscorlib','System','System.Core','Assembly-CSharp','Assembly-CSharp-firstpass','UnityEngine','UnityEngine.CoreModule','UnityEngine.UI','UnityEngine.IMGUIModule','UnityModManager','Newtonsoft.Json','0Harmony12')
     $references = @($identity.references | Sort-Object)
     $unexpected = @($references | Where-Object { $_ -cnotin $allowedReferences })
     if ($unexpected.Count -ne 0 -or $references -contains '0Harmony' -or

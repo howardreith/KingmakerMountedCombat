@@ -144,6 +144,12 @@
     <EmbeddedResource Include="Assets\HorsePortraitSmall.png">
       <LogicalName>KingmakerMountedCombat.Assets.HorsePortraitSmall.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedCombatFeat.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedCombatFeat.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedCombatReaction.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedCombatReaction.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Assets\HorseIcon.png">
       <LogicalName>KingmakerMountedCombat.Assets.HorseIcon.png</LogicalName>
     </EmbeddedResource>
@@ -297,6 +303,7 @@
     <Compile Include="Diagnostics\PresentationRuntimeEvidencePolicy.cs" />
     <Compile Include="Diagnostics\PresentationOverlayEvidence.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.cs" />
+    <Compile Include="Diagnostics\RuntimeAutomationHost.FinalizeF1.cs" />
     <Compile Include="Diagnostics\RuntimeStartupTrace.cs" />
     <Compile Include="Diagnostics\RuntimeAutomationHost.WorkingLoadObservation.cs" />
     <Compile Include="Diagnostics\WorkingLoadObservation.cs" />
@@ -505,6 +512,7 @@
     <Compile Include="Domain\NativeMountedControl.cs" />
     <Compile Include="Domain\NativeShellBindingPolicy.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
+    <Compile Include="Domain\MountedFeedbackPresentationPolicy.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />
     <Compile Include="Domain\MountedRiderPoseProfile.cs" />
@@ -533,6 +541,7 @@
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
+    <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
@@ -553,6 +562,7 @@
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />
+    <Compile Include="Integration\MountedFeatSelectorRefreshService.cs" />
     <Compile Include="Integration\NativeMountedDismissInventorySafety.cs" />
     <Compile Include="Integration\MountedPlayerActionController.cs" />
     <Compile Include="Integration\MountedPlayerActionOverlay.cs" />

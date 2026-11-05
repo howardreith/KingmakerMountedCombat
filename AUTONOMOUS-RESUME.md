@@ -1,16 +1,14 @@
-# Sprint 9 resume record (2026-11-04)
+# F1 resume — final review stop
 
-Machine: DESKTOP-SRJJ623. Worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\sprint9-integration-release`, branch `codex/mounted-combat-sprint9-integration-release`. The root repository stays on `main`.
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1; branch codex/kmc-finalize-f1-creation-ui-icons; draft PR16. Read CURRENT.md and docs/FINALIZE-F1-REVIEW-HANDOFF.md. Preserve newer work. Do not restart intake or historical campaigns.
 
-## Custody
+State: F1d run 20261105-finalize-f1d-native-01 passed and restored. All four F1 starts are used. Nothing runs from this resume: no launch, allowance increase, merge, release or F2 is authorized. A review correction that changes product bytes needs a new owner decision, package, suite and start; do not relabel run evidence onto it.
 
-No native game, executor, transaction or lock remains. Retained under `runtime-evidence`, prefix `20261104-sprint9-`: `a01` to `a06`, `e01` to `e08`, `f01`, `g11` to `g21` where run, `h01` to `h03`, plus `20261104-c7e-final-B901-r31`, `-r32`, `-B902-r31`, `-r32`. Candidates sprint9a to sprint9h under `artifacts\`; the current one is sprint9h, version preview.102. Budget record `runtime-state\workflow-budgets\sprint9.json`: 91.73 of 105 after one +15 adjustment. A package plus more than one launch would fall below the admission guard and needs an owner decision.
+Facts for a successor:
+- WhatIf stops before Test-RuntimeRequest. scripts/Test-FinalizeF1Finish.ps1 validates the next request's exact shape directly.
+- The package allowlist excludes UnityEngine.UI, so the product reaches those members by exact token through reflection.
+- The observer's refresh-scroll probe returns -99 because no parent ScrollRect is found from the layer. It gives no scroll evidence.
+- Creator Next requires all ability and skill points spent. UMM's Ctrl+F10 needs real scan codes under synthetic input. Check the class list's scroll before clicking; it differs in a second creator.
+- The publishing helper registers images by exact path and SHA, and each new image needs owner approval; see docs/evidence/finalize-f1/publishing-authority.json.
 
-## Next action
-
-1. Review the Sprint 9 PR. Owner play acceptance stays separate: [the script](docs/SPRINT9-OWNER-PLAY-SCRIPT.md). Record only results the owner supplies.
-2. No merge, tag, publication or installation is selected.
-3. A further launch needs a new package, because the manifest binds the exact HEAD including docs commits.
-4. Tooling facts: `integrated-tb-feat-charge-manual` is a `chunk7-persistence-save` then `-load` case. `sprint8-paladin-tb` and `sprint3-approach-rt-spells` are the narrow selections. The base-game control is `chunk7-normal-player-control` with `-ObserverPackagePath`, `-TimeoutSeconds 900`. The removal chain needs run ids matching `*-c7e-final-B*-r31`/`r32` and a run map.
-
-Prior records: [AUTONOMOUS-RESUME before Sprint 9](docs/history/AUTONOMOUS-RESUME-before-sprint9-2026-11-04.md).
+First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f1.json.

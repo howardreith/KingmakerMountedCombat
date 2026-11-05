@@ -23,6 +23,8 @@ namespace KmcRemovalObserver
                     return true;
                 }
                 modEntry.OnUpdate = OnUpdate;
+                var normal = session as NormalPlayerSession;
+                if (normal != null) modEntry.OnGUI = entry => normal.DrawF1Finish();
                 modEntry.Logger.Log("KMC removal observer " + ObserverIdentity.ProductVersion + " armed for run " + session.RunId + ".");
                 return true;
             }

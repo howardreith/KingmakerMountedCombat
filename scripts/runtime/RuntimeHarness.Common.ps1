@@ -66,6 +66,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7SixPairStressEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SixPairPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7NormalPlayerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'FinalizeF1Finish.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7UpgradeRehearsal.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
@@ -3959,8 +3960,9 @@ function Read-KmcModsStagedManifestSidecar {
 }
 
 # Classifies the live tree at restoration against the exact staged entries. The
-# only expected runtime write is UMM's new '<name>.dll.<digits>.cache' that is a
-# byte-exact copy of '<name>.dll' in both the runtime and the staged tree. One named
+# expected loader writes are UMM's new '<name>.dll.<digits>.cache' and its PDB
+# companion, each a byte-exact copy of its runtime and staged original; the PDB
+# also requires the corresponding verified DLL cache. One named
 # exception: UMM 0.33.2.0 ModEntry.Load deletes every '*.cache*' in the mod folder when
 # its own cache name is missing, so the removal of exactly a transaction-declared carried
 # KMC cache (same path and staged bytes) is the expected change 'removed-carried-cache'.
@@ -4008,6 +4010,24 @@ function Get-KmcModsRuntimeWriteClassification {
             $isExpected = $null -ne $runtimeDll -and $null -ne $stagedDll -and
                 [string]$entry.sha256 -ceq [string]$runtimeDll.sha256 -and [string]$entry.sha256 -ceq [string]$stagedDll.sha256 -and
                 [long]$entry.length -eq [long]$runtimeDll.length -and [long]$entry.length -eq [long]$stagedDll.length
+        }
+        # UMM copies a supplied symbol file beside its DLL cache. Require both
+        # original symbol copies and the corresponding byte-exact DLL cache;
+        # orphaned, generated or modified symbols remain unexpected.
+        $symbols = [regex]::Match([string]$entry.path, '^(.+)\.dll\.(\d+)\.cache\.pdb$')
+        if ([string]$entry.kind -ceq 'file' -and $symbols.Success) {
+            $base = $symbols.Groups[1].Value
+            $sourcePdb = $staged['file|' + $base + '.pdb']
+            $runtimePdb = $runtime['file|' + $base + '.pdb']
+            $sourceDll = $staged['file|' + $base + '.dll']
+            $runtimeDll = $runtime['file|' + $base + '.dll']
+            $cacheDll = $runtime['file|' + $base + '.dll.' + $symbols.Groups[2].Value + '.cache']
+            $isExpected = $null -ne $sourcePdb -and $null -ne $runtimePdb -and
+                $null -ne $sourceDll -and $null -ne $runtimeDll -and $null -ne $cacheDll -and
+                [string]$entry.sha256 -ceq [string]$sourcePdb.sha256 -and [string]$entry.sha256 -ceq [string]$runtimePdb.sha256 -and
+                [long]$entry.length -eq [long]$sourcePdb.length -and [long]$entry.length -eq [long]$runtimePdb.length -and
+                [string]$cacheDll.sha256 -ceq [string]$sourceDll.sha256 -and [string]$cacheDll.sha256 -ceq [string]$runtimeDll.sha256 -and
+                [long]$cacheDll.length -eq [long]$sourceDll.length -and [long]$cacheDll.length -eq [long]$runtimeDll.length
         }
         $row = [pscustomobject]@{ change='added'; kind=[string]$entry.kind; path=[string]$entry.path; runtimeSha256=[string]$entry.sha256 }
         if ($isExpected) { $expected.Add($row) }
@@ -4099,11 +4119,12 @@ function Add-KmcModsRuntimeWriteFindings {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'finalize-f1-finish',
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt','sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb','sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
-        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
+        'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite','finalize-f1-creation-ui',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',

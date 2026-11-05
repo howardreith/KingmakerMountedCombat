@@ -78,7 +78,8 @@ namespace KingmakerMountedCombat.Integration
             if (existing != null)
                 throw new InvalidOperationException("An installed feature already offers Mounted Combat: " + existing.name + "/" + existing.AssetGuid + ".");
 
-            var icon = mountSaddleIcon;
+            var icon = CreateEmbeddedSprite("KingmakerMountedCombat.Assets.MountedCombatReaction.png", "KMC_MountedCombat_Reaction_Icon");
+            var featIcon = CreateEmbeddedSprite("KingmakerMountedCombat.Assets.MountedCombatFeat.png", "KMC_MountedCombat_Feat_Icon");
             mountedCombatToggleBuff = CreateMountedCombatBuff("MountedCombatToggleBuff", MountedCombatToggleBuffGuid,
                 NewLocalizedString("KMC.MountedCombat.Toggle.Name"), NewLocalizedString("KMC.MountedCombat.Toggle.Description"), BuffFlagHiddenInUi | BuffFlagStayOnDeath, icon);
             mountedCombatSpentBuff = CreateMountedCombatBuff("MountedCombatSpentBuff", MountedCombatSpentBuffGuid,
@@ -101,7 +102,7 @@ namespace KingmakerMountedCombat.Integration
             mountedCombatFeature = CreateOwned<BlueprintFeature>("MountedCombatFeature");
             mountedCombatFeature.AssetGuid = MountedCombatFeatureGuid;
             CopyFeatureContract(powerAttack, mountedCombatFeature);
-            SetFeaturePresentation(mountedCombatFeature, NewLocalizedString("KMC.MountedCombat.Name"), NewLocalizedString("KMC.MountedCombat.Description"), icon);
+            SetFeaturePresentation(mountedCombatFeature, NewLocalizedString("KMC.MountedCombat.Name"), NewLocalizedString("KMC.MountedCombat.Description"), featIcon);
             var trained = CreateOwned<PrerequisiteStatValue>("KMC_MountedCombat_MobilityRank");
             trained.Stat = StatType.SkillMobility;
             trained.Value = MountedCombatDefensePolicy.MinimumTrainedRanks;

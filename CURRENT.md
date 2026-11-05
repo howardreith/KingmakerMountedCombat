@@ -1,9 +1,9 @@
-# Sprint 9: released as preview.103 (2026-11-04)
+# F1 — ENGINEERING COMPLETE, ready for final review (2026-11-05)
 
-**Released by owner order.** The owner accepted PR #14 and ordered a release from `main` with the version incremented. No per-item play results have been supplied.
+Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. [Current handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md) has the root cause, identities, retained evidence and restoration.
 
-Evidence stands on its own binaries; the matrix names each. Open and stated: the trap, the turn-based door, Paladin and Riding Dog play without Call of the Wild, and clean uninstallation from a dependent save.
+Candidate F1d, source 8c5be488, repairs the stale selected row after a rank removal: native Toggle.Set re-asserted the last active toggle, and KMC now takes the native group clear under the native action guard. Run 20261105-finalize-f1d-native-01: native PASS (observer.8, 48/0), exact restoration, row readable on screen. [Captures](docs/evidence/finalize-f1/README.md). Earlier F1c evidence stays at its own identities.
 
-Record: [docs/SPRINT9-INTEGRATED-ACCEPTANCE.md](docs/SPRINT9-INTEGRATED-ACCEPTANCE.md). Notes: [docs/SPRINT9-RELEASE-NOTES.md](docs/SPRINT9-RELEASE-NOTES.md). Owner route: [docs/SPRINT9-OWNER-PLAY-SCRIPT.md](docs/SPRINT9-OWNER-PLAY-SCRIPT.md). Prior state: [CURRENT before Sprint 9](docs/history/CURRENT-before-sprint9-2026-11-04.md).
+finalize-f1: 120 min ceiling, 4/4 starts. No start or increase remains. Limitations stay explicit: no matched performance baseline (accepted), no valid scroll observation, owner art approval and owner-stack acceptance separate. F2 owns the single Charge and persistent Mount/Dismount control.
 
-The lab's live installation stays empty: a release is not an install.
+No game, lock or installed candidate. No merge, release, install or F2.

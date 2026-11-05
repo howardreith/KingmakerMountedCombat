@@ -16,6 +16,15 @@ namespace KingmakerMountedCombat.Tests
             CastingFixtureSlotSnapshotTests.Register(runner);
             CastingSummonResidueTests.Register(runner);
             DeclaredMemberCommandPolicyTests.Register(runner);
+            runner.Run("before the fix a last selected feat row stays on with nothing selected", FeatSelectorSelectionPolicyTests.BeforeTheFixALastSelectedRowStaysOnWithNothingSelected);
+            runner.Run("removing a prerequisite clears the stale feat row without a callback", FeatSelectorSelectionPolicyTests.RemovingThePrerequisiteClearsTheStaleRowWithoutACallback);
+            runner.Run("regaining a prerequisite allows reselection", FeatSelectorSelectionPolicyTests.RegainingThePrerequisiteAllowsReselection);
+            runner.Run("a valid feat selection survives an equal preview rebind", FeatSelectorSelectionPolicyTests.AValidSelectionSurvivesAnEqualPreviewRebind);
+            runner.Run("a native comparison row keeps its native exclusivity", FeatSelectorSelectionPolicyTests.ANativeComparisonRowKeepsItsNativeExclusivity);
+            runner.Run("a native row losing its prerequisite clears too", FeatSelectorSelectionPolicyTests.ANativeRowLosingItsPrerequisiteClearsToo);
+            runner.Run("a selection not offering the feat is left native", FeatSelectorSelectionPolicyTests.ASelectionNotOfferingTheFeatIsLeftNative);
+            runner.Run("a hidden feat row is not the group's to clear", FeatSelectorSelectionPolicyTests.AHiddenRowIsNotTheGroupsToClear);
+            runner.Run("a new preview inherits no feat row state", FeatSelectorSelectionPolicyTests.ANewPreviewInheritsNothing);
             runner.Run("A ridden mount smites from where it stands", DivineMountPolicyTests.MountedSmiteWorksFromWhereTheMountStands);
             runner.Run("Divine Mount call uses follow the rule", DivineMountPolicyTests.CallUsesFollowTheRule);
 runner.Run("Divine Mount spell resistance starts at fifteen and follows the level", DivineMountPolicyTests.SpellResistanceStartsAtFifteenAndFollowsTheLevel);

@@ -26,6 +26,20 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action rejects double activation during transition", RejectsDoubleActivationDuringTransition);
             runner.Run("player action feedback follows an external mount transition", FeedbackFollowsExternalMountTransition);
             runner.Run("player action feedback retains an operation result while availability is stable", FeedbackRetainsStableOperationResult);
+            runner.Run("default feedback hides routine engineering status but preserves refusals and failures", FeedbackPresentationPreservesFailures);
+        }
+
+        private static void FeedbackPresentationPreservesFailures()
+        {
+            foreach (var routine in new[] { "Mounted pair command accepted: RiderMelee.",
+                "Mounted ground movement active: Horse owns movement.", "PASS: state=Mounted",
+                "Mounted relationship is active.", "Mounted ground movement completed." })
+                TestRunner.True(MountedFeedbackPresentationPolicy.IsRoutine(routine), "Routine status leaked: " + routine);
+            foreach (var refusal in new[] { "FAIL: state=Unmounted, errors=movement cleanup failed",
+                "Mounted pair command failed closed: InvalidOperationException.",
+                "Mounted pair scheduler rejected native admission: actor busy.",
+                "No Standard action remains for this actor's attack.", "An unfamiliar error from the game." })
+                TestRunner.True(!MountedFeedbackPresentationPolicy.IsRoutine(refusal), "Failure hidden: " + refusal);
         }
 
         private static void MountApproachMatchesExecution()
