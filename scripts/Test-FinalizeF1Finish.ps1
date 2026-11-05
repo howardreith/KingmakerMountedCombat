@@ -44,4 +44,7 @@ Refuse {$bad=Clone $result;$bad.observations.f1Creators.fresh=$false;Assert-KmcF
 Refuse {$bad=Clone $result;$bad.observations.f1Creators.closed=1;Assert-KmcF1FinishObserverResult $r ([pscustomobject](Clone $observer)) $bad}
 Refuse {$bad=Clone $result;$bad.observations.f1PresentationSetup.saveWriteAuthorized=$true;Assert-KmcF1FinishObserverResult $r ([pscustomobject](Clone $observer)) $bad}
 Refuse {$bad=Clone $result;$bad.observations.presenceLoaded.modEntries=@('KingmakerMountedCombat:active','KmcRemovalObserver:active');Assert-KmcF1FinishObserverResult $r ([pscustomobject](Clone $observer)) $bad}
+# The request validator runs only inside the live transaction; WhatIf never reaches it.
+# This is the exact request the first finishing launch was refused on, before any game start.
+Pass {& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath (Join-Path $lab 'runtime-evidence/20261105-finalize-f1-finish-01/runtime-request.json') -PackageManifestPath (Join-Path $lab 'artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f1c-diagnostic.zip.manifest.json')|Out-Null}
 Write-Host ('F1 FINISH FOCUSED PASS='+$count+' FAIL=0; no game, staging or preference mutation.')
