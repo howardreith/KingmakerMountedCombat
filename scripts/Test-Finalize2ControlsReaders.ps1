@@ -81,7 +81,7 @@ function New-F2Artifact {
   repaired=[ordered]@{frames=10;bar=(New-F2Bar @{0=$g0;1=$g1;2=$id.publicControl;3=$g3;4=$id.stockCharge});k1Key=$id.publicControl;k2Key=$id.stockCharge;k1IsLiveControl=$true;k2IsLiveStock=$true;
    controlIndices=@($cycle);countersAfter=[ordered]@{initialPlacement=1;legacySlotRepair=2}}}
  $chargeBefore=New-F2State @{riderInCombat=$true;distance=12.0}
- $spent=New-F2State @{riderInCombat=$true;riderStandard=5.0;buff=$true;buffCount=1;riderAc=18;distance=3.9}
+ $spent=New-F2State @{riderInCombat=$true;riderStandard=5.0;buff=$true;buffCount=1;riderAc=18;distance=3.9;admitted=1}
  $terminal=[ordered]@{state=$spent;sequence=4;sequenceLawful=$true;result='Success';revalidationFailed=$false;revalidationReason=$null;outcomeRejection='';rules=1;mountRules=0;closestDistance=4.0;
   peakSpeedOverride=10.16;mountCombatSpeed=5.08;riderWeaponRange=1.5;mountCorpulence=1.5;targetCorpulence=1.0;
   lease=[ordered]@{applied=$true;buffApplied=$true;forcedPathOutstanding=$false;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true;riderChargingRestoredExactly=$true;buffHandedToNative=$true;buffOutstanding=$false}}
@@ -91,7 +91,7 @@ function New-F2Artifact {
   afterSelectionDrop=$chargeBefore;
   chargeProbe=[ordered]@{available=$true;canTarget=$true;reason=$null;policyAllowed=$true;distance=12.0};
   chargeClick=(New-F2Click $id.stockCharge $id.mountedChargeShell $chargeBefore $k2);
-  chargeTarget=[ordered]@{clickedId=$hostile;handlerAbility=$id.mountedChargeShell;clicked=$true;castDelta=1;admittedDelta=1;shell=$true;shellTarget=$hostile}}
+  chargeTarget=[ordered]@{clickedId=$hostile;handlerAbility=$id.mountedChargeShell;clicked=$true;castDelta=1;admittedDelta=0;commands=@([ordered]@{type='UnitUseAbility';blueprint=$id.mountedChargeShell});shell=$true;shellTarget=$hostile}}
  $charge=[ordered]@{case='F2-charge-mounted';steps=$chargeSteps;chargeSlot=[ordered]@{index=$k2;source='repaired-old-binding';preexistingAtScenarioStart=$false;indicesBefore=@($k2);sameData=$true};
   combatEntered=$combat;terminal=$terminal;chargeRules=1;stockChargeCommandFrames=0;stockChargeWatchedFrames=180;
   spentRefusal=[ordered]@{riderStandard=5.5;available=$false;reason='Charge requires the rider''s standard action.'}}
@@ -217,7 +217,8 @@ $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').repaired.k2IsLiveStock=$false;
 $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').repaired.bar.keys[0]=''; Reject $r 'an unrelated slot cleared by the repair refuses'
 $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').repaired.bar.types[100]='MechanicActionBarSlotItem'; Reject $r 'an unrelated slot type changed by the repair refuses'
 $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').injection.stockChargeOnBarBefore=$true; Reject $r 'a second Charge beside an existing one refuses'
-$r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').injection.outsideMainBar=$true; Reject $r 'old bindings off the main bar refuse'
+$r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').injection.k2=130; Reject $r 'old bindings outside the persisted slot range refuse'
+$r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').injection.outsideMainBar=$true; Check (Accept $r) 'old bindings on the additional panel are accepted (r02 reader correction)'
 $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').injection.k2Guid=$id.stockCharge; Reject $r 'an injected binding that is not the old shell refuses'
 $r=Copy-F2 $base; (Row $r 'F2-alias-and-removal').removal.barAfterRemoval.keys[2]=$id.publicControl; Reject $r 'a removal that left the control refuses'
 # Mounted Charge
@@ -226,7 +227,7 @@ $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.tooNear.reason='KMC.Native.
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.tooNear.canTarget=$true; Reject $r 'a targetable too-near hostile refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.chargeClick.handlerAfter=$id.stockCharge; Reject $r 'a mounted Charge slot that selected the stock Charge refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.selectionClick.slotAbilityAfter=$id.mountedChargeShell; Reject $r 'a Charge slot left on the shell refuses'
-$r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.chargeTarget.admittedDelta=2; Reject $r 'a mounted Charge admitted twice refuses'
+$r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.state.admitted=2; Reject $r 'a mounted Charge admitted twice refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').steps.chargeProbe.available=$false; Reject $r 'an unavailable mounted ordinary Charge refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').stockChargeCommandFrames=1; Reject $r 'a stock Charge command on the mounted rider refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.lease.riderAgentTouched=$true; Reject $r 'a second mover refuses'
