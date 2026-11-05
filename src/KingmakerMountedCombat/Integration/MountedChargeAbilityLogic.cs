@@ -28,7 +28,7 @@ namespace KingmakerMountedCombat.Integration
         public bool IsAvailableFor(AbilityData ability)
         {
             var availability = NativeMountedAbilityBridge.Service?.Evaluate(NativeMountedControlKind.MountedCharge, ability?.Caster?.Unit);
-            lastReason = availability?.Reason ?? "Mounted control services are unavailable.";
+            lastReason = MountedChargeSafetyPolicy.PresentPublicReason(availability?.Reason) ?? "Mounted control services are unavailable.";
             return availability != null && availability.IsEnabled;
         }
 

@@ -107,7 +107,8 @@ namespace KingmakerMountedCombat.Integration
         }.Concat(HorseCompanionBlueprintService.DivineMountOwnedGuids).ToArray();
 
         // F2: while the cleanup save is being written, KMC writes no control rows: the archive must name no binding.
-        internal bool CleanupSaveInFlight => State == RemovalPreparationState.Saving;
+        internal bool CleanupSaveInFlight => State == RemovalPreparationState.Saving && pendingSave != null &&
+            ReferenceEquals(persistence.ActiveSaveRequested, pendingSave);
 
         // Inspection only: nothing is dismounted, saved or mutated here. The
         // live scan covers the loaded world and the cross-scene party; units

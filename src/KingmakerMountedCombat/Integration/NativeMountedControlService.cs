@@ -1679,6 +1679,7 @@ namespace KingmakerMountedCombat.Integration
         internal void BeginLoadedWorld()
         {
             placementRecorded.Clear();
+            initialPlacements.Clear();
         }
 
         private void ReconcileFacts()
@@ -1814,7 +1815,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var slot = unit.UISettings.GetSlot(index, unit);
                 empty[index] = slot is MechanicActionBarSlotEmpty;
-                before[index] = empty[index] ? "" : (slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint?.AssetGuid ?? slot.GetType().Name;
+                before[index] = empty[index] ? "" : (slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint?.AssetGuid ?? slot?.GetType().Name ?? "";
             }
             var chosen = MountedControlSlotPolicy.SelectInitialPlacementIndex(empty);
             if (initialPlacements.Count < 32)

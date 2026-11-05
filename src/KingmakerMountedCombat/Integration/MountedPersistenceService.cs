@@ -40,6 +40,8 @@ namespace KingmakerMountedCombat.Integration
         // The overlap guard reads this. A draining save must still own it, so a
         // second serialization cannot begin over a worker that can still commit.
         internal bool HasActiveSaveScope => activeSave != null;
+        // The descriptor the running native save was requested with (null outside a save).
+        internal SaveInfo ActiveSaveRequested => activeSave?.Requested;
         // Per-operation identity, so a test can prove THIS save's worker was
         // still running when interruption was requested rather than relying on a
         // cumulative count.
