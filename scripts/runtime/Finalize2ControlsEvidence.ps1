@@ -118,6 +118,8 @@ function Assert-KmcFinalize2ControlsEvidence {
  $m=$rows['F2-mount-cycle']; $ms=P $m 'steps'
  $cycleIndex=Int (P (P $m 'start') 'index') 'cycle control index'
  if($cycleIndex -lt 0){ Fail 'the cycle found no single public control' }
+ No (P $m 'controlPlacedBySetup') 'the mount cycle ran on a control placed by setup, not the automatic placement'
+ if($cycleIndex -ne $index){ Fail 'the mount cycle did not start from the automatically placed slot' }
  No (P $m 'fallbackUsed') 'a mount-cycle transition fell back to the hidden shell'
  foreach($leg in @(@{n='mount1';mount=$true;from='Unmounted';to='Mounted';end='mounted1'},@{n='dismount';mount=$false;from='Mounted';to='Unmounted';end='dismounted'},@{n='mount2';mount=$true;from='Unmounted';to='Mounted';end='mounted2'})){
   $what='mount cycle '+$leg.n; $click=P $ms ($leg.n+'Click')
@@ -213,6 +215,11 @@ function Assert-KmcFinalize2ControlsEvidence {
  if([string]::IsNullOrEmpty($hostile) -or $hostile -cne (Text (P $chargeTarget 'clickedId'))){ Fail 'the mounted Charge shell names another target' }
  $terminal=P $c 'terminal'
  Terminal $terminal 'mounted Charge'
+ # The ordinary Charge's own refusal while the rider's Standard is spent: truthful, in the player's terms.
+ $spent=P $c 'spentRefusal'
+ if($null -eq $spent -or (P $spent 'available') -ne $false){ Fail 'the ordinary Charge stayed available with the rider''s Standard spent' }
+ $spentReason=[string](Text (P $spent 'reason'))
+ if(-not $spentReason.StartsWith('Charge ') -or $spentReason.Contains('Mounted Charge') -or $spentReason.Contains('KMC.')){ Fail ('the ordinary Charge refusal is not in the player''s terms: '+$spentReason) }
  if((Int (P $c 'chargeRules') 'mounted charge rules') -ne 1){ Fail 'the mounted Charge did not make exactly one charge attack' }
  $chargeRules=@(@(P $o 'attackRules') | Where-Object { (Text (P $_ 'attacker')) -ceq $riderId -and (Text (P $_ 'target')) -ceq $hostile -and (P $_ 'charge') -eq $true })
  if($chargeRules.Count -lt 1){ Fail 'no rider charge attack rule was observed' }

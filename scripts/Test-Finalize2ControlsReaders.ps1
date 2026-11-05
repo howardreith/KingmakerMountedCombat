@@ -69,7 +69,7 @@ function New-F2Artifact {
   mount2Target=[ordered]@{clickedId=$mount;handlerAbility=$id.mountShell;clicked=$true};
   mount2Command=[ordered]@{found=$true;blueprint=$id.mountShell;targetId=$mount;fallback=$false};
   mounted2=[ordered]@{state=$mounted;shellBlueprint=$id.mountShell;shellFinished=$true;shellResult='Success'}}
- $cycleRow=[ordered]@{case='F2-mount-cycle';steps=$cycleSteps;start=[ordered]@{indices=@($cycle);index=$cycle;factId=11;dataId=12};fallbackUsed=$false;frameWatch=$watch}
+ $cycleRow=[ordered]@{case='F2-mount-cycle';steps=$cycleSteps;start=[ordered]@{indices=@($cycle);index=$cycle;factId=11;dataId=12};fallbackUsed=$false;controlPlacedBySetup=$false;frameWatch=$watch}
  $removed=New-F2Bar @{0=$g0;1=$g1;3=$g3}
  $alias=[ordered]@{case='F2-alias-and-removal';steps=[ordered]@{};
   removal=[ordered]@{index=$cycle;indicesBefore=@($cycle);countersBefore=[ordered]@{initialPlacement=1;legacySlotRepair=0};barBefore=(New-F2Bar @{0=$g0;1=$g1;2=$id.publicControl;3=$g3});barAfterRemoval=$removed;frame=40};
@@ -93,7 +93,8 @@ function New-F2Artifact {
   chargeClick=(New-F2Click $id.stockCharge $id.mountedChargeShell $chargeBefore $k2);
   chargeTarget=[ordered]@{clickedId=$hostile;handlerAbility=$id.mountedChargeShell;clicked=$true;castDelta=1;admittedDelta=1;shell=$true;shellTarget=$hostile}}
  $charge=[ordered]@{case='F2-charge-mounted';steps=$chargeSteps;chargeSlot=[ordered]@{index=$k2;source='repaired-old-binding';preexistingAtScenarioStart=$false;indicesBefore=@($k2);sameData=$true};
-  combatEntered=$combat;terminal=$terminal;chargeRules=1;stockChargeCommandFrames=0;stockChargeWatchedFrames=180}
+  combatEntered=$combat;terminal=$terminal;chargeRules=1;stockChargeCommandFrames=0;stockChargeWatchedFrames=180;
+  spentRefusal=[ordered]@{riderStandard=5.5;available=$false;reason='Charge requires the rider''s standard action.'}}
  $refBefore=New-F2State @{riderInCombat=$true;riderStandard=1.5;riderMove=0.5}
  $refusal=[ordered]@{case='F2-refusals';steps=[ordered]@{};standardFreeAtStart=$true;
   publicCommand=[ordered]@{before=$refBefore;after=$refBefore;refusedDelta=1;started=$false;finished=$false;inCommands=$false};
@@ -218,6 +219,9 @@ $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').stockChargeCommandFrames=1; Rejec
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.lease.riderAgentTouched=$true; Reject $r 'a second mover refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.result='Interrupt'; Reject $r 'an undelivered mounted Charge refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').chargeRules=2; Reject $r 'two charge attacks refuse'
+$r=Copy-F2 $base; (Row $r 'F2-charge-mounted').spentRefusal.reason='Mounted Charge requires the rider''s standard action.'; Reject $r 'an internal Mounted Charge refusal on the ordinary Charge refuses'
+$r=Copy-F2 $base; (Row $r 'F2-charge-mounted').spentRefusal.available=$true; Reject $r 'an ordinary Charge available with Standard spent refuses'
+$r=Copy-F2 $base; (Row $r 'F2-mount-cycle').controlPlacedBySetup=$true; Reject $r 'a mount cycle on a setup-placed control refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.state.riderStandard=0.0; Reject $r 'a mounted Charge that spent no Standard refuses'
 $r=Copy-F2 $base; (Row $r 'F2-charge-mounted').terminal.state.mountStandard=6.0; Reject $r 'a mount that paid the Charge refuses'
 $r=Copy-F2 $base; $r.observations.finalize2Controls.attackRules=@(); Reject $r 'no observed charge attack rule refuses'

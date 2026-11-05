@@ -778,6 +778,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!Sprint7ChargeTerminal()) return;
                     Sprint7RecordTerminal("terminal");
                     f2Facts["chargeRules"] = F2RiderChargeRules();
+                    {
+                        // A caster-level refusal while the rider's Standard is spent, read on the ordinary Charge itself.
+                        var spent = F2StockCharge()?.Data;
+                        f2Facts["spentRefusal"] = new JObject { ["riderStandard"] = rider.CombatState.Cooldown.StandardAction,
+                            ["available"] = spent?.IsAvailableForCast, ["reason"] = spent?.GetUnavailableReason() };
+                    }
                     FinishF2Row(true, "Mounted ordinary Charge observations recorded.");
                     return;
             }

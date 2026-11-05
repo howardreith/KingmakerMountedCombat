@@ -181,6 +181,7 @@ function AbsenceFixture {
  CopyJson @{request=$request;observations=@{chargeLoaded=$facts;chargeSettled=$facts}}
 }
 Accept 'no-DLL exact charge-source native absence' {$a=AbsenceFixture;Assert-KmcChargeAbsentFacts $a.request $a.observations}
+Accept 'no-DLL absence with the F2 ten-identity inventory' {$a=AbsenceFixture;$a.request.kmcBlueprintGuids=@($a.request.kmcBlueprintGuids)+'26151090ad4744ea96dbb7e0537a4a7f';Assert-KmcChargeAbsentFacts $a.request $a.observations}
 foreach($field in @('pathPresent','moving','mountCharging','riderCharging')){
  $a=AbsenceFixture;$a.observations.chargeLoaded.mount.$field=$true
  Refuse ('no-DLL '+$field+' residue') {Assert-KmcChargeAbsentFacts $a.request $a.observations}
