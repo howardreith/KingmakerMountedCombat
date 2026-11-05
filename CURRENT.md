@@ -1,11 +1,9 @@
-# F1 — PARTIAL, ready for review (2026-11-05)
+# F1 — ENGINEERING COMPLETE, ready for final review (2026-11-05)
 
-Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. Frozen F1c product 39a153cf and main package unchanged. [Current handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md) has every requirement, identity, original failure and restoration.
+Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. [Current handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md) has the root cause, identities, retained evidence and restoration.
 
-Finishing run 20261105-finalize-f1-finish-02: native PASS (observer 41/0), exact restoration. Rank-removal regrouping, two cancellations, fresh preview, reaction toolbar and on/off, Charge tooltip and the ordinary UMM page were all observed. [Captures](docs/evidence/finalize-f1/README.md).
+Candidate F1d, source 8c5be488, repairs the stale selected row after a rank removal: native Toggle.Set re-asserted the last active toggle, and KMC now takes the native group clear under the native action guard. Run 20261105-finalize-f1d-native-01: native PASS (observer.8, 48/0), exact restoration, row readable on screen. [Captures](docs/evidence/finalize-f1/README.md). Earlier F1c evidence stays at its own identities.
 
-Open defect: after rank removal the Mounted Combat row keeps the black selected style with a nearly unreadable label, though the selection is cleared. Cause not traced. A fix needs a new package, start and allowance.
-
-finalize-f1: 100 min ceiling, 3/3 starts. No start or increase remains. Howie accepts no matched performance baseline as an F1 limitation; no improvement, no-regression or external-cause claim. Owner art approval and owner-stack acceptance are separate.
+finalize-f1: 120 min ceiling, 4/4 starts. No start or increase remains. Limitations stay explicit: no matched performance baseline (accepted), no valid scroll observation, owner art approval and owner-stack acceptance separate. F2 owns the single Charge and persistent Mount/Dismount control.
 
 No game, lock or installed candidate. No merge, release, install or F2.

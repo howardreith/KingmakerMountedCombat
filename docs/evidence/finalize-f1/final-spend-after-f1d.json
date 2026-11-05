@@ -1,0 +1,73 @@
+{
+    "budgetId":  "finalize-f1",
+    "asOfUtc":  "2026-11-05T17:02:01.6156050Z",
+    "allowanceMinutes":  120,
+    "spentMinutesAtRunEnd":  100.17,
+    "entryCount":  72,
+    "actualStartCount":  4,
+    "actualStartLimit":  4,
+    "allowanceAdjustments":  [
+                                 {
+                                     "utc":  "2026-11-04T20:04:59.0420459Z",
+                                     "previousMinutes":  90,
+                                     "newMinutes":  60,
+                                     "authorization":  "Owner-selected F1 mission 2026-11-04; three real launches maximum"
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T03:37:13.7898498Z",
+                                     "fromMinutes":  60,
+                                     "toMinutes":  75,
+                                     "authorization":  "Howie: Increase Approved. Please proceed to completion. Response to explicit60-to75 request; all history and3-start cap unchanged."
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T04:30:29.6476922+00:00",
+                                     "fromMinutes":  75,
+                                     "toMinutes":  90,
+                                     "authorization":  "Howie final bounded completion2026-11-05: one final append-only75-to90 increase; retain60-to75 approval/history,3 actual starts/full1200s/block30min/single executor; no further automatic increase."
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T13:48:35.8344603Z",
+                                     "fromMinutes":  90,
+                                     "toMinutes":  100,
+                                     "authorization":  "Howie finishing handoff 2026-11-05: append-only 90-to-100 increase for the F1 finishing effort; prior entries/approvals preserved; 3-start cap, full 1200s launch reservation plus 120s preparation, active-work/block limits and single live executor unchanged; no reset or automatic further increase."
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T14:50:16.8564999Z",
+                                     "fromMinutes":  100,
+                                     "toMinutes":  120,
+                                     "actualStartCapFrom":  3,
+                                     "actualStartCapTo":  4,
+                                     "authorization":  "Howie forwarded mission F1 stale-row repair and closeout: one append-only +20 minutes (100 to 120) and exactly one additional actual game start (3 to 4) on this same record. Full 1200s reservation plus 120s preparation, block and active-work limits and single live executor unchanged; no reset, parallel allowance, further automatic extension or fifth start."
+                                 }
+                             ],
+    "actualStarts":  [
+                         {
+                             "selection":  "finalize-f1-creation-ui/-/launch/20261104-finalize-f1c-creator-scroll",
+                             "actualGameStartAttemptUtc":  "2026-11-05T00:43:34.9629865Z",
+                             "status":  "failed"
+                         },
+                         {
+                             "selection":  "finalize-f1-creation-ui/-/launch/20261105-finalize-f1c-owner-creator-01",
+                             "actualGameStartAttemptUtc":  "2026-11-05T03:43:04.3617922Z",
+                             "status":  "failed"
+                         },
+                         {
+                             "selection":  "finalize-f1-finish/-/launch/20261105-finalize-f1-finish-02",
+                             "actualGameStartAttemptUtc":  "2026-11-05T14:01:21.4994125Z",
+                             "status":  "completed"
+                         },
+                         {
+                             "selection":  "finalize-f1-finish/-/launch/20261105-finalize-f1d-native-01",
+                             "actualGameStartAttemptUtc":  "2026-11-05T16:10:20.4479939Z",
+                             "status":  "completed"
+                         }
+                     ],
+    "f1dRun":  {
+                   "runId":  "20261105-finalize-f1d-native-01",
+                   "verdict":  "PASS",
+                   "secondsCharged":  368,
+                   "secondsExcluded":  27
+               },
+    "restoration":  "Mods e3b0c442 and save inventory 60e3d6cc before and after; baseline immutable; Working restored; 13 preferences restored to own intake; profile bytes exact.",
+    "note":  "final-spend.json and final-spend-after-finish.json are retained unchanged as earlier checkpoints."
+}
