@@ -1,0 +1,61 @@
+{
+    "budgetId":  "finalize-f1",
+    "asOfUtc":  "2026-11-05T05:23:08.7437659+00:00",
+    "allowanceMinutes":  90,
+    "spentMinutes":  72.47,
+    "remainingMinutes":  17.53,
+    "entryCount":  54,
+    "actualStartCount":  2,
+    "actualStartLimit":  3,
+    "requiredNativeReservationSeconds":  1200,
+    "preparationReserveSeconds":  120,
+    "finishingAdmission":  "REFUSED: remaining below required1320s, and below1200s alone",
+    "runningEntries":  0,
+    "unreconciledEntries":  0,
+    "allowanceAdjustments":  [
+                                 {
+                                     "utc":  "2026-11-04T20:04:59.0420459Z",
+                                     "previousMinutes":  90,
+                                     "newMinutes":  60,
+                                     "authorization":  "Owner-selected F1 mission 2026-11-04; three real launches maximum"
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T03:37:13.7898498Z",
+                                     "fromMinutes":  60,
+                                     "toMinutes":  75,
+                                     "authorization":  "Howie: Increase Approved. Please proceed to completion. Response to explicit60-to75 request; all history and3-start cap unchanged."
+                                 },
+                                 {
+                                     "atUtc":  "2026-11-05T04:30:29.6476922+00:00",
+                                     "fromMinutes":  75,
+                                     "toMinutes":  90,
+                                     "authorization":  "Howie final bounded completion2026-11-05: one final append-only75-to90 increase; retain60-to75 approval/history,3 actual starts/full1200s/block30min/single executor; no further automatic increase."
+                                 }
+                             ],
+    "actualStarts":  [
+                         {
+                             "selection":  "finalize-f1-creation-ui/-/launch/20261104-finalize-f1c-creator-scroll",
+                             "actualGameStartAttemptUtc":  "2026-11-05T00:43:34.9629865Z",
+                             "status":  "failed"
+                         },
+                         {
+                             "selection":  "finalize-f1-creation-ui/-/launch/20261105-finalize-f1c-owner-creator-01",
+                             "actualGameStartAttemptUtc":  "2026-11-05T03:43:04.3617922Z",
+                             "status":  "failed"
+                         }
+                     ],
+    "interruptedWhatIfs":  [
+                               {
+                                   "selection":  "finalize-f1-finish/-/whatif/20261105-finalize-f1-finish-01",
+                                   "seconds":  370.8,
+                                   "reconciliation":  "explicit: Exact owned read-only WhatIf stopped before staging/lock/game, full wall time conservatively includes reconciliation delay. Original log retained; bounded existing16-pin F1 checkpoint reuse replaces repeated profile traversal."
+                               },
+                               {
+                                   "selection":  "finalize-f1-finish/-/whatif/20261105-finalize-f1-finish-01",
+                                   "seconds":  273.3,
+                                   "reconciliation":  "explicit: Exact owned read-only WhatIf stopped before staging/lock/game when full1200s reservation no longer fit; conservatively charge full wall including exit/reconciliation delay. Revised16-pin fixture gate did not remove whole bottleneck. No native start attempted."
+                               }
+                           ],
+    "nativeOutcomeThisContinuation":  "No staging or game start; corrected development WhatIf PASS; finishing observer native confirmation not performed",
+    "restoration":  "No new native transaction. Previous restored Mods/saves/profile qualifications preserved; current Mods/saves proved unchanged by corrected WhatIf."
+}

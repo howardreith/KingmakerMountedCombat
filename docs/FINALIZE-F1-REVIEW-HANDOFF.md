@@ -68,7 +68,7 @@ The finishing wrapper defaults to the selected development WhatIf and requires f
 
 ## Spend and state
 
-Same authoritative **finalize-f1** record: **72.45/90min,17.55min remaining,2/3 actual starts** at the final engineering-guard checkpoint. Publication audit accounting is appended separately. The initial60→75 approval remains; the final75→90 approval is appended, never substituted.53 entries then; zero running/unreconciled, two explicitly reconciled interrupted WhatIf entries. No reset, shortened reservation, fourth start or automatic increase.
+Same authoritative **finalize-f1** record: **72.47/90min,17.53min remaining,2/3 actual starts** at the final engineering-guard checkpoint. Includes the final guarded-publication WhatIf audit. The initial60→75 approval remains; the final75→90 approval is appended, never substituted.54 entries then; zero running/unreconciled, two explicitly reconciled interrupted WhatIf entries. No reset, shortened reservation, fourth start or automatic increase.
 
 Full1200s no longer fits; the wrapper's1320s upfront check refuses before staging. The third actual start is unspent. This is an avoidable preparation/admission failure, **not** an outstanding Full Access, host-capture or human-operation prerequisite.
 
