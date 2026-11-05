@@ -559,7 +559,7 @@ if(-not[string]::IsNullOrEmpty($UpgradeRehearsalStep)){
     $upgradeSection=New-KmcChunk7UpgradeRehearsalSection $UpgradeRehearsalStep $UpgradeRehearsalId $upgradePrevious $manifest $upgradeCarrySource $upgradeCarry
 }
 $upgradeLoad=$null-ne$upgradeSection-and(Test-KmcChunk7UpgradePreviousStep $UpgradeRehearsalStep)
-function Get-KmcRunNormalPlayerSource{if($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
+function Get-KmcRunNormalPlayerSource{if($Scenario-ceq'finalize-f1-finish'){Get-KmcF1FinishSource}elseif($upgradeLoad){Get-KmcChunk7UpgradeSeedSource $fixturePayload}else{Get-KmcChunk7SixPairCheckpointSource $fixturePayload}}
 $normalPlayerSource=if($isNormalPlayer){Get-KmcRunNormalPlayerSource}else{$null}
 if(Test-KmcChunk7OwnedPairsScenario $Scenario){$ownedPairsSource=Get-KmcChunk7OwnedPairsSource $ownedPairsInput.selection $PersistenceCase $fixturePayload $manifest $ownedAreaTarget}
 if(Test-KmcChunk7SmallFixtureScenario $Scenario){$smallFixtureSource=Get-KmcChunk7SmallFixtureSource $smallFixtureInput.selection $fixturePayload $manifest}

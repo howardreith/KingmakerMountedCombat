@@ -1,5 +1,18 @@
 Set-StrictMode -Version Latest
 
+# F1 consumes an already closed checkpoint, not another acquisition campaign.
+# These are the existing literal16 pins, including the archive, native PASS,
+# observations, original restoration and historical re-evaluation identities.
+# Recheck every byte/length/time/link pin at intake and under lock. No caller-
+# supplied receipt or generic cache authority is introduced.
+function Get-KmcF1FinishSource {
+ $pins=@(Get-KmcChunk7SixPairCheckpointPins);Assert-KmcChunk7SixPairCheckpointPins $pins
+ $request=Read-KmcJson $pins[0].path
+ $path=$pins[11].path
+ [pscustomobject][ordered]@{path=$path;descriptor=$request.persistenceLoad;
+  qualificationRunId='20261022-c7b-world185-b185s1-sixthhorse-cold';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual';receiptPins=$pins}
+}
+
 function Get-KmcF1FinishChecks {
  @(Get-KmcChunk7NormalPlayerChecks -PreviousPackageLoad | ForEach-Object{$_.Replace('the-declared-previous-package','the-candidate').Replace('UMM-runs-exactly-KMC-and-the-observer-both-active','UMM-runs-exactly-KMC-ScrollFix-and-observer-all-active')}) + @(
  'all-four-declared-roles-are-loaded-with-views','each-declared-Horse-is-its-rider''s-own-native-pet','the-fixture-starts-unmounted-and-idle','the-rider-owns-the-ordinary-native-Mount-ability-without-any-grant',
