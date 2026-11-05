@@ -74,6 +74,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SpeedLegSampler.cs" />
     <Compile Include="SpeedLegSamplerTests.cs" />
     <Compile Include="MountedPlayerActionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFeedbackPresentationPolicy.cs"><Link>Shared\Domain\MountedFeedbackPresentationPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DeclaredSmallRiderBody.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationReadiness.cs" />

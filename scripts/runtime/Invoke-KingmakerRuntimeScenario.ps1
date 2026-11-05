@@ -1197,7 +1197,9 @@ try{
     # restores the staged installation normally; a game or save worker is never interrupted.
     Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('game launch '+$workflowBatchKey) -EstimatedSeconds $TimeoutSeconds
     $workflowLaunchStarted=[DateTime]::UtcNow
-    [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
+    Invoke-KmcFinalizeF1GameStart -RepoRoot $repoRoot -Admission $workflowAdmission -StartGame {
+        [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
+    }
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
     while([DateTimeOffset]::UtcNow-lt$launchDeadline-and$null-eq$process){

@@ -70,6 +70,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer), "FillFeatureDataLight", 0x06009F79,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState), typeof(bool) },
                     nameof(PatchMethods.FeatSelectorRefreshPrefix), nameof(PatchMethods.FeatSelectorRefreshPostfix));
+                PatchExact(typeof(Kingmaker.Assets.UI.LevelUp.CharBuildSelectorItem), "ReInit", 0x06009FA8,
+                    new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState), typeof(Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem),
+                        typeof(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer), typeof(UnityEngine.Events.UnityAction) },
+                    nameof(PatchMethods.FeatRowPreviewRebindPrefix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -400,6 +404,14 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static bool FeatRowPreviewRebindPrefix(Kingmaker.Assets.UI.LevelUp.CharBuildSelectorItem __instance,
+                Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState featureSelection,
+                Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem feature,
+                Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer selector, UnityEngine.Events.UnityAction action)
+            {
+                return !MountedFeatSelectorRefreshService.RebindEqualPreviewRow(PatchBridge.HorseCompanion,
+                    __instance, featureSelection, feature, selector, action);
+            }
             internal static void FeatSelectorRefreshPrefix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance,
                 Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState selectionState, ref bool refreshSort, out bool __state)
             {

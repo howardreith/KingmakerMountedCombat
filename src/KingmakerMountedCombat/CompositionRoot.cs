@@ -355,9 +355,9 @@ namespace KingmakerMountedCombat
             GUILayout.Label("Use Mount Companion in your rider's abilities to ride an eligible animal companion. Use Dismount to get off.");
             GUILayout.Label("Move, attack and cast with normal controls. Drag abilities to the action bar for quick access.");
             var selected = world.Selected;
-            if (selected != null && !string.IsNullOrEmpty(selected.PlayerActions.LastFeedback))
+            if (selected != null && !MountedFeedbackPresentationPolicy.IsRoutine(selected.PlayerActions.LastFeedback))
                 GUILayout.Label(selected.PlayerActions.LastFeedback);
-            if (selected != null && !string.IsNullOrEmpty(selected.Combat.LastFeedback))
+            if (selected != null && !MountedFeedbackPresentationPolicy.IsRoutine(selected.Combat.LastFeedback))
                 GUILayout.Label(selected.Combat.LastFeedback);
             // Persistence refusals and failures stay visible in the ordinary view.
             if (!persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
@@ -380,6 +380,10 @@ namespace KingmakerMountedCombat
             showDiagnostics = GUILayout.Toggle(showDiagnostics, "Show diagnostics");
             if (showDiagnostics)
             {
+                if (selected != null && MountedFeedbackPresentationPolicy.IsRoutine(selected.PlayerActions.LastFeedback))
+                    GUILayout.Label(selected.PlayerActions.LastFeedback);
+                if (selected != null && MountedFeedbackPresentationPolicy.IsRoutine(selected.Combat.LastFeedback))
+                    GUILayout.Label(selected.Combat.LastFeedback);
                 if (persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
                 GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
                     " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
