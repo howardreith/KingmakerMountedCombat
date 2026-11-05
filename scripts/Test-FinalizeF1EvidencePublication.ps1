@@ -17,10 +17,10 @@ foreach($row in @($manifest.images)+@($finish.images)){
 }
 if(Test-KmcReviewedOriginalAsset 'docs/evidence/finalize-f1/captures/unselected.png' $manifest.images[0].sha256){throw 'Unselected evidence path admitted'};$count++
 if(-not(Test-KmcReviewedOriginalAsset 'src/KingmakerMountedCombat/Assets/MountedCombatFeat.png' '328f8e6ab637cdce11bf518cd19b2bf886382eb70e4ba63f104717e99c2ced9a')){throw 'Existing original-art registration changed'};$count++
-$c=Join-Path $lab 'artifacts/KmcRemovalObserver-0.1.0-observer.7-finalize-f1-finish-c-diagnostic.zip'
+$c=Join-Path $lab 'artifacts/KmcRemovalObserver-0.1.0-observer.8-finalize-f1d-diagnostic.zip'
 [void](Assert-KmcNormalPlayerObserverManifest $c -FrozenF1Observer);$count++
 $refused=$false;try{Assert-KmcNormalPlayerObserverManifest $c|Out-Null}catch{$refused=$true}
 if(-not$refused){throw 'Legacy observer admission silently relaxed'};$count++
-$refused=$false;try{Assert-KmcNormalPlayerObserverManifest (Join-Path $lab 'artifacts/KmcRemovalObserver-0.1.0-observer.7-finalize-f1-finish-b-diagnostic.zip') -FrozenF1Observer|Out-Null}catch{$refused=$true}
+$refused=$false;try{Assert-KmcNormalPlayerObserverManifest (Join-Path $lab 'artifacts/KmcRemovalObserver-0.1.0-observer.7-finalize-f1-finish-c-diagnostic.zip') -FrozenF1Observer|Out-Null}catch{$refused=$true}
 if(-not$refused){throw 'Another observer package admitted as frozen F1'};$count++
 Write-Host ('F1 EVIDENCE/ADMISSION PASS='+$count+' FAIL=0; helper functions only, no push/game/staging.')

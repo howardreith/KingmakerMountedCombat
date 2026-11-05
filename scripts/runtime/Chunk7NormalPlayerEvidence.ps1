@@ -45,8 +45,8 @@ function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[sw
  if($FrozenF1Observer){
   # Preserve this exact reviewed observer across docs/external-runner changes.
   # Its entire compiled source/import tree must remain identical to its producer.
-  if($manifest.commit-cne'4454a7b3136d4245303a711d888d56b58b423cdf'-or$manifest.dllSha256-cne'5c60d6ff428c05b095802c4a54032de4fad6beda4cb1355f2a6128bd4b254516'-or
-     $manifest.packageSha256-cne'a90df23f839209b2e196ecefb64f368d58e570d8ed0ba6d5efa4520438fca966'){throw 'Frozen F1 observer identity differs.'}
+  if($manifest.commit-cne'259d6106f34e9f5d1393c4e63b7d9dd91ca1717f'-or$manifest.dllSha256-cne'8f478aced99656e203e5483e5da76db62119a2de49121a783597c8ea334e4561'-or
+     $manifest.packageSha256-cne'b40a2c06908694c1d83e62c14627d6e64da7965f552a917e3e0c6793524079c2'){throw 'Frozen F1 observer identity differs.'}
   &git -C $repoRoot merge-base --is-ancestor $manifest.commit $head
   if($LASTEXITCODE-ne0){throw 'Frozen F1 observer producer is not an ancestor.'}
   $changed=@(&git -C $repoRoot diff --name-only $manifest.commit $head -- tools/KmcRemovalObserver LocalGamePaths.props Directory.Build.props Directory.Build.targets KingmakerMountedCombat.sln)
