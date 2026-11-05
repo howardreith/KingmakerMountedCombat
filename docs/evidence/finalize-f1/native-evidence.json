@@ -1,0 +1,186 @@
+{
+    "schemaVersion":  1,
+    "nativeRunId":  "20261105-finalize-f1c-owner-creator-01",
+    "nativeVerdict":  "FAIL",
+    "operator":  "Codex through documented Computer Use input and Windows Alt+Print/Paint capture",
+    "productSource":  "39a153cf9524683d615f9efef60ff38c45fcd123",
+    "executionHead":  "fe1a0514a458890ded4681b53e3cc1b9f9ca7992",
+    "dllSha256":  "8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072",
+    "packageSha256":  "4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39",
+    "logSha256":  "30e6a38275ef65fe11ed7a949f3f9ec1ff746217e24c1c87984da52b8aaebf46",
+    "configuration":  "Kingmaker2.1.7b;UMM0.33.2.0;KMCpreview103-F1c;ScrollFix1.0.0;ElfRogue1;2560x1440;160 bound rows;unavailable expanded",
+    "cold":  {
+                 "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                 "rows":  160,
+                 "ms":  38.22
+             },
+    "warmCount":  10,
+    "warmMedianMs":  302.52,
+    "warmWorstMs":  341.52,
+    "warmSamples":  [
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  341.52
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  312.32
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  324.65
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  302.13
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  315.55
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  300.46
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  295.13
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  302.91
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  296.17
+                        },
+                        {
+                            "endpoint":  "end-of-rendered-frame-current-preview-bound-rows",
+                            "rows":  160,
+                            "ms":  299.16
+                        }
+                    ],
+    "nextFrameProcessingBoundOnly":  [
+                                         {
+                                             "sample":  15,
+                                             "nextFrameMs":  41.33,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  16,
+                                             "nextFrameMs":  309.49,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  17,
+                                             "nextFrameMs":  281.61,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  18,
+                                             "nextFrameMs":  295.39,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  19,
+                                             "nextFrameMs":  272.94,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  20,
+                                             "nextFrameMs":  283.16,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  21,
+                                             "nextFrameMs":  271.32,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  22,
+                                             "nextFrameMs":  264.27,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  23,
+                                             "nextFrameMs":  272.46,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  24,
+                                             "nextFrameMs":  267.48,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  25,
+                                             "nextFrameMs":  270.07,
+                                             "frames":  1
+                                         },
+                                         {
+                                             "sample":  28,
+                                             "nextFrameMs":  277.6,
+                                             "frames":  1
+                                         }
+                                     ],
+    "limitation":  "Warm changed native feat rows on the same selector. Scroll reset invalidated intended repeated MountedCombat/Martial alternation; do not label all10 as MountedCombat-specific. No matched pre-fix or clean timing control; no attribution/regression PASS.",
+    "ownerDisposition":  "Howie accepts missing matched baseline as descriptive F1 limitation; no improvement/no-regression/external-cause claim",
+    "images":  [
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/rank0-unavailable.png",
+                       "originalFile":  "creator-021.png",
+                       "sha256":  "840a1520860496741bbed4718b895d203e981003e0bf3067b301355fd35cb060",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Mobility0 red unavailable; resolved prerequisite/copy"
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/native-comparison.png",
+                       "originalFile":  "creator-022.png",
+                       "sha256":  "dab3dd6af52bf02cf81638eee86ba82a8b67942682c1f7337e87af7572fa26fd",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Missile Shield neighboring native prerequisite"
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/mobility-rank1.png",
+                       "originalFile":  "creator-024.png",
+                       "sha256":  "6d61a030e6ec6747a5f602f663bf77f9f3b63d6512fd6cad4ce8e60a35f15f67",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Mobility1 skill allocation"
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/rank1-eligible.png",
+                       "originalFile":  "creator-026.png",
+                       "sha256":  "f5842dcb844a58ae8b86f61356ed18236ac7f360a6a4b75c6f4a3bbc62408920",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Mounted Combat eligible alphabetical group"
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/selected-tooltip.png",
+                       "originalFile":  "creator-027.png",
+                       "sha256":  "662995b959b09265515de3dee63dbd945dbac17f9b265738d7a3216405fae5b6",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Selected dark row; acquired feature icon; green prerequisite"
+                   },
+                   {
+                       "path":  "docs/evidence/finalize-f1/captures/after-next-back.png",
+                       "originalFile":  "creator-032.png",
+                       "sha256":  "62fd0acf8ee4b6a798e32a52b4a5e0c241684756caf4e0b3c0dea4f8000a07d8",
+                       "width":  2560,
+                       "height":  1440,
+                       "observation":  "Usable list and selected top icon after actual Next Back"
+                   }
+               ]
+}

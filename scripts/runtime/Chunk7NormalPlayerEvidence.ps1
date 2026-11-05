@@ -30,7 +30,7 @@ function Get-KmcChunk7NormalPlayerChecks([switch]$PreviousPackageLoad) {
 
 # The observer is harness tooling: bound to the clean execution HEAD that built it,
 # never to the KMC product commit (which may be an archived frozen candidate).
-function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath){
+function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[switch]$FrozenF1Observer){
  $repoRoot=Get-KmcRepositoryRoot;$labRoot=Get-KmcLabRoot
  $package=[IO.Path]::GetFullPath($ObserverPackagePath)
  if(-not$package.StartsWith([IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Observer package is outside the KMC artifacts root.'}
@@ -41,8 +41,20 @@ function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath){
  Assert-KmcExactProperties $manifest @('schemaVersion','generator','generatedAtUtc','branch','commit','worktreeClean','qualificationEligible','version','packagePath','packageSha256','dllSha256','dllMvid','entries') 'observer package manifest'
  $head=(& git -C $repoRoot rev-parse HEAD).Trim();$branch=(& git -C $repoRoot branch --show-current).Trim()
  if(@(& git -C $repoRoot status --porcelain --untracked-files=all).Count-ne0){throw 'Observer identity requires a clean execution worktree.'}
+ $sourceMatches=[string]$manifest.commit-ceq$head
+ if($FrozenF1Observer){
+  # Preserve this exact reviewed observer across docs/external-runner changes.
+  # Its entire compiled source/import tree must remain identical to its producer.
+  if($manifest.commit-cne'4454a7b3136d4245303a711d888d56b58b423cdf'-or$manifest.dllSha256-cne'5c60d6ff428c05b095802c4a54032de4fad6beda4cb1355f2a6128bd4b254516'-or
+     $manifest.packageSha256-cne'a90df23f839209b2e196ecefb64f368d58e570d8ed0ba6d5efa4520438fca966'){throw 'Frozen F1 observer identity differs.'}
+  &git -C $repoRoot merge-base --is-ancestor $manifest.commit $head
+  if($LASTEXITCODE-ne0){throw 'Frozen F1 observer producer is not an ancestor.'}
+  $changed=@(&git -C $repoRoot diff --name-only $manifest.commit $head -- tools/KmcRemovalObserver LocalGamePaths.props Directory.Build.props Directory.Build.targets KingmakerMountedCombat.sln)
+  if($LASTEXITCODE-ne0-or$changed.Count-ne0){throw 'Frozen F1 observer compiled inputs changed.'}
+  $sourceMatches=$true
+ }
  if([int]$manifest.schemaVersion-ne2-or[string]$manifest.generator-cne'scripts/Package-Observer.ps1'-or$manifest.worktreeClean-ne$true-or
-  $manifest.qualificationEligible-ne$true-or[string]$manifest.commit-cne$head-or[string]$manifest.branch-cne$branch-or
+  $manifest.qualificationEligible-ne$true-or-not$sourceMatches-or[string]$manifest.branch-cne$branch-or
   [string]$manifest.packagePath-cne$package-or[string]$manifest.packageSha256-cne(Get-KmcSha256 $package)){
   throw 'Observer manifest does not bind the exact clean execution HEAD and observer ZIP.'
  }
