@@ -3959,8 +3959,9 @@ function Read-KmcModsStagedManifestSidecar {
 }
 
 # Classifies the live tree at restoration against the exact staged entries. The
-# only expected runtime write is UMM's new '<name>.dll.<digits>.cache' that is a
-# byte-exact copy of '<name>.dll' in both the runtime and the staged tree. One named
+# expected loader writes are UMM's new '<name>.dll.<digits>.cache' and its PDB
+# companion, each a byte-exact copy of its runtime and staged original; the PDB
+# also requires the corresponding verified DLL cache. One named
 # exception: UMM 0.33.2.0 ModEntry.Load deletes every '*.cache*' in the mod folder when
 # its own cache name is missing, so the removal of exactly a transaction-declared carried
 # KMC cache (same path and staged bytes) is the expected change 'removed-carried-cache'.
@@ -4008,6 +4009,24 @@ function Get-KmcModsRuntimeWriteClassification {
             $isExpected = $null -ne $runtimeDll -and $null -ne $stagedDll -and
                 [string]$entry.sha256 -ceq [string]$runtimeDll.sha256 -and [string]$entry.sha256 -ceq [string]$stagedDll.sha256 -and
                 [long]$entry.length -eq [long]$runtimeDll.length -and [long]$entry.length -eq [long]$stagedDll.length
+        }
+        # UMM copies a supplied symbol file beside its DLL cache. Require both
+        # original symbol copies and the corresponding byte-exact DLL cache;
+        # orphaned, generated or modified symbols remain unexpected.
+        $symbols = [regex]::Match([string]$entry.path, '^(.+)\.dll\.(\d+)\.cache\.pdb$')
+        if ([string]$entry.kind -ceq 'file' -and $symbols.Success) {
+            $base = $symbols.Groups[1].Value
+            $sourcePdb = $staged['file|' + $base + '.pdb']
+            $runtimePdb = $runtime['file|' + $base + '.pdb']
+            $sourceDll = $staged['file|' + $base + '.dll']
+            $runtimeDll = $runtime['file|' + $base + '.dll']
+            $cacheDll = $runtime['file|' + $base + '.dll.' + $symbols.Groups[2].Value + '.cache']
+            $isExpected = $null -ne $sourcePdb -and $null -ne $runtimePdb -and
+                $null -ne $sourceDll -and $null -ne $runtimeDll -and $null -ne $cacheDll -and
+                [string]$entry.sha256 -ceq [string]$sourcePdb.sha256 -and [string]$entry.sha256 -ceq [string]$runtimePdb.sha256 -and
+                [long]$entry.length -eq [long]$sourcePdb.length -and [long]$entry.length -eq [long]$runtimePdb.length -and
+                [string]$cacheDll.sha256 -ceq [string]$sourceDll.sha256 -and [string]$cacheDll.sha256 -ceq [string]$runtimeDll.sha256 -and
+                [long]$cacheDll.length -eq [long]$sourceDll.length -and [long]$cacheDll.length -eq [long]$runtimeDll.length
         }
         $row = [pscustomobject]@{ change='added'; kind=[string]$entry.kind; path=[string]$entry.path; runtimeSha256=[string]$entry.sha256 }
         if ($isExpected) { $expected.Add($row) }
