@@ -1775,7 +1775,10 @@ namespace KingmakerMountedCombat.Integration
                     if (!publicActive) continue;
                     if (unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
                     if (!ReferenceEquals(bound, publicControl.Data))
+                    {
                         unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, index);
+                        MarkBarChanged(unit);
+                    }
                     continue;
                 }
                 var repair = MountedControlSlotPolicy.RepairLiveSlot(kind);
@@ -1786,6 +1789,7 @@ namespace KingmakerMountedCombat.Integration
                 unit.UISettings.SetSlot(replacement == null
                     ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = unit }
                     : new MechanicActionBarSlotAbility { Unit = unit, Ability = replacement }, index);
+                MarkBarChanged(unit);
                 if (repair == MountedControlSlotRepair.MountState && unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
                 LegacySlotRepairCount++;
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
@@ -1827,9 +1831,15 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, chosen);
+            MarkBarChanged(unit);
             InitialPlacementCount++;
             logger.Info("Mount / Dismount placed once on the main action bar: unitId=" + unit.UniqueId + "; slot=" + chosen + ".");
         }
+
+        // Native ActionBarManager rebuilds the visible bar only when the unit's UISettings is dirty or an ability fact
+        // changes. A slot KMC writes otherwise stays hidden behind the previous content until the next selection change
+        // (run 20261105-finalize-f2-r03). Dirty runs the same native rebuild a selection change does.
+        private static void MarkBarChanged(UnitEntityData unit) => unit.UISettings?.SetDirty();
 
         private bool SlotsHold(MechanicActionBarSlot[] slots, BlueprintAbility blueprint) =>
             slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, blueprint));
@@ -2030,6 +2040,7 @@ namespace KingmakerMountedCombat.Integration
                     }
                     if (restored == null) continue;
                     unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = restored }, binding.Index);
+                    MarkBarChanged(unit);
                     if (repair != MountedControlSlotRepair.Keep && binding.Kind != MountedControlSlotPolicy.SavedMountState)
                     {
                         LegacySlotRepairCount++;
