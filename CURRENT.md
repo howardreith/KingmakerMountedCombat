@@ -1,10 +1,11 @@
-﻿# F1 Ã¢â‚¬â€ character creation, clean text and distinct icons (2026-11-04)
+# F1 - IN PROGRESS (2026-11-04 continuation)
 
-**IN PROGRESS.** Selected by Howie from the finalization package. Scope: UI-01, UI-02, ART-01, PERF-01, UI-03 and UI-04 only. No merge, release or permanent installation.
+Selected scope: UI-01,UI-02,ART-01,PERF-01,UI-03,UI-04. Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. Integrated base d2e26174d391a8c70fd159beed476035bb5f84eb. Corrected product source39a153cf; immutable finalize-f1c package. Subsequent harness/docs changes preserve it.
 
-Branch `codex/kmc-finalize-f1-creation-ui-icons`, integrated base preview.103 `d2e26174d391a8c70fd159beed476035bb5f84eb`. Isolated worktree `C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f1`; root worktree and unknown state preserved.
+Accounting, routine UMM feedback, native replaced-preview row binding, visible timing endpoint and exact branch admission are implemented/reviewed. Native acceptance is TODO. One actual game start closed normally because screenshot capture failed for both Kingmaker and Explorer. No creator interaction, latency samples or native screenshots. Full Access is authorized; no permission-mode blocker remains.
 
-Presentation/text/icon changes and the narrow native selector correction are implemented; compiled review candidate at source `fd7f64f5`. Native selector defect remains under investigation; UI-02 and PERF-01 are not accepted from source alone. No new real game launch. Clean and supplied-scroll scoped WhatIf PASS; Draft [PR #16](https://github.com/howardreith/KingmakerMountedCombat/pull/16) is open after owner-approved guarded publication. Desktop UI observation and harmless input now work after a fresh runtime reset; corrected F1b preparation and native acceptance are IN PROGRESS. Meter `finalize-f1`: 60-minute cumulative validation ceiling, three-launch cap. Current installation at intake empty, no game process, no transaction started.
+Current restoration verified through guarded reviewed-symbol recovery; original native/restoration failures and quarantine retained. Mods/protected saves exact; baseline immutable/Working restored; no game, lock or installed candidate. Seven native profile-cache deltas are explicitly recorded, not described as exact bytes.
 
-Record: [F1 implementation and evidence](docs/FINALIZE-F1-CREATION-UI-ICONS.md). Resume: [AUTONOMOUS-RESUME](AUTONOMOUS-RESUME.md). Prior release state: [CURRENT before F1](docs/history/CURRENT-before-finalize-f1-2026-11-04.md).
+Meter finalize-f1 checkpoint21.88/60min,1/3 actual starts; read authoritative record. Host restart requested once. Require an actual Explorer frame before staging again. Keep1200s reservation and all cumulative limits.
 
+Current template-based [handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md), [implementation record](docs/FINALIZE-F1-CREATION-UI-ICONS.md), [resume](AUTONOMOUS-RESUME.md). Prior integrated state retained in [history](docs/history/CURRENT-before-finalize-f1-2026-11-04.md).
