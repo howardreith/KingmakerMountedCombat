@@ -5,7 +5,8 @@ function Assert-KmcFinalizeF1LaunchAllowance($Record, [bool]$WhatIfOnly) {
         $null -ne $_.PSObject.Properties['actualGameStartAttemptUtc'] -and
         -not [string]::IsNullOrWhiteSpace([string]$_.actualGameStartAttemptUtc)
     }).Count
-    if ($launches -ge 3) { throw 'F1 has used its maximum three real launch attempts; no new launch is authorized.' }
+    # Howie's forwarded stale-row mission raised the cap once, from three to exactly four.
+    if ($launches -ge 4) { throw 'F1 has used its maximum four real launch attempts; no new launch is authorized.' }
 }
 
 function Invoke-KmcFinalizeF1GameStart {

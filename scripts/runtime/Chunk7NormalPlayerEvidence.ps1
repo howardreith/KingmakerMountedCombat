@@ -85,7 +85,7 @@ function Assert-KmcChunk7NormalPlayerDescriptor($Request){
   'fixture','qualificationSuite','persistenceLoad','normalPlayer') 'normal-player request'
  $n=$Request.normalPlayer;$roles=Get-KmcChunk7NormalPlayerRoles
  $f1=[string]$Request.scenario-ceq'finalize-f1-finish'
- if($f1-and([string]$Request.branch-cne'codex/kmc-finalize-f1-creation-ui-icons'-or[string]$Request.commit-cne'39a153cf9524683d615f9efef60ff38c45fcd123'-or[string]$Request.dllSha256-cne'8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072'-or$null-ne$n.PSObject.Properties['upgradeRehearsal'])){throw 'F1 finish requires frozen F1c and no upgrade rehearsal.'}
+ if($f1-and([string]$Request.branch-cne'codex/kmc-finalize-f1-creation-ui-icons'-or[string]$Request.commit-cne(Get-KmcF1CandidatePins).commit-or[string]$Request.dllSha256-cne(Get-KmcF1CandidatePins).dllSha256-or$null-ne$n.PSObject.Properties['upgradeRehearsal'])){throw 'F1 finish requires the frozen corrected candidate and no upgrade rehearsal.'}
  $upgrade=$null-ne$n.PSObject.Properties['upgradeRehearsal']
  Assert-KmcExactProperties $n @(@('contract','sourceRunId','archiveProducerRunId','riderId','mountId','neighborRiderId','neighborMountId','kmcAutomationRequest','observer')+@(if($upgrade){'upgradeRehearsal'})) 'normal-player section'
  if($upgrade){Assert-KmcChunk7UpgradeRehearsalSection $Request}

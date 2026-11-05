@@ -420,6 +420,7 @@ namespace KingmakerMountedCombat.Integration
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)
             {
                 MountedFeatSelectorRefreshService.AfterRefresh(__instance, __state);
+                MountedFeatSelectorRefreshService.ClearStaleRowSelection(PatchBridge.HorseCompanion, __instance);
             }
 
             // PAL-01: a class level entry reaches a mount-bonded paladin without the later weapon-bond upgrades.

@@ -13,11 +13,17 @@ function Get-KmcF1FinishSource {
   qualificationRunId='20261022-c7b-world185-b185s1-sixthhorse-cold';archiveProducerRunId='20261022-c7b-world184-b184s1-sixthhorse-manual';receiptPins=$pins}
 }
 
+# The one corrected candidate this scenario may run. Earlier F1c and observer.7 runs keep their own identities.
+function Get-KmcF1CandidatePins {
+ [pscustomobject]@{commit='PENDING';dllSha256='PENDING';dllMvid='PENDING';packageSha256='PENDING'}
+}
+
 function Get-KmcF1FinishChecks {
  @(Get-KmcChunk7NormalPlayerChecks -PreviousPackageLoad | ForEach-Object{$_.Replace('the-declared-previous-package','the-candidate').Replace('UMM-runs-exactly-KMC-and-the-observer-both-active','UMM-runs-exactly-KMC-ScrollFix-and-observer-all-active')}) + @(
  'all-four-declared-roles-are-loaded-with-views','each-declared-Horse-is-its-rider''s-own-native-pet','the-fixture-starts-unmounted-and-idle','the-rider-owns-the-ordinary-native-Mount-ability-without-any-grant',
  'native-mount-command-completed-successfully','the-rider-is-attached-to-its-own-Horse','the-neighboring-pair-is-untouched-after-mount','ordinary-Dismount-control-is-available-while-mounted',
  'f1-fresh-controller-has-no-inherited-MountedCombat-fact-or-selection','f1-rank-removal-rebinds-current-preview-disabled-row-and-clears-selection','f1-two-cancellations-follow-rank-removal-and-genuinely-fresh-preview',
+ 'f1-mounted-combat-row-selected-before-rank-removal','f1-native-refresh-left-the-stale-row-before-the-clear','f1-removed-row-native-state-unselected-after-layout','f1-reselected-row-native-state-selected-after-regaining-rank','f1-selected-rows-survive-next-and-back','f1-fresh-mounted-combat-row-native-state-unselected','f1-fresh-native-comparison-rows-select-exclusively',
  'f1-presentation-setup-is-exact-feature-and-disposable-rider','f1-native-feature-grant-provides-real-reaction-toggle','f1-native-reaction-on-and-off-transitions-observed')
 }
 function Assert-KmcF1FinishObserverResult($Request,$ObserverRequest,$Result) {
@@ -31,6 +37,16 @@ function Assert-KmcF1FinishObserverResult($Request,$ObserverRequest,$Result) {
     $o.f1Reaction.observedOnTransition-ne$true-or$o.f1Reaction.observedOffTransition-ne$true-or
     $o.f1PresentationSetup.riderId-cne$n.riderId-or$o.f1PresentationSetup.featureGuid-cne'a7d2e94c6f1b4830b5c9e28d17f3a604'-or
     $o.f1PresentationSetup.toggleGuid-cne'3c81f5a02be74d96a4e07d1c92b6f385'-or$o.f1PresentationSetup.ordinaryAcquisitionProven-ne$false-or$o.f1PresentationSetup.saveWriteAuthorized-ne$false){throw 'F1 finish native sequence/setup incomplete.'}
+ # Numeric state, not legibility: the final native frames decide the visual claim.
+ $c=$o.f1Creators
+ # The residue binds the verdict to the fault: a row the filter hid would pass unfixed.
+ $residue=@($c.nativeRefreshResidue.rows)
+ if($residue.Count-ne1-or$residue[0].featureGuid-cne'a7d2e94c6f1b4830b5c9e28d17f3a604'-or$residue[0].toggleIsOn-ne$true-or$residue[0].groupAllowSwitchOff-ne$false-or
+    $c.selectedBefore.toggleIsOn-ne$true-or$c.selectedBefore.selectedInCurrentPreview-ne$true-or$c.selectedNavigation-ne$true-or
+    $c.removedRowStaleRead-ne$false-or$c.removedRow.toggleIsOn-ne$false-or$c.removedRow.interactable-ne$false-or$c.removedRow.selectedInCurrentPreview-ne$false-or($null-ne$c.removedRow.graphicAlpha-and$c.removedRow.graphicAlpha-ge0.01)-or
+    $c.reselected.toggleIsOn-ne$true-or$c.reselected.selectedInCurrentPreview-ne$true-or$c.reselectedNavigation-ne$true-or
+    $c.freshMounted.toggleIsOn-ne$false-or$c.freshMounted.selectedInCurrentPreview-ne$false-or
+    $c.comparison.toggleIsOn-ne$true-or$c.comparison.selectedInCurrentPreview-ne$true-or$c.comparison.activeOnRows-ne1-or$c.comparison.overlapSeen-ne$false-or$c.comparison.distinctFeaturesSelected-lt2-or$c.comparison.featureGuid-ceq'a7d2e94c6f1b4830b5c9e28d17f3a604'){throw 'F1 row visual state differs.'}
  $events=@($o.f1Creators.events)
  if(($events.event-join'|')-cne'creator-open|creator-cancel|creator-open|creator-cancel'){throw 'F1 creator lifecycle order differs.'}
  $profile=[IO.Path]::GetFullPath([string]$ObserverRequest.profileRoot)
