@@ -535,6 +535,7 @@
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
+    <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />

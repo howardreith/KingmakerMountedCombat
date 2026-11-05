@@ -33,15 +33,15 @@ namespace KingmakerMountedCombat.Diagnostics
             IsChunk6dStagedScenario(scenario) || IsChunk6eReactionScenario(scenario);
         // Every scenario that owns the shared disposable casting fixture, traces and cleanup.
         internal static bool IsCastingFixtureFamilyScenario(string scenario) =>
-            IsChunk6cCastingScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsSprint8PaladinScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint6FeatScenario(scenario) || IsSprint7ChargeScenario(scenario);
+            IsChunk6cCastingScenario(scenario) || IsChunk6StagedFamilyScenario(scenario) || IsSprint3ApproachScenario(scenario) || IsSprint4NaturalScenario(scenario) || IsFinalize2ControlsScenario(scenario) || IsSprint8PaladinScenario(scenario) || IsSprint5SmallScenario(scenario) || IsSprint6FeatScenario(scenario) || IsSprint7ChargeScenario(scenario);
         private bool IsChunk6dStaged => IsChunk6dStagedScenario(request.Scenario);
         private bool IsChunk6eReaction => IsChunk6eReactionScenario(request.Scenario);
         private bool IsChunk6StagedFamily => IsChunk6StagedFamilyScenario(request.Scenario);
         private bool IsCastingFixtureFamily => IsCastingFixtureFamilyScenario(request.Scenario);
         internal static string CastingMeasurementKeyFor(string scenario) =>
-            IsSprint8PaladinScenario(scenario) ? "sprint8Paladin" : IsSprint7ChargeScenario(scenario) ? "sprint7Charge" : IsSprint6FeatScenario(scenario) ? "sprint6Feat" : IsSprint5SmallScenario(scenario) ? "sprint5Small" : IsSprint4NaturalScenario(scenario) ? "sprint4Natural" : IsSprint3ApproachScenario(scenario) ? "sprint3Approach" : IsChunk6dStagedScenario(scenario) ? "chunk6dStaged" : IsChunk6eReactionScenario(scenario) ? "chunk6eReaction" : "chunk6cCasting";
+            IsFinalize2ControlsScenario(scenario) ? "finalize2Controls" : IsSprint8PaladinScenario(scenario) ? "sprint8Paladin" : IsSprint7ChargeScenario(scenario) ? "sprint7Charge" : IsSprint6FeatScenario(scenario) ? "sprint6Feat" : IsSprint5SmallScenario(scenario) ? "sprint5Small" : IsSprint4NaturalScenario(scenario) ? "sprint4Natural" : IsSprint3ApproachScenario(scenario) ? "sprint3Approach" : IsChunk6dStagedScenario(scenario) ? "chunk6dStaged" : IsChunk6eReactionScenario(scenario) ? "chunk6eReaction" : "chunk6cCasting";
         internal static int CastingFamilySchemaVersion(string scenario) =>
-            IsSprint8PaladinScenario(scenario) ? Sprint8SchemaVersion : IsSprint7ChargeScenario(scenario) ? Sprint7SchemaVersion : IsSprint6FeatScenario(scenario) ? Sprint6SchemaVersion : IsSprint5SmallScenario(scenario) ? Sprint5SchemaVersion : IsSprint4NaturalScenario(scenario) ? Sprint4SchemaVersion : IsSprint3ApproachScenario(scenario) ? Sprint3SchemaVersion : IsChunk6dStagedScenario(scenario) ? 45 : IsChunk6eReactionScenario(scenario) ? 46 : 44;
+            IsFinalize2ControlsScenario(scenario) ? Finalize2SchemaVersion : IsSprint8PaladinScenario(scenario) ? Sprint8SchemaVersion : IsSprint7ChargeScenario(scenario) ? Sprint7SchemaVersion : IsSprint6FeatScenario(scenario) ? Sprint6SchemaVersion : IsSprint5SmallScenario(scenario) ? Sprint5SchemaVersion : IsSprint4NaturalScenario(scenario) ? Sprint4SchemaVersion : IsSprint3ApproachScenario(scenario) ? Sprint3SchemaVersion : IsChunk6dStagedScenario(scenario) ? 45 : IsChunk6eReactionScenario(scenario) ? 46 : 44;
 
         internal static readonly string[] Chunk6dStagedCases = { "C6D-move-cast-move", "C6D-cast-then-move",
             "C6D-double-move-ranged", "C6D-movement-exhausted", "C6D-auto-stop-boundary" };

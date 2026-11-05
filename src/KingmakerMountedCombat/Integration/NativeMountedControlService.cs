@@ -159,6 +159,10 @@ namespace KingmakerMountedCombat.Integration
         // Set by persistence: false while a selected load still has slot bindings to restore. Null means no persistence.
         internal Func<bool> PlacementSettled { get; set; }
 
+        // Set by the composition root: true while the prepare-to-remove cleanup save is written, so that archive records
+        // no control slot or placement row. Native serialization already blanks the slots themselves.
+        internal Func<bool> PersistentRowsSuppressed { get; set; }
+
         internal long InitialPlacementCount { get; private set; }
 
         internal long InitialPlacementFullBarCount { get; private set; }
@@ -168,6 +172,19 @@ namespace KingmakerMountedCombat.Integration
         internal long PublicControlCommandRefusedCount { get; private set; }
 
         internal bool IsPlacementRecorded(UnitEntityData unit) => unit?.UniqueId != null && placementRecorded.Contains(unit.UniqueId);
+
+        // What each automatic placement saw: the main bar before it, and the slot it chose (-1: full). Observation only.
+        internal sealed class InitialPlacementObservation
+        {
+            internal string UnitId;
+            internal int Index;
+            internal int Frame;
+            internal string[] MainBarBefore;
+        }
+
+        private readonly List<InitialPlacementObservation> initialPlacements = new List<InitialPlacementObservation>();
+
+        internal IReadOnlyList<InitialPlacementObservation> InitialPlacements => initialPlacements;
 
         internal bool SerializationSuspended => serializationSuspended;
 
@@ -859,6 +876,8 @@ namespace KingmakerMountedCombat.Integration
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
+                // KMC itself emptied the public slots here, which is not the player's removal: placement may run once more.
+                placementRecorded.Clear();
             }
         }
 
@@ -1790,9 +1809,16 @@ namespace KingmakerMountedCombat.Integration
             placementRecorded.Add(unit.UniqueId);
             if (unit.UISettings.Slots != null && SlotsHold(unit.UISettings.Slots, mountStateAbility)) return;
             var empty = new bool[MountedControlSlotPolicy.MainBarSlotCount];
+            var before = new string[empty.Length];
             for (var index = 0; index < empty.Length; index++)
-                empty[index] = unit.UISettings.GetSlot(index, unit) is MechanicActionBarSlotEmpty;
+            {
+                var slot = unit.UISettings.GetSlot(index, unit);
+                empty[index] = slot is MechanicActionBarSlotEmpty;
+                before[index] = empty[index] ? "" : (slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint?.AssetGuid ?? slot.GetType().Name;
+            }
             var chosen = MountedControlSlotPolicy.SelectInitialPlacementIndex(empty);
+            if (initialPlacements.Count < 32)
+                initialPlacements.Add(new InitialPlacementObservation { UnitId = unit.UniqueId, Index = chosen, Frame = Time.frameCount, MainBarBefore = before });
             if (chosen < 0)
             {
                 InitialPlacementFullBarCount++;
@@ -1929,6 +1955,7 @@ namespace KingmakerMountedCombat.Integration
         internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false)
         {
             var result = new List<SavedMountedSlot>();
+            if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();
             foreach (var unit in CollectCurrentCandidateUnits())
             {
                 var slots = unit?.UISettings?.Slots;

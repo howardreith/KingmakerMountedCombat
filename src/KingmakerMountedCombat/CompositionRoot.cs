@@ -65,6 +65,8 @@ namespace KingmakerMountedCombat
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
+                var removalPreparation = removal;
+                nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
@@ -99,7 +101,8 @@ namespace KingmakerMountedCombat
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsFinalize2ControlsScenario(runtimeAutomation.Request.Scenario);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

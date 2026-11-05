@@ -51,7 +51,13 @@ namespace KingmakerMountedCombat.Integration
             switch (Route(ability))
             {
                 case MountedChargeRoute.Mounted:
-                    return nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, ability.Caster.Unit);
+                    // The native surprise-round exemption names AbilityCustomCharge, which the mounted shell does not
+                    // carry: the slot must not advertise a Charge its click cannot run.
+                    if (ability.Caster.Unit.IsSurprising())
+                        return new NativeMountedControlAvailability(true, false, MountedChargeSafetyPolicy.SurpriseFeedback);
+                    var mounted = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, ability.Caster.Unit);
+                    return new NativeMountedControlAvailability(mounted.IsVisible, mounted.IsEnabled, mounted.IsTransitionReady,
+                        MountedChargeSafetyPolicy.PresentPublicReason(mounted.Reason));
                 case MountedChargeRoute.Refused:
                     return new NativeMountedControlAvailability(true, false, MountedChargeSafetyPolicy.MountFeedback);
                 default:
