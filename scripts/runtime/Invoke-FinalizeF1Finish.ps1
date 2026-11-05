@@ -21,5 +21,8 @@ $options=@{Scenario='finalize-f1-finish';RunId=$RunId;TimeoutSeconds=1200;BaseGa
  ExpectedQualificationSuiteId='finalize-f1c-39a153cf-20261104';ExpectedQualificationSuiteSnapshotSha256='11072f7c478d64d4cef942f213f22a0296b6ef07857ac10a667f4fd513c3c950'
  FrozenSourceRoot=(Join-Path $lab 'worktrees/finalize-f1c-39a153cf');FrozenSourceFreezePath=(Join-Path $lab 'analysis-cache/finalize-f1-contracts/f1c-product-freeze.json')
  ExpectedFrozenSourceFreezeSha256='1c0889f3de44e4021cb547944064001a11c34e407794e3fc9a5decd026445360'}
+# The runner forbids DevelopmentScopedAudit on live runs. Historical archive
+# hashing exists only in its WhatIf/ShouldProcess-false branch; live keeps its
+# ordinary full current-state guards without that dry-run archive audit.
 if($Launch){& (Join-Path $PSScriptRoot 'Invoke-KingmakerRuntimeScenario.ps1') @options}
 else{& (Join-Path $PSScriptRoot 'Invoke-KingmakerRuntimeScenario.ps1') @options -WhatIf -DevelopmentScopedAudit}
