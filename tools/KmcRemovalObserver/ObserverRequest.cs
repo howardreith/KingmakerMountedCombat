@@ -67,6 +67,7 @@ namespace KmcRemovalObserver
         // released previous package and observes a quiet ordinary start.
         [JsonProperty("mode")] public string Mode { get; set; }
         internal bool PreviousPackageLoad => Mode == "previous-package-load";
+        internal bool F1Finish => Mode == "finalize-f1-finish";
     }
 
     // Written by the launcher next to the run's evidence; bound to the process
@@ -166,7 +167,9 @@ namespace KmcRemovalObserver
             if (ObserverModId != "KmcRemovalObserver") errors.Add("The observer mod id is not this mod.");
             if (KmcHarmonyIds == null || KmcHarmonyIds.Length == 0 || KmcHarmonyIds.Any(string.IsNullOrWhiteSpace)) errors.Add("KMC Harmony ids are missing.");
             var previous = NormalPlayer != null && NormalPlayer.PreviousPackageLoad;
-            if (NormalPlayer != null && NormalPlayer.Mode != "controls" && !previous) errors.Add("The normal-player mode is not one of the closed modes.");
+            var f1 = NormalPlayer != null && NormalPlayer.F1Finish;
+            if (NormalPlayer != null && NormalPlayer.Mode != "controls" && !previous && !f1) errors.Add("The normal-player mode is not one of the closed modes.");
+            if (f1 && (Candidate == null || Candidate.Commit != "39a153cf9524683d615f9efef60ff38c45fcd123" || Candidate.DllSha256 != "8625d1fa64b6036bff6cafcce2a0f7a3f7ec16829b1306c012c697a0d13b3072" || NormalPlayer.KmcPackageSha256 != "4d67c72e3f08c16ef655d262ca0d101b789ef1a86ce66153387b83e920ce7d39")) errors.Add("F1 finishing mode requires the frozen F1c candidate.");
             if (previous)
             {
                 if (Archive == null || Archive.InternalName != "KMC C7 NO MODS OWNER SEED" || Archive.FileName != "Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks" ||
@@ -196,6 +199,7 @@ namespace KmcRemovalObserver
             var n = NormalPlayer;
             if (n != null)
             {
+                if (f1 && (n.RiderId != "73681ef2-b281-4bc6-bc05-2de68c1616cb" || n.MountId != "30b79228-3fe5-48ac-aa88-2de9085837b7" || n.NeighborRiderId != "c4e2c853-4b72-4904-ad84-d0b7bfba7470" || n.NeighborMountId != "0e0c7d2d-06b4-4510-9f81-d847340d1424")) errors.Add("F1 disposable actor identities differ.");
                 var roles = new[] { n.RiderId, n.MountId, n.NeighborRiderId, n.NeighborMountId };
                 if (n.PreviousPackageLoad ? roles.Any(r => r != null) :
                     roles.Any(r => string.IsNullOrWhiteSpace(r) || r.Length > 120) || roles.Distinct(StringComparer.Ordinal).Count() != 4)
@@ -205,7 +209,7 @@ namespace KmcRemovalObserver
                 if (n.KmcPackageSha256 == null || !Sha.IsMatch(n.KmcPackageSha256)) errors.Add("The KMC package identity is invalid.");
                 if (n.IdleWindowFrames < 60 || n.IdleWindowFrames > 600) errors.Add("Idle windows are outside 60..600 frames.");
             }
-            if (TimeoutSeconds < 60 || TimeoutSeconds > 900) errors.Add("Timeout is outside 60..900 seconds.");
+            if (f1 ? TimeoutSeconds != 1100 : TimeoutSeconds < 60 || TimeoutSeconds > 900) errors.Add("Timeout differs from the mode's bounded deadline.");
             return errors;
         }
     }

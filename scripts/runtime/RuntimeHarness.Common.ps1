@@ -66,6 +66,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7SixPairStressEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SixPairPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7NormalPlayerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'FinalizeF1Finish.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7UpgradeRehearsal.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7ProgressionFixtures.ps1')
 
@@ -4118,6 +4119,7 @@ function Add-KmcModsRuntimeWriteFindings {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'finalize-f1-finish',
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt','sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb','sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',

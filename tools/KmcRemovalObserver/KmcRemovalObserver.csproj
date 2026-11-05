@@ -59,6 +59,14 @@
       <HintPath>$(KingmakerManagedDir)\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(KingmakerManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityModManager">
       <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
       <Private>False</Private>
@@ -79,6 +87,7 @@
     <Compile Include="NativeSaveRouting.cs" />
     <Compile Include="RemovalObserverSession.cs" />
     <Compile Include="NormalPlayerSession.cs" />
+    <Compile Include="NormalPlayerSession.F1Finish.cs" />
     <Compile Include="ChargeAbsenceProbe.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

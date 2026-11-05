@@ -227,7 +227,7 @@ Check 'restoration still refuses a changed carried cache' {
 $base=Read-KmcJson (Join-Path $realLab 'runtime-evidence/20261022-c7b-world190-b190s1-sixmeasure/runtime-request.json')
 $seed=Get-KmcChunk7UpgradeSeedSource $base.fixture
 $fakeObserver=Join-Path $OutputDirectory 'observer.zip';[IO.File]::WriteAllText($fakeObserver,'observer bytes');[IO.File]::WriteAllText($fakeObserver+'.manifest.json','{}')
-$observerManifest=[pscustomobject]@{version='0.1.0-observer.6';commit=('b'*40);dllSha256=('c'*64);dllMvid='11111111-2222-3333-4444-555555555555'}
+$observerManifest=[pscustomobject]@{version='0.1.0-observer.7';commit=('b'*40);dllSha256=('c'*64);dllMvid='11111111-2222-3333-4444-555555555555'}
 $candidateManifest=[pscustomobject]@{commit=[string]$base.commit;version=[string]$base.productVersion;dllSha256=[string]$base.dllSha256;dllMvid=[string]$base.dllMvid;packageSha256=('e'*64)}
 $u1Section=New-KmcChunk7UpgradeRehearsalSection 'u1-previous-install' $rid $previous $candidateManifest $null @()
 $request=Clone $base;$request.scenario='chunk7-normal-player-control';$request.PSObject.Properties.Remove('ownedPairs');$request.persistenceLoad=Clone $seed.descriptor
