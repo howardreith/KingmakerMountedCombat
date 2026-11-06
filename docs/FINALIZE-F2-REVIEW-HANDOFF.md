@@ -2,86 +2,145 @@
 
 ## Disposition
 
-**F2: PARTIAL — READY FOR REVIEW; OWNER ACCEPTANCE SEPARATE.** ART-02, CTRL-01, CTRL-02 and CTRL-03 are implemented. Every in-game behaviour except one was observed on candidate F2c: the persistent Mount / Dismount slot, first placement and full-bar safety, old-slot repair, ordinary Charge mounted and unmounted, and refusals. The exception is the toolbar repainting right after an automatic placement, which r03 showed was missing. The fix is on corrected candidate F2d, which has not run natively; all three starts are used. The save → reload round trip of the slot has not run natively either.
+**F2: PARTIAL — READY FOR REVIEW; OWNER ACCEPTANCE SEPARATE.**
 
-Nothing was merged, tagged, released or installed. No owner test is requested for the known repaint defect; F2d is the corrected candidate.
+Demonstrated natively on candidate F2f (run `20261105-finalize-f2-r05`, PASS, external reader included):
+- **Repaint:** the first automatic placement was drawn on the toolbar without any other refresh.
+- **Legacy input:** the authentic preview.211 archive's old Dismount row was migrated in place.
+- **Control cycle:** Dismount → Mount ran through the public slot.
+- **Native saves:** two native Manual saves carry exactly the kind-6/7 rows of a kept and of a removed control.
+
+**Not demonstrated:** the separate-process reload of those saves (the consumer).
+- Consumer run `20261105-finalize-f2-r06` refused itself at the isolation bootstrap, before any native load. Its enumeration check still expected one save in the isolated root.
+- The gap is fixed offline at `8b610af1` and has not run.
+- All six authorized starts are used, so restoration of the kept slot, its drawing, the cycle after load and the remembered removal across a load remain **NOT RUN** natively.
+
+Nothing was merged, tagged, released or installed. No owner test is requested for this engineering gap.
 
 ## Identities
 
-- Repository howardreith/KingmakerMountedCombat. Branch `codex/kmc-finalize-f2-canonical-controls`. Base `66e96f90` (the F1 PR #16 merge, head `8c7d3722`).
-- **Corrected candidate F2d (not run):**
-  - source `7879e4634a45e8698e53cb784bc6e9e6016f35ef`, version 0.1.0-chunk7b-preview.103
-  - DLL SHA256 `70b557461f19b499a52db221a2050c94cf15ed70d2a0883c6658f7886b8a4285`, MVID `4f1f4f79-7ee5-4bc6-9ebd-b6188919cdf0`
-  - package lab `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f2d-diagnostic.zip`, SHA256 `9c51a9b3c07f95cfec24ae901ff216555691574a8608eb2e28885d7626abdb32`
-  - suite `finalize-f2d-7879e463-20261105`, SHA256 `b82fd612d13d49d044e2942359ae67e66e8ba77a80fc3d7b4efde61bd182420b`
-  - WhatIf `20261105-finalize-f2-w04` PASS.
-- **Native runs**, each at its own identity:
-  - r01: F2a, source `c19dcc44`, DLL `3737cf87…`, package `e86befde…`.
-  - r02: F2b, source `5017fe0e`, DLL `58aa7257…`, package `5af0d1fd…`.
-  - r03: F2c, source `66bed248`, DLL `21a637d7…`, package `9b5297d9…`, suite `finalize-f2c-66bed248-20261105`.
-- **Environment:** Kingmaker 2.1.7b. Base-game-only KMC staging plus the retained Working-fixture dependencies (CotW 1.14.4c, CraftMagicItems), not Howie's laptop stack. Real-time Working fixture: rider with Mastodon, plus a hostile.
+- Repository howardreith/KingmakerMountedCombat. Branch `codex/kmc-finalize-f2-canonical-controls`. Base `66e96f90` (F1 merge). Reviewed head `befbd73c`. Current head `38e599e6`.
+- **F2f, the native candidate of r05/r06:**
+  - source `ff1f2e5a1200b3f2ecfe3be04304a08768e9e280`, version 0.1.0-chunk7b-preview.103
+  - DLL SHA256 `9e4180bacd6258a2d0a450d13faeb810b5ced2df82265eb5f92460fed2cbe81e`
+  - package lab `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f2f-diagnostic.zip`, SHA256 `2b2c9699ffeec28cf2120e16e39d7f279d1fc379e51aef77d29e5ad0e61c68b2`
+  - suite `finalize-f2f-ff1f2e5a-20261105`, SHA256 `beafa8dd9bfd185982617e40ce5a90a11dc43370b2f58ddf45694921f5ba4964`
+- **F2e, r04:** source `a44ead69`, DLL `735f4c8e…`, MVID `c69efc86-7c09-4bcf-b473-f9a2fc6c0caa`, package `f9109825…`, suite `finalize-f2e-a44ead69-20261105` (`be1b94eb…`).
+- **F2d** (`7879e463`, DLL `70b55746…`) never ran.
+  - Production code: F2d → F2f differs only in `CompositionRoot.cs`, where automation runs of this route do not select the retired helpers (ordinary-play semantics). Every other change is Diagnostics, harness, tests or docs.
+  - F2e/F2f therefore carry F2d's repaint fix unchanged.
+- **Since F2f, not packaged:** `8b610af1` (consumer enumeration) and `38e599e6` (the capture closes the mod-manager window). Both are diagnostics only.
+- **Environment:**
+  - Kingmaker 2.1.7b.
+  - Base-game-only KMC staging with the archive's retained dependencies (CotW 1.14.4c, CraftMagicItems; `analysis-cache/sprint1/retained-dependencies-final211.json`).
+  - Real-time Working-fixture lineage: rider `b6628a77…` with Mammoth `d79a4f6c…`.
 
-## Identity and dispatch
+## Route chosen
 
-See [the identity table](FINALIZE-F2-CANONICAL-CONTROLS.md).
-- **New public control:** Mount / Dismount (`26151090…`).
-- **Hidden delivery shells:** Mount `f053…`, Dismount `3af2…` and the Mounted Charge shell `d79e…`. Every saved GUID still resolves.
-- **Charge routing:** stock Charge (`c78506dd…`) routes to the shell for the mounted rider.
-- **Unchanged:** the retired primaries and the reaction toggle.
+- **Old-toolbar input:** the earlier handoff said a genuine preview.103 archive had been examined offline. That was inaccurate: none had been loaded.
+- **Scan:** a read-only scan of the retained lab archives found authentic old-toolbar rows only from released preview.211 and from Sprint 7–9 development builds. No kind 1 or kind 5 row exists anywhere.
+- **Archive chosen:** the released preview.211 Quick `runtime-staging/persistence-final211-p05-save-quick/Saved Games/Quick_1.zks`, SHA256 `83e92e1a…`.
+  - Contents: schema 2, mounted; Dismount at 14 (kind 2) and the retired rider primary at 15 (kind 3).
+  - Sprint 9 had already loaded it natively on the guarded UPG-01 chain (e06/e07 PASS).
+- **Why the P05 chain:**
+  - Only one eligible actor exists in that world, so the mission's one-actor shape applies: the producer writes two declared Manuals (kept and removed), and one separate consumer process loads both.
+  - The P05 chain already admits a cross-candidate archive and has the alternating two-archive pattern.
+  - The unreviewed local draft (`codex/kmc-finalize-f2-persistence-draft`, `741af86a`, Chunk 7 two-rider case) was reviewed and **not integrated**. It has no authentic old input, and its first rider's full main bar would have failed its rearrangement. Its branch and identity are untouched.
+- **Mode:** the F2 mode is `finalize2Controls=true`, admitted only beside `upgradeChain=true` by both validators.
+  - **Producer** (P05 Quick cold load): records archive rows against live slots. Then, as disclosed setup:
+    1. removes the migrated control;
+    2. empties main-bar slot 13 and waits until the bar draws it empty;
+    3. checks that native autofill is on;
+    4. calls `BeginLoadedWorld` (the r03 recipe for a first-placement event);
+    5. reads the visible bar every frame;
+    6. cycles Dismount → Mount through the slot's native `OnClick`, waiting for the native slot to admit each click;
+    7. swaps the control into slot 9;
+    8. saves `KMC_P01`;
+    9. removes the control;
+    10. saves `KMC_F2_REMOVED`.
+  - **Consumer** (P05 Manual cold load, new process):
+    1. cold-loads the kept archive and reads the restored, drawn slot before any input;
+    2. runs the ordinary continuation;
+    3. cycles the control;
+    4. loads the removed archive in-process, then watches 60 update frames, a reselection through another party member and a drawer-entry Dismount/Mount.
 
-## Causal findings and correction
+## Native outcomes, each at its original verdict
 
-| Requirement | Before | Change | Direct outcome |
+| Run | Candidate | Original verdict | What it showed |
 |---|---|---|---|
-| CTRL-01 | S10: mounted stock Charge refused with "use Mounted Charge". S08: a separate public Mounted Charge with unknown keys; F1 added the keys. | The stock Charge's availability, reason and target come from the mounted evaluator for the rider. Its slot click selects the hidden shell. A stock Charge command for a mounted pair is cancelled, never converted. The shell is hidden and labelled "Charge", and its reasons read "Charge …". | r03: the Charge slot selected the shell, which held the selection at end of frame. One shell command; one admission at delivery; Success with one rider attack. The mount paid nothing; rider Standard 3.59 s. Spent refusal: "Charge requires the rider's standard action." Unmounted: native stock Charge ran, Success, one attack, mounted admission unchanged. |
-| CTRL-02 | S09: Mount and Dismount were separate facts that appeared and disappeared with state. | One public fact stays leased in every state. The slot click runs the current shell through the native `OnClick` body. The intent is the shell blueprint, and the existing shell binding refuses a stale one. A direct cast is refused before cost. | r03: dismount and remount through slot 13, watched for 24 frames. The control was never absent, and its slot index and fact never changed. A direct cast was refused with no cost. |
-| CTRL-03 | Never placed. | Placed once into the first empty main-bar slot after restoration, with the native autofill setting on. Never overwrites. Records persist as archive kinds 6/7. Removal is remembered. Old kinds 1/2 restore as the public control, kind 5 as stock Charge. | r03: the fixture's full main bar was left intact. After one slot was freed (disclosed), the first placement went exactly there with no other slot changed. A deliberate removal was not reinserted. Old Dismount and Mounted Charge bindings were repaired in place to the public control and stock Charge. **Defect:** the placed control was in the bar data but not on screen until a later rebuild. Fixed on F2d (bar marked dirty after KMC writes); not run natively. |
-| ART-02 | Dark saddle. | Original horse, rider and two-way arc emblem from F1's pilot, from `scripts/Export-MountStateIcon.ps1`. | Visible in r03's mounted and target-selection frames. Owner art approval is separate. |
-| Strings | Locale reload could drop owned keys. | Keys are registered again when the native pack is replaced. | r03: every KMC control key resolves; names are "Mount / Dismount" and "Charge". |
+| r01 | F2a `c19dcc44` | FAIL | Full fixture bar; no slot for the cycle (experiment changed). |
+| r02 | F2b `5017fe0e` | FAIL | Re-evaluation with two reader-only corrections: still FAIL (the harness's own selection dropped the Charge selection frame). |
+| r03 | F2c `66bed248` | FAIL | Toolbar not repainted after placement: product defect, fixed in F2d. |
+| r04 | F2e `a44ead69` | **FAIL** (39 pass, 1 fail) | Passing sub-observations, kept: authentic legacy row migrated in place (14/2 → 14/6 + 0/7, one repair, 15 cleared); in-session removal stayed removed for 30 frames; **repaint**: slot 13 drawn empty, placement at frame 4601, control drawn at 4602; Dismount from the slot. Failed at the Mount click: Dismount had spent the rider's native Move action in real-time combat (2.82 s left), so the slot correctly reported Mount not possible 10 frames later. Experiment timing, corrected in F2f. |
+| r05 | F2f `ff1f2e5a` | **PASS** | Everything in r04, plus Mount after a 2.18 s wait for the native Move cooldown (one exact Mount shell). Kept Manual `7b0ac4bc…` = {6@9, 7@0}; removed Manual `b323e108…` = {7@0}. No native member names a KMC control identity (7 members scanned). Producer root held exactly the input and the two outputs; input unchanged. |
+| r06 | F2f `ff1f2e5a` | **FAIL** | Refused at the isolation bootstrap ("Isolated native enumeration differs from the single copied fixture"). No load, no write, no F2 observation. Harness gap; fixed at `8b610af1`, not run. |
 
-## Evidence
+Restoration after r04, r05 and r06:
+- Mods and Working were restored and the baseline was immutable.
+- Save-protection and write-allowlist checks passed.
+- The save inventory digest stayed `60e3d6cc…a1`, the same as F1's record.
 
-Frames from r03, under lab `runtime-evidence/20261105-finalize-f2-r03/movement-visuals/`. Not committed: new tracked images need Howie's publishing approval.
-- `finalize-f2-public-control-unmounted.png`: shows the repaint defect. Slot 13 still draws the removed ability.
-- `finalize-f2-public-control-mounted.png`: the control in slot 13.
-- `finalize-f2-charge-target-selection-mounted.png`: the Charge shell selected, with the control in slot 13.
+## Visual packet (private, not committed)
 
-| Run | Original verdict | Re-evaluation |
-|---|---|---|
-| r01 (F2a) | FAIL. The fixture rider's main bar is full, so placement correctly wrote nothing and the scenario had no slot to click. | None. The experiment was changed for r02. |
-| r02 (F2b) | FAIL: "not injected on the main bar". | Two reader-only corrections. Exact old slots are repaired wherever they are, and Charge admission counts at delivery. The result is still FAIL, only on the target-selection frame, which the harness's own `SelectUnit` dropped. |
-| r03 (F2c) | FAIL: "the toolbar did not show the public control". | No reader change. A diagnostic read that skips only this check finds no other failure. It is a genuine product finding, fixed on F2d. |
+- r04/r05 captures under lab `runtime-evidence/20261105-finalize-f2-r05/movement-visuals/` (`finalize-f2-p05-placed.png`, `finalize-f2-p05-removed.png`):
+  - The mod-manager window, which base-game staging opens at start, covers the action bar, so these frames do **not** show the toolbar.
+  - The repaint claim rests on the structured visible-bar reads: the ActionBarManager's bound slot objects, empty at 13 before and the public control at 13 after.
+  - The capture now closes that window for its frame (`38e599e6`, not run).
+- The r03 frames, `runtime-evidence/20261105-finalize-f2-r03/movement-visuals/`, still show the icon in the bar and in target selection.
+- Owner art approval is separate.
 
-Restoration on every run: Mods restored and Working restored. Save inventory digest is `60e3d6cc…a1` before and after, unchanged from F1's record.
+## Offline checks
 
-Offline, on each candidate:
-- Fast passed: unit tests 1068/0, plus source validation.
-- Readers: F2 111/0, F2 branch 16/0, persistence contracts 190/0, 6B 10-GUID set.
-- Candidate on F2c passed 12/0 (3.91 min, Test-Harness included).
-- Fast on F2d passed 5/0.
-- Exact request accepted by the live validator; an unlisted scenario was refused.
-- Two independent read-only reviews. The first found one blocker (the removal cleanup save carried control rows), now fixed. The second found no blocker, and its should-fixes are fixed.
+- **Candidate** on `a8dd5875`: 19/0 (4.48 min), including Test-Harness and the focused list below.
+- **Fast** with focused readers on each later commit: 7/0, 5/0, 5/0, 5/0, 4/0.
+- **F2 upgrade reader self-test:** 57/0. Producer and consumer positives with real files, targeted negatives for each decisive fact, and source contracts for:
+  - the removal-cleanup suppression of control rows;
+  - the request flags;
+  - the isolated entries and quotas;
+  - the two-archive consumer enumeration.
+- **Kind-6/7 codec regression** in `tests/Chunk7PersistenceTests.cs` (production `MountedArchiveCodec`; Test-PersistenceData 91/0):
+  - round-trips slot 0 beside its record, a record-only removed control, and old aliases 1/2/5;
+  - refuses a second record, two rows in one slot, a record off index 0, index 128 and an unknown kind.
+- **Seven persistence test compile lists repaired.** F2 had left them without `MountedControlSlotPolicy.cs`, so Test-PersistenceData would not compile; that was a regression the first F2 review missed. All pass:
+  - Test-PersistenceData 85/0 + 91/0
+  - Test-Chunk7CombatDebtDiagnostics 61/0
+  - Test-Chunk7CurrentMigrationNative 57/0
+  - Test-Chunk7LoadRefusalActualGuards 71/0
+  - Test-Chunk7OwnedSchema1Native 187/0
+  - Test-Chunk7Schema2Resave 41/0
+  - Test-Chunk7CurrentRemovalArchive 45/0, only with `-RepositoryRoot` at the worktree, since its default reads the main checkout.
+- **Live request validators** (external `Test-RuntimeRequest.ps1` and compiled `RuntimeRequest.Validate`):
+  - The exact producer requests (F2e, F2f) and the exact consumer request against r05's real archives were all admitted.
+  - Refused, each by both validators: an unlisted scenario, a foreign branch, F2 without the upgrade chain, a producer with a second archive, a consumer without the removed archive, a wrong removed leaf, aliased archives.
+- **WhatIf:** w05, w06 and w07 PASS.
+- **Independent read-only reviews:**
+  - The `befbd73c..a8dd5875` delta: no blocker. Three should-fixes, all applied at `a44ead69`: autofill precondition, a real reselection, and the mounted-row invariant. Two hardening notes, also applied: pin the authentic input; require a PASS producer.
+  - The r04 timing fix: no blocker. Should-fixes applied at `ff1f2e5a`: a 15 s real-time bound, the recorded wait cause, and the reader requiring a native-admitted click and a Move cooldown to explain any wait.
+  - **Neither review caught the r06 enumeration gap.**
 
-## Review-worthy risks / explicit remaining work
+## Remaining limitations
 
-- **Selected, needs one start:** the native repaint confirmation on F2d. That is one approved real-time start of `finalize-f2-controls-rt`; its reader already checks the toolbar right after placement.
 - **Not run natively:**
-  - The save → cold-load round trip for kinds 6/7, and migration from a genuine preview.103 archive. The saved-kind mapping and archive validation are offline only.
-  - A ready but unreviewed draft case `public-control-slots-manual` sits on local branch `codex/kmc-finalize-f2-persistence-draft` (`741af86a`). It needs a rebase, a review and two starts.
-- **Known limitations:**
-  - The selected-slot highlight does not show while a swapped shell is in target selection (cosmetic).
-  - The hidden shells' own names appear in combat text ("Dismount", "Mount Companion").
-  - An older KMC build reads an F2 archive with kinds 6/7 as invalid metadata; downgrade is unsupported.
-  - Historical diagnostic scenarios that assume no automatic placement are not updated or rerun. Among them, Chunk7 exploration cases expect exactly four slot rows, and the six-pair case binds twelve Mount/Dismount slots.
-- **F3 owns** the post-Charge movement policy and the action preview; neither was changed here.
+  - The separate-process reload: restored kept slot, its drawing, the cycle after load, the removed control staying removed across a load, ordinary Charge and strings after the cold load.
+  - Old kinds 1 and 5: no authentic archive carries them; offline coverage only.
+- **Downgrade:** an older KMC reads an F2 archive with kinds 6/7 as invalid metadata. Rollback is unsafe for F2-written saves; keep pre-F2 backups and the matching older package.
+- **Identity:** several development builds share the label preview.103; only the full source/DLL/package identity names a candidate.
+- **Cosmetic:** the selected-slot highlight is not shown while a swapped shell is in target selection. Hidden shell names appear in combat text.
+- **Historical diagnostic scenarios** that assume no automatic placement were not updated.
+- **F3 owns** post-Charge movement and the action preview.
 
 ## Spend and state
 
-- **Budget:** `finalize-f2` 20.97 of 60 min; 3 of 3 real starts (r01–r03). No reset, increase or parallel allowance.
-- **Checks run:** Fast ×6, Candidate ×1, package+suite ×4, WhatIf ×4, live-validator request check ×1.
-- **Live state:** no game process, lock or installed candidate. Owner saves and foreign installations untouched. The live Mods tree is restored exactly to its intake (empty, as at F1).
-- **Push:** the guarded push helper does not admit this branch and was not changed. The branch was pushed with an audited ordinary push: clean worktree, approved origin, new remote branch.
+- **Budget:** `finalize-f2` 37.22 of 60 min. Starts 6 of 6: r01–r03 earlier; r04, r05, r06 on this mission's added three.
+  - The start cap is not enforced in repository code, so no budget code changed.
+  - No time increase, reset or new budget id.
+- **Live state:** no game process, lock or installed candidate; the live Mods tree is empty, as at intake.
+- **Push:** audited ordinary push (the guarded helper does not admit this branch and was not changed).
 
 ## Next decision
 
-Approve one real-time start on F2d to confirm the repaint, or accept F2d with that limitation. Optionally approve two more starts for the persistence round trip. Small owner playcheck afterwards: put the control on the bar, mount, dismount, restart, then use the ordinary Charge both mounted and unmounted. No merge, release or install is assumed.
+The consumer needs native starts the current authority does not cover. The fixed consumer has not run, so a further failure is possible. Options:
+- **(Recommended) Two more starts on a new package of the current head:** producer + consumer, readers unchanged.
+  - Fits the remaining 22.8 minutes of the same 60-minute ceiling: package about 1.4 min, two WhatIfs about 0.6 min, two launches of about 2 min each, each with its 10-minute admission reservation.
+- **One start:** a consumer on a new package of the current head, against r05's F2f outputs. This needs an owner-approved, narrowly pinned exception to the reader's same-candidate rule; production source between F2f and the head is identical, and only Diagnostics differ.
+- Or accept F2 with the reload unrun.
