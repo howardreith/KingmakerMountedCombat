@@ -21,15 +21,63 @@ function Find-KmcFinalize2UpgradeProducer($Request,[string]$EvidenceParent) {
   $rows=@(Get-Content -LiteralPath $rowsPath | ForEach-Object { $_ | ConvertFrom-Json })
   $writes=@($rows | Where-Object kind -CEQ 'native-write-complete')
   if($writes.Count -eq 2 -and [string]$writes[0].detail.sha256 -ceq [string]$Request.persistenceLoad.sha256 -and [string]$writes[1].detail.sha256 -ceq [string]$Request.persistenceAlternate.sha256){
-   $found+=[pscustomobject]@{ runId=$dir.Name; request=$r; rows=$rows }
+   $found+=[pscustomobject]@{ runId=$dir.Name; request=$r; rows=$rows; result=(Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json) }
   }
  }
  if($found.Count -ne 1){ throw ('F2 upgrade: the consumer inputs do not belong to exactly one recorded F2 producer ('+$found.Count+' found).') }
  $found[0]
 }
 
+# The one owner-selected producer/consumer bridge (F2 finishing mission, 2026-11-05): the consumer may run a corrected
+# diagnostic build against exactly run 20261105-finalize-f2-r05's two Manuals. Every field is exact; the consumer's
+# source must be exactly the pinned src tree, and its src may differ from the producer's only in the two diagnostics
+# files named here. The consumer's own DLL/MVID/package are tied to that source by its frozen suite snapshot. Not a
+# general compatibility rule: any other producer, archive, source or changed file uses the same-candidate rule.
+function Get-KmcFinalize2ProducerBridge {
+ [pscustomobject][ordered]@{
+  producerRunId='20261105-finalize-f2-r05'; producerCommit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280'
+  producerDllSha256='9e4180bacd6258a2d0a450d13faeb810b5ced2df82265eb5f92460fed2cbe81e'; producerDllMvid='59977cd3-163e-4641-b8d3-9d5a23a035fe'
+  producerSuiteId='finalize-f2f-ff1f2e5a-20261105'; producerSuiteSha256='beafa8dd9bfd185982617e40ce5a90a11dc43370b2f58ddf45694921f5ba4964'
+  producerPackageSha256='2b2c9699ffeec28cf2120e16e39d7f279d1fc379e51aef77d29e5ad0e61c68b2'
+  riderId='b6628a77-4962-47a4-a17c-88d9836fc9d5'; mountId='d79a4f6c-b74e-4868-95bd-533899131acb'
+  gameId='d41185be-edc1-47c0-b9d5-e1d7a9c8e65f'; gameName='cvb'; area='9d1278a2f599b2a4daab53abdfe88d2e'
+  kept=[pscustomobject]@{fileName='Manual_1_KMC_P01.zks';internalName='KMC_P01';sha256='7b0ac4bcc3ce646063a1c0585a0ebc9d2eb3fe80332c5172bd1a336fad3dc703';length=870781}
+  removed=[pscustomobject]@{fileName='Manual_2_KMC_F2_REMOVED.zks';internalName='KMC_F2_REMOVED';sha256='b323e108d66b290fbc580e5cff21e14a6eed3c70779a0ddec1c0e5d07b0a46dc';length=870363}
+  consumerSourceTree='1a9965350dff0b5cda11260ca68943739b9e820c'
+  changedSourceFiles=@('src/KingmakerMountedCombat/Diagnostics/PersistenceIsolationBootstrap.cs','src/KingmakerMountedCombat/Diagnostics/RuntimePersistenceFinalize2Scenario.cs')
+ }
+}
+
+# Throws unless the consumer and its producer are exactly the declared bridge. Git and the suite snapshot are read, never
+# a claimed string: the consumer commit's src tree and its src diff from the producer, and the suite that freezes its DLL.
+function Assert-KmcFinalize2ProducerBridge($Request,$Source,$Bridge,[string]$RepoRoot,[string]$SuiteRoot) {
+ function BFail([string]$Why){ throw ('F2 upgrade bridge: '+$Why) }
+ if($Source.runId -cne $Bridge.producerRunId){ BFail 'the producer is not the declared run' }
+ $pr=$Source.request
+ if($pr.commit -cne $Bridge.producerCommit -or $pr.dllSha256 -cne $Bridge.producerDllSha256 -or $pr.dllMvid -cne $Bridge.producerDllMvid -or
+    $pr.qualificationSuite.suiteId -cne $Bridge.producerSuiteId -or $pr.qualificationSuite.snapshotSha256 -cne $Bridge.producerSuiteSha256){ BFail 'the producer identity differs from the declaration' }
+ $res=$Source.result
+ foreach($f in 'modsRestored','workingRestored','baselineImmutable','saveProtectionPassed','saveWriteAllowlistPassed'){ if($null -eq $res.PSObject.Properties[$f] -or $res.$f -ne $true){ BFail ('the producer receipt lacks '+$f) } }
+ if([string]$res.status -cne 'PASS'){ BFail 'the producer did not pass' }
+ $writes=@($Source.rows | Where-Object kind -CEQ 'native-write-complete')
+ if($writes.Count -ne 2 -or [string]$writes[0].detail.sha256 -cne $Bridge.kept.sha256 -or [string]$writes[1].detail.sha256 -cne $Bridge.removed.sha256 -or
+    [long]$writes[0].detail.length -ne $Bridge.kept.length -or [long]$writes[1].detail.length -ne $Bridge.removed.length){ BFail 'the producer''s two native outputs differ from the declaration' }
+ foreach($pair in @(@($Request.persistenceLoad,$Bridge.kept),@($Request.persistenceAlternate,$Bridge.removed))){
+  $d=$pair[0]; $e=$pair[1]
+  if($null -eq $d -or [string]$d.fileName -cne $e.fileName -or [string]$d.internalName -cne $e.internalName -or [string]$d.sha256 -cne $e.sha256 -or [long]$d.length -ne $e.length -or
+     [string]$d.gameId -cne $Bridge.gameId -or [string]$d.gameName -cne $Bridge.gameName -or [string]$d.area -cne $Bridge.area){ BFail ('the consumer input '+$e.fileName+' is not the declared archive') }
+ }
+ $tree=(& git -C $RepoRoot rev-parse ([string]$Request.commit+':src') 2>$null); if($LASTEXITCODE -ne 0 -or [string]$tree -cne $Bridge.consumerSourceTree){ BFail 'the consumer source is not the declared src tree' }
+ $changed=@(& git -C $RepoRoot diff --name-only $Bridge.producerCommit ([string]$Request.commit) -- src 2>$null | Sort-Object); if($LASTEXITCODE -ne 0){ BFail 'the producer/consumer source diff could not be read' }
+ if(($changed -join '|') -cne (@($Bridge.changedSourceFiles | Sort-Object) -join '|')){ BFail ('the consumer source differs from the producer outside the declared files: '+($changed -join ', ')) }
+ $suitePath=Join-Path $SuiteRoot ([string]$Request.qualificationSuite.suiteId+'.json')
+ if(-not(Test-Path -LiteralPath $suitePath -PathType Leaf) -or (Get-KmcSha256 $suitePath) -cne [string]$Request.qualificationSuite.snapshotSha256){ BFail 'the consumer suite snapshot is missing or changed' }
+ $suite=Get-Content -LiteralPath $suitePath -Raw | ConvertFrom-Json
+ if([string]$suite.repository.commit -cne [string]$Request.commit -or [string]$suite.package.dllSha256 -cne [string]$Request.dllSha256 -or [string]$suite.package.dllMvid -cne [string]$Request.dllMvid){ BFail 'the consumer suite does not freeze this consumer''s commit, DLL and MVID' }
+}
+
 function Assert-KmcFinalize2UpgradeEvidence {
- param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Rows,[Parameter(Mandatory=$true)]$GameResult,[string]$SaveRoot,[string]$EvidenceParent,[string]$LegacyInputSha256)
+ param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Rows,[Parameter(Mandatory=$true)]$GameResult,[string]$SaveRoot,[string]$EvidenceParent,[string]$LegacyInputSha256,$Bridge,[string]$RepoRoot,[string]$SuiteRoot)
  function Fail([string]$Why){ throw ('F2 upgrade: '+$Why) }
  function P($O,[string]$N){ if($null -ne $O -and $O -isnot [string] -and $O -isnot [ValueType] -and $null -ne $O.PSObject.Properties[$N]){ $O.$N } else { $null } }
  function Int($V,[string]$What){ if($V -isnot [int] -and $V -isnot [long]){ Fail ($What+' is missing or not an integer') }; [long]$V }
@@ -199,7 +247,14 @@ function Assert-KmcFinalize2UpgradeEvidence {
   # The consumer: a new process, the kept archive cold, then the removed archive in the same process.
   $source=Find-KmcFinalize2UpgradeProducer $Request $EvidenceParent
   $pw=@($source.rows | Where-Object kind -CEQ 'native-write-complete')
-  if($source.request.commit -cne $Request.commit -or $source.request.dllSha256 -cne $Request.dllSha256){ Fail 'the producer ran another candidate' }
+  # Same candidate by default; otherwise only the one declared bridge (exact producer, archives, consumer source and suite).
+  if($source.request.commit -cne $Request.commit -or $source.request.dllSha256 -cne $Request.dllSha256){
+   $b=if($null -ne $Bridge){$Bridge}else{Get-KmcFinalize2ProducerBridge}
+   $repo=if([string]::IsNullOrEmpty($RepoRoot)){[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))}else{$RepoRoot}
+   $suites=if([string]::IsNullOrEmpty($SuiteRoot)){Join-Path (Get-KmcLabRoot) 'runtime-state\qualification-suite-snapshots'}else{$SuiteRoot}
+   try { Assert-KmcFinalize2ProducerBridge $Request $source $b $repo $suites } catch { Fail ('the producer ran another candidate and the declared bridge does not admit it: '+$_.Exception.Message) }
+   if($riderId -cne $b.riderId -or $mountId -cne $b.mountId){ Fail 'the bridged consumer loaded other actors' }
+  }
   if(@($source.rows | Where-Object processId -EQ $GameResult.processId).Count -ne 0){ Fail 'the consumer is the producer''s process' }
   $chosen=[int](Int (P $pw[0].detail 'controlIndex') 'producer kept index')
   $keptRows=@(($riderId+'|'+$chosen+'|6'),($riderId+'|0|7'))
@@ -234,6 +289,8 @@ function Assert-KmcFinalize2UpgradeEvidence {
   $zks=@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks'); if($zks.Count -ne 2){ Fail 'the consumer root does not hold exactly its two inputs' }
   foreach($d in @($Request.persistenceLoad,$Request.persistenceAlternate)){ if((Get-KmcSha256 (Join-Path $root $d.fileName)) -cne [string]$d.sha256){ Fail 'the consumer changed an input archive' } }
   Shots $complete @('cold-kept','cold-removed')
+  # The consumer's views must be readable: the mod-manager overlay closed at the captured frame.
+  foreach($s in @(P $complete.detail 'shots')){ if((P $s 'ummOpenAtCapture') -ne $false){ Fail ('screenshot '+(Text (P $s 'name'))+' was not captured with the mod-manager overlay closed') } }
   if($disclosed.Count -ne 0){ Fail 'the consumer made a setup edit' }
  }
 }
