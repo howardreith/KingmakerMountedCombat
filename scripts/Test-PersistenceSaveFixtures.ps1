@@ -723,6 +723,58 @@ foreach($mode in @('AfterEntry','BeforeExit')){
     }
 }
 
+# F4 dungeon entry: a setup transfer to the hub (no write), the native entrance and party selection Go, and the one
+# after-entry Auto admitted in the hub and committed on the floor with the same mounted pair.
+$deFloor='9d1278a2f599b2a4daab53abdfe88d2e';$deHub='c49315fe499f0e5468af6f19242499a2';$deGame='89c49a86-a171-4ea9-871a-f6b3b53d19b9'
+$deRequest=[pscustomobject]@{persistenceCase='area-dungeon-entry'
+    fixture=[pscustomobject]@{working=[pscustomobject]@{area=$deFloor;gameId=$deGame}}
+    persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='AfterEntry'}}
+$deSetup=New-KmcAreaRow 'dungeon-entry-setup-transfer-requested' $deFloor $deFloor;$deSetup.detail.sourceArea=$deFloor;$deSetup.detail|Add-Member snapshots 0
+$deHubRow=New-KmcAreaRow 'dungeon-entry-hub-arrival' $deHub $deFloor;$deHubRow.detail.suspensions=1;$deHubRow.detail.resumes=1;$deHubRow.detail|Add-Member snapshots 0
+$deGo=[pscustomobject]@{kind='dungeon-entry-party-selection-go';detail=[pscustomobject]@{partyBefore='a|b|owned-rider';generationBefore=3;relationship='Mounted'}}
+$deFloorRow=New-KmcAreaRow 'dungeon-entry-floor-arrival' $deFloor $deFloor;$deFloorRow.detail.suspensions=2;$deFloorRow.detail.resumes=2;$deFloorRow.detail|Add-Member snapshots 1
+$deFloorRow.detail|Add-Member route ([pscustomobject]@{setupTransfer=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='None';disclosure='setup'}
+    entrance=[pscustomobject]@{action='native ActionEnterToDungeon.RunAction';resolvedEnterPoint=('c'*32);resolvedArea=$deFloor;stage=1;selectorOpened=$true}})
+$deWrite=[pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{ordinal=1;path='X:\run\Saved Games\Auto_1.zks';sha256=('b'*64);length=4096;nativeType='Auto';mode='AfterEntry'
+    operation='None';nativeCallback=$false;admissionArea=$deHub;area=$deFloor
+    barrier=[pscustomobject]@{relationship='Mounted';area=$deFloor;snapshots=1;suspensions=2;resumes=2;riderId='owned-rider';mountId='owned-mount'}
+    partySelection=[pscustomobject]@{partyBefore='a|b|owned-rider';partyAfter='a|b|owned-rider';generationBefore=3;generationAfter=3}
+    snapshot=[pscustomobject]@{Mounted=$true;AreaId=$deFloor;CampaignId=$deGame;Rider=[pscustomobject]@{Id='owned-rider'};Mount=[pscustomobject]@{Id='owned-mount'}}}}
+$deRows=@($deSetup,$deHubRow,$deGo,$deFloorRow,$deWrite)
+Assert-KmcDungeonEntryEvidence $deRequest $deRows;$passes++
+foreach($bad in @('hub-write','hub-replaced-world','no-entrance','entrance-other-floor','selector-closed','setup-autosave','party-changed','pair-replaced',
+    'floor-not-reached','views-replaced','extra-transfer','second-write','manual-leaf','admitted-elsewhere','committed-in-hub','autosave-unmounted',
+    'autosave-foreign-campaign','barrier-before-restoration','out-of-order','foreign-record','missing-go','unmounted-at-go','wrong-request-pins')){
+    $copy=($deRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json;$req=$deRequest
+    switch($bad){
+        'hub-write' {$copy[1].detail.snapshots=1}
+        'hub-replaced-world' {$copy[1].detail.sameWorld=$false}
+        'no-entrance' {$copy[3].detail.route.entrance.action='LoadArea'}
+        'entrance-other-floor' {$copy[3].detail.route.entrance.resolvedArea=('f'*32)}
+        'selector-closed' {$copy[3].detail.route.entrance.selectorOpened=$false}
+        'setup-autosave' {$copy[3].detail.route.setupTransfer.autoSaveMode='AfterEntry'}
+        'party-changed' {$copy[4].detail.partySelection.partyAfter='a|owned-rider'}
+        'pair-replaced' {$copy[4].detail.partySelection.generationAfter=4}
+        'floor-not-reached' {$copy[3].detail.area=$deHub}
+        'views-replaced' {$copy[3].detail.riderView=9}
+        'extra-transfer' {$copy[3].detail.resumes=3}
+        'second-write' {$copy=@($copy)+@(($copy[4]|ConvertTo-Json -Depth 12|ConvertFrom-Json))}
+        'manual-leaf' {$copy[4].detail.path='X:\run\Saved Games\Manual_300_KMC_P01.zks';$copy[4].detail.nativeType='Manual'}
+        'admitted-elsewhere' {$copy[4].detail.admissionArea=('f'*32)}
+        'committed-in-hub' {$copy[4].detail.area=$deHub}
+        'autosave-unmounted' {$copy[4].detail.snapshot.Mounted=$false}
+        'autosave-foreign-campaign' {$copy[4].detail.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+        'barrier-before-restoration' {$copy[4].detail.barrier.resumes=1}
+        'out-of-order' {$copy=@($copy[0],$copy[2],$copy[1],$copy[3],$copy[4])}
+        'foreign-record' {$copy=@($copy)+@([pscustomobject]@{kind='area-initial-write';detail=$null})}
+        'missing-go' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4])}
+        'unmounted-at-go' {$copy[2].detail.relationship='Unmounted'}
+        'wrong-request-pins' {$req=[pscustomobject]@{persistenceCase='area-dungeon-entry';fixture=$deRequest.fixture
+            persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='BeforeExit'}}}
+    }
+    Must-Reject {Assert-KmcDungeonEntryEvidence $req $copy} ('P07 dungeon entry accepted '+$bad)
+}
+
 # The transition autosave cold-loaded on its own. This is a different claim from
 # the destination Manual cold load: it proves the authored Auto archive is itself
 # a loadable world. BeforeExit must reopen the departure area and must not

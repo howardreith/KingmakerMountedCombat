@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
             runner.Run("declared area transfer admits only its two exact endpoints", TransitionEndpoints);
+            runner.Run("a reversed transfer leaf is admitted in the hub and commits only on the floor", ReversedTransitionEndpoints);
             runner.Run("a declared foreign-campaign leaf admits only its own read-only identity", ForeignIdentity);
             runner.Run("engine-shaped spellings of the owned root are admitted and other roots or relative paths are not", EngineShapedSpelling);
         }
@@ -105,6 +106,38 @@ namespace KingmakerMountedCombat.Tests
                 MustThrow(() => files.Guard2(readOnly, Area, destination));
                 var aliased = Entry("Manual"); aliased.Area = destination; aliased.AdmissionArea = Area;
                 MustThrow(() => files.Guard2(aliased, destination, destination));
+            }
+        }
+
+        // F4 dungeon entry: the native entrance's after-entry Auto is admitted while the party is still in the hub (the
+        // declared transfer's target) and commits on the floor the transfer left from. The one leaf spans exactly those two
+        // areas in that order; its write lease opens only in the committed area, and no other leaf or area is admitted.
+        private static void ReversedTransitionEndpoints()
+        {
+            using (var files = new Files())
+            {
+                const string hub = "fedcba9876543210fedcba9876543210";
+                const string foreign = "99999999999999999999999999999999";
+                var auto = Entry("Auto"); auto.Area = Area; auto.AdmissionArea = hub;
+                var guard = files.Guard2(auto, Area, hub);
+                var admitted = files.Target("Auto"); admitted.Area = hub;
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, admitted, files.Root) == null,
+                    "Hub admission of the declared after-entry leaf rejected.");
+                var committed = files.Target("Auto"); committed.Area = Area;
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, committed, files.Root) == null,
+                    "Floor commit of the declared after-entry leaf rejected.");
+                var other = files.Target("Auto"); other.Area = foreign;
+                Reject(guard, other, files.Root);
+                // The write lease commits on the floor only, never in the hub it was admitted in.
+                MustThrow(() => guard.BeginWrite(admitted, files.Root).Dispose());
+                using (guard.BeginWrite(committed, files.Root)) { }
+                // No undeclared leaf: a second Auto or a Manual is refused in either area.
+                var manual = files.Target("Manual"); manual.Area = Area;
+                Reject(guard, manual, files.Root);
+                var hubManual = files.Target("Manual"); hubManual.Area = hub;
+                Reject(guard, hubManual, files.Root);
+                var second = files.Target("Auto"); second.Area = Area; second.FileName = "Auto_2.zks"; second.FullPath = Path.Combine(files.Root, "Auto_2.zks");
+                Reject(guard, second, files.Root);
             }
         }
 
