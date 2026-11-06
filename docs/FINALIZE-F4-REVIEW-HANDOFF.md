@@ -1,11 +1,76 @@
 # F4 review handoff: ordinary world orders, native AI, transitions and Horse gait
 
-## Current disposition: final reload execution mission (2026-11-06)
+## Current disposition (2026-11-06, after the owner-authorized tenth start)
+
+**F4 ENGINEERING PARTIAL — WORLD-02 INPUT BLOCKED ONLY; OWNER ACCEPTANCE SEPARATE.**
+
+The entrance → after-entry Auto → native reload chain is complete on one binary:
+
+| Step | Run | Result |
+|---|---|---|
+| Real dungeon entrance and its one authorized after-entry Auto | `20261106-finalize-f4f-dungeon-08` (package f4f) | **PASS** (as recorded earlier) |
+| Read-only native cold reload of that Auto | `20261106-finalize-f4g-dungeon-reload-10` (package f4g) | **PASS** (external reader) |
+
+**WORLD-02** is the sole outstanding item. It is input blocked: no suitable trap save was supplied, and no start was spent on it.
+
+Whole-F4 COMPLETE needs the native trap attempt, or the owner changing that requirement. Owner art acceptance and full laptop-stack acceptance are separate. No merge, release, install or F5.
+
+**Binary identity, one binary for both ends:**
+- The producer ran from package f4f (`4efc6665274ac8cff979eeaae3bd9240810ef6e6f855b16659a5589da411245e`, suite `finalize-f4f-3f824e30-20261106` · `f6513447…`, source `3f824e30`).
+- The consumer ran from package f4g (`e1f195c1684e0f0d1b58c4315a494099172e5fb34f51cf548d616dd77e01af12`, suite `finalize-f4g-a71fe576-20261106` · `fdfa59036531bc7c7231f129bbfc996208ea7cff339cf2c19c0bd4f41d2a311c`). It was packaged from the records head `a71fe576`, whose only delta from `3f824e30` is three docs files.
+- The rebuilt DLL is byte-identical: SHA-256 `3240963f3c4966f17ae121412808bbac4f17af1dba76d0fd05ece0b4dc4f7f3d`, MVID `cc86d1d6-502e-4991-8805-618755a9ae47`, in both packages and both runs.
+- Dependencies: Kingmaker 2.1.7b, base-game staging with `retained-dependencies-final211.json` (CotW/CMI), loader digest `db2c3901…`.
+
+**Source archive:**
+- `Auto_1.zks`, SHA-256 `b8e4109ea5bd9deae8e8e77b7b0318e1afa0d42895071d1f3a52a29c284540f5`, 395809 bytes.
+- Native type Auto, AfterEntry, Name `Autosave1`.
+- Campaign `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f` ("cvb"), Area = floor `9d1278a2f599b2a4daab53abdfe88d2e`.
+- It was copied as an ordinary file and is byte-unchanged at the producer after the reload.
+
+**Observed native reload (r10):**
+- **Load:** the archive opened in a fresh game process on the floor and campaign it captured. The product read it through the schema-3 archive member.
+- **Restores:** semantic restores 2 of 2 expected (the rider and mount ids), presentation 1 of 1; 2 archive post-load observations.
+- **Pair:** rider `b6628a77-4962-47a4-a17c-88d9836fc9d5` and mount `d79a4f6c-b74e-4868-95bd-533899131acb`, each with exactly one native actor. Each has a live view bound to the relationship and exact for the pair (cold-world disposition).
+- **Clean load:** no suspension, resume or pending transfer inherited, and no mount cast. Saved control bindings matched, and the action debt matched the archive's own clock.
+- **Continuation:**
+  - the existing ordinary ground move (Success, 2.96 m);
+  - then the disclosed temporary target and one stock attack: 1 rule, 1 roll, 0 damage (a legitimate native miss);
+  - then target removal, with the pair still Mounted.
+- **No write:** 0 save requests and 1 load, none unauthorized. 28/0 native assertions. No Manual resave or other Auto was written.
+
+**Restoration (r10):**
+- Mods, Working fixture, baseline, save protection and allowlist all passed.
+- The inventory digest `60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1` is unchanged.
+- No game process, lock or waiter remains.
+
+**Authority and spend:**
+- Recorded append-only on `finalize-f4`:
+  - starts 8 → 9 and allowance 75 → 80 (forwarded final-reload mission, 20:48Z);
+  - starts 9 → 10 (the owner's in-session instruction "Alright do it", 21:05Z).
+- The helper refuses an eleventh start.
+- **Spend: 68.17 of 80 min, 10 of 10 starts.**
+
+**Start 9 (`20261106-finalize-f4f-dungeon-reload-09`): FAIL before staging, kept** (see the section below). It was my detached-HEAD error. No game ran.
+
+**Retained at their original binaries:**
+- r08's entrance PASS;
+- r05's chest-during-travel and gait PASS, and its private motion packet;
+- r04's three completed rows (aggregate FAIL kept);
+- the FAILs of r01–r04, r06, r07 and start 9.
+
+**WORLD-02 requested input (unchanged):**
+- one disposable Manual save from a compatible KMC build;
+- an eligible mounted rider with its existing mount, in a pet-permitted area;
+- a revealed, armed trap about 4–30 m away on a safe reachable path;
+- nearby enemies cleared, and the ability to attempt Trickery;
+- its required mods recorded.
+
+## Previous disposition: final reload execution mission, before the tenth start (2026-11-06)
 
 **F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance is separate.**
-- **The native reload is still NOT RUN.** The one authorized start was consumed by a pre-staging refusal that I caused.
-- **WORLD-02 remains INPUT BLOCKED.**
-- This is not "WORLD-02 INPUT BLOCKED ONLY". No merge, release, install or F5.
+- **The native reload was still NOT RUN.** The one authorized start was consumed by a pre-staging refusal that I caused.
+- **WORLD-02 remained INPUT BLOCKED.**
+- That was not "WORLD-02 INPUT BLOCKED ONLY". No merge, release, install or F5.
 
 **Authority recorded append-only on `finalize-f4`:**
 - start ceiling 8 → 9 at 2026-11-06T20:48:39Z, solely for the r08 Auto consumer;
