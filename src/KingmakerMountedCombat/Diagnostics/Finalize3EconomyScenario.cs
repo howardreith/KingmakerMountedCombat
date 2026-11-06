@@ -43,11 +43,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static readonly string[] Finalize3RealTimeCases = { "F3-rt-mounted-marker", "F3-rt-unmounted-marker", "F3-rt-attack" };
         private string[] Finalize3Cases => Finalize3Tb ? Finalize3TurnBasedCases : Finalize3RealTimeCases;
         private string Finalize3Case => Finalize3Cases[f3CaseIndex];
-        private const float Finalize3StepBoundSeconds = 40f, Finalize3CaptureBoundSeconds = 5f;
+        private const float Finalize3StepBoundSeconds = 25f, Finalize3CaptureBoundSeconds = 5f;
         private const int Finalize3SettleFrames = 20, Finalize3IdleFrames = 12, Finalize3RefusalFrames = 40, Finalize3AttackFrames = 360, Finalize3MountAttempts = 6;
         private const string Finalize3Contract = "finalize3-movement-economy-v1";
         private const BindingFlags F3Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        private static readonly float[] Finalize3LaneRadii = { 12f, 10f, 14f, 9f, 16f, 8f };
+        private static readonly float[] Finalize3LaneRadii = { 12f, 10f, 14f, 9f, 16f, 8f, 18f, 7f, 20f };
 
         private int f3CaseIndex, f3Stage, f3Step, f3Frames, f3BoundStep = -1, f3CaptureGeneration, f3MountAttempts, f3RulesAt, f3IdleFrames;
         private int f3InitiativeRider, f3InitiativeMount, f3InitiativeSecondRider, f3InitiativeSecondMount, f3HealCount, f3DismountRound = -1, f3FirstRound = -1;
@@ -536,8 +536,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void F3PlaceAdjacent(UnitEntityData mount, string why)
         {
-            target.Translocate(FindWalkablePoint(mount.Position, 3f, .75f), null);
-            F3Disclose("The hostile was translocated about 3 m from the " + F3Role(mount) + " (" + why + ").");
+            // Bodies nearly touching: both the mount's natural weapon and the carried rider's weapon reach without an approach.
+            var distance = (mount.View?.Corpulence ?? 0.5f) + (target.View?.Corpulence ?? 0.5f) + 0.4f;
+            Vector3 point;
+            try { point = FindWalkablePoint(mount.Position, distance, .3f); }
+            catch (InvalidOperationException) { point = FindWalkablePoint(mount.Position, distance, .6f); }
+            target.Translocate(point, null);
+            F3Disclose("The hostile was translocated " + distance.ToString("0.00") + " m from the " + F3Role(mount) + " (" + why + ").");
         }
 
         // Controlled setup for a screenshot: the movement context's approach point and the native path calculation.
@@ -874,7 +879,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     var currentChanged = F3Limit(before["current"]) != F3Limit(current);
                     var partnerChanged = F3Limit(before["partner"]) != F3Limit(partnerNow);
                     f3Current["changedContext"] = partnerChanged && !currentChanged ? "partner" : currentChanged && !partnerChanged ? "current" : partnerChanged ? "both" : "none";
-                    F3GroundClick("s1", F3Destination(horse, f3BMount, 1f), true);
+                    // Beyond the step allowance: the native step clamps, so the whole step is spent.
+                    F3GroundClick("s1", F3Destination(horse, f3BMount, 3f), true);
                     f3Step = 3; return;
                 }
                 case 3:
@@ -917,9 +923,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (pair == null) { F3Fail("The second pair's combat controller is unavailable."); return; }
                     JObject lane;
-                    if (!MountedChargeFixture.TryPlaceOnLane(f3BMount, f3BRider, target, Finalize3LaneRadii, out lane)) return;
+                    f3Facts["laneSearches"] = (f3Facts.Value<int?>("laneSearches") ?? 0) + 1;
+                    if (!MountedChargeFixture.TryPlaceOnLane(f3BMount, f3BRider, target, Finalize3LaneRadii, out lane)) { f3Facts["lastAvailability"] = "no clear lane"; return; }
                     var availability = pair.ObserveMountedChargeTarget(f3BRider, target);
                     f3Facts["lastAvailability"] = availability.Reason;
+                    f3Facts["lastLane"] = lane;
                     if (!availability.IsAllowed) return;
                     f3Facts["lane"] = lane;
                     F3Disclose("The hostile was placed on a clear charge lane from pair B's mount (MountedChargeFixture.TryPlaceOnLane).");
