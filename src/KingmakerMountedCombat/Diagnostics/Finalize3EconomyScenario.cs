@@ -166,9 +166,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var action = Finalize3CleanupEscModePolicy.Decide(restorationsDone, f3EscIntervention != null, escMode, game.IsPaused,
                 tutorial?.Data != null, dontShow, escMenu != null && escMenu.IsShow);
             if (action == Finalize3EscModeAction.None) return;
-            f3EscIntervention = new JObject { ["frame"] = Time.frameCount, ["realtime"] = Time.realtimeSinceStartup, ["modeBefore"] = mode,
+            var record = new JObject { ["frame"] = Time.frameCount, ["realtime"] = Time.realtimeSinceStartup, ["modeBefore"] = mode,
                 ["tutorialShown"] = tutorial?.Data != null, ["tutorialPage"] = page?.name, ["tutorialType"] = page?.Type.ToString(),
                 ["dontShowToggle"] = dontShow, ["escMenuShown"] = escMenu != null && escMenu.IsShow, ["action"] = action.ToString() };
+            // A refusal closes nothing and does not use the one intervention: the first and the count are recorded.
+            if (action == Finalize3EscModeAction.RefuseTutorialSetting || action == Finalize3EscModeAction.RefuseUnidentified)
+            {
+                if (f3Measure == null) return;
+                if (f3Measure["escModeRefusal"] == null) f3Measure["escModeRefusal"] = record;
+                f3Measure["escModeRefusalFrames"] = (f3Measure.Value<int?>("escModeRefusalFrames") ?? 0) + 1;
+                return;
+            }
+            f3EscIntervention = record;
             if (f3Measure != null) f3Measure["escModeIntervention"] = f3EscIntervention;
             if (action == Finalize3EscModeAction.CloseTutorial) tutorial.CloseWindow();
             else if (action == Finalize3EscModeAction.CloseEscMenu) escMenu.Show(false);
@@ -936,6 +945,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (++f3Frames < Finalize3SettleFrames) return;
                     var record = F3Begin("b1", f3BMount, participant);
                     F3Select(f3BRider);
+                    record["selectedRole"] = F3Role(SelectionManager.Instance?.SelectedUnits?.Count == 1 ? SelectionManager.Instance.SelectedUnits[0] : null);
                     record["riderDistanceToTarget"] = f3BRider.DistanceTo(target);
                     record["estimatedFullAttacks"] = UnitAttack.EstimateFullAttacks(f3BRider);
                     record["riderHasFullRound"] = f3BRider.HasFullRoundAction();
@@ -961,7 +971,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 case 2:
                     if (f3BAttack == null) f3BAttack = f3BRider.Commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) as UnitAttack;
-                    if (f3BAttack != null && f3Current["attackStarted"] == null)
+                    // Native UnitAttack.OnStart plans the strikes and decides IsFullAttack; read them once it has started.
+                    if (f3BAttack != null && f3BAttack.IsStarted && f3Current["attackStarted"] == null)
                         f3Current["attackStarted"] = new JObject { ["facts"] = F3AttackFacts(f3BAttack), ["snap"] = F3Snap() };
                     if (!F3AttackSettled(f3BRider, f3BRider, f3BMount, pair)) return;
                     if (++f3Frames < Finalize3SettleFrames) return;

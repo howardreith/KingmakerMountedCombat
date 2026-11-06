@@ -126,24 +126,42 @@ namespace KingmakerMountedCombat.Integration
                 var mountStates = partnerContext.ActionsStates;
                 var mount = partnerContext.Unit;
                 var fresh = (ActionsState.Actions)NativeCurrentActionStates.Invoke(partnerContext, null);
+                var moveCooldown = mount.CombatState.Cooldown.MoveAction;
+                var restricted = (bool)NativeRestrictNormalMovement.Invoke(partnerContext, null);
+                var moveFeet = (float)partnerContext.GetRemainingActionMovementRangeFeet(UnitCommand.CommandType.Move).Value;
                 var standardFeet = (float)partnerContext.GetRemainingActionMovementRangeFeet(UnitCommand.CommandType.Standard).Value;
-                if (PairedMovementInputPolicy.ConversionTravelRemains(mount.CombatState.Cooldown.MoveAction, mount.UsedStandardAction(),
-                        (bool)NativeRestrictNormalMovement.Invoke(partnerContext, null), standardFeet))
-                    fresh.Standard = new CombatAction(CombatAction.ActivityState.Available, CombatAction.ActivityState.Lost, CombatAction.ActivityState.Lost, standardFeet);
-                // That computation keeps a used step available (native's state machine marks it used at the step's own
-                // command end); the live native HasFiveFootStep is the mount's remaining step, a partial step's residual included.
-                if (!partnerContext.HasFiveFootStep())
-                    fresh.FiveFootStep = new CombatAction(CombatAction.ActivityState.Unable, null, null, mountStates.FiveFootStep.MaxMoveDistance);
-                fresh.FiveFootStep.MaxMoveDistance = mountStates.FiveFootStep.MaxMoveDistance;
-                fresh.Move.MaxMoveDistance = mountStates.Move.MaxMoveDistance;
-                fresh.Standard.MaxMoveDistance = mountStates.Standard.MaxMoveDistance;
-                mountStates.ActionsStates = fresh;
+                // That computation is native's turn-start snapshot: it treats any started Move (UsedOneMoveAction) and any
+                // started conversion as gone, and keeps a used step available (native's state machine settles those at the
+                // command's own end, which a rider-selected pair move never delivers to the private context). Mid-turn the
+                // remaining travel of each window stays, with that action's other uses lost; the live native
+                // HasFiveFootStep is the mount's remaining step, a partial step's residual included.
+                if (PairedMovementInputPolicy.PartialMoveRemains(moveCooldown, mount.IsMoveActionRestricted(), restricted, moveFeet))
+                    Rebase(mountStates.Move, CombatAction.ActivityState.Available, CombatAction.ActivityState.Lost, CombatAction.ActivityState.Lost);
+                else Rebase(mountStates.Move, fresh.Move);
+                if (PairedMovementInputPolicy.ConversionTravelRemains(moveCooldown, mount.UsedStandardAction(), restricted, standardFeet))
+                    Rebase(mountStates.Standard, CombatAction.ActivityState.Available, CombatAction.ActivityState.Lost, CombatAction.ActivityState.Lost);
+                else Rebase(mountStates.Standard, fresh.Standard);
+                if (partnerContext.HasFiveFootStep()) Rebase(mountStates.FiveFootStep, fresh.FiveFootStep);
+                else Rebase(mountStates.FiveFootStep, CombatAction.ActivityState.Unable, null, null);
                 mountStates.Clear();
                 mountStates.UpdateMoveDistance();
                 path.UpdateActionStatesFromPath(mountStates);
                 mountStatesFilled = true;
             }
             finally { fillingMountStates = false; }
+        }
+
+        // Native's own action objects are kept (their subscriptions, turn-start slider ranges, absent activities and
+        // identity). Native current-state setters only advance (Available is the lowest state), as the mount's entitlement
+        // only shrinks within an activation; the native lock on the action's usage type is kept.
+        private static void Rebase(CombatAction target, CombatAction source) =>
+            Rebase(target, source.MovementActivityStateCurrent, source.AttackActivityStateCurrent, source.AbilityActivityStateCurrent);
+
+        private static void Rebase(CombatAction target, CombatAction.ActivityState? move, CombatAction.ActivityState? attack, CombatAction.ActivityState? ability)
+        {
+            var locked = target.LockType;
+            target.ChangeDefaultStates(move, attack, ability);
+            target.LockType = locked;
         }
 
         // The movement-facing slot reads the mount's matching action during a filled rider-selected ground preview.

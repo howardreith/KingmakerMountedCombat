@@ -26,6 +26,12 @@ namespace KingmakerMountedCombat.Domain
         internal static bool SlotsDescribeMount(bool riderSelected, bool partnerAddressable, bool overTerrain, bool mountStatesFilled) =>
             riderSelected && partnerAddressable && overTerrain && mountStatesFilled;
 
+        // Native's state computation (TurnController.ComputeCurrentActionStates) treats the Move as gone once MoveAction is
+        // above zero (UsedOneMoveAction). Mid-turn a partial first move keeps exactly its remaining first-Move travel:
+        // movement stays available while that window has range, and the Move's other uses are lost to it.
+        internal static bool PartialMoveRemains(float moveCooldown, bool moveRestricted, bool restrictNormalMovement, float remainingMoveFeet) =>
+            moveCooldown > 0f && moveCooldown < 3f && !moveRestricted && !restrictNormalMovement && remainingMoveFeet > 0f;
+
         // Native's state computation (TurnController.ComputeCurrentActionStates) treats the Standard as gone once
         // MoveAction passes three seconds. Mid-turn a started double move keeps exactly its remaining conversion
         // travel: movement stays available while that window has range, and the Standard's other uses are lost to it.
