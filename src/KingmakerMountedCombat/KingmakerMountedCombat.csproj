@@ -528,6 +528,8 @@
     <Compile Include="Domain\MountedGroundOrderAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedStabilizationPolicy.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
+    <Compile Include="Domain\CompanionNamePolicy.cs" />
+    <Compile Include="Domain\RidingDogTackGeometry.cs" />
     <Compile Include="Domain\RelationshipState.cs" />
     <Compile Include="Domain\ScopedPoseBaselineLease.cs" />
     <Compile Include="Domain\ScopedDiagnosticAiLease.cs" />
@@ -590,6 +592,10 @@
     <Compile Include="Integration\NativeMountedApproachInterruption.cs" />
     <Compile Include="Integration\MountedRiderPoseAdapter.cs" />
     <Compile Include="Integration\SmallRiderRigCompletion.cs" />
+    <Compile Include="Integration\CompanionNameService.cs" />
+    <Compile Include="Integration\CompanionRenameSheetControl.cs" />
+    <Compile Include="Integration\RidingDogTackService.cs" />
+    <Compile Include="Integration\RidingDogTackTexture.cs" />
     <Compile Include="Integration\RiderMovementAgent.cs" />
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />

@@ -33,6 +33,8 @@ namespace KingmakerMountedCombat
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
+        private readonly CompanionNameService companionNames;
+        private readonly RidingDogTackService ridingDogTack;
         private bool disposed;
         private bool showDiagnostics;
         // An update failure whose destructive cleanup was deferred because an
@@ -46,6 +48,9 @@ namespace KingmakerMountedCombat
             {
                 settings = new DiagnosticSettings();
                 horseCompanion = new HorseCompanionBlueprintService(logger);
+                var blueprintText = horseCompanion;
+                companionNames = new CompanionNameService(key => blueprintText.Text(key), logger);
+                ridingDogTack = new RidingDogTackService(logger);
                 world = new MountedWorldService(logger, settings);
                 relationship = world.Primary.Relationship;
                 combat = world.Primary.Combat;
@@ -122,6 +127,8 @@ namespace KingmakerMountedCombat
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { companionNames?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { world?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { nativeControls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { lifecycle?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -429,6 +436,8 @@ namespace KingmakerMountedCombat
             runtimeAutomation?.Dispose();
             patches.Dispose();
             mountedCombatDefense.Dispose();
+            ridingDogTack.Dispose();
+            companionNames.Dispose();
             nativeControls.Dispose();
             lifecycle.Dispose();
             world.Dispose();
