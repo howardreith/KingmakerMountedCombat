@@ -129,6 +129,17 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool Owns(UnitEntityData actor) => actor != null && allocations.ContainsKey(actor);
 
+        // Diagnostic read without lifetime maintenance: a copy, never the live record.
+        internal MountedMovementState PeekMovement(UnitEntityData actor)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation)) return null;
+            var movement = allocation.Movement;
+            return new MountedMovementState { TimeMoved = movement.TimeMoved, TimeForced = movement.TimeForced,
+                TimeStepped = movement.TimeStepped, MetresStepped = movement.MetresStepped, StepImmune = movement.StepImmune,
+                AiStep = movement.AiStep, AutoStopPending = movement.AutoStopPending };
+        }
+
         internal void ResetTransientStepImmunity(TurnController context)
         {
             if (context == null) return;

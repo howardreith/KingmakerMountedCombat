@@ -5,6 +5,7 @@ using Kingmaker;
 using Kingmaker.Controllers.Combat;
 using Kingmaker.Controllers.Units;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.TurnBasedMode.Controllers;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Commands;
@@ -253,6 +254,30 @@ namespace KingmakerMountedCombat.Integration
         internal bool MaySelectPairedPartner(UnitEntityData actor) => Find(actor)?.MaySelectPairedPartner(actor) ?? false;
         internal bool PreservePartnerSelection(TurnController turn) => Find(turn)?.PreservePartnerSelection(turn) ?? false;
         internal TurnController SelectedNativeInputContext(TurnController turn) => Find(turn)?.SelectedNativeInputContext(turn) ?? turn;
+        internal TurnController PairedMovementContext(TurnController turn) => Find(turn)?.PairedMovementContext(turn) ?? turn;
+        internal CombatAction.ActionState PairedMovementPredictionState(CombatAction action, CombatAction.ActionState native)
+        {
+            foreach (var participant in SnapshotParticipants)
+                native = participant.PairedMovementPredictionState(action, native);
+            return native;
+        }
+        internal TurnController ActionsStateContext(Kingmaker.TurnBasedMode.ActionsState states)
+        {
+            foreach (var participant in SnapshotParticipants)
+            {
+                var context = participant.ActionsStateContext(states);
+                if (context != null) return context;
+            }
+            return null;
+        }
+        internal void FillPairedMountStates(Kingmaker.TurnBasedMode.PathVisualizer path, Kingmaker.TurnBasedMode.ActionsState states)
+        { foreach (var participant in SnapshotParticipants) participant.FillPairedMountStates(path, states); }
+        internal CombatAction PairedSlotAction(CombatAction native)
+        {
+            foreach (var participant in SnapshotParticipants)
+                native = participant.PairedSlotAction(native);
+            return native;
+        }
         internal TurnController NativeActorActionContext(TurnController turn, UnitEntityData actor) =>
             Find(actor)?.NativeActorActionContext(turn, actor) ?? turn;
         internal bool IsNativeActionContextActor(UnitEntityData actor) => Find(actor)?.IsNativeActionContextActor(actor) ?? actor.IsCurrentUnit();

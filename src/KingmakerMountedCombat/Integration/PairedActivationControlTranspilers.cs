@@ -80,6 +80,26 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        internal static IEnumerable<CodeInstruction> PredictionStateReads(IEnumerable<CodeInstruction> source,
+            MethodInfo predictionState, int expectedReads)
+        {
+            var code = source.ToList();
+            var sites = code.Where(i => Token(i, 0x06007034)).ToArray();
+            Require(sites.Length == expectedReads, "native path preview Move/Standard prediction readers");
+            foreach (var site in sites) { site.opcode = OpCodes.Call; site.operand = predictionState; }
+            return code;
+        }
+
+        internal static IEnumerable<CodeInstruction> SelectedMarker(IEnumerable<CodeInstruction> source, MethodInfo selected)
+        {
+            var code = source.ToList();
+            var sites = code.Where(i => i.operand is MethodInfo method && method.Name == "Contains" &&
+                method.DeclaringType == typeof(List<Kingmaker.EntitySystem.Entities.UnitEntityData>)).ToArray();
+            Require(sites.Length == 1, "native destination marker selected-unit test");
+            sites[0].opcode = OpCodes.Call; sites[0].operand = selected;
+            return code;
+        }
+
         internal static IEnumerable<CodeInstruction> FullAttackRestriction(IEnumerable<CodeInstruction> source,
             MethodInfo eligibleActor, MethodInfo actorContext)
         {
@@ -97,6 +117,34 @@ namespace KingmakerMountedCombat.Integration
             var first = new CodeInstruction(OpCodes.Ldarg_0);
             first.labels.AddRange(code[context].labels); code[context].labels.Clear();
             code.InsertRange(context, new[] { first, new CodeInstruction(OpCodes.Ldfld, actor) });
+            return code;
+        }
+
+        // Each CurrentTurn read in a native ActionsState method also passes that method's ActionsState (this or an
+        // argument), so the mount's private states read the mount's own context.
+        internal static IEnumerable<CodeInstruction> ActionsStateOwnerReads(IEnumerable<CodeInstruction> source, MethodInfo owner,
+            int stateArgument, int expected)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x0400064A) || Token(code[i], 0x06000BBE)).ToArray();
+            Require(sites.Length == expected && (stateArgument == 0 || stateArgument == 1), "native ActionsState owner context reader");
+            foreach (var site in sites.Reverse())
+                code.InsertRange(site + 1, new[] { new CodeInstruction(stateArgument == 0 ? OpCodes.Ldarg_0 : OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, owner) });
+            return code;
+        }
+
+        // The full-round prediction slot's own Move/Standard getter calls (tiny private getters Mono may inline) read the
+        // paired slot hooks instead, which take the slot instance the getter would have.
+        internal static IEnumerable<CodeInstruction> FullRoundSlotReads(IEnumerable<CodeInstruction> source, MethodInfo move, MethodInfo standard,
+            int moveSites, int standardSites)
+        {
+            var code = source.ToList();
+            var moves = code.Where(i => Token(i, 0x06004E01)).ToArray();
+            var standards = code.Where(i => Token(i, 0x06004E02)).ToArray();
+            Require(moves.Length == moveSites && standards.Length == standardSites, "native full-round slot Move/Standard readers");
+            foreach (var site in moves) { site.opcode = OpCodes.Call; site.operand = move; }
+            foreach (var site in standards) { site.opcode = OpCodes.Call; site.operand = standard; }
             return code;
         }
 
