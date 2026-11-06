@@ -988,7 +988,7 @@ try{
                 }elseif($null-eq$sourceCase){Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload}
                 elseif($sourceCase-ceq'area-dungeon-entry-auto'){
                     # F4: the dungeon entry's one after-entry Auto, from its own completed PASS producer, committed on the floor.
-                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase area-dungeon-entry -ArtifactRole transition-auto -ExpectedArea ([string]$fixturePayload.working.area)
+                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase area-dungeon-entry -ArtifactRole transition-auto -ExpectedArea '9d1278a2f599b2a4daab53abdfe88d2e'
                 }
                 elseif($sourceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){
                     # The transition autosave, selected by its producing run's

@@ -1758,7 +1758,7 @@ $deColdRows=@([pscustomobject]@{kind='auto-cold-loaded';detail=[pscustomobject]@
     [pscustomobject]@{kind='usable-continuation-complete';detail=$null})
 Assert-KmcDungeonEntryAutoColdEvidence $deColdRequest $deColdRows;$passes++
 foreach($bad in @('other-archive','hub-world','other-campaign','inherited-transfer','pending-transfer','duplicate-actor','unbound-view','foreign-view',
-    'no-movement','short-movement','no-attack','no-continuation','resave','failed-assertion','out-of-order','second-load','wrong-mode','manual-file')){
+    'no-movement','short-movement','no-attack','no-continuation','resave','failed-assertion','out-of-order','second-load','wrong-mode','manual-file','later-transfer')){
     $copy=($deColdRows|ConvertTo-Json -Depth 8)|ConvertFrom-Json;$req=$deColdRequest
     switch($bad){
         'other-archive' {$copy[0].detail.sourceSha256=('e'*64)}
@@ -1778,6 +1778,7 @@ foreach($bad in @('other-archive','hub-world','other-campaign','inherited-transf
         'out-of-order' {$copy=@($copy[1],$copy[0])+@($copy[2..5])}
         'second-load' {$copy=@($copy[0])+@($copy)}
         'wrong-mode' {$copy[0].detail.autoSaveMode='BeforeExit'}
+        'later-transfer' {$copy=@($copy)+@([pscustomobject]@{kind='area-reload-requested';detail=$null})}
         'manual-file' {$req=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='area-dungeon-entry-auto';fixture=$deFixture;persistenceAreaTarget=$deColdRequest.persistenceAreaTarget
             persistenceLoad=[pscustomobject]@{fileName='Manual_300_KMC_P01.zks';sha256=$deAutoSha;area=$deFloor}}}
     }
