@@ -38,10 +38,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private MapObjectView f4Container;
         private InteractionComponent f4Interaction;
         private UnitInteractWithObject f4Command;
-        private long f4BindBaseline, f4TrapStopBaseline;
+        private long f4BindBaseline, f4TerminalBaseline, f4TrapStopBaseline;
         private Finalize4LootObserver f4Loot;
         private GroupManager f4Group;
         private bool f4GoRequested, f4PreMoved;
+        private long f4ReplacedBaseline;
+        private Kingmaker.UnitLogic.Commands.Base.UnitCommand f4TravelCommand;
+
+        private bool Fail4(string error) { Require(false, error); return false; }
         private readonly HashSet<string> f4CaptureLegs = new HashSet<string>(StringComparer.Ordinal);
         private MovementScreenshotCaptureCoordinator f4Shots;
         private JArray f4Captures;
@@ -73,6 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 5:
                     if (secondMount.Commands.Empty && secondMount.View?.MovementAgent?.IsReallyMoving != true && Actors().All(Idle)) { f4Step = 0; Next(220); }
                     return false;
+                case 6: return F4ClickContainerWhileTravelling();
                 default: return true;
             }
         }
@@ -118,10 +123,36 @@ namespace KingmakerMountedCombat.Diagnostics
             SelectionManager.Instance.MultiSelect(originalParty.Where(u => u.View != null).Select(u => u.View).ToArray(), false);
             var selected = SelectionManager.Instance.SelectedUnits.ToArray();
             Require(selected.Length >= 2 && selected.Contains(secondRider) && !selected.Contains(secondMount), "Native selection did not take the group with the pair through its rider.");
-            var combat = F4Combat; f4BindBaseline = combat.CarriedApproachBindCount; f4TrapStopBaseline = F4Relationship.TrapGroupStopForwardCount;
+            // F4 completion control (review MAJOR): the chest order is given while the group is already travelling, so the
+            // carried approach must replace exactly that earlier pair travel. A short ordinary group move sideways first.
+            var side = Vector3.Cross(Vector3.up, (f4Container.transform.position - horse).normalized);
+            f4TravelGoal = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(horse + side * 5f).clampedPosition;
+            ClickGroundHandler.MoveSelectedUnitsToPoint(f4TravelGoal, false);
+            f4TravelSelected = selected; f4TravelChosenDistance = chosen.Distance; f4TravelOrderedAt = Time.frameCount;
+            f4["travelBeforeOrder"] = new JObject { ["goal"] = Point(f4TravelGoal), ["frame"] = Time.frameCount, ["inputPath"] = "ClickGroundHandler.MoveSelectedUnitsToPoint" };
+            f4Step = 6; Next(225); return false;
+        }
+
+        private Vector3 f4TravelGoal;
+        private UnitEntityData[] f4TravelSelected;
+        private float f4TravelChosenDistance;
+        private int f4TravelOrderedAt;
+
+        // The chest click once the Horse is actually travelling on the group order (bounded by the step deadline).
+        private bool F4ClickContainerWhileTravelling()
+        {
+            var agent = secondMount.View?.MovementAgent;
+            var travel = secondMount.Commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
+            if (agent == null || !agent.IsReallyMoving || travel == null || travel.IsFinished) return Time.frameCount - f4TravelOrderedAt > 90 ? Fail4("The group travel order never moved the Horse.") : false;
+            var selected = f4TravelSelected; var horse = secondMount.Position;
+            ((JObject)f4["travelBeforeOrder"])["travelCommandObject"] = Id(travel);
+            ((JObject)f4["travelBeforeOrder"])["horseMovingAtClick"] = true;
+            var chosenDistance = f4TravelChosenDistance;
+            var combat = F4Combat; f4ReplacedBaseline = combat.CarriedApproachReplacedTravelCount; f4TravelCommand = travel; f4BindBaseline = combat.CarriedApproachBindCount; f4TerminalBaseline = combat.CarriedApproachTerminalCount; f4TrapStopBaseline = F4Relationship.TrapGroupStopForwardCount;
             var before = new JObject { ["selectedIds"] = new JArray(selected.Select(u => u.UniqueId)), ["horseStart"] = Point(horse),
                 ["riderStart"] = Point(secondRider.Position), ["containerPosition"] = Point(f4Container.transform.position), ["container"] = f4Container.name,
-                ["containerId"] = f4Container.Data?.UniqueId, ["distanceAtClick"] = chosen.Distance, ["frame"] = Time.frameCount };
+                ["containerId"] = f4Container.Data?.UniqueId, ["distanceAtClick"] = Vector3.Distance(f4Container.transform.position, horse),
+                ["distanceAtChoice"] = chosenDistance, ["frame"] = Time.frameCount };
             var handler = Game.Instance.DefaultPointerController?.GetHandler<ClickMapObjectHandler>();
             Require(handler != null, "The native map-object click handler is unavailable.");
             before["clicked"] = handler.OnClick(f4Container.gameObject, f4Container.transform.position, 0);
@@ -140,18 +171,28 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var combat = F4Combat; var order = (JObject)f4["containerOrder"];
             if (combat.CarriedApproachBindCount > f4BindBaseline) order["carriedBound"] = true;
-            if (!f4Command.IsFinished || combat.HasLiveCarriedApproach) return false;
+            // r02 correction: the bound approach publishes its terminal record on the controller's update after the command ends;
+            // wait (bounded by the step deadline) for that terminal, never an earlier or arbitrary outcome.
+            if (!f4Command.IsFinished || combat.HasLiveCarriedApproach || combat.CarriedApproachTerminalCount == f4TerminalBaseline) return false;
             var outcome = combat.LastCarriedApproachOutcome;
+            order["terminalsSinceClick"] = combat.CarriedApproachTerminalCount - f4TerminalBaseline;
+            order["terminalMatchesOrder"] = outcome != null && outcome.TargetId == f4Container.Data?.UniqueId && outcome.Kind == MountedCarriedCommandKind.ContainerInteraction.ToString();
             order["executorId"] = f4Command.Executor?.UniqueId; order["result"] = f4Command.Result.ToString();
             order["carriedBinds"] = combat.CarriedApproachBindCount - f4BindBaseline;
             order["carriedOutcome"] = outcome == null ? null : new JObject { ["kind"] = outcome.Kind, ["satisfied"] = outcome.Satisfied,
                 ["moveStarts"] = outcome.DelegatedMoveStartCount, ["distance"] = outcome.DistanceAtSatisfaction, ["los"] = outcome.LineOfSightAtSatisfaction,
-                ["slotRestored"] = outcome.MountMoveSlotRestored, ["reason"] = outcome.TerminalReason };
+                ["slotRestored"] = outcome.MountMoveSlotRestored, ["reason"] = outcome.TerminalReason, ["targetId"] = outcome.TargetId, ["commandType"] = outcome.CommandType, ["result"] = outcome.Result };
             order["horseEnd"] = Point(secondMount.Position); order["horseDisplacement"] = HorizontalDistance(secondMount.Position, Vec((JObject)order["horseStart"]));
             order["riderToContainerAtEnd"] = Vector3.Distance(secondRider.Position, f4Container.transform.position);
             order["stillMounted"] = Mounted(secondRider, secondMount);
             order["lootInteractions"] = new JArray(f4Loot.Events.Select(e => new JObject { ["unitId"] = e.Key, ["frame"] = e.Value }));
             order["trapStopsForwarded"] = F4Relationship.TrapGroupStopForwardCount - f4TrapStopBaseline;
+            order["replacedTravel"] = combat.CarriedApproachReplacedTravelCount - f4ReplacedBaseline;
+            order["earlierTravelFinished"] = f4TravelCommand != null && f4TravelCommand.IsFinished;
+            order["earlierTravelResult"] = f4TravelCommand?.Result.ToString();
+            // Other selected members keep their own group travel natively (a chest order stops nobody else).
+            order["othersAfter"] = new JArray(f4TravelSelected.Where(u => u != secondRider).Select(u => new JObject { ["id"] = u.UniqueId,
+                ["distanceToTravelGoal"] = HorizontalDistance(u.Position, f4TravelGoal) }));
             order["frameEnd"] = Time.frameCount;
             f4Step = 2; Next(221); return false;
         }
@@ -207,14 +248,61 @@ namespace KingmakerMountedCombat.Diagnostics
                 f4Shots = new MovementScreenshotCaptureCoordinator(F4CaptureCommitted, (capture, error) =>
                     f4Captures.Add(new JObject { ["leg"] = capture.Milestone, ["error"] = error }), logger);
             var agent = secondMount.View?.MovementAgent; var manager = secondMount.View?.AnimationManager;
-            if (leg != null && !f4CaptureLegs.Contains(leg) && agent != null && agent.IsReallyMoving && agent.Speed > 1f && manager != null)
+            // Steady motion first: the Horse has moved for 15 frames on its own native command.
+            if (leg != null && agent != null && agent.IsReallyMoving && agent.Speed > 0.5f && manager != null)
             {
-                f4CaptureLegs.Add(leg);
-                Game.Instance.UI.GetCameraRig()?.ScrollToImmediately(secondMount.Position);
-                f4["gaitAt_" + leg] = F4Gait();
-                f4Shots.Enqueue("finalize4-gait", leg, Time.frameCount + 2);
+                int moving; f4MovingFrames.TryGetValue(leg, out moving); f4MovingFrames[leg] = ++moving;
+                if (moving == 15 && !f4CaptureLegs.Contains(leg))
+                {
+                    f4CaptureLegs.Add(leg);
+                    Game.Instance.UI.GetCameraRig()?.ScrollToImmediately(secondMount.Position);
+                    f4["gaitAt_" + leg] = F4Gait();
+                    // An ordered short motion sample: four frames about a twelfth of a second apart, for inspection.
+                    for (var index = 1; index <= 4; index++) f4Shots.Enqueue("finalize4-gait", leg + "-" + index, Time.frameCount + 2 + (index - 1) * 5);
+                    f4Motion[leg] = new JArray();
+                }
+                JArray trace;
+                if (f4Motion.TryGetValue(leg, out trace) && trace.Count < 40) trace.Add(F4MotionSample());
             }
             f4Shots.Pump(Time.frameCount);
+        }
+
+        private readonly Dictionary<string, int> f4MovingFrames = new Dictionary<string, int>(StringComparer.Ordinal);
+        private readonly Dictionary<string, JArray> f4Motion = new Dictionary<string, JArray>(StringComparer.Ordinal);
+
+        // Velocity, command limit, gait and the locomotion playback driver at one frame (presentation is read, never written).
+        private JObject F4MotionSample()
+        {
+            var agent = secondMount.View.MovementAgent; var manager = secondMount.View.AnimationManager;
+            var command = secondMount.Commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
+            var loco = manager.ActiveActions.FirstOrDefault(a => a.Action is Kingmaker.Visual.Animation.Kingmaker.Actions.UnitAnimationActionLocoMotion);
+            return new JObject { ["frame"] = Time.frameCount, ["deltaTime"] = Time.deltaTime, ["position"] = Point(secondMount.Position),
+                ["agentSpeed"] = agent.Speed, ["speedLimit"] = command?.SpeedLimit, ["walkSpeedType"] = manager.WalkSpeedType.ToString(),
+                ["animationSpeed"] = manager.Speed, ["locoAction"] = loco?.Action?.name, ["locoAnimation"] = loco?.ActiveAnimation?.GetType().Name };
+        }
+
+        // The genuine slow control: the native Slowed condition halves the Horse's own speed (CalculateSpeedModifier), the
+        // regime in which the native gait is Slow and the F4 presentation must leave it so. Disclosed setup, removed after.
+        private bool f4SlowedApplied;
+
+        private void BeginFinalize4SlowLeg()
+        {
+            Require(!f4SlowedApplied, "The slowed control runs once.");
+            var before = secondMount.ModifiedSpeedMps;
+            secondMount.Descriptor.State.AddCondition(Kingmaker.UnitLogic.UnitCondition.Slowed);
+            f4SlowedApplied = true;
+            ((JArray)f4["disclosedSetup"]).Add("native Slowed condition on the Horse for the slow-control leg only (removed after the leg)");
+            f4["slowControl"] = new JObject { ["modifiedSpeedBefore"] = before, ["modifiedSpeedSlowed"] = secondMount.ModifiedSpeedMps,
+                ["blueprintSpeedMps"] = secondMount.Blueprint.Speed.Meters / 3f };
+            BeginSpeedLeg("mounted-slowed", SpeedLegSelection.SecondRiderAlone);
+        }
+
+        private void EndFinalize4SlowLeg()
+        {
+            if (!f4SlowedApplied) return;
+            secondMount.Descriptor.State.RemoveCondition(Kingmaker.UnitLogic.UnitCondition.Slowed);
+            f4SlowedApplied = false;
+            if (f4["slowControl"] is JObject slow) { slow["modifiedSpeedAfter"] = secondMount.ModifiedSpeedMps; slow["removed"] = true; }
         }
 
         private JObject F4Gait()
@@ -245,11 +333,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (f4 == null) return;
             f4["trotTicksTotal"] = MountedAnimationAdapter.NaturalGaitTrotTicks;
             f4["lastTrotSpeedLimit"] = MountedAnimationAdapter.LastNaturalGaitSpeedLimit;
+            f4["motion"] = new JObject(f4Motion.Select(pair => new JProperty(pair.Key, pair.Value)));
             DisposeFinalize4();
         }
 
         private void DisposeFinalize4()
         {
+            if (f4SlowedApplied && secondMount != null) EndFinalize4SlowLeg();
             if (f4Loot != null) { f4Loot.Dispose(); f4Loot = null; }
             if (f4Shots != null) { f4Shots.Dispose(); f4Shots = null; }
             if (f4Group != null && f4Group.gameObject.activeSelf && ReferenceEquals(Game.Instance?.UI?.Canvas?.GroupManager, f4Group)) f4Group.Close();
