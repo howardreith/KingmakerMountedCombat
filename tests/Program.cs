@@ -381,12 +381,12 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
                 {
                     // F4 dungeon entry: save-only, exactly the pinned hub entry with AfterEntry, from the Working fixture floor.
                     var request = ValidSaveBackedRequest();
-                    request.Fixture.Working.Area = RuntimeRequest.DungeonEntryFloorArea;
+                    request.Fixture.Working.Area = RuntimeRequest.DungeonEntryFloorArea; request.Fixture.Baseline.Area = RuntimeRequest.DungeonEntryFloorArea;
                     request.Scenario = "persistence-p07-save"; request.PersistenceCase = RuntimeRequest.DungeonEntryCase;
                     TestRunner.True(request.Validate().Count > 0, "Dungeon entry accepted no declared route.");
                     request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget { EnterPoint = RuntimeRequest.DungeonEntryHubEnterPoint,
                         Area = RuntimeRequest.DungeonEntryHubArea, AutoSaveMode = "AfterEntry" };
-                    TestRunner.Equal(0, request.Validate().Count, "Exact dungeon entry rejected.");
+                    TestRunner.Equal(0, request.Validate().Count, "Exact dungeon entry rejected: " + string.Join("; ", request.Validate()));
                     var declared = request.PersistenceAreaTarget;
                     foreach (var bad in new[] {
                         new RuntimeAreaTransitionTarget { EnterPoint = new string('d', 32), Area = declared.Area, AutoSaveMode = "AfterEntry" },
@@ -398,9 +398,9 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
                         TestRunner.True(request.Validate().Count > 0, "Dungeon entry accepted another route or mode.");
                     }
                     request.PersistenceAreaTarget = declared;
-                    var floor = request.Fixture.Working.Area; request.Fixture.Working.Area = new string('a', 32);
+                    var floor = request.Fixture.Working.Area; request.Fixture.Working.Area = request.Fixture.Baseline.Area = new string('a', 32);
                     TestRunner.True(request.Validate().Count > 0, "Dungeon entry accepted another fixture area.");
-                    request.Fixture.Working.Area = floor;
+                    request.Fixture.Working.Area = request.Fixture.Baseline.Area = floor;
                     request.Scenario = "persistence-p07-load";
                     TestRunner.True(request.Validate().Count > 0, "Dungeon entry accepted a cold-load scenario.");
                 }
