@@ -1,4 +1,13 @@
-# F4 resume — final review stop after the final reload execution mission (2026-11-06)
+# F4 resume — final review stop, reload PASS (2026-11-06)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
+- **State:** F4 ENGINEERING PARTIAL — WORLD-02 INPUT BLOCKED ONLY.
+  - r08 (entrance) and r10 (reload) PASS on the same DLL 3240963f…/cc86d1d6.
+  - 10 of 10 starts used, at 68.17/80 min.
+- **Not authorized:** an eleventh start, merge, release, publication, or F5.
+- **Only remaining item:** the native trap attempt, which needs the owner's Manual trap save.
+
+# F4 resume — final review stop after the final reload execution mission (2026-11-06, superseded above)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions (head 82689ab7 plus records); draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL.
