@@ -126,6 +126,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     entries.Add(new PersistenceSaveEntry {
                         FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
+                // F2: the producer's second Manual (the control removed) takes the next native Manual number; the
+                // consumer opens it read-only after its cold load of the first.
+                if (request.IsFinalize2UpgradeProducer)
+                    entries.Add(new PersistenceSaveEntry { FileName = RuntimeRequest.Finalize2RemovedSaveLeaf,
+                        InternalName = RuntimeRequest.Finalize2RemovedSaveName, SaveType = "Manual", Area = fixture.Area, Writable = true });
+                if (request.IsFinalize2UpgradeConsumer)
+                {
+                    var removed = request.PersistenceAlternate;
+                    entries.Add(new PersistenceSaveEntry { FileName = removed.FileName, InternalName = removed.InternalName,
+                        SaveType = "Manual", Area = removed.Area, InitialSha256 = removed.Sha256, Writable = false });
+                }
                 if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p04-save") entries.Add(new PersistenceSaveEntry
                 {
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,

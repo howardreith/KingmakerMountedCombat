@@ -102,7 +102,8 @@ namespace KingmakerMountedCombat
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsFinalize2ControlsScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsFinalize2ControlsScenario(runtimeAutomation.Request.Scenario) &&
+                    runtimeAutomation.Request.Finalize2Controls != true;
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

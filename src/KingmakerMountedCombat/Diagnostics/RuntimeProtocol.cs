@@ -161,6 +161,16 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool IsUpgradeResave => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "quick";
         internal bool IsUpgradeConsumer => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "manual";
 
+        // F2: the upgrade chain also carries the public control. The producer records the authentic old slot mapping,
+        // the first placement and two native Manuals (the control kept at a chosen slot; the control removed); the
+        // consumer loads both in one new process. Explicit true, only beside the upgrade chain.
+        public bool? Finalize2Controls { get; set; }
+        public bool ShouldSerializeFinalize2Controls() => Finalize2Controls.HasValue;
+        internal bool IsFinalize2UpgradeProducer => Finalize2Controls == true && IsUpgradeResave;
+        internal bool IsFinalize2UpgradeConsumer => Finalize2Controls == true && IsUpgradeConsumer;
+        internal const string Finalize2RemovedSaveName = "KMC_F2_REMOVED";
+        internal const string Finalize2RemovedSaveLeaf = "Manual_2_KMC_F2_REMOVED.zks";
+
         // Private, guarded F11 measurement only. The native observer is not a
         // package member and ordinary requests cannot name or load native code.
         public F11NativeAllocationSelection F11AllocationProbe { get; set; }
@@ -312,6 +322,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Scenario != "persistence-p05-load" || PersistenceLoad == null ||
                 (PersistenceCase != "quick" && PersistenceCase != "manual")))
                 errors.Add("The upgrade chain is an explicit true opt-in for the P05 Quick cold load that resaves (producer) and the P05 Manual cold load of that resave (consumer).");
+            if (Finalize2Controls.HasValue && (Finalize2Controls != true || UpgradeChain != true))
+                errors.Add("The F2 public-control upgrade chain is an explicit true opt-in beside the upgrade chain only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
@@ -1186,7 +1198,20 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Alternating archive must be distinct and from the exact same native campaign/area.");
                 }
             }
-            else if (PersistenceAlternate != null) errors.Add("Only exact P05 alternating or P06 validation loads may select a second archive.");
+            else if (IsFinalize2UpgradeConsumer)
+            {
+                // F2: the producer's second output, the same actor with its public control deliberately removed.
+                if (PersistenceAlternate == null) errors.Add("The F2 upgrade consumer requires the producer's removed-control archive.");
+                else
+                {
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", Finalize2RemovedSaveName, "^" + Finalize2RemovedSaveLeaf.Replace(".", "\\.") + "$"));
+                    if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                        PersistenceAlternate.GameId != PersistenceLoad.GameId || PersistenceAlternate.GameName != PersistenceLoad.GameName ||
+                        PersistenceAlternate.Area != PersistenceLoad.Area)
+                        errors.Add("The F2 removed-control archive must be distinct and from the exact same native campaign/area.");
+                }
+            }
+            else if (PersistenceAlternate != null) errors.Add("Only exact P05 alternating, the F2 upgrade consumer or P06 validation loads may select a second archive.");
             if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
             {
                 errors.Add("Schema v2 uses only its exact fixture write authorization.");

@@ -407,6 +407,31 @@ public static class Chunk7PersistenceTests
         var unmounted = Historical(); unmounted.Mounted = false; unmounted.Rider = null; unmounted.Mount = null;
         Check(unmounted.SemanticRestoreActorIds().Length == 2 && unmounted.ExpectedPresentationRestoreCount == 0,
             "cold expectation: an unmounted legacy combat save presents nothing");
+        // F2: kinds 6 and 7 through the production archive codec. A control in slot 0 beside its placement record, an actor
+        // whose control was removed (its record only) and the old aliases 1, 2 and 5 round-trip exactly; a second record,
+        // two rows in one slot, a record off index 0, a slot past 127 and an unknown kind are refused.
+        var f2 = Archive(1); var f2Rider = f2.Pairs[0].Rider.Id; var f2Removed = Actor().Id; var f2Old = Actor().Id;
+        f2.Slots = new[] {
+            new SavedMountedSlot { ActorId = f2Rider, Index = 0, Kind = 6 }, new SavedMountedSlot { ActorId = f2Rider, Index = 0, Kind = 7 },
+            new SavedMountedSlot { ActorId = f2Removed, Index = 0, Kind = 7 },
+            new SavedMountedSlot { ActorId = f2Old, Index = 3, Kind = 2 }, new SavedMountedSlot { ActorId = f2Old, Index = 4, Kind = 1 },
+            new SavedMountedSlot { ActorId = f2Old, Index = 5, Kind = 5 } };
+        var f2Json = MountedArchiveCodec.Encode(f2); var f2Read = MountedArchiveCodec.Decode(f2Json);
+        Check(f2Read.Kind == MountedSaveReadKind.Current && f2Read.Data.Slots.Length == 6 &&
+            f2.Slots.All(s => f2Read.Data.Slots.Count(r => r.ActorId == s.ActorId && r.Index == s.Index && r.Kind == s.Kind) == 1) &&
+            MountedArchiveCodec.Encode(f2Read.Data) == f2Json,
+            "F2 archive: slot 0 beside its record, a record-only removed control and old aliases 1/2/5 round-trip exactly");
+        Func<string, int, int, string> f2With = (actor, index, kind) =>
+        {
+            var tree = JObject.Parse(f2Json);
+            ((JArray)tree["Slots"]).Add(new JObject { ["ActorId"] = actor, ["Index"] = index, ["Kind"] = kind });
+            return tree.ToString(Formatting.None);
+        };
+        Reject(f2With(f2Rider, 0, 7), "F2 archive refuses a second placement record for one actor");
+        Reject(f2With(f2Old, 3, 6), "F2 archive refuses two rows in one slot");
+        Reject(f2With(f2Old, 1, 7), "F2 archive refuses a placement record off index 0");
+        Reject(f2With(f2Removed, 128, 6), "F2 archive refuses a control slot past 127");
+        Reject(f2With(f2Removed, 9, 8), "F2 archive refuses an unknown slot kind");
         Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
     }
 }
