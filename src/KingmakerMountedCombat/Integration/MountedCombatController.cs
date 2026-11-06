@@ -142,6 +142,7 @@ namespace KingmakerMountedCombat.Integration
         internal long StockAttackDuplicateDispatchCount { get; private set; }
 
         internal string LastStockAttackObservation { get; private set; } = "not-observed";
+        internal string LastStandardRefusalTrace { get; private set; } = "not-observed";
 
         internal bool StockIntentIsAutomatic => stockIntent.Automatic;
 
@@ -1404,7 +1405,16 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (stockIntentCommand == null)
                 {
-                    LastFeedback = "No Standard action remains for this actor's attack.";
+                    var spent = stockIntent.MountActor ? mount : rider;
+                    var partner = stockIntent.MountActor ? rider : mount;
+                    LastFeedback = UnifiedMountedStockAttackPolicy.NoStandardFeedback(spent?.CharacterName,
+                        partner?.CharacterName, partner != null && partner.HasStandardAction());
+                    LastStandardRefusalTrace = "actor=" + spent?.UniqueId +
+                        ";riderStandard=" + rider?.CombatState.Cooldown.StandardAction.ToString("R") +
+                        ";riderMove=" + rider?.CombatState.Cooldown.MoveAction.ToString("R") +
+                        ";mountStandard=" + mount?.CombatState.Cooldown.StandardAction.ToString("R") +
+                        ";mountMove=" + mount?.CombatState.Cooldown.MoveAction.ToString("R");
+                    logger.Info("Mounted stock attack refused for its spent actor: " + LastStandardRefusalTrace);
                     ShowStockFeedback();
                 }
                 ClearStockAttackIntent("native actor resources exhausted", false);

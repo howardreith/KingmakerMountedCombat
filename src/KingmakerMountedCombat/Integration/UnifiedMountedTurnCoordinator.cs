@@ -129,6 +129,8 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal GameMountedRelationshipService Relationship => relationship;
+        // Diagnostic read: a copy of the mount's recorded movement allocation, or null.
+        internal MountedMovementState PeekMountAllocation() => movementState?.PeekMovement(relationship.Mount);
         internal bool IsDisposed => disposed;
         internal bool BelongsToWorld(UnifiedMountedTurnCoordinator owner) => ReferenceEquals(world, owner);
         internal bool CanRetire => !disposed && relationship.State == RelationshipState.Unmounted &&
@@ -455,7 +457,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool BeginTrackerProjection()
         {
-            if (disposed || !Enabled || !CombatController.IsInTurnBasedCombat())
+            if (disposed || !Enabled && !PairedLifecycleEnabled || !CombatController.IsInTurnBasedCombat())
             {
                 return false;
             }
@@ -482,10 +484,12 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var controller = Game.Instance?.TurnBasedCombatController;
+            var current = controller?.CurrentTurn?.Unit;
             var original = units.ToArray();
+            // A paired native current unit keeps its entry: the tracker's current view needs it.
             var filtered = original.Where(unit => !ShouldSuppressMount(
                 unit,
-                controller?.RoundNumber ?? 0)).ToArray();
+                controller?.RoundNumber ?? 0) && (unit == current || !HidesPairedTrackerEntry(unit))).ToArray();
             if (filtered.Length == original.Length)
             {
                 return;

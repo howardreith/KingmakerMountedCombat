@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Tests
             foreach (var refusal in new[] { "FAIL: state=Unmounted, errors=movement cleanup failed",
                 "Mounted pair command failed closed: InvalidOperationException.",
                 "Mounted pair scheduler rejected native admission: actor busy.",
-                "No Standard action remains for this actor's attack.", "An unfamiliar error from the game." })
+                "Mounted Swordsman has no Standard action left this turn. Select Horse to attack with it.", "An unfamiliar error from the game." })
                 TestRunner.True(!MountedFeedbackPresentationPolicy.IsRoutine(refusal), "Failure hidden: " + refusal);
         }
 

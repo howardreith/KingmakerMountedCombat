@@ -43,6 +43,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DeclaredMemberCommandPolicy.cs"><Link>Shared\Diagnostics\DeclaredMemberCommandPolicy.cs</Link></Compile>
     <Compile Include="DeclaredMemberCommandPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\InterruptedEvidenceFinalizer.cs"><Link>Shared\Diagnostics\InterruptedEvidenceFinalizer.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\Finalize3CleanupEscModePolicy.cs"><Link>Shared\Diagnostics\Finalize3CleanupEscModePolicy.cs</Link></Compile>
     <Compile Include="InterruptedEvidenceFinalizerTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ObserverIdentityTests.cs" />
@@ -132,6 +133,7 @@
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
+    <Compile Include="Finalize3MovementEconomyTests.cs" />
     <Compile Include="MountedChargeSafetyTests.cs" />
     <Compile Include="DivineMountPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\FeatSelectorSelectionPolicy.cs" />
@@ -306,6 +308,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStockAttack.cs"><Link>Shared\Domain\MountedStockAttack.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedMovePrepayment.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedMovementState.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedMovementInputPolicy.cs"><Link>Shared\Domain\PairedMovementInputPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ActorAllocationLifetime.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs"><Link>Shared\Domain\OptionalPublicPropertyReader.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedCommandScheduler.cs"><Link>Shared\Domain\PairedCommandScheduler.cs</Link></Compile>
