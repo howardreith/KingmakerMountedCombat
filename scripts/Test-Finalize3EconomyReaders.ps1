@@ -33,7 +33,7 @@ function New-F3Shot([string]$Name){ [ordered]@{name=$Name;requestedFrame=1;frame
 # Reader r3: a live prediction-panel slot and a genuine ground-hover record (feet, as the native panel reports).
 function New-F3Slot([string]$Owner,[string]$State,[string]$Move,[string]$Attack,[double]$Possible,[double]$Remaining){ [ordered]@{owner=$Owner;state=$State;moveActivity=$Move;attackActivity=$Attack;possible=$Possible;remaining=$Remaining;predicted=0.0} }
 function New-F3PanelStep($FiveFeet,$Move,$Standard,$Probe){ [ordered]@{distance=3.0;point=[ordered]@{x=0;y=0;z=0};panel=[ordered]@{frame=1;fiveFeet=$FiveFeet;move=$Move;standard=$Standard;
-  fullRound=(New-F3Slot 'mount' $Standard.state $Standard.moveActivity $Standard.attackActivity $Standard.possible $Standard.remaining);swift=(New-F3Slot 'rider' 'Available' $null $null 0 0)};probe=$Probe} }
+  fullRound=(New-F3Slot 'mount' $Standard.state $Standard.moveActivity $Standard.attackActivity ($Move.possible+$Standard.possible) ($Move.remaining+$Standard.remaining));swift=(New-F3Slot 'rider' 'Available' $null $null 0 0)};probe=$Probe} }
 function New-F3Measure([string]$Mode,$Cases,$Shots,[hashtable]$Extra=@{}){
  $m=[ordered]@{contract=$(if($Mode -ceq 'TB'){'finalize3-movement-economy-v2'}else{'finalize3-movement-economy-v1'});mode=$Mode;rider=$ar;mount=$am;secondRider=$br;secondMount=$bm;secondPairSource='existing-pet';cases=@($Cases);startRelationship='Unmounted';
   names=[ordered]@{aRider='Valerie';aMount='Arrow';bRider='Harrim';bMount='Blaze'};stockCharge=$id.stockCharge;mountedChargeShell=$id.mountedChargeShell;
@@ -68,7 +68,7 @@ function New-F3TbArtifact {
  $bMoved=New-F3Snap $r1 @{bRider=(New-F3Actor $br 6.0 3.0);bMount=(New-F3Actor $bm 0.0 1.2)} @{turnRole='bRider'}
  $b=[ordered]@{case='F3-tb-b-round1';steps=[ordered]@{
   start=[ordered]@{snap=$bStart;probe=(New-F3Probe 'bMount' 15.0 30.0);participation=[ordered]@{present=$true;mountPrepared=$true};tracker=(New-F3Tracker 'b-round1-start' $r1)};
-  b1=(New-F3Step $bStart $bFull 0.0 @{probe=(New-F3Probe 'bMount' 15.0 30.0);actorRules=2;attackObserved=$true;clicked=$true;enabledFullAttack=$true;hoverChangedState=$false;cursorCycles=1;
+  b1=(New-F3Step $bStart $bFull 0.0 @{probe=(New-F3Probe 'bMount' 15.0 30.0);actorRules=2;attackObserved=$true;clicked=$true;selectedRole='bRider';enabledFullAttack=$true;hoverChangedState=$false;cursorCycles=1;
    estimatedFullAttacks=2;riderHasFullRound=$true;riderDistanceToTarget=1.2;riderHasNormalMovement=$false;riderLimit='FiveFootStep';
    attackStarted=[ordered]@{facts=[ordered]@{type='MountedPairAttackCommand';executor=$br;isFullAttack=$true;isSingleAttack=$false;plannedAttacks=2;deliveredAttacks=0;shouldApproach=$false;isFinished=$false;result='None'};snap=$bStart};
    attack=[ordered]@{type='MountedPairAttackCommand';executor=$br;isFullAttack=$true;isSingleAttack=$false;plannedAttacks=2;deliveredAttacks=2;shouldApproach=$false;isFinished=$true;result='Success'}});
@@ -228,14 +228,16 @@ $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel | Add-Member error
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.move.owner='rider'; Reject $r 'a Move slot still describing the rider refuses' $tbRequest 'the move slot does not describe the mount'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.swift.owner='mount'; Reject $r 'a Swift slot moved to the mount refuses' $tbRequest 'the Swift slot left the rider'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.move.moveActivity='Used'; Reject $r 'a full attack that made mount travel look spent refuses' $tbRequest 'B1 panel: the full attack did not make'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2Panel.panel.move.remaining=49; Reject $r 'a partial mount move shown as an untouched Move refuses (B2)' $tbRequest 'B2 panel: the partial mount move'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a2Panel.panel.move.remaining=49; Reject $r 'a partial mount move shown as an untouched Move refuses (A2)' $tbRequest 'A2 panel: the partial mount move'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2Panel.panel.move.remaining=49; (Row $r 'F3-tb-b-round1').steps.b2Panel.panel.fullRound.remaining=98; Reject $r 'a partial mount move shown as an untouched Move refuses (B2)' $tbRequest 'B2 panel: the partial mount move'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a2Panel.panel.move.remaining=49; (Row $r 'F3-tb-a-round1').steps.a2Panel.panel.fullRound.remaining=98; Reject $r 'a partial mount move shown as an untouched Move refuses (A2)' $tbRequest 'A2 panel: the partial mount move'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1Panel.panel.fiveFeet.state='Available'; Reject $r 'a spent step advertised on the panel refuses' $tbRequest 'S1 panel: no five-foot step left'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.moveActivity='Available'; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.remaining=20; Reject $r 'travel advertised after the delivered Charge refuses' $tbRequest 'C2 panel: no ground travel'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.moveActivity='Available'; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.remaining=20; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.fullRound.remaining=20; Reject $r 'travel advertised after the delivered Charge refuses' $tbRequest 'C2 panel: no ground travel'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1Panel.panel.standard.moveActivity='Unable'; Reject $r 'remaining conversion travel hidden on the panel refuses' $tbRequest 'D1 panel: the remaining conversion travel'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1Panel.panel.standard.attackActivity='Available'; Reject $r 'a converted Standard offering an attack refuses' $tbRequest 'D1 panel: the converted Standard offers no attack'
 $r=Copy-F3 $tb; $r.observations.finalize3Economy.contract='finalize3-movement-economy-v1'; Reject $r 'v1 turn-based evidence (r03 contract) refuses under reader r3' $tbRequest 'measurement contract differs'
 $r=Copy-F3 $rt; $r.observations.finalize3Economy.contract='finalize3-movement-economy-v2'; Check (Accept $r $rtRequest) 'real-time evidence is accepted under either contract (RT rows unchanged)'
+$r=Copy-F3 $tb; (B1 $r).selectedRole='bMount'; Reject $r 'a full attack issued with the mount selected refuses' $tbRequest 'B1 the rider is the selection at the attack input'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.fullRound.remaining=60; Reject $r 'a full-round slot mixing the rider Move with the mount Standard refuses' $tbRequest 'the full-round remaining is not the mount Move plus Standard'
 # Item 8 refusals
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a4Refusal.feedback='No Standard action remains for this actor''s attack.'; Reject $r 'refusal not naming the actor refuses' $tbRequest 'A4 refusal names the rider'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d2.feedback='Valerie has no Standard action left this turn.'; Reject $r 'mount refusal naming the rider refuses' $tbRequest 'D2 refusal names the mount'

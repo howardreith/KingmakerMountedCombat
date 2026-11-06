@@ -256,8 +256,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelStandardActionVM), "get_CombatAction", 0x06004E0F, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
                 var fullRoundSlot = typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFullRoundActionVM);
                 PatchExact(fullRoundSlot, "get_CombatAction", 0x06004E00, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
-                PatchExact(fullRoundSlot, "get_MoveAction", 0x06004E01, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
-                PatchExact(fullRoundSlot, "get_StandardAction", 0x06004E02, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                PatchExact(fullRoundSlot, "UpdateStates", 0x06004E04, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundStatesTranspiler));
+                PatchExact(fullRoundSlot, "UpdateDistance", 0x06004E08, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundDistanceTranspiler));
+                PatchExact(fullRoundSlot, "GetActivityText", 0x06004E07, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundTextTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "Update", 0x06002D64, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPrimaryMarkerTranspiler));
@@ -1014,6 +1015,31 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (PatchBridge.UnifiedTurn != null) __result = PatchBridge.UnifiedTurn.PairedSlotAction(__result);
             }
+            private static readonly FieldInfo SlotController = ExactSlotController();
+            private static FieldInfo ExactSlotController()
+            {
+                var field = typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelActionVM).GetField("Controller", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (field == null || field.MetadataToken != 0x04003463) throw new MissingFieldException("PredictionPanelActionVM", "Controller exact token 04003463");
+                return field;
+            }
+            private static Kingmaker.TurnBasedMode.ActionsState SlotStates(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFullRoundActionVM slot) =>
+                ((TurnController)SlotController.GetValue(slot)).ActionsStates;
+            internal static Kingmaker.TurnBasedMode.Controllers.CombatAction PairedFullRoundMove(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFullRoundActionVM slot)
+            {
+                var native = SlotStates(slot).Move;
+                return PatchBridge.UnifiedTurn?.PairedSlotAction(native) ?? native;
+            }
+            internal static Kingmaker.TurnBasedMode.Controllers.CombatAction PairedFullRoundStandard(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFullRoundActionVM slot)
+            {
+                var native = SlotStates(slot).Standard;
+                return PatchBridge.UnifiedTurn?.PairedSlotAction(native) ?? native;
+            }
+            internal static IEnumerable<CodeInstruction> PairedFullRoundStatesTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.FullRoundSlotReads(instructions, Hook(nameof(PairedFullRoundMove)), Hook(nameof(PairedFullRoundStandard)), 9, 9);
+            internal static IEnumerable<CodeInstruction> PairedFullRoundDistanceTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.FullRoundSlotReads(instructions, Hook(nameof(PairedFullRoundMove)), Hook(nameof(PairedFullRoundStandard)), 3, 3);
+            internal static IEnumerable<CodeInstruction> PairedFullRoundTextTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.FullRoundSlotReads(instructions, Hook(nameof(PairedFullRoundMove)), Hook(nameof(PairedFullRoundStandard)), 4, 5);
 
             internal static void NativeRoundStatePrefix(UnitCombatState __instance)
             {

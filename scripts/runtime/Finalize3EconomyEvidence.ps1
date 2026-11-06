@@ -31,6 +31,11 @@ function Assert-KmcFinalize3EconomyEvidence {
   if($null -eq $pn -or $null -ne (P $pn 'error')){ Fail ($Name+': no live prediction panel') }
   foreach($k in 'fiveFeet','move','standard','fullRound'){ if((Text (P (P $pn $k) 'owner')) -cne 'mount'){ Fail ($Name+' panel: the '+$k+' slot does not describe the mount') } }
   if((Text (P (P $pn 'swift') 'owner')) -cne 'rider'){ Fail ($Name+' panel: the Swift slot left the rider') }
+  # The full-round slot sums its own Move and Standard reads: they must be the mount's, the same as the two slots.
+  foreach($d in 'possible','remaining'){
+   $vals=@((P (P $pn 'fullRound') $d),(P (P $pn 'move') $d),(P (P $pn 'standard') $d))
+   if(@($vals | Where-Object { $null -eq $_ }).Count -eq 0 -and [math]::Abs([double]$vals[0]-([double]$vals[1]+[double]$vals[2])) -gt 0.5){ Fail ($Name+' panel: the full-round '+$d+' is not the mount Move plus Standard') }
+  }
   [pscustomobject]@{ fiveFeet=(P $pn 'fiveFeet'); move=(P $pn 'move'); standard=(P $pn 'standard'); probe=(P $h 'probe') }
  }
  function Spent($Slot){ (Text (P $Slot 'moveActivity')) -cin @('Unable','Used','Lost') -or ($null -ne (P $Slot 'remaining') -and (Num (P $Slot 'remaining') 'panel remaining') -le 0) }
@@ -124,7 +129,7 @@ function Assert-KmcFinalize3EconomyEvidence {
   # Reader r3: B1 is a genuine native full attack (r03's single attack, read by r2, does not satisfy it).
   $b1=Step $b 'b1'
   Need ((P $b1 'clicked') -eq $true -and (P $b1 'enabledFullAttack') -eq $true -and (P $b1 'hoverChangedState') -eq $false) 'B1 ordinary Full input: hover changed nothing, native Full variant, left click admitted'
-  Need ((Text (P (P $b1 'before') 'selectedRole')) -ceq 'bRider') 'B1 the rider is the selection'
+  Need ((Text (P $b1 'selectedRole')) -ceq 'bRider') 'B1 the rider is the selection at the attack input'
   Need ((Int (P $b1 'estimatedFullAttacks') 'B1 native full-attack estimate') -ge 2 -and (P $b1 'riderHasFullRound') -eq $true) 'B1 the rider natively had a full round of at least two attacks'
   $atk=P $b1 'attack'; $atk0=P (P $b1 'attackStarted') 'facts'
   Need ($null -ne $atk -and $null -ne $atk0 -and (Text (P $atk 'executor')) -ceq $bRiderId) 'B1 the rider attack command was observed'

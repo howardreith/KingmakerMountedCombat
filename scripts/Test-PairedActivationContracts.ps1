@@ -154,13 +154,13 @@ public static class KmcNativePatchProbe {
    "PairedVmConstructorTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler",
    "PairedPathUnitTranspiler","PairedPathSettingsTranspiler","PairedControllerInputTranspiler","PairedPathStatesTranspiler",
    "PairedPathUnitTranspiler","PairedControllerInputTranspiler","PairedConditionActionTranspiler","PairedConditionActionTranspiler","PairedPrimaryMarkerTranspiler",
-   "PairedActionsStateOwnerTranspiler"};
+   "PairedActionsStateOwnerTranspiler","PairedFullRoundStatesTranspiler","PairedFullRoundDistanceTranspiler","PairedFullRoundTextTranspiler"};
   var tokens=new[]{0x06000BD2,0x06000C3C,0x06000C34,0x0600911D,0x06000BD6,0x0600A2BE,0x06000C47,0x06000C46,0x0600918C,
    0x06009391,0x06000BDF,0x06000BE0,0x06000BE1,0x06003086,0x06004F2F,0x06004F29,0x06004F2A,0x06004F2B,0x06004F2C,0x06004F2D,0x06004F31,0x06004F33,
-   0x06007020,0x06007015,0x0600700F,0x06007021,0x060093D5,0x060093DB,0x060026C9,0x0600270C,0x06002D64,0x06007009};
+   0x06007020,0x06007015,0x0600700F,0x06007021,0x060093D5,0x060093DB,0x060026C9,0x0600270C,0x06002D64,0x06007009,0x06004E04,0x06004E08,0x06004E07};
   // F3 movement-facing prediction slots and the mount-state fill after the path's own state write (postfixes).
-  var postfixNames=new[]{"PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedPathStatesPostfix"};
-  var postfixTokens=new[]{0x06004E0B,0x06004DE4,0x06004E0F,0x06004E00,0x06004E01,0x06004E02,0x06007021};
+  var postfixNames=new[]{"PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedSlotActionPostfix","PairedPathStatesPostfix"};
+  var postfixTokens=new[]{0x06004E0B,0x06004DE4,0x06004E0F,0x06004E00,0x06007021};
   var count=0;
   var conditionAdapter=candidate.GetType("KingmakerMountedCombat.Integration.PairedConfusionPreparation",true);
   System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(conditionAdapter.TypeHandle);

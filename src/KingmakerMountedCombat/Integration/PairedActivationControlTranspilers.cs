@@ -134,6 +134,20 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        // The full-round prediction slot's own Move/Standard getter calls (tiny private getters Mono may inline) read the
+        // paired slot hooks instead, which take the slot instance the getter would have.
+        internal static IEnumerable<CodeInstruction> FullRoundSlotReads(IEnumerable<CodeInstruction> source, MethodInfo move, MethodInfo standard,
+            int moveSites, int standardSites)
+        {
+            var code = source.ToList();
+            var moves = code.Where(i => Token(i, 0x06004E01)).ToArray();
+            var standards = code.Where(i => Token(i, 0x06004E02)).ToArray();
+            Require(moves.Length == moveSites && standards.Length == standardSites, "native full-round slot Move/Standard readers");
+            foreach (var site in moves) { site.opcode = OpCodes.Call; site.operand = move; }
+            foreach (var site in standards) { site.opcode = OpCodes.Call; site.operand = standard; }
+            return code;
+        }
+
         private static bool Token(CodeInstruction instruction, int token) => instruction.operand is MemberInfo member && member.MetadataToken == token;
         private static void Require(bool condition, string description)
         {

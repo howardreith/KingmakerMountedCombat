@@ -31,6 +31,12 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!PairedMovementInputPolicy.SlotsDescribeMount(true, true, true, false), "Unfilled mount states were advertised.");
             TestRunner.True(!PairedMovementInputPolicy.SlotsDescribeMount(false, true, true, true), "A mount-selected or other-selected panel was redirected.");
             TestRunner.True(!PairedMovementInputPolicy.SlotsDescribeMount(true, false, true, true), "An unaddressable partner (other pair, unmounted, ended) was shown.");
+            // A partial first move keeps exactly its remaining first-Move travel (native's snapshot calls any started Move gone).
+            TestRunner.True(PairedMovementInputPolicy.PartialMoveRemains(1.5f, false, false, 25f), "A partial mount Move was shown spent.");
+            TestRunner.True(!PairedMovementInputPolicy.PartialMoveRemains(0f, false, false, 49f), "An unmoved mount is native's own untouched Move.");
+            TestRunner.True(!PairedMovementInputPolicy.PartialMoveRemains(3f, false, false, 0f), "A spent first Move was revived.");
+            TestRunner.True(!PairedMovementInputPolicy.PartialMoveRemains(1.5f, true, false, 25f), "A condition-restricted Move was revived.");
+            TestRunner.True(!PairedMovementInputPolicy.PartialMoveRemains(1.5f, false, true, 25f), "A step or Charge restriction was bypassed.");
             // A started double move keeps exactly its remaining conversion travel.
             TestRunner.True(PairedMovementInputPolicy.ConversionTravelRemains(4.2f, false, false, 9f), "Remaining conversion travel was hidden.");
             TestRunner.True(!PairedMovementInputPolicy.ConversionTravelRemains(3f, false, false, 9f), "An unstarted conversion is native's own Standard.");
