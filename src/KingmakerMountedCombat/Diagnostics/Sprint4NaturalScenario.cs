@@ -466,7 +466,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private Vector3 f4PreCastMount;
-        private bool f4Repositioning;
+        private bool f4Repositioning, f4ReturnCycle;
+        private int f4ReturnFrames;
 
         // The native reach the held rider's brain filters by (BlueprintAiAction.IsTargetValid under AiMovementForbidden): weapon
         // range plus both bodies, with line of sight; one metre of margin.
@@ -653,6 +654,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         using (var input = new NativeOrdinaryAttackInput(f4PreCastMount)) returned = input.Click();
                         ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "ground-click", ["name"] = "f4-return-to-bow-reach", ["clicked"] = returned, ["frame"] = Time.frameCount,
                             ["disclosedSetup"] = "returns the pair to its pre-cast position so a hostile is in bow reach and sight" });
+                        if (!returned) { FailSprint4Row("The ordinary return click to bow reach was refused."); return; }
                         f4Repositioning = true;
                     }
                 }
@@ -664,7 +666,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (f4Repositioning)
                 {
                     if (!horse.Commands.Empty || horse.View?.AgentASP?.IsReallyMoving == true) return;
+                    // The completed return move arms the player-move hold; the native Stop clears it and the AI off/on cycle
+                    // lifts the Stop's own suppression, so neither co-causes the later stationary dispatch under Hold.
                     f4Repositioning = false; Sprint4Step("returnedToBowReach")["bowPremise"] = F4BowPremise();
+                    Sprint4Input("stop", "after-return", () => SelectionManager.Instance.Stop());
+                    Sprint4SetAi(false, "after-return"); f4ReturnFrames = 0; f4ReturnCycle = true; ResetLeafClock(); return;
+                }
+                if (f4ReturnCycle)
+                {
+                    if (++f4ReturnFrames == 5) { Sprint4SetAi(true, "after-return-re-enable"); return; }
+                    if (f4ReturnFrames < 7) return;
+                    f4ReturnCycle = false;
+                    var cleared = Sprint4Step("returnCleared");
+                    cleared["playerMoveHold"] = combat.PlayerMoveHoldArmed; cleared["stopSuppressed"] = combat.AutomaticSuppressedByStop;
                     s4Baseline = combat.AutomaticDispatchCount; ResetLeafClock(); return;
                 }
                 if (combat.AutomaticDispatchCount == s4Baseline) return;
@@ -684,6 +698,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combat.AutomaticDispatchCount == s4Baseline || !combat.StockIntentIsAutomatic) return;
                 var record = Sprint4Step("heldInBowReach");
                 record["dispatchesDuring"] = combat.AutomaticDispatchCount - s4Baseline; record["holdKept"] = rider.HoldState;
+                record["playerMoveHold"] = combat.PlayerMoveHoldArmed; record["riderHold"] = rider.AiMovementForbidden;
                 record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
                 // AI off with the automatic intent live: the intent ends without any other order.
                 s4ProposalBaseline = combat.AutomaticRetiredCount;
