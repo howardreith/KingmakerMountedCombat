@@ -1,4 +1,22 @@
-# F4 resume — final review stop after the completion mission (2026-11-06)
+# F4 resume — final review stop after the entrance/reload finishing mission (2026-11-06)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL.
+  - The r08 entrance is PASS.
+  - The reload is not run: 8 of 8 starts are used, at 64.47 of 75 min.
+  - WORLD-02 is input blocked.
+- **Not authorized:** merge, release, publication, a new start, or F5.
+
+Next run, if the owner authorizes one start:
+- The scratch helper is `f4run.ps1 -Kind dungeon-entry-auto -SourceRunId 20261106-finalize-f4f-dungeon-08 -SourceSha256 b8e4109ea5bd9deae8e8e77b7b0318e1afa0d42895071d1f3a52a29c284540f5`. It is pinned to f4f; a new ceiling needs the same append-only record entry and a helper change.
+- The consumer WhatIf `20261106-finalize-f4f-dungeon-reload-whatif` already passed.
+
+Facts for a successor:
+- The product writes the schema-3 archive member (`Pairs[]`). `NativeMountedSaveStorage.Read` / `persistence.LoadedData` is the legacy view and is not Current for schema 3. Use `ReadArchive` / `LoadedArchiveData`, as the cold restore path does.
+- The launch guard reserves the 600 s outer timeout, so each start needs at least 10 minutes of budget left.
+- `@()` around a comma-wrapped .NET List from a function counts the list as one element. Enumerate it with `foreach`.
+
+# F4 resume — final review stop after the completion mission (2026-11-06, superseded above)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and docs/FINALIZE-F4-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL. 6 of 6 starts are used (47.88/75 min). The launch helper refuses a seventh start.

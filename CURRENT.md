@@ -1,22 +1,30 @@
-# F4 — ENGINEERING PARTIAL after the completion mission, ready for final review (2026-11-06)
+# F4 — ENGINEERING PARTIAL after the entrance/reload finishing mission, ready for final review (2026-11-06)
 
-Branch codex/kmc-finalize-f4-orders-ai-transitions, from main a92b043a. Read the [handoff](docs/FINALIZE-F4-REVIEW-HANDOFF.md).
+Branch codex/kmc-finalize-f4-orders-ai-transitions, from main a92b043a. Read the [handoff](docs/FINALIZE-F4-REVIEW-HANDOFF.md), current section first.
 
-F3 closeout: the F3 engineering review was accepted at PR #18 head 5dd64825. The owner merged it as a92b043a. Owner play acceptance is separate. F3's evidence and verdicts stand as recorded in the [F3 handoff](docs/FINALIZE-F3-REVIEW-HANDOFF.md).
+Current candidate f4f:
+- source 3f824e30;
+- DLL 3240963f…7f3d, MVID cc86d1d6-502e-4991-8805-618755a9ae47;
+- package 4efc6665…245e;
+- suite finalize-f4f-3f824e30-20261106.
 
-What F4 changes:
-- **Chests and loot (WORLD-03).** A group chest or loot order given to a mounted rider is carried by the Horse, and the rider opens it once.
-- **Traps (WORLD-02).** An accepted trap order's native group stop also stops the selected riders' Horses.
-- **Dungeon entry (WORLD-01).** The party-selection screen (the Beneath the Stolen Lands entrance) no longer dismounts riders who stay in the party.
-- **Attacks (AI-01, AI-02).** A started routine continues on the next enemy after its target dies, by the native rule. The automatic approach keeps chasing an enemy it is closing on.
-- **Gait (GAIT-01).** Under party pace, an unimpaired Horse shows its run cycle; this is presentation only.
+The engine is Kingmaker 2.1.7b with the retained CotW/CMI selection.
 
-Product behaviour is identical in candidates f4a, f4b, f4c and f4d.
+**Accepted:**
+- **Real dungeon entrance: r08 `20261106-finalize-f4f-dungeon-08` PASS.** The setup transfer reached the hub with no write. The native entrance action and party `Go` loaded the floor with the same world, party and mounted pair (generation 1). The bound views stayed the same and the ordinary continuation ran.
+- **Its after-entry Auto:** `Auto_1.zks` with SHA-256 `b8e4109ea5bd9deae8e8e77b7b0318e1afa0d42895071d1f3a52a29c284540f5`, 395809 bytes. It was admitted in the hub and committed on the floor, with the pair.
+- **Earlier results, at their own binaries:** the Hold control (r04 rows), and the chest and gait results (r05).
 
-Completion mission (3 more starts on the same record, 6 of 6 used, 47.88 of 75 min):
-- **r04** (f4d): FAIL, kept. The r03 Hold cause is resolved natively: under native Hold the pair dispatched without moving, with the rider's Hold alone. A native floor hostile kept the pair in combat, so the melee and hold regression rows did not start.
-- **r05** (f4d): **PASS**. The chest order was given during group travel and carried. The party-pace trot, the solo control and the native Slowed control (Slow gait) are inspected in ordered motion frames.
-- **r06** (f4d): FAIL, kept. The real hub→dungeon entrance ran through the native `Go`, and the one authorized after-entry Auto was written on the floor with the same pair. Then a scenario defect stopped the run before its in-game checks: the post-Go selector read hit the destroyed UI. It is corrected in c1c56439 and not re-run. The reload was not run.
-- **Trap order:** INPUT BLOCKED. It needs an owner Manual save beside a revealed, reachable trap.
+**Not run:**
+- **The native reload of that Auto** (`persistence-p07-load` / `area-dungeon-entry-auto`). It is built, reviewed and WhatIf-validated against r08's real receipt. All 8 starts are used; r07 FAILed on a schema-3 read-back defect that is now corrected.
 
-No game, lock or installed candidate remains. No merge, release, install or F5.
+**Input blocked:**
+- **WORLD-02 trap.** It needs an owner Manual save beside a revealed, reachable trap.
+
+Verdicts:
+- r01–r04, r06 and r07: FAIL, as recorded.
+- r05 and r08: PASS.
+
+Spend: finalize-f4 64.47/75 min, 8 of 8 starts. No game, lock or waiter remains. No merge, release, install or F5.
+
+F3 closeout: the F3 review was accepted at PR #18 head 5dd64825; the owner merged it as a92b043a.

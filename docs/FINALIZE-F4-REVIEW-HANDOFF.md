@@ -1,6 +1,79 @@
 # F4 review handoff: ordinary world orders, native AI, transitions and Horse gait
 
-## Disposition after the F4 completion mission (2026-11-06)
+## Current disposition: entrance/reload finishing mission (2026-11-06)
+
+**F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance (art and the full laptop stack) is separate.**
+- **Accepted:** the real dungeon entrance with its one authorized after-entry Auto (r08 PASS).
+- **Not run:** its native reload. It is built, reviewed and validated against r08's real receipt, through a passing WhatIf. Both authorized starts were consumed because r07 exposed a read-back defect.
+- **INPUT BLOCKED:** WORLD-02. No trap save was supplied.
+
+This is not "PARTIAL WITH WORLD-02 INPUT BLOCKED ONLY": the reload is also outstanding. No merge, release, install or F5.
+
+### Current candidate (f4f)
+
+| Item | Value |
+|---|---|
+| Source | `3f824e30601f3126bba45e8ec4d9660b4bfbf15c` (branch head after records: see PR #19) |
+| DLL | SHA-256 `3240963f3c4966f17ae121412808bbac4f17af1dba76d0fd05ece0b4dc4f7f3d` · MVID `cc86d1d6-502e-4991-8805-618755a9ae47` |
+| Package | `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f4f-diagnostic.zip` · `4efc6665274ac8cff979eeaae3bd9240810ef6e6f855b16659a5589da411245e` |
+| Suite | `finalize-f4f-3f824e30-20261106` · `f6513447e2f05ddef185547ac921a24f5296e61ec1dfab72f5a94f19cec8bdc5` |
+| Engine / dependencies | Kingmaker 2.1.7b. Base-game staging with the retained CotW/CMI selection `retained-dependencies-final211.json`. This is not the owner's full laptop stack. |
+
+The preview.103 label is shared by different binaries, so pin the identities above.
+
+**Executed f4d, for history:**
+- source `b57712efcdb54dbaf02660e4dca721f902594677`;
+- DLL `2c8e352255fff67ca7243cc305777fbf5fd6904b9b05f76fbb5086fddd8be2f0`, MVID `07a436fa-51d3-41b3-accc-20dc875af14d`;
+- package `dfa0b231ba6880046b35a0db94babecf26c5b82853d1b160bfef91abd5d1a5df`;
+- suite `finalize-f4d-b57712ef-20261106` · `ec45fd7579f05f9395ca2518ead87fa366ddb214d29fbd287378858cfe7a3c6b`.
+
+**Intermediate f4e (r07):**
+- source `676c3a8a`;
+- MVID `fab53a55-ab2a-4f43-bc82-2540ac89ae4e`;
+- package `f31d1d34d7a2e55282a0f7066e2fefd6461bc49196fe6fc2cb2f624d788c48f9`;
+- suite `finalize-f4e-676c3a8a-20261106` · `a056917cdaf9bdbf3e06bbb5a55d5b223b314d1ee7c0971a8e3e4245afa9f6f0`.
+
+### Entrance → Auto → reload chain
+
+| Step | Result |
+|---|---|
+| Producer `persistence-p07-save` / `area-dungeon-entry` | **r08 `20261106-finalize-f4f-dungeon-08`: PASS** (external reader). Native assertions 47/0.<br>• The setup transfer reached the hub with no write and kept the same mounted pair.<br>• The native `ActionEnterToDungeon` and party `Go` loaded the floor `9d1278a2…`.<br>• Same world and party, same rider `b6628a77…` and mount `d79a4f6c…`, generation 1 before and after.<br>• Legal Mounted relationship, unique entities, the same bound views (−339134 / −340558).<br>• Exactly two transfers, no load replay, no mount cast.<br>• Then the ordinary continuation: settle, ground move, stock attack, target removal. |
+| Its one Auto | `Auto_1.zks` · SHA-256 `b8e4109ea5bd9deae8e8e77b7b0318e1afa0d42895071d1f3a52a29c284540f5` · 395809 bytes · native type Auto, AfterEntry · header Name `Autosave1`, campaign `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f` ("cvb"), Area = floor.<br>Admitted in the hub, committed on the floor after pair restoration; the barrier shows Mounted, 2 suspensions and 2 resumes.<br>Its schema-3 member holds exactly that pair. 1 save, 1 load, 0 unauthorized. |
+| Native reload `persistence-p07-load` / `area-dungeon-entry-auto` | **NOT RUN: start ceiling (8 of 8).**<br>• Built as the read-only cold consumer of exactly that Auto. It declares one hash-pinned read-only leaf and no write.<br>• It reuses the transition-Auto qualification (own area and campaign, no inherited transfer state, own-archive debt, unique bound cold views) and the established ordinary continuation.<br>• Its source is admitted only from a completed, restored PASS `area-dungeon-entry` producer in the `transition-auto` role.<br>• It refuses another case, role, alternate, type, hash or area, and a failed or unrestored producer. The r07 FAIL source is refused.<br>• The exact consumer request was derived from r08's receipt and validated, and the consumer WhatIf against r08 passed (`20261106-finalize-f4f-dungeon-reload-whatif`). |
+| WORLD-02 trap | **INPUT BLOCKED.** No suitable Manual save was supplied and no start was spent; see the requested input below. |
+
+**Runs in this mission, original verdicts kept:**
+- **r07 `20261106-finalize-f4e-dungeon-07` (f4e): FAIL.** Every arrival assertion passed. The scenario's KMC read-back then used the legacy single-pair reader, but the product writes the schema-3 archive member, so the read did not report Current. The consumer's qualification had the same gap. Both are corrected in `3f824e30`, which reads the member the product writes, as the UPG-01 check does.
+- **r08 (f4f): PASS.**
+- **r06: FAIL, kept.** Its full Auto hash, measured from the retained isolated file, is `7f64cfeddce5aaebe2ab3bdeb664210ef96abb3d32197718b48330881caee9c5` (396056 bytes). It remains supporting evidence only.
+
+**Restoration (r07, r08):**
+- Mods, Working fixture, baseline, save protection and allowlist all passed.
+- The inventory digest `60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1` is unchanged.
+- No game process or waiter remains.
+
+**Next owner decision:** one more start for the reload on f4f (`f4run -Kind dungeon-entry-auto -SourceRunId 20261106-finalize-f4f-dungeon-08 -SourceSha256 b8e4109e…`). This needs a new start allowance and about 10 minutes of launch reservation; 10.53 minutes of the 75 remain.
+
+**Requested trap input:** one ordinary Manual save from a compatible KMC build, with an eligible rider and its existing mount in a pet-permitted area, a revealed, armed trap 4–30 m away and safely reachable, nearby enemies cleared, and room for a group move or disarm order. Name its required dependencies; a disposable copy is used.
+
+### Mission work and checks
+
+- **Authority and starts:** the ceiling went from 6 to 8 on the same record, logged append-only as `startCeilingAdjustments` (2026-11-06T19:48Z). The helper refuses a ninth start before any lock; this was checked offline and against the real record.
+- **Commits:**
+  - `dac9b13a`: the consumer case.
+  - `676c3a8a`: review corrections, the reader refusing transfer rows, intake pinning the floor, and a compiled leaf-declaration check.
+  - `3f824e30`: the r07 correction.
+- **Review:** one independent review of the intake, reader and consumer delta found no MAJOR problems. MINORs 1–3 were applied, including `scripts/Test-Finalize4DungeonReloadDeclaration.ps1`: the reload declares exactly one read-only Auto, and the cross-area consumer keeps its resave leaf.
+- **Checks:** Candidate ×2 (9/9 each), Fast ×1 (plus 2 failed build attempts), persistence fixtures 687/0, three WhatIf runs (two producers, one consumer), and offline request validation.
+- **Spend:** `finalize-f4` **64.47 of 75 min**, **8 of 8 starts**.
+
+**Retained unchanged at their own binaries:**
+- r03's original FAIL and its Hold diagnosis;
+- r04's three passing rows (aggregate FAIL kept; its last two rows did not run);
+- r05's PASS, its gait legs and its private motion packet;
+- r01 and r02 FAILs.
+
+## History: disposition after the F4 completion mission (2026-11-06)
 
 **F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance is separate.** The return label is not COMPLETE, and not INPUT BLOCKED alone. The trap source is still missing, and the hub→dungeon transition is also not demonstrated. The completion mission's sections below supersede the earlier disposition where they differ; the first three runs keep their original verdicts.
 
