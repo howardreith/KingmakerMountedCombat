@@ -8,6 +8,7 @@ using Kingmaker.UI;
 using Kingmaker.UnitLogic.Parts;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
+using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -123,7 +124,9 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
-            if (disposed || pending == null || NativeTextDialog.IsShown) return;
+            if (disposed) return;
+            Dialog.Poll();
+            if (pending == null || NativeTextDialog.IsShown) return;
             var next = pending;
             pending = null;
             next();
@@ -174,7 +177,51 @@ namespace KingmakerMountedCombat.Integration
             if (!IsShown) return false;
             var field = InputField.GetValue(DialogMessageBox.Instance);
             if (field != null) BeginEdit.Invoke(field, null);
+            owned = true; focusSeen = false;
             return true;
+        }
+
+        private static readonly Type EventSystemType = YesButton?.FieldType.Assembly.GetType("UnityEngine.EventSystems.EventSystem", false);
+        private static readonly PropertyInfo CurrentEventSystem = EventSystemType?.GetProperty("current", BindingFlags.Static | BindingFlags.Public);
+        private static readonly PropertyInfo SelectedObject = EventSystemType?.GetProperty("currentSelectedGameObject", BindingFlags.Instance | BindingFlags.Public);
+        private static readonly MethodInfo SelectObject = EventSystemType?.GetMethod("SetSelectedGameObject", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(GameObject) }, null);
+        private bool owned, focusSeen;
+
+        // While its field is selected the native KeyboardAccess runs no binding, Esc included, and the field takes Esc as its own
+        // cancel. So for a text dialog this service opened, the field's cancel closes the box through the box's own Esc handler,
+        // and a closed box gives its field's selection back, so game hotkeys return. Called every frame.
+        internal void Poll()
+        {
+            if (!owned) return;
+            var input = LiveTextInput();
+            if (IsShown && input != null)
+            {
+                var type = input.GetType();
+                var focused = Convert.ToBoolean(type.GetProperty("isFocused").GetValue(input, null));
+                focusSeen |= focused;
+                if (focusSeen && !focused && Convert.ToBoolean(type.GetProperty("wasCanceled").GetValue(input, null)))
+                    DialogMessageBox.Instance.OnEscPressed();
+                return;
+            }
+            if (IsShown) return;
+            owned = false;
+            ReleaseSelection();
+        }
+
+        private static void ReleaseSelection()
+        {
+            var system = CurrentEventSystem?.GetValue(null, null);
+            var field = DialogMessageBox.Instance == null ? null : InputField?.GetValue(DialogMessageBox.Instance) as Component;
+            if (system == null || field == null || SelectObject == null) return;
+            var selected = SelectedObject.GetValue(system, null) as GameObject;
+            if (selected != null && selected.transform.IsChildOf(field.transform)) SelectObject.Invoke(system, new object[] { null });
+        }
+
+        // Whether any selected UI field still holds the keyboard, the same test KeyboardAccess applies before every binding.
+        internal static GameObject SelectedUi()
+        {
+            var system = CurrentEventSystem?.GetValue(null, null);
+            return system == null ? null : SelectedObject.GetValue(system, null) as GameObject;
         }
 
         internal bool OpenConfirm(string prompt, Action<bool> onResult)

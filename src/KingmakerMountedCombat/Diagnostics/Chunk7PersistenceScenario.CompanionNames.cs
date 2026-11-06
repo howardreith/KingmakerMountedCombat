@@ -28,12 +28,11 @@ namespace KingmakerMountedCombat.Diagnostics
     // observations. The producer names the stock Mammoth and the Riding Dog through the real sheet button and native dialog
     // (typing reaches the dialog's own text field through its key handler), inspects the tack unmounted and mounted, and
     // writes the ordinary Manual. The separate-process consumer reads the names, identities and tack after the native load.
-    // Setup disclosed here: a visual-only attack animation with no rule, and the Sprint 5 rider cast pose.
+    // Setup disclosed here: visual-only attack and cast animations with no rule, ability or resource.
     internal sealed partial class Chunk7PersistenceScenario
     {
         internal const string CompanionNamesCaseName = "companion-names-tack-manual";
         internal const string SharedName = "Ébène l'Ancien", DogDistinctName = "Biscuit", CancelledName = "Nobody", MarkupName = "<b>Rex</b>";
-        private const string CureLightWounds = "47808d23c67033d4bbab86a1070fd62f";
         private static readonly MethodInfo InputFieldSelected = typeof(KeyboardAccess).GetMethod("IsInputFieldSelected", BindingFlags.Static | BindingFlags.NonPublic) is MethodInfo m && m.MetadataToken == 0x06002DFB ? m : null;
         private bool CompanionNamesCase => request.PersistenceCase == CompanionNamesCaseName;
         private readonly JArray f5Shots = new JArray();
@@ -67,13 +66,13 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "sheet-renamed-shot", () => Ui("f5-sheet-mammoth-renamed") && Record("sheetMammothRenamed", SheetState(true)));
             Step(steps, "cancel-open", () => PressRename());
             Step(steps, "cancel-type", () => TypeText(CancelledName));
-            Step(steps, "cancel-esc", () => Esc() && Unchanged(firstMount, SharedName, "cancelled"));
+            Step(steps, "cancel-esc", () => EscField() && Unchanged(firstMount, SharedName, "cancelled") && Record("cancelReleasedKeyboard", !(bool)InputFieldSelected.Invoke(null, null)));
             Step(steps, "markup-open", () => PressRename());
             Step(steps, "markup-type", () => TypeText(MarkupName));
             Step(steps, "markup-commit", () => CommitOnly() && Ui("f5-invalid-message") && Record("markupMessageShown", DialogMessageBox.Instance.IsShown));
-            Step(steps, "markup-dismiss", () => Esc());
+            Step(steps, "markup-dismiss", () => EscBox());
             Step(steps, "markup-reopened", () => NativeTextDialog.IsShown && Settled(10) && Record("markupReopenedWith", Typed()));
-            Step(steps, "markup-reopened-esc", () => Esc() && Unchanged(firstMount, SharedName, "markupRefused"));
+            Step(steps, "markup-reopened-esc", () => EscField() && Unchanged(firstMount, SharedName, "markupRefused"));
             Step(steps, "reset-open", () => Press(Sheet.ResetButton) && Ui("f5-reset-confirm"));
             Step(steps, "reset-yes", () => PressDialog(true) && Reset(firstMount));
             Step(steps, "rename-again-open", () => PressRename());
@@ -101,7 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "shots-mounted", () => World("f5-dog-mounted-side", 90f) && World("f5-dog-mounted-other", 270f));
             Step(steps, "cast", () => CastPose());
             Step(steps, "cast-shot", () => Time.time >= f5At && World("f5-dog-mounted-cast", 90f));
-            Step(steps, "cast-settle", () => secondRider.Commands.Empty && !secondRider.AreHandsBusyWithAnimation);
+            Step(steps, "cast-settle", () => Time.time >= f5At + 1.5f);
             Step(steps, "bite-mounted", () => Bite("f5-dog-mounted-bite"));
             Step(steps, "walk", () => Walk());
             Step(steps, "walk-shot", () => Time.time >= f5At && World("f5-dog-mounted-turn", 60f));
@@ -274,9 +273,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(input != null, "The native text field is not live.");
             var process = input.GetType().GetMethod("ProcessEvent", new[] { typeof(Event) });
             var before = ActorsIdle();
-            process.Invoke(input, new object[] { Event.KeyboardEvent("end") });
-            var length = (Typed() ?? string.Empty).Length;
-            for (var i = 0; i <= length; i++) process.Invoke(input, new object[] { Event.KeyboardEvent("backspace") });
+            // Select all, then one Backspace: a selection delete does not depend on the caret or the field's editing options.
+            process.Invoke(input, new object[] { Event.KeyboardEvent("^a") });
+            process.Invoke(input, new object[] { Event.KeyboardEvent("backspace") });
             foreach (var character in text)
                 process.Invoke(input, new object[] { new Event { type = EventType.KeyDown, character = character, keyCode = KeyCode.None } });
             var typed = f5["typing"] as JArray ?? new JArray();
@@ -321,8 +320,22 @@ namespace KingmakerMountedCombat.Diagnostics
             return true;
         }
 
-        // Esc reaches the dialog through the native escape manager's own handler.
-        private bool Esc()
+        // Esc in the focused name field: the field's own key handler takes it as a cancel and ends the edit (what its
+        // OnUpdateSelected does with that key); the product then closes the box through the box's Esc handler.
+        private bool EscField()
+        {
+            if (f5Frames == 1)
+            {
+                var input = Names.Dialog.LiveTextInput();
+                Require(input != null && Convert.ToBoolean(input.GetType().GetProperty("isFocused").GetValue(input, null)), "The name field is not focused for Esc.");
+                input.GetType().GetMethod("ProcessEvent", new[] { typeof(Event) }).Invoke(input, new object[] { Event.KeyboardEvent("escape") });
+                input.GetType().GetMethod("DeactivateInputField", Type.EmptyTypes).Invoke(input, null);
+            }
+            return Settled(10);
+        }
+
+        // Esc on the message box, which holds no field: native KeyboardAccess runs the escape binding, whose handler is this.
+        private bool EscBox()
         {
             if (f5Frames == 1) DialogMessageBox.Instance.OnEscPressed();
             return Settled(10);
@@ -356,11 +369,13 @@ namespace KingmakerMountedCombat.Diagnostics
             return Time.time >= f5At && World(shot, 90f);
         }
 
+        // The rider's own cast animation only: no ability, rule, spell slot or command.
         private bool CastPose()
         {
-            var cure = ResourcesLibrary.TryGetBlueprint<BlueprintAbility>(CureLightWounds);
-            Require(cure != null, "The Cure Light Wounds blueprint is unavailable.");
-            secondRider.Commands.Run(UnitUseAbility.CreateCastCommand(new AbilityData(cure, secondRider.Descriptor), secondRider));
+            var manager = secondRider.View?.AnimationManager;
+            var handle = manager?.CreateHandle(UnitAnimationType.CastSpell, false);
+            f5["castAnimation"] = handle == null ? "none" : handle.Action?.Type.ToString();
+            if (handle != null) manager.Execute(handle);
             f5At = Time.time + 0.5f;
             return true;
         }
