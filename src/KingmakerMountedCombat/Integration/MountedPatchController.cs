@@ -887,9 +887,13 @@ namespace KingmakerMountedCombat.Integration
                 Kingmaker.TurnBasedMode.Controllers.CombatAction action) =>
                 PatchBridge.UnifiedTurn?.PairedMovementPredictionState(action, action.PredictionState) ?? action.PredictionState;
             // The pair's travel runs on the mount while the rider is selected; its destination is the selected command's.
-            internal static bool PairedPrimaryMarker(List<UnitEntityData> selected, UnitEntityData key) =>
-                selected.Contains(key) || PatchBridge.Pairs?.Any(pair => pair.Relationship.State == RelationshipState.Mounted &&
-                    pair.Relationship.PairOwner?.Mount == key && selected.Contains(pair.Relationship.PairOwner.Rider)) == true;
+            internal static bool PairedPrimaryMarker(List<UnitEntityData> selected, UnitEntityData key)
+            {
+                if (selected.Contains(key)) return true;
+                var owner = PatchBridge.Owner(key);
+                return owner != null && owner.State == RelationshipState.Mounted && owner.PairOwner?.Mount == key &&
+                    selected.Contains(owner.PairOwner.Rider);
+            }
             internal static bool PairedActionContextActor(UnitEntityData actor) => PatchBridge.UnifiedTurn?.IsNativeActionContextActor(actor) ?? actor.IsCurrentUnit();
             internal static TurnController PairedActorActionContext(CombatController controller, UnitEntityData actor) =>
                 PatchBridge.UnifiedTurn?.NativeActorActionContext(controller.CurrentTurn, actor) ?? controller.CurrentTurn;

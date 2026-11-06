@@ -129,6 +129,8 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal GameMountedRelationshipService Relationship => relationship;
+        // Diagnostic read: a copy of the mount's recorded movement allocation, or null.
+        internal MountedMovementState PeekMountAllocation() => movementState?.PeekMovement(relationship.Mount);
         internal bool IsDisposed => disposed;
         internal bool BelongsToWorld(UnifiedMountedTurnCoordinator owner) => ReferenceEquals(world, owner);
         internal bool CanRetire => !disposed && relationship.State == RelationshipState.Unmounted &&

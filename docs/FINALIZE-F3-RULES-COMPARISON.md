@@ -1,0 +1,30 @@
+# F3 rules and behavior comparison
+
+This is the bounded reference pass for F3 (ECON-01, ECON-02, HUD-01, HUD-02, HUD-03, TURN-01). The selected KMC contract is decisions D1–D4 of the finalization package. The Wrath column describes its code, not its pixels.
+
+## Wrath reference identity and limits
+
+- **Install:** *Pathfinder: Wrath of the Righteous – Enhanced Edition*, Steam build 20212986. `Wrath_Data\StreamingAssets\Version.info` reads `2025-Apr-02 15:44 eb82d8f2ec1cd0696dae5b17c53dd9a357f28674 2.7.0x 2.7.0`.
+- **Assembly:** `Assembly-CSharp.dll` SHA-256 `2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953`. This is the same authority hash that `planning/WOTR-SHARED-TURN-MAP.md` records.
+- **Mod status:** UMM is injected at runtime through Doorstop. Twenty mods are installed, among them TabletopTweaks-Base, Core and Flanking, AutoMount and ToyBox. Doorstop does not rewrite files on disk, so the analysed assembly is probably the shipped vanilla one. That is an inference: no vanilla reference hash was available.
+- **Method:** individual types were decompiled read-only, outside the repository. No Wrath code, assembly or asset is used, copied or shipped. Wrath was not launched or modified.
+- **Not verified:** what the tracker looks like on screen, any badge on the rider portrait, and runtime behavior. `InitiativeTrackerVM` was read; the PC tracker views were not.
+
+## Comparison
+
+| Topic | Tabletop PF1 (package R6) | Wrath 2.7.0 code (vanilla assembly) | KMC F3 contract and implementation |
+|---|---|---|---|
+| **Initiative presentation** | The mount acts on the rider's initiative. | `InitiativeTrackerVM.UpdateUnits` skips any unit that has a rider. `CombatController.ChooseNextUnit` also skips it. A pair has one shared turn: its `TurnController` holds both rider and mount. | Native `ChooseNextUnit` already excluded the paired mount. The tracker did not, so horses appeared as later turns. The tracker projection now omits exactly the mount that the candidate loop skips. After a dismount or the rider's death, the mount reappears in the round native releases it. Scheduling is unchanged: one paired activation, the rider is principal, and the mount stays selectable. |
+| **Whose budget moves the pair** | The mount moves using its own actions. | `TickMovement` charges the mount's movement stats and cooldown whenever the mover has a rider. The smart cursor evaluates `Mount ?? Rider`. | Execution already charged only the mount. The defect was in the **preview**: it read the rider's turn state. The path settings, step mode and admission now read the mount's movement context whichever pair actor is selected. |
+| **Move, then attack** | The mount may move, then attack with a Standard action. | Per-unit `UsedStandardAction` and `Cooldown.MoveAction`. | The first in-budget travel debits only the mount's Move (below 3 s). The mount's Standard stays available for its own attack. A deliberate second move (yellow) is the native conversion (`MoveAction > 3`) of the **mount's** Standard. The preview now shows that yellow. |
+| **Rider full attack vs mount movement** | Movement beyond 5 ft limits the rider to one melee attack. | `GetRemainingTime(unit)` uses only that unit's own budget. The cursor has a "mount moves, rider full-attacks" variant. TabletopTweaks (active by default) blocks a melee rider's full attack after the mount moves. It never consumes the mount's movement. | **D1 is kept** (the CRPG transport model). The rider's full attack spends only the rider. Before F3, the rider's exhausted turn forced five-foot-step mode on the pair. Now the mount's unused Move is shown and executable. The mount's own spending stays authoritative. No split-move or Ride-By privilege is added. |
+| **Five-foot step** | A step and a normal move cannot both provide movement in a round. | Step distance and time are tracked per actor and evaluated on the mount. | After the mount's step, its context shows no step and no ordinary locomotion, so no line is drawn. Execution already refused further travel. Other, non-locomotion Move actions are unaffected. |
+| **Charge** | A full-round action with its own movement restrictions. | The mount carries the charge (`AbilityCustomCharge`, `IsMountCharging`). The rider and mount attacks are linked. | **D4:** after delivered mounted Charge travel, the pair has no further ground travel or step in that activation. It reuses the existing allocation record `TimeForced`, which mirrors native `TimeMovedInForceMode`, is tied to the activation identity and already persists through save and load. The mount keeps its Standard attack, which is not fake-spent, but that Standard cannot become another move. A rejected Charge changes nothing. A Charge that travelled and was then cancelled is bounded the same way: the travel is not refunded and no further locomotion is granted, as with the native stock charge. |
+| **Destination marker** | — | — | Native draws a marker at full alpha only when its unit is selected. The pair's travel command runs on the mount while the rider is selected, so the marker drew at alpha 0.5. That marker now uses the selected style. Other companions and unmounted units keep native behavior, and refused orders never create a marker. |
+
+## Boundaries of the selected contract
+
+- **Mode change (TB→RT→TB):** it forfeits the activation natively, and renewal needs native readiness plus at least six native seconds. The D4 restriction ends with the activation it belongs to; it is not reset inside that activation.
+- **Dismount:** it splits the activation for the rest of the round. Re-adoption is refused until the next native round, so a remount cannot reopen pair locomotion in the same activation.
+- **Save/load:** `TimeForced` is part of the saved allocation (`SavedMovementAllocation`) and the saved partner context. No save schema change was made.
+- **Not selected:** exact vanilla Wrath charge participants, Pounce, lance damage, both actors' charge bonuses, strict tabletop action sharing, and the TabletopTweaks full-attack rule.
