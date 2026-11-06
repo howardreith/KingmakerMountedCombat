@@ -394,9 +394,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     var drawnEmpty = F2VisibleBar();
                     Check(F2VisibleShows(drawnEmpty, last, ""), "f2-freed-slot-drawn-empty-before-placement");
                     Check(F2Indices().Count == 0 && controls.InitialPlacementCount == 0, "f2-no-control-before-the-placement-event");
+                    // The native new-ability route needs the autofill setting; off, no placement is expected (not a repaint defect).
+                    var autofill = Kingmaker.UI.SettingsUI.SettingsRoot.Instance?.AutofillActionbarSlots?.CurrentValue == true;
+                    Check(autofill, "f2-native-autofill-setting-on-before-the-placement-event");
                     controls.BeginLoadedWorld();
                     F2Disclose("The placement records were forgotten as a newly loaded world's are (NativeMountedControlService.BeginLoadedWorld), so the rider gets its first placement.");
-                    Write("f2-placement-armed", new JObject { ["visibleBefore"] = drawnEmpty, ["frame"] = Time.frameCount, ["actor"] = F2Actor("armed") });
+                    Write("f2-placement-armed", new JObject { ["autofill"] = autofill, ["visibleBefore"] = drawnEmpty, ["frame"] = Time.frameCount, ["actor"] = F2Actor("armed") });
                     f2Frames = 0; stage = 303; return;
                 }
                 // 303: no selection, drawer, refresh or mount happens here: only frames pass until the bar draws the control.
@@ -577,7 +580,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     var watch = F2WatchRecord("removed-update-ticks");
                     // Reselection: another party member, then the rider again.
                     var other = game.Player.ControllableCharacters.FirstOrDefault(u => u != rider && u != mount && u.View != null);
-                    if (other != null) SelectionManager.Instance.SelectUnit(other.View, true, true, false);
+                    Check(other != null, "f2-another-party-member-to-reselect-from");
+                    SelectionManager.Instance.SelectUnit(other.View, true, true, false);
                     Write("f2-removed-ticks", new JObject { ["watch"] = watch, ["reselectVia"] = other?.UniqueId });
                     Check(F2WatchClean, "f2-removed-control-absent-through-update-ticks");
                     f2Frames = 0; stage = 332; return;

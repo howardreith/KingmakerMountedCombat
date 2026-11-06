@@ -2,7 +2,7 @@
 # native facts; PASS is decided here, strictly, from those facts, the archives on disk and the producer's own evidence.
 function Get-KmcFinalize2UpgradeIdentities {
  [ordered]@{ publicControl='26151090ad4744ea96dbb7e0537a4a7f'; mountShell='f053faad986631688defa003cd7bda0e'; dismountShell='3af2b81f4d72bbb30501fa730fcdf36e'
-  mountedChargeShell='d79eaec224a7a832e738eb81baef9d49'; keptLeaf='Manual_1_KMC_P01.zks'; removedLeaf='Manual_2_KMC_F2_REMOVED.zks'; removedName='KMC_F2_REMOVED'; mainBar=14 }
+  mountedChargeShell='d79eaec224a7a832e738eb81baef9d49'; legacyQuickSha='83e92e1ae1a38dda731a32aff6b4ff6ad424e5e5f6777f758db6832a8eb7122b'; keptLeaf='Manual_1_KMC_P01.zks'; removedLeaf='Manual_2_KMC_F2_REMOVED.zks'; removedName='KMC_F2_REMOVED'; mainBar=14 }
 }
 function Test-KmcFinalize2UpgradeRequest($Request) {
  $Request.scenario -ceq 'persistence-p05-load' -and $null -ne $Request.PSObject.Properties['finalize2Controls'] -and $Request.finalize2Controls -eq $true
@@ -16,6 +16,8 @@ function Find-KmcFinalize2UpgradeProducer($Request,[string]$EvidenceParent) {
   if(-not(Test-Path -LiteralPath $requestPath -PathType Leaf) -or -not(Test-Path -LiteralPath $rowsPath -PathType Leaf)){ continue }
   $r=Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
   if(-not(Test-KmcFinalize2UpgradeRequest $r) -or [string]$r.persistenceCase -cne 'quick'){ continue }
+  $resultPath=Join-Path $dir.FullName 'runtime-result.json'
+  if(-not(Test-Path -LiteralPath $resultPath -PathType Leaf) -or [string](Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json).status -cne 'PASS'){ continue }
   $rows=@(Get-Content -LiteralPath $rowsPath | ForEach-Object { $_ | ConvertFrom-Json })
   $writes=@($rows | Where-Object kind -CEQ 'native-write-complete')
   if($writes.Count -eq 2 -and [string]$writes[0].detail.sha256 -ceq [string]$Request.persistenceLoad.sha256 -and [string]$writes[1].detail.sha256 -ceq [string]$Request.persistenceAlternate.sha256){
@@ -27,7 +29,7 @@ function Find-KmcFinalize2UpgradeProducer($Request,[string]$EvidenceParent) {
 }
 
 function Assert-KmcFinalize2UpgradeEvidence {
- param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Rows,[Parameter(Mandatory=$true)]$GameResult,[string]$SaveRoot,[string]$EvidenceParent)
+ param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Rows,[Parameter(Mandatory=$true)]$GameResult,[string]$SaveRoot,[string]$EvidenceParent,[string]$LegacyInputSha256)
  function Fail([string]$Why){ throw ('F2 upgrade: '+$Why) }
  function P($O,[string]$N){ if($null -ne $O -and $O -isnot [string] -and $O -isnot [ValueType] -and $null -ne $O.PSObject.Properties[$N]){ $O.$N } else { $null } }
  function Int($V,[string]$What){ if($V -isnot [int] -and $V -isnot [long]){ Fail ($What+' is missing or not an integer') }; [long]$V }
@@ -113,7 +115,8 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if($row.runId -cne $Request.runId -or $row.scenario -cne $Request.scenario -or $row.source -cne $Request.commit -or $row.dll -cne $Request.dllSha256 -or
      $row.processId -ne $GameResult.processId -or $row.checkpoint -cne $Request.persistenceCase -or (P $row.controls 'DuplicateFactCount') -ne 0){ Fail 'a row breaks the run identity or duplicates a control fact' }
   # A click row is written the frame the click ran; its shell may already have begun the transition.
-  $states=if([string]$row.kind -cmatch '-click$'){@('Mounted','Unmounted','Validating','Mounting','Dismounting')}else{@('Mounted','Unmounted')}
+  # Only the cycle rows may leave the mounted pair; every continuation, setup, save and load row is Mounted.
+  $states=if([string]$row.kind -cmatch '-click$'){@('Mounted','Unmounted','Validating','Mounting','Dismounting')}elseif([string]$row.kind -ceq 'f2-cycle-dismounted'){@('Unmounted')}else{@('Mounted')}
   if([string]$row.relationship -cnotin $states -or ($null -ne $row.rider -and [string]$row.rider.Id -cne $riderId) -or ($null -ne $row.mount -and [string]$row.mount.Id -cne $mountId)){ Fail 'a row describes another pair' }
   if([string]$row.relationship -ceq 'Mounted' -and ($null -eq $row.rider -or $null -eq $row.mount)){ Fail 'a mounted row lacks its pair' }
  }
@@ -133,6 +136,8 @@ function Assert-KmcFinalize2UpgradeEvidence {
  if($producer){
   # The authentic old row, mapped: one old Mount/Dismount row becomes the public control in place, retired rows clear.
   if((Int (P $c 'sourceSchema') 'source schema') -ge 3){ Fail 'the producer input is not an older-schema archive' }
+  $pin=if([string]::IsNullOrEmpty($LegacyInputSha256)){$ids.legacyQuickSha}else{$LegacyInputSha256}
+  if([string]$Request.persistenceLoad.sha256 -cne $pin -or [string]$Request.persistenceLoad.fileName -cne 'Quick_1.zks'){ Fail 'the producer input is not the authentic preview.211 Quick' }
   $old=@(@(P $c 'savedRows') | Where-Object { (Text (P $_ 'ActorId')) -ceq $riderId -and (P $_ 'Kind') -in @(1,2) })
   if($old.Count -ne 1){ Fail 'the input does not carry exactly one old Mount/Dismount row' }
   $legacy=[int](P $old[0] 'Index')
@@ -146,7 +151,7 @@ function Assert-KmcFinalize2UpgradeEvidence {
   $freed=One 'f2-setup-freed-slot'; Watch (P $freed.detail 'watch') 'in-session removal' 30
   $freedIndex=[int](Int (P $freed.detail 'freedIndex') 'freed index')
   if($freedIndex -ne ($ids.mainBar-1)){ Fail 'the freed slot is not the main bar''s last' }
-  $armed=One 'f2-placement-armed'; Shown (P $armed.detail 'visibleBefore') $freedIndex '' 'freed slot before placement'
+  $armed=One 'f2-placement-armed'; Yes (P $armed.detail 'autofill') 'the native autofill setting was not on before the placement event'; Shown (P $armed.detail 'visibleBefore') $freedIndex '' 'freed slot before placement'
   if(@(P (P $armed.detail 'actor') 'indices').Count -ne 0){ Fail 'a control was on the bar before the placement event' }
   # The placement row must be the next observation: no selection, drawer, refresh or mount between.
   $order=@($Rows | ForEach-Object { [string]$_.kind })
@@ -215,6 +220,7 @@ function Assert-KmcFinalize2UpgradeEvidence {
   NoExposure $ra 'removed load'
   if(((MainBar $ra) -join '|') -cne ((MainBar ([pscustomobject]@{bar=@(P $pw[1].detail 'barBeforeSave')})) -join '|')){ Fail 'the removed archive''s bar differs from the saved one' }
   Watch (P (One 'f2-removed-ticks').detail 'watch') 'removed update ticks' 60
+  if([string]::IsNullOrEmpty((Text (P (One 'f2-removed-ticks').detail 'reselectVia')))){ Fail 'no other party member was selected before the rider was reselected' }
   $rs=(One 'f2-removed-reselected').detail; Watch (P $rs 'watch') 'removed reselection' 70
   if((P (P $rs 'visible') 'selectedIsRider') -ne $true -or @(@(P (P $rs 'visible') 'mainBar') | Where-Object { (Text (P $_ 'key')) -ceq $ids.publicControl }).Count -ne 0){ Fail 'the reselected bar draws the removed control' }
   Click (One 'f2-removed-dismount-click').detail 'removed dismount' $false 'drawer-entry'
