@@ -2215,7 +2215,6 @@ namespace KingmakerMountedCombat.Integration
             return count;
         }
 
-        private UnitCommand carriedFirstSeenCommand;
         internal long CarriedApproachReplacedTravelCount { get; private set; }
 
         // Exact native component types only: a derived chest, loot or door type is "Other" and stays native.
@@ -2270,14 +2269,16 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 // F4 review MAJOR-1: a new ordinary chest/loot order replaces the pair's own real-time travel, as native Run
-                // makes an unmounted unit's own move yield to its new Standard command (and as a door click does). Only on
-                // the order's first approach tick, so a later player move is never cancelled for an older waiting order.
-                var firstTick = !ReferenceEquals(carriedFirstSeenCommand, command);
-                carriedFirstSeenCommand = command;
+                // makes an unmounted unit's own move yield to its new Standard command (and as a door click does). Only the
+                // exact travel the mount held when this order ran (ObserveContainerOrderRun), once, so a later player move,
+                // a pair operation's delegated move or a charge carrier is never cancelled for an older waiting order.
+                var boundTravel = ReferenceEquals(containerOrderCommand, command) ? containerOrderTravel : null;
+                var firstTick = boundTravel != null;
+                containerOrderTravel = null;
                 var mountCommands = relationship.Mount?.Commands;
                 var mountMove = mountCommands?.GetCommand(UnitCommand.CommandType.Move);
                 if (MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(kind, firstTick, CombatController.IsInTurnBasedCombat(), command.CreatedByPlayer,
-                        mountMove is UnitMoveTo && mountMove.CreatedByPlayer && !(mountMove is MountedDoorApproachMove) && !mountMove.IsFinished,
+                        mountMove != null && ReferenceEquals(mountMove, boundTravel) && !mountMove.IsFinished,
                         mountCommands != null && (mountCommands.Standard != null || mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||
                             mountCommands.GetCommand(UnitCommand.CommandType.Swift) != null),
                         mountCommands != null && mountCommands.Queue.Count == 0))
@@ -2330,8 +2331,28 @@ namespace KingmakerMountedCombat.Integration
             }, out ticket);
             command = routed;
             if (disposed) ticket = null;
+            if (admitted) ObserveContainerOrderRun(container, routed);
             return admitted;
         }
+
+        // F4 re-review MAJOR: the exact mount travel a new chest/loot order may replace is the one the mount held when the
+        // rider's order ran (native Run makes a unit's own earlier move yield to its new Standard command). A move issued
+        // later, a pair operation's own delegated move or a charge carrier is never this instance, so it is never cancelled.
+        private void ObserveContainerOrderRun(UnitCommands container, UnitCommand command)
+        {
+            var interaction = command as UnitInteractWithObject;
+            if (disposed || interaction == null || container == null || container != relationship.Rider?.Commands ||
+                relationship.State != RelationshipState.Mounted || !command.CreatedByPlayer ||
+                MountedCarriedApproachPolicy.Classify(false, ClassifyCarriedInteraction(command, interaction)) != MountedCarriedCommandKind.ContainerInteraction)
+                return;
+            var mountMove = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            var ownTravel = mountMove is UnitMoveTo && mountMove.CreatedByPlayer && !mountMove.IsFinished && !(mountMove is MountedDoorApproachMove) &&
+                !HasActiveCommand && !HasActiveDoorInteraction && chargeOwner == null && !OwnsExactPairedNativeCommand(mountMove);
+            containerOrderCommand = command;
+            containerOrderTravel = ownTravel ? mountMove : null;
+        }
+
+        private UnitCommand containerOrderCommand, containerOrderTravel;
 
         internal void CompletePairCommandRun(MountedCarriedRequestTicket ticket, UnitCommand executed)
         {
