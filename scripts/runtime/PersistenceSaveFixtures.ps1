@@ -2139,6 +2139,8 @@ function Assert-KmcDungeonEntryEvidence {
         [int]$floor.nativeCastRequests-ne0-or$floor.loadingInProcess-ne$false-or-not[string]::IsNullOrEmpty([string]$floor.mountedInvariant)-or
         $floor.riderView-ne$hub.riderView-or$floor.mountView-ne$hub.mountView){throw 'P07 dungeon entry floor arrival lost the world, the views or the exactly-once transfer.'}
     foreach($row in @($hub,$floor)){Assert-KmcAreaViewEvidence $row.riderActor 'retained' 'rider';Assert-KmcAreaViewEvidence $row.mountActor 'retained' 'mount'}
+    # The setup transfer and the native party re-initialisation keep the exact pair generation (review MINOR).
+    if([long]$hub.generation-ne[long]$hub.generationBaseline-or[long]$go.generationBefore-ne[long]$hub.generation-or[long]$floor.generation-ne[long]$go.generationBefore-or[int]$entrance.stage-lt1){throw 'P07 dungeon entry replaced the pair generation or entered no native stage.'}
     $p=$w.partySelection
     if([string]$p.partyBefore-cne[string]$go.partyBefore-or[string]$p.partyAfter-cne[string]$p.partyBefore-or[long]$p.generationAfter-ne[long]$p.generationBefore-or[long]$p.generationBefore-ne[long]$go.generationBefore){throw 'P07 dungeon entry party re-initialisation changed the party or replaced the pair.'}
     $leaf=[System.IO.Path]::GetFileName([string]$w.path)

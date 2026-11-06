@@ -24,6 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         private bool DungeonEntryCase => request.Scenario == "persistence-p07-save" && RuntimeRequest.IsDungeonEntryCase(request.PersistenceCase);
+        // One bound for the entry and its continuation, which share the scenario clock (review MINOR).
+        private const double DungeonEntrySeconds = 240;
         private int dungeonStage, dungeonFrames;
         private GroupManager dungeonGroup;
         private JObject dungeonRoute;
@@ -32,7 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AdvanceDungeonEntry()
         {
-            if (clock.Elapsed.TotalSeconds > 180) throw new InvalidOperationException("P07 dungeon entry stage timed out: " + dungeonStage);
+            if (clock.Elapsed.TotalSeconds > DungeonEntrySeconds) throw new InvalidOperationException("P07 dungeon entry stage timed out: " + dungeonStage);
             var game = Game.Instance;
             if (LoadingProcess.Instance.IsLoadingInProcess) { areaFrames++; return; }
             switch (dungeonStage)
@@ -87,6 +89,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["relationship"] = relationship.State.ToString() });
                     // The native Go button: SetGroup (Player.ReInitPartyCharacters) and the entrance's AfterEntry LoadArea.
                     dungeonGroup.Go();
+                    // Go is synchronous: it closes the selector before dispatching the native load, or returns with it open.
+                    Check(!dungeonGroup.gameObject.activeSelf, "P07-dungeon-entry-native-go-accepted-the-party");
                     dungeonStage = 3; return;
                 case 3:
                 {
@@ -99,6 +103,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(relationship.State == RelationshipState.Mounted && rider != null && mount != null && rider.UniqueId == areaRiderDebt.Id &&
                         mount.UniqueId == areaMountDebt.Id && relationship.Runtime.ValidateMountedInvariants() == null,
                         "P07-dungeon-entry-same-pair-mounted-after-party-selection-and-load");
+                    Check(relationship.MountedPairGeneration == dungeonGenerationBefore, "P07-dungeon-entry-party-re-initialisation-kept-the-pair-generation");
                     Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 && game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1 &&
                         IsBoundNativeView(rider) && IsBoundNativeView(mount) && relationship.IsExactCapturedView(rider) && relationship.IsExactCapturedView(mount),
                         "P07-dungeon-entry-bound-native-views-no-duplicates");

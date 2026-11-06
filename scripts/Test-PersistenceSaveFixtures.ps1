@@ -740,11 +740,13 @@ $deWrite=[pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@
     barrier=[pscustomobject]@{relationship='Mounted';area=$deFloor;snapshots=1;suspensions=2;resumes=2;riderId='owned-rider';mountId='owned-mount'}
     partySelection=[pscustomobject]@{partyBefore='a|b|owned-rider';partyAfter='a|b|owned-rider';generationBefore=3;generationAfter=3}
     snapshot=[pscustomobject]@{Mounted=$true;AreaId=$deFloor;CampaignId=$deGame;Rider=[pscustomobject]@{Id='owned-rider'};Mount=[pscustomobject]@{Id='owned-mount'}}}}
+foreach($row in @($deSetup,$deHubRow,$deFloorRow)){$row.detail|Add-Member generation 3;$row.detail|Add-Member generationBaseline 3}
 $deRows=@($deSetup,$deHubRow,$deGo,$deFloorRow,$deWrite)
 Assert-KmcDungeonEntryEvidence $deRequest $deRows;$passes++
 foreach($bad in @('hub-write','hub-replaced-world','no-entrance','entrance-other-floor','selector-closed','setup-autosave','party-changed','pair-replaced',
     'floor-not-reached','views-replaced','extra-transfer','second-write','manual-leaf','admitted-elsewhere','committed-in-hub','autosave-unmounted',
-    'autosave-foreign-campaign','barrier-before-restoration','out-of-order','foreign-record','missing-go','unmounted-at-go','wrong-request-pins')){
+    'autosave-foreign-campaign','barrier-before-restoration','out-of-order','foreign-record','missing-go','unmounted-at-go','wrong-request-pins',
+    'setup-replaced-generation','floor-replaced-generation','no-native-stage')){
     $copy=($deRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json;$req=$deRequest
     switch($bad){
         'hub-write' {$copy[1].detail.snapshots=1}
@@ -769,6 +771,9 @@ foreach($bad in @('hub-write','hub-replaced-world','no-entrance','entrance-other
         'foreign-record' {$copy=@($copy)+@([pscustomobject]@{kind='area-initial-write';detail=$null})}
         'missing-go' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4])}
         'unmounted-at-go' {$copy[2].detail.relationship='Unmounted'}
+        'setup-replaced-generation' {$copy[1].detail.generation=4}
+        'floor-replaced-generation' {$copy[3].detail.generation=4}
+        'no-native-stage' {$copy[3].detail.route.entrance.stage=0}
         'wrong-request-pins' {$req=[pscustomobject]@{persistenceCase='area-dungeon-entry';fixture=$deRequest.fixture
             persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='BeforeExit'}}}
     }
