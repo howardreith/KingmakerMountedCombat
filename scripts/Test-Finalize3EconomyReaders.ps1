@@ -190,7 +190,8 @@ $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c1.click.handlerIsShell=$false; 
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c1.after.bMount.standard=6.0; Reject $r 'a mount that paid the rider Charge refuses' $tbRequest 'C1 mount Standard retained'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c3Step.mountDelta=1.0; Reject $r 'a five-foot step after the charge that moved refuses' $tbRequest 'C3 c3Step refused'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c4.actorRules=0; Reject $r 'a retained mount Standard that could not attack refuses' $tbRequest 'C4 the mount attacked'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1.after.aMount.usedStandard=$false; Reject $r 'a double move without the native Standard conversion refuses' $tbRequest 'D1 native Standard conversion'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1.after.aMount.move=2.9; Reject $r 'a double move that never left the first Move refuses' $tbRequest 'D1 mount moved into its second Move'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1.after.bRider.standard=0.0; Reject $r 'a rider attack that spent no Standard refuses' $tbRequest 'B1 rider Standard spent by its own attack'
 # Item 8 refusals
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a4Refusal.feedback='No Standard action remains for this actor''s attack.'; Reject $r 'refusal not naming the actor refuses' $tbRequest 'A4 refusal names the rider'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d2.feedback='Valerie has no Standard action left this turn.'; Reject $r 'mount refusal naming the rider refuses' $tbRequest 'D2 refusal names the mount'
