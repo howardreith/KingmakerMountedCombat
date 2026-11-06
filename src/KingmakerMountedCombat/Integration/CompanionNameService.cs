@@ -112,10 +112,21 @@ namespace KingmakerMountedCombat.Integration
             if (result == null) { Record("rename cancelled"); return; }
             var verdict = Rename(unit, opened, result, out var refusal);
             if (verdict == CompanionNameVerdict.Accepted || refusal != null) return;
-            // A rejected entry explains itself in the native message box and reopens with what was typed.
-            Dialog.OpenMessage(Text("KMC.Companion.Rename.Invalid." + verdict), () => Dialog.OpenText(
+            // A rejected entry explains itself in the native message box and reopens with what was typed. Both open from
+            // Update, never inside the box's own close callbacks, which the native box follows with a second result callback.
+            pending = () => Dialog.OpenMessage(Text("KMC.Companion.Rename.Invalid." + verdict), () => pending = () => Dialog.OpenText(
                 string.Format(Text("KMC.Companion.Rename.Prompt"), unit.CharacterName, DefaultName(unit)), result,
                 Text("KMC.Companion.Rename.Confirm"), retry => OnRenameResult(unit, opened, retry)));
+        }
+
+        private Action pending;
+
+        internal void Update()
+        {
+            if (disposed || pending == null || NativeTextDialog.IsShown) return;
+            var next = pending;
+            pending = null;
+            next();
         }
 
         internal bool OpenReset(UnitEntityData unit)

@@ -335,6 +335,7 @@ namespace KingmakerMountedCombat
             }
             nativeControls.Update();
             mountedCombatDefense.Update();
+            companionNames.Update();
             runtimeAutomation?.ObserveStartupPreHostEnd();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
