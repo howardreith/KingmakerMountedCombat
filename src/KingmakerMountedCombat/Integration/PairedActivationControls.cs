@@ -19,6 +19,9 @@ namespace KingmakerMountedCombat.Integration
             ResolveMethod(typeof(TurnController), "UpdateActionPredictions", 0x06000C6E, Type.EmptyTypes);
         private static readonly System.Reflection.MethodInfo NativeSelectMovementLimit =
             ResolveMethod(typeof(TurnController), "TrySelectMovementLimit", 0x06000C42, Type.EmptyTypes);
+        private static readonly System.Reflection.FieldInfo NativeMovementLimit = ResolveField(typeof(TurnController), "m_MovementLimit", 0x0400067E);
+        private static readonly System.Reflection.FieldInfo NativeModifyCurrent = ResolveField(typeof(TurnController), "m_ModifyMovementCurrentValue", 0x04000680);
+        private static readonly System.Reflection.FieldInfo NativeModifyRequested = ResolveField(typeof(TurnController), "m_ModifyMovementRequestValue", 0x04000681);
 
         internal bool MaySelectPairedPartner(UnitEntityData actor) => actor != null &&
             actor == activation?.Partner && CanAddressActor(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn);
@@ -33,17 +36,27 @@ namespace KingmakerMountedCombat.Integration
             return partnerContext;
         }
 
-        // Locomotion belongs to the mount whichever pair actor is selected: the path,
-        // step mode and execution all read the mount's own allocation, never the
-        // carried rider's untouched movement fields.
+        // Locomotion belongs to the mount whichever pair actor is selected: the path
+        // and execution read the mount's own allocation, never the carried rider's
+        // untouched movement fields.
         internal TurnController PairedMovementContext(TurnController native)
         {
             var selected = SelectionManager.Instance?.SingleSelectedUnit;
             if (partnerContext == null || !CanAddressActor(activation?.Partner, native) ||
                 selected != activation.Principal && selected != activation.Partner)
                 return SelectedNativeInputContext(native);
-            if (selected == activation.Principal && !(partnerContext.Unit.View?.IsMoving() ?? false))
+            if (selected == activation.Principal && partnerContext.Unit.IsDirectlyControllable &&
+                !(partnerContext.Unit.View?.IsMoving() ?? false))
+            {
+                // The step key and cycled limit stay on the native input context, whose click
+                // admission and path refresh read them; the mount mirrors that choice. A limit
+                // forced by the rider's own spent budget is not a choice and is not mirrored.
+                var input = SelectedNativeInputContext(native);
+                NativeModifyRequested.SetValue(partnerContext, NativeModifyRequested.GetValue(input));
+                NativeModifyCurrent.SetValue(partnerContext, NativeModifyCurrent.GetValue(input));
+                if (input.HasNormalMovement()) NativeMovementLimit.SetValue(partnerContext, NativeMovementLimit.GetValue(input));
                 NativeSelectMovementLimit.Invoke(partnerContext, null);
+            }
             return partnerContext;
         }
 

@@ -150,7 +150,7 @@ public static class KmcNativePatchProbe {
   var patch=harmonyType.GetMethod("Patch");
   var names=new[]{"PairedSelectorTranspiler","PairedPreparationTranspiler","PairedActivityTranspiler","PairedEligibilityTranspiler",
    "PairedReadinessTranspiler","PairedReadinessTranspiler","PairedForfeitDebtTranspiler","PairedEndDebtTranspiler","PairedProneTranspiler",
-   "PairedFullAttackInputTranspiler","PairedMovementInputTranspiler","PairedMovementInputTranspiler","PairedControllerInputTranspiler","PairedMovementInputTranspiler",
+   "PairedFullAttackInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler",
    "PairedVmConstructorTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler","PairedVmReaderTranspiler",
    "PairedPathUnitTranspiler","PairedPathSettingsTranspiler","PairedControllerInputTranspiler","PairedControllerInputTranspiler",
    "PairedPathUnitTranspiler","PairedControllerInputTranspiler","PairedConditionActionTranspiler","PairedConditionActionTranspiler","PairedPrimaryMarkerTranspiler"};

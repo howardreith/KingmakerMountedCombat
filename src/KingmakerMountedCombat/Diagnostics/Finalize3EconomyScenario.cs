@@ -722,6 +722,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     var record = F3Begin("a2", horse, participant);
                     var destination = F3Destination(horse, f3BMount, 0.5f * 3f * speed);
                     record["requestedMetres"] = HorizontalDistance(horse.Position, destination);
+                    record["autoStopAfterFirstMove"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue;
                     F3GroundClick("a2", destination, true);
                     f3Step = 2; return;
                 }
@@ -1045,6 +1046,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // Straight-line 3.8 s of speed: the path ends in the second Move (beyond the green range, inside the total).
                     var destination = F3Destination(horse, f3BMount, 3.8f * horse.CurrentSpeedMps);
                     record["requestedMetres"] = HorizontalDistance(horse.Position, destination);
+                    record["autoStopAfterFirstMove"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue;
                     F3GroundClick("d1", destination, true);
                     f3Step = 2; return;
                 }
