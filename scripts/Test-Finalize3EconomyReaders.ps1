@@ -30,8 +30,12 @@ function New-F3Click([string]$Role,[hashtable]$Extra=@{}){ $c=[ordered]@{clicked
 function New-F3Step($Before,$After,[double]$Delta,[hashtable]$Extra=@{}){ $s=[ordered]@{before=$Before;after=$After;mountDelta=$Delta}; foreach($k in $Extra.Keys){ $s[$k]=$Extra[$k] }; $s }
 function New-F3Tracker([string]$Label,[int]$Round,[int]$BMount=0){ [ordered]@{label=$Label;round=$Round;frame=200;source='live';entries=@($ar,$br);aRider=1;aMount=0;bRider=1;bMount=$BMount;hiddenAMount=$true;hiddenBMount=($BMount -eq 0);bRelationship='Mounted'} }
 function New-F3Shot([string]$Name){ [ordered]@{name=$Name;requestedFrame=1;frame=3;ummClosedForCapture=$true;ummOpenAtCapture=$false;file=('movement-visuals/finalize3-'+$Name+'.png');sha256=('a'*64);bytes=100;width=1920;height=1080} }
+# Reader r3: a live prediction-panel slot and a genuine ground-hover record (feet, as the native panel reports).
+function New-F3Slot([string]$Owner,[string]$State,[string]$Move,[string]$Attack,[double]$Possible,[double]$Remaining){ [ordered]@{owner=$Owner;state=$State;moveActivity=$Move;attackActivity=$Attack;possible=$Possible;remaining=$Remaining;predicted=0.0} }
+function New-F3PanelStep($FiveFeet,$Move,$Standard,$Probe){ [ordered]@{distance=3.0;point=[ordered]@{x=0;y=0;z=0};panel=[ordered]@{frame=1;fiveFeet=$FiveFeet;move=$Move;standard=$Standard;
+  fullRound=(New-F3Slot 'mount' $Standard.state $Standard.moveActivity $Standard.attackActivity $Standard.possible $Standard.remaining);swift=(New-F3Slot 'rider' 'Available' $null $null 0 0)};probe=$Probe} }
 function New-F3Measure([string]$Mode,$Cases,$Shots,[hashtable]$Extra=@{}){
- $m=[ordered]@{contract='finalize3-movement-economy-v1';mode=$Mode;rider=$ar;mount=$am;secondRider=$br;secondMount=$bm;secondPairSource='existing-pet';cases=@($Cases);startRelationship='Unmounted';
+ $m=[ordered]@{contract=$(if($Mode -ceq 'TB'){'finalize3-movement-economy-v2'}else{'finalize3-movement-economy-v1'});mode=$Mode;rider=$ar;mount=$am;secondRider=$br;secondMount=$bm;secondPairSource='existing-pet';cases=@($Cases);startRelationship='Unmounted';
   names=[ordered]@{aRider='Valerie';aMount='Arrow';bRider='Harrim';bMount='Blaze'};stockCharge=$id.stockCharge;mountedChargeShell=$id.mountedChargeShell;
   disclosedSetup=@([ordered]@{case='x';frame=1;action='disclosed setup'});screenshots=$Shots;attackRules=@()}
  foreach($k in $Extra.Keys){ $m[$k]=$Extra[$k] }
@@ -53,6 +57,7 @@ function New-F3TbArtifact {
  $a=[ordered]@{case='F3-tb-a-round1';steps=[ordered]@{
   start=[ordered]@{snap=$zero;probe=(New-F3Probe 'aMount' 15.0 30.0);participation=[ordered]@{present=$true;mountPrepared=$true};tracker=(New-F3Tracker 'a-round1-start' $r1);surprise=$false};
   a2=(New-F3Step $zero $aMoved 7.4 @{probe=(New-F3Probe 'aMount' 7.5 22.5);requestedMetres=7.5});a2Click=(New-F3Click 'aRider');
+  a2Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Available' 'Available' $null 5 5) (New-F3Slot 'mount' 'WillBeUsed' 'WillBeUsed' 'WillBeLost' 49 25) (New-F3Slot 'mount' 'Available' 'Available' 'Available' 49 49) (New-F3Probe 'aMount' 7.5 22.5));
   a3=(New-F3Step $aMoved $aMountAttacked 0.0 @{actorRules=1;attackObserved=$true});a3Click=(New-F3Click 'aMount');
   a4=(New-F3Step $aMountAttacked $aRiderAttacked 0.0 @{actorRules=2;attackObserved=$true});a4Click=(New-F3Click 'aRider');
   a4Refusal=(New-F3Step $aRiderAttacked $aRiderAttacked 0.0 @{actorRules=0;feedback='Valerie has no Standard action left this turn.';trace=('actor='+$ar+';riderStandard=6;riderMove=3;mountStandard=6;mountMove=1.5');feedbackBefore='x';traceBefore='not-observed'});
@@ -63,14 +68,21 @@ function New-F3TbArtifact {
  $bMoved=New-F3Snap $r1 @{bRider=(New-F3Actor $br 6.0 3.0);bMount=(New-F3Actor $bm 0.0 1.2)} @{turnRole='bRider'}
  $b=[ordered]@{case='F3-tb-b-round1';steps=[ordered]@{
   start=[ordered]@{snap=$bStart;probe=(New-F3Probe 'bMount' 15.0 30.0);participation=[ordered]@{present=$true;mountPrepared=$true};tracker=(New-F3Tracker 'b-round1-start' $r1)};
-  b1=(New-F3Step $bStart $bFull 0.0 @{probe=(New-F3Probe 'bMount' 15.0 30.0);actorRules=2;attackObserved=$true});b1Click=(New-F3Click 'bRider');
-  b2=(New-F3Step $bFull $bMoved 6.0 @{probe=(New-F3Probe 'bMount' 9.0 24.0);requestedMetres=6.0});b2Click=(New-F3Click 'bRider');end=[ordered]@{snap=$bStart;endedNatively=$true}}}
+  b1=(New-F3Step $bStart $bFull 0.0 @{probe=(New-F3Probe 'bMount' 15.0 30.0);actorRules=2;attackObserved=$true;clicked=$true;enabledFullAttack=$true;hoverChangedState=$false;cursorCycles=1;
+   estimatedFullAttacks=2;riderHasFullRound=$true;riderDistanceToTarget=1.2;riderHasNormalMovement=$false;riderLimit='FiveFootStep';
+   attackStarted=[ordered]@{facts=[ordered]@{type='MountedPairAttackCommand';executor=$br;isFullAttack=$true;isSingleAttack=$false;plannedAttacks=2;deliveredAttacks=0;shouldApproach=$false;isFinished=$false;result='None'};snap=$bStart};
+   attack=[ordered]@{type='MountedPairAttackCommand';executor=$br;isFullAttack=$true;isSingleAttack=$false;plannedAttacks=2;deliveredAttacks=2;shouldApproach=$false;isFinished=$true;result='Success'}});
+  b1Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Available' 'Available' $null 5 5) (New-F3Slot 'mount' 'WillBeUsed' 'WillBeUsed' 'WillBeLost' 49 49) (New-F3Slot 'mount' 'Available' 'Available' 'Available' 49 49) (New-F3Probe 'bMount' 15.0 30.0));
+  b2=(New-F3Step $bFull $bMoved 6.0 @{probe=(New-F3Probe 'bMount' 9.0 24.0);requestedMetres=6.0;partnerLimit='TwoActions'});b2Click=(New-F3Click 'bRider');
+  b2Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Available' 'Available' $null 5 5) (New-F3Slot 'mount' 'WillBeUsed' 'WillBeUsed' 'WillBeLost' 49 29) (New-F3Slot 'mount' 'Available' 'Available' 'Available' 49 49) (New-F3Probe 'bMount' 9.0 24.0));
+  end=[ordered]@{snap=$bStart;endedNatively=$true}}}
  # Pair A, round two: five-foot step, then a refused ordinary move.
  $s0=New-F3Snap ($r1+1)
  $stepProbe=New-F3Probe 'aMount' 0.0 0.0 @{partner=[ordered]@{timeMoved=0.3;timeForced=0.0;timeStepped=0.3;metresStepped=1.0;modifyLimit=$false;enabledStep=$false;enabledSingle=$false;remaining=0.0;remainingTotal=0.0;stepRange=0.0}}
  $st=[ordered]@{case='F3-tb-a-step';steps=[ordered]@{
   start=[ordered]@{snap=$s0;probe=(New-F3Probe 'aMount' 15.0 30.0);tracker=(New-F3Tracker 'a-round2-start' ($r1+1))};
   s1=(New-F3Step $s0 $s0 1.0 @{changedContext='current';probe=$stepProbe;contextsBefore=[ordered]@{current=[ordered]@{modifyLimit=$false};partner=[ordered]@{modifyLimit=$false}}});s1Click=(New-F3Click 'aRider');
+  s1Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Unable' 'Unable' $null 5 0) (New-F3Slot 'mount' 'Unable' 'Unable' 'Available' 49 0) (New-F3Slot 'mount' 'Unable' 'Unable' 'Available' 49 0) $stepProbe);
   s2=(New-F3Step $s0 $s0 0.0 @{probe=$stepProbe});s2Click=(New-F3Click 'aRider' @{clicked=$false});end=[ordered]@{snap=$s0;endedNatively=$true}}}
  # Pair B, round two: the ordinary Charge, nothing after it, then the mount's retained Standard.
  $c0=New-F3Snap ($r1+1) @{} @{turnRole='bRider'}
@@ -82,6 +94,7 @@ function New-F3TbArtifact {
   c1=(New-F3Step $c0 $c1 10.0 @{click=[ordered]@{stockPresent=$true;slotSource='pre-existing';index=20;slotAbilityBefore=$id.stockCharge;slotAbilityAfter=$id.stockCharge;handlerAfter=$id.mountedChargeShell;handlerIsShell=$true;clicked=$true;castDelta=1;admittedDelta=0;shell=$true;shellTarget=$hostile;targetId=$hostile};
    chargeRules=1;riderRules=1;peakPartnerForced=2.0;peakAllocationForced=2.0;allocation=[ordered]@{timeMoved=2.0;timeForced=2.0;timeStepped=0.0;metresStepped=0.0};terminal=[ordered]@{result='Success';sequenceLawful=$true;revalidationFailed=$false}});
   c2=[ordered]@{snap=$c1;probe=$chargeProbe};
+  c2Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Unable' 'Unable' $null 5 0) (New-F3Slot 'mount' 'Unable' 'Unable' 'Available' 49 0) (New-F3Slot 'mount' 'Available' 'Unable' 'Available' 49 0) $chargeProbe);
   c3Move=(New-F3Step $c1 $c1 0.0 @{probe=$chargeProbe});c3MoveClick=(New-F3Click 'bRider' @{clicked=$false});
   c3Step=(New-F3Step $c1 $c1 0.02 @{probe=$chargeProbe});c3StepClick=(New-F3Click 'bRider' @{clicked=$false});
   c4=(New-F3Step $c1 $c4 0.0 @{actorRules=1;attackObserved=$true});c4Click=(New-F3Click 'bMount');end=[ordered]@{snap=$c0;endedNatively=$true}}}
@@ -91,6 +104,7 @@ function New-F3TbArtifact {
  $d=[ordered]@{case='F3-tb-a-double';steps=[ordered]@{
   start=[ordered]@{snap=$d0;probe=(New-F3Probe 'aMount' 15.0 30.0);tracker=(New-F3Tracker 'a-round3-start' ($r1+2))};
   d1=(New-F3Step $d0 $d1 21.0 @{probe=(New-F3Probe 'aMount' 0.0 9.0)});d1Click=(New-F3Click 'aRider');
+  d1Panel=(New-F3PanelStep (New-F3Slot 'mount' 'Unable' 'Unable' $null 5 0) (New-F3Slot 'mount' 'Unable' 'Unable' 'Unable' 49 0) (New-F3Slot 'mount' 'WillBeUsed' 'WillBeUsed' 'Lost' 49 29) (New-F3Probe 'aMount' 0.0 9.0));
   d2=(New-F3Step $d1 $d1 0.0 @{actorRules=0;feedback='Arrow has no Standard action left this turn.';trace=('actor='+$am+';riderStandard=0;riderMove=0;mountStandard=6;mountMove=4.2')});d2Click=(New-F3Click 'aMount');end=[ordered]@{snap=$d0;endedNatively=$true}}}
  # Pair B, round three: dismount; the released mount's own turn next round.
  $x0=New-F3Snap ($r1+2) @{} @{turnRole='bRider'}
@@ -191,7 +205,37 @@ $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c1.after.bMount.standard=6.0; Re
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c3Step.mountDelta=1.0; Reject $r 'a five-foot step after the charge that moved refuses' $tbRequest 'C3 c3Step refused'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c4.actorRules=0; Reject $r 'a retained mount Standard that could not attack refuses' $tbRequest 'C4 the mount attacked'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1.after.aMount.move=2.9; Reject $r 'a double move that never left the first Move refuses' $tbRequest 'D1 mount moved into its second Move'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1.after.bRider.standard=0.0; Reject $r 'a rider attack that spent no Standard refuses' $tbRequest 'B1 rider Standard spent by its own attack'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1.after.bRider.standard=0.0; Reject $r 'a rider attack that spent no Standard refuses' $tbRequest 'B1 rider full round spent'
+# ECON-02 genuine full attack and the movement-facing panel (reader r3)
+function B1($A){ (Row $A 'F3-tb-b-round1').steps.b1 }
+$r=Copy-F3 $tb; foreach($x in (B1 $r).attack,(B1 $r).attackStarted.facts){ $x.isFullAttack=$false; $x.isSingleAttack=$true; $x.plannedAttacks=1 }; (B1 $r).attack.deliveredAttacks=1; (B1 $r).after.bRider.move=0.0
+Reject $r 'a single Standard-only attack (r03 shape) refuses' $tbRequest 'B1 native full attack without an approach'
+$r=Copy-F3 $tb; (B1 $r).attackStarted.facts.shouldApproach=$true; Reject $r 'a full attack that approached refuses' $tbRequest 'B1 native full attack without an approach'
+$r=Copy-F3 $tb; (B1 $r).PSObject.Properties.Remove('attack'); Reject $r 'a missing full-attack observation refuses' $tbRequest 'B1 the rider attack command was observed'
+$r=Copy-F3 $tb; (B1 $r).attack.plannedAttacks=1; (B1 $r).attack.deliveredAttacks=1; Reject $r 'a one-strike plan refuses' $tbRequest 'B1 at least two planned strikes'
+$r=Copy-F3 $tb; (B1 $r).attack.deliveredAttacks=1; Reject $r 'one delivered strike refuses' $tbRequest 'B1 at least two planned strikes'
+$r=Copy-F3 $tb; (B1 $r).hoverChangedState=$true; Reject $r 'a hover that changed live state refuses' $tbRequest 'B1 ordinary Full input'
+$r=Copy-F3 $tb; (B1 $r).enabledFullAttack=$false; Reject $r 'an attack without the native Full variant refuses' $tbRequest 'B1 ordinary Full input'
+$r=Copy-F3 $tb; (B1 $r).after.bRider.move=0.0; Reject $r 'a rider whose Move was not spent by the full round refuses' $tbRequest 'B1 rider full round spent'
+$r=Copy-F3 $tb; (B1 $r).riderHasNormalMovement=$true; Reject $r 'a rider that still has normal movement refuses' $tbRequest 'B1 the rider itself has no normal movement'
+$r=Copy-F3 $tb; (B1 $r).after.bMount.move=1.0; Reject $r 'an approach that spent mount travel refuses' $tbRequest 'B1: bMount move unchanged'
+$r=Copy-F3 $tb; (B1 $r).before.bMount=(New-F3Actor $bm 0.0 1.0) | ConvertTo-Json | ConvertFrom-Json; (B1 $r).after.bMount=(B1 $r).before.bMount; Reject $r 'a mount that had already moved refuses' $tbRequest 'B1 the mount started unmoved'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2.after.activationB='f:2'; Reject $r 'a new activation before the mount move refuses' $tbRequest 'B2 the same paired activation'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2.after.bRider.move=4.0; Reject $r 'a mount move charged to the rider refuses' $tbRequest 'B2: bRider move unchanged'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2.after.bMount.standard=6.0; Reject $r 'a mount move charged to the mount Standard refuses' $tbRequest 'B2 mount Standard untouched'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.PSObject.Properties.Remove('b1Panel'); Reject $r 'a missing panel observation refuses' $tbRequest 'step observation missing: b1Panel'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel | Add-Member error 'NullReferenceException' -Force; Reject $r 'a failed panel read refuses' $tbRequest 'no live prediction panel'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.move.owner='rider'; Reject $r 'a Move slot still describing the rider refuses' $tbRequest 'the move slot does not describe the mount'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.swift.owner='mount'; Reject $r 'a Swift slot moved to the mount refuses' $tbRequest 'the Swift slot left the rider'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1Panel.panel.move.moveActivity='Used'; Reject $r 'a full attack that made mount travel look spent refuses' $tbRequest 'B1 panel: the full attack did not make'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2Panel.panel.move.remaining=49; Reject $r 'a partial mount move shown as an untouched Move refuses (B2)' $tbRequest 'B2 panel: the partial mount move'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a2Panel.panel.move.remaining=49; Reject $r 'a partial mount move shown as an untouched Move refuses (A2)' $tbRequest 'A2 panel: the partial mount move'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1Panel.panel.fiveFeet.state='Available'; Reject $r 'a spent step advertised on the panel refuses' $tbRequest 'S1 panel: no five-foot step left'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.moveActivity='Available'; (Row $r 'F3-tb-b-charge').steps.c2Panel.panel.move.remaining=20; Reject $r 'travel advertised after the delivered Charge refuses' $tbRequest 'C2 panel: no ground travel'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1Panel.panel.standard.moveActivity='Unable'; Reject $r 'remaining conversion travel hidden on the panel refuses' $tbRequest 'D1 panel: the remaining conversion travel'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d1Panel.panel.standard.attackActivity='Available'; Reject $r 'a converted Standard offering an attack refuses' $tbRequest 'D1 panel: the converted Standard offers no attack'
+$r=Copy-F3 $tb; $r.observations.finalize3Economy.contract='finalize3-movement-economy-v1'; Reject $r 'v1 turn-based evidence (r03 contract) refuses under reader r3' $tbRequest 'measurement contract differs'
+$r=Copy-F3 $rt; $r.observations.finalize3Economy.contract='finalize3-movement-economy-v2'; Check (Accept $r $rtRequest) 'real-time evidence is accepted under either contract (RT rows unchanged)'
 # Item 8 refusals
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-round1').steps.a4Refusal.feedback='No Standard action remains for this actor''s attack.'; Reject $r 'refusal not naming the actor refuses' $tbRequest 'A4 refusal names the rider'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-double').steps.d2.feedback='Valerie has no Standard action left this turn.'; Reject $r 'mount refusal naming the rider refuses' $tbRequest 'D2 refusal names the mount'

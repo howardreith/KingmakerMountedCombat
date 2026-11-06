@@ -120,6 +120,20 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        // Each CurrentTurn read in a native ActionsState method also passes that method's ActionsState (this or an
+        // argument), so the mount's private states read the mount's own context.
+        internal static IEnumerable<CodeInstruction> ActionsStateOwnerReads(IEnumerable<CodeInstruction> source, MethodInfo owner,
+            int stateArgument, int expected)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x0400064A) || Token(code[i], 0x06000BBE)).ToArray();
+            Require(sites.Length == expected && (stateArgument == 0 || stateArgument == 1), "native ActionsState owner context reader");
+            foreach (var site in sites.Reverse())
+                code.InsertRange(site + 1, new[] { new CodeInstruction(stateArgument == 0 ? OpCodes.Ldarg_0 : OpCodes.Ldarg_1),
+                    new CodeInstruction(OpCodes.Call, owner) });
+            return code;
+        }
+
         private static bool Token(CodeInstruction instruction, int token) => instruction.operand is MemberInfo member && member.MetadataToken == token;
         private static void Require(bool condition, string description)
         {

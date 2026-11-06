@@ -911,6 +911,8 @@ namespace KingmakerMountedCombat.Integration
             partnerContext = null;
             pairedMovementInputContext = null;
             lastPresentedInputContext = null;
+            hasMirroredGroundLimit = false;
+            mountStatesFilled = false;
             context?.Dispose();
         }
     }

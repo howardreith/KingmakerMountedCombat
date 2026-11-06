@@ -1,7 +1,10 @@
 using System;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using KingmakerMountedCombat.Domain;
+using Kingmaker.TurnBasedMode;
 using Kingmaker.TurnBasedMode.Controllers;
+using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.TurnBasedMode;
 using TurnBased.Controllers;
@@ -22,7 +25,9 @@ namespace KingmakerMountedCombat.Integration
         private static readonly System.Reflection.FieldInfo NativeMovementLimit = ResolveField(typeof(TurnController), "m_MovementLimit", 0x0400067E);
         private static readonly System.Reflection.FieldInfo NativeHighlightedUnit = ResolveField(typeof(TurnController), "m_HighlightedUnit", 0x0400068B);
         private static readonly System.Reflection.FieldInfo NativeHighlightedObject = ResolveField(typeof(TurnController), "m_HighlightedObject", 0x0400068D);
-        private object mirroredGroundLimit;
+        // One activation's ground choice: cleared with its partner context.
+        private TurnController.MovementLimit mirroredGroundLimit;
+        private bool hasMirroredGroundLimit;
         private static readonly System.Reflection.FieldInfo NativeModifyCurrent = ResolveField(typeof(TurnController), "m_ModifyMovementCurrentValue", 0x04000680);
         private static readonly System.Reflection.FieldInfo NativeModifyRequested = ResolveField(typeof(TurnController), "m_ModifyMovementRequestValue", 0x04000681);
 
@@ -45,11 +50,12 @@ namespace KingmakerMountedCombat.Integration
         internal TurnController PairedMovementContext(TurnController native)
         {
             var selected = SelectionManager.Instance?.SingleSelectedUnit;
-            if (partnerContext == null || !CanAddressActor(activation?.Partner, native) ||
-                selected != activation.Principal && selected != activation.Partner)
+            var riderSelected = activation != null && selected == activation.Principal;
+            if (partnerContext == null || !PairedMovementInputPolicy.MountOwnsLocomotion(
+                    CanAddressActor(activation?.Partner, native), riderSelected, selected != null && selected == activation?.Partner))
                 return SelectedNativeInputContext(native);
-            if (selected == activation.Principal && partnerContext.Unit.IsDirectlyControllable &&
-                !(partnerContext.Unit.View?.IsMoving() ?? false))
+            if (PairedMovementInputPolicy.MirrorsRiderInput(riderSelected, partnerContext.Unit.IsDirectlyControllable,
+                    partnerContext.Unit.View?.IsMoving() ?? false))
             {
                 // The step key and cycled ground limit stay on the native input context, whose click
                 // admission and path refresh read them; the mount mirrors those choices. A limit the
@@ -58,9 +64,11 @@ namespace KingmakerMountedCombat.Integration
                 var input = SelectedNativeInputContext(native);
                 NativeModifyRequested.SetValue(partnerContext, NativeModifyRequested.GetValue(input));
                 NativeModifyCurrent.SetValue(partnerContext, NativeModifyCurrent.GetValue(input));
-                if (input.HasNormalMovement() && NativeHighlightedUnit.GetValue(input) == null && NativeHighlightedObject.GetValue(input) == null)
-                    mirroredGroundLimit = NativeMovementLimit.GetValue(input);
-                NativeMovementLimit.SetValue(partnerContext, mirroredGroundLimit ?? TurnController.MovementLimit.TwoActions);
+                var choice = PairedMovementInputPolicy.IsGroundLimitChoice(input.HasNormalMovement(),
+                    NativeHighlightedUnit.GetValue(input) != null || NativeHighlightedObject.GetValue(input) != null);
+                NativeMovementLimit.SetValue(partnerContext, PairedMovementInputPolicy.MountLimit(
+                    (TurnController.MovementLimit)NativeMovementLimit.GetValue(input), choice,
+                    ref mirroredGroundLimit, ref hasMirroredGroundLimit, TurnController.MovementLimit.TwoActions));
                 NativeSelectMovementLimit.Invoke(partnerContext, null);
             }
             return partnerContext;
@@ -77,6 +85,75 @@ namespace KingmakerMountedCombat.Integration
                 return mount.CombatState.Cooldown.MoveAction < 3f ? CombatAction.ActionState.Available : CombatAction.ActionState.Unable;
             if (ReferenceEquals(action, partnerContext.ActionsStates.Standard))
                 return mount.UsedStandardAction() ? CombatAction.ActionState.Unable : CombatAction.ActionState.Available;
+            return native;
+        }
+
+        private static readonly System.Reflection.MethodInfo NativeCurrentActionStates =
+            ResolveMethod(typeof(TurnController), "ComputeCurrentActionStates", 0x06000C32, Type.EmptyTypes);
+        private static readonly System.Reflection.MethodInfo NativeRestrictNormalMovement =
+            ResolveMethod(typeof(TurnController), "ShouldRestrictNormalMovement", 0x06000C4F, Type.EmptyTypes);
+        private bool mountStatesFilled;
+        private bool fillingMountStates;
+
+        // A native ActionsState reads CurrentTurn for its owner's movement range; the private context's own
+        // states read the mount. Side-effect free.
+        internal TurnController ActionsStateContext(ActionsState states) =>
+            partnerContext != null && ReferenceEquals(states, partnerContext.ActionsStates) ? partnerContext : null;
+
+        internal void BeginPairedPrediction(TurnController context)
+        {
+            if (activation != null && ReferenceEquals(context, activation.Boundary)) mountStatesFilled = false;
+        }
+
+        private bool RiderGroundPreview(bool requireFilled)
+        {
+            var boundary = activation?.Boundary;
+            return partnerContext != null && boundary != null && PairedMovementInputPolicy.SlotsDescribeMount(
+                SelectionManager.Instance?.SingleSelectedUnit == activation.Principal, CanAddressActor(activation.Partner, boundary),
+                boundary.IsOverTerrain, !requireFilled || mountStatesFilled);
+        }
+
+        // After the native path writes its predictions into the rider's states during a rider-selected ground preview,
+        // the same path writes them into the mount's: its states are first recomputed by native from the mount's own
+        // cooldowns and restrictions (the turn-start ranges kept for the slider maximum), then its remaining ranges.
+        internal void FillPairedMountStates(PathVisualizer path, ActionsState states)
+        {
+            if (fillingMountStates || activation?.Boundary == null || !ReferenceEquals(states, activation.Boundary.ActionsStates) ||
+                !RiderGroundPreview(false) || !partnerContext.Unit.Commands.Empty || !activation.Principal.Commands.Empty) return;
+            fillingMountStates = true;
+            try
+            {
+                var mountStates = partnerContext.ActionsStates;
+                var mount = partnerContext.Unit;
+                var fresh = (ActionsState.Actions)NativeCurrentActionStates.Invoke(partnerContext, null);
+                var standardFeet = (float)partnerContext.GetRemainingActionMovementRangeFeet(UnitCommand.CommandType.Standard).Value;
+                if (PairedMovementInputPolicy.ConversionTravelRemains(mount.CombatState.Cooldown.MoveAction, mount.UsedStandardAction(),
+                        (bool)NativeRestrictNormalMovement.Invoke(partnerContext, null), standardFeet))
+                    fresh.Standard = new CombatAction(CombatAction.ActivityState.Available, CombatAction.ActivityState.Lost, CombatAction.ActivityState.Lost, standardFeet);
+                // That computation keeps a used step available (native's state machine marks it used at the step's own
+                // command end); the live native HasFiveFootStep is the mount's remaining step, a partial step's residual included.
+                if (!partnerContext.HasFiveFootStep())
+                    fresh.FiveFootStep = new CombatAction(CombatAction.ActivityState.Unable, null, null, mountStates.FiveFootStep.MaxMoveDistance);
+                fresh.FiveFootStep.MaxMoveDistance = mountStates.FiveFootStep.MaxMoveDistance;
+                fresh.Move.MaxMoveDistance = mountStates.Move.MaxMoveDistance;
+                fresh.Standard.MaxMoveDistance = mountStates.Standard.MaxMoveDistance;
+                mountStates.ActionsStates = fresh;
+                mountStates.Clear();
+                mountStates.UpdateMoveDistance();
+                path.UpdateActionStatesFromPath(mountStates);
+                mountStatesFilled = true;
+            }
+            finally { fillingMountStates = false; }
+        }
+
+        // The movement-facing slot reads the mount's matching action during a filled rider-selected ground preview.
+        internal CombatAction PairedSlotAction(CombatAction native)
+        {
+            if (native == null || !RiderGroundPreview(true)) return native;
+            var rider = activation.Boundary.ActionsStates; var mount = partnerContext.ActionsStates;
+            if (ReferenceEquals(native, rider.Move)) return mount.Move;
+            if (ReferenceEquals(native, rider.FiveFootStep)) return mount.FiveFootStep;
+            if (ReferenceEquals(native, rider.Standard)) return mount.Standard;
             return native;
         }
 
@@ -100,6 +177,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!PairedLifecycleEnabled || activation == null ||
                 !ReferenceEquals(context, activation.Boundary) && !ReferenceEquals(context, partnerContext)) return true;
+            BeginPairedPrediction(context);
             var addressed = SelectedNativeInputContext(activation.Boundary);
             if (ReferenceEquals(context, addressed)) return true;
             if (ReferenceEquals(context, activation.Boundary)) NativeInputPredictions.Invoke(addressed, null);
