@@ -197,6 +197,8 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleCompanionRemoved(UnitEntityData unit)
         {
+            // A deferral left by a scope that never closed is decided before any later removal.
+            if (!NativePartyReinitScope.IsActive) CompletePartyReinitialisation();
             if (!IsPairUnit(unit)) return;
             if (PartyReinitialisationRetentionPolicy.OnRemoved(NativePartyReinitScope.IsActive, unit.IsInGame) ==
                 PartyRemovalDisposition.DeferUntilReinitialisationEnds)
@@ -219,16 +221,24 @@ namespace KingmakerMountedCombat.Integration
             var party = Kingmaker.Game.Instance?.Player?.PartyCharacters;
             foreach (var unit in deferred)
             {
-                if (!IsPairUnit(unit)) continue;
-                var backInParty = party != null && party.Any(reference => reference.Value == unit);
-                if (PartyReinitialisationRetentionPolicy.RetainAtEnd(backInParty, unit.IsInGame))
+                try
                 {
-                    PartyReinitialisationRetainedCount++;
-                    Observe(NativeLifecycleBoundary.PartyRemoved, "Player.ReInitPartyCharacters(retained: back in the party)", unit.UniqueId);
-                    service.ResolveActorOwner(unit)?.ValidateActivePair();
-                    continue;
+                    if (!IsPairUnit(unit)) continue;
+                    var backInParty = party != null && party.Any(reference => reference.Value == unit);
+                    if (PartyReinitialisationRetentionPolicy.RetainAtEnd(backInParty, unit.IsInGame))
+                    {
+                        PartyReinitialisationRetainedCount++;
+                        Observe(NativeLifecycleBoundary.PartyRemoved, "Player.ReInitPartyCharacters(retained: back in the party)", unit.UniqueId);
+                        service.ResolveActorOwner(unit)?.ValidateActivePair();
+                        continue;
+                    }
+                    CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved(after native party re-initialisation)", CleanupTrigger.CompanionInvalidated);
                 }
-                CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved(after native party re-initialisation)", CleanupTrigger.CompanionInvalidated);
+                catch (Exception exception)
+                {
+                    // One unit's failure never strands the others; the ledger keeps it.
+                    Observe(NativeLifecycleBoundary.PartyRemoved, "Player.ReInitPartyCharacters(decision failed)", unit?.UniqueId + ": " + exception.GetType().Name + ": " + exception.Message);
+                }
             }
         }
 
@@ -387,22 +397,39 @@ namespace KingmakerMountedCombat.Integration
     internal static class NativePartyReinitScope
     {
         private static int depth;
+        private static int frame = -1;
 
         internal static event Action Completed;
 
-        internal static bool IsActive => depth > 0;
+        // Review MINOR-3: the native call is synchronous, so a scope is only ever live on the frame it opened; a scope that an
+        // exception left open is never treated as live on a later frame.
+        internal static bool IsActive => depth > 0 && frame == UnityEngine.Time.frameCount;
+
+        internal static string LastCompletionError { get; private set; }
 
         internal static void Enter()
         {
-            if (depth > 0) { depth = 0; Completed?.Invoke(); }
-            depth = 1;
+            if (depth > 0) { depth = 0; RaiseCompleted(); }
+            depth = 1; frame = UnityEngine.Time.frameCount;
         }
 
         internal static void Exit()
         {
             if (depth == 0) return;
             depth = 0;
-            Completed?.Invoke();
+            RaiseCompleted();
+        }
+
+        // Each subscriber in isolation, as EventBus isolated the removal handler: a failure never escapes into native SetGroup.
+        private static void RaiseCompleted()
+        {
+            var handlers = Completed;
+            if (handlers == null) return;
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try { handler(); }
+                catch (Exception exception) { LastCompletionError = exception.GetType().Name + ": " + exception.Message; }
+            }
         }
     }
 }

@@ -596,6 +596,10 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeSequenceTickActive => nativeSequenceTick;
         internal bool NativeMeleeTailRangeRejected => nativeMeleeTailRangeRejected;
 
+        // F4: the routine has not struck yet and still approaches its target (native IsMoveUnit for an approaching attack).
+        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && transaction.State == MountedCombatTransactionState.Approaching &&
+            transaction.ChildAttackStartCount == 0;
+
         internal bool ValidateNativeSequenceTarget()
         {
             TryContinueRoutineOnNextTarget();
@@ -878,6 +882,11 @@ namespace KingmakerMountedCombat.Integration
                 // A released shot/strike may finish its native animation after target death.
                 return false;
             }
+            // F4 review MINOR-4: a released routine whose target left the field (despawn, hostility) continues natively
+            // on the next target exactly as for a target that died in place; only without one is it cancelled as before.
+            var continuations = transaction.ContinuationTargetCount;
+            TryContinueRoutineOnNextTarget();
+            if (transaction.ContinuationTargetCount != continuations) return false;
             var reason = !inState ? "target despawned" : !hostile ? "target hostility changed" :
                 targetState == null ? "target state unavailable" :
                 targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?

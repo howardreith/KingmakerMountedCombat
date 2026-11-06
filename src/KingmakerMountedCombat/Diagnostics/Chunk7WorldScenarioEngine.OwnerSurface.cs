@@ -20,7 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string OwnerSurfaceContract = "owner-surface-pre-owned-pair-speed-v1";
         internal const string OwnerSurfaceMountRow = "C7-world-owner-surface-mount";
         internal const string OwnerSurfaceLegsRow = "C7-world-owner-surface-legs";
-        private const double OwnerSurfaceTotalSeconds = 360, OwnerSurfaceStepSeconds = 60;
+        private const double OwnerSurfaceTotalSeconds = 360, OwnerSurfaceStepSeconds = 60, OwnerSurfaceF4TotalSeconds = 480;
         private bool OwnerSurfaceSpeed => request.OwnedPairs?.IsOwnerSurfaceSpeed == true;
         // Finishing mission 2026-10-31: the explicit opt-in runs the single-pair turn-based door stage on the owner's pre-owned
         // pair (shared combat-usable door selection first, no speed legs, dismount, cleanup) instead of the speed legs.
@@ -111,7 +111,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void UpdateOwnerSurface()
         {
             // The turn-based door stage (step 210) carries its own native encounter and the probe's 240 s bound.
-            Require(clock.Elapsed.TotalSeconds <= OwnerSurfaceTotalSeconds && clock.Elapsed.TotalSeconds - stepStarted <= (step == 210 ? 240 : OwnerSurfaceStepSeconds),
+            Require(clock.Elapsed.TotalSeconds <= (OwnerSurfaceF4Selected ? OwnerSurfaceF4TotalSeconds : OwnerSurfaceTotalSeconds) && clock.Elapsed.TotalSeconds - stepStarted <= (step == 210 ? 240 : OwnerSurfaceStepSeconds),
                 "Bounded owner-surface speed deadline at step " + step + ".");
             Require(step == 210 || !Game.Instance.Player.IsInCombat, "Owner-surface speed unexpectedly entered combat.");
             if (shell != null && controls.HasExactRelationshipProcessBinding(shell)) observedExactProcess = true;
@@ -131,6 +131,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(world.Registry.ActiveCount == 1, "The owner's single pair produced more than one active owner.");
                     Pass(OwnerSurfaceMountRow); snapshots.Add(CaptureWorld("owner-surface-mounted"));
                     if (OwnerSurfaceDoorSelected) { BeginOwnerSurfaceDoor(); Next(210); break; }
+                    if (OwnerSurfaceF4Selected) { BeginFinalize4Exploration(); Next(220); break; }
+                    BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(202); break;
+                case 220: case 221: case 222: case 223: case 224:
+                    RequireOwnerSurfaceMounted(); if (!PollFinalize4Exploration()) return;
+                    snapshots.Add(CaptureWorld("owner-surface-finalize4-complete"));
                     BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(202); break;
                 case 210:
                     RequireOwnerSurfaceMounted(); if (!PollTurnBasedDoor()) return;
@@ -144,10 +149,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     snapshots.Add(CaptureWorld("owner-surface-door-complete"));
                     BeginCleanup(); break;
                 case 202:
-                    RequireOwnerSurfaceMounted(); if (!PollSpeedLeg()) return;
+                    RequireOwnerSurfaceMounted(); PumpFinalize4Gait("mounted-party"); if (!PollSpeedLeg()) return;
                     BeginSpeedLeg("mounted-solo", SpeedLegSelection.SecondRiderAlone); Next(203); break;
                 case 203:
-                    RequireOwnerSurfaceMounted(); if (!PollSpeedLeg()) return;
+                    RequireOwnerSurfaceMounted(); PumpFinalize4Gait("mounted-solo"); if (!PollSpeedLeg()) return;
                     Input(secondRider, secondRider, controls.DismountAbility, "dismount-owner-pair", ownerSurfaceOther); Next(204); break;
                 case 204:
                     if (Mounted(secondRider, secondMount) || !InputSettled()) return;
@@ -163,6 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ownerSurface["legsCompleted"] = speedLegs == null ? 0 : speedLegs.Count;
                     ownerSurface["legsApplicable"] = speedLegs == null ? 0 : speedLegs.Count(leg => (bool)leg["applicable"]);
                     // v5: every leg ran (a failed leg continues the sequence for diagnosis); the row passes only when all were accepted.
+                    CompleteFinalize4();
                     RequireSpeedLegsAccepted();
                     Pass(OwnerSurfaceLegsRow); snapshots.Add(CaptureWorld("owner-surface-legs-complete"));
                     BeginCleanup(); break;

@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "finalize4-ai-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
@@ -455,7 +455,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f2-canonical-controls", StringComparison.Ordinal) &&
-                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal)))
+                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal)))
             {
                 errors.Add("branch must use the KMC prefix or an exact selected finalize branch.");
             }
@@ -1586,7 +1586,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "finalize4-ai-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",

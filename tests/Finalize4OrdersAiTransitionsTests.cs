@@ -11,6 +11,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("F4 WORLD-03 a rider's exact chest or loot order is carried; doors, devices and derived kinds stay native", ContainerOrdersCarried);
             runner.Run("F4 WORLD-03 the terminal kind text keeps its own exhausted wording", TerminalKindWording);
             runner.Run("F4 WORLD-02 the native trap-click stop reaches the mount only inside an accepted real click", TrapGroupStopScope);
+            runner.Run("F4 WORLD-03 a new real-time chest order replaces only the pair's own player travel, on its first tick", ContainerOrderReplacesOwnTravel);
             runner.Run("F4 WORLD-01 a removal inside native party re-initialisation waits and keeps a member back in the party", PartyReinitialisationRetention);
             runner.Run("F4 AI-02 a chase the pair is closing does not exhaust the bounded repath allowance; no progress and Charge still do", ProgressingChase);
             runner.Run("F4 AI-02 the elapsed bound grows only by the travel time to the initial gap, capped, and never for Charge", ApproachAllowance);
@@ -56,6 +57,26 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(true, 9, 10, true), "A scope left open from an earlier frame must not count.");
             TestRunner.True(!MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(true, 10, 10, false), "A chest or other object click is not a trap stop.");
             TestRunner.True(!MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(false, 10, 10, true), "A closed scope must not count.");
+            TestRunner.True(MountedTrapGroupStopPolicy.OpensTrapClickScope(true, false, false), "A real disarm click opens the stop scope.");
+            TestRunner.True(MountedTrapGroupStopPolicy.OpensTrapClickScope(false, true, false), "A real click on an object with a visible trap opens the stop scope.");
+            TestRunner.True(!MountedTrapGroupStopPolicy.OpensTrapClickScope(true, true, true), "A hover or turn-based prediction simulation never opens it.");
+            TestRunner.True(!MountedTrapGroupStopPolicy.OpensTrapClickScope(false, false, false), "An ordinary chest or object click never opens it.");
+        }
+
+        private static void ContainerOrderReplacesOwnTravel()
+        {
+            bool Replace(MountedCarriedCommandKind kind = MountedCarriedCommandKind.ContainerInteraction, bool first = true, bool tb = false,
+                bool player = true, bool ownTravel = true, bool otherSlot = false, bool queueEmpty = true) =>
+                MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(kind, first, tb, player, ownTravel, otherSlot, queueEmpty);
+            TestRunner.True(Replace(), "A new real-time chest order must replace the pair's own player travel.");
+            TestRunner.True(!Replace(first: false), "A waiting order never cancels a later player move.");
+            TestRunner.True(!Replace(tb: true), "Turn-based movement is never replaced by an object order.");
+            TestRunner.True(!Replace(player: false), "A non-player order never replaces player travel.");
+            TestRunner.True(!Replace(ownTravel: false), "Only the pair's own player-created UnitMoveTo yields.");
+            TestRunner.True(!Replace(otherSlot: true), "A mount with another live slot keeps it.");
+            TestRunner.True(!Replace(queueEmpty: false), "A queued mount order keeps its movement.");
+            TestRunner.True(!Replace(kind: MountedCarriedCommandKind.Ability) && !Replace(kind: MountedCarriedCommandKind.TrapInteraction),
+                "Spells keep the existing deferral; traps get the native group stop instead.");
         }
 
         private static void PartyReinitialisationRetention()

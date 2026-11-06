@@ -81,6 +81,15 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
+        // F4 review MAJOR-1: whether a new real-time player chest/loot order replaces the pair's own travel (the mount's
+        // player-created UnitMoveTo alone, no other slot or queued command) on its first approach tick.
+        public static bool NewOrderReplacesOwnTravel(MountedCarriedCommandKind kind, bool firstApproachTick, bool turnBasedCombat,
+            bool playerOrder, bool mountMoveIsOwnPlayerTravel, bool otherMountSlotOccupied, bool mountQueueEmpty)
+        {
+            return kind == MountedCarriedCommandKind.ContainerInteraction && firstApproachTick && !turnBasedCombat && playerOrder &&
+                mountMoveIsOwnPlayerTravel && !otherMountSlotOccupied && mountQueueEmpty;
+        }
+
         public static MountedCarriedApproachDisposition Decide(
             bool pairMounted,
             bool executorIsRider,
