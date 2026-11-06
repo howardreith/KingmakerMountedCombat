@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool AreaReloadCase => request.Scenario == "persistence-p07-save" && request.PersistenceCase == "area-reload";
         private bool CrossAreaCase => request.Scenario == "persistence-p07-save" &&
             RuntimeRequest.IsCrossAreaCase(request.PersistenceCase);
-        private bool AreaCase => AreaReloadCase || CrossAreaCase;
+        private bool AreaCase => AreaReloadCase || CrossAreaCase || DungeonEntryCase;
         // True in both processes of a declared transfer: the cold load also opens
         // in the destination, where the party arrived at one enter point.
         private bool CrossAreaFixture => request.PersistenceAreaTarget != null;

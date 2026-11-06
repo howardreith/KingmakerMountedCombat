@@ -834,6 +834,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var rejection = ValidateLocked(RuntimeSaveOperation.Write, target, observedRoot);
                 if (rejection != null) throw new InvalidOperationException(rejection);
                 var entry = entries[target.FileName];
+                // F4: a leaf admitted in one area of a declared transfer commits only in its declared committed area (the
+                // admission area is accepted at the admission boundary, never at the write).
+                if (entry.AdmissionArea != null && target?.Area != entry.Area)
+                    throw new InvalidOperationException("A transfer-admitted leaf must commit in its declared area: " + target?.FileName + ".");
                 entry.Writing = true;
                 return new WriteLease(this, target.FileName, entry.Hash);
             }
