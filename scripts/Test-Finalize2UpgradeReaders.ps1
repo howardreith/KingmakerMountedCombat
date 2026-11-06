@@ -156,12 +156,13 @@ try {
  # ---- the declared producer/consumer bridge: real git commits and source trees, a synthetic producer and suite ----------
  $head=(git -C $repo rev-parse HEAD).Trim(); $tree=(git -C $repo rev-parse 'HEAD:src').Trim()
  $suites=Join-Path $temp 'suites'; [void](New-Item -ItemType Directory -Force $suites)
- [ordered]@{commit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';dllSha256=('5'*64);dllMvid='m-producer';persistenceCase='quick';scenario='persistence-p05-load';upgradeChain=$true;finalize2Controls=$true;qualificationSuite=[ordered]@{suiteId='p-suite';snapshotSha256=('6'*64)};persistenceLoad=$pRequest.persistenceLoad} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $pEv 'runtime-request.json') -Encoding UTF8
+ [ordered]@{repository=[ordered]@{commit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280'};package=[ordered]@{sha256=('4'*64);dllSha256=('5'*64);dllMvid='m-producer'}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $suites 'p-suite.json') -Encoding UTF8; $pSuiteSha=Get-KmcSha256 (Join-Path $suites 'p-suite.json')
+ [ordered]@{commit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';dllSha256=('5'*64);dllMvid='m-producer';persistenceCase='quick';scenario='persistence-p05-load';upgradeChain=$true;finalize2Controls=$true;qualificationSuite=[ordered]@{suiteId='p-suite';snapshotSha256=$pSuiteSha};persistenceLoad=$pRequest.persistenceLoad} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $pEv 'runtime-request.json') -Encoding UTF8
  [ordered]@{status='PASS';modsRestored=$true;workingRestored=$true;baselineImmutable=$true;saveProtectionPassed=$true;saveWriteAllowlistPassed=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8
  [ordered]@{repository=[ordered]@{commit=$head};package=[ordered]@{dllSha256=('d'*64);dllMvid='m-consumer'}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $suites 'c-suite.json') -Encoding UTF8
  $bRequest=Copy-F2 $cRequest; $bRequest.commit=$head; $bRequest | Add-Member -NotePropertyName dllMvid -NotePropertyValue 'm-consumer'; $bRequest | Add-Member -NotePropertyName qualificationSuite -NotePropertyValue ([pscustomobject]@{suiteId='c-suite';snapshotSha256=(Get-KmcSha256 (Join-Path $suites 'c-suite.json'))})
  $bRows=Copy-F2 $cRows; foreach($x in $bRows){ $x.source=$head }
- function NewBridge(){ [pscustomobject][ordered]@{producerRunId='20991231-finalize-f2-test-p';producerCommit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';producerDllSha256=('5'*64);producerDllMvid='m-producer';producerSuiteId='p-suite';producerSuiteSha256=('6'*64)
+ function NewBridge(){ [pscustomobject][ordered]@{producerRunId='20991231-finalize-f2-test-p';producerCommit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';producerDllSha256=('5'*64);producerDllMvid='m-producer';producerSuiteId='p-suite';producerSuiteSha256=$pSuiteSha;producerPackageSha256=('4'*64)
    riderId=$R;mountId=$M;gameId='game';gameName='cvb';area=('a'*32)
    kept=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length};removed=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length}
    consumerSourceTree=$tree;changedSourceFiles=@(git -C $repo diff --name-only ff1f2e5a1200b3f2ecfe3be04304a08768e9e280 $head -- src)} }
@@ -172,6 +173,7 @@ try {
  $x=NewBridge; $x.consumerSourceTree=('0'*40); BRefuse $bRequest $bRows $x 'bridge: an unlisted consumer source refuses'
  $x=NewBridge; $x.changedSourceFiles=@($x.changedSourceFiles | Select-Object -First 1); BRefuse $bRequest $bRows $x 'bridge: a source change outside the declared files refuses'
  $x=NewBridge; $x.producerDllSha256=('7'*64); BRefuse $bRequest $bRows $x 'bridge: a wrong producer identity refuses'
+ $x=NewBridge; $x.producerPackageSha256=('3'*64); BRefuse $bRequest $bRows $x 'bridge: a producer package its suite does not freeze refuses'
  $x=NewBridge; $x.kept.sha256=('8'*64); BRefuse $bRequest $bRows $x 'bridge: a changed kept archive refuses'
  $x=NewBridge; $k0=$x.kept; $x.kept=$x.removed; $x.removed=$k0; BRefuse $bRequest $bRows $x 'bridge: swapped archives refuse'
  $q=Copy-F2 $bRequest; $q.persistenceAlternate.length=1; BRefuse $q $bRows (NewBridge) 'bridge: a consumer input of another length refuses'
@@ -215,5 +217,8 @@ Check ($r5w.Count -eq 2 -and $r5w[0].detail.sha256 -ceq $rb.kept.sha256 -and $r5
 $r5saves=Join-Path $lab ('runtime-staging\persistence-'+$rb.producerRunId+'\Saved Games')
 Check ((Get-KmcSha256 (Join-Path $r5saves $rb.kept.fileName)) -ceq $rb.kept.sha256 -and (Get-KmcSha256 (Join-Path $r5saves $rb.removed.fileName)) -ceq $rb.removed.sha256 -and (Get-Item -LiteralPath (Join-Path $r5saves $rb.kept.fileName)).Length -eq $rb.kept.length -and (Get-Item -LiteralPath (Join-Path $r5saves $rb.removed.fileName)).Length -eq $rb.removed.length) 'real bridge: r05''s retained archives still hold exactly the declared bytes'
 Check ((git -C $repo rev-parse 'HEAD:src').Trim() -ceq $rb.consumerSourceTree -and ((@(git -C $repo diff --name-only $rb.producerCommit HEAD -- src) | Sort-Object) -join '|') -ceq ((@($rb.changedSourceFiles) | Sort-Object) -join '|')) 'real bridge: the checked-out src is the declared consumer tree, differing from F2f only in the two diagnostics files'
+$fixtures=[IO.File]::ReadAllText((Join-Path $repo 'scripts\runtime\PersistenceSaveFixtures.ps1'))
+$call=@($fixtures -split "`n" | Where-Object { $_ -match 'Assert-KmcFinalize2UpgradeEvidence ' })
+Check ($call.Count -eq 1 -and $call[0] -notmatch '-Bridge|-RepoRoot|-SuiteRoot|-LegacyInputSha256') 'the acceptance call passes no declaration, root or input override: only the one exact bridge and the real repository/suites apply'
 Write-Output ('F2 upgrade readers: PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ exit 1 }
