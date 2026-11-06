@@ -27,8 +27,8 @@ function Strings{ [ordered]@{tableFound=$true;packPresent=$true;keys=@([ordered]
 function Shot([string]$Name,[string]$Root){ $file='movement-visuals/finalize-f2-p05-'+$Name+'.png'; $full=Join-Path $Root ($file.Replace('/','\')); [void](New-Item -ItemType Directory -Force (Split-Path -Parent $full))
  [IO.File]::WriteAllBytes($full,[Text.Encoding]::ASCII.GetBytes('png:'+$Name)); [ordered]@{name=$Name;file=$file;sha256=(Get-KmcSha256 $full)} }
 function Write-Archive([string]$Path,[string]$Text){ [IO.File]::WriteAllBytes($Path,[Text.Encoding]::ASCII.GetBytes($Text)); [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
-function Accept($Request,$Rows,$Game,$SaveRoot,$Parent){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
-function Refuse($Request,$Rows,$Game,$SaveRoot,$Parent,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent; Check $false $Name } catch { Check $true $Name } }
+function Accept($Request,$Rows,$Game,$SaveRoot,$Parent){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
+function Refuse($Request,$Rows,$Game,$SaveRoot,$Parent,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; Check $false $Name } catch { Check $true $Name } }
 function Kind($Rows,[string]$K){ @($Rows | Where-Object kind -CEQ $K)[0] }
 
 $temp=Join-Path ([IO.Path]::GetTempPath()) ('kmc-f2-upgrade-'+[Guid]::NewGuid().ToString('N'))
@@ -36,7 +36,7 @@ try {
  # ---- producer -------------------------------------------------------------------------------------------------------
  $parent=Join-Path $temp 'runtime-evidence'; $pEv=Join-Path $parent '20991231-finalize-f2-test-p'; $pSave=Join-Path $temp 'p-saves'
  [void](New-Item -ItemType Directory -Force $pEv); [void](New-Item -ItemType Directory -Force $pSave)
- $quick=Write-Archive (Join-Path $pSave 'Quick_1.zks') 'legacy'
+ $quick=Write-Archive (Join-Path $pSave 'Quick_1.zks') 'legacy'; $script:legacy=$quick.sha
  $script:runId='20991231-finalize-f2-test-p'; $script:procId=100; $script:case='quick'
  $pRequest=[pscustomobject][ordered]@{runId=$script:runId;scenario='persistence-p05-load';persistenceCase='quick';upgradeChain=$true;finalize2Controls=$true;commit=('c'*40);dllSha256=('d'*64);evidenceRoot=$pEv
   persistenceLoad=[pscustomobject]@{fileName='Quick_1.zks';sha256=$quick.sha;area=('a'*32);gameId='game'}}
@@ -52,7 +52,7 @@ try {
   (Row 'initial' $null),(Row 'movement-dispatched' $null),(Row 'movement-completed' $null),(Row 'attack-dispatched' $null),(Row 'attack-delivered' ([ordered]@{rules=1;rolls=1})),(Row 'usable-continuation-complete' $null),
   (Row 'f2-setup-removed-in-place' ([ordered]@{visibleBefore=(Vis $loaded);actor=(Actor $loaded @(14) (Counters 0 1 0))})),
   (Row 'f2-setup-freed-slot' ([ordered]@{watch=(W 30 $true);freedIndex=13;freedHeld=(A 13)})),
-  (Row 'f2-placement-armed' ([ordered]@{visibleBefore=(Vis $before);actor=(Actor $before @() (Counters 0 1 0))})),
+  (Row 'f2-placement-armed' ([ordered]@{autofill=$true;visibleBefore=(Vis $before);actor=(Actor $before @() (Counters 0 1 0))})),
   (Row 'f2-placement-visible' ([ordered]@{shown=$true;framesObserved=2;visible=(Vis $placed);actor=(Actor $placed @(13) (Counters 1 1 1) 'Mounted' @([ordered]@{index=13;frame=50;mainBarBefore=@($before | Select-Object -First 14)}))})),
   (Row 'f2-cycle-dismount-click' (Click $false 'bar-slot')),
   (Row 'f2-cycle-dismounted' (Actor $placed @(13) (Counters 1 1 1) 'Unmounted') 'Unmounted'),
@@ -72,6 +72,10 @@ try {
  Check (Accept $pRequest $pRows $pGame $pSave $parent) 'producer: authentic old row, drawn first placement, cycle, swapped and removed archives accepted'
  function PNeg([scriptblock]$Mutate,[string]$Name){ $r=Copy-F2 $pRows; & $Mutate $r; Refuse $pRequest $r $pGame $pSave $parent $Name }
  PNeg { param($r) (Kind $r 'f2-placement-visible').detail.shown=$false } 'producer: a placement the bar did not draw refuses'
+ PNeg { param($r) (Kind $r 'f2-placement-armed').detail.autofill=$false } 'producer: a placement event without the native autofill setting refuses'
+ PNeg { param($r) (Kind $r 'movement-completed').relationship='Unmounted' } 'producer: an unmounted continuation row refuses'
+ PNeg { param($r) (Kind $r 'f2-setup-swapped').relationship='Unmounted' } 'producer: an unmounted setup row refuses'
+ $saved=$script:legacy; $script:legacy=$null; Refuse $pRequest (Copy-F2 $pRows) $pGame $pSave $parent 'producer: an input other than the authentic preview.211 Quick refuses'; $script:legacy=$saved
  PNeg { param($r) $v=(Kind $r 'f2-placement-visible').detail.visible.mainBar[13]; $v.key=(A 13); $v.settingsIndex=-1 } 'producer: the stale slot r03 saw refuses'
  $order=[Collections.ArrayList]::new(); $order.AddRange(@(Copy-F2 $pRows | ForEach-Object { $_ })); $ai=[array]::IndexOf(@($order|ForEach-Object{$_.kind}),'f2-placement-armed'); $x=Copy-F2 $order[$ai]; $x.kind='f2-interloper'; $order.Insert($ai+1,$x)
  Refuse $pRequest $order.ToArray() $pGame $pSave $parent 'producer: any observation between the placement event and the drawn bar refuses'
@@ -94,6 +98,7 @@ try {
  # The producer's evidence, as the consumer's reader finds it.
  $pRequest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $pEv 'runtime-request.json') -Encoding UTF8
  @($pRows | ForEach-Object { $_ | ConvertTo-Json -Depth 40 -Compress }) | Set-Content -LiteralPath (Join-Path $pEv 'persistence-observations.jsonl') -Encoding UTF8
+ [ordered]@{status='PASS'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8
 
  # ---- consumer -------------------------------------------------------------------------------------------------------
  $cEv=Join-Path $parent '20991231-finalize-f2-test-c'; $cSave=Join-Path $temp 'c-saves'
@@ -114,7 +119,7 @@ try {
   (Row 'f2-cycle-mounted' ([ordered]@{watch=(W 12);actor=(Actor $swapped @(9) (Counters 0 0 0));strings=(Strings)})),
   (Row 'f2-load-requested' $null),
   (Row 'f2-removed-loaded' ([ordered]@{settled=$true;savedRows=@((S $R 0 7));liveRows=@((S $R 0 7));actor=(Actor $removedBar @() (Counters 0 0 0))})),
-  (Row 'f2-removed-ticks' ([ordered]@{watch=(W 60 $true)})),
+  (Row 'f2-removed-ticks' ([ordered]@{watch=(W 60 $true);reselectVia='33333333-3333-3333-3333-333333333333'})),
   (Row 'f2-removed-reselected' ([ordered]@{visible=(Vis $removedBar);watch=(W 80 $true)})),
   (Row 'f2-removed-dismount-click' (Click $false 'drawer-entry')),
   (Row 'f2-removed-mount-click' (Click $true 'drawer-entry') 'Unmounted'),
@@ -134,6 +139,9 @@ try {
  CNeg { param($r) (Kind $r 'f2-cold-visible').detail.strings.controls[2].hidden=$false } 'consumer: an exposed delivery shell refuses'
  CNeg { param($r) $e=(Kind $r 'f2-removed-reselected').detail.visible.mainBar[9]; $e.key=$P } 'consumer: a reselected bar drawing the removed control refuses'
  CNeg { param($r) (Kind $r 'f2-removed-ticks').detail.watch.reinsertedFrames=1 } 'consumer: a reinsertion during update ticks refuses'
+ CNeg { param($r) (Kind $r 'f2-removed-ticks').detail.reselectVia=$null } 'consumer: a reselection that never left the rider refuses'
+ CNeg { param($r) (Kind $r 'f2-removed-loaded').relationship='Unmounted' } 'consumer: an unmounted removed-archive load refuses'
+ [ordered]@{status='FAIL'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8; Refuse $cRequest (Copy-F2 $cRows) $cGame $cSave $parent 'consumer: a producer that did not pass refuses'; [ordered]@{status='PASS'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8
  CNeg { param($r) (Kind $r 'f2-removed-mount-click').detail.route='bar-slot' } 'consumer: a removed-control cycle that claims a bar slot refuses'
  CNeg { param($r) (Kind $r 'f2-complete').detail.disclosedSetup=@([pscustomobject]@{action='repair'}) } 'consumer: any consumer setup edit refuses'
  $wrote=@((Copy-F2 $cRows)+@((Copy-F2 (Row 'native-write-complete' $null)))); Refuse $cRequest $wrote $cGame $cSave $parent 'consumer: a consumer that wrote a save refuses'
