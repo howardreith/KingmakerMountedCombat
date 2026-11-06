@@ -236,6 +236,7 @@
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.OwnerSeed.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.OwnerSeedManual.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.OwnerSurface.cs" />
+    <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.Finalize4.cs" />
     <Compile Include="Diagnostics\Chunk7WorldScenarioEngine.TurnBasedDoor.cs" />
     <Compile Include="Diagnostics\Chunk7TurnBasedDoorProbe.cs" />
     <Compile Include="Diagnostics\Chunk7NativeDoorProbe.cs" />
@@ -425,6 +426,7 @@
     <Compile Include="Diagnostics\RuntimePersistenceCampaignBColdScenario.cs" />
     <Compile Include="Integration\MountedRemovalPreparation.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAreaScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceDungeonEntryScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />
     <Compile Include="Domain\CleanupTrigger.cs" />
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />

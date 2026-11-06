@@ -468,7 +468,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // nothing recording why, so the outcome is now observed rather than assumed.
                 var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
-                var scenarioBudget = IsFinalize3Economy ? Finalize3ScenarioDeadlineSeconds : IsFinalize2Controls ? Finalize2ScenarioDeadlineSeconds : IsSprint8Paladin ? Sprint8ScenarioDeadlineSeconds : IsSprint7Charge ? Sprint7ScenarioDeadlineSeconds : IsSprint6Feat ? Sprint6ScenarioDeadlineSeconds : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? Sprint4ScenarioDeadlineSeconds : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                var scenarioBudget = IsFinalize3Economy ? Finalize3ScenarioDeadlineSeconds : IsFinalize2Controls ? Finalize2ScenarioDeadlineSeconds : IsSprint8Paladin ? Sprint8ScenarioDeadlineSeconds : IsSprint7Charge ? Sprint7ScenarioDeadlineSeconds : IsSprint6Feat ? Sprint6ScenarioDeadlineSeconds : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? (IsFinalize4Ai ? Finalize4AiScenarioDeadlineSeconds : Sprint4ScenarioDeadlineSeconds) : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
                     FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");

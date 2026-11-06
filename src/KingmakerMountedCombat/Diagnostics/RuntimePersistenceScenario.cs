@@ -71,13 +71,13 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
             BindChargePersistence();
             if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
-            if (CrossAreaCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
+            if (CrossAreaCase || DungeonEntryCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
         }
 
         internal void Update()
         {
             if (Completed) return;
-            try { if (CastingBaselinePersistence) AdvanceCastingBaselinePersistence(); else if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else if (F2Case && stage >= 300) AdvanceFinalize2(); else Advance(); }
+            try { if (CastingBaselinePersistence) AdvanceCastingBaselinePersistence(); else if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (DungeonEntryCase && stage > 0 && !areaContinuation) AdvanceDungeonEntry(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else if (F2Case && stage >= 300) AdvanceFinalize2(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -94,7 +94,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Advance()
         {
-            if (clock.Elapsed.TotalSeconds > 150) throw new InvalidOperationException("P01 native stage timed out: " + stage);
+            // F4 dungeon entry: two area loads, the native party selection and the after-entry write precede the same continuation.
+            if (clock.Elapsed.TotalSeconds > (DungeonEntryCase ? DungeonEntrySeconds : 150)) throw new InvalidOperationException("P01 native stage timed out: " + stage);
             var game = Game.Instance;
             // A native save runs inside the loading process, so this observation
             // has to precede the loading early return or it never records.
@@ -194,7 +195,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
                 // A cross-area case makes no pre-transfer manual write: the engine's
                 // own authored autosave is its departure or arrival evidence.
-                if (CrossAreaCase) { stage = 1; return; }
+                if (CrossAreaCase || DungeonEntryCase) { stage = 1; return; }
                 var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
                 Check(descriptor.Name == "KMC_P01" && descriptor.Type == SaveInfo.SaveType.Manual &&
                     game.SaveManager.IsSaveAllowed(), "actual-native-manual-admission");
@@ -368,8 +369,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("usable-continuation-complete");
                 if (F2Case) { BeginFinalize2(); return; }
                 // A transition autosave must also still support an ordinary
-                // subsequent write from the world it actually restored.
-                if (AreaAutoColdCase || UpgradeResaveCase)
+                // subsequent write from the world it actually restored. The F4 dungeon entry reload stays read-only.
+                if (AreaAutoColdCase && !RuntimeRequest.IsDungeonEntryAutoCase(request.PersistenceCase) || UpgradeResaveCase)
                 {
                     callback = false;
                     game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
@@ -704,7 +705,7 @@ namespace KingmakerMountedCombat.Diagnostics
             persistence.SaveSnapshotStaged -= ObserveAreaTransitionSnapshot;
             persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;
             if (conditionLease != null) conditionLease.NativeChoiceObserved -= RequestConditionPreparationSave;
-            if (SlotCase || CrossAreaCase || campaignSlotRotationForced) NativePersistenceIsolation.DisableNativeSlotRotation();
+            if (SlotCase || CrossAreaCase || DungeonEntryCase || campaignSlotRotationForced) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             castingEffects?.Dispose();
             conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();

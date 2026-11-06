@@ -228,4 +228,64 @@ Mutate-S4 2 {param($s)$s.afterReEnable.state.controller.intentAutomatic=$false} 
 Mutate-S4 2 {param($s)$s.manualHeld.attacksOnOldTargetSinceManual=1} 'an automatic attack over a manual order refused'
 $r=Copy-S4 $rt;$r.status='FAIL';$r.errors=@('x');$threw=$false;try{Accept $r 'sprint4-natural-rt'}catch{$threw=$true};Check $threw 'a failed run is never promoted to PASS'
 $r=Copy-S4 $rt;$r.rows=@($r.rows[0]);Reject $r 'sprint4-natural-rt' 'a missing required row refused'
+# F4 (AI-01, AI-02): finalize4-ai-rt reuses the Sprint 4 rows, adds the engagement row and the routine continuation.
+$walker='walker-1'
+function New-F4EngageRow{
+ $steps=[pscustomobject]@{walkOrdered=[pscustomobject]@{gapToMount=18};automaticDispatch=[pscustomobject]@{gapAtDispatch=12};walkerDead=[pscustomobject]@{walkerDisplacement=6;mountDisplacement=8;riderUnreachable=$false};settled=[pscustomobject]@{frame=1}}
+ $command=New-S4Command $rider $walker 300 'RiderMelee' 3 $true
+ foreach($p in @{approachRequired=$true;repaths=0;progressingRepaths=7;result='Success';terminalReason='completed'}.GetEnumerator()){$command|Add-Member $p.Key $p.Value}
+ New-S4Row 'F4-melee-engage' (New-S4State) (New-S4State) $steps @([pscustomobject]@{kind='ai-toggle';name='before-encounter';value=$false},[pscustomobject]@{kind='ai-toggle';name='engagement-no-click';value=$true}) @((New-S4Attack $rider $walker 340 1)) @($command) @{firstTarget=$walker}
+}
+function New-F4RangedRow{
+ $row=New-S4RangedRow
+ $clicked=New-S4Command $rider $low 95 'RiderRanged' 3 $true;$clicked.automaticIntent=$false;$clicked.createdByPlayer=$true
+ foreach($p in @{continuations=1;continuationTargets=$next;endTarget=$next;initialTarget=$low}.GetEnumerator()){$clicked|Add-Member $p.Key $p.Value}
+ $row.evidence.pairCommands=@($clicked)+@($row.evidence.pairCommands)
+ $row.evidence.rules.events=@($row.evidence.rules.events)+@((New-S4Attack $rider $next 110 11),(New-S4Attack $rider $next 115 12))
+ $row
+}
+# F4 controls: the Hold premise is recorded, and a disclosed return to bow reach is cleared by a Stop and an AI cycle.
+function New-F4ControlsRow([bool]$Returned){
+ $row=New-S4ControlsRow;$met=[pscustomobject]@{met=$true;weaponRange=20;targets=@()}
+ $row.evidence.steps.resumedAfterCast|Add-Member bowPremise $met
+ $row.evidence.steps.heldInBowReach|Add-Member playerMoveHold $false;$row.evidence.steps.heldInBowReach|Add-Member riderHold $true
+ if($Returned){
+  $row.evidence.steps|Add-Member returnedToBowReach ([pscustomobject]@{frame=500;bowPremise=$met;state=(New-S4State)})
+  $row.evidence.steps|Add-Member returnCleared ([pscustomobject]@{frame=508;playerMoveHold=$false;stopSuppressed=$false;state=(New-S4State)})
+  $row.evidence.inputs=@($row.evidence.inputs)+@([pscustomobject]@{kind='ground-click';name='f4-return-to-bow-reach';clicked=$true;frame=420},[pscustomobject]@{kind='stop';name='after-return';frame=500})
+ }
+ $row
+}
+$f4=New-S4Artifact 'finalize4-ai-rt' @((New-F4EngageRow),(New-F4RangedRow),(New-F4ControlsRow $true),(New-S4MeleeRow),(New-S4HoldRow))
+Accept $f4 'finalize4-ai-rt';Check $true 'complete F4 real-time evidence accepted'
+Check ((Get-KmcPhase3dEvidenceDispatch 48 'finalize4-ai-rt').validator -ceq 'Assert-KmcSprint4NaturalEvidence') 'schema 48 dispatches finalize4-ai-rt to the Sprint 4 family reader'
+function Mutate-F4([int]$index,[scriptblock]$change,[string]$why){$r=Copy-S4 $f4;& $change $r.rows[$index];Reject $r 'finalize4-ai-rt' $why}
+Mutate-F4 0 {param($w)$w.evidence.inputs+=[pscustomobject]@{kind='hostile-click';target=$walker;clicked=$true}} 'an engagement given a player click refused'
+Mutate-F4 0 {param($w)$w.evidence.inputs=@($w.evidence.inputs[0])} 'an engagement without the rider AI on refused'
+Mutate-F4 0 {param($w)$w.evidence.steps.walkerDead.walkerDisplacement=0.5} 'a hostile that never moved refused'
+Mutate-F4 0 {param($w)$w.evidence.steps.walkerDead.riderUnreachable=$true} 'a target marked unreachable refused'
+Mutate-F4 0 {param($w)$w.evidence.steps.walkerDead.mountDisplacement=0.2} 'an engagement where the mount never approached refused'
+Mutate-F4 0 {param($w)$w.evidence.pairCommands[0].repaths=5} 'a chase beyond the bounded allowance refused'
+Mutate-F4 0 {param($w)$w.evidence.pairCommands[0].terminalReason='InvalidOperationException: Mounted pair command exhausted its bounded repath allowance.'} 'an approach faulted on its bound refused'
+Mutate-F4 0 {param($w)$w.evidence.pairCommands[0].progressingRepaths=0} 'an engagement that never followed the moving hostile refused'
+Mutate-F4 0 {param($w)$w.evidence.pairCommands[0].automaticIntent=$false} 'an engagement command outside the automatic path refused'
+Mutate-F4 0 {param($w)$w.evidence.rules.events=@()} 'an engagement without a rider strike refused'
+Mutate-F4 0 {param($w)$w.evidence.steps.PSObject.Properties.Remove('walkerDead')} 'an engagement that never killed its hostile refused'
+Mutate-F4 1 {param($w)$w.evidence.pairCommands[0].continuations=0} 'a routine that ended at the kill with attacks left refused'
+Mutate-F4 1 {param($w)$w.evidence.pairCommands[0].continuationTargets='other'} 'a continuation onto another target refused'
+Mutate-F4 1 {param($w)$w.evidence.rules.events=@($w.evidence.rules.events)+@((New-S4Attack $rider $next 120 13))} 'a continuation striking beyond the native plan refused'
+Mutate-F4 1 {param($w)$w.evidence.rules.events=@($w.evidence.rules.events|Where-Object{-not([int]$_.frame -ge 110 -and [int]$_.frame -le 115)})} 'a continuation whose remaining attacks never reached the next target refused'
+$r=Copy-S4 $f4;$r.rows[2]=New-F4ControlsRow $false;Accept $r 'finalize4-ai-rt';Check $true 'F4 controls with the Hold premise met at once accepted'
+Mutate-F4 2 {param($w)$w.evidence.steps.heldInBowReach.playerMoveHold=$true} 'a stationary dispatch co-caused by the player-move hold refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.heldInBowReach.riderHold=$false} 'a stationary dispatch without the native Hold refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.returnCleared.playerMoveHold=$true} 'a return left holding the pair refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.returnCleared.stopSuppressed=$true} 'a return left under Stop suppression refused'
+Mutate-F4 2 {param($w)$w.evidence.inputs=@($w.evidence.inputs|Where-Object{-not($_.PSObject.Properties['name']) -or [string]$_.name -cne 'after-return'})} 'a return without its clearing Stop refused'
+Mutate-F4 2 {param($w)@($w.evidence.inputs|Where-Object{$_.PSObject.Properties['name'] -and [string]$_.name -ceq 'f4-return-to-bow-reach'})[0].clicked=$false} 'a refused return click refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.returnedToBowReach.bowPremise=[pscustomobject]@{met=$false}} 'a return that did not restore the premise refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.resumedAfterCast.bowPremise=[pscustomobject]@{met=$false}} 'a Hold premise not met refused'
+Mutate-F4 2 {param($w)$w.evidence.inputs=@($w.evidence.inputs)+@([pscustomobject]@{kind='ground-click';name='other';clicked=$true;frame=430})} 'an undisclosed extra ground click refused'
+Mutate-F4 2 {param($w)$w.evidence.steps.returnCleared.frame=490} 'a return cleared before its Stop refused'
+$r=Copy-S4 $f4;$r.rows=@($r.rows|Where-Object name -CNE 'F4-melee-engage');Reject $r 'finalize4-ai-rt' 'a missing engagement row refused'
+$r=Copy-S4 $rt;Reject $r 'finalize4-ai-rt' 'a Sprint 4 artifact is not F4 evidence'
 Write-Host ('Sprint 4 reader checks passed: '+$passed)

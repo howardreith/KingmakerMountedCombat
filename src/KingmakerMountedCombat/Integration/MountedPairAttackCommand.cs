@@ -38,6 +38,12 @@ namespace KingmakerMountedCombat.Integration
         public int NativeCompletedAttackCount { get; set; }
 
         public int RepathCount { get; set; }
+        // F4: repaths that followed a target the pair was closing on (not counted against the bounded allowance).
+        public int ProgressingRepathCount { get; set; }
+        // F4: the routine continued its remaining planned attacks on another target after its target went down.
+        public int ContinuationTargetCount { get; set; }
+        public string InitialTargetId { get; set; }
+        public string ContinuationTargetIds { get; set; }
         // One entry per repath: the cause that forced it (a moved target, or an unadmitted finished move with its admission state), the delegated move ticks and distance, the
         // target distance, the rider debt and the native turn movement record (preview.155 measurement).
         public string RepathObservations { get; set; }
@@ -169,7 +175,12 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedPairOwner<UnitEntityData, GameMountedRelationshipService> pairOwner;
         private readonly UnitEntityData rider;
         private readonly UnitEntityData mount;
-        private readonly UnitEntityData attackTarget;
+        // F4 (AI-01): replaced only by a native-rule routine continuation (TryContinueRoutineOnNextTarget).
+        private UnitEntityData attackTarget;
+        private readonly string initialTargetId;
+        private readonly List<string> continuationTargetIds = new List<string>();
+        private float lastChaseDistance = float.NaN;
+        private float approachAllowanceSeconds;
         private readonly UnitEntityData actionActor;
         private readonly MountedCombatActionKind action;
         private readonly NativeSingleAttackWeaponSelection expectedMountPrimary;
@@ -277,6 +288,7 @@ namespace KingmakerMountedCombat.Integration
             this.rider = rider ?? throw new ArgumentNullException(nameof(rider));
             this.mount = mount ?? throw new ArgumentNullException(nameof(mount));
             attackTarget = target ?? throw new ArgumentNullException(nameof(target));
+            initialTargetId = target.UniqueId;
             this.action = action;
             if (action != MountedCombatActionKind.RiderMelee &&
                 action != MountedCombatActionKind.RiderRanged &&
@@ -584,8 +596,13 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeSequenceTickActive => nativeSequenceTick;
         internal bool NativeMeleeTailRangeRejected => nativeMeleeTailRangeRejected;
 
+        // F4: the routine has not struck yet and still approaches its target (native IsMoveUnit for an approaching attack).
+        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && transaction.State == MountedCombatTransactionState.Approaching &&
+            transaction.ChildAttackStartCount == 0;
+
         internal bool ValidateNativeSequenceTarget()
         {
+            TryContinueRoutineOnNextTarget();
             var state = attackTarget.Descriptor?.State;
             var targetValid = Target == attackTarget && attackTarget.IsInState && state != null &&
                 state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) &&
@@ -597,6 +614,52 @@ namespace KingmakerMountedCombat.Integration
             if (nativeSequenceTick && admission == MountedPairNativeAdmissionState.OutsidePairRange)
                 nativeMeleeTailRangeRejected = true;
             return targetValid && admission == MountedPairNativeAdmissionState.Admitted;
+        }
+
+        // F4 (AI-01). Native UnitAttack.UpdateTarget continues a started routine on the nearest remembered enemy once its
+        // target is down (a Rapid Shot archer's next arrow goes to the next goblin). The replacement must also pass the
+        // pair's own admission without approach, or the routine ends exactly as before. Nothing is spent or granted:
+        // the routine's remaining planned attacks are the upper bound.
+        private void TryContinueRoutineOnNextTarget()
+        {
+            var state = attackTarget?.Descriptor?.State;
+            var targetDown = attackTarget == null || !attackTarget.IsInState || state == null || state.IsDead || !state.IsConscious;
+            var planned = PlannedAttack;
+            if (!MountedRoutineContinuationPolicy.MayContinue(chargeMode, transaction.State == MountedCombatTransactionState.Attacking,
+                    IsActed && LastAttackRule != null, planned != null, targetDown) || Executor?.View == null || actionActor?.Group == null)
+                return;
+            var previous = Target;
+            var candidates = actionActor.Group.Memory.Enemies.Select(info => info.Unit)
+                .Where(unit => unit != null && unit != attackTarget && unit.View != null && unit.IsInState &&
+                    unit.Descriptor.State.IsConscious && !unit.Descriptor.State.IsFinallyDead &&
+                    actionActor.IsEnemy(unit) && actionActor.CanAttack(unit) && !CommandTargetUntargetable(Executor, unit) &&
+                    MountedRoutineContinuationPolicy.WithinNativeContinuationRange(Executor.DistanceTo(unit), Executor.View.Corpulence,
+                        unit.View.Corpulence, planned.WeaponRange))
+                .OrderBy(unit => Executor.DistanceTo(unit)).ToList();
+            foreach (var candidate in candidates)
+            {
+                SetNativeAttackTarget(candidate);
+                if (EvaluateCurrentNativeAdmission() != MountedPairNativeAdmissionState.Admitted) continue;
+                if (!transaction.TryContinueOnTarget(attackTarget?.UniqueId, candidate.UniqueId)) break;
+                logger.Info("Mounted pair routine continued on the next target: from=" + attackTarget?.UniqueId + "; to=" + candidate.UniqueId +
+                    "; attackIndex=" + GetAttackIndex() + "/" + AllAttacks.Count + "; action=" + action + ".");
+                attackTarget = candidate;
+                continuationTargetIds.Add(candidate.UniqueId);
+                targetSnapshot = candidate.Position;
+                return;
+            }
+            SetNativeAttackTarget(previous);
+        }
+
+        // Native UnitAttack.set_Target (private, exact 2.1.7b token): the same write native UpdateTarget makes.
+        private static readonly System.Reflection.MethodInfo NativeAttackTargetSetter = typeof(UnitAttack).GetMethod("set_Target",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(UnitEntityData) }, null);
+
+        private void SetNativeAttackTarget(UnitEntityData unit)
+        {
+            if (NativeAttackTargetSetter == null || NativeAttackTargetSetter.MetadataToken != 0x0600266C)
+                throw new InvalidOperationException("The exact native UnitAttack.set_Target contract changed.");
+            NativeAttackTargetSetter.Invoke(this, new object[] { unit });
         }
 
         private bool IsNativeRangedTailTermination()
@@ -717,6 +780,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     throw new InvalidOperationException("Mounted combat transaction rejected its exact target.");
                 }
+                lastChaseDistance = mount.DistanceTo(attackTarget);
+                approachAllowanceSeconds = MountedChaseProgressPolicy.ApproachAllowanceSeconds(chargeMode, requiresApproach,
+                    lastChaseDistance - mount.View.Corpulence - attackTarget.View.Corpulence, mount.CombatSpeedMps);
 
                 if (requiresApproach)
                 {
@@ -750,7 +816,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
-                if (TimeSinceStart > MaximumElapsedSeconds)
+                if (TimeSinceStart > MaximumElapsedSeconds + approachAllowanceSeconds)
                 {
                     throw new InvalidOperationException("Mounted pair command exceeded its bounded execution time.");
                 }
@@ -816,6 +882,11 @@ namespace KingmakerMountedCombat.Integration
                 // A released shot/strike may finish its native animation after target death.
                 return false;
             }
+            // F4 review MINOR-4: a released routine whose target left the field (despawn, hostility) continues natively
+            // on the next target exactly as for a target that died in place; only without one is it cancelled as before.
+            var continuations = transaction.ContinuationTargetCount;
+            TryContinueRoutineOnNextTarget();
+            if (transaction.ContinuationTargetCount != continuations) return false;
             var reason = !inState ? "target despawned" : !hostile ? "target hostility changed" :
                 targetState == null ? "target state unavailable" :
                 targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
@@ -982,7 +1053,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A failed revalidation inside the repath must not be followed by anything this tick:
                 // no second repath, no new carrier, no lease application, no IsFinished dereference.
-                if (Repath("target-moved;displacement=" + displacement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) ||
+                if (Repath("target-moved;displacement=" + displacement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture), true) ||
                     ChargeTransactionStopped() || delegatedMove == null)
                 {
                     return;
@@ -1092,7 +1163,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Returns true when the charge was terminated inside this call.
-        private bool Repath(string cause)
+        private bool Repath(string cause, bool targetDrift = false)
         {
             // A repath re-forces the straight charge line, so the mutable conditions are re-read first.
             if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
@@ -1100,8 +1171,11 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
-            repathObservations.Add(DescribeRepath(cause));
-            if (!transaction.TryRepath(attackTarget.UniqueId))
+            var chaseDistance = mount.DistanceTo(attackTarget);
+            var progressing = MountedChaseProgressPolicy.IsProgressingChase(chargeMode, targetDrift, lastChaseDistance, chaseDistance);
+            lastChaseDistance = chaseDistance;
+            repathObservations.Add(DescribeRepath(cause) + ";progressing=" + progressing);
+            if (!transaction.TryRepath(attackTarget.UniqueId, progressing))
             {
                 throw new InvalidOperationException("Mounted pair command exhausted its bounded repath allowance.");
             }
@@ -1511,6 +1585,10 @@ namespace KingmakerMountedCombat.Integration
                 NativePlannedAttackCount = AllAttacks.Count,
                 NativeCompletedAttackCount = GetAttackIndex(),
                 RepathCount = transaction.RepathCount,
+                ProgressingRepathCount = transaction.ProgressingRepathCount,
+                ContinuationTargetCount = transaction.ContinuationTargetCount,
+                InitialTargetId = initialTargetId,
+                ContinuationTargetIds = string.Join(",", continuationTargetIds.ToArray()),
                 RepathObservations = string.Join(" | ", repathObservations.ToArray()),
                 RiderStandardCharged = IsActed && actionActor == rider,
                 ActionStandardCharged = IsActed,

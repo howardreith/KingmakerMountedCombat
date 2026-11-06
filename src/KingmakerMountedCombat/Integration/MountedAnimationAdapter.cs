@@ -47,6 +47,29 @@ namespace KingmakerMountedCombat.Integration
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        // F4 (GAIT-01) observations for the native rows.
+        internal static long NaturalGaitTrotTicks { get; private set; }
+        internal static float LastNaturalGaitSpeedLimit { get; private set; }
+
+        // F4 (GAIT-01): presentation only, from the UnitAnimationManager.Tick prefix, after native TickOnUnit wrote the
+        // gait and animation speed and before the locomotion action reads them. See MountedHorseGaitPolicy.
+        internal static void ApplyNaturalHorseGait(UnitAnimationManager manager, Kingmaker.Blueprints.BlueprintUnit horseBlueprint)
+        {
+            var unit = manager?.View?.EntityData;
+            if (unit == null || horseBlueprint == null || unit.Blueprint != horseBlueprint || unit.View?.MovementAgent == null) return;
+            var command = unit.Commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move) ?? unit.Commands.Standard;
+            if (command == null || !unit.Descriptor.State.CanMove) return;
+            if (!Domain.MountedHorseGaitPolicy.ShouldShowTrot(true, (Domain.NativeGait)(int)manager.WalkSpeedType,
+                    (Domain.NativeGait)(int)command.MovementType, command.OverrideSpeed.HasValue, unit.IsInCombat,
+                    TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), command.SpeedLimit, unit.ModifiedSpeedMps,
+                    unit.Blueprint.Speed.Meters / 3f))
+                return;
+            manager.WalkSpeedType = Kingmaker.Visual.Animation.Kingmaker.Actions.UnitAnimationActionLocoMotion.WalkSpeedType.Normal;
+            manager.Speed = unit.View.MovementAgent.Speed * unit.View.GetSpeedAnimationCoeff(manager.WalkSpeedType, manager.IsInCombat);
+            NaturalGaitTrotTicks++;
+            LastNaturalGaitSpeedLimit = command.SpeedLimit.Value;
+        }
+
         internal int DelegatedLocomotionRestoreCount { get; private set; }
 
         internal string LastDelegatedLocomotionSource { get; private set; } = "<none>";

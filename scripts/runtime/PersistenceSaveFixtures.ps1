@@ -10,7 +10,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','condition','condition-preparing','suspended','casting-items')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-dungeon-entry','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','condition','condition-preparing','suspended','casting-items')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -38,7 +38,7 @@ function Get-KmcPersistenceSource {
     # F2: the same producer's second Manual, the public control removed, exists only on the F2 public-control chain.
     if($isUpgradeRemoved-and($null-eq$owner.PSObject.Properties['finalize2Controls']-or$owner.finalize2Controls-ne$true)){throw 'Only the F2 upgrade producer exports its removed-control Manual.'}
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-dungeon-entry')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -51,7 +51,9 @@ function Get-KmcPersistenceSource {
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     if($NativeCase-ceq'mounted-charge-removal'-and$ArtifactRole-cne'cleanup-manual'){throw 'Charge removal exports only its exact cleanup archive.'}
     $type=if($isUpgradeResave){'Manual'}elseif($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
-    if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
+    if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit','area-dungeon-entry')){throw 'Only a cross-area source run produces a transition autosave.'}
+    # F4: the dungeon entry writes only its after-entry Auto; it has no destination Manual to export.
+    if($NativeCase-ceq'area-dungeon-entry'-and($ArtifactRole-cne'transition-auto'-or$Alternate)){throw 'A dungeon entry source exports only its after-entry Auto.'}
     if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cnotin @('prepare-removal','mounted-charge-removal')-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
     if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
     if($ArtifactRole-ceq'eligibility-manual'-and($NativeCase-cne'rider-size-change'-or$Alternate)){throw 'Only an eligibility source run produces a no-pair size archive.'}
@@ -673,9 +675,11 @@ function Assert-KmcPersistenceScenarioEvidence {
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
     if($Request.scenario-ceq'persistence-p07-save'){
-        if($Request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){Assert-KmcAreaPersistenceEvidence $Request $rows}
+        if($Request.persistenceCase-ceq'area-dungeon-entry'){Assert-KmcDungeonEntryEvidence $Request $rows}
+        elseif($Request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){Assert-KmcAreaPersistenceEvidence $Request $rows}
         else{Assert-KmcRecoveryPersistenceEvidence $Request $rows}
     }
+    if($Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-ceq'area-dungeon-entry-auto'){Assert-KmcDungeonEntryAutoColdEvidence $Request $rows}
     if($Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){
         Assert-KmcTransitionAutoColdEvidence $Request $rows
     }
@@ -691,7 +695,9 @@ function Assert-KmcPersistenceScenarioEvidence {
         $d=$written[0].detail
         if($isP03){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
         elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
-        $type=if($isSlot-and$checkpoint-ceq'quick'){'Quick'}elseif($isSlot-and$checkpoint-ceq'auto'){'Auto'}else{'Manual'}
+        # F4: the dungeon entry's one write is the native after-entry autosave (no save callback of its own).
+        $dungeonWrite=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-ceq'area-dungeon-entry'
+        $type=if($isSlot-and$checkpoint-ceq'quick'){'Quick'}elseif(($isSlot-and$checkpoint-ceq'auto')-or$dungeonWrite){'Auto'}else{'Manual'}
         $leaf=if($isQueued){'Manual_302_KMC_P01.zks'}elseif($Request.scenario-ceq'persistence-p07-save'-and
             $Request.persistenceCase-ceq'prepare-removal'-and$Request.PSObject.Properties['ownerStockRemoval']-and
             $Request.ownerStockRemoval -ceq $true){'Manual_305_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
@@ -713,7 +719,7 @@ function Assert-KmcPersistenceScenarioEvidence {
             if(@($commits|ForEach-Object{$_.detail.sha256}|Select-Object -Unique).Count-ne3){throw 'P05 did not write three distinct native archives.'}
             if(@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks').Count-ne2){throw 'P05 retained an unexpected archive or temporary leaf.'}
         }
-        if($d.path-cne$archive-or$d.nativeType-cne$type-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
+        if($d.path-cne$archive-or$d.nativeType-cne$type-or($d.nativeCallback-ne$true-and-not$dungeonWrite)-or$d.operation-cne'None'-or
             (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length){
             throw 'P01 real archive/metadata/completion differs.'
         }
@@ -2108,6 +2114,68 @@ function Assert-KmcTransitionAutoColdEvidence {
     }
 }
 
+# F4 (WORLD-01 reload): the read-only cold native load of the dungeon entry's one after-entry Auto. It opens the floor its own
+# archive captured, inherits no transfer state, binds the same pair's live views, and continues with the established ordinary
+# movement and stock attack; it writes nothing.
+function Assert-KmcDungeonEntryAutoColdEvidence {
+    param($Request,$Rows)
+    $floorArea='9d1278a2f599b2a4daab53abdfe88d2e'
+    $names=@('auto-cold-loaded','initial','movement-completed','attack-delivered','usable-continuation-complete')
+    $kinds=@($Rows|ForEach-Object{[string]$_.kind});$last=-1
+    foreach($name in $names){$found=@($Rows|Where-Object kind -CEQ $name);if($found.Count-ne1){throw ('P07 dungeon entry reload lacks exactly one '+$name+' record.')}
+        $at=[Array]::IndexOf($kinds,$name);if($at-le$last){throw ('P07 dungeon entry reload record out of order: '+$name)};$last=$at}
+    foreach($name in @('native-write-complete','native-slot-write-complete','auto-cold-write-waiting','assertion-failed','area-reload-requested','area-reload-observed','area-reload-complete','area-native-autosave','dungeon-entry-setup-transfer-requested','dungeon-entry-hub-arrival','dungeon-entry-party-selection-go','dungeon-entry-floor-arrival')){if(@($Rows|Where-Object kind -CEQ $name).Count-ne0){throw ('P07 dungeon entry reload carries a write, transfer or failure record: '+$name)}}
+    if($Request.fixture.working.area-cne$floorArea-or$Request.persistenceAreaTarget.autoSaveMode-cne'AfterEntry'-or
+        $Request.persistenceLoad.fileName-cne'Auto_1.zks'-or$Request.persistenceLoad.area-cne$floorArea){throw 'P07 dungeon entry reload request pins differ.'}
+    $d=@($Rows|Where-Object kind -CEQ 'auto-cold-loaded')[0].detail
+    if($d.case-cne'area-dungeon-entry-auto'-or$d.autoSaveMode-cne'AfterEntry'-or$d.expectedArea-cne$floorArea-or$d.loadedArea-cne$floorArea-or
+        $d.archiveArea-cne$floorArea-or$d.archiveCampaign-cne$Request.fixture.working.gameId-or
+        $d.sourceFileName-cne'Auto_1.zks'-or$d.sourceSha256-cne$Request.persistenceLoad.sha256){throw 'P07 dungeon entry reload did not open the exact world its own archive captured.'}
+    if([int]$d.suspensions-ne0-or[int]$d.resumes-ne0-or$d.pending-ne$false){throw 'P07 dungeon entry reload inherited transfer state from its source process.'}
+    Assert-KmcColdViewEvidence $d.riderActor 'rider'
+    Assert-KmcColdViewEvidence $d.mountActor 'mount'
+    $m=@($Rows|Where-Object kind -CEQ 'movement-completed')[0].detail
+    if([string]$m.result-cne'Success'-or[double]$m.originDistance-le1){throw 'P07 dungeon entry reload lost ordinary native movement.'}
+}
+
+# F4 (WORLD-01): the real dungeon entrance. A disclosed setup transfer (no write) reaches the roguelike hub; the native entrance
+# action and the native party selection's Go re-initialise the party and load the declared floor AfterEntry. The one declared
+# write is that after-entry Auto, admitted in the hub and committed on the floor with the same mounted pair.
+function Assert-KmcDungeonEntryEvidence {
+    param($Request,$Rows)
+    $hubArea='c49315fe499f0e5468af6f19242499a2';$floorArea='9d1278a2f599b2a4daab53abdfe88d2e'
+    $names=@('dungeon-entry-setup-transfer-requested','dungeon-entry-hub-arrival','dungeon-entry-party-selection-go','dungeon-entry-floor-arrival','native-write-complete')
+    $kinds=@($Rows|ForEach-Object{[string]$_.kind});$last=-1
+    foreach($name in $names){$found=@($Rows|Where-Object kind -CEQ $name);if($found.Count-ne1){throw ('P07 dungeon entry lacks exactly one '+$name+' record.')}
+        $at=[Array]::IndexOf($kinds,$name);if($at-le$last){throw ('P07 dungeon entry record out of order: '+$name)};$last=$at}
+    foreach($name in @('area-initial-write','area-native-autosave','area-reload-requested','area-reload-complete','assertion-failed')){if(@($Rows|Where-Object kind -CEQ $name).Count-ne0){throw ('P07 dungeon entry carries a foreign record: '+$name)}}
+    if($Request.fixture.working.area-cne$floorArea-or$Request.persistenceAreaTarget.area-cne$hubArea-or$Request.persistenceAreaTarget.autoSaveMode-cne'AfterEntry'){throw 'P07 dungeon entry request pins differ.'}
+    $setup=@($Rows|Where-Object kind -CEQ 'dungeon-entry-setup-transfer-requested')[0].detail
+    $hub=@($Rows|Where-Object kind -CEQ 'dungeon-entry-hub-arrival')[0].detail
+    $go=@($Rows|Where-Object kind -CEQ 'dungeon-entry-party-selection-go')[0].detail
+    $floor=@($Rows|Where-Object kind -CEQ 'dungeon-entry-floor-arrival')[0].detail
+    $w=@($Rows|Where-Object kind -CEQ 'native-write-complete')[0].detail
+    if($setup.area-cne$floorArea-or$setup.sourceArea-cne$floorArea-or[int]$setup.snapshots-ne0-or[int]$setup.suspensions-ne0-or[int]$setup.resumes-ne0){throw 'P07 dungeon entry did not start idle on the fixture floor.'}
+    # The setup transfer to the hub writes nothing and keeps the same mounted pair.
+    if($hub.area-cne$hubArea-or[int]$hub.snapshots-ne0-or[int]$hub.suspensions-ne1-or[int]$hub.resumes-ne1-or$hub.sameWorld-ne$true-or$hub.pending-ne$false-or-not[string]::IsNullOrEmpty([string]$hub.mountedInvariant)){throw 'P07 dungeon entry hub arrival wrote, replaced the world or lost the pair.'}
+    if([string]$go.relationship-cne'Mounted'-or[string]::IsNullOrEmpty([string]$go.partyBefore)){throw 'P07 dungeon entry party selection did not start mounted.'}
+    $route=$floor.route;$entrance=$route.entrance
+    if($route.setupTransfer.enterPoint-cne$Request.persistenceAreaTarget.enterPoint-or$route.setupTransfer.autoSaveMode-cne'None'-or
+        $entrance.action-cne'native ActionEnterToDungeon.RunAction'-or$entrance.resolvedArea-cne$floorArea-or$entrance.selectorOpened-ne$true-or[string]$entrance.resolvedEnterPoint-cnotmatch'^[0-9a-f]{32}$'){throw 'P07 dungeon entry route was not the native entrance to the declared floor.'}
+    if($floor.area-cne$floorArea-or$floor.sameWorld-ne$true-or[int]$floor.suspensions-ne2-or[int]$floor.resumes-ne2-or$floor.pending-ne$false-or[int]$floor.snapshots-ne1-or
+        [int]$floor.nativeCastRequests-ne0-or$floor.loadingInProcess-ne$false-or-not[string]::IsNullOrEmpty([string]$floor.mountedInvariant)-or
+        $floor.riderView-ne$hub.riderView-or$floor.mountView-ne$hub.mountView){throw 'P07 dungeon entry floor arrival lost the world, the views or the exactly-once transfer.'}
+    foreach($row in @($hub,$floor)){Assert-KmcAreaViewEvidence $row.riderActor 'retained' 'rider';Assert-KmcAreaViewEvidence $row.mountActor 'retained' 'mount'}
+    # The setup transfer and the native party re-initialisation keep the exact pair generation (review MINOR).
+    if([long]$hub.generation-ne[long]$hub.generationBaseline-or[long]$go.generationBefore-ne[long]$hub.generation-or[long]$floor.generation-ne[long]$go.generationBefore-or[int]$entrance.stage-lt1){throw 'P07 dungeon entry replaced the pair generation or entered no native stage.'}
+    $p=$w.partySelection
+    if([string]$p.partyBefore-cne[string]$go.partyBefore-or[string]$p.partyAfter-cne[string]$p.partyBefore-or[long]$p.generationAfter-ne[long]$p.generationBefore-or[long]$p.generationBefore-ne[long]$go.generationBefore){throw 'P07 dungeon entry party re-initialisation changed the party or replaced the pair.'}
+    $leaf=[System.IO.Path]::GetFileName([string]$w.path)
+    if([int]$w.ordinal-ne1-or$leaf-cne'Auto_1.zks'-or$w.nativeType-cne'Auto'-or$w.mode-cne'AfterEntry'-or$w.admissionArea-cne$hubArea-or$w.area-cne$floorArea-or$w.operation-cne'None'-or[string]$w.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'P07 dungeon entry write is not the one after-entry Auto admitted in the hub and committed on the floor.'}
+    $b=$w.barrier
+    if($b.relationship-cne'Mounted'-or$b.area-cne$floorArea-or[int]$b.snapshots-ne1-or[int]$b.suspensions-ne2-or[int]$b.resumes-ne2-or$b.riderId-cne$w.snapshot.Rider.Id-or$b.mountId-cne$w.snapshot.Mount.Id){throw 'P07 dungeon entry autosave was not taken after native restoration of the mounted pair.'}
+    if($w.snapshot.Mounted-ne$true-or$w.snapshot.AreaId-cne$floorArea-or$w.snapshot.CampaignId-cne$Request.fixture.working.gameId){throw 'P07 dungeon entry autosave does not carry the mounted pair on the floor of this campaign.'}
+}
 function Assert-KmcAreaPersistenceEvidence {
     param($Request,$Rows)
     $before=@($Rows|Where-Object kind -CEQ 'area-reload-requested')
