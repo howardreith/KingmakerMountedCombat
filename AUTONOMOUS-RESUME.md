@@ -1,3 +1,9 @@
+# F5 resume — started (2026-11-06)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack from main 3f19e9bd. Read CURRENT.md.
+- **F4:** integrated by the owner (3f19e9bd) with WORLD-02 deferred, not passed ([deferred items](docs/FINALIZATION-DEFERRED-ITEMS.md)). The finalize-f4 record is closed at 68.17/80 min, 10/10 starts.
+- **F5 scope:** PET-01 companion naming and PET-02 Riding Dog tack. Record finalize-f5: 60 min, 3 starts.
+
 # F4 resume — final review stop, reload PASS (2026-11-06)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
