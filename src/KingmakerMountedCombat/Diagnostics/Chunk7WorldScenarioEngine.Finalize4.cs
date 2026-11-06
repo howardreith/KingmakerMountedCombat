@@ -153,6 +153,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderStart"] = Point(secondRider.Position), ["containerPosition"] = Point(f4Container.transform.position), ["container"] = f4Container.name,
                 ["containerId"] = f4Container.Data?.UniqueId, ["distanceAtClick"] = Vector3.Distance(f4Container.transform.position, horse),
                 ["distanceAtChoice"] = chosenDistance, ["frame"] = Time.frameCount };
+            // Review MINOR: SelectUnit decides at the click, so the rider-nearest margin is recomputed there (members are moving).
+            var containerAt = f4Container.transform.position; var rivals = selected.Where(u => u != secondRider && !u.Descriptor.IsPet).ToArray();
+            before["riderNearestMarginSqrAtClick"] = rivals.Length == 0 ? (JToken)null :
+                rivals.Min(u => (u.Position - containerAt).sqrMagnitude) - (secondRider.Position - containerAt).sqrMagnitude;
             var handler = Game.Instance.DefaultPointerController?.GetHandler<ClickMapObjectHandler>();
             Require(handler != null, "The native map-object click handler is unavailable.");
             before["clicked"] = handler.OnClick(f4Container.gameObject, f4Container.transform.position, 0);
@@ -172,9 +176,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var combat = F4Combat; var order = (JObject)f4["containerOrder"];
             if (combat.CarriedApproachBindCount > f4BindBaseline) order["carriedBound"] = true;
             // r02 correction: the bound approach publishes its terminal record on the controller's update after the command ends;
-            // wait (bounded by the step deadline) for that terminal, never an earlier or arbitrary outcome.
-            if (!f4Command.IsFinished || combat.HasLiveCarriedApproach || combat.CarriedApproachTerminalCount == f4TerminalBaseline) return false;
-            var outcome = combat.LastCarriedApproachOutcome;
+            // wait (bounded by the step deadline) for that terminal, never an earlier or arbitrary outcome; a command that ended
+            // with no bind at all has no terminal to wait for and is recorded at once for the reader to refuse.
+            if (!f4Command.IsFinished || combat.HasLiveCarriedApproach) return false;
+            if (combat.CarriedApproachBindCount > f4BindBaseline && combat.CarriedApproachTerminalCount == f4TerminalBaseline) return false;
+            var outcome = combat.CarriedApproachTerminalCount > f4TerminalBaseline ? combat.LastCarriedApproachOutcome : null;
             order["terminalsSinceClick"] = combat.CarriedApproachTerminalCount - f4TerminalBaseline;
             order["terminalMatchesOrder"] = outcome != null && outcome.TargetId == f4Container.Data?.UniqueId && outcome.Kind == MountedCarriedCommandKind.ContainerInteraction.ToString();
             order["executorId"] = f4Command.Executor?.UniqueId; order["result"] = f4Command.Result.ToString();

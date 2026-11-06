@@ -312,12 +312,13 @@ Reject 'F4 exploration false opt-in' {$r=New-SurfaceRequest;$r.ownedPairs|Add-Me
 function F4Gait([string]$type,[double]$agent,$limit,[double]$modified){[pscustomobject]@{walkSpeedType=$type;animationSpeed=$agent;agentSpeed=$agent;speedLimit=$limit;movementType='Normal';currentSpeedMps=$agent;modifiedSpeedMps=$modified;blueprintSpeedMps=5.08;trotTicks=40;frame=900}}
 function F4Trace([string]$type,[double]$agent,$limit){@(1..12|ForEach-Object{[pscustomobject]@{frame=900+$_;deltaTime=0.016;position=[pscustomobject]@{x=0.0;y=0.0;z=[double]$_};agentSpeed=$agent;speedLimit=$limit;walkSpeedType=$type;animationSpeed=$agent;locoAction='Loco';locoAnimation='AnimationPlayableClip'}})}
 $f4Party=(F4Gait 'Normal' 3.048 3.048 5.08);$f4Solo=(F4Gait 'Normal' 5.08 $null 5.08);$f4Slow=(F4Gait 'Slow' 2.54 $null 2.54)
-$f4Captures=@(foreach($leg in @('mounted-party','mounted-solo','mounted-slowed')){foreach($n in 1..4){[pscustomobject]@{leg=($leg+'-'+$n);file=('movement-visuals/finalize4-gait-'+$leg+'-'+$n+'.png');sha256=('a'*64);bytes=200000;frame=900+$n;gait=$f4Party}}})
+$f4LegGait=@{'mounted-party'=$f4Party;'mounted-solo'=$f4Solo;'mounted-slowed'=$f4Slow}
+$f4Captures=@(foreach($leg in @('mounted-party','mounted-solo','mounted-slowed')){foreach($n in 1..4){[pscustomobject]@{leg=($leg+'-'+$n);file=('movement-visuals/finalize4-gait-'+$leg+'-'+$n+'.png');sha256=('a'*64);bytes=200000;frame=900+2*$n;gait=$f4LegGait[$leg]}}})
 $f4=[pscustomobject]@{contract='finalize4-owner-surface-exploration-v1';riderId=$rider;horseId=$horse;disclosedSetup=@('camera','slowed');containers=@([pscustomobject]@{name='Chest';id='chest-1';distance=12.0;available=$true;type='Approach';proximityRadius=0.0});riderNearestMarginSqr=9.0
     travelBeforeOrder=[pscustomobject]@{goal=[pscustomobject]@{x=5.0;y=0.0;z=0.0};frame=690;inputPath='ClickGroundHandler.MoveSelectedUnitsToPoint';travelCommandObject=880;horseMovingAtClick=$true}
     containerOrder=[pscustomobject]@{selectedIds=@($other,$rider,$pet2);clicked=$true;inputPath='ClickMapObjectHandler.OnClick';interactorIds=@($rider);executorId=$rider;containerId='chest-1';distanceAtClick=11.5;distanceAtChoice=12.0;result='Success';carriedBinds=1;carriedBound=$true;terminalsSinceClick=1;terminalMatchesOrder=$true
         carriedOutcome=[pscustomobject]@{kind='ContainerInteraction';satisfied=$true;moveStarts=1;distance=3.5;los=$true;slotRestored=$true;reason=$null;targetId='chest-1';commandType='UnitInteractWithObject';result='Success'};horseDisplacement=8.0;lootInteractions=@([pscustomobject]@{unitId=$rider;frame=700});stillMounted=$true;trapStopsForwarded=0;commandObject=901
-        replacedTravel=1;earlierTravelFinished=$true;earlierTravelResult='Interrupt';othersAfter=@()}
+        replacedTravel=1;earlierTravelFinished=$true;earlierTravelResult='Interrupt';othersAfter=@([pscustomobject]@{id=$other;distanceToTravelGoal=0.8},[pscustomobject]@{id=$pet2;distanceToTravelGoal=1.1})}
     partySelection=[pscustomobject]@{action='native-ShowPartySelection';ownerBefore='33333333-3333-4333-8333-333333333333';ownerAfter='33333333-3333-4333-8333-333333333333';generationBefore=1;generationAfter=1;stateBefore='Mounted';stateAfter='Mounted';stillMounted=$true;partyBefore=@($other,$rider);partyAfter=@($rider,$other);goFrame=800}
     'gaitAt_mounted-party'=$f4Party;'gaitAt_mounted-solo'=$f4Solo;'gaitAt_mounted-slowed'=$f4Slow;trotTicksTotal=120;lastTrotSpeedLimit=3.048
     slowControl=[pscustomobject]@{modifiedSpeedBefore=5.08;modifiedSpeedSlowed=2.54;blueprintSpeedMps=5.08;modifiedSpeedAfter=5.08;removed=$true}
@@ -345,6 +346,15 @@ $f4Faults=@(
     @('order not given during travel',{param($f)$f.travelBeforeOrder.horseMovingAtClick=$false}),
     @('earlier travel not replaced',{param($f)$f.containerOrder.replacedTravel=0}),
     @('more than one travel replaced',{param($f)$f.containerOrder.replacedTravel=2}),
+    @('Horse never approached the chest',{param($f)$f.containerOrder.horseDisplacement=0.2}),
+    @('party selection refused Go',{param($f)$f.partySelection|Add-Member goRefused 'refused'}),
+    @('more than one terminal since the click',{param($f)$f.containerOrder.terminalsSinceClick=2}),
+    @('earlier travel completed instead of yielding',{param($f)$f.containerOrder.earlierTravelResult='Success'}),
+    @('other member travel unrecorded',{param($f)$f.containerOrder.othersAfter=@()}),
+    @('another member nearer at the click',{param($f)$f.containerOrder|Add-Member riderNearestMarginSqrAtClick (-2.0)}),
+    @('motion frames out of order',{param($f)$f.captures[1].frame=900}),
+    @('stale motion frame',{param($f)$f.captures[3].frame=980}),
+    @('motion frame gait differs from its leg',{param($f)$f.captures[8].gait=$f4Party}),
     @('chest opened twice',{param($f)$f.containerOrder.lootInteractions+=[pscustomobject]@{unitId=$rider;frame=710}}),
     @('chest opened by another actor',{param($f)$f.containerOrder.lootInteractions[0].unitId=$other}),
     @('chest order unseated the rider',{param($f)$f.containerOrder.stillMounted=$false}),

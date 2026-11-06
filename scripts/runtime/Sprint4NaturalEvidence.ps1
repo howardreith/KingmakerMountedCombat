@@ -50,6 +50,23 @@ function Assert-KmcFinalize4ContinuationRow($Row,[string]$Rider){
   if($onSecond.Count -lt 1){ throw 'F4 continuation the remaining planned attacks never reached the next target' }
  } elseif([int]$routine.continuations -ne 0){ throw 'F4 continuation recorded with no remaining planned attack' }
 }
+# F4 (AI-01 controls): when the cast's carried approach left no hostile in bow reach, one disclosed ordinary ground click returns
+# the pair; its completion arms the player-move hold, so a native Stop and an AI off/on cycle clear it before the Hold premise.
+function Assert-KmcFinalize4ControlsRow($Row){
+ $returns=@(Get-KmcSprint4Inputs $Row 'ground-click' | Where-Object { (Test-KmcSprint4Prop $_ 'name') -and [string]$_.name -ceq 'f4-return-to-bow-reach' })
+ $stops=@(Get-KmcSprint4Inputs $Row 'stop' | Where-Object { (Test-KmcSprint4Prop $_ 'name') -and [string]$_.name -ceq 'after-return' })
+ if($returns.Count -gt 1 -or $stops.Count -ne $returns.Count -or @(Get-KmcSprint4Inputs $Row 'ground-click').Count -ne $returns.Count){ throw 'F4 controls return inputs differ' }
+ $bow=Get-KmcSprint4Step $Row 'heldInBowReach'
+ if($bow.playerMoveHold -ne $false -or $bow.riderHold -ne $true){ throw 'F4 controls stationary dispatch was not driven by the native Hold alone' }
+ if($returns.Count -eq 1){
+  if($returns[0].clicked -ne $true){ throw 'F4 controls return click was refused' }
+  $back=Get-KmcSprint4Step $Row 'returnedToBowReach'; $cleared=Get-KmcSprint4Step $Row 'returnCleared'
+  if($back.bowPremise.met -ne $true){ throw 'F4 controls return did not restore the bow premise' }
+  if($cleared.playerMoveHold -ne $false -or $cleared.stopSuppressed -ne $false){ throw 'F4 controls return left the player-move hold or the Stop suppression armed' }
+  if([int]$stops[0].frame -lt [int]$back.frame -or [int]$cleared.frame -lt [int]$stops[0].frame){ throw 'F4 controls return clearing out of order' }
+ }
+ if((Get-KmcSprint4Step $Row 'resumedAfterCast').bowPremise.met -ne $true){ throw 'F4 controls Hold-in-bow-reach premise not met' }
+}
 function Test-KmcSprint4Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }
 function Get-KmcSprint4Attacks($Row,[string]$Actor,[string]$Target){ @($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Actor -and [string]$_.target -ceq $Target }) }
 function Get-KmcSprint4Step($Row,[string]$Name){ if(-not (Test-KmcSprint4Prop $Row.evidence.steps $Name)){ throw ('Sprint 4 row '+$Row.name+' never reached step '+$Name) }; $Row.evidence.steps.$Name }
@@ -156,7 +173,7 @@ function Assert-KmcSprint4ControlsRow($Row,[string]$Rider,[string]$Mount){
  if([long]$bow.dispatchesDuring -lt 1 -or $bow.holdKept -ne $true -or [double]$bow.mountDisplacement -gt 0.5){ throw 'Sprint 4 automatic dispatch under native Hold moved the pair or cleared Hold' }
  $off=Get-KmcSprint4Step $Row 'aiOffRetired'
  if([long]$off.retiredDuring -lt 1 -or [long]$off.dispatchesDuring -ne 0 -or [string]$off.state.controller.lastRetirement -cne 'ai off' -or $off.state.controller.hasIntent -ne $false){ throw 'Sprint 4 AI off did not end the live automatic intent' }
- if(@(Get-KmcSprint4Inputs $Row 'stop').Count -ne 2 -or @(Get-KmcSprint4Inputs $Row 'cast').Count -ne 1 -or @(Get-KmcSprint4Inputs $Row 'hostile-click').Count -ne 1){ throw 'Sprint 4 controls row input count differs' }
+ if(@(Get-KmcSprint4Inputs $Row 'stop' | Where-Object { -not ((Test-KmcSprint4Prop $_ 'name') -and [string]$_.name -ceq 'after-return') }).Count -ne 2 -or @(Get-KmcSprint4Inputs $Row 'cast').Count -ne 1 -or @(Get-KmcSprint4Inputs $Row 'hostile-click').Count -ne 1){ throw 'Sprint 4 controls row input count differs' }
  Assert-KmcSprint4Delta $Row 'duplicateDispatches' 0
 }
 function Assert-KmcSprint4HoldRow($Row,[string]$Rider,[string]$Mount){
@@ -268,7 +285,7 @@ function Assert-KmcSprint4NaturalEvidence {
    'S4-ui-clean' { Assert-KmcSprint4UiRow $row $o.rider $o.mount }
    'S4-ranged-retarget' { Assert-KmcSprint4RangedRow $row $o.rider $o.mount; if($Request.scenario -ceq 'finalize4-ai-rt'){ Assert-KmcFinalize4ContinuationRow $row $o.rider } }
    'F4-melee-engage' { Assert-KmcFinalize4EngageRow $row $o.rider $o.mount }
-   'S4-controls' { Assert-KmcSprint4ControlsRow $row $o.rider $o.mount }
+   'S4-controls' { Assert-KmcSprint4ControlsRow $row $o.rider $o.mount; if($Request.scenario -ceq 'finalize4-ai-rt'){ Assert-KmcFinalize4ControlsRow $row } }
    'S4-melee-retarget' { Assert-KmcSprint4MeleeRow $row $o.rider $o.mount }
    'S4-hold-no-chase' { Assert-KmcSprint4HoldRow $row $o.rider $o.mount }
    'S4-tb-ordinary-actors' { Assert-KmcSprint4TurnBasedRow $row $o.rider $o.mount }

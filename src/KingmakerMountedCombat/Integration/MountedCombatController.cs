@@ -1197,7 +1197,7 @@ namespace KingmakerMountedCombat.Integration
             if (decision == MountedAutomaticProposalDecision.Refuse)
             {
                 AutomaticRefusedCount++;
-                LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>");
+                LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>") + ";frame=" + Time.frameCount;
                 return;
             }
             if (decision == MountedAutomaticProposalDecision.ContinueOwnIntent)
@@ -1273,7 +1273,11 @@ namespace KingmakerMountedCombat.Integration
             var live = MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
             // F4 decision snapshot (r03 Hold stall): the exact operations that made this predicate true, overwritten only
             // when it is true, so a refusal can always be attributed to a named command.
-            if (live) LastPlayerOperationDetail = DescribePlayerOperation(rider, mount);
+            if (live)
+            {
+                try { LastPlayerOperationDetail = DescribePlayerOperation(rider, mount); }
+                catch (Exception exception) { LastPlayerOperationDetail = "frame=" + Time.frameCount + "; <" + exception.GetType().Name + ">"; }
+            }
             return live;
         }
 
@@ -1302,8 +1306,17 @@ namespace KingmakerMountedCombat.Integration
         private static string DescribeCommand(UnitCommand command) =>
             command.GetType().Name + "{type=" + command.Type + ",started=" + command.IsStarted + ",finished=" + command.IsFinished +
             ",player=" + command.CreatedByPlayer + ",ai=" + (command.AiAction != null) + ",executor=" + command.Executor?.UniqueId +
-            ",target=" + (command.TargetUnit?.UniqueId ?? "<point>") + ",enoughClose=" + (command.IsStarted || command.IsUnitEnoughClose) +
+            ",target=" + (command.TargetUnit?.UniqueId ?? "<point>") + ",enoughClose=" + DescribeEnoughClose(command) +
             ",ability=" + ((command as UnitUseAbility)?.Spell?.Blueprint?.AssetGuid ?? "-") + "}";
+
+        // Only the Free/Swift coexistence predicate reads the native distance; other commands are not asked.
+        private static string DescribeEnoughClose(UnitCommand command)
+        {
+            if (command.IsStarted) return "started";
+            if (command.Type != UnitCommand.CommandType.Free && command.Type != UnitCommand.CommandType.Swift) return "-";
+            try { return command.IsUnitEnoughClose.ToString(); }
+            catch (Exception exception) { return "<" + exception.GetType().Name + ">"; }
+        }
 
         // Native Run can queue the pair's own command behind a running one: that is the intent itself, not a newer order.
         private static int CountForeignQueued(UnitEntityData unit)

@@ -939,7 +939,8 @@ function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$Ac
 # interaction to the rider, the Horse carried the approach from outside the interaction range, the native interaction
 # opened exactly once, the pair stayed mounted. The native party selection Go (Player.ReInitPartyCharacters) kept the exact
 # pair. The party-paced leg shows the Horse's run cycle at the unchanged party pace; the solo leg is the native control.
-function Assert-KmcFinalize4ExplorationEvidence($F,[string]$Rider,[string]$Horse,[string[]]$Party,$Legs){
+function Assert-KmcFinalize4ExplorationEvidence($F,[string]$Rider,[string]$Horse,[string[]]$Party,$Legs,[string[]]$LegLabels){
+    if(($LegLabels-join'|')-cne'mounted-party|mounted-solo|mounted-slowed'-or@($Legs).Count-ne$LegLabels.Count){throw 'F4 exploration leg contract differs.'}
     if($null-eq$F-or$F.contract-cne'finalize4-owner-surface-exploration-v1'-or$F.riderId-cne$Rider-or$F.horseId-cne$Horse){throw 'F4 exploration identity differs.'}
     $c=$F.containerOrder;if($null-eq$c){throw 'F4 exploration recorded no chest order.'}
     if($c.clicked-ne$true-or$c.inputPath-cne'ClickMapObjectHandler.OnClick'){throw 'F4 chest order was not the ordinary native map-object click.'}
@@ -950,11 +951,14 @@ function Assert-KmcFinalize4ExplorationEvidence($F,[string]$Rider,[string]$Horse
     if([double]$c.distanceAtClick-le($radius+1.0)){throw 'F4 chest order did not start outside the interaction range.'}
     if($c.result-cne'Success'){throw ('F4 chest interaction did not succeed: '+$c.result)}
     # The exact bound approach's own terminal (r02's observer read before it was published).
-    if([int]$c.carriedBinds-ne1-or[int]$c.terminalsSinceClick-lt1-or$c.terminalMatchesOrder-ne$true){throw 'F4 chest terminal is not the bound approach of this order.'}
+    if([int]$c.carriedBinds-ne1-or[int]$c.terminalsSinceClick-ne1-or$c.terminalMatchesOrder-ne$true){throw 'F4 chest terminal is not the bound approach of this order.'}
     $t=$c.carriedOutcome;if($null-eq$t-or$t.kind-cne'ContainerInteraction'-or$t.satisfied-ne$true-or$t.slotRestored-ne$true-or[string]$t.targetId-cne[string]$c.containerId-or$t.result-cne'Success'){throw 'F4 chest approach was not carried exactly once by the Horse to this chest.'}
     # The order was given while the group travelled: exactly the pair's earlier travel yields; other members keep theirs.
     $travel=$F.travelBeforeOrder;if($null-eq$travel-or$travel.horseMovingAtClick-ne$true){throw 'F4 chest order was not given during the group travel.'}
-    if([int]$c.replacedTravel-ne1-or$c.earlierTravelFinished-ne$true){throw 'F4 chest order did not replace exactly the earlier pair travel.'}
+    if([int]$c.replacedTravel-ne1-or$c.earlierTravelFinished-ne$true-or[string]$c.earlierTravelResult-cne'Interrupt'){throw 'F4 chest order did not replace exactly the earlier pair travel.'}
+    $others=@(@($c.othersAfter)|ForEach-Object{[string]$_.id});$expectedOthers=@($selected|Where-Object{$_-cne$Rider})
+    if((@($others|Sort-Object)-join'|')-cne(@($expectedOthers|Sort-Object)-join'|')-or@(@($c.othersAfter)|Where-Object{-not(Test-KmcChunk7FiniteNumber $_.distanceToTravelGoal)}).Count-ne0){throw 'F4 chest order did not record every other selected member''s own travel.'}
+    if($null-ne$c.PSObject.Properties['riderNearestMarginSqrAtClick']-and$null-ne$c.riderNearestMarginSqrAtClick-and[double]$c.riderNearestMarginSqrAtClick-le0){throw 'F4 rider was not the closest selected non-pet at the chest click.'}
     if([double]$c.horseDisplacement-lt1.0){throw 'F4 Horse did not approach the chest.'}
     $loot=@($c.lootInteractions);if($loot.Count-ne1-or[string]$loot[0].unitId-cne$Rider){throw ('F4 chest opened '+$loot.Count+' times or by another actor.')}
     if($c.stillMounted-ne$true){throw 'F4 chest order unseated the rider.'}
@@ -973,17 +977,20 @@ function Assert-KmcFinalize4ExplorationEvidence($F,[string]$Rider,[string]$Horse
     $sc=$F.slowControl;if($null-eq$sc-or$sc.removed-ne$true-or[double]$sc.modifiedSpeedSlowed-ge(0.95*[double]$sc.blueprintSpeedMps)-or[double]$sc.modifiedSpeedAfter-lt[double]$sc.modifiedSpeedBefore){throw 'F4 slowed control was not a native Slowed regime, or was not removed.'}
     if($slowGait.walkSpeedType-cne'Slow'-or[double]$slowGait.agentSpeed-gt([double]$sc.modifiedSpeedSlowed*1.02)){throw 'F4 slowed Horse was not left at its native Slow gait and speed.'}
     $hm=@(@($Legs[0].movers)|Where-Object id -CEQ $Horse);if($hm.Count-ne1){throw 'F4 party leg lacks the Horse mover.'}
-    $normal=[int]$hm[0].gaits.Normal;$slow=0;if($null-ne$hm[0].gaits.PSObject.Properties['Slow']){$slow=[int]$hm[0].gaits.Slow}
+    $normal=0;if($null-ne$hm[0].gaits.PSObject.Properties['Normal']){$normal=[int]$hm[0].gaits.Normal};$slow=0;if($null-ne$hm[0].gaits.PSObject.Properties['Slow']){$slow=[int]$hm[0].gaits.Slow}
     if($normal-lt1-or$slow-gt[Math]::Max(2,[int]($normal*0.05))){throw ('F4 party leg Horse gaits differ: Normal '+$normal+', Slow '+$slow)}
     if([double]$hm[0].meanEntitySpeedMps-gt([double]$hm[0].speedLimitAtClick*1.02)){throw 'F4 party leg Horse speed exceeds the party pace.'}
     $sm=@(@($Legs[2].movers)|Where-Object id -CEQ $Horse);if($sm.Count-ne1-or$null-ne$sm[0].gaits.PSObject.Properties['Normal']){throw 'F4 slowed leg Horse sampled the run cycle.'}
     if([long]$F.trotTicksTotal-lt1){throw 'F4 recorded no natural-gait tick.'}
     # Ordered motion samples (four frames each) and continuous traces for inspection; presentation only.
-    foreach($leg in @('mounted-party','mounted-solo','mounted-slowed')){
-        for($n=1;$n-le4;$n++){$shot=@(@($F.captures)|Where-Object{$_.leg-ceq($leg+'-'+$n)-and$null-ne$_.PSObject.Properties['file']})
-            if($shot.Count-ne1-or[string]$shot[0].sha256-cnotmatch'^[a-f0-9]{64}$'-or[int]$shot[0].bytes-lt1000){throw ('F4 motion frame missing: '+$leg+'-'+$n)}}
+    foreach($leg in $LegLabels){
         $trace=@($F.motion.$leg);if($trace.Count-lt10){throw ('F4 motion trace too short: '+$leg)}
-        $expected=$(if($leg-ceq'mounted-slowed'){'Slow'}else{'Normal'})
+        $expected=$(if($leg-ceq'mounted-slowed'){'Slow'}else{'Normal'});$last=-1
+        for($n=1;$n-le4;$n++){$shot=@(@($F.captures)|Where-Object{$_.leg-ceq($leg+'-'+$n)-and$null-ne$_.PSObject.Properties['file']})
+            if($shot.Count-ne1-or[string]$shot[0].sha256-cnotmatch'^[a-f0-9]{64}$'-or[int]$shot[0].bytes-lt1000){throw ('F4 motion frame missing: '+$leg+'-'+$n)}
+            # Ordered, inside the leg's own traced motion (never a stale frame), and showing that leg's gait.
+            $frame=[int]$shot[0].frame;if($frame-le$last-or$frame-lt[int]$trace[0].frame-or$frame-gt([int]$trace[-1].frame+2)){throw ('F4 motion frame out of order or outside its leg: '+$leg+'-'+$n)}
+            if([string]$shot[0].gait.walkSpeedType-cne$expected){throw ('F4 motion frame gait differs from its leg: '+$leg+'-'+$n)};$last=$frame}
         if(@($trace|Where-Object{$_.walkSpeedType-cne$expected}).Count-gt1){throw ('F4 motion trace gait differs on '+$leg)}
         if($leg-ceq'mounted-party'-and@($trace|Where-Object{$null-eq$_.speedLimit-or[double]$_.agentSpeed-gt([double]$_.speedLimit*1.02)}).Count-ne0){throw 'F4 party trace exceeded the party pace.'}
     }
@@ -1099,7 +1106,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             if($horseRows.Count-ne1-or$horseRows[0].role-cne'mount'){throw ('Owner-surface mounted leg '+$leg.label+' did not move the Horse as the pair''s mount.')}
             if($carried.Count-ne1-or$carried[0].riderId-cne$rider-or$carried[0].mountId-cne$horse){throw ('Owner-surface mounted leg '+$leg.label+' did not carry the owner''s rider on its Horse.')}
             if($mountedOwner.Count-ne1-or[string]$carried[0].ownerId-cne[string]$mountedOwner[0].ownerId-or$carried[0].generation-ne$mountedOwner[0].generation){throw ('Owner-surface mounted leg '+$leg.label+' was carried under another owner or generation than the mounted window.')}
-            if($i-eq1-and$movers.Count-ne1){throw 'The mounted-solo leg must move the Horse alone.'}
+            if(($i-eq1-or($f4Mode-and$i-ge1))-and$movers.Count-ne1){throw ('The '+$leg.label+' leg must move the Horse alone.')}
         }else{
             if($carried.Count-ne0){throw ('Owner-surface unmounted leg '+$leg.label+' reports a carried rider.')}
             if($movers.Count-ne1){throw ('Owner-surface solo leg '+$leg.label+' moved more than its one actor.')}
@@ -1107,7 +1114,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             if($i-eq3-and($riderRows.Count-ne1-or$riderRows[0].role-cne'on-foot')){throw 'The rider-solo leg did not move the rider on foot.'}
         }}
     if(@($legs[0].selectedIds).Count-lt2){throw 'The party-paced leg did not select the party.'}
-    if($f4Mode){Assert-KmcFinalize4ExplorationEvidence $o.finalize4 $rider $horse @($s.partyIds) $legs}
+    if($f4Mode){Assert-KmcFinalize4ExplorationEvidence $o.finalize4 $rider $horse @($s.partyIds) $legs $legLabels}
     }
     # Cleanup: the owner's pair is preserved (never removed), no save written, settings and selection restored.
     $c=$o.cleanup
