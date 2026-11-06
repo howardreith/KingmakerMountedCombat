@@ -109,11 +109,12 @@ function Assert-KmcChunk7PersistenceNativeActor($Actor) {
 function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     $partialSlots=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
     $slotCount=if($partialSlots){2}else{4}
+    $postF2=Test-KmcChunk7PostF2Slots $Request
     Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 native archive'
     if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
-       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne$slotCount){
+       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or(-not$postF2-and$Archive.Slots.Count-ne$slotCount)-or($postF2-and($Archive.Slots.Count-lt4-or$Archive.Slots.Count-gt8))){
         throw 'Exploration native archive omitted owners, invented combat/retained state or changed version/policy/slots.'
     }
     $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -145,15 +146,17 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     foreach($slot in $Archive.Slots) {
         Assert-KmcExactProperties $slot @('ActorId','Index','Kind') 'Chunk 7 native slot'
         if($slot.ActorId-cnotin@($first[0].Rider.Id,$second[0].Rider.Id)-or-not(Test-KmcExactJsonInteger $slot.Index)-or$slot.Index-lt0-or$slot.Index-gt127-or
-           -not(Test-KmcExactJsonInteger $slot.Kind)-or$slot.Kind-cnotin@(2,3)-or-not$slotIds.Add($slot.ActorId+':'+$slot.Index)){throw 'Owned native control slot invalid or duplicated.'}
+           -not(Test-KmcExactJsonInteger $slot.Kind)-or$slot.Kind-cnotin$(if($postF2){@(2,3,6,7)}else{@(2,3)})-or($slot.Kind-eq7-and$slot.Index-ne0)-or($slot.Kind-ne7-and-not$slotIds.Add($slot.ActorId+':'+$slot.Index))){throw 'Owned native control slot invalid or duplicated.'}
     }
     foreach($rider in @($first[0].Rider.Id,$second[0].Rider.Id)) {
         $kinds=@($Archive.Slots|Where-Object ActorId -CEQ $rider|ForEach-Object{$_.Kind}|Sort-Object)
+        if($postF2){if(@($kinds|Where-Object{$_-eq6}).Count-gt1-or@($kinds|Where-Object{$_-eq7}).Count-gt1){throw 'Each pair must retain its exact declared native controls.'};$kinds=@($kinds|Where-Object{$_-in@(2,3)})}
         $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}else{'2,3'}
         if(($kinds-join',')-cne$expectedKinds){throw 'Each pair must retain its exact declared native controls.'}
     }
 }
-function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) {
+function Test-KmcChunk7PostF2Slots($Request){ $Request.persistenceCase-ceq'companion-names-tack-manual' }
+function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label,[bool]$PostF2=$false) {
     if($Snapshot.label-cne$Label-or$Snapshot.owners-isnot[Array]-or$Snapshot.owners.Count-ne2-or$Snapshot.actors-isnot[Array]-or$Snapshot.actors.Count-ne4){throw 'All-pair native snapshot incomplete.'}
     Assert-KmcChunk7NativeCounters $Snapshot @('semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests')
     Assert-KmcChunk7NativeCounters $Snapshot.controls @('DuplicateFactCount','ManagedHotbarSlotCount')
@@ -179,7 +182,7 @@ function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) 
         }
         if($a.ReactionsRemaining-ne$b.ReactionsRemaining-or$a.LastSurpriseTicks-ne$b.LastSurpriseTicks){throw 'Native reaction/surprise history changed across restoration.'}
     }
-    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count){throw 'Native control restoration differs.'}
+    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$(if($PostF2){$Snapshot.controls.ManagedHotbarSlotCount-lt@($Archive.Slots|Where-Object{$_.Kind-ne7}).Count}else{$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count})){throw 'Native control restoration differs.'}
 }
 function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-persistence-evidence'
@@ -238,7 +241,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'}
     $snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact archive completion snapshot is missing or duplicated.'}
-    Assert-KmcChunk7PersistenceSnapshot $snapshot[0] $archive $label
+    Assert-KmcChunk7PersistenceSnapshot $snapshot[0] $archive $label (Test-KmcChunk7PostF2Slots $Request)
     if($cold) {
         if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)-or
            $snapshot[0].semanticRestores-ne4-or$snapshot[0].presentationRestores-ne2-or$snapshot[0].nativePostLoads-ne4-or$snapshot[0].snapshots-ne0-or$snapshot[0].nativeCastRequests-ne0-or

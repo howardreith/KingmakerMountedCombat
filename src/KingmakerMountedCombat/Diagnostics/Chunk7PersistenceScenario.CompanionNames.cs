@@ -109,6 +109,23 @@ namespace KingmakerMountedCombat.Diagnostics
             StartSteps(steps, AfterNativeMounts);
         }
 
+        // Since F2 a rider can also hold the one public Mount / Dismount control (kind 6) and its one-placement record (kind 7,
+        // index 0, not a hotbar slot). The declared Dismount and Rider Primary bindings stay exactly once each, nothing else
+        // may appear, and the rows are recorded as found.
+        private void RequirePostF2Slots()
+        {
+            f5["slotsAtSave"] = new JArray(slots.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
+            f5["managedHotbarSlotsAtSave"] = controls.CaptureSnapshot().ManagedHotbarSlotCount;
+            foreach (var rider in new[] { firstRider, secondRider })
+            {
+                var own = slots.Where(s => s.ActorId == rider.UniqueId).ToArray();
+                Require(own.Count(s => s.Kind == 2) == 1 && own.Count(s => s.Kind == 3) == 1 && own.Count(s => s.Kind == 6) <= 1 &&
+                    own.Count(s => s.Kind == 7) <= 1 && own.All(s => s.Kind == 2 || s.Kind == 3 || s.Kind == 6 || s.Kind == 7 && s.Index == 0),
+                    "All-pair native hotbar binding differs.");
+            }
+            Require(slots.All(s => s.ActorId == firstRider.UniqueId || s.ActorId == secondRider.UniqueId), "All-pair native hotbar binding differs.");
+        }
+
         // ---- Consumer: names, identities and the tack after the separate-process native load. ----
         private void RecordCompanionNamesCold()
         {
@@ -278,6 +295,8 @@ namespace KingmakerMountedCombat.Diagnostics
             process.Invoke(input, new object[] { Event.KeyboardEvent("backspace") });
             foreach (var character in text)
                 process.Invoke(input, new object[] { new Event { type = EventType.KeyDown, character = character, keyCode = KeyCode.None } });
+            // The field's own update loop refreshes its label once it has consumed keys; this is that native step.
+            input.GetType().GetMethod("ForceLabelUpdate", Type.EmptyTypes).Invoke(input, null);
             var typed = f5["typing"] as JArray ?? new JArray();
             typed.Add(new JObject { ["intended"] = text, ["field"] = Typed(), ["hotkeysSuspended"] = (bool)InputFieldSelected.Invoke(null, null), ["actorsIdleBefore"] = before, ["actorsIdleAfter"] = ActorsIdle() });
             f5["typing"] = typed;

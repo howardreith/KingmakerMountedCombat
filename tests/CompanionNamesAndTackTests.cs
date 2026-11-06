@@ -94,6 +94,26 @@ namespace KingmakerMountedCombat.Tests
                 var mirrored = Enumerable.Range(0, fit.VertexCount).Count(i => keys.Contains(Key(-fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2])));
                 TestRunner.True(mirrored * 100 >= fit.VertexCount * 95, "The tack is not left/right symmetric: " + mirrored + "/" + fit.VertexCount);
             });
+            runner.Run("fur-card spikes on the body do not reach the pad: it stays a smooth drape", () =>
+            {
+                string failure;
+                var body = Ellipsoid();
+                // Every seventh vertex pushed 3 cm out along its normal, like a fringe of fur cards.
+                for (var i = 0; i < body.Positions.Length / 3; i += 7)
+                    for (var k = 0; k < 3; k++) body.Positions[i * 3 + k] += body.Normals[i * 3 + k] * 0.03f;
+                var smooth = RidingDogTackGeometry.Build(Ellipsoid(), RidingDogTackGeometry.SeatForward, out failure);
+                var spiky = RidingDogTackGeometry.Build(body, RidingDogTackGeometry.SeatForward, out failure);
+                TestRunner.True(spiky != null && failure == null, "The spiky fit failed: " + failure);
+                // The same grid on both bodies: the worst vertex displacement stays well under a spike's height.
+                var count = Math.Min(smooth.VertexCount, spiky.VertexCount);
+                var worst = 0.0; var at = -1;
+                for (var i = 0; i < count; i++)
+                {
+                    double dx = spiky.Positions[i * 3] - smooth.Positions[i * 3], dy = spiky.Positions[i * 3 + 1] - smooth.Positions[i * 3 + 1], dz = spiky.Positions[i * 3 + 2] - smooth.Positions[i * 3 + 2];
+                    var d = Math.Sqrt(dx * dx + dy * dy + dz * dz); if (d > worst) { worst = d; at = i; }
+                }
+                TestRunner.True(smooth.VertexCount == spiky.VertexCount && worst < 0.02, "A spike reached the tack: " + worst.ToString("F3") + " m at vertex " + at + " of " + count + " (" + smooth.Positions[at * 3].ToString("F3") + "," + smooth.Positions[at * 3 + 1].ToString("F3") + "," + smooth.Positions[at * 3 + 2].ToString("F3") + ") uv " + smooth.Uvs[at * 2].ToString("F3") + ".");
+            });
             runner.Run("the tack fit refuses an incomplete or mismatched body mesh before casting", () =>
             {
                 string failure;
