@@ -56,6 +56,11 @@ function Assert-KmcFinalize2ProducerBridge($Request,$Source,$Bridge,[string]$Rep
  $pr=$Source.request
  if($pr.commit -cne $Bridge.producerCommit -or $pr.dllSha256 -cne $Bridge.producerDllSha256 -or $pr.dllMvid -cne $Bridge.producerDllMvid -or
     $pr.qualificationSuite.suiteId -cne $Bridge.producerSuiteId -or $pr.qualificationSuite.snapshotSha256 -cne $Bridge.producerSuiteSha256){ BFail 'the producer identity differs from the declaration' }
+ # The producer's own frozen suite: its package, DLL and MVID, not only the declared strings.
+ $pSuitePath=Join-Path $SuiteRoot ([string]$Bridge.producerSuiteId+'.json')
+ if(-not(Test-Path -LiteralPath $pSuitePath -PathType Leaf) -or (Get-KmcSha256 $pSuitePath) -cne $Bridge.producerSuiteSha256){ BFail 'the producer suite snapshot is missing or changed' }
+ $pSuite=Get-Content -LiteralPath $pSuitePath -Raw | ConvertFrom-Json
+ if([string]$pSuite.repository.commit -cne $Bridge.producerCommit -or [string]$pSuite.package.sha256 -cne $Bridge.producerPackageSha256 -or [string]$pSuite.package.dllSha256 -cne $Bridge.producerDllSha256 -or [string]$pSuite.package.dllMvid -cne $Bridge.producerDllMvid){ BFail 'the producer suite does not freeze the declared commit, package, DLL and MVID' }
  $res=$Source.result
  foreach($f in 'modsRestored','workingRestored','baselineImmutable','saveProtectionPassed','saveWriteAllowlistPassed'){ if($null -eq $res.PSObject.Properties[$f] -or $res.$f -ne $true){ BFail ('the producer receipt lacks '+$f) } }
  if([string]$res.status -cne 'PASS'){ BFail 'the producer did not pass' }
