@@ -2124,7 +2124,7 @@ function Assert-KmcDungeonEntryAutoColdEvidence {
     $kinds=@($Rows|ForEach-Object{[string]$_.kind});$last=-1
     foreach($name in $names){$found=@($Rows|Where-Object kind -CEQ $name);if($found.Count-ne1){throw ('P07 dungeon entry reload lacks exactly one '+$name+' record.')}
         $at=[Array]::IndexOf($kinds,$name);if($at-le$last){throw ('P07 dungeon entry reload record out of order: '+$name)};$last=$at}
-    foreach($name in @('native-write-complete','native-slot-write-complete','auto-cold-write-waiting','assertion-failed')){if(@($Rows|Where-Object kind -CEQ $name).Count-ne0){throw ('P07 dungeon entry reload carries a write or failure record: '+$name)}}
+    foreach($name in @('native-write-complete','native-slot-write-complete','auto-cold-write-waiting','assertion-failed','area-reload-requested','area-reload-observed','area-reload-complete','area-native-autosave','dungeon-entry-setup-transfer-requested','dungeon-entry-hub-arrival','dungeon-entry-party-selection-go','dungeon-entry-floor-arrival')){if(@($Rows|Where-Object kind -CEQ $name).Count-ne0){throw ('P07 dungeon entry reload carries a write, transfer or failure record: '+$name)}}
     if($Request.fixture.working.area-cne$floorArea-or$Request.persistenceAreaTarget.autoSaveMode-cne'AfterEntry'-or
         $Request.persistenceLoad.fileName-cne'Auto_1.zks'-or$Request.persistenceLoad.area-cne$floorArea){throw 'P07 dungeon entry reload request pins differ.'}
     $d=@($Rows|Where-Object kind -CEQ 'auto-cold-loaded')[0].detail
