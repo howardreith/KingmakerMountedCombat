@@ -395,6 +395,7 @@
     <Compile Include="Diagnostics\PersistenceIsolationBootstrap.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceFinalize2Scenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRealtimeScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceChargeScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceChargeLifecycle.cs" />

@@ -48,6 +48,8 @@ param(
     # Sprint 1 UPG-01: the genuine prior-version archive chain (the P05 Quick cold load that resaves one Manual; the P05
     # Manual cold load of that resave in a new process). Base-game staging with the archive's retained dependencies only.
     [switch]$UpgradeChain,
+    # F2: the upgrade chain also carries the public control (two producer Manuals; the consumer loads both).
+    [switch]$Finalize2Controls,
     # Explicitly retained foreign mod folders (the archive's own serialized dependencies) staged beside KMC in base-game mode.
     [string]$RetainedDependencySelectionPath,
     [switch]$ObserveWorkingDeserialization,
@@ -354,7 +356,9 @@ if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif($Scenario-ceq'persistence-p06-load'-and$PersistenceCase-ceq'foreign-header-campaign'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256-or[string]::IsNullOrEmpty($PersistenceForeignSourceRunId)){throw 'A foreign-header validation load requires campaign B own archive from its completed campaign-b run.'}
-}elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads and the foreign-header P06 load may select a second archive.'}
+}elseif($Finalize2Controls-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+    if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'The F2 upgrade consumer requires the producer''s two distinct exact archive hashes.'}
+}elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads, the F2 upgrade consumer and the foreign-header P06 load may select a second archive.'}
 if(-not[string]::IsNullOrEmpty($PersistenceForeignSourceRunId)-and-not($Scenario-ceq'persistence-p06-load'-and$PersistenceCase-ceq'foreign-header-campaign')){throw 'Only the foreign-header P06 load takes campaign B own archive.'}
 if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
     if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
@@ -713,6 +717,10 @@ try{
         if($Scenario-cne'persistence-p05-load'-or$PersistenceCase-cnotin@('quick','manual')-or-not$BaseGameOnly-or[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){throw 'The upgrade chain is the P05 Quick cold load that resaves or the P05 Manual cold load of that resave, under base-game staging with the archive''s retained dependencies.'}
         $request['upgradeChain']=$true
     }
+    if($Finalize2Controls){
+        if(-not$UpgradeChain){throw 'The F2 public-control chain runs only on the upgrade chain.'}
+        $request['finalize2Controls']=$true
+    }
     if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
         contract='f11-native-allocation-v1';baseGameOnly=$true
         path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
@@ -1049,6 +1057,15 @@ try{
                     if((Get-KmcSha256 $secondPath)-cne$alternate.descriptor.sha256){throw 'Second exact owned archive changed during copy.'}
                     $request['persistenceAlternate']=$alternate.descriptor
                 }
+                if($Finalize2Controls-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+                    # F2: the same producer's removed-control Manual, opened read-only after the cold load of the first.
+                    $removed=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceAlternateSha256 -Fixture $fixturePayload -NativeCase quick -ArtifactRole upgrade-removed-manual
+                    $secondPath=Join-Path $isolatedSaves $removed.descriptor.fileName
+                    Copy-Item -LiteralPath $removed.path -Destination $secondPath
+                    [IO.File]::SetLastWriteTimeUtc($secondPath,[IO.File]::GetLastWriteTimeUtc($removed.path))
+                    if((Get-KmcSha256 $secondPath)-cne$removed.descriptor.sha256){throw 'The F2 removed-control archive changed during copy.'}
+                    $request['persistenceAlternate']=$removed.descriptor
+                }
             }elseif(-not [string]::IsNullOrEmpty($PersistenceSourceRunId)-or-not [string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256)){
                 throw 'Only the dedicated cold-load scenario may select an owned archive.'
             }
@@ -1071,6 +1088,7 @@ try{
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             }
             if($UpgradeChain){$ownerRecord['upgradeChain']=$true}
+            if($Finalize2Controls){$ownerRecord['finalize2Controls']=$true}
             if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$null-ne$ownedPairsSource.PSObject.Properties['existingAuto']){
                 # Sprint 1 (SAVE-02): the admitted pre-existing Auto slot, copied beside the Manual input
                 # under its own leaf so the genuine AfterEntry autosave overwrites it. Fixture preparation

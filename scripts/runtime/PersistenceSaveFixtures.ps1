@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6bPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'CurrentRemovalEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Finalize2UpgradeEvidence.ps1')
 
 # Bounded P01 archive intake. The source must be the exact completed archive
 # from another restored owned process; no gameplay state is taken from evidence.
@@ -15,7 +16,7 @@ function Get-KmcPersistenceSource {
         # destination manual archive and the engine's own transition autosave.
         # A prepare-removal run's cleanup archive and a death run's no-pair
         # archive are their own roles.
-        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual','eligibility-manual','campaign-b-manual','upgrade-resave-manual')][string]$ArtifactRole='destination-manual',
+        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual','eligibility-manual','campaign-b-manual','upgrade-resave-manual','upgrade-removed-manual')][string]$ArtifactRole='destination-manual',
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -25,7 +26,8 @@ function Get-KmcPersistenceSource {
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
     # Sprint 1 UPG-01: the upgrade producer is a P05 Quick cold load that resaved one Manual (upgradeChain), exported only under its role.
-    $isUpgradeResave=$ArtifactRole-ceq'upgrade-resave-manual'
+    $isUpgradeRemoved=$ArtifactRole-ceq'upgrade-removed-manual'
+    $isUpgradeResave=$ArtifactRole-ceq'upgrade-resave-manual'-or$isUpgradeRemoved
     $admittedScenarios=@('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')+@(if($isUpgradeResave){'persistence-p05-load'})
     if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin $admittedScenarios-or$result.status-cne'PASS'-or
         $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
@@ -33,6 +35,8 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($isUpgradeResave-and($owner.scenario-cne'persistence-p05-load'-or$NativeCase-cne'quick'-or[string]$owner.persistenceCase-cne'quick'-or$null-eq$owner.PSObject.Properties['upgradeChain']-or$owner.upgradeChain-ne$true-or$Alternate)){throw 'Only the upgrade producer (the P05 Quick cold load that resaved) exports its resave.'}
+    # F2: the same producer's second Manual, the public control removed, exists only on the F2 public-control chain.
+    if($isUpgradeRemoved-and($null-eq$owner.PSObject.Properties['finalize2Controls']-or$owner.finalize2Controls-ne$true)){throw 'Only the F2 upgrade producer exports its removed-control Manual.'}
     if($owner.scenario-ceq'persistence-p07-save'){
         if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
@@ -52,8 +56,8 @@ function Get-KmcPersistenceSource {
     if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
     if($ArtifactRole-ceq'eligibility-manual'-and($NativeCase-cne'rider-size-change'-or$Alternate)){throw 'Only an eligibility source run produces a no-pair size archive.'}
     if($ArtifactRole-ceq'campaign-b-manual'-and($NativeCase-cne'campaign-b'-or$Alternate)){throw 'Only a campaign-b source run produces B own manual archive.'}
-    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($ArtifactRole-ceq'eligibility-manual'){'KMC_SIZE'}elseif($ArtifactRole-ceq'campaign-b-manual'){'KMC_B'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($isUpgradeResave){'Manual_1_KMC_P01.zks'}elseif($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'eligibility-manual'){'Manual_301_KMC_SIZE.zks'}elseif($ArtifactRole-ceq'campaign-b-manual'){'Manual_302_KMC_B.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($ArtifactRole-ceq'eligibility-manual'){'KMC_SIZE'}elseif($ArtifactRole-ceq'campaign-b-manual'){'KMC_B'}elseif($isUpgradeRemoved){'KMC_F2_REMOVED'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
+    $leaf=if($isUpgradeRemoved){'Manual_2_KMC_F2_REMOVED.zks'}elseif($isUpgradeResave){'Manual_1_KMC_P01.zks'}elseif($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'eligibility-manual'){'Manual_301_KMC_SIZE.zks'}elseif($ArtifactRole-ceq'campaign-b-manual'){'Manual_302_KMC_B.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     # Campaign B's archive carries the identity the engine minted for B, read from
     # the source run's own frozen observation, never the fixture's.
     $expectedGameId=[string]$Fixture.working.gameId;$expectedGameName=[string]$Fixture.working.gameName
@@ -518,6 +522,12 @@ function Assert-KmcPersistenceScenarioEvidence {
     # reload) have their own complete external reader (one acceptance authority).
     if($hasCase-and$Request.scenario-ceq'persistence-p04-save'-and(Test-KmcChunk6aClosureCase ([string]$Request.persistenceCase))){
         Assert-KmcChunk6aClosurePersistenceEvidence $Request $rows $GameResult
+        return
+    }
+    # F2 on the UPG-01 chain has its own complete external reader (one acceptance authority): its rows leave the mounted
+    # state during the cycles and outnumber the generic bound.
+    if(Test-KmcFinalize2UpgradeRequest $Request){
+        Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $rows -GameResult $GameResult -SaveRoot (Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')) -EvidenceParent (Join-Path (Get-KmcLabRoot) 'runtime-evidence')
         return
     }
     if($rows.Count-lt$(if($deathCold-or$eligibilityCold){2}elseif($absentKmc-or$campaignBCold){4}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
