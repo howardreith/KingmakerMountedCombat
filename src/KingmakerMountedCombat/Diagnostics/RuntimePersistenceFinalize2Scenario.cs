@@ -191,12 +191,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject { ["name"] = name, ["requestedFrame"] = Time.frameCount, ["stage"] = stage };
             var runner = UnityModManager.UI.Instance;
             if (runner == null) { row["error"] = "The end-of-frame runner is missing."; f2Shots.Add(row); return; }
+            // The mod-manager window opens at start in base-game staging and covers the action bar (r04/r05 captures): it is
+            // closed for the frame, as the movement capture coordinator does, and reopened after.
+            row["ummClosedForCapture"] = runner.Opened;
+            if (runner.Opened) runner.ToggleWindow(false);
             f2ShotsPending++;
-            runner.StartCoroutine(F2Capture(row));
+            runner.StartCoroutine(F2Capture(row, runner));
         }
 
-        private IEnumerator F2Capture(JObject row)
+        private IEnumerator F2Capture(JObject row, UnityModManager.UI runner)
         {
+            yield return null;
             yield return new WaitForEndOfFrame();
             try
             {
@@ -212,6 +217,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 row["file"] = "movement-visuals/" + file; row["bytes"] = bytes.Length; row["width"] = Screen.width; row["height"] = Screen.height;
             }
             catch (Exception exception) { row["error"] = exception.GetType().Name + ": " + exception.Message; }
+            if ((bool?)row["ummClosedForCapture"] == true && ReferenceEquals(UnityModManager.UI.Instance, runner)) runner.ToggleWindow(true);
             f2Shots.Add(row);
             f2ShotsPending--;
         }
