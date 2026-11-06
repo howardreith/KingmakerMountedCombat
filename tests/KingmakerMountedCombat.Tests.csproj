@@ -132,6 +132,7 @@
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
+    <Compile Include="Finalize3MovementEconomyTests.cs" />
     <Compile Include="MountedChargeSafetyTests.cs" />
     <Compile Include="DivineMountPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\FeatSelectorSelectionPolicy.cs" />

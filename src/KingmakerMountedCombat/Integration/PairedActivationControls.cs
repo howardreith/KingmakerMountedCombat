@@ -1,6 +1,7 @@
 using System;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.TurnBasedMode.Controllers;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.TurnBasedMode;
 using TurnBased.Controllers;
@@ -16,6 +17,8 @@ namespace KingmakerMountedCombat.Integration
             ResolveMethod(typeof(TurnBasedModeUIController), "ShowTurnPanel", 0x06003090, Type.EmptyTypes);
         private static readonly System.Reflection.MethodInfo NativeInputPredictions =
             ResolveMethod(typeof(TurnController), "UpdateActionPredictions", 0x06000C6E, Type.EmptyTypes);
+        private static readonly System.Reflection.MethodInfo NativeSelectMovementLimit =
+            ResolveMethod(typeof(TurnController), "TrySelectMovementLimit", 0x06000C42, Type.EmptyTypes);
 
         internal bool MaySelectPairedPartner(UnitEntityData actor) => actor != null &&
             actor == activation?.Partner && CanAddressActor(actor, Game.Instance?.TurnBasedCombatController?.CurrentTurn);
@@ -28,6 +31,34 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!PreservePartnerSelection(native) || partnerContext == null) return native;
             return partnerContext;
+        }
+
+        // Locomotion belongs to the mount whichever pair actor is selected: the path,
+        // step mode and execution all read the mount's own allocation, never the
+        // carried rider's untouched movement fields.
+        internal TurnController PairedMovementContext(TurnController native)
+        {
+            var selected = SelectionManager.Instance?.SingleSelectedUnit;
+            if (partnerContext == null || !CanAddressActor(activation?.Partner, native) ||
+                selected != activation.Principal && selected != activation.Partner)
+                return SelectedNativeInputContext(native);
+            if (selected == activation.Principal && !(partnerContext.Unit.View?.IsMoving() ?? false))
+                NativeSelectMovementLimit.Invoke(partnerContext, null);
+            return partnerContext;
+        }
+
+        // The private context's prediction slots are refreshed only while the mount is
+        // selected. For a rider-selected path, read the mount's real budget instead.
+        internal CombatAction.ActionState PairedMovementPredictionState(CombatAction action, CombatAction.ActionState native)
+        {
+            if (partnerContext == null || action == null || activation == null ||
+                SelectionManager.Instance?.SingleSelectedUnit != activation.Principal) return native;
+            var mount = partnerContext.Unit;
+            if (ReferenceEquals(action, partnerContext.ActionsStates.Move))
+                return mount.CombatState.Cooldown.MoveAction < 3f ? CombatAction.ActionState.Available : CombatAction.ActionState.Unable;
+            if (ReferenceEquals(action, partnerContext.ActionsStates.Standard))
+                return mount.UsedStandardAction() ? CombatAction.ActionState.Unable : CombatAction.ActionState.Available;
+            return native;
         }
 
         internal TurnController NativeActorActionContext(TurnController native, UnitEntityData actor) =>
@@ -59,12 +90,12 @@ namespace KingmakerMountedCombat.Integration
         internal void RememberPairedMovementInput()
         {
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
-            pairedMovementInputContext = CanAddressActor(activation?.Partner, turn) ? SelectedNativeInputContext(turn) : null;
+            pairedMovementInputContext = CanAddressActor(activation?.Partner, turn) ? PairedMovementContext(turn) : null;
         }
 
         private TurnController MovementInputContext(TurnController turn) => pairedMovementInputContext != null &&
             (ReferenceEquals(pairedMovementInputContext, turn) || ReferenceEquals(pairedMovementInputContext, partnerContext))
-                ? pairedMovementInputContext : SelectedNativeInputContext(turn);
+                ? pairedMovementInputContext : PairedMovementContext(turn);
 
         private void RefreshPairedInputPresentation(TurnController turn)
         {
