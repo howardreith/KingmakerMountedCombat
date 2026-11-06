@@ -159,6 +159,9 @@
     <EmbeddedResource Include="Assets\DismountSaddleIcon.png">
       <LogicalName>KingmakerMountedCombat.Assets.DismountSaddleIcon.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountStateControl.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountStateControl.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BuildIdentity.cs" />
@@ -392,6 +395,7 @@
     <Compile Include="Diagnostics\PersistenceIsolationBootstrap.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceFinalize2Scenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRealtimeScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceChargeScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceChargeLifecycle.cs" />
@@ -510,6 +514,7 @@
     <Compile Include="Domain\DiagnosticTurnTraversalPolicy.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\NativeMountedControl.cs" />
+    <Compile Include="Domain\MountedControlSlotPolicy.cs" />
     <Compile Include="Domain\NativeShellBindingPolicy.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedFeedbackPresentationPolicy.cs" />
@@ -531,6 +536,7 @@
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
+    <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />

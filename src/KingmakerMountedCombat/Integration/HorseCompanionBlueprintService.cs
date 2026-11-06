@@ -160,6 +160,8 @@ namespace KingmakerMountedCombat.Integration
         private Sprite horseIcon;
         private Sprite mountSaddleIcon;
         private Sprite dismountSaddleIcon;
+        private Sprite mountStateIcon;
+        private Kingmaker.Localization.LocalizationPack localizedPack;
         private BlueprintUnit horseUnit;
         private BlueprintFeature horseFeature;
         private BlueprintFeature horseUpgrade;
@@ -203,6 +205,8 @@ namespace KingmakerMountedCombat.Integration
 
         public Sprite MountSaddleIcon => mountSaddleIcon;
         public Sprite DismountSaddleIcon => dismountSaddleIcon;
+        // F2 ART-02: the one public Mount / Dismount control.
+        public Sprite MountStateIcon => mountStateIcon;
 
         public BlueprintFeature HorseFeature => horseFeature;
 
@@ -223,6 +227,8 @@ namespace KingmakerMountedCombat.Integration
             if (disposed) { return; }
             if (state == HorseCompanionBlueprintState.Registered)
             {
+                // A locale change replaces the native pack; the owned keys are registered again on the new one.
+                if (!ReferenceEquals(LocalizationManager.CurrentPack, localizedPack)) EnsureLocalization();
                 SynchronizeLiveHorseCompanionProgression();
                 return;
             }
@@ -537,6 +543,9 @@ namespace KingmakerMountedCombat.Integration
             dismountSaddleIcon = CreateEmbeddedSprite(
                 "KingmakerMountedCombat.Assets.DismountSaddleIcon.png",
                 "KMC_Dismount_Saddle_Icon");
+            mountStateIcon = CreateEmbeddedSprite(
+                "KingmakerMountedCombat.Assets.MountStateControl.png",
+                "KMC_Mount_State_Icon");
 
             horseUpgrade = CreateOwned<BlueprintFeature>("AnimalCompanionUpgradeHorse");
             horseUpgrade.AssetGuid = UpgradeGuid;
@@ -1144,6 +1153,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 pack.Strings.Add(entry.Key, entry.Value);
             }
+            localizedPack = pack;
             return true;
         }
 
@@ -1239,6 +1249,7 @@ namespace KingmakerMountedCombat.Integration
             horseIcon = null;
             mountSaddleIcon = null;
             dismountSaddleIcon = null;
+            mountStateIcon = null;
             horseFeature = null;
             horseUpgrade = null;
             rangerSelection = null;

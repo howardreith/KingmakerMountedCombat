@@ -3,7 +3,7 @@ param(
     [ValidateSet(
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','finalize-f1-creation-ui','finalize-f1-finish','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
-        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt','sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb','sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb',
+        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','sprint3-approach-rt','sprint3-approach-rt-neighbor','sprint3-approach-rt-spells','sprint3-approach-rt-trap','sprint3-approach-tb','sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt','sprint5-small-rt','sprint5-dog-rt','sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint7-charge-rt','sprint7-charge-tb','sprint7-charge-tb-mount-first','sprint7-charge-pounce-rt','sprint7-charge-queue-rt','sprint7-charge-reforce-tb','sprint8-paladin-choice-rt','sprint8-paladin-mount-rt','sprint8-paladin-dog-rt','sprint8-paladin-mixed-rt','sprint8-paladin-celestial-rt','sprint8-paladin-tb','finalize-f2-controls-rt',
         'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-unified-combat-tb-suite','phase3d-horse-presentation-suite',
         'player-action-availability','mount-dismount-user-flow',
@@ -48,6 +48,8 @@ param(
     # Sprint 1 UPG-01: the genuine prior-version archive chain (the P05 Quick cold load that resaves one Manual; the P05
     # Manual cold load of that resave in a new process). Base-game staging with the archive's retained dependencies only.
     [switch]$UpgradeChain,
+    # F2: the upgrade chain also carries the public control (two producer Manuals; the consumer loads both).
+    [switch]$Finalize2Controls,
     # Explicitly retained foreign mod folders (the archive's own serialized dependencies) staged beside KMC in base-game mode.
     [string]$RetainedDependencySelectionPath,
     [switch]$ObserveWorkingDeserialization,
@@ -354,7 +356,9 @@ if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif($Scenario-ceq'persistence-p06-load'-and$PersistenceCase-ceq'foreign-header-campaign'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256-or[string]::IsNullOrEmpty($PersistenceForeignSourceRunId)){throw 'A foreign-header validation load requires campaign B own archive from its completed campaign-b run.'}
-}elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads and the foreign-header P06 load may select a second archive.'}
+}elseif($Finalize2Controls-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+    if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'The F2 upgrade consumer requires the producer''s two distinct exact archive hashes.'}
+}elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads, the F2 upgrade consumer and the foreign-header P06 load may select a second archive.'}
 if(-not[string]::IsNullOrEmpty($PersistenceForeignSourceRunId)-and-not($Scenario-ceq'persistence-p06-load'-and$PersistenceCase-ceq'foreign-header-campaign')){throw 'Only the foreign-header P06 load takes campaign B own archive.'}
 if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
     if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
@@ -713,6 +717,10 @@ try{
         if($Scenario-cne'persistence-p05-load'-or$PersistenceCase-cnotin@('quick','manual')-or-not$BaseGameOnly-or[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){throw 'The upgrade chain is the P05 Quick cold load that resaves or the P05 Manual cold load of that resave, under base-game staging with the archive''s retained dependencies.'}
         $request['upgradeChain']=$true
     }
+    if($Finalize2Controls){
+        if(-not$UpgradeChain){throw 'The F2 public-control chain runs only on the upgrade chain.'}
+        $request['finalize2Controls']=$true
+    }
     if($F11NativeAllocationProbe){$request['f11AllocationProbe']=[ordered]@{
         contract='f11-native-allocation-v1';baseGameOnly=$true
         path=(Join-Path (Join-Path (Join-Path $runtimeStaging $actualRunId) 'f11-native-probe') 'KmcF11AllocationProbe.dll')
@@ -1049,6 +1057,15 @@ try{
                     if((Get-KmcSha256 $secondPath)-cne$alternate.descriptor.sha256){throw 'Second exact owned archive changed during copy.'}
                     $request['persistenceAlternate']=$alternate.descriptor
                 }
+                if($Finalize2Controls-and$Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual'){
+                    # F2: the same producer's removed-control Manual, opened read-only after the cold load of the first.
+                    $removed=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceAlternateSha256 -Fixture $fixturePayload -NativeCase quick -ArtifactRole upgrade-removed-manual
+                    $secondPath=Join-Path $isolatedSaves $removed.descriptor.fileName
+                    Copy-Item -LiteralPath $removed.path -Destination $secondPath
+                    [IO.File]::SetLastWriteTimeUtc($secondPath,[IO.File]::GetLastWriteTimeUtc($removed.path))
+                    if((Get-KmcSha256 $secondPath)-cne$removed.descriptor.sha256){throw 'The F2 removed-control archive changed during copy.'}
+                    $request['persistenceAlternate']=$removed.descriptor
+                }
             }elseif(-not [string]::IsNullOrEmpty($PersistenceSourceRunId)-or-not [string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256)){
                 throw 'Only the dedicated cold-load scenario may select an owned archive.'
             }
@@ -1071,6 +1088,7 @@ try{
                 sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             }
             if($UpgradeChain){$ownerRecord['upgradeChain']=$true}
+            if($Finalize2Controls){$ownerRecord['finalize2Controls']=$true}
             if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and$null-ne$ownedPairsSource.PSObject.Properties['existingAuto']){
                 # Sprint 1 (SAVE-02): the admitted pre-existing Auto slot, copied beside the Manual input
                 # under its own leaf so the genuine AfterEntry autosave overwrites it. Fixture preparation
@@ -1169,7 +1187,7 @@ try{
             profileRoot=$profileRoot;modsRoot=$liveMods;kmcModId='KingmakerMountedCombat';observerModId='KmcRemovalObserver'
             kmcHarmonyIds=@('KingmakerMountedCombat.Feasibility','KingmakerMountedCombat.PersistenceIsolation','KingmakerMountedCombat.Diagnostics.QueuedMountWindow','KingmakerMountedCombat.Diagnostics.ActorAllocation','KingmakerMountedCombat.Diagnostics.OrdinaryAttackTrace')
             archive=$request.persistenceLoad
-            kmcBlueprintGuids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49')
+            kmcBlueprintGuids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49','26151090ad4744ea96dbb7e0537a4a7f')
             mammothBlueprintGuid='e7aa96d15a45238438ae4cfb476f6bb9'
             candidate=[ordered]@{commit=[string]$manifest.commit;productVersion=[string]$manifest.version;dllSha256=[string]$manifest.dllSha256;dllMvid=[string]$manifest.dllMvid}
             observer=[ordered]@{version=[string]$observerManifest.version;packageSha256=[string]$observerManifest.packageSha256;dllSha256=[string]$observerManifest.dllSha256;dllMvid=[string]$observerManifest.dllMvid}
