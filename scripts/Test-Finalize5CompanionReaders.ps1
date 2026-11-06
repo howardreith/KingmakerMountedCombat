@@ -24,7 +24,7 @@ $producer=[pscustomobject]@{companionNames=[pscustomobject]@{
     sheetMammoth=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$false;renameLabel='Rename';resetLabel='Default Name'}
     sheetMammothRenamed=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$true;renameLabel='Rename';resetLabel='Default Name'}
     dialogOpen=[pscustomobject]@{shown=$true;prefilled='Mammoth';hotkeysSuspended=$true;inputFocused=$true;actorCommandsIdle=$true}
-    typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
+    typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);cancelReleasedKeyboard=$true;markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
     mammothReset=(Mammoth '');mammothRenamedAgain=(Mammoth $shared);nonPetHidden=$true;dogDistinct=(Dog 'Biscuit');distinctLabels=(Labels 'Biscuit' $shared)
     dogDuplicate=(Dog $shared);duplicateLabels=(Labels $shared $shared);atSave=(Labels $shared $shared);sheetClosed=$true;shots=(Shots $script:KmcF5ProducerShots)}}
 $request=[pscustomobject]@{persistenceCase='companion-names-tack-manual'}
@@ -38,6 +38,7 @@ $p=Clone $producer; $p.companionNames.mammothRenamed.id='other'; Refuses { Asser
 $p=Clone $producer; $p.companionNames.cancelled.customName='Nobody'; $p.companionNames.cancelled.characterName='Nobody'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a cancel that renamed refuses'
 $p=Clone $producer; $p.companionNames.dialogOpen.hotkeysSuspended=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'typing with game hotkeys live refuses'
 $p=Clone $producer; $p.companionNames.typing[0].field='bne lAncien'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a dropped glyph refuses'
+$p=Clone $producer; $p.companionNames.cancelReleasedKeyboard=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a cancel that kept the keyboard refuses'
 $p=Clone $producer; $p.companionNames.nonPetHidden=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Rename offered to a non-companion refuses'
 $p=Clone $producer; $p.companionNames.mammothReset.customName=$shared; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a reset that kept the custom name refuses'
 $p=Clone $producer; $p.companionNames.shots=@($p.companionNames.shots|Where-Object name -cne 'f5-dialog-typed'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a missing dialog capture refuses'

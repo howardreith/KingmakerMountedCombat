@@ -28,12 +28,12 @@ namespace KingmakerMountedCombat.Integration
             return texture;
         }
 
-        // A neutral normal map: (0.5, 0.5, 1) for RGB unpacking and 0.5 in A and G for DXT5nm-style unpacking.
+        // A neutral normal map, flat under the PC unpack Unity 2018 uses (x = R*A, y = G) and under plain AG unpacking alike.
         internal static Texture2D CreateFlatNormal()
         {
             var texture = new Texture2D(4, 4, TextureFormat.RGBA32, false, true) { name = RidingDogTackService.ObjectName + "_Normal" };
             var pixels = new Color32[16];
-            for (var i = 0; i < pixels.Length; i++) pixels[i] = new Color32(128, 128, 255, 128);
+            for (var i = 0; i < pixels.Length; i++) pixels[i] = new Color32(255, 128, 255, 128);
             texture.SetPixels32(pixels);
             texture.Apply(false, false);
             return texture;

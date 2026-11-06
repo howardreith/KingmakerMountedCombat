@@ -46,7 +46,7 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         $n=$Observations.companionNames
         if($null-eq$n){throw 'The F5 producer recorded no naming evidence.'}
         $dog=$n.dog;$mammoth=$n.mammoth
-        if($dog.blueprint-cne'b7a14f25d3c94e0d8e6f1a2c5d90e431'-or$dog.eligible-ne$true-or$mammoth.eligible-ne$true-or$dog.customName-cne''-or$mammoth.customName-cne''-or
+        if($dog.blueprint-cne'b7a14f25d3c94e0d8e6f1a2c5d90e431'-or$dog.eligible-ne$true-or$mammoth.eligible-ne$true-or[string]$dog.customName-cne''-or[string]$mammoth.customName-cne''-or
            [string]$dog.id-ceq[string]$mammoth.id-or[string]$dog.master-ceq[string]$mammoth.master){throw 'The F5 producer did not start from two default-named owned companions.'}
         Assert-KmcFinalize5Tack $n.tackUnmounted 'unmounted'
         Assert-KmcFinalize5Tack $n.tackMounted 'mounted'
@@ -60,6 +60,7 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         foreach($entry in $typing){if([string]$entry.field-cne[string]$entry.intended-or$entry.hotkeysSuspended-ne$true-or$entry.actorsIdleAfter-ne$true){throw ('Typing did not reach the field alone: '+[string]$entry.intended)}}
         Assert-KmcFinalize5Identity $n.mammothRenamed $mammoth $shared 'renamed'
         Assert-KmcFinalize5Identity $n.cancelled $mammoth $shared 'cancel'
+        if($n.cancelReleasedKeyboard-ne$true){throw 'A cancelled rename left the name field holding the keyboard.'}
         if($n.markupMessageShown-ne$true-or[string]$n.markupReopenedWith-cne'<b>Rex</b>'){throw 'The refused markup name did not explain itself and reopen with the typed text.'}
         Assert-KmcFinalize5Identity $n.markupRefused $mammoth $shared 'markup refused'
         Assert-KmcFinalize5Identity $n.mammothReset $mammoth '' 'reset'

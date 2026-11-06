@@ -65,7 +65,7 @@ namespace KingmakerMountedCombat.Integration
                 var source = BodyRenderer(view);
                 if (source == null) { logger?.Warning("Riding Dog tack: no readable body renderer on " + unit.UniqueId + "."); return null; }
                 var tack = Shared(view, source);
-                if (tack.Failure != null) return null;
+                if (tack.Failure != null || tack.Mesh == null || tack.Material == null) return null;
                 var gameObject = new GameObject(ObjectName) { layer = source.gameObject.layer };
                 gameObject.transform.SetParent(source.transform.parent, false);
                 gameObject.transform.localPosition = source.transform.localPosition;
@@ -98,16 +98,19 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // The dog's main body: the readable skinned renderer with the most vertices, from the finest LOD when there is a group.
+        // Only the view's own parts: a mounted rider's whole view hangs under the mount's and must never be fitted.
         private static SkinnedMeshRenderer BodyRenderer(UnitEntityView view)
         {
-            IEnumerable<SkinnedMeshRenderer> candidates = view.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            var group = view.GetComponentInChildren<LODGroup>(true);
+            IEnumerable<SkinnedMeshRenderer> candidates = view.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(item => OwnedBy(item, view));
+            var group = view.GetComponentsInChildren<LODGroup>(true).FirstOrDefault(item => OwnedBy(item, view));
             var lods = group == null ? null : group.GetLODs();
-            if (lods != null && lods.Length > 0) candidates = lods[0].renderers.OfType<SkinnedMeshRenderer>();
+            if (lods != null && lods.Length > 0) candidates = lods[0].renderers.OfType<SkinnedMeshRenderer>().Where(item => OwnedBy(item, view));
             return candidates.Where(item => item != null && item.GetComponent<RidingDogTackBinding>() == null && item.sharedMesh != null &&
                     item.sharedMesh.isReadable && item.bones != null && item.bones.Length > 0)
                 .OrderByDescending(item => item.sharedMesh.vertexCount).FirstOrDefault();
         }
+
+        private static bool OwnedBy(Component item, UnitEntityView view) => item != null && item.GetComponentInParent<UnitEntityView>() == view;
 
         // One fit per body mesh. It is made from where the bones actually hold the body now, in mount-local space, and stored
         // as each vertex's pre-image under its own blended skin matrix, so any view of the same mesh carries it in any pose.
@@ -118,18 +121,35 @@ namespace KingmakerMountedCombat.Integration
             var key = mesh.GetInstanceID();
             if (shared.TryGetValue(key, out var cached)) return cached;
             var tack = new SharedTack { SourceMesh = mesh };
-            shared[key] = tack;
             MeshBuilds++;
+            // A fit is cached only once it is complete or has a recorded failure, so no later view adopts a half-built renderer.
+            try { Fit(view, source, tack); }
+            catch (Exception exception)
+            {
+                if (tack.Mesh != null) Object.Destroy(tack.Mesh);
+                if (tack.Material != null) Object.Destroy(tack.Material);
+                tack.Mesh = null; tack.Material = null; tack.Fit = null;
+                tack.Failure = exception.GetType().Name + ": " + exception.Message;
+                logger?.Warning("Riding Dog tack: " + tack.Failure + ".");
+            }
+            shared[key] = tack;
+            return tack;
+        }
+
+        private void Fit(UnitEntityView view, SkinnedMeshRenderer source, SharedTack tack)
+        {
+            var mesh = source.sharedMesh;
             var vertices = mesh.vertices;
             var normals = mesh.normals;
             var boneWeights = mesh.boneWeights;
             var bindposes = mesh.bindposes;
             var bones = source.bones;
-            if (normals.Length != vertices.Length || boneWeights.Length != vertices.Length || bindposes.Length != bones.Length || bones.Any(bone => bone == null))
+            if (normals.Length != vertices.Length || boneWeights.Length != vertices.Length || bindposes.Length != bones.Length || bones.Any(bone => bone == null) ||
+                boneWeights.Any(w => w.boneIndex0 >= bones.Length || w.boneIndex1 >= bones.Length || w.boneIndex2 >= bones.Length || w.boneIndex3 >= bones.Length) || source.sharedMaterial == null)
             {
-                tack.Failure = "the body mesh has no normals, bone weights or complete bones";
+                tack.Failure = "the body mesh has no normals, bone weights, complete bones or material";
                 logger?.Warning("Riding Dog tack: " + tack.Failure + ".");
-                return tack;
+                return;
             }
             var toRoot = view.transform.worldToLocalMatrix;
             var skin = new Matrix4x4[bones.Length];
@@ -157,7 +177,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 tack.Failure = failure;
                 logger?.Warning("Riding Dog tack: " + failure + ".");
-                return tack;
+                return;
             }
             tack.Fit = fit;
             tack.Mesh = ToMesh(fit, skin, bindposes);
@@ -165,7 +185,7 @@ namespace KingmakerMountedCombat.Integration
             logger?.Info("Riding Dog tack fitted: " + fit.VertexCount + " vertices, back " + fit.BackHeightAtSeat.ToString("F3") + ", seat " +
                 fit.SeatTopAtSeat.ToString("F3") + ", cantle " + fit.CantleTop.ToString("F3") + ", pommel " + fit.PommelTop.ToString("F3") +
                 ", " + fit.Misses + " of " + fit.Casts + " casts missed.");
-            return tack;
+
         }
 
         private static Mesh ToMesh(TackMeshData fit, Matrix4x4[] skin, Matrix4x4[] bindposes)
@@ -245,6 +265,8 @@ namespace KingmakerMountedCombat.Integration
             foreach (var binding in live.Where(item => item != null).ToList())
             {
                 var view = binding.View;
+                // Out of the view first, so a renderer cache rebuilt before the deferred destroy cannot keep it.
+                binding.transform.SetParent(null, false);
                 Object.Destroy(binding.gameObject);
                 if (view != null) view.MarkRenderersAndCollidersAreUpdated();
             }
