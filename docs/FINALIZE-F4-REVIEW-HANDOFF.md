@@ -1,6 +1,44 @@
 # F4 review handoff: ordinary world orders, native AI, transitions and Horse gait
 
-## Current disposition: entrance/reload finishing mission (2026-11-06)
+## Current disposition: final reload execution mission (2026-11-06)
+
+**F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance is separate.**
+- **The native reload is still NOT RUN.** The one authorized start was consumed by a pre-staging refusal that I caused.
+- **WORLD-02 remains INPUT BLOCKED.**
+- This is not "WORLD-02 INPUT BLOCKED ONLY". No merge, release, install or F5.
+
+**Authority recorded append-only on `finalize-f4`:**
+- start ceiling 8 → 9 at 2026-11-06T20:48:39Z, solely for the r08 Auto consumer;
+- validation allowance 75 → 80 minutes, at the same time.
+- The helper refuses a tenth start. This was checked offline, and again by the real record.
+
+**Preflight passed on the real inputs (non-mutating):**
+- **Identities:** the package `4efc6665…245e`, the DLL `3240963f…7f3d` (the same in the package and in `bin/Release`) and the suite `f6513447…dc5` all match f4f.
+- **Producer:** r08 is PASS and restored, and its owner record is `area-dungeon-entry`.
+- **Source:** `Auto_1.zks`, `b8e4109ea5bd9deae8e8e77b7b0318e1afa0d42895071d1f3a52a29c284540f5`, 395809 bytes. Native Auto, Name `Autosave1`, campaign `d41185be-edc1-47c0-b9d5-e1d7a9c8e65f` ("cvb"), Area = floor. It is an ordinary file, not a link.
+- **Refusals:** the source helper still refuses r07, r06, a wrong role or case, the hub area, a wrong hash and an alternate.
+- **Request:** the exact consumer request (`20261106-finalize-f4f-dungeon-reload-09`) passes the PowerShell validator and the compiled f4f `Validate` with 0 errors.
+- **Declaration:** the compiled declaration is exactly one read-only, hash-pinned `Auto_1.zks` on the floor. Expected enumeration is 1 and the native load type is Auto.
+
+**Start 9: `20261106-finalize-f4f-dungeon-reload-09`, FAIL before staging (kept).**
+- **What happened:** the launcher threw `You cannot call a method on a null-valued expression` 7 s after admission.
+- **No game process ran.** No evidence directory, lock, transaction or staging was created, so there was nothing to restore.
+- **Cause, captured by a diagnostic WhatIf (`20261106-finalize-f4f-dungeon-reload-diag-whatif`, FAIL, not a start):**
+  - `Assert-KmcPackageManifest` at `RuntimeHarness.Common.ps1:3604` runs `(git branch --show-current).Trim()`.
+  - I had detached the worktree at the compiled source `3f824e30` so its HEAD matched the frozen candidate. On a detached HEAD that call returns nothing.
+  - The launcher pins both the package manifest's commit and its branch. Once the docs-only records commit `82689ab7` sat on the branch, no checkout could satisfy both.
+- **Responsibility:** this is my preparation error, not a product, consumer or reader fault.
+- The guard counted it as the ninth start. It is not re-labelled, and no tenth start was taken.
+- The worktree is back on the branch at `82689ab7`, clean.
+
+**For the next run, if one is authorized:**
+- Launch from a ref whose branch *and* commit match the frozen manifest. Either move a dedicated local branch named in a fresh package, or freeze the candidate at the records head with no rebuild of product behaviour.
+- Do not detach the worktree.
+- Everything else, including r08's receipt and the validated request, is ready.
+
+**Spend:** 64.7 of 80 minutes, 9 of 9 starts. Every original verdict stands. r08's entrance PASS and the r05 and r04 row observations are unchanged at their own binaries.
+
+## Previous disposition: entrance/reload finishing mission (2026-11-06)
 
 **F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance (art and the full laptop stack) is separate.**
 - **Accepted:** the real dungeon entrance with its one authorized after-entry Auto (r08 PASS).
