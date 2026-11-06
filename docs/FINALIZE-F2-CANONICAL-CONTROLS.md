@@ -26,6 +26,10 @@ The mount-state intent is captured at admission: the click creates either a Moun
 | 6 | Mount / Dismount slot (new) | Same index |
 | 7 | Placement record (new; index 0) | The actor is never placed again, including after deliberate removal |
 
+**Duplicate old aliases (the chosen behaviour).** Mount, Dismount and the public control collapse to one public control, at the first saved index restored. A later old Mount or Dismount row for the same actor leaves its slot empty: it is not kept as a second copy. A live old Mount or Dismount binding found while the public control is already on the bar is emptied the same way. An old Mounted Charge row or binding becomes stock Charge only when the bar holds no stock Charge yet; otherwise its slot is emptied, so an existing canonical Charge never gets a duplicate. Every other slot keeps its content and position.
+
+**Native evidence (F2f, run `20261105-finalize-f2-r05`).** The released preview.211 Quick (`83e92e1a…`, schema 2) carries Dismount at 14 and the retired rider primary at 15. After the native load, the live rows were the public control at 14 and its placement record (one migration); slot 15 was empty. The two Manuals the run wrote held exactly {6@9, 7@0} (the control swapped to slot 9) and {7@0} (the control removed). No native archive member named the public control.
+
 KMC slots are still blanked during native serialization, so the native hotbar never stores a KMC identity. Only KMC's own metadata carries kinds 6 and 7. An older KMC build reads an F2 archive holding kind 6 or 7 as invalid KMC metadata and keeps its original bytes. Downgrading is not a supported path.
 
 ## First placement
