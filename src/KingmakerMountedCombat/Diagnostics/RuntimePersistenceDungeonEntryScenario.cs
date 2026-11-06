@@ -32,6 +32,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private string dungeonPartyBefore;
         private long dungeonGenerationBefore;
 
+        // UnityEngine.Object equality: a destroyed GroupManager compares equal to null.
+        private bool SelectorOpen() => dungeonGroup != null && dungeonGroup.gameObject.activeSelf;
+
         private void AdvanceDungeonEntry()
         {
             if (clock.Elapsed.TotalSeconds > DungeonEntrySeconds) throw new InvalidOperationException("P07 dungeon entry stage timed out: " + dungeonStage);
@@ -84,17 +87,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     dungeonFrames = 0; dungeonStage = 2; return;
                 }
                 case 2:
+                    Check(dungeonGroup != null, "P07-dungeon-entry-party-selector-alive-before-go");
                     if (!dungeonGroup.gameObject.activeInHierarchy || ++dungeonFrames < 10) return;
                     Write("dungeon-entry-party-selection-go", new JObject { ["partyBefore"] = dungeonPartyBefore, ["generationBefore"] = dungeonGenerationBefore,
                         ["relationship"] = relationship.State.ToString() });
                     // The native Go button: SetGroup (Player.ReInitPartyCharacters) and the entrance's AfterEntry LoadArea.
                     dungeonGroup.Go();
                     // Go is synchronous: it closes the selector before dispatching the native load, or returns with it open.
-                    Check(!dungeonGroup.gameObject.activeSelf, "P07-dungeon-entry-native-go-accepted-the-party");
+                    // r06: the dispatched AfterEntry load destroys the hub's UI in the same call, so the selector is read
+                    // through Unity's lifetime check (a destroyed selector is a closed one).
+                    Check(!SelectorOpen(), "P07-dungeon-entry-native-go-accepted-the-party");
                     dungeonStage = 3; return;
                 case 3:
                 {
-                    if (dungeonGroup.gameObject.activeSelf || persistence.AreaResumeCount < 2 || NativePersistenceIsolation.HasPendingWrites || NativeAutosaveArchive() == null) return;
+                    if (SelectorOpen() || persistence.AreaResumeCount < 2 || NativePersistenceIsolation.HasPendingWrites || NativeAutosaveArchive() == null) return;
                     rider = relationship.Rider; mount = relationship.Mount;
                     var arrival = AreaDetail(); arrival["route"] = dungeonRoute; Write("dungeon-entry-floor-arrival", arrival);
                     var partyAfter = string.Join("|", game.Player.PartyCharacters.Select(u => u.Value?.UniqueId).OrderBy(x => x, StringComparer.Ordinal).ToArray());
