@@ -318,7 +318,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
             var expectedCount = request.Scenario == "persistence-p06-load" || request.OwnedPairs?.IsOwnerSeedLoadRefusal == true || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ||
-                request.OwnedPairs?.IsAreaOverwrite(request.PersistenceCase) == true ? 2 : 1;
+                request.OwnedPairs?.IsAreaOverwrite(request.PersistenceCase) == true ||
+                // F2: the consumer's root holds the kept Manual and the removed one (run 20261105-finalize-f2-r06 refused here).
+                request.IsFinalize2UpgradeConsumer ? 2 : 1;
             if (saves.Length != expectedCount || saves.Any(save => (request.OwnedPairs != null || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario
                 ? authority.ValidateArchiveIdentity(Project(save), game.SaveManager.SavePath)
                 : authority.Validate(RuntimeSaveOperation.Load, Project(save), game.SaveManager.SavePath)) != null))
