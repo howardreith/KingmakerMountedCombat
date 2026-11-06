@@ -80,6 +80,26 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        internal static IEnumerable<CodeInstruction> PredictionStateReads(IEnumerable<CodeInstruction> source,
+            MethodInfo predictionState, int expectedReads)
+        {
+            var code = source.ToList();
+            var sites = code.Where(i => Token(i, 0x06007034)).ToArray();
+            Require(sites.Length == expectedReads, "native path preview Move/Standard prediction readers");
+            foreach (var site in sites) { site.opcode = OpCodes.Call; site.operand = predictionState; }
+            return code;
+        }
+
+        internal static IEnumerable<CodeInstruction> SelectedMarker(IEnumerable<CodeInstruction> source, MethodInfo selected)
+        {
+            var code = source.ToList();
+            var sites = code.Where(i => i.operand is MethodInfo method && method.Name == "Contains" &&
+                method.DeclaringType == typeof(List<Kingmaker.EntitySystem.Entities.UnitEntityData>)).ToArray();
+            Require(sites.Length == 1, "native destination marker selected-unit test");
+            sites[0].opcode = OpCodes.Call; sites[0].operand = selected;
+            return code;
+        }
+
         internal static IEnumerable<CodeInstruction> FullAttackRestriction(IEnumerable<CodeInstruction> source,
             MethodInfo eligibleActor, MethodInfo actorContext)
         {

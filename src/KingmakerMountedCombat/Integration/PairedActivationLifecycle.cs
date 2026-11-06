@@ -88,7 +88,7 @@ namespace KingmakerMountedCombat.Integration
             // native helpless/dazed/stunned restriction; standing costs Move.
             if (!mount.IsAbleToAct() && !getUp) return false;
             if (!mount.Descriptor.State.CanMove && !getUp) return false;
-            var input = SelectedNativeInputContext(turn);
+            var input = PairedMovementContext(turn);
             // Native prone processing requires a real Move action. A remaining
             // free step cannot pay for standing up.
             return movementState.HasGrantedMovement(mount, !getUp && input.EnabledFiveFootStep,
@@ -629,6 +629,18 @@ namespace KingmakerMountedCombat.Integration
             LastTurnCandidateObservation = "candidate-loop-excluded;activation=" + activation.Identity +
                 ";mount=" + candidate.Unit.UniqueId;
             return true;
+        }
+
+        // Presentation mirror of SuppressPairedCandidate without its bookkeeping: the
+        // tracker omits exactly the actor the native candidate loop will not schedule,
+        // and shows it again from the round in which native scheduling releases it.
+        internal bool HidesPairedTrackerEntry(UnitEntityData unit)
+        {
+            if (!PairedLifecycleEnabled || unit == null) return false;
+            var round = Game.Instance.TurnBasedCombatController.RoundNumber;
+            if (unit == pendingSplitMount) return round <= pendingSplitRound && pendingSplitMount.IsInCombat;
+            if (activation == null || unit != activation.Partner) return false;
+            return !activation.Split || round <= splitReleaseRound;
         }
 
         private bool BeginPairedPreparation(TurnController turn)

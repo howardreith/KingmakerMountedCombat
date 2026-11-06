@@ -230,11 +230,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "IgnoreClick", 0x06000C2F, Type.EmptyTypes, nameof(PatchMethods.PairedIgnoreClickPrefix));
                 PatchExact(typeof(UnitCombatState), "get_IsFullAttackRestrictedBecauseOfMoveAction", 0x06009391,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullAttackInputTranspiler));
-                PatchExact(typeof(CombatController), "ModifyMovementLimitOn", 0x06000BDF, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
-                PatchExact(typeof(CombatController), "ModifyMovementLimitOff", 0x06000BE0, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                PatchExact(typeof(CombatController), "ModifyMovementLimitOn", 0x06000BDF, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedMovementInputTranspiler));
+                PatchExact(typeof(CombatController), "ModifyMovementLimitOff", 0x06000BE0, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedMovementInputTranspiler));
                 PatchExact(typeof(CombatController), "ChangeCursorAction", 0x06000BE1, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(typeof(Kingmaker.UI.TurnBasedMode.PredictionPanelPCView), "EnableFiveFoot", 0x06003086,
-                    Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.PairedMovementInputTranspiler));
                 var predictionVm = typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelVM);
                 PatchExact(predictionVm, ".ctor", 0x06004F2F, null, null, null, nameof(PatchMethods.PairedVmConstructorTranspiler));
                 PatchExact(predictionVm, "get_RemainingTime", 0x06004F29, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedVmReaderTranspiler));
@@ -251,6 +251,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(pathPreview, "UpdateActionStatesFromPath", 0x06007021, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "Update", 0x06002D64, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPrimaryMarkerTranspiler));
                 PatchExact(typeof(TurnController), "ContinueWaiting", 0x06000C3E, Type.EmptyTypes, null, nameof(PatchMethods.PairedWaitingPostfix));
                 PatchExact(typeof(TurnController), "CanDelay", 0x06000C49, Type.EmptyTypes, null, nameof(PatchMethods.PairedCanDelayPostfix));
                 PatchExact(typeof(TurnController), "DelayInitiaive", 0x06000C61, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedDelayPrefix));
@@ -879,6 +880,16 @@ namespace KingmakerMountedCombat.Integration
             internal static UnitEntityData PairedPathInputUnit() =>
                 PairedInputContext(Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn)?.Unit ?? CombatController.CurrentUnit;
             internal static TurnController PairedVmContext(object viewModel) => PairedInputContext(Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn);
+            internal static TurnController PairedMovementContext(TurnController turn) => PatchBridge.UnifiedTurn?.PairedMovementContext(turn) ?? turn;
+            internal static UnitEntityData PairedPathMovementUnit() =>
+                PairedMovementContext(Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn)?.Unit ?? CombatController.CurrentUnit;
+            internal static Kingmaker.TurnBasedMode.Controllers.CombatAction.ActionState PairedPathPredictionState(
+                Kingmaker.TurnBasedMode.Controllers.CombatAction action) =>
+                PatchBridge.UnifiedTurn?.PairedMovementPredictionState(action, action.PredictionState) ?? action.PredictionState;
+            // The pair's travel runs on the mount while the rider is selected; its destination is the selected command's.
+            internal static bool PairedPrimaryMarker(List<UnitEntityData> selected, UnitEntityData key) =>
+                selected.Contains(key) || PatchBridge.Pairs?.Any(pair => pair.Relationship.State == RelationshipState.Mounted &&
+                    pair.Relationship.PairOwner?.Mount == key && selected.Contains(pair.Relationship.PairOwner.Rider)) == true;
             internal static bool PairedActionContextActor(UnitEntityData actor) => PatchBridge.UnifiedTurn?.IsNativeActionContextActor(actor) ?? actor.IsCurrentUnit();
             internal static TurnController PairedActorActionContext(CombatController controller, UnitEntityData actor) =>
                 PatchBridge.UnifiedTurn?.NativeActorActionContext(controller.CurrentTurn, actor) ?? controller.CurrentTurn;
@@ -970,9 +981,13 @@ namespace KingmakerMountedCombat.Integration
             internal static IEnumerable<CodeInstruction> PairedPathUnitTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationControlTranspilers.PathUnitReads(instructions, Hook(nameof(PairedPathInputUnit)), 1);
             internal static IEnumerable<CodeInstruction> PairedPathSettingsTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                PairedActivationControlTranspilers.PathUnitReads(
-                    PairedActivationControlTranspilers.ControllerInput(instructions, Hook(nameof(PairedInputContext))),
-                    Hook(nameof(PairedPathInputUnit)), 2);
+                PairedActivationControlTranspilers.PredictionStateReads(PairedActivationControlTranspilers.PathUnitReads(
+                    PairedActivationControlTranspilers.ControllerInput(instructions, Hook(nameof(PairedMovementContext))),
+                    Hook(nameof(PairedPathMovementUnit)), 2), Hook(nameof(PairedPathPredictionState)), 2);
+            internal static IEnumerable<CodeInstruction> PairedMovementInputTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.ControllerInput(instructions, Hook(nameof(PairedMovementContext)));
+            internal static IEnumerable<CodeInstruction> PairedPrimaryMarkerTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.SelectedMarker(instructions, Hook(nameof(PairedPrimaryMarker)));
 
             internal static void NativeRoundStatePrefix(UnitCombatState __instance)
             {

@@ -189,6 +189,17 @@ namespace KingmakerMountedCombat.Domain
             return targetExists && targetInState && targetAliveAndConscious &&
                 riderHostileToTarget && riderCanAttackTarget;
         }
+
+        // The refusal names the actor whose own native Standard is spent, and points to the
+        // partner only when that partner can still attack with its own Standard.
+        public static string NoStandardFeedback(string actorName, string partnerName, bool partnerHasStandardAction)
+        {
+            var actor = string.IsNullOrWhiteSpace(actorName) ? "This actor" : actorName;
+            var feedback = actor + " has no Standard action left this turn.";
+            return partnerHasStandardAction && !string.IsNullOrWhiteSpace(partnerName)
+                ? feedback + " Select " + partnerName + " to attack with it."
+                : feedback;
+        }
     }
 
     /// <summary>Only admitted pointer intent owns this state. Cancellation invalidates all prior generations.</summary>
