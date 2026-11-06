@@ -14,7 +14,26 @@ namespace KingmakerMountedCombat.Domain
     {
         None,
         Ability,
-        TrapInteraction
+        TrapInteraction,
+        // F4 (WORLD-03): the rider's ordinary chest or loot-container order (exact native StandardChest or
+        // LootComponent through UnitInteractWithObject). Native SelectUnit already chose the rider as the one
+        // interactor; without a carrier the order waited forever on the rider's disabled stock agent.
+        ContainerInteraction
+    }
+
+    // What a native UnitInteractWithObject targets, classified by its exact native interaction component type.
+    public enum MountedCarriedInteractionClass
+    {
+        // Not an exact UnitInteractWithObject.
+        NotInteraction,
+        TrapDisarm,
+        // Exact StandardChest or LootComponent: the chest/open/loot orders the owner reported.
+        Container,
+        // Doors keep their own Sprint 2 routing (MountedDoorInteractionCommand).
+        Door,
+        // Every other map-object kind (devices, buttons, skill checks, derived types) stays native: no blind
+        // generalisation to all map objects.
+        Other
     }
 
     public enum MountedCarriedApproachDisposition
@@ -47,6 +66,20 @@ namespace KingmakerMountedCombat.Domain
         // next step of (corpulence + this margin) toward the trap would enter its trigger zone.
         public const float NativeTrapProbeMarginMetres = 0.25f;
         public const float NativeTrapStopOffsetMetres = 0.01f;
+
+        public static MountedCarriedCommandKind Classify(bool abilityCommand, MountedCarriedInteractionClass interaction)
+        {
+            if (abilityCommand) return MountedCarriedCommandKind.Ability;
+            switch (interaction)
+            {
+                case MountedCarriedInteractionClass.TrapDisarm:
+                    return MountedCarriedCommandKind.TrapInteraction;
+                case MountedCarriedInteractionClass.Container:
+                    return MountedCarriedCommandKind.ContainerInteraction;
+                default:
+                    return MountedCarriedCommandKind.None;
+            }
+        }
 
         public static MountedCarriedApproachDisposition Decide(
             bool pairMounted,
@@ -131,6 +164,8 @@ namespace KingmakerMountedCombat.Domain
                     return "Mounted trap interaction accepted: " + mountDisplayName + " approach, rider attempt.";
                 case MountedCarriedCommandKind.Ability:
                     return "Mounted ability approach accepted: " + mountDisplayName + " approach, rider cast or delivery.";
+                case MountedCarriedCommandKind.ContainerInteraction:
+                    return "Mounted interaction accepted: " + mountDisplayName + " approach, rider opens.";
                 default:
                     return "Mounted approach not carried.";
             }
@@ -138,8 +173,16 @@ namespace KingmakerMountedCombat.Domain
 
         public static string ExhaustedFeedback(MountedCarriedCommandKind kind, string mountDisplayName, string reason)
         {
-            return (kind == MountedCarriedCommandKind.TrapInteraction ? "Mounted trap interaction" : "Mounted ability approach") +
+            return (kind == MountedCarriedCommandKind.TrapInteraction ? "Mounted trap interaction"
+                    : kind == MountedCarriedCommandKind.ContainerInteraction ? "Mounted interaction" : "Mounted ability approach") +
                 " cancelled: " + mountDisplayName + " cannot reach the target (" + (reason ?? "no progress") + ").";
+        }
+
+        // The terminal outcome records its kind as text; an unknown text maps to the ability wording, as before.
+        public static MountedCarriedCommandKind ParseKind(string kind)
+        {
+            MountedCarriedCommandKind parsed;
+            return Enum.TryParse(kind, false, out parsed) && parsed != MountedCarriedCommandKind.None ? parsed : MountedCarriedCommandKind.Ability;
         }
     }
 

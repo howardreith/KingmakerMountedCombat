@@ -593,6 +593,21 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal long TrapGroupStopForwardCount { get; private set; }
+
+        // F4 (WORLD-02): the native trap-click InterruptMove reached this pair's rider; the pair's travel is the mount's.
+        internal bool ForwardTrapGroupStop(UnitEntityData stoppedUnit, bool insideAcceptedTrapClick, bool simulatingClick)
+        {
+            if (!MountedTrapGroupStopPolicy.ShouldForward(insideAcceptedTrapClick, simulatingClick,
+                    coordinator.State == RelationshipState.Mounted, stoppedUnit != null && ReferenceEquals(stoppedUnit, runtime.Rider)))
+                return false;
+            runtime.CancelMountMovement();
+            TrapGroupStopForwardCount++;
+            logger.Info("Native trap-order group stop forwarded to the mount: riderId=" + runtime.Rider.UniqueId +
+                "; mountId=" + runtime.Mount?.UniqueId + ".");
+            return true;
+        }
+
         internal bool IsExactActivePairUnit(UnitEntityData unit)
         {
             return coordinator.State == RelationshipState.Mounted &&
