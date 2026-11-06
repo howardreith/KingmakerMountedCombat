@@ -248,7 +248,16 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(pathPreview, "CalculatePathForCommand", 0x06007020, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
                 PatchExact(pathPreview, "GetDefaultVisualPathSettings", 0x06007015, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPathSettingsTranspiler));
                 PatchExact(pathPreview, "CurrentPathForUnit", 0x0600700F, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
-                PatchExact(pathPreview, "UpdateActionStatesFromPath", 0x06007021, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                PatchExact(pathPreview, "UpdateActionStatesFromPath", 0x06007021, null, null, nameof(PatchMethods.PairedPathStatesPostfix), nameof(PatchMethods.PairedPathStatesTranspiler));
+                PatchExact(typeof(Kingmaker.TurnBasedMode.ActionsState), "UpdateMoveDistance", 0x06007009, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedActionsStateOwnerTranspiler));
+                // Movement-facing prediction slots: the mount's actions during a rider-selected ground preview.
+                PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelMoveActionVM), "get_CombatAction", 0x06004E0B, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFiveFeetActionVM), "get_CombatAction", 0x06004DE4, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelStandardActionVM), "get_CombatAction", 0x06004E0F, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                var fullRoundSlot = typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFullRoundActionVM);
+                PatchExact(fullRoundSlot, "get_CombatAction", 0x06004E00, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                PatchExact(fullRoundSlot, "get_MoveAction", 0x06004E01, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
+                PatchExact(fullRoundSlot, "get_StandardAction", 0x06004E02, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
                 PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "Update", 0x06002D64, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPrimaryMarkerTranspiler));
@@ -990,6 +999,21 @@ namespace KingmakerMountedCombat.Integration
                     Hook(nameof(PairedPathMovementUnit)), 2), Hook(nameof(PairedPathPredictionState)), 2);
             internal static IEnumerable<CodeInstruction> PairedPrimaryMarkerTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationControlTranspilers.SelectedMarker(instructions, Hook(nameof(PairedPrimaryMarker)));
+            // The mount's private ActionsState reads the mount's own movement range; every other state keeps its reader.
+            internal static TurnController PairedActionsStateOwner(TurnController current, Kingmaker.TurnBasedMode.ActionsState states) =>
+                PatchBridge.UnifiedTurn?.ActionsStateContext(states) ?? current;
+            internal static TurnController PairedPathStatesOwner(TurnController current, Kingmaker.TurnBasedMode.ActionsState states) =>
+                PatchBridge.UnifiedTurn?.ActionsStateContext(states) ?? PairedInputContext(current);
+            internal static IEnumerable<CodeInstruction> PairedActionsStateOwnerTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.ActionsStateOwnerReads(instructions, Hook(nameof(PairedActionsStateOwner)), 0, 5);
+            internal static IEnumerable<CodeInstruction> PairedPathStatesTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationControlTranspilers.ActionsStateOwnerReads(instructions, Hook(nameof(PairedPathStatesOwner)), 1, 1);
+            internal static void PairedPathStatesPostfix(Kingmaker.TurnBasedMode.PathVisualizer __instance, Kingmaker.TurnBasedMode.ActionsState actionsState) =>
+                PatchBridge.UnifiedTurn?.FillPairedMountStates(__instance, actionsState);
+            internal static void PairedSlotActionPostfix(ref Kingmaker.TurnBasedMode.Controllers.CombatAction __result)
+            {
+                if (PatchBridge.UnifiedTurn != null) __result = PatchBridge.UnifiedTurn.PairedSlotAction(__result);
+            }
 
             internal static void NativeRoundStatePrefix(UnitCombatState __instance)
             {

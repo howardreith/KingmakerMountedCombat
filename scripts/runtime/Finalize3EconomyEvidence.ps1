@@ -3,7 +3,7 @@
 # expectation is one named assertion, so a refusal names what the evidence did not show.
 function Get-KmcFinalize3TurnBasedCases { @('F3-tb-setup','F3-tb-a-round1','F3-tb-b-round1','F3-tb-a-step','F3-tb-b-charge','F3-tb-a-double','F3-tb-b-dismount') }
 function Get-KmcFinalize3RealTimeCases { @('F3-rt-mounted-marker','F3-rt-unmounted-marker','F3-rt-attack') }
-function Get-KmcFinalize3ShotNames([string]$Mode) { if($Mode -ceq 'TB'){ @('tracker-round1','a2-after-move','b1-after-rider-full-attack','s1-after-step','c2-after-charge') } else { @('rt-marker') } }
+function Get-KmcFinalize3ShotNames([string]$Mode) { if($Mode -ceq 'TB'){ @('tracker-round1','a2-after-move','b1-after-genuine-full-attack','b2-after-mount-move','s1-after-step','c2-after-charge') } else { @('rt-marker') } }
 function Get-KmcFinalize3Identities { [ordered]@{ stockCharge='c78506dd0e14f7c45a599990e4e65038'; mountedChargeShell='d79eaec224a7a832e738eb81baef9d49'; noStandard=' has no Standard action left this turn.' } }
 function Assert-KmcFinalize3EconomyEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
@@ -22,6 +22,18 @@ function Assert-KmcFinalize3EconomyEvidence {
   foreach($f in $Fields){ Need (Same (Act (P $StepRecord 'after') $Role $f $What) (Act (P $StepRecord 'before') $Role $f $What)) ($What+': '+$Role+' '+$f+' unchanged') }
  }
  function Probe($Record,[string]$Key,[string]$What){ $p=P $Record $Key; if($null -eq $p){ Fail ($What+': no preview probe') }; if($null -ne (P $p 'error')){ Fail ($What+': the preview probe failed: '+(P $p 'error')) }; $p }
+ # Reader r3: a genuine native ground hover's live prediction panel. Its movement-facing slots must describe the mount,
+ # its Swift the rider; returns those slots.
+ function Panel($Row,[string]$Name){
+  $h=Step $Row ($Name+'Panel')
+  if($null -ne (P $h 'error')){ Fail ($Name+': the panel hover failed: '+(P $h 'error')) }
+  $pn=P $h 'panel'
+  if($null -eq $pn -or $null -ne (P $pn 'error')){ Fail ($Name+': no live prediction panel') }
+  foreach($k in 'fiveFeet','move','standard','fullRound'){ if((Text (P (P $pn $k) 'owner')) -cne 'mount'){ Fail ($Name+' panel: the '+$k+' slot does not describe the mount') } }
+  if((Text (P (P $pn 'swift') 'owner')) -cne 'rider'){ Fail ($Name+' panel: the Swift slot left the rider') }
+  [pscustomobject]@{ fiveFeet=(P $pn 'fiveFeet'); move=(P $pn 'move'); standard=(P $pn 'standard'); probe=(P $h 'probe') }
+ }
+ function Spent($Slot){ (Text (P $Slot 'moveActivity')) -cin @('Unable','Used','Lost') -or ($null -ne (P $Slot 'remaining') -and (Num (P $Slot 'remaining') 'panel remaining') -le 0) }
  function Count($Items,[string]$Role,[long]$Round){ @($Items | Where-Object { (Text (P $_ 'role')) -ceq $Role -and (P $_ 'round') -eq $Round }).Count }
 
  $tb=[string]$Request.scenario -ceq 'finalize3-economy-tb'
@@ -33,7 +45,10 @@ function Assert-KmcFinalize3EconomyEvidence {
  if($Artifact.status -cne 'PASS' -or @($Artifact.errors).Count -ne 0 -or @($Artifact.rows | Where-Object status -CNE 'PASS').Count -ne 0 -or $Artifact.subscenarioFailCount -ne 0){ Fail 'envelope differs' }
  $o=P (P $Artifact 'observations') 'finalize3Economy'
  $mode=if($tb){'TB'}else{'RT'}
- if($null -eq $o -or (Text (P $o 'contract')) -cne 'finalize3-movement-economy-v1' -or (Text (P $o 'mode')) -cne $mode){ Fail 'measurement contract differs' }
+ # Reader r3: TB evidence must carry the v2 contract (a genuine native full attack, the live prediction panel); the RT
+ # rows are unchanged since v1, whose r04 evidence keeps its verdict.
+ $contracts=if($tb){@('finalize3-movement-economy-v2')}else{@('finalize3-movement-economy-v1','finalize3-movement-economy-v2')}
+ if($null -eq $o -or (Text (P $o 'contract')) -cnotin $contracts -or (Text (P $o 'mode')) -cne $mode){ Fail 'measurement contract differs' }
  $riderId=Text (P $o 'rider'); $mountId=Text (P $o 'mount'); $bRiderId=Text (P $o 'secondRider'); $bMountId=Text (P $o 'secondMount')
  if([string]::IsNullOrEmpty($riderId) -or [string]::IsNullOrEmpty($mountId) -or $riderId -ceq $mountId -or $riderId -cne [string](P $Artifact.observations 'riderId') -or $mountId -cne [string](P $Artifact.observations 'horseId')){ Fail 'measurement identity differs' }
  if([string]::IsNullOrEmpty($bRiderId) -or $bRiderId -cin @($riderId,$mountId)){ Fail 'the second rider is not a distinct actor' }
@@ -82,6 +97,9 @@ function Assert-KmcFinalize3EconomyEvidence {
   Need ((Text (P $p2 'unitRole')) -ceq 'aMount') 'A2 preview unit is the mount'
   Need (Near (Num (P $p2 'remaining') 'A2 remaining') ((3-$mm)*$speed)) 'A2 green range is the mount Move left'
   Need (Near (Num (P $p2 'remainingTotal') 'A2 total') ((6-$mm)*$speed)) 'A2 total range is the mount movement left'
+  $pa2=Panel $a 'a2'
+  Need (-not (Spent $pa2.move)) 'A2 panel: the mount keeps its Move'
+  Need ((Num (P $pa2.move 'remaining') 'A2 panel Move remaining') -lt (Num (P $pa2.move 'possible') 'A2 panel Move possible') - 0.01) 'A2 panel: the partial mount move is not shown as an untouched Move'
   $a3=Step $a 'a3'; $a3c=Step $a 'a3Click'
   Need ((P $a3c 'clicked') -eq $true -and (Text (P $a3c 'selectedRole')) -ceq 'aMount') 'A3 mount-selected stock attack dispatched'
   Need ((Int (P $a3 'actorRules') 'A3 mount attack rules') -ge 1) 'A3 the mount attacked natively'
@@ -103,23 +121,42 @@ function Assert-KmcFinalize3EconomyEvidence {
   $b=$rows['F3-tb-b-round1']; $bs=Step $b 'start'; $bp=Probe $bs 'probe' 'B start'
   Need ((Int (P (P $bs 'snap') 'round') 'pair B first round') -eq $round1) 'pair B acts in the same round as pair A'
   $speedB=Num (P $bp 'mountSpeed') 'B mount speed'
-  $b1=Step $b 'b1'; $b1c=Step $b 'b1Click'
-  Need ((P $b1c 'clicked') -eq $true -and (Text (P $b1c 'selectedRole')) -ceq 'bRider') 'B1 rider full attack dispatched'
-  Need ((Int (P $b1 'actorRules') 'B1 rider attack rules') -ge 1) 'B1 the rider attacked natively'
-  # Reader r2: the fixture rider's attack may be a single attack (Standard only) or a full-round one (Standard and Move).
-  Need ((Act (P $b1 'after') 'bRider' 'standard' 'B1') -ge 5.99) 'B1 rider Standard spent by its own attack'
+  # Reader r3: B1 is a genuine native full attack (r03's single attack, read by r2, does not satisfy it).
+  $b1=Step $b 'b1'
+  Need ((P $b1 'clicked') -eq $true -and (P $b1 'enabledFullAttack') -eq $true -and (P $b1 'hoverChangedState') -eq $false) 'B1 ordinary Full input: hover changed nothing, native Full variant, left click admitted'
+  Need ((Text (P (P $b1 'before') 'selectedRole')) -ceq 'bRider') 'B1 the rider is the selection'
+  Need ((Int (P $b1 'estimatedFullAttacks') 'B1 native full-attack estimate') -ge 2 -and (P $b1 'riderHasFullRound') -eq $true) 'B1 the rider natively had a full round of at least two attacks'
+  $atk=P $b1 'attack'; $atk0=P (P $b1 'attackStarted') 'facts'
+  Need ($null -ne $atk -and $null -ne $atk0 -and (Text (P $atk 'executor')) -ceq $bRiderId) 'B1 the rider attack command was observed'
+  Need ((P $atk0 'isFullAttack') -eq $true -and (P $atk0 'isSingleAttack') -eq $false -and (P $atk0 'shouldApproach') -eq $false) 'B1 native full attack without an approach'
+  $planned=Int (P $atk 'plannedAttacks') 'B1 planned attacks'; $delivered=Int (P $atk 'deliveredAttacks') 'B1 delivered attacks'
+  Need ($planned -ge 2 -and $delivered -ge 2 -and $delivered -le $planned) 'B1 at least two planned strikes, at least two delivered'
+  Need ((Int (P $b1 'actorRules') 'B1 rider attack rules') -ge 2) 'B1 at least two native attack rolls by the rider at the hostile'
+  Need ((Act (P $b1 'after') 'bRider' 'standard' 'B1') -ge 5.99 -and (Act (P $b1 'after') 'bRider' 'move' 'B1') -ge 2.99) 'B1 rider full round spent (Standard and Move)'
+  Need ((P $b1 'riderHasNormalMovement') -eq $false) 'B1 the rider itself has no normal movement left'
   Unchanged $b1 'bMount' @('standard','move') 'B1'
+  Need ((Act (P $b1 'before') 'bMount' 'move' 'B1') -le 0.001 -and (Act (P $b1 'before') 'bMount' 'standard' 'B1') -le 0.001) 'B1 the mount started unmoved and unspent'
   Need ((Num (P $b1 'mountDelta') 'B1 mount delta') -lt 0.1) 'B1 the mount stayed put'
   $b1p=Probe $b1 'probe' 'B1'
   Need ((Text (P $b1p 'unitRole')) -ceq 'bMount' -and (P $b1p 'unitIsMount') -eq $true) 'B1 preview unit is the mount'
-  Need (Near (Num (P $b1p 'remaining') 'B1 remaining') (3*$speedB)) 'B1 green range is the mount Move, not a five-foot step'
+  Need (Near (Num (P $b1p 'remaining') 'B1 remaining') (3*$speedB)) 'B1 green range is the mount Move, not a forced rider step'
   Need ((P $b1p 'fiveFootStep') -eq $false) 'B1 step mode is off'
+  $activation=Text (P (P $b1 'before') 'activationB'); $roundB=Int (P (P $b1 'before') 'round') 'B1 round'
+  Need (-not [string]::IsNullOrEmpty($activation)) 'B1 the paired activation is identified'
   $b2=Step $b 'b2'; $b2c=Step $b 'b2Click'
   Need ((P $b2c 'clicked') -eq $true -and (Text (P $b2c 'selectedRole')) -ceq 'bRider') 'B2 rider-selected ground click admitted'
+  Need ((Text (P (P $b2 'after') 'activationB')) -ceq $activation -and (Int (P (P $b2 'after') 'round') 'B2 round') -eq $roundB) 'B2 the same paired activation and round (no new turn or preparation)'
   Need ((Num (P $b2 'mountDelta') 'B2 mount delta') -gt 2.5) 'B2 the mount travelled beyond a five-foot step'
   $bm0=Act (P $b2 'before') 'bMount' 'move' 'B2'; $bm1=Act (P $b2 'after') 'bMount' 'move' 'B2'
   Need ($bm1 -gt $bm0+0.01 -and $bm1 -le 3.001) 'B2 mount Move charged within its Move'
+  Need ((Act (P $b2 'after') 'bMount' 'standard' 'B2') -le 0.001) 'B2 mount Standard untouched'
   Unchanged $b2 'bRider' @('standard','move','swift') 'B2'
+  # The live panel during genuine ground hovers: movement-facing slots describe the mount, Swift stays the rider's.
+  $pb1=Panel $b 'b1'
+  Need ((Text (P $pb1.move 'moveActivity')) -cnotin @('Unable','Used','Lost')) 'B1 panel: the full attack did not make the mount Move look spent'
+  Need ((Num (P $pb1.move 'remaining') 'B1 panel Move remaining') -gt 0) 'B1 panel: the mount Move has range'
+  $pb2=Panel $b 'b2'
+  Need ((Num (P $pb2.move 'remaining') 'B2 panel Move remaining') -lt (Num (P $pb2.move 'possible') 'B2 panel Move possible') - 0.01) 'B2 panel: the partial mount move is not shown as an untouched Move'
 
   # ---- F3-tb-a-step -----------------------------------------------------------------------------------------------
   $st=$rows['F3-tb-a-step']
@@ -135,6 +172,9 @@ function Assert-KmcFinalize3EconomyEvidence {
   Unchanged $s1 'aMount' @('move','standard') 'S1'
   Unchanged $s1 'aRider' @('standard','move','swift') 'S1'
   Need ((Num (P $s1p 'remaining') 'S1 remaining') -le 0.01 -and (Num (P $s1p 'remainingTotal') 'S1 total') -le 0.01) 'S1 no movement range after the step'
+  $ps1=Panel $st 's1'
+  Need ((Text (P $ps1.fiveFeet 'state')) -cnotin @('Available','WillBeUsed')) 'S1 panel: no five-foot step left'
+  Need ((Spent $ps1.move) -and (Spent $ps1.standard)) 'S1 panel: no ordinary movement left'
   $s2=Step $st 's2'
   Need ((Num (P $s2 'mountDelta') 's2 mount delta') -lt 0.1) 'S2 ordinary move refused after the step'
   Unchanged $s2 'aMount' @('move','standard') 'S2'
@@ -153,6 +193,9 @@ function Assert-KmcFinalize3EconomyEvidence {
   $c2=Probe (Step $c 'c2') 'probe' 'C2'
   Need ((Num (P $c2 'remaining') 'C2 remaining') -le 0.01 -and (Num (P $c2 'remainingTotal') 'C2 total') -le 0.01) 'C2 no movement range after the charge'
   Need ((P $c2 'fiveFootStep') -eq $false -or (Num (P (P $c2 'partner') 'stepRange') 'C2 step range') -le 0.01) 'C2 no five-foot step after the charge'
+  $pc2=Panel $c 'c2'
+  Need ((Spent $pc2.move) -and (Spent $pc2.standard)) 'C2 panel: no ground travel after the delivered Charge'
+  Need ((Text (P $pc2.fiveFeet 'state')) -cnotin @('Available','WillBeUsed')) 'C2 panel: no five-foot step after the delivered Charge'
   foreach($n in 'c3Move','c3Step'){
    $x=Step $c $n
    Need ((Num (P $x 'mountDelta') ($n+' mount delta')) -lt 0.1) ('C3 '+$n+' refused (no position change)')
@@ -173,6 +216,12 @@ function Assert-KmcFinalize3EconomyEvidence {
   # Reader r2: native UsedStandardAction does not count the two-move conversion (MoveAction above 3, asserted above);
   # native HasStandardAction does, which the D2 refusal below proves.
   Unchanged $d1 'aRider' @('standard','move','swift') 'D1'
+  $pd1=Panel $d 'd1'
+  Need (Spent $pd1.move) 'D1 panel: the mount Move is spent by the double move'
+  Need ((Text (P $pd1.standard 'attackActivity')) -cin @('Lost','WillBeLost','Unable')) 'D1 panel: the converted Standard offers no attack'
+  $conversion=Num (P (Probe ([pscustomobject]@{ probe=$pd1.probe }) 'probe' 'D1 panel') 'remainingTotal') 'D1 panel total range'
+  if($conversion -gt 0.1){ Need (-not (Spent $pd1.standard)) 'D1 panel: the remaining conversion travel is shown on the mount Standard' }
+  else { Need (Spent $pd1.standard) 'D1 panel: no conversion travel is advertised once exhausted' }
   $d2=Step $d 'd2'
   Need ((Int (P $d2 'actorRules') 'D2 mount attack rules') -eq 0) 'D2 the mount made no attack'
   $feedback=[string](Text (P $d2 'feedback'))

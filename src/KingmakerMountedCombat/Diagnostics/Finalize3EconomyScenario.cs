@@ -14,6 +14,7 @@ using Kingmaker.TurnBasedMode;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.UnitSettings;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -45,7 +46,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string Finalize3Case => Finalize3Cases[f3CaseIndex];
         private const float Finalize3StepBoundSeconds = 25f, Finalize3CaptureBoundSeconds = 5f;
         private const int Finalize3SettleFrames = 20, Finalize3IdleFrames = 12, Finalize3RefusalFrames = 40, Finalize3AttackFrames = 360, Finalize3MountAttempts = 6;
-        private const string Finalize3Contract = "finalize3-movement-economy-v1";
+        private const string Finalize3Contract = "finalize3-movement-economy-v2";
         private const BindingFlags F3Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         private static readonly float[] Finalize3LaneRadii = { 12f, 10f, 14f, 9f, 16f, 8f, 18f, 7f, 20f };
 
@@ -123,8 +124,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // The second pair leaves the fixture as it found it: the hidden Dismount shell, bounded, as Sprint 6 does.
             if (F3BState() == RelationshipState.Mounted.ToString())
             {
-                if (f3CleanupStartedAt < 0f) f3CleanupStartedAt = Time.time;
-                if (Time.time - f3CleanupStartedAt < 12f)
+                if (f3CleanupStartedAt < 0f) f3CleanupStartedAt = Time.realtimeSinceStartup;
+                if (Time.realtimeSinceStartup - f3CleanupStartedAt < 12f)
                 {
                     if (f3BRider.Commands.Empty) { Sprint5Fixture.Click(nativeControls, f3BRider, nativeControls.DismountAbility, f3BRider); f3SecondDismountTried = true; }
                     return false;
@@ -133,6 +134,45 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (f3Measure != null) f3Measure["secondDismountTriedAtCleanup"] = f3SecondDismountTried;
             return DrainSprint4Fixture();
+        }
+
+        // r03's teardown stalled with the game in EscMode from about the turn-based end on (opener not identified;
+        // native leave-combat time does not advance there). Every mode change during cleanup is recorded. Once the
+        // fixture's own restorations are done, an EscMode is closed once through the native window that owns it --
+        // a full-screen tutorial or the Esc menu -- and native leave-combat then finishes on its own. Anything else
+        // is recorded and left alone, so the bounded cleanup fails with the facts.
+        private JArray f3CleanupModes;
+        private JObject f3EscIntervention;
+        private static readonly FieldInfo NativeTutorialDontShow =
+            typeof(Kingmaker.UI.Tooltip.TutorialWindow).GetField("m_DontShowToggle", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private void F3ObserveCleanupMode(bool restorationsDone)
+        {
+            var game = Game.Instance;
+            var mode = game.CurrentMode.ToString();
+            if (f3CleanupModes == null) { f3CleanupModes = new JArray(); if (f3Measure != null) f3Measure["cleanupModes"] = f3CleanupModes; }
+            var last = f3CleanupModes.Count == 0 ? null : (string)f3CleanupModes[f3CleanupModes.Count - 1]["mode"];
+            if (last != mode && f3CleanupModes.Count < 16)
+                f3CleanupModes.Add(new JObject { ["mode"] = mode, ["frame"] = Time.frameCount, ["realtime"] = Time.realtimeSinceStartup,
+                    ["paused"] = game.IsPaused, ["inCombat"] = game.Player.IsInCombat });
+            var escMode = game.CurrentMode == Kingmaker.GameModes.GameModeType.EscMode;
+            if (!escMode) return;
+            var tutorial = game.UI?.DescriptionController?.TutorialFullScreen;
+            var escMenu = UnityEngine.Object.FindObjectOfType<Kingmaker.UI.ServiceWindow.EscMenuWindow>();
+            var page = tutorial?.Data?.TutorialPage?.FirstOrDefault();
+            var toggle = tutorial?.Data != null ? NativeTutorialDontShow?.GetValue(tutorial) : null;
+            var dontShow = toggle?.GetType().GetProperty("isOn")?.GetValue(toggle, null) as bool?;
+            // Closing with "don't show" ticked would change the player's TutorialMessages setting: refused.
+            var action = Finalize3CleanupEscModePolicy.Decide(restorationsDone, f3EscIntervention != null, escMode, game.IsPaused,
+                tutorial?.Data != null, dontShow, escMenu != null && escMenu.IsShow);
+            if (action == Finalize3EscModeAction.None) return;
+            f3EscIntervention = new JObject { ["frame"] = Time.frameCount, ["realtime"] = Time.realtimeSinceStartup, ["modeBefore"] = mode,
+                ["tutorialShown"] = tutorial?.Data != null, ["tutorialPage"] = page?.name, ["tutorialType"] = page?.Type.ToString(),
+                ["dontShowToggle"] = dontShow, ["escMenuShown"] = escMenu != null && escMenu.IsShow, ["action"] = action.ToString() };
+            if (f3Measure != null) f3Measure["escModeIntervention"] = f3EscIntervention;
+            if (action == Finalize3EscModeAction.CloseTutorial) tutorial.CloseWindow();
+            else if (action == Finalize3EscModeAction.CloseEscMenu) escMenu.Show(false);
+            f3EscIntervention["modeAfter"] = game.CurrentMode.ToString();
         }
 
         private void F3NewFacts() => f3Facts = new JObject { ["case"] = Finalize3Case, ["steps"] = new JObject() };
@@ -179,8 +219,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 f3Frames = 0; f3Stage = Finalize3Tb ? 2 : 3; ResetLeafClock(); return;
             }
             if (f3Stage == 2) { TickF3SecondMount(); return; }
-            if (f3Step != f3BoundStep) { f3BoundStep = f3Step; f3BoundAt = Time.time; f3Frames = 0; ResetLeafClock(); }
-            else if (Time.time - f3BoundAt > Finalize3StepBoundSeconds) { F3Fail(Finalize3Case + " step " + f3Step + " exceeded its bound."); return; }
+            if (f3Step != f3BoundStep) { f3BoundStep = f3Step; f3BoundAt = Time.realtimeSinceStartup; f3Frames = 0; ResetLeafClock(); }
+            else if (Time.realtimeSinceStartup - f3BoundAt > Finalize3StepBoundSeconds) { F3Fail(Finalize3Case + " step " + f3Step + " exceeded its bound."); return; }
             targetService?.ObserveTargetLifeState(); targetService?.RefreshBidirectionalCombatMemoryLease();
             if (Finalize3Tb) { F3ObserveTurns(turn); F3ObservePreparations(); F3KeepStanding(); }
             switch (Finalize3Case)
@@ -412,7 +452,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void F3ObserveTurns(TurnController turn)
         {
             if (ReferenceEquals(turn, f3LastTurn)) return;
-            f3LastTurn = turn; f3BoundAt = Time.time; ResetLeafClock();
+            f3LastTurn = turn; f3BoundAt = Time.realtimeSinceStartup; ResetLeafClock();
             if (turn?.Unit == null || f3FirstRound < 0) return;
             f3TurnStarts.Add(new JObject { ["sequence"] = f3TurnStarts.Count + 1, ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["unit"] = turn.Unit.UniqueId,
                 ["role"] = F3Role(turn.Unit), ["frame"] = Time.frameCount, ["status"] = turn.Status.ToString(), ["surprise"] = F3Surprise(turn),
@@ -742,6 +782,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3End(horse, participant);
                     {
                         var remaining = (3f - horse.CombatState.Cooldown.MoveAction) * horse.CurrentSpeedMps;
+                        F3PanelHover("a2", horse, participant, Mathf.Max(0.5f, 0.5f * remaining));
                         F3DrawPath("a2", horse, participant, Mathf.Max(1f, remaining) + 3f);
                     }
                     F3Shot("a2-after-move", rider);
@@ -806,7 +847,79 @@ namespace KingmakerMountedCombat.Diagnostics
             f3Current["actorName"] = actor.CharacterName;
         }
 
-        // ---- F3-tb-b-round1: rider full attack first, then a rider-selected move on the mount's Move (pair B, mount-first)
+        // The live prediction panel the player reads (TurnBasedModeUIController's PredictionPanelVM), slot by slot, with the
+        // actor whose native action each slot resolves to now.
+        private static readonly FieldInfo F3PanelVm =
+            typeof(Kingmaker.UI.TurnBasedMode.TurnBasedModeUIController).GetField("m_PredictionPanelVM", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly PropertyInfo F3SlotAction =
+            typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelActionVM).GetProperty("CombatAction", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private JObject F3Panel(MountedPairTurnParticipant participant)
+        {
+            var result = new JObject { ["frame"] = Time.frameCount };
+            try
+            {
+                var vm = F3PanelVm?.GetValue(Game.Instance.UI.TurnBasedUI) as Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelVM;
+                if (vm == null) { result["error"] = "No live prediction panel."; return result; }
+                var riderStates = Game.Instance.TurnBasedCombatController.CurrentTurn?.ActionsStates;
+                var mountStates = participant?.PartnerContext?.ActionsStates;
+                Func<Kingmaker.TurnBasedMode.ActionsState, Kingmaker.TurnBasedMode.Controllers.CombatAction, bool> owns = (states, action) =>
+                    states != null && (ReferenceEquals(action, states.Move) || ReferenceEquals(action, states.FiveFootStep) ||
+                        ReferenceEquals(action, states.Standard) || ReferenceEquals(action, states.Swift) || ReferenceEquals(action, states.Free));
+                Func<Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelActionVM, JObject> slot = s =>
+                {
+                    if (s == null) return null;
+                    var action = F3SlotAction.GetValue(s, null) as Kingmaker.TurnBasedMode.Controllers.CombatAction;
+                    // The slot's reactive values (UniRx ReactiveProperty, read by reflection: not a KMC reference).
+                    Func<string, object> value = name =>
+                    {
+                        var property = s.GetType().GetField(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(s);
+                        return property?.GetType().GetProperty("Value")?.GetValue(property, null);
+                    };
+                    Func<string, JToken> text = name => value(name)?.ToString();
+                    Func<string, JToken> number = name => value(name) is float distance ? (JToken)distance : null;
+                    return new JObject { ["owner"] = owns(mountStates, action) ? "mount" : owns(riderStates, action) ? "rider" : action == null ? null : "other",
+                        ["state"] = text("State"), ["moveActivity"] = text("MoveActivityState"), ["attackActivity"] = text("AttackActivityState"),
+                        ["possible"] = number("PossibleMoveDistance"), ["remaining"] = number("RemainingMoveDistance"), ["predicted"] = number("PredictedMoveDistance") };
+                };
+                result["fiveFeet"] = slot(vm.FiveFeetAction); result["move"] = slot(vm.MoveAction); result["standard"] = slot(vm.StandardAction);
+                result["fullRound"] = slot(vm.FullAction); result["swift"] = slot(vm.SwiftAction);
+            }
+            catch (Exception exception) { result["error"] = exception.GetType().Name + ": " + (exception.InnerException?.Message ?? exception.Message); }
+            return result;
+        }
+
+        // A genuine native ground hover (pointer over terrain, native UpdateActionPredictions) without a click, then the
+        // live panel and the path it drew.
+        private JObject F3PanelHover(string name, UnitEntityData mount, MountedPairTurnParticipant participant, float distance)
+        {
+            var record = new JObject { ["distance"] = distance, ["before"] = F3Snap() };
+            F3Steps[name + "Panel"] = record;
+            try
+            {
+                var point = F3Destination(mount, null, distance);
+                record["point"] = CapturePosition(point);
+                using (var input = new NativeOrdinaryAttackInput(point))
+                {
+                    input.Predict();
+                    record["panel"] = F3Panel(participant);
+                    record["probe"] = F3Probe(mount, participant);
+                }
+            }
+            catch (Exception exception) { record["error"] = exception.GetType().Name + ": " + exception.Message; }
+            record["after"] = F3Snap();
+            return record;
+        }
+
+        private UnitAttack f3BAttack;
+
+        private static JObject F3AttackFacts(UnitAttack attack) => attack == null ? null : new JObject { ["type"] = attack.GetType().Name,
+            ["executor"] = attack.Executor?.UniqueId, ["isFullAttack"] = attack.IsFullAttack, ["isSingleAttack"] = attack.IsSingleAttack,
+            ["plannedAttacks"] = attack.AllAttacks.Count, ["deliveredAttacks"] = attack.GetAttackIndex(), ["shouldApproach"] = attack.ShouldUnitApproach,
+            ["isFinished"] = attack.IsFinished, ["result"] = attack.Result.ToString() };
+
+        // ---- F3-tb-b-round1: a genuine native rider full attack with the mount unmoved, then a rider-selected move on the
+        // mount's own Move in the same activation (pair B, mount-first)
         private void TickF3BRound1(TurnController turn)
         {
             var participant = F3BParticipant; var pair = F3BCombat;
@@ -819,28 +932,61 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3PlaceAdjacent(f3BMount, "pair B rider full attack");
                     f3Step = 1; return;
                 case 1:
+                {
                     if (++f3Frames < Finalize3SettleFrames) return;
-                    F3Begin("b1", f3BMount, participant);
-                    F3UnitClick("b1", f3BRider, true);
+                    var record = F3Begin("b1", f3BMount, participant);
+                    F3Select(f3BRider);
+                    record["riderDistanceToTarget"] = f3BRider.DistanceTo(target);
+                    record["estimatedFullAttacks"] = UnitAttack.EstimateFullAttacks(f3BRider);
+                    record["riderHasFullRound"] = f3BRider.HasFullRoundAction();
+                    f3RulesAt = f3Rules.Attacks.Count; f3BAttack = null;
+                    // The ordinary player input: hover the target, cycle the native attack variant to Full with the native
+                    // right-click (Chunk 4's recipe), then left-click. Hovering and cycling must not change any live state.
+                    try
+                    {
+                        using (var input = new NativeOrdinaryAttackInput(target))
+                        {
+                            var before = new JArray(F3Actor(f3BRider), F3Actor(f3BMount));
+                            input.Predict(turn); input.Predict(turn);
+                            var cycles = 0;
+                            while (!turn.EnabledFullAttack && cycles++ < 8) { input.Click(button: 1); input.Predict(turn); }
+                            record["hoverChangedState"] = !JToken.DeepEquals(before, new JArray(F3Actor(f3BRider), F3Actor(f3BMount)));
+                            record["cursorCycles"] = cycles; record["enabledFullAttack"] = turn.EnabledFullAttack;
+                            record["clicked"] = turn.EnabledFullAttack && input.Click();
+                        }
+                    }
+                    catch (Exception exception) { record["clicked"] = false; record["error"] = exception.GetType().Name + ": " + exception.Message; }
+                    if ((bool?)record["clicked"] != true) { F3Fail("The ordinary native Full attack input was unavailable or refused."); return; }
                     f3Step = 2; return;
+                }
                 case 2:
+                    if (f3BAttack == null) f3BAttack = f3BRider.Commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) as UnitAttack;
+                    if (f3BAttack != null && f3Current["attackStarted"] == null)
+                        f3Current["attackStarted"] = new JObject { ["facts"] = F3AttackFacts(f3BAttack), ["snap"] = F3Snap() };
                     if (!F3AttackSettled(f3BRider, f3BRider, f3BMount, pair)) return;
                     if (++f3Frames < Finalize3SettleFrames) return;
                     F3End(f3BMount, participant); f3Current["actorRules"] = F3RulesBy(f3BRider);
+                    f3Current["attack"] = F3AttackFacts(f3BAttack);
+                    f3Current["riderHasNormalMovement"] = turn.HasNormalMovement();
+                    f3Current["riderLimit"] = turn.CurrentMovementLimit.ToString();
+                    F3PanelHover("b1", f3BMount, participant, 0.4f * 3f * f3BMount.CurrentSpeedMps);
                     F3DrawPath("b1", f3BMount, participant, 3f * f3BMount.CurrentSpeedMps + 3f);
-                    F3Shot("b1-after-rider-full-attack", f3BRider);
+                    F3Shot("b1-after-genuine-full-attack", f3BRider);
                     f3Step = 3; return;
                 case 3:
                 {
                     var record = F3Begin("b2", f3BMount, participant);
                     var destination = F3Destination(f3BMount, horse, 0.4f * 3f * f3BMount.CurrentSpeedMps);
                     record["requestedMetres"] = HorizontalDistance(f3BMount.Position, destination);
+                    record["partnerLimit"] = participant?.PartnerContext?.CurrentMovementLimit.ToString();
                     F3GroundClick("b2", destination, true);
                     f3Step = 4; return;
                 }
                 case 4:
                     if (!F3Settled(f3BRider, f3BMount, pair)) return;
                     F3End(f3BMount, participant);
+                    F3PanelHover("b2", f3BMount, participant, 0.3f * 3f * f3BMount.CurrentSpeedMps);
+                    F3Shot("b2-after-mount-move", f3BRider);
                     f3Step = 5; return;
                 case 5:
                     if (!F3CloseActivation(turn, f3BRider, f3BMount, pair)) return;
@@ -891,6 +1037,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (++f3Frames < 4) return;
                     F3End(horse, participant);
                     f3Current["contextsAfterStepOff"] = new JObject { ["current"] = F3Context(turn), ["partner"] = F3Context(participant?.PartnerContext) };
+                    F3PanelHover("s1", horse, participant, 4f);
                     F3Shot("s1-after-step", rider);
                     f3Step = 5; return;
                 case 5:
@@ -962,6 +1109,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 4:
                     if (++f3Frames < 10) return;
                     F3Steps["c2"] = new JObject { ["snap"] = F3Snap(), ["probe"] = F3Probe(f3BMount, participant) };
+                    F3PanelHover("c2", f3BMount, participant, 4f);
                     F3Shot("c2-after-charge", f3BRider);
                     f3Step = 5; return;
                 case 5:
@@ -1067,6 +1215,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 2:
                     if (!F3Settled(rider, horse, combat)) return;
                     F3End(horse, participant);
+                    F3PanelHover("d1", horse, participant, 2f);
                     F3PlaceAdjacent(horse, "pair A mount attack after the double move");
                     f3Step = 3; return;
                 case 3:

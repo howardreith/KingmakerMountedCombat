@@ -458,6 +458,7 @@
     <Compile Include="Domain\MountedStockAttack.cs" />
     <Compile Include="Domain\MountedMovePrepayment.cs" />
     <Compile Include="Domain\MountedMovementState.cs" />
+    <Compile Include="Domain\PairedMovementInputPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />
@@ -538,6 +539,7 @@
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
     <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
     <Compile Include="Diagnostics\Finalize3EconomyScenario.cs" />
+    <Compile Include="Diagnostics\Finalize3CleanupEscModePolicy.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />

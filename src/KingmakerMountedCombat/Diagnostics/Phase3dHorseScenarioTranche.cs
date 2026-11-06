@@ -6422,6 +6422,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // at setup (the restoration the Mammoth engine performs at Finish) once its own restorations are
             // done, and the pending record below carries the exact native facts.
             if (IsCastingFixtureFamily && modeRestored && targetCleanupComplete) RestoreCastingFamilyPause();
+            if (IsFinalize3Economy) F3ObserveCleanupMode(modeRestored && targetCleanupComplete);
             var chunk6aDoorRestored = true;
             try { chunk6aDoorRestored = RestoreChunk6aDoor(); }
             catch (Exception exception) { chunk6aDoorRestored = false; AddCleanupError("Chunk 6A door restoration", exception); }
