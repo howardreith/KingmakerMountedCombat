@@ -1,4 +1,19 @@
-# F4 resume — final review stop after the entrance/reload finishing mission (2026-11-06)
+# F4 resume — final review stop after the final reload execution mission (2026-11-06)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions (head 82689ab7 plus records); draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL.
+  - The reload is NOT RUN.
+  - Start 9 was spent on a pre-staging refusal: the detached HEAD made `git branch --show-current` empty, so `.Trim()` threw in `Assert-KmcPackageManifest`.
+  - WORLD-02 is input blocked.
+  - 9 of 9 starts are used, at 64.7/80 min.
+- **Not authorized:** a tenth start, merge, release, publication, or F5.
+
+Facts for a successor:
+- The launcher pins the package manifest's commit *and* branch to the worktree. Never detach to reach a frozen commit.
+- Commit records only after the native runs, or package from the head the run will use.
+- A refusal after admission counts as a start in the record.
+
+# F4 resume — final review stop after the entrance/reload finishing mission (2026-11-06, superseded above)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL.
