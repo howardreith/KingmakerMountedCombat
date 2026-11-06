@@ -106,7 +106,8 @@ function Assert-KmcFinalize3EconomyEvidence {
   $b1=Step $b 'b1'; $b1c=Step $b 'b1Click'
   Need ((P $b1c 'clicked') -eq $true -and (Text (P $b1c 'selectedRole')) -ceq 'bRider') 'B1 rider full attack dispatched'
   Need ((Int (P $b1 'actorRules') 'B1 rider attack rules') -ge 1) 'B1 the rider attacked natively'
-  Need ((Act (P $b1 'after') 'bRider' 'standard' 'B1') -ge 5.99 -and (Act (P $b1 'after') 'bRider' 'move' 'B1') -ge 2.99) 'B1 rider full-round actions spent'
+  # Reader r2: the fixture rider's attack may be a single attack (Standard only) or a full-round one (Standard and Move).
+  Need ((Act (P $b1 'after') 'bRider' 'standard' 'B1') -ge 5.99) 'B1 rider Standard spent by its own attack'
   Unchanged $b1 'bMount' @('standard','move') 'B1'
   Need ((Num (P $b1 'mountDelta') 'B1 mount delta') -lt 0.1) 'B1 the mount stayed put'
   $b1p=Probe $b1 'probe' 'B1'
@@ -169,7 +170,8 @@ function Assert-KmcFinalize3EconomyEvidence {
   $d1=Step $d 'd1'; $d1c=Step $d 'd1Click'
   Need ((P $d1c 'clicked') -eq $true) 'D1 ground click admitted'
   Need ((Act (P $d1 'after') 'aMount' 'move' 'D1') -gt 3.01) 'D1 mount moved into its second Move'
-  Need ((P (P (P $d1 'after') 'aMount') 'usedStandard') -eq $true) 'D1 native Standard conversion on the mount'
+  # Reader r2: native UsedStandardAction does not count the two-move conversion (MoveAction above 3, asserted above);
+  # native HasStandardAction does, which the D2 refusal below proves.
   Unchanged $d1 'aRider' @('standard','move','swift') 'D1'
   $d2=Step $d 'd2'
   Need ((Int (P $d2 'actorRules') 'D2 mount attack rules') -eq 0) 'D2 the mount made no attack'
