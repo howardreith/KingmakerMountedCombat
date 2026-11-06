@@ -12,7 +12,7 @@ This is the bounded reference pass for F3 (ECON-01, ECON-02, HUD-01, HUD-02, HUD
 
 ## Comparison
 
-| Topic | Tabletop PF1 (package R6) | Wrath 2.7.0 code (vanilla assembly) | KMC F3 contract and implementation |
+| Topic | Tabletop PF1 (package R6) | Wrath 2.7.0 code (installed assembly, a static read; not matched to a vanilla reference; runtime and visual parity unverified) | KMC F3 contract and implementation |
 |---|---|---|---|
 | **Initiative presentation** | The mount acts on the rider's initiative. | `InitiativeTrackerVM.UpdateUnits` skips any unit that has a rider. `CombatController.ChooseNextUnit` also skips it. A pair has one shared turn: its `TurnController` holds both rider and mount. | Native `ChooseNextUnit` already excluded the paired mount. The tracker did not, so horses appeared as later turns. The tracker projection now omits exactly the mount that the candidate loop skips. After a dismount or the rider's death, the mount reappears in the round native releases it. Scheduling is unchanged: one paired activation, the rider is principal, and the mount stays selectable. |
 | **Whose budget moves the pair** | The mount moves using its own actions. | `TickMovement` charges the mount's movement stats and cooldown whenever the mover has a rider. The smart cursor evaluates `Mount ?? Rider`. | Execution already charged only the mount. The defect was in the **preview**: it read the rider's turn state. The path settings, step mode and admission now read the mount's movement context whichever pair actor is selected. |
