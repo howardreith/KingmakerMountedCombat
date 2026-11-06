@@ -1,0 +1,420 @@
+using System;
+using System.Collections.Generic;
+
+namespace KingmakerMountedCombat.Domain
+{
+    // The Riding Dog's own body mesh, in mount-local space (x right, y up, z forward) as its bind pose places it.
+    public sealed class TackSourceMesh
+    {
+        public float[] Positions { get; set; }
+        public float[] Normals { get; set; }
+        public int[] Triangles { get; set; }
+        public int[] BoneIndices { get; set; }
+        public float[] BoneWeights { get; set; }
+    }
+
+    // A skinned tack mesh in the same space, weighted to the dog's own bones, plus what the fit measured.
+    public sealed class TackMeshData
+    {
+        public float[] Positions { get; internal set; }
+        public float[] Normals { get; internal set; }
+        public float[] Uvs { get; internal set; }
+        public int[] Triangles { get; internal set; }
+        public int[] BoneIndices { get; internal set; }
+        public float[] BoneWeights { get; internal set; }
+        public int VertexCount => Positions == null ? 0 : Positions.Length / 3;
+        public int Casts { get; internal set; }
+        public int Misses { get; internal set; }
+        public float BackHeightAtSeat { get; internal set; }
+        public float SeatTopAtSeat { get; internal set; }
+        public float CantleTop { get; internal set; }
+        public float PommelTop { get; internal set; }
+    }
+
+    // PET-02: an original saddle pad, seat and girth draped over the Riding Dog's actual back. Every point is a ray cast onto the
+    // dog's surface, lifted a little along it and skinned with the bone weights of the triangle it landed on, so the tack bends
+    // with the spine and the bite without any per-frame work. The texture atlas has three columns: pad, seat and girth.
+    public static class RidingDogTackGeometry
+    {
+        // Mount-local, measured on the Medium Riding Dog: the rider's pelvis sits over z 0.12 (MountedRiderProfileCatalog).
+        public const float SeatForward = 0.12f;
+        private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 1.10f, PadLift = 0.010f, RimLift = 0.0015f;
+        private const float SeatBack = 0.15f, SeatFront = 0.16f, SeatAngle = 0.62f, SeatBase = 0.012f;
+        private const float CantleHeight = 0.032f, CantleOffset = -0.10f, PommelHeight = 0.026f, PommelOffset = 0.11f, RollWidth = 0.028f;
+        private const float GirthOffset = 0.05f, GirthWidth = 0.036f, GirthLift = 0.016f;
+        private const int PadRows = 14, PadColumns = 13, SeatRows = 12, SeatColumns = 9, GirthSegments = 40;
+        internal const float PadUvLeft = 0.02f, PadUvRight = 0.48f, SeatUvLeft = 0.52f, SeatUvRight = 0.73f, GirthUvLeft = 0.77f, GirthUvRight = 0.98f;
+
+        public static TackMeshData Build(TackSourceMesh source, float seatForward, out string failure)
+        {
+            failure = Validate(source);
+            if (failure != null) return null;
+            var builder = new Builder(source, seatForward);
+            return builder.Run(out failure);
+        }
+
+        private static string Validate(TackSourceMesh source)
+        {
+            if (source == null || source.Positions == null || source.Normals == null || source.Triangles == null ||
+                source.BoneIndices == null || source.BoneWeights == null) return "the body mesh is incomplete";
+            var count = source.Positions.Length / 3;
+            if (count < 3 || source.Positions.Length != count * 3 || source.Normals.Length != count * 3 ||
+                source.BoneIndices.Length != count * 4 || source.BoneWeights.Length != count * 4 ||
+                source.Triangles.Length < 3 || source.Triangles.Length % 3 != 0) return "the body mesh arrays disagree";
+            foreach (var index in source.Triangles) if (index < 0 || index >= count) return "a body triangle is out of range";
+            foreach (var value in source.Positions) if (float.IsNaN(value) || float.IsInfinity(value)) return "a body position is not finite";
+            return null;
+        }
+
+        internal struct V3
+        {
+            internal readonly float X, Y, Z;
+            internal V3(float x, float y, float z) { X = x; Y = y; Z = z; }
+            public static V3 operator +(V3 a, V3 b) => new V3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
+            public static V3 operator -(V3 a, V3 b) => new V3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+            public static V3 operator *(V3 a, float s) => new V3(a.X * s, a.Y * s, a.Z * s);
+            internal static float Dot(V3 a, V3 b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z;
+            internal static V3 Cross(V3 a, V3 b) => new V3(a.Y * b.Z - a.Z * b.Y, a.Z * b.X - a.X * b.Z, a.X * b.Y - a.Y * b.X);
+            internal float Length => (float)Math.Sqrt(Dot(this, this));
+            internal V3 Normalized { get { var length = Length; return length > 1e-6f ? this * (1f / length) : new V3(0f, 1f, 0f); } }
+        }
+
+        private struct Hit
+        {
+            internal bool Valid;
+            internal V3 Point, Normal;
+            internal int[] Bones;
+            internal float[] Weights;
+        }
+
+        private sealed class Builder
+        {
+            private readonly TackSourceMesh source;
+            private readonly float seat;
+            private readonly List<int> slab = new List<int>();
+            private readonly Dictionary<int, float> axisCache = new Dictionary<int, float>();
+            private readonly List<V3> positions = new List<V3>(), normals = new List<V3>();
+            private readonly List<float> uvs = new List<float>(), weights = new List<float>();
+            private readonly List<int> bones = new List<int>(), triangles = new List<int>();
+            private int casts, misses;
+
+            internal Builder(TackSourceMesh source, float seatForward) { this.source = source; seat = seatForward; }
+
+            internal TackMeshData Run(out string failure)
+            {
+                failure = null;
+                var low = seat - Math.Max(PadBack, SeatBack) - 0.05f;
+                var high = seat + Math.Max(PadFront, Math.Max(SeatFront, GirthOffset + GirthWidth)) + 0.05f;
+                var triangleList = source.Triangles;
+                for (var t = 0; t < triangleList.Length; t += 3)
+                {
+                    float min = float.MaxValue, max = float.MinValue;
+                    for (var k = 0; k < 3; k++) { var z = source.Positions[triangleList[t + k] * 3 + 2]; min = Math.Min(min, z); max = Math.Max(max, z); }
+                    if (max >= low && min <= high) slab.Add(t);
+                }
+                if (slab.Count == 0) { failure = "no body surface under the seat"; return null; }
+                if (float.IsNaN(AxisHeight(seat))) { failure = "no midline back at the seat"; return null; }
+
+                var back = Cast(seat, 0f);
+                if (!back.Valid) { failure = "no back surface at the seat"; return null; }
+                var padTop = BuildPad();
+                var seatTop = BuildSeat(out var cantleTop, out var pommelTop);
+                BuildGirth();
+                if (padTop < 0 || seatTop < 0) { failure = "the pad or seat did not reach the back"; return null; }
+                if (misses * 4 > casts) { failure = "too many casts missed the body (" + misses + " of " + casts + ")"; return null; }
+
+                var data = new TackMeshData
+                {
+                    Positions = Flatten(positions), Normals = Flatten(normals), Uvs = uvs.ToArray(), Triangles = triangles.ToArray(),
+                    BoneIndices = bones.ToArray(), BoneWeights = weights.ToArray(), Casts = casts, Misses = misses,
+                    BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop
+                };
+                return data;
+            }
+
+            private static float[] Flatten(List<V3> values)
+            {
+                var flat = new float[values.Count * 3];
+                for (var i = 0; i < values.Count; i++) { flat[i * 3] = values[i].X; flat[i * 3 + 1] = values[i].Y; flat[i * 3 + 2] = values[i].Z; }
+                return flat;
+            }
+
+            // The pad: a rounded rectangle draped over the back and flanks, with a thin rim down to the coat at its edge.
+            private int BuildPad()
+            {
+                var grid = new int[PadRows, PadColumns];
+                var hits = new Hit[PadRows, PadColumns];
+                var centre = -1;
+                for (var i = 0; i < PadRows; i++)
+                    for (var j = 0; j < PadColumns; j++)
+                    {
+                        float u = i / (float)(PadRows - 1), v = -1f + 2f * j / (PadColumns - 1);
+                        var hit = Cast(PadZ(u, v), v * PadAngle);
+                        hits[i, j] = hit;
+                        grid[i, j] = hit.Valid ? AddVertex(Lift(hit, PadLift), hit.Normal, PadUvLeft + (PadUvRight - PadUvLeft) * j / (PadColumns - 1), 0.02f + 0.96f * u, hit) : -1;
+                        if (i == PadRows / 2 && j == PadColumns / 2) centre = grid[i, j];
+                    }
+                AddGrid(grid, PadRows, PadColumns, false);
+                if (centre < 0) return -1;
+                // Rim: the perimeter, in order, joined to a ring just above the coat.
+                var ring = new List<KeyValuePair<int, int>>();
+                for (var j = 0; j < PadColumns; j++) ring.Add(new KeyValuePair<int, int>(0, j));
+                for (var i = 1; i < PadRows; i++) ring.Add(new KeyValuePair<int, int>(i, PadColumns - 1));
+                for (var j = PadColumns - 2; j >= 0; j--) ring.Add(new KeyValuePair<int, int>(PadRows - 1, j));
+                for (var i = PadRows - 2; i > 0; i--) ring.Add(new KeyValuePair<int, int>(i, 0));
+                var outer = new int[ring.Count];
+                var inner = new int[ring.Count];
+                var middle = positions[centre];
+                for (var k = 0; k < ring.Count; k++)
+                {
+                    var cell = ring[k];
+                    outer[k] = grid[cell.Key, cell.Value];
+                    if (outer[k] < 0) { inner[k] = -1; continue; }
+                    var hit = hits[cell.Key, cell.Value];
+                    var away = positions[outer[k]] - middle;
+                    var tangent = (away - hit.Normal * V3.Dot(away, hit.Normal)).Normalized;
+                    var rimTop = AddVertex(positions[outer[k]], tangent, PadUvLeft + 0.004f, 0.02f + 0.96f * cell.Key / (PadRows - 1), hit);
+                    outer[k] = rimTop;
+                    inner[k] = AddVertex(Lift(hit, RimLift), tangent, PadUvLeft + 0.004f, 0.02f + 0.96f * cell.Key / (PadRows - 1), hit);
+                }
+                for (var k = 0; k < ring.Count; k++)
+                {
+                    var next = (k + 1) % ring.Count;
+                    if (outer[k] < 0 || outer[next] < 0) continue;
+                    var hint = normals[outer[k]] + normals[outer[next]];
+                    AddTriangle(outer[k], outer[next], inner[next], hint);
+                    AddTriangle(outer[k], inner[next], inner[k], hint);
+                }
+                return centre;
+            }
+
+            // Shorter towards the lower corners, so the pad's outline is rounded rather than square.
+            private float PadZ(float u, float v)
+            {
+                var length = (PadBack + PadFront) * (1f - 0.18f * Math.Abs(v * v * v));
+                var middle = seat + (PadFront - PadBack) * 0.5f;
+                return middle + (u - 0.5f) * length;
+            }
+
+            // The seat: a low leather pad on top of the pad, with a cantle behind the rider and a pommel in front.
+            private int BuildSeat(out float cantleTop, out float pommelTop)
+            {
+                cantleTop = pommelTop = float.MinValue;
+                var grid = new int[SeatRows, SeatColumns];
+                var centre = -1;
+                var bestDistance = float.MaxValue;
+                for (var i = 0; i < SeatRows; i++)
+                    for (var j = 0; j < SeatColumns; j++)
+                    {
+                        float u = i / (float)(SeatRows - 1), v = -1f + 2f * j / (SeatColumns - 1);
+                        var z = seat - SeatBack + u * (SeatBack + SeatFront);
+                        var hit = Cast(z, v * SeatAngle);
+                        if (!hit.Valid) { grid[i, j] = -1; continue; }
+                        var across = (float)Math.Pow(Math.Max(0f, 1f - v * v), 1.5);
+                        var edge = Smooth(0f, 0.25f, 1f - Math.Abs(v)) * Smooth(0f, 0.12f, Math.Min(u, 1f - u));
+                        var cantle = CantleHeight * Bump(z - (seat + CantleOffset)) * across;
+                        var pommel = PommelHeight * Bump(z - (seat + PommelOffset)) * across;
+                        var lift = PadLift + 0.001f + (SeatBase + cantle + pommel) * edge;
+                        var point = Lift(hit, lift);
+                        grid[i, j] = AddVertex(point, hit.Normal, SeatUvLeft + (SeatUvRight - SeatUvLeft) * j / (SeatColumns - 1), 0.02f + 0.96f * u, hit);
+                        if (j == SeatColumns / 2)
+                        {
+                            if (z < seat) cantleTop = Math.Max(cantleTop, point.Y); else pommelTop = Math.Max(pommelTop, point.Y);
+                            var distance = Math.Abs(z - seat);
+                            if (distance < bestDistance) { bestDistance = distance; centre = grid[i, j]; }
+                        }
+                    }
+                AddGrid(grid, SeatRows, SeatColumns, false);
+                return centre;
+            }
+
+            private static float Bump(float offset) => (float)Math.Exp(-(offset / RollWidth) * (offset / RollWidth));
+
+            private static float Smooth(float from, float to, float value)
+            {
+                var t = Math.Max(0f, Math.Min(1f, (value - from) / (to - from)));
+                return t * t * (3f - 2f * t);
+            }
+
+            // The girth: a strap all the way round the chest just ahead of the seat. A cast that lands on a leg instead of the
+            // chest (much further from the body's axis than its neighbours) takes the nearest good neighbour's place.
+            private void BuildGirth()
+            {
+                var rows = new[] { -0.5f, 0f, 0.5f };
+                var grid = new int[rows.Length, GirthSegments + 1];
+                for (var r = 0; r < rows.Length; r++)
+                {
+                    var z = seat + GirthOffset + rows[r] * GirthWidth;
+                    var axis = AxisHeight(z);
+                    var ring = new Hit[GirthSegments];
+                    var radii = new List<float>();
+                    for (var k = 0; k < GirthSegments; k++)
+                    {
+                        var angle = (float)(-Math.PI + 2.0 * Math.PI * k / GirthSegments);
+                        ring[k] = Cast(z, angle);
+                        if (ring[k].Valid) radii.Add(Radius(ring[k], axis));
+                    }
+                    if (radii.Count < GirthSegments / 2) { for (var k = 0; k <= GirthSegments; k++) grid[r, k] = -1; continue; }
+                    radii.Sort();
+                    var limit = radii[radii.Count / 2] * 1.25f;
+                    var good = new bool[GirthSegments];
+                    for (var k = 0; k < GirthSegments; k++) good[k] = ring[k].Valid && Radius(ring[k], axis) <= limit;
+                    for (var k = 0; k <= GirthSegments; k++)
+                    {
+                        var hit = ring[NearestGood(good, k % GirthSegments)];
+                        grid[r, k] = AddVertex(Lift(hit, GirthLift), hit.Normal, GirthUvLeft + (GirthUvRight - GirthUvLeft) * r / (rows.Length - 1),
+                            0.02f + 0.96f * k / GirthSegments, hit);
+                    }
+                }
+                AddGrid(grid, rows.Length, GirthSegments + 1, false);
+            }
+
+            private static int NearestGood(bool[] good, int k)
+            {
+                for (var step = 0; step < good.Length; step++)
+                {
+                    if (good[(k + step) % good.Length]) return (k + step) % good.Length;
+                    if (good[(k - step + good.Length) % good.Length]) return (k - step + good.Length) % good.Length;
+                }
+                return k;
+            }
+
+            private static float Radius(Hit hit, float axis) => new V3(hit.Point.X, hit.Point.Y - axis, 0f).Length;
+
+            private static V3 Lift(Hit hit, float lift) => hit.Point + hit.Normal * lift;
+
+            private int AddVertex(V3 point, V3 normal, float u, float v, Hit hit)
+            {
+                positions.Add(point);
+                normals.Add(normal.Normalized);
+                uvs.Add(u); uvs.Add(v);
+                for (var k = 0; k < 4; k++) { bones.Add(hit.Bones[k]); weights.Add(hit.Weights[k]); }
+                return positions.Count - 1;
+            }
+
+            private void AddGrid(int[,] grid, int rows, int columns, bool unused)
+            {
+                for (var i = 0; i + 1 < rows; i++)
+                    for (var j = 0; j + 1 < columns; j++)
+                    {
+                        int a = grid[i, j], b = grid[i + 1, j], c = grid[i + 1, j + 1], d = grid[i, j + 1];
+                        if (a < 0 || b < 0 || c < 0 || d < 0) continue;
+                        var hint = normals[a] + normals[b] + normals[c] + normals[d];
+                        AddTriangle(a, b, c, hint);
+                        AddTriangle(a, c, d, hint);
+                    }
+            }
+
+            // Unity draws a triangle's front where Cross(b - a, c - a) points; each one is turned to face away from the body.
+            private void AddTriangle(int a, int b, int c, V3 outward)
+            {
+                var facing = V3.Dot(V3.Cross(positions[b] - positions[a], positions[c] - positions[a]), outward);
+                if (facing >= 0f) { triangles.Add(a); triangles.Add(b); triangles.Add(c); }
+                else { triangles.Add(a); triangles.Add(c); triangles.Add(b); }
+            }
+
+            // Height of the body's midline at z, halfway between the coat on the spine and under the belly.
+            private float AxisHeight(float z)
+            {
+                var key = (int)Math.Round(z * 1000f);
+                if (axisCache.TryGetValue(key, out var cached)) return cached;
+                var result = float.NaN;
+                foreach (var window in new[] { new[] { 0.03f, 0.05f }, new[] { 0.06f, 0.08f } })
+                {
+                    float top = float.MinValue, bottom = float.MaxValue;
+                    var count = source.Positions.Length / 3;
+                    for (var i = 0; i < count; i++)
+                    {
+                        if (Math.Abs(source.Positions[i * 3 + 2] - z) > window[0] || Math.Abs(source.Positions[i * 3]) > window[1]) continue;
+                        top = Math.Max(top, source.Positions[i * 3 + 1]);
+                        bottom = Math.Min(bottom, source.Positions[i * 3 + 1]);
+                    }
+                    if (top > bottom) { result = (top + bottom) * 0.5f; break; }
+                }
+                axisCache[key] = result;
+                return result;
+            }
+
+            // A ray in the plane z = const, from well outside the body towards its axis at the given angle (0 = straight up,
+            // positive towards +x). The first front-facing surface it meets is the coat.
+            private Hit Cast(float z, float angle)
+            {
+                casts++;
+                var axis = AxisHeight(z);
+                if (float.IsNaN(axis)) { misses++; return new Hit(); }
+                var outward = new V3((float)Math.Sin(angle), (float)Math.Cos(angle), 0f);
+                var origin = new V3(0f, axis, z) + outward * 2f;
+                var direction = outward * -1f;
+                var best = new Hit();
+                var bestT = float.MaxValue;
+                var positionsArray = source.Positions;
+                foreach (var t in slab)
+                {
+                    int i0 = source.Triangles[t], i1 = source.Triangles[t + 1], i2 = source.Triangles[t + 2];
+                    float z0 = positionsArray[i0 * 3 + 2], z1 = positionsArray[i1 * 3 + 2], z2 = positionsArray[i2 * 3 + 2];
+                    if (Math.Min(z0, Math.Min(z1, z2)) > z || Math.Max(z0, Math.Max(z1, z2)) < z) continue;
+                    V3 p0 = P(i0), p1 = P(i1), p2 = P(i2);
+                    if (!Intersect(origin, direction, p0, p1, p2, out var distance, out var b1, out var b2) || distance >= bestT) continue;
+                    var b0 = 1f - b1 - b2;
+                    var normal = (N(i0) * b0 + N(i1) * b1 + N(i2) * b2).Normalized;
+                    if (V3.Dot(normal, outward) <= 0f) continue;
+                    bestT = distance;
+                    best = new Hit { Valid = true, Point = origin + direction * distance, Normal = (normal * 0.6f + outward * 0.4f).Normalized };
+                    BlendWeights(i0, i1, i2, b0, b1, b2, out best.Bones, out best.Weights);
+                }
+                if (!best.Valid) misses++;
+                return best;
+            }
+
+            private V3 P(int i) => new V3(source.Positions[i * 3], source.Positions[i * 3 + 1], source.Positions[i * 3 + 2]);
+            private V3 N(int i) => new V3(source.Normals[i * 3], source.Normals[i * 3 + 1], source.Normals[i * 3 + 2]);
+
+            // Möller–Trumbore, both windings.
+            private static bool Intersect(V3 origin, V3 direction, V3 p0, V3 p1, V3 p2, out float t, out float u, out float v)
+            {
+                t = u = v = 0f;
+                var e1 = p1 - p0;
+                var e2 = p2 - p0;
+                var p = V3.Cross(direction, e2);
+                var determinant = V3.Dot(e1, p);
+                if (Math.Abs(determinant) < 1e-9f) return false;
+                var inverse = 1f / determinant;
+                var s = origin - p0;
+                u = V3.Dot(s, p) * inverse;
+                if (u < 0f || u > 1f) return false;
+                var q = V3.Cross(s, e1);
+                v = V3.Dot(direction, q) * inverse;
+                if (v < 0f || u + v > 1f) return false;
+                t = V3.Dot(e2, q) * inverse;
+                return t > 0f;
+            }
+
+            // The three corners' bone weights mixed by the hit's barycentric position; the four strongest kept and renormalized.
+            private void BlendWeights(int i0, int i1, int i2, float b0, float b1, float b2, out int[] indices, out float[] values)
+            {
+                var mixed = new Dictionary<int, float>();
+                Accumulate(mixed, i0, b0); Accumulate(mixed, i1, b1); Accumulate(mixed, i2, b2);
+                var ordered = new List<KeyValuePair<int, float>>(mixed);
+                ordered.Sort((left, right) => right.Value != left.Value ? right.Value.CompareTo(left.Value) : left.Key.CompareTo(right.Key));
+                indices = new int[4];
+                values = new float[4];
+                var total = 0f;
+                for (var k = 0; k < 4 && k < ordered.Count; k++) { indices[k] = ordered[k].Key; values[k] = ordered[k].Value; total += values[k]; }
+                if (total <= 0f) { values[0] = 1f; return; }
+                for (var k = 0; k < 4; k++) values[k] /= total;
+            }
+
+            private void Accumulate(Dictionary<int, float> mixed, int vertex, float share)
+            {
+                for (var k = 0; k < 4; k++)
+                {
+                    var weight = source.BoneWeights[vertex * 4 + k] * Math.Max(0f, share);
+                    if (weight <= 0f) continue;
+                    var bone = source.BoneIndices[vertex * 4 + k];
+                    mixed.TryGetValue(bone, out var current);
+                    mixed[bone] = current + weight;
+                }
+            }
+        }
+    }
+}
