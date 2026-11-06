@@ -1,3 +1,18 @@
+# F4 resume — review stop (2026-11-06)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions. Read CURRENT.md and docs/FINALIZE-F4-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. All 3 F4 starts are used (23.85/75 min). The launch helper refuses a fourth start.
+- **Not authorized:** merge, release, publication, a new start, or F5.
+
+Facts for a successor:
+- Registering a new tranche scenario takes more than the Sprint 4 list. The `-clike 'sprint4-*'` prefix dispatches in Chunk6aNativeMammothEvidence.ps1 and ChildEntryPreambleEvidence.ps1 need it, and so do both row lists: RuntimeHarness.Common.ps1 near 4223 and RuntimeProtocol.cs near 1566.
+- Owner-surface isolation is zero-write. The native after-entry autosave of a dungeon entry is a fatal violation there.
+- The roguelike hub holds 2 LootComponent (ChestForStash) and no trap.
+- After an F4 stage moves the pair, the rider-on-foot comparison leg may find no route.
+- `UnitAttack.Target` has a private setter, so the continuation sets it through the exact token 0x0600266C.
+
+First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f4.json.
+
 # F3 resume — final review stop (2026-11-06, completion)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f3; branch codex/kmc-finalize-f3-movement-economy-hud; draft PR #18. Read CURRENT.md and docs/FINALIZE-F3-REVIEW-HANDOFF.md.
