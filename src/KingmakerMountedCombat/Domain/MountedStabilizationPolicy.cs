@@ -312,6 +312,13 @@ namespace KingmakerMountedCombat.Domain
     // InterruptMove callers and unmounted or unrelated units are never touched.
     public static class MountedTrapGroupStopPolicy
     {
+        // The prefix opens the scope only where native TryInteract runs its stop loop (a trap interaction or an object with a
+        // visible trap) and never for a hover or prediction simulation.
+        public static bool OpensTrapClickScope(bool disableTrapInteraction, bool hasVisibleTrap, bool simulatingClick)
+        {
+            return (disableTrapInteraction || hasVisibleTrap) && !simulatingClick;
+        }
+
         public static bool ShouldForward(bool insideAcceptedTrapClick, bool simulatingClick, bool pairMounted, bool stoppedUnitIsExactRider)
         {
             return insideAcceptedTrapClick && !simulatingClick && pairMounted && stoppedUnitIsExactRider;

@@ -2193,6 +2193,31 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastCarriedApproachObservation { get; private set; } = "not-observed";
 
+        // F4 review MINOR-2: native UnitCommands.InterruptMove interrupts every command still approaching (IsMoveUnit).
+        // The rider's own approaching orders never run native TickApproaching (the mount carries them), so the trap-order
+        // group stop ends them here: an unstarted carried command, and a pair attack still approaching before any strike.
+        internal int InterruptRiderApproachingOrders(string reason)
+        {
+            if (disposed) return 0;
+            var count = 0;
+            var carried = carriedApproach?.Command;
+            if (carried != null && !carried.IsStarted && !carried.IsFinished) { carried.Interrupt(); count++; }
+            var active = activeCommand;
+            if (active != null && !active.ChargeMode && active.IsApproachingBeforeAttack)
+            {
+                if (HasStockAttackIntent && ReferenceEquals(stockIntentCommand, active)) ClearStockAttackIntent(reason, true);
+                activeCommand = null;
+                pairedCommandScheduler.ObserveExternalInterrupt(active, reason);
+                active.Interrupt();
+                count++;
+            }
+            if (count > 0) logger.Info("Rider approaching orders interrupted by the native group stop: count=" + count + "; reason=" + reason + ".");
+            return count;
+        }
+
+        private UnitCommand carriedFirstSeenCommand;
+        internal long CarriedApproachReplacedTravelCount { get; private set; }
+
         // Exact native component types only: a derived chest, loot or door type is "Other" and stays native.
         internal static MountedCarriedInteractionClass ClassifyCarriedInteraction(UnitCommand command, UnitInteractWithObject interaction)
         {
@@ -2243,6 +2268,25 @@ namespace KingmakerMountedCombat.Integration
                 {
                     LastCarriedApproachObservation = "deferred: another pair operation owns the mount";
                     return false;
+                }
+                // F4 review MAJOR-1: a new ordinary chest/loot order replaces the pair's own real-time travel, as native Run
+                // makes an unmounted unit's own move yield to its new Standard command (and as a door click does). Only on
+                // the order's first approach tick, so a later player move is never cancelled for an older waiting order.
+                var firstTick = !ReferenceEquals(carriedFirstSeenCommand, command);
+                carriedFirstSeenCommand = command;
+                var mountCommands = relationship.Mount?.Commands;
+                var mountMove = mountCommands?.GetCommand(UnitCommand.CommandType.Move);
+                if (MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(kind, firstTick, CombatController.IsInTurnBasedCombat(), command.CreatedByPlayer,
+                        mountMove is UnitMoveTo && mountMove.CreatedByPlayer && !(mountMove is MountedDoorApproachMove) && !mountMove.IsFinished,
+                        mountCommands != null && (mountCommands.Standard != null || mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||
+                            mountCommands.GetCommand(UnitCommand.CommandType.Swift) != null),
+                        mountCommands != null && mountCommands.Queue.Count == 0))
+                {
+                    mountMove.Interrupt();
+                    if (mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
+                    relationship.Mount.View?.StopMoving();
+                    CarriedApproachReplacedTravelCount++;
+                    logger.Info("Mounted container order replaced the " + MountDisplayName + " travel: command=" + command.GetType().Name + ".");
                 }
                 // Review correction B: any other live or queued command of the mount owns its movement; it is never
                 // cancelled for a carried approach, which binds once the mount is free.

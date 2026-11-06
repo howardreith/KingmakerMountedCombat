@@ -40,6 +40,11 @@ namespace KingmakerMountedCombat.Diagnostics
         // Finishing mission 2026-10-31: the same opt-in on the owner-surface case runs the single-pair turn-based door stage
         // (the pre-owned pair, the shared combat-usable door selection, no speed legs) instead of the speed legs.
         internal bool OwnerSurfaceDoorSelected => IsOwnerSurfaceSpeed && TurnBasedDoor == true;
+        // F4 (WORLD-03, WORLD-01, GAIT-01): the explicit true opt-in on the owner-surface case runs the group chest order and the
+        // native party selection after the Mount, then the unchanged speed legs with their gait frames. Never with the door stage.
+        public bool? Finalize4Exploration { get; set; }
+        public bool ShouldSerializeFinalize4Exploration() => Finalize4Exploration != null;
+        internal bool OwnerSurfaceF4Selected => IsOwnerSurfaceSpeed && Finalize4Exploration == true && TurnBasedDoor == null;
         // Owner-seed-derived combat (batch 3 scenarios 3-5): a disposable copy of the
         // owner-seed-derived Manual, cold-loaded with both pairs restored mounted. The
         // producer pins are Source*, the ACCEPTED cold consumer receipt is Checkpoint*.
@@ -454,6 +459,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var mounted6 = Mounted6SeedError(checkpoint);
             var turnBased = TurnBasedDoor == null ? null : (IsOwnerSeed || IsOwnerSurfaceSpeed) && TurnBasedDoor == true ? null :
                 "Turn-based door control is an explicit true opt-in for owner-seed exploration or the owner-surface pre-owned pair only.";
+            if (Finalize4Exploration != null && !(IsOwnerSurfaceSpeed && Finalize4Exploration == true && TurnBasedDoor == null))
+                turnBased = (turnBased == null ? "" : turnBased + " ") + "F4 exploration is an explicit true opt-in for the owner-surface pre-owned pair only, never with the door stage.";
             if (charge == null && level6 == null && mounted6 == null && turnBased == null) return errors;
             var all = new List<string>(errors);
             if (charge != null) all.Add(charge);

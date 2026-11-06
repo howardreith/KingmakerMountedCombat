@@ -303,4 +303,44 @@ $surfaceDoorFaults=@(
 foreach($fault in $surfaceDoorFaults){Reject ('owner-surface door-mode evidence '+$fault[0]) {$v=Copy-TestValue $surfaceDoor;& $fault[1] $v;Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-DoorSurfaceRequest) $v}}
 Check 'owner-surface and turn-based rows registered' {$rows=Get-KmcChunk7WorldRows;foreach($row in @('C7-world-owner-surface-mount','C7-world-owner-surface-legs','C7-world-turn-based-door')){if($rows-cnotcontains$row){throw $row}}}
 Check 'new scripts parse' {foreach($file in @('runtime/Chunk7WorldEvidence.ps1','runtime/Chunk7OwnedPairsEvidence.ps1','runtime/Chunk7OwnedPairsFixtures.ps1','runtime/Chunk7MatchedPoolEvidence.ps1','runtime/Invoke-KingmakerRuntimeScenario.ps1')){$syntax=$null;$tokens=$null;[void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $file),[ref]$tokens,[ref]$syntax);if(@($syntax).Count-ne0){throw ($file+': '+$syntax[0].Message)}}}
+# F4 (WORLD-03, WORLD-01, GAIT-01): the explicit opt-in adds the group chest order, the native party selection and the gait frames.
+function New-F4SurfaceRequest{$r=New-SurfaceRequest;$r.ownedPairs|Add-Member finalize4Exploration $true;$r}
+Check 'F4 owner-surface selection admitted' {$r=New-F4SurfaceRequest;Assert-KmcChunk7OwnedPairsSelection $r;if(-not(Test-KmcChunk7OwnedPairsFinalize4Exploration $r)){throw 'f4'}}
+Reject 'F4 exploration with the door stage' {$r=New-F4SurfaceRequest;$r.ownedPairs|Add-Member turnBasedDoor $true;Assert-KmcChunk7OwnedPairsSelection $r}
+Reject 'F4 exploration false opt-in' {$r=New-SurfaceRequest;$r.ownedPairs|Add-Member finalize4Exploration $false;Assert-KmcChunk7OwnedPairsSelection $r}
+$f4Gait=[pscustomobject]@{walkSpeedType='Normal';animationSpeed=1.5;agentSpeed=3.048;speedLimit=3.048;movementType='Normal';currentSpeedMps=3.048;modifiedSpeedMps=5.08;blueprintSpeedMps=5.08;trotTicks=40;frame=900}
+$f4Solo=[pscustomobject]@{walkSpeedType='Normal';animationSpeed=2.4;agentSpeed=5.08;speedLimit=$null;movementType='Normal';currentSpeedMps=5.08;modifiedSpeedMps=5.08;blueprintSpeedMps=5.08;trotTicks=40;frame=1200}
+$f4=[pscustomobject]@{contract='finalize4-owner-surface-exploration-v1';riderId=$rider;horseId=$horse;disclosedSetup=@('camera');containers=@([pscustomobject]@{name='Chest';id='chest-1';distance=12.0;available=$true;type='Approach';proximityRadius=0.0});riderNearestMarginSqr=9.0
+    containerOrder=[pscustomobject]@{selectedIds=@($other,$rider,$pet2);clicked=$true;inputPath='ClickMapObjectHandler.OnClick';interactorIds=@($rider);executorId=$rider;containerId='chest-1';distanceAtClick=12.0;result='Success';carriedBinds=1;carriedBound=$true
+        carriedOutcome=[pscustomobject]@{kind='ContainerInteraction';satisfied=$true;moveStarts=1;distance=3.5;los=$true;slotRestored=$true;reason=$null};horseDisplacement=8.0;lootInteractions=@([pscustomobject]@{unitId=$rider;frame=700});stillMounted=$true;trapStopsForwarded=0;commandObject=901}
+    partySelection=[pscustomobject]@{action='native-ShowPartySelection';ownerBefore='33333333-3333-4333-8333-333333333333';ownerAfter='33333333-3333-4333-8333-333333333333';generationBefore=1;generationAfter=1;stateBefore='Mounted';stateAfter='Mounted';stillMounted=$true;partyBefore=@($other,$rider);partyAfter=@($rider,$other);goFrame=800}
+    'gaitAt_mounted-party'=$f4Gait;'gaitAt_mounted-solo'=$f4Solo;trotTicksTotal=120;lastTrotSpeedLimit=3.048
+    captures=@([pscustomobject]@{leg='mounted-party';file='movement-visuals/finalize4-gait-mounted-party.png';sha256=('a'*64);bytes=200000;frame=902;gait=$f4Gait},[pscustomobject]@{leg='mounted-solo';file='movement-visuals/finalize4-gait-mounted-solo.png';sha256=('b'*64);bytes=200000;frame=1202;gait=$f4Solo})}
+function New-F4Surface{$v=Copy-TestValue $surface;$v|Add-Member finalize4 (Copy-TestValue $f4);$snaps=@($v.snapshots);$v.snapshots=@($snaps[0..1])+@([pscustomobject]@{label='owner-surface-finalize4-complete';owners=@((Copy-TestValue $ownerA))})+@($snaps[2..($snaps.Count-1)])
+    $hm=@($v.speedLegs[0].movers|Where-Object id -CEQ $horse)[0];$hm.gaits=[pscustomobject]@{Normal=150};$hm.speedLimitAtClick=3.048;$hm.meanEntitySpeedMps=3.0;$v}
+Check 'F4 owner-surface evidence admitted' {Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-F4SurfaceRequest) (New-F4Surface)}
+Reject 'F4 evidence under the plain speed selection' {Assert-KmcChunk7OwnerSurfaceSpeedEvidence $surfaceRequest (New-F4Surface)}
+$f4Faults=@(
+    @('another member chosen as interactor',{param($f)$f.containerOrder.interactorIds=@($other);$f.containerOrder.executorId=$other}),
+    @('chest order from inside the interaction range',{param($f)$f.containerOrder.distanceAtClick=4.5}),
+    @('chest interaction failed',{param($f)$f.containerOrder.result='Fail'}),
+    @('chest approach not carried',{param($f)$f.containerOrder.carriedBinds=0}),
+    @('chest opened twice',{param($f)$f.containerOrder.lootInteractions+=[pscustomobject]@{unitId=$rider;frame=710}}),
+    @('chest opened by another actor',{param($f)$f.containerOrder.lootInteractions[0].unitId=$other}),
+    @('chest order unseated the rider',{param($f)$f.containerOrder.stillMounted=$false}),
+    @('chest order triggered the trap stop',{param($f)$f.containerOrder.trapStopsForwarded=1}),
+    @('Horse never approached the chest',{param($f)$f.containerOrder.horseDisplacement=0.2}),
+    @('party re-initialisation unseated the rider',{param($f)$f.partySelection.stateAfter='Unmounted';$f.partySelection.stillMounted=$false}),
+    @('party re-initialisation replaced the pair',{param($f)$f.partySelection.ownerAfter='44444444-4444-4444-8444-444444444444'}),
+    @('party selection refused Go',{param($f)$f.partySelection|Add-Member goRefused $true}),
+    @('party-paced Horse still walking',{param($f)$f.'gaitAt_mounted-party'.walkSpeedType='Slow'}),
+    @('party-paced Horse faster than the pace',{param($f)$f.'gaitAt_mounted-party'.agentSpeed=4.5}),
+    @('impaired Horse shown trotting',{param($f)$f.'gaitAt_mounted-party'.modifiedSpeedMps=2.6}),
+    @('solo control not native',{param($f)$f.'gaitAt_mounted-solo'.walkSpeedType='Slow'}),
+    @('gait frame missing',{param($f)$f.captures=@($f.captures[0])}),
+    @('no natural-gait tick',{param($f)$f.trotTicksTotal=0}))
+foreach($fault in $f4Faults){Reject ('F4 owner-surface evidence '+$fault[0]) {$v=New-F4Surface;& $fault[1] $v.finalize4;Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-F4SurfaceRequest) $v}}
+Reject 'F4 party leg Horse sampled Slow' {$v=New-F4Surface;@($v.speedLegs[0].movers|Where-Object id -CEQ $horse)[0].gaits=[pscustomobject]@{Slow=150};Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-F4SurfaceRequest) $v}
+Reject 'F4 party leg Horse above the pace' {$v=New-F4Surface;@($v.speedLegs[0].movers|Where-Object id -CEQ $horse)[0].meanEntitySpeedMps=4.0;Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-F4SurfaceRequest) $v}
+Reject 'F4 completion window missing' {$v=New-F4Surface;$v.snapshots=@($v.snapshots|Where-Object label -CNE 'owner-surface-finalize4-complete');Assert-KmcChunk7OwnerSurfaceSpeedEvidence (New-F4SurfaceRequest) $v}
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0; synthetic reader contracts only, no native qualification')

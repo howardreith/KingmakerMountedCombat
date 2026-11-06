@@ -1125,8 +1125,8 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void TrapClickScopePrefix(InteractionComponent interaction)
             {
-                trapClickInteraction = !PointerController.SimulatingClick && interaction != null &&
-                    (interaction is DisableTrapInteractionComponent || interaction.HasVisibleTrap()) ? interaction : null;
+                trapClickInteraction = interaction != null && MountedTrapGroupStopPolicy.OpensTrapClickScope(
+                    interaction is DisableTrapInteractionComponent, interaction.HasVisibleTrap(), PointerController.SimulatingClick) ? interaction : null;
                 trapClickFrame = UnityEngine.Time.frameCount;
             }
 
@@ -1139,7 +1139,7 @@ namespace KingmakerMountedCombat.Integration
             internal static void InterruptMovePostfix(UnitCommands __instance)
             {
                 if (trapClickInteraction == null) return;
-                var inside = MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(true, trapClickFrame, UnityEngine.Time.frameCount, true);
+                var inside = MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(trapClickFrame >= 0, trapClickFrame, UnityEngine.Time.frameCount, true);
                 var owner = PatchBridge.Owner(__instance);
                 var rider = owner?.Rider;
                 if (rider != null && ReferenceEquals(rider.Commands, __instance))

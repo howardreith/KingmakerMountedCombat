@@ -4,7 +4,51 @@ function Get-KmcSprint4NaturalCases([string]$Scenario) {
  if($Scenario -ceq 'sprint4-natural-tb'){ return @('S4-tb-ordinary-actors') }
  if($Scenario -ceq 'sprint4-natural-rt'){ return @('S4-ui-clean','S4-ranged-retarget','S4-controls','S4-melee-retarget','S4-hold-no-chase') }
  if($Scenario -ceq 'sprint4-intent-rt'){ return @('S4-move-into-combat','S4-queued-hold','S4-intent-neighbors') }
+ if($Scenario -ceq 'finalize4-ai-rt'){ return @('F4-melee-engage','S4-ranged-retarget','S4-controls','S4-melee-retarget','S4-hold-no-chase') }
  throw ('Sprint 4 scenario has no case list: '+$Scenario)
+}
+# F4 (AI-02): a fresh engagement with rider AI on and no click. The native brain's automatic pair command approaches a
+# hostile that walks toward the pair and attacks it; a chase it is closing never exhausts the bounded repath allowance.
+function Assert-KmcFinalize4EngageRow($Row,[string]$Rider,[string]$Mount){
+ $walker=[string]$Row.evidence.firstTarget
+ if([string]::IsNullOrEmpty($walker)){ throw 'F4 engagement row lacks its hostile' }
+ if(@(Get-KmcSprint4Inputs $Row 'hostile-click').Count -ne 0 -or @(Get-KmcSprint4Inputs $Row 'ground-click').Count -ne 0){ throw 'F4 engagement row was given a player order' }
+ $toggles=@(Get-KmcSprint4Inputs $Row 'ai-toggle')
+ if($toggles.Count -lt 1 -or [string]$toggles[-1].name -cne 'engagement-no-click' -or $toggles[-1].value -ne $true){ throw 'F4 engagement row did not run with the rider AI on' }
+ $walk=Get-KmcSprint4Step $Row 'walkOrdered'; $dispatch=Get-KmcSprint4Step $Row 'automaticDispatch'; $dead=Get-KmcSprint4Step $Row 'walkerDead'; $null=Get-KmcSprint4Step $Row 'settled'
+ if([double]$walk.gapToMount -lt 10){ throw 'F4 engagement hostile did not start out of reach' }
+ if([double]$dead.walkerDisplacement -lt 2){ throw 'F4 engagement hostile did not move toward the pair' }
+ if([double]$dead.mountDisplacement -lt 1){ throw 'F4 engagement mount did not approach' }
+ if($dead.riderUnreachable -ne $false){ throw 'F4 engagement target was marked unreachable for the rider' }
+ $commands=@($Row.evidence.pairCommands | Where-Object { [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $walker })
+ if($commands.Count -lt 1){ throw 'F4 engagement no rider pair command addressed the hostile' }
+ foreach($command in $commands){
+  if($command.automaticIntent -ne $true -or $command.createdByPlayer -ne $false){ throw 'F4 engagement command is not the automatic path' }
+  if((Test-KmcSprint4Prop $command 'repaths') -and [int]$command.repaths -gt 4){ throw 'F4 engagement command exceeded the bounded repath allowance' }
+  if((Test-KmcSprint4Prop $command 'terminalReason') -and [string]$command.terminalReason -cmatch 'bounded (repath allowance|execution time)'){ throw 'F4 engagement approach faulted on its bound' }
+ }
+ $approach=@($commands | Where-Object { $_.approachRequired -eq $true -and (Test-KmcSprint4Prop $_ 'endFrame') })
+ if($approach.Count -lt 1){ throw 'F4 engagement no completed rider command approached the hostile' }
+ if((@($approach | ForEach-Object { [int]$_.progressingRepaths }) | Measure-Object -Sum).Sum -lt 1){ throw 'F4 engagement never followed the moving hostile' }
+ $strikes=@(Get-KmcSprint4Attacks $Row $Rider $walker)
+ if($strikes.Count -lt 1){ throw 'F4 engagement rider never attacked the hostile' }
+ if([int]$strikes[0].frame -lt [int]$approach[0].frame){ throw 'F4 engagement strike precedes the approaching command' }
+ if(($Row.evidence.costEvents | Measure-Object).Count -eq 0){ throw 'F4 engagement records no native expenditure' }
+}
+# F4 (AI-01): the clicked routine continues natively on the next remembered enemy once its first target is down; the
+# continuation spends nothing new, so the routine's strikes never exceed its own native plan.
+function Assert-KmcFinalize4ContinuationRow($Row,[string]$Rider){
+ $first=[string]$Row.evidence.firstTarget; $second=[string]$Row.evidence.secondTarget
+ $clicked=@($Row.evidence.pairCommands | Where-Object { [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $first -and (Test-KmcSprint4Prop $_ 'endFrame') } | Sort-Object { [int]$_.frame })
+ if($clicked.Count -lt 1){ throw 'F4 continuation the clicked routine has no terminal' }
+ $routine=$clicked[0]
+ $inWindow={ param($target) @($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Rider -and [string]$_.target -ceq $target -and [int]$_.frame -ge [int]$routine.frame -and [int]$_.frame -le [int]$routine.endFrame }) }
+ $onFirst=@(& $inWindow $first); $onSecond=@(& $inWindow $second); $planned=[int]$routine.plannedAttacks
+ if($onFirst.Count -lt 1 -or ($onFirst.Count + $onSecond.Count) -gt $planned){ throw ('F4 continuation routine struck '+($onFirst.Count+$onSecond.Count)+' times against a plan of '+$planned) }
+ if($onFirst.Count -lt $planned){
+  if([int]$routine.continuations -ne 1 -or [string]$routine.continuationTargets -cne $second -or [string]$routine.endTarget -cne $second){ throw 'F4 continuation the routine ended at the kill instead of continuing on the next target' }
+  if($onSecond.Count -lt 1){ throw 'F4 continuation the remaining planned attacks never reached the next target' }
+ } elseif([int]$routine.continuations -ne 0){ throw 'F4 continuation recorded with no remaining planned attack' }
 }
 function Test-KmcSprint4Prop($Object,[string]$Name){ $null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name] -and $null -ne $Object.$Name }
 function Get-KmcSprint4Attacks($Row,[string]$Actor,[string]$Target){ @($Row.evidence.rules.events | Where-Object { [string]$_.kind -ceq 'attack-before' -and [string]$_.actor -ceq $Actor -and [string]$_.target -ceq $Target }) }
@@ -204,7 +248,7 @@ function Assert-KmcSprint4NeighborRow($Row,[string]$Rider,[string]$Mount,[string
 }
 function Assert-KmcSprint4NaturalEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
- if($Request.scenario -cnotin @('sprint4-natural-rt','sprint4-natural-tb','sprint4-intent-rt') -or $Artifact.schemaVersion -ne 48){ throw 'Sprint 4 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint4-natural-rt','finalize4-ai-rt','sprint4-natural-tb','sprint4-intent-rt') -or $Artifact.schemaVersion -ne 48){ throw 'Sprint 4 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 4 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -222,7 +266,8 @@ function Assert-KmcSprint4NaturalEvidence {
   $row=$rows[0]
   switch -CaseSensitive ($name) {
    'S4-ui-clean' { Assert-KmcSprint4UiRow $row $o.rider $o.mount }
-   'S4-ranged-retarget' { Assert-KmcSprint4RangedRow $row $o.rider $o.mount }
+   'S4-ranged-retarget' { Assert-KmcSprint4RangedRow $row $o.rider $o.mount; if($Request.scenario -ceq 'finalize4-ai-rt'){ Assert-KmcFinalize4ContinuationRow $row $o.rider } }
+   'F4-melee-engage' { Assert-KmcFinalize4EngageRow $row $o.rider $o.mount }
    'S4-controls' { Assert-KmcSprint4ControlsRow $row $o.rider $o.mount }
    'S4-melee-retarget' { Assert-KmcSprint4MeleeRow $row $o.rider $o.mount }
    'S4-hold-no-chase' { Assert-KmcSprint4HoldRow $row $o.rider $o.mount }

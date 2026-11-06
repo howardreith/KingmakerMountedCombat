@@ -10,6 +10,8 @@ $request=Get-Content -Raw $source | ConvertFrom-Json
 # The exact selected F3 branch is admitted beside the exact F1 and F2 branches and the KMC prefix; near misses are not.
 $cases=@(
     @{branch='codex/kmc-finalize-f3-movement-economy-hud';valid=$true},
+    @{branch='codex/kmc-finalize-f4-orders-ai-transitions';valid=$true},
+    @{branch='codex/kmc-finalize-f4-orders-ai-transitions-x';valid=$false},
     @{branch='codex/kmc-finalize-f3-movement-economy-hud-x';valid=$false},
     @{branch='codex/kmc-finalize-f3';valid=$false},
     @{branch='Codex/kmc-finalize-f3-movement-economy-hud';valid=$false},

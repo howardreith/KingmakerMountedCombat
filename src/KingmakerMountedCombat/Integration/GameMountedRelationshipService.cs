@@ -601,6 +601,7 @@ namespace KingmakerMountedCombat.Integration
             if (!MountedTrapGroupStopPolicy.ShouldForward(insideAcceptedTrapClick, simulatingClick,
                     coordinator.State == RelationshipState.Mounted, stoppedUnit != null && ReferenceEquals(stoppedUnit, runtime.Rider)))
                 return false;
+            CombatOwner?.InterruptRiderApproachingOrders("native trap-order group stop");
             runtime.CancelMountMovement();
             TrapGroupStopForwardCount++;
             logger.Info("Native trap-order group stop forwarded to the mount: riderId=" + runtime.Rider.UniqueId +

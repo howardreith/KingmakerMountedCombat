@@ -933,6 +933,43 @@ function Assert-KmcChunk7QuietWindow($Window,$Move,$ExpectedOwners,[string[]]$Ac
 # registered save loads through the missing-metadata path; the one pre-owned pair is bound exactly (nothing built, granted,
 # levelled or acquired; no second pair; zero writes); the ordinary native Mount, the four aligned speed legs, the ordinary
 # native Dismount and cleanup are the whole observation. Every leg must have run on this surface for the row to PASS.
+# F4 (WORLD-03, WORLD-01, GAIT-01) on the owner's surface. The group chest order: the native chooser gave the one
+# interaction to the rider, the Horse carried the approach from outside the interaction range, the native interaction
+# opened exactly once, the pair stayed mounted. The native party selection Go (Player.ReInitPartyCharacters) kept the exact
+# pair. The party-paced leg shows the Horse's run cycle at the unchanged party pace; the solo leg is the native control.
+function Assert-KmcFinalize4ExplorationEvidence($F,[string]$Rider,[string]$Horse,[string[]]$Party,$Legs){
+    if($null-eq$F-or$F.contract-cne'finalize4-owner-surface-exploration-v1'-or$F.riderId-cne$Rider-or$F.horseId-cne$Horse){throw 'F4 exploration identity differs.'}
+    $c=$F.containerOrder;if($null-eq$c){throw 'F4 exploration recorded no chest order.'}
+    if($c.clicked-ne$true-or$c.inputPath-cne'ClickMapObjectHandler.OnClick'){throw 'F4 chest order was not the ordinary native map-object click.'}
+    $selected=@($c.selectedIds);if($selected.Count-lt2-or$selected-cnotcontains$Rider-or$selected-ccontains$Horse){throw 'F4 chest order was not a group order through the rider.'}
+    foreach($id in $selected){if($id-cnotin$Party){throw 'F4 chest order selected an actor outside the owner roster.'}}
+    if(@($c.interactorIds).Count-ne1-or[string]@($c.interactorIds)[0]-cne$Rider-or$c.executorId-cne$Rider){throw 'F4 native chooser did not give the one interaction to the rider.'}
+    $radius=[double]@($F.containers|Where-Object id -CEQ $c.containerId)[0].proximityRadius;if($radius-le0){$radius=4.0}
+    if([double]$c.distanceAtClick-le($radius+1.0)){throw 'F4 chest order did not start outside the interaction range.'}
+    if($c.result-cne'Success'){throw ('F4 chest interaction did not succeed: '+$c.result)}
+    if([int]$c.carriedBinds-ne1-or$c.carriedOutcome.kind-cne'ContainerInteraction'-or$c.carriedOutcome.satisfied-ne$true-or$c.carriedOutcome.slotRestored-ne$true){throw 'F4 chest approach was not carried exactly once by the Horse.'}
+    if([double]$c.horseDisplacement-lt1.0){throw 'F4 Horse did not approach the chest.'}
+    $loot=@($c.lootInteractions);if($loot.Count-ne1-or[string]$loot[0].unitId-cne$Rider){throw ('F4 chest opened '+$loot.Count+' times or by another actor.')}
+    if($c.stillMounted-ne$true){throw 'F4 chest order unseated the rider.'}
+    if([int]$c.trapStopsForwarded-ne0){throw 'F4 an ordinary chest order triggered the trap group stop.'}
+    $p=$F.partySelection;if($null-eq$p-or$p.action-cne'native-ShowPartySelection'){throw 'F4 exploration did not run the native party selection.'}
+    if($null-ne$p.PSObject.Properties['goRefused']){throw 'F4 native party selection refused Go.'}
+    if($p.stateBefore-cne'Mounted'-or$p.stateAfter-cne'Mounted'-or$p.stillMounted-ne$true){throw 'F4 native party re-initialisation unseated the rider.'}
+    if([string]::IsNullOrEmpty([string]$p.ownerBefore)-or$p.ownerAfter-cne$p.ownerBefore-or[long]$p.generationAfter-ne[long]$p.generationBefore){throw 'F4 party re-initialisation replaced the exact pair.'}
+    if((@($p.partyBefore)|Sort-Object)-join'|'-cne((@($p.partyAfter)|Sort-Object)-join'|')){throw 'F4 party selection changed the party.'}
+    $partyGait=$F.'gaitAt_mounted-party';$soloGait=$F.'gaitAt_mounted-solo'
+    if($null-eq$partyGait-or$null-eq$soloGait){throw 'F4 gait was not sampled inside both mounted legs.'}
+    if($partyGait.walkSpeedType-cne'Normal'-or$null-eq$partyGait.speedLimit-or[double]$partyGait.speedLimit-ge[double]$partyGait.modifiedSpeedMps-or[double]$partyGait.modifiedSpeedMps-lt(0.95*[double]$partyGait.blueprintSpeedMps)){throw 'F4 party-paced Horse did not show the run cycle under pacing alone.'}
+    if([double]$partyGait.agentSpeed-gt([double]$partyGait.speedLimit*1.02)){throw 'F4 party-paced Horse moved faster than the party pace.'}
+    if($soloGait.walkSpeedType-cne'Normal'-or$null-ne$soloGait.speedLimit){throw 'F4 solo Horse control differs from the native gait.'}
+    $hm=@(@($Legs[0].movers)|Where-Object id -CEQ $Horse);if($hm.Count-ne1){throw 'F4 party leg lacks the Horse mover.'}
+    $normal=[int]$hm[0].gaits.Normal;$slow=0;if($null-ne$hm[0].gaits.PSObject.Properties['Slow']){$slow=[int]$hm[0].gaits.Slow}
+    if($normal-lt1-or$slow-gt[Math]::Max(2,[int]($normal*0.05))){throw ('F4 party leg Horse gaits differ: Normal '+$normal+', Slow '+$slow)}
+    if([double]$hm[0].meanEntitySpeedMps-gt([double]$hm[0].speedLimitAtClick*1.02)){throw 'F4 party leg Horse speed exceeds the party pace.'}
+    if([long]$F.trotTicksTotal-lt1){throw 'F4 recorded no natural-gait tick.'}
+    foreach($leg in @('mounted-party','mounted-solo')){$shot=@(@($F.captures)|Where-Object{$_.leg-ceq$leg-and$null-ne$_.PSObject.Properties['file']})
+        if($shot.Count-ne1-or[string]$shot[0].sha256-cnotmatch'^[a-f0-9]{64}$'-or[int]$shot[0].bytes-lt1000){throw ('F4 gait frame missing for '+$leg)}}
+}
 function Get-KmcChunk7OwnerSurfaceFields {@('contract','seedId','seedSha256','riderId','horseId','profileId','horseBlueprint','horseFeatureSourceGuid','preOwnedPair','fixtureSetupOnly','acquisitionProof','producerAncestry','nativeLoadVerifiedByHost','loadedArchiveKind','loadedArchiveCanRestore','mutations','secondPair','selectionChangeActorId','area','gameName','gameId','partyIds','legsCompleted','legsApplicable')}
 function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     Assert-KmcChunk7OwnedPairsDescriptor $Request
@@ -940,7 +977,9 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     $s=$Request.ownedPairs;$o=$Observations;$d=$Request.persistenceLoad;$rider=[string]$s.riderAId;$horse=[string]$s.mountAId
     # Door mode (finishing mission 2026-10-31): the explicit opt-in runs the single-pair turn-based door stage instead of the speed legs.
     $doorMode=Test-KmcChunk7OwnedPairsTurnBasedDoor $Request
-    foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','ownerSeedSetup','ownerSeed','routeGoalContract','routeGoalSearches','failurePhase','setupComplete')+$(if($doorMode){@()}else{@('door','turnBasedDoor')})){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface evidence cannot carry '+$key+'.')}}
+    # F4: the explicit opt-in adds the group chest order and the native party selection before the unchanged legs.
+    $f4Mode=Test-KmcChunk7OwnedPairsFinalize4Exploration $Request
+    foreach($key in @('inheritedFixture','inheritedCleanup','acquisition','ownerSeedSetup','ownerSeed','routeGoalContract','routeGoalSearches','failurePhase','setupComplete')+$(if($doorMode){@()}else{@('door','turnBasedDoor')})+$(if($f4Mode){@()}else{@('finalize4')})){if($null-ne$o.PSObject.Properties[$key]){throw ('Owner-surface evidence cannot carry '+$key+'.')}}
     foreach($key in @('cycles','measurements','movements','cycleInputs','groundInputs')){if($null-eq$o.PSObject.Properties[$key]-or@($o.$key).Count-ne0){throw ('Owner-surface speed runs no '+$key+'.')}}
     $u=$o.ownerSurface;Assert-KmcExactProperties $u ((Get-KmcChunk7OwnerSurfaceFields)+$(if($null-ne$u.PSObject.Properties['doorStage']){@('doorStage')}else{@()})) 'owner-surface pre-owned pair identity'
     if($null-ne$u.PSObject.Properties['doorStage']){Assert-KmcChunk7Boolean $u.doorStage $doorMode}elseif($doorMode){throw 'Owner-surface door mode requires the doorStage flag.'}
@@ -977,7 +1016,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             [string]::IsNullOrEmpty($v.shellControl)-or-not$shells.Add([string]$v.shellControl)-or$v.generationAtInit-lt0-or$v.selectionAfterInput-cnotin$selectionActors){throw 'Owner-surface native input command/shell/selection identity differs.'}
         Assert-KmcChunk7Resources $v.resourcesBefore $v.resourcesAfter $actors}
     # Ownership windows: unmounted at start, exactly one active owner while mounted, none afterwards.
-    $windows=$(if($doorMode){@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('turn-based-door-complete',1),@('owner-surface-dismounted',0),@('owner-surface-door-complete',0))}else{@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))})
+    $windows=$(if($doorMode){@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('turn-based-door-complete',1),@('owner-surface-dismounted',0),@('owner-surface-door-complete',0))}elseif($f4Mode){@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-finalize4-complete',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))}else{@(@('owner-surface-start',0),@('owner-surface-mounted',1),@('owner-surface-dismounted',0),@('owner-surface-legs-complete',0))})
     foreach($pair in $windows){
         $w=@($o.snapshots|Where-Object label -CEQ $pair[0]);if($w.Count-ne1){throw ('Owner-surface window missing: '+$pair[0])}
         $active=@($w[0].owners|Where-Object state -CEQ 'Active');if($active.Count-ne$pair[1]){throw ('Owner-surface window '+$pair[0]+' has '+$active.Count+' active owners.')}
@@ -1046,6 +1085,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
             if($i-eq3-and($riderRows.Count-ne1-or$riderRows[0].role-cne'on-foot')){throw 'The rider-solo leg did not move the rider on foot.'}
         }}
     if(@($legs[0].selectedIds).Count-lt2){throw 'The party-paced leg did not select the party.'}
+    if($f4Mode){Assert-KmcFinalize4ExplorationEvidence $o.finalize4 $rider $horse @($s.partyIds) $legs}
     }
     # Cleanup: the owner's pair is preserved (never removed), no save written, settings and selection restored.
     $c=$o.cleanup

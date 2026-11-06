@@ -25,16 +25,22 @@ namespace KingmakerMountedCombat.Diagnostics
     // row: the native party brain chooses it. The reader owns PASS/FAIL.
     internal sealed partial class Phase3dHorseScenarioTranche
     {
-        internal static bool IsSprint4NaturalScenario(string scenario) => scenario == "sprint4-natural-rt" || scenario == "sprint4-natural-tb" || scenario == "sprint4-intent-rt";
+        internal static bool IsSprint4NaturalScenario(string scenario) => scenario == "sprint4-natural-rt" || scenario == Finalize4AiRealTime || scenario == "sprint4-natural-tb" || scenario == "sprint4-intent-rt";
         private bool IsSprint4Intent => request.Scenario == "sprint4-intent-rt";
         private bool IsSprint4Natural => IsSprint4NaturalScenario(request.Scenario);
+        // F4 (AI-01, AI-02): the Sprint 4 real-time rows on the corrected pair command, led by a fresh engagement with a moving
+        // hostile and no click. The ranged row now also records the native routine continuation after its kill.
+        internal const string Finalize4AiRealTime = "finalize4-ai-rt";
+        private bool IsFinalize4Ai => request.Scenario == Finalize4AiRealTime;
+        internal static readonly string[] Finalize4AiCases = { "F4-melee-engage", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase" };
+        internal const double Finalize4AiScenarioDeadlineSeconds = 380.0d, Finalize4AiHostDeadlineSeconds = 540.0d;
         internal const int Sprint4SchemaVersion = 48;
         // Inside the host deadline even after the host's own startup (about 60 s, r06), so a stalled row still writes its evidence.
         internal const double Sprint4ScenarioDeadlineSeconds = 300.0d, Sprint4HostDeadlineSeconds = 460.0d;
         internal static readonly string[] Sprint4RealTimeCases = { "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase" };
         internal static readonly string[] Sprint4TurnBasedCases = { "S4-tb-ordinary-actors" };
         internal static readonly string[] Sprint4IntentCases = { "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors" };
-        private string[] Sprint4Cases => CastingTb ? Sprint4TurnBasedCases : IsSprint4Intent ? Sprint4IntentCases : Sprint4RealTimeCases;
+        private string[] Sprint4Cases => CastingTb ? Sprint4TurnBasedCases : IsSprint4Intent ? Sprint4IntentCases : IsFinalize4Ai ? Finalize4AiCases : Sprint4RealTimeCases;
         private string Sprint4Case => Sprint4Cases[s4CaseIndex];
         private const float Sprint4ObservationSeconds = 3f, Sprint4StopGraceSeconds = 1f, Sprint4RecipientMetres = 12f;
         private const int Sprint4RequiredAutomaticDispatches = 2;
@@ -193,6 +199,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     s4TrackedRecord["result"] = outcome.Result; s4TrackedRecord["terminalReason"] = outcome.TerminalReason;
                     s4TrackedRecord["childAttackStarts"] = outcome.ChildAttackStartCount; s4TrackedRecord["rangedTail"] = outcome.NativeRangedTailTermination;
                     s4TrackedRecord["endFrame"] = Time.frameCount;
+                    // F4: the chase and continuation counters of the corrected pair command.
+                    s4TrackedRecord["approachRequired"] = outcome.ApproachRequiredAtStart; s4TrackedRecord["repaths"] = outcome.RepathCount;
+                    s4TrackedRecord["progressingRepaths"] = outcome.ProgressingRepathCount; s4TrackedRecord["continuations"] = outcome.ContinuationTargetCount;
+                    s4TrackedRecord["initialTarget"] = outcome.InitialTargetId; s4TrackedRecord["continuationTargets"] = outcome.ContinuationTargetIds;
+                    s4TrackedRecord["endTarget"] = outcome.TargetId; s4TrackedRecord["repathObservations"] = outcome.RepathObservations;
+                    s4TrackedRecord["plannedAtEnd"] = outcome.NativePlannedAttackCount; s4TrackedRecord["completedAtEnd"] = outcome.NativeCompletedAttackCount;
                 }
             }
             var count = ((JArray)Sprint4RowRules()["events"]).Count;
@@ -328,6 +340,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S4-move-into-combat": TickSprint4MoveIntoCombat(); return;
                 case "S4-queued-hold": TickSprint4QueuedHold(); return;
                 case "S4-intent-neighbors": TickSprint4IntentNeighbors(); return;
+                case "F4-melee-engage": TickFinalize4MeleeEngage(); return;
                 default: throw new InvalidOperationException("Unknown Sprint 4 case " + Sprint4Case);
             }
         }
@@ -441,6 +454,69 @@ namespace KingmakerMountedCombat.Diagnostics
             s4Facts["mountEnd"] = CapturePosition(horse.Position); s4Facts["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
             s4Facts["firstTarget"] = s4First.UniqueId; s4Facts["secondTarget"] = s4Second.UniqueId;
             FinishSprint4Row(true, "Ranged retarget observations recorded.");
+        }
+
+        // ---- F4 AI-02: a fresh engagement, rider AI on, no click, the hostile walking toward the pair ----------------------
+        // Setup only, disclosed: the hostile is left one hit point and given one ordinary native move toward the pair (its
+        // own brain stays off). The native party brain chooses the target; the pair command approaches a moving target.
+        private Vector3 f4WalkerStart, f4WalkerAtDispatch;
+        private float f4WalkStartedAt;
+        private void TickFinalize4MeleeEngage()
+        {
+            if (s4Step == 0)
+            {
+                var weapon = rider.GetFirstWeapon();
+                s4Facts["riderWeapon"] = new JObject { ["blueprint"] = weapon?.Blueprint?.AssetGuid, ["ranged"] = weapon?.Blueprint?.IsRanged, ["natural"] = weapon?.Blueprint?.IsNatural };
+                if (weapon?.Blueprint == null || weapon.Blueprint.IsRanged) { FailSprint4Row("The fixture rider has no melee weapon for the engagement row."); return; }
+                Sprint4SetAi(false, "before-encounter");
+                s4First = Sprint4Spawn(18f, "f4-walker", false);
+                Sprint4LeaveOneHitPoint(s4First);
+                castingCosts.BeginEncounter(request.RunId + ":finalize4-engage");
+                s4Step = 1; ResetLeafClock(); return;
+            }
+            if (s4Step == 1)
+            {
+                if (!rider.IsInCombat || !horse.IsInCombat || !s4First.IsInCombat || !rider.CombatState.CanActInCombat) return;
+                if (rider.CombatState.Cooldown.StandardAction > .001f || !rider.Commands.Empty || !horse.Commands.Empty) return;
+                f4WalkerStart = s4First.Position;
+                var toward = horse.Position + (s4First.Position - horse.Position).normalized * 2.5f;
+                var goal = Kingmaker.View.ObstacleAnalyzer.GetNearestNode(toward).clampedPosition;
+                var walk = new UnitMoveTo(goal, 0.3f) { CreatedByPlayer = false };
+                s4First.Commands.Run(walk);
+                f4WalkStartedAt = Time.time;
+                var record = Sprint4Step("walkOrdered");
+                record["walkerStart"] = CapturePosition(f4WalkerStart); record["walkGoal"] = CapturePosition(goal);
+                record["gapToMount"] = HorizontalDistance(f4WalkerStart, horse.Position); record["walkerSpeedMps"] = s4First.CurrentSpeedMps;
+                s4Facts["disclosedSetup"] = new JArray(
+                    "hostile left one hit point and given one ordinary native UnitMoveTo toward the pair; its brain stays off");
+                s4HoldPosition = horse.Position;
+                Sprint4SetAi(true, "engagement-no-click");
+                s4Step = 2; ResetLeafClock(); return;
+            }
+            if (s4Step == 2)
+            {
+                var active = combat.CurrentPairCommand;
+                if (active == null || active.ActionActor != rider || !combat.StockIntentIsAutomatic) return;
+                f4WalkerAtDispatch = s4First.Position;
+                var record = Sprint4Step("automaticDispatch");
+                record["walkerDisplacementAtDispatch"] = HorizontalDistance(f4WalkerStart, f4WalkerAtDispatch);
+                record["gapAtDispatch"] = HorizontalDistance(s4First.Position, horse.Position);
+                record["secondsAfterWalk"] = Time.time - f4WalkStartedAt;
+                s4Step = 3; ResetLeafClock(); return;
+            }
+            if (s4Step == 3)
+            {
+                if (!s4First.Descriptor.State.IsDead) return;
+                var record = Sprint4Step("walkerDead");
+                record["walkerDisplacement"] = HorizontalDistance(f4WalkerStart, s4First.Position);
+                record["mountDisplacement"] = HorizontalDistance(s4HoldPosition, horse.Position);
+                record["riderUnreachable"] = rider.CombatState.AIData.UnreachableUnits.Contains(s4First);
+                s4Facts["firstTarget"] = s4First.UniqueId; s4Step = 4; ResetLeafClock(); return;
+            }
+            // The encounter ends with its only hostile; the next row starts settled.
+            if (rider.IsInCombat || !Sprint4Settled()) return;
+            Sprint4Step("settled");
+            FinishSprint4Row(true, "Engagement with a moving hostile recorded.");
         }
 
         // ---- Stop, AI toggle, manual replacement, pause and a cast, on the same encounter ------------------------------
