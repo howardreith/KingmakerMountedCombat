@@ -70,7 +70,7 @@ function New-F3TbArtifact {
  $stepProbe=New-F3Probe 'aMount' 0.0 0.0 @{partner=[ordered]@{timeMoved=0.3;timeForced=0.0;timeStepped=0.3;metresStepped=1.0;modifyLimit=$false;enabledStep=$false;enabledSingle=$false;remaining=0.0;remainingTotal=0.0;stepRange=0.0}}
  $st=[ordered]@{case='F3-tb-a-step';steps=[ordered]@{
   start=[ordered]@{snap=$s0;probe=(New-F3Probe 'aMount' 15.0 30.0);tracker=(New-F3Tracker 'a-round2-start' ($r1+1))};
-  s1=(New-F3Step $s0 $s0 1.0 @{changedContext='partner';probe=$stepProbe;contextsBefore=[ordered]@{current=[ordered]@{modifyLimit=$false};partner=[ordered]@{modifyLimit=$false}}});s1Click=(New-F3Click 'aRider');
+  s1=(New-F3Step $s0 $s0 1.0 @{changedContext='current';probe=$stepProbe;contextsBefore=[ordered]@{current=[ordered]@{modifyLimit=$false};partner=[ordered]@{modifyLimit=$false}}});s1Click=(New-F3Click 'aRider');
   s2=(New-F3Step $s0 $s0 0.0 @{probe=$stepProbe});s2Click=(New-F3Click 'aRider' @{clicked=$false});end=[ordered]@{snap=$s0;endedNatively=$true}}}
  # Pair B, round two: the ordinary Charge, nothing after it, then the mount's retained Standard.
  $c0=New-F3Snap ($r1+1) @{} @{turnRole='bRider'}
@@ -180,7 +180,7 @@ $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b1.probe.remaining=1.5; (Row $r 
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-round1').steps.b2.mountDelta=1.4; Reject $r 'a rider-selected move held to a five-foot step refuses' $tbRequest 'B2 the mount travelled'
 # ECON-02 step and D4 charge
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1.probe.remaining=7.5; Reject $r 'step leaves range > 0 refuses' $tbRequest 'S1 no movement range'
-$r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1.changedContext='current'; Reject $r 'step mode on the rider context refuses' $tbRequest 'S1 step mode changed the mount context'
+$r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1.changedContext='partner'; Reject $r 'step key off the native input context refuses' $tbRequest 'S1 step key held on the native input context'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s1.after.aMount.move=0.3; Reject $r 'a step that spent Move refuses' $tbRequest 'S1: aMount move unchanged'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-a-step').steps.s2.mountDelta=4.0; Reject $r 'an ordinary move after the step refuses' $tbRequest 'S2 ordinary move refused'
 $r=Copy-F3 $tb; (Row $r 'F3-tb-b-charge').steps.c2.probe.remaining=6.0; Reject $r 'charge leaves range > 0 refuses' $tbRequest 'C2 no movement range'

@@ -124,7 +124,8 @@ function Assert-KmcFinalize3EconomyEvidence {
   $st=$rows['F3-tb-a-step']
   Need ((Int (P (P (Step $st 'start') 'snap') 'round') 'pair A second round') -eq $round1+1) 'the step activation is pair A next round'
   $s1=Step $st 's1'; $s1c=Step $st 's1Click'
-  Need ((Text (P $s1 'changedContext')) -ceq 'partner') 'S1 step mode changed the mount context'
+  # The step key stays on the native input context; execution mirrors it to the mount (the step outcome below).
+  Need ((Text (P $s1 'changedContext')) -cin @('current','both')) 'S1 step key held on the native input context'
   Need ((P $s1c 'clicked') -eq $true) 'S1 step click admitted'
   $s1p=Probe $s1 'probe' 'S1'
   $stepped=[math]::Max([double](Num (P (P $s1p 'partner') 'metresStepped') 'S1 partner metres stepped'),[double]$(if($null -ne (P $s1p 'allocation')){ Num (P (P $s1p 'allocation') 'metresStepped') 'S1 allocation metres stepped' }else{0}))

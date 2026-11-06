@@ -1406,8 +1406,9 @@ namespace KingmakerMountedCombat.Integration
                 if (stockIntentCommand == null)
                 {
                     var spent = stockIntent.MountActor ? mount : rider;
+                    var partner = stockIntent.MountActor ? rider : mount;
                     LastFeedback = UnifiedMountedStockAttackPolicy.NoStandardFeedback(spent?.CharacterName,
-                        mount?.CharacterName, !stockIntent.MountActor && mount != null && mount.HasStandardAction());
+                        partner?.CharacterName, partner != null && partner.HasStandardAction());
                     LastStandardRefusalTrace = "actor=" + spent?.UniqueId +
                         ";riderStandard=" + rider?.CombatState.Cooldown.StandardAction.ToString("R") +
                         ";riderMove=" + rider?.CombatState.Cooldown.MoveAction.ToString("R") +
