@@ -24,8 +24,8 @@ function Click([bool]$Mounting,[string]$Route){ $c=[ordered]@{route=$Route;mount
  if($Mounting){ $c.handlerAfterSlot=$ids.mountShell;$c.targetClicked=$true;$c.target=$M;$c.commandBlueprint=$ids.mountShell;$c.castDelta=1 } else { $c.handlerAfterSlot=$null;$c.target=$R;$c.commandBlueprint=$ids.dismountShell;$c.castDelta=0 }; $c }
 function Strings{ [ordered]@{tableFound=$true;packPresent=$true;keys=@([ordered]@{key='k1';expected='Mount / Dismount';present=$true;actual='Mount / Dismount'});
  controls=@([ordered]@{guid=$P;name='Mount / Dismount';hidden=$false},[ordered]@{guid=$ids.mountShell;name='Mount Companion';hidden=$true},[ordered]@{guid=$ids.dismountShell;name='Dismount';hidden=$true},[ordered]@{guid=$ids.mountedChargeShell;name='Charge';hidden=$true})} }
-function Shot([string]$Name,[string]$Root){ $file='movement-visuals/finalize-f2-p05-'+$Name+'.png'; $full=Join-Path $Root ($file.Replace('/','\')); [void](New-Item -ItemType Directory -Force (Split-Path -Parent $full))
- [IO.File]::WriteAllBytes($full,[Text.Encoding]::ASCII.GetBytes('png:'+$Name)); [ordered]@{name=$Name;file=$file;sha256=(Get-KmcSha256 $full)} }
+function Shot([string]$Name,[string]$Root,$Umm=$null){ $file='movement-visuals/finalize-f2-p05-'+$Name+'.png'; $full=Join-Path $Root ($file.Replace('/','\')); [void](New-Item -ItemType Directory -Force (Split-Path -Parent $full))
+ [IO.File]::WriteAllBytes($full,[Text.Encoding]::ASCII.GetBytes('png:'+$Name)); $s=[ordered]@{name=$Name;file=$file;sha256=(Get-KmcSha256 $full)}; if($null -ne $Umm){ $s.ummOpenAtCapture=$Umm }; $s }
 function Write-Archive([string]$Path,[string]$Text){ [IO.File]::WriteAllBytes($Path,[Text.Encoding]::ASCII.GetBytes($Text)); [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
 function Accept($Request,$Rows,$Game,$SaveRoot,$Parent){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
 function Refuse($Request,$Rows,$Game,$SaveRoot,$Parent,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; Check $false $Name } catch { Check $true $Name } }
@@ -109,7 +109,7 @@ try {
  Copy-Item -LiteralPath (Join-Path $pSave $ids.keptLeaf) -Destination $cSave; Copy-Item -LiteralPath (Join-Path $pSave $ids.removedLeaf) -Destination $cSave
  $script:runId='20991231-finalize-f2-test-c'; $script:procId=200; $script:case='manual'
  $cRequest=[pscustomobject][ordered]@{runId=$script:runId;scenario='persistence-p05-load';persistenceCase='manual';upgradeChain=$true;finalize2Controls=$true;commit=('c'*40);dllSha256=('d'*64);evidenceRoot=$cEv
-  persistenceLoad=[pscustomobject]@{fileName=$ids.keptLeaf;sha256=$kept.sha;area=('a'*32);gameId='game'};persistenceAlternate=[pscustomobject]@{fileName=$ids.removedLeaf;sha256=$gone.sha;area=('a'*32);gameId='game'}}
+  persistenceLoad=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length;area=('a'*32);gameId='game';gameName='cvb'};persistenceAlternate=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length;area=('a'*32);gameId='game';gameName='cvb'}}
  $cRows=@(
   (Row 'initial' $null),
   (Row 'f2-cold-observed' ([ordered]@{contract='finalize-f2-upgrade-public-control-v1';role='consumer';sourceSchema=3;savedRows=@((S $R 9 6),(S $R 0 7));liveRows=@((S $R 0 7),(S $R 9 6));
@@ -127,7 +127,7 @@ try {
   (Row 'f2-removed-dismount-click' (Click $false 'drawer-entry')),
   (Row 'f2-removed-mount-click' (Click $true 'drawer-entry') 'Unmounted'),
   (Row 'f2-removed-cycled' ([ordered]@{watch=(W 110 $true);actor=(Actor $removedBar @() (Counters 0 0 0));strings=(Strings)})),
-  (Row 'f2-complete' ([ordered]@{disclosedSetup=@();shots=@((Shot 'cold-kept' $cEv),(Shot 'cold-removed' $cEv))}))
+  (Row 'f2-complete' ([ordered]@{disclosedSetup=@();shots=@((Shot 'cold-kept' $cEv $false),(Shot 'cold-removed' $cEv $false))}))
  )
  $cRows=Copy-F2 $cRows; $cGame=[pscustomobject]@{processId=200}
  Check (Accept $cRequest $cRows $cGame $cSave $parent) 'consumer: restored and drawn slot, cycle, removed control remembered across load, reselection and a control cycle accepted'
@@ -151,6 +151,36 @@ try {
  Refuse $cRequest (Copy-F2 $cRows) ([pscustomobject]@{processId=100}) $cSave $parent 'consumer: the producer''s own process refuses'
  $other=Copy-F2 $cRequest; $other.persistenceAlternate.sha256=('0'*64); Refuse $other (Copy-F2 $cRows) $cGame $cSave $parent 'consumer: inputs that no recorded producer wrote refuse'
  $cand=Copy-F2 $cRequest; $cand.dllSha256=('9'*64); $cr=Copy-F2 $cRows; foreach($x in $cr){ $x.dll=('9'*64) }; Refuse $cand $cr $cGame $cSave $parent 'consumer: a consumer on another candidate than its producer refuses'
+ CNeg { param($r) (Kind $r 'f2-complete').detail.shots[0].ummOpenAtCapture=$true } 'consumer: a view captured under the mod-manager overlay refuses'
+
+ # ---- the declared producer/consumer bridge: real git commits and source trees, a synthetic producer and suite ----------
+ $head=(git -C $repo rev-parse HEAD).Trim(); $tree=(git -C $repo rev-parse 'HEAD:src').Trim()
+ $suites=Join-Path $temp 'suites'; [void](New-Item -ItemType Directory -Force $suites)
+ [ordered]@{commit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';dllSha256=('5'*64);dllMvid='m-producer';persistenceCase='quick';scenario='persistence-p05-load';upgradeChain=$true;finalize2Controls=$true;qualificationSuite=[ordered]@{suiteId='p-suite';snapshotSha256=('6'*64)};persistenceLoad=$pRequest.persistenceLoad} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $pEv 'runtime-request.json') -Encoding UTF8
+ [ordered]@{status='PASS';modsRestored=$true;workingRestored=$true;baselineImmutable=$true;saveProtectionPassed=$true;saveWriteAllowlistPassed=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8
+ [ordered]@{repository=[ordered]@{commit=$head};package=[ordered]@{dllSha256=('d'*64);dllMvid='m-consumer'}} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $suites 'c-suite.json') -Encoding UTF8
+ $bRequest=Copy-F2 $cRequest; $bRequest.commit=$head; $bRequest | Add-Member -NotePropertyName dllMvid -NotePropertyValue 'm-consumer'; $bRequest | Add-Member -NotePropertyName qualificationSuite -NotePropertyValue ([pscustomobject]@{suiteId='c-suite';snapshotSha256=(Get-KmcSha256 (Join-Path $suites 'c-suite.json'))})
+ $bRows=Copy-F2 $cRows; foreach($x in $bRows){ $x.source=$head }
+ function NewBridge(){ [pscustomobject][ordered]@{producerRunId='20991231-finalize-f2-test-p';producerCommit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';producerDllSha256=('5'*64);producerDllMvid='m-producer';producerSuiteId='p-suite';producerSuiteSha256=('6'*64)
+   riderId=$R;mountId=$M;gameId='game';gameName='cvb';area=('a'*32)
+   kept=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length};removed=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length}
+   consumerSourceTree=$tree;changedSourceFiles=@(git -C $repo diff --name-only ff1f2e5a1200b3f2ecfe3be04304a08768e9e280 $head -- src)} }
+ function BAccept($Req,$Rows,$B){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Req -Rows $Rows -GameResult $cGame -SaveRoot $cSave -EvidenceParent $parent -Bridge $B -RepoRoot $repo -SuiteRoot $suites; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
+ function BRefuse($Req,$Rows,$B,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Req -Rows $Rows -GameResult $cGame -SaveRoot $cSave -EvidenceParent $parent -Bridge $B -RepoRoot $repo -SuiteRoot $suites; Check $false $Name } catch { Check $true $Name } }
+ Check (BAccept $bRequest $bRows (NewBridge)) 'bridge: the declared producer, archives, consumer src tree and suite admit a corrected diagnostic consumer'
+ $x=NewBridge; $x.producerRunId='20991231-finalize-f2-other'; BRefuse $bRequest $bRows $x 'bridge: an unlisted producer refuses'
+ $x=NewBridge; $x.consumerSourceTree=('0'*40); BRefuse $bRequest $bRows $x 'bridge: an unlisted consumer source refuses'
+ $x=NewBridge; $x.changedSourceFiles=@($x.changedSourceFiles | Select-Object -First 1); BRefuse $bRequest $bRows $x 'bridge: a source change outside the declared files refuses'
+ $x=NewBridge; $x.producerDllSha256=('7'*64); BRefuse $bRequest $bRows $x 'bridge: a wrong producer identity refuses'
+ $x=NewBridge; $x.kept.sha256=('8'*64); BRefuse $bRequest $bRows $x 'bridge: a changed kept archive refuses'
+ $x=NewBridge; $k0=$x.kept; $x.kept=$x.removed; $x.removed=$k0; BRefuse $bRequest $bRows $x 'bridge: swapped archives refuse'
+ $q=Copy-F2 $bRequest; $q.persistenceAlternate.length=1; BRefuse $q $bRows (NewBridge) 'bridge: a consumer input of another length refuses'
+ $q=Copy-F2 $bRequest; $q.dllMvid='m-other'; BRefuse $q $bRows (NewBridge) 'bridge: a consumer DLL the suite does not freeze refuses'
+ $cGameSaved=$cGame; $cGame=[pscustomobject]@{processId=100}; BRefuse $bRequest $bRows (NewBridge) 'bridge: the bridged consumer in the producer''s own process refuses'; $cGame=$cGameSaved
+ [ordered]@{status='FAIL';modsRestored=$true;workingRestored=$true;baselineImmutable=$true;saveProtectionPassed=$true;saveWriteAllowlistPassed=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8; BRefuse $bRequest $bRows (NewBridge) 'bridge: a producer that did not pass refuses'
+ [ordered]@{status='PASS';modsRestored=$true;workingRestored=$false;baselineImmutable=$true;saveProtectionPassed=$true;saveWriteAllowlistPassed=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8; BRefuse $bRequest $bRows (NewBridge) 'bridge: a producer without exact restoration refuses'
+ [ordered]@{status='PASS';modsRestored=$true;workingRestored=$true;baselineImmutable=$true;saveProtectionPassed=$true;saveWriteAllowlistPassed=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $pEv 'runtime-result.json') -Encoding UTF8
+ $pRequest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $pEv 'runtime-request.json') -Encoding UTF8
  [IO.File]::WriteAllBytes((Join-Path $cSave $ids.keptLeaf),[Text.Encoding]::ASCII.GetBytes('changed')); Refuse $cRequest (Copy-F2 $cRows) $cGame $cSave $parent 'consumer: a changed input archive refuses'
 } finally { if(Test-Path -LiteralPath $temp){ Remove-Item -LiteralPath $temp -Recurse -Force } }
 
@@ -174,5 +204,16 @@ Check ($isolation.Contains("request.OwnedPairs?.IsAreaOverwrite(request.Persiste
 Check ($gameResult.Contains("elseif(`$f2Upgrade-and`$request.persistenceCase-ceq'quick'){2}") -and $gameResult.Contains("elseif(`$f2Upgrade-and`$request.persistenceCase-ceq'manual'){2}")) 'the game-result quotas are two writes for the producer and two loads for the consumer'
 Check ($requestValidator.Contains("throw 'The F2 public-control chain is an explicit true opt-in beside the upgrade chain only.'") -and $requestValidator.Contains("elseif(`$second-and`$f2Consumer){'Manual_2_KMC_F2_REMOVED.zks'}")) 'the external request validator pins the F2 flag and the removed archive leaf'
 Check ($runner.Contains("-ArtifactRole upgrade-removed-manual") -and $runner.Contains("if(-not`$UpgradeChain){throw 'The F2 public-control chain runs only on the upgrade chain.'}")) 'the runner stages the removed archive only from its exact role, on the upgrade chain'
+# ---- the real declaration against r05's retained receipts and archives, and the frozen consumer source ----------------
+$rb=Get-KmcFinalize2ProducerBridge; $lab=Get-KmcLabRoot
+$r5=Join-Path $lab ('runtime-evidence\'+$rb.producerRunId); $r5req=Get-Content -LiteralPath (Join-Path $r5 'runtime-request.json') -Raw | ConvertFrom-Json
+$r5res=Get-Content -LiteralPath (Join-Path $r5 'runtime-result.json') -Raw | ConvertFrom-Json
+$r5rows=@(Get-Content -LiteralPath (Join-Path $r5 'persistence-observations.jsonl') | ForEach-Object { $_ | ConvertFrom-Json }); $r5w=@($r5rows | Where-Object kind -CEQ 'native-write-complete')
+Check ($r5req.commit -ceq $rb.producerCommit -and $r5req.dllSha256 -ceq $rb.producerDllSha256 -and $r5req.dllMvid -ceq $rb.producerDllMvid -and $r5req.qualificationSuite.suiteId -ceq $rb.producerSuiteId -and $r5req.qualificationSuite.snapshotSha256 -ceq $rb.producerSuiteSha256) 'real bridge: the declared producer identity is r05''s own request'
+Check ($r5res.status -ceq 'PASS' -and $r5res.modsRestored -and $r5res.workingRestored -and $r5res.baselineImmutable -and $r5res.saveProtectionPassed -and $r5res.saveWriteAllowlistPassed) 'real bridge: r05 passed with exact restoration'
+Check ($r5w.Count -eq 2 -and $r5w[0].detail.sha256 -ceq $rb.kept.sha256 -and $r5w[1].detail.sha256 -ceq $rb.removed.sha256 -and [long]$r5w[0].detail.length -eq $rb.kept.length -and [long]$r5w[1].detail.length -eq $rb.removed.length -and $r5rows[0].rider.Id -ceq $rb.riderId -and $r5rows[0].mount.Id -ceq $rb.mountId) 'real bridge: the declared archives and actors are r05''s two native outputs'
+$r5saves=Join-Path $lab ('runtime-staging\persistence-'+$rb.producerRunId+'\Saved Games')
+Check ((Get-KmcSha256 (Join-Path $r5saves $rb.kept.fileName)) -ceq $rb.kept.sha256 -and (Get-KmcSha256 (Join-Path $r5saves $rb.removed.fileName)) -ceq $rb.removed.sha256 -and (Get-Item -LiteralPath (Join-Path $r5saves $rb.kept.fileName)).Length -eq $rb.kept.length -and (Get-Item -LiteralPath (Join-Path $r5saves $rb.removed.fileName)).Length -eq $rb.removed.length) 'real bridge: r05''s retained archives still hold exactly the declared bytes'
+Check ((git -C $repo rev-parse 'HEAD:src').Trim() -ceq $rb.consumerSourceTree -and ((@(git -C $repo diff --name-only $rb.producerCommit HEAD -- src) | Sort-Object) -join '|') -ceq ((@($rb.changedSourceFiles) | Sort-Object) -join '|')) 'real bridge: the checked-out src is the declared consumer tree, differing from F2f only in the two diagnostics files'
 Write-Output ('F2 upgrade readers: PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ exit 1 }
