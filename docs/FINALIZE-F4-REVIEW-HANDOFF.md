@@ -1,6 +1,19 @@
 # F4 review handoff: ordinary world orders, native AI, transitions and Horse gait
 
-## Current disposition (2026-11-06, after the owner-authorized tenth start)
+## Integration closeout (2026-11-06, owner decision)
+
+**F4 ACCEPTED FOR INTEGRATION WITH WORLD-02 NATIVE VALIDATION DEFERRED; OWNER ACCEPTANCE SEPARATE.**
+
+- **Landing:** the owner merged PR #19 at the reviewed head `46f76f7e0d0ae34b925c5da92e687c21ac2cef62` into main as merge commit `3f19e9bd955044cd34d4de297ac1781a74e14c50` (2026-11-06T22:27:00Z; parents `a92b043a`, `46f76f7e`). This record was written after the landing, on the F5 branch; it changes no code.
+- **Historical disposition kept:** at review, F4 was ENGINEERING PARTIAL — WORLD-02 INPUT BLOCKED ONLY. The original all-requirements completion claim remains unearned. The owner's integration exception (forwarding the F4 closeout mission) removed WORLD-02 from this PR's merge gate only.
+- **Accepted identities:** compiled source `3f824e30`; DLL `3240963f3c4966f17ae121412808bbac4f17af1dba76d0fd05ece0b4dc4f7f3d`, MVID `cc86d1d6-502e-4991-8805-618755a9ae47`; producer package f4f `4efc6665…`, suite `finalize-f4f-3f824e30-20261106` · `f6513447…`; consumer package f4g `e1f195c1…` (byte-identical DLL), suite `finalize-f4g-a71fe576-20261106` · `fdfa5903…`. The displayed preview.103 string is not a build identity.
+- **Evidence retained, nothing replayed:** r08 entrance PASS → `Auto_1.zks` `b8e4109e…` → r10 cold reload PASS (one stock attack, a native miss). r05 chest/gait PASS and r04's completed AI/control rows stay at their own binaries; r04's aggregate FAIL, r01–r03, r06, r07 and start 9's pre-staging refusal stay FAIL.
+- **Closed record:** finalize-f4 68.17/80 min, 10/10 starts. No eleventh start, time increase or transfer to F5.
+- **Not claimed:** owner play, art, the full laptop mod stack, or mounted trap disarming.
+- **WORLD-02:** deferred, not tested and not passed. The follow-up is recorded once in [FINALIZATION-DEFERRED-ITEMS.md](FINALIZATION-DEFERRED-ITEMS.md).
+- No release, tag, publication or installation.
+
+## Review disposition (2026-11-06, after the owner-authorized tenth start)
 
 **F4 ENGINEERING PARTIAL — WORLD-02 INPUT BLOCKED ONLY; OWNER ACCEPTANCE SEPARATE.**
 
