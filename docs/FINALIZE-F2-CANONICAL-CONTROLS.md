@@ -30,6 +30,8 @@ The mount-state intent is captured at admission: the click creates either a Moun
 
 **Native evidence (F2f, run `20261105-finalize-f2-r05`).** The released preview.211 Quick (`83e92e1a…`, schema 2) carries Dismount at 14 and the retired rider primary at 15. After the native load, the live rows were the public control at 14 and its placement record (one migration); slot 15 was empty. The two Manuals the run wrote held exactly {6@9, 7@0} (the control swapped to slot 9) and {7@0} (the control removed). No native archive member named the public control.
 
+**Cold reload (F2g, run `20261105-finalize-f2-r07`).** A new process loaded the kept Manual and restored {6@9, 7@0}: one control at slot 9, bound to the live fact and drawn on the bar. Nothing was placed or migrated. Dismount and Mount worked from the slot. The removed Manual, loaded natively next in the same process, restored only {7@0}, and the control stayed absent through updates, reselection and a drawer-entry control cycle.
+
 KMC slots are still blanked during native serialization, so the native hotbar never stores a KMC identity. Only KMC's own metadata carries kinds 6 and 7. An older KMC build reads an F2 archive holding kind 6 or 7 as invalid KMC metadata and keeps its original bytes. Downgrading is not a supported path.
 
 ## First placement
