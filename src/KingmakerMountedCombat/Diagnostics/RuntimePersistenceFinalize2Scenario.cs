@@ -205,7 +205,7 @@ namespace KingmakerMountedCombat.Diagnostics
             yield return new WaitForEndOfFrame();
             try
             {
-                row["frame"] = Time.frameCount; row["visible"] = F2VisibleBar();
+                row["frame"] = Time.frameCount; row["visible"] = F2VisibleBar(); row["ummOpenAtCapture"] = runner.Opened;
                 var bytes = Screenshot.CapturePNG();
                 if (bytes == null || bytes.Length == 0) throw new InvalidOperationException("The frame encoder returned no bytes.");
                 var folder = Path.Combine(request.EvidenceRoot, "movement-visuals");
