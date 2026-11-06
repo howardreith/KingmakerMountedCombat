@@ -50,8 +50,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private void QualifyTransitionAutoColdLoad()
         {
             var game = Game.Instance;
+            // The archive's own view: the migrated legacy DTO of a schema-1/2 archive, or the current schema-3 member's
+            // one pair (F4 r07: the product writes schema 3), never decided by the observer.
+            var legacy = persistence.LoadedData; var member = persistence.LoadedArchiveData;
+            var pair = member?.Pairs != null && member.Pairs.Length == 1 ? member.Pairs[0] : null;
+            var archiveArea = legacy != null ? legacy.AreaId : member?.AreaId;
+            var archiveCampaign = legacy != null ? legacy.CampaignId : member?.CampaignId;
+            var archiveTicks = legacy != null ? legacy.GameTimeTicks : member?.GameTimeTicks ?? 0;
+            var savedRider = legacy != null ? legacy.Rider : pair?.Rider;
+            var savedMount = legacy != null ? legacy.Mount : pair?.Mount;
+            Check((legacy != null || pair != null) && savedRider != null && savedMount != null, "P07-auto-cold-reads-its-own-archive-pair");
             Check(game.CurrentlyLoadedArea.AssetGuidThreadSafe == ExpectedAutoColdArea &&
-                persistence.LoadedData.AreaId == ExpectedAutoColdArea,
+                archiveArea == ExpectedAutoColdArea,
                 "P07-auto-cold-opens-the-area-its-own-archive-captured");
             Check(persistence.AreaSuspensionCount == 0 && persistence.AreaResumeCount == 0 &&
                 !persistence.AreaTransitionPending,
@@ -59,24 +69,25 @@ namespace KingmakerMountedCombat.Diagnostics
             // Compared against the archive's own native clock, never the source
             // run's end state after further travel or combat.
             var elapsed = Math.Max(0, (game.TimeController.GameTime.Ticks -
-                persistence.LoadedData.GameTimeTicks) / (double)TimeSpan.TicksPerSecond);
-            Check(LegitimateContinuation(persistence.LoadedData.Rider, MountedPersistenceService.CaptureActor(rider), elapsed) &&
-                LegitimateContinuation(persistence.LoadedData.Mount, MountedPersistenceService.CaptureActor(mount), elapsed),
+                archiveTicks) / (double)TimeSpan.TicksPerSecond);
+            Check(LegitimateContinuation(savedRider, MountedPersistenceService.CaptureActor(rider), elapsed) &&
+                LegitimateContinuation(savedMount, MountedPersistenceService.CaptureActor(mount), elapsed),
                 "P07-auto-cold-debt-matches-its-own-archive");
             Write("auto-cold-loaded", new JObject {
                 ["case"] = request.PersistenceCase,
                 ["autoSaveMode"] = request.PersistenceAreaTarget.AutoSaveMode,
                 ["expectedArea"] = ExpectedAutoColdArea,
                 ["loadedArea"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
-                ["archiveArea"] = persistence.LoadedData.AreaId,
-                ["archiveCampaign"] = persistence.LoadedData.CampaignId,
+                ["archiveArea"] = archiveArea,
+                ["archiveCampaign"] = archiveCampaign,
+                ["archiveView"] = legacy != null ? "legacy" : "archive-member",
                 ["sourceSha256"] = request.PersistenceLoad.Sha256,
                 ["sourceFileName"] = request.PersistenceLoad.FileName,
                 ["suspensions"] = persistence.AreaSuspensionCount,
                 ["resumes"] = persistence.AreaResumeCount,
                 ["pending"] = persistence.AreaTransitionPending,
-                ["riderActor"] = ColdActorDetail(persistence.LoadedData.Rider, true),
-                ["mountActor"] = ColdActorDetail(persistence.LoadedData.Mount, false)
+                ["riderActor"] = ColdActorDetail(savedRider, true),
+                ["mountActor"] = ColdActorDetail(savedMount, false)
             });
         }
 

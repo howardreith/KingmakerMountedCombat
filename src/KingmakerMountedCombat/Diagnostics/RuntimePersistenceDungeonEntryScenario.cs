@@ -120,9 +120,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(archive != null && archive.FileName == "Auto_1.zks" && persistence.SnapshotCount == 1 && persistence.FailedSaveCount == 0,
                         "P07-dungeon-entry-exactly-one-native-after-entry-autosave");
                     areaAutosaveHash = Hash(archive.FolderName);
-                    var read = NativeMountedSaveStorage.Read(archive.Saver);
-                    Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted && read.Data.Rider.Id == areaRiderDebt.Id &&
-                        read.Data.Mount.Id == areaMountDebt.Id && read.Data.AreaId == RuntimeRequest.DungeonEntryFloorArea && read.Data.CampaignId == areaWorld.GameId,
+                    // r07: the product writes the current schema-3 archive member (pairs), which the legacy single-pair reader
+                    // does not present as Current; read the member the product actually wrote (as the UPG-01 resave check does).
+                    var read = NativeMountedSaveStorage.ReadArchive(archive.Saver);
+                    var pair = NativeMountedSaveFormat.CanRestore(read) && read.Data.Pairs != null && read.Data.Pairs.Length == 1 ? read.Data.Pairs[0] : null;
+                    Check(pair != null && read.Data.SchemaVersion == MountedArchiveData.Schema && pair.Rider?.Id == areaRiderDebt.Id &&
+                        pair.Mount?.Id == areaMountDebt.Id && pair.Generation == dungeonGenerationBefore &&
+                        read.Data.AreaId == RuntimeRequest.DungeonEntryFloorArea && read.Data.CampaignId == areaWorld.GameId,
                         "P07-dungeon-entry-autosave-carries-the-exact-mounted-pair-in-the-floor");
                     var barrier = areaAutosaveBarrier;
                     Check(barrier != null && (string)barrier["relationship"] == "Mounted" && (string)barrier["area"] == RuntimeRequest.DungeonEntryFloorArea &&
@@ -135,7 +139,11 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["admissionArea"] = RuntimeRequest.DungeonEntryHubArea, ["area"] = read.Data.AreaId, ["barrier"] = barrier,
                         ["partySelection"] = new JObject { ["partyBefore"] = dungeonPartyBefore, ["partyAfter"] = partyAfter,
                             ["generationBefore"] = dungeonGenerationBefore, ["generationAfter"] = relationship.MountedPairGeneration },
-                        ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
+                        // The pair view the readers check, taken field by field from the schema-3 member, and the member itself.
+                        ["snapshot"] = new JObject { ["Mounted"] = true, ["SchemaVersion"] = read.Data.SchemaVersion, ["AreaId"] = read.Data.AreaId,
+                            ["CampaignId"] = read.Data.CampaignId, ["Generation"] = pair.Generation,
+                            ["Rider"] = new JObject { ["Id"] = pair.Rider.Id }, ["Mount"] = new JObject { ["Id"] = pair.Mount.Id } },
+                        ["archiveMember"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
                     // The ordinary continuation (movement and an attack on the floor) makes no write.
                     areaContinuation = true; stage = 2; return;
                 }
