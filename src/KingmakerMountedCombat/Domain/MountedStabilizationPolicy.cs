@@ -305,6 +305,87 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    // F4 (WORLD-02). Native ClickMapObjectHandler.TryInteract stops the shared travel of every selected unit with
+    // UnitCommands.InterruptMove once an accepted trap order chose its one interactor, before that unit's command runs.
+    // A selected mounted rider owns no move of its own (the pair's travel is the mount's command), so the same native
+    // stop is forwarded to that rider's mount, inside that accepted click only. Hover/prediction simulations, other
+    // InterruptMove callers and unmounted or unrelated units are never touched.
+    public static class MountedTrapGroupStopPolicy
+    {
+        public static bool ShouldForward(bool insideAcceptedTrapClick, bool simulatingClick, bool pairMounted, bool stoppedUnitIsExactRider)
+        {
+            return insideAcceptedTrapClick && !simulatingClick && pairMounted && stoppedUnitIsExactRider;
+        }
+
+        // The click's own scope: the native stop loop only runs for a trap interaction (or an object with a visible trap)
+        // that native SelectUnit accepted, synchronously inside TryInteract on the frame it began.
+        public static bool IsAcceptedTrapClickScope(bool scopeOpen, int scopeFrame, int currentFrame, bool trapInteraction)
+        {
+            return scopeOpen && scopeFrame == currentFrame && trapInteraction;
+        }
+    }
+
+    // F4 (WORLD-01). Native GroupManager.Go (the Beneath the Stolen Lands entrance, the capital exit and every party
+    // selection screen) calls Player.ReInitPartyCharacters: every party character is removed (HandleCompanionRemoved,
+    // staying in game when it is in the new group) and then re-added (HandleCompanionActivated), even with the party
+    // unchanged. Only a removal that stays in game inside that re-initialisation waits for its end; a character that
+    // is back in the party then keeps its exact pair, and anything else is cleaned up exactly as a removal always was.
+    public enum PartyRemovalDisposition
+    {
+        CleanupNow,
+        DeferUntilReinitialisationEnds
+    }
+
+    // F4 (GAIT-01), presentation only. Native UnitAnimationController.TickOnUnit picks the Slow gait whenever a
+    // Normal-type move's current speed is under 95% of the unit's blueprint speed. Out of combat a group click paces
+    // every selected unit to the slowest selected speed (never under 30 ft), so the 50 ft Horse walks behind 30 ft
+    // companions at a pace (>= 3.048 m/s) its own run cycle covers. Only that party-paced case shows the run cycle;
+    // the agent speed, the command's speed limit and the native speed are untouched. Explicit Slow, Stealth and Charge,
+    // combat and turn-based movement, an impaired Horse (encumbrance, terrain, conditions) and a pace below the floor
+    // keep the native gait.
+    public enum NativeGait
+    {
+        Slow,
+        Normal,
+        Charge,
+        Stealth
+    }
+
+    public static class MountedHorseGaitPolicy
+    {
+        public const float NativeSlowThreshold = 0.95f;
+        // The lowest pace shown as a trot, as a fraction of the Horse's own blueprint speed (native group floor 30 ft
+        // against the 50 ft Horse is 0.6).
+        public const float MinimumTrotFraction = 0.55f;
+
+        public static bool ShouldShowTrot(bool exactHorse, NativeGait nativeGait, NativeGait commandMovementType, bool overrideSpeed,
+            bool inCombat, bool turnBasedCombat, float? speedLimitMps, float ownModifiedSpeedMps, float blueprintSpeedMps)
+        {
+            if (!exactHorse || nativeGait != NativeGait.Slow || commandMovementType != NativeGait.Normal || overrideSpeed ||
+                inCombat || turnBasedCombat || !speedLimitMps.HasValue || !(blueprintSpeedMps > 0f))
+                return false;
+            var limit = speedLimitMps.Value;
+            // Pacing is the only reason for the Slow gait: the Horse itself is unimpaired and the limit is what binds.
+            return ownModifiedSpeedMps >= NativeSlowThreshold * blueprintSpeedMps && limit < ownModifiedSpeedMps &&
+                limit >= MinimumTrotFraction * blueprintSpeedMps;
+        }
+    }
+
+    public static class PartyReinitialisationRetentionPolicy
+    {
+        public static PartyRemovalDisposition OnRemoved(bool insideReinitialisation, bool removedUnitStaysInGame)
+        {
+            return insideReinitialisation && removedUnitStaysInGame
+                ? PartyRemovalDisposition.DeferUntilReinitialisationEnds
+                : PartyRemovalDisposition.CleanupNow;
+        }
+
+        public static bool RetainAtEnd(bool backInParty, bool inGame)
+        {
+            return backInParty && inGame;
+        }
+    }
+
     public static class MountedInteractionRoutingPolicy
     {
         public static bool ShouldRouteExactDoor(

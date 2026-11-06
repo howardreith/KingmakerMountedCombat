@@ -2193,6 +2193,19 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastCarriedApproachObservation { get; private set; } = "not-observed";
 
+        // Exact native component types only: a derived chest, loot or door type is "Other" and stays native.
+        internal static MountedCarriedInteractionClass ClassifyCarriedInteraction(UnitCommand command, UnitInteractWithObject interaction)
+        {
+            var component = interaction?.Interaction;
+            if (component == null || command.GetType() != typeof(UnitInteractWithObject)) return MountedCarriedInteractionClass.NotInteraction;
+            if (component is DisableTrapInteractionComponent) return MountedCarriedInteractionClass.TrapDisarm;
+            if (component is StandardDoor) return MountedCarriedInteractionClass.Door;
+            var type = component.GetType();
+            return component.Type == InteractionType.Approach && (type == typeof(StandardChest) || type == typeof(LootComponent))
+                ? MountedCarriedInteractionClass.Container
+                : MountedCarriedInteractionClass.Other;
+        }
+
         // Called from the TickApproaching prefix for every unstarted native command. Returns true when the mount
         // approaches for the rider's own command this tick and the native rider approach must be skipped; false
         // leaves the native code untouched (not a carried command, the command is in range, or another pair
@@ -2202,11 +2215,7 @@ namespace KingmakerMountedCombat.Integration
             if (disposed || command == null) return false;
             var ability = command as UnitUseAbility;
             var interaction = command as UnitInteractWithObject;
-            var kind = ability != null
-                ? MountedCarriedCommandKind.Ability
-                : interaction != null && command.GetType() == typeof(UnitInteractWithObject) && interaction.Interaction is DisableTrapInteractionComponent
-                    ? MountedCarriedCommandKind.TrapInteraction
-                    : MountedCarriedCommandKind.None;
+            var kind = MountedCarriedApproachPolicy.Classify(ability != null, ClassifyCarriedInteraction(command, interaction));
             var chargeShell = ability != null &&
                 (string.Equals(ability.Spell?.Blueprint?.AssetGuid, NativeMountedControlService.MountedChargeAbilityGuid, StringComparison.Ordinal) ||
                  OwnsChargeNativeAction(ability));
@@ -2376,8 +2385,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 CarriedApproachExhaustedCount++;
                 LastFeedback = MountedCarriedApproachPolicy.ExhaustedFeedback(
-                    outcome.Kind == MountedCarriedCommandKind.TrapInteraction.ToString() ? MountedCarriedCommandKind.TrapInteraction : MountedCarriedCommandKind.Ability,
-                    MountDisplayName, outcome.TerminalReason);
+                    MountedCarriedApproachPolicy.ParseKind(outcome.Kind), MountDisplayName, outcome.TerminalReason);
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.NoPath };
             }
             LastCarriedApproachObservation = "released: " + outcome.Result + "; satisfied=" + outcome.Satisfied;

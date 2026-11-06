@@ -639,6 +639,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
             Finalize3MovementEconomyTests.Register(runner);
+            Finalize4OrdersAiTransitionsTests.Register(runner);
             MountedGroundOrderAdmissionPolicyTests.Register(runner);
             runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
             {
