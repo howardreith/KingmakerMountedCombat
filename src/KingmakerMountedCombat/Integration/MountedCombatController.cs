@@ -1270,8 +1270,40 @@ namespace KingmakerMountedCombat.Integration
                     });
                 }
             }
-            return MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
+            var live = MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
+            // F4 decision snapshot (r03 Hold stall): the exact operations that made this predicate true, overwritten only
+            // when it is true, so a refusal can always be attributed to a named command.
+            if (live) LastPlayerOperationDetail = DescribePlayerOperation(rider, mount);
+            return live;
         }
+
+        internal string LastPlayerOperationDetail { get; private set; }
+
+        private static string DescribePlayerOperation(UnitEntityData rider, UnitEntityData mount)
+        {
+            var parts = new List<string> { "frame=" + Time.frameCount };
+            var raw = rider?.Commands?.Raw;
+            if (raw != null)
+                foreach (var command in raw)
+                    if (command != null && !command.IsFinished && command.AiAction == null && !(command is MountedPairSingleAttack) &&
+                        !(command is UnitAttackOfOpportunity))
+                        parts.Add("riderSlot=" + DescribeCommand(command));
+            foreach (var unit in new[] { rider, mount })
+            {
+                var queue = unit?.Commands?.Queue;
+                if (queue == null) continue;
+                foreach (var command in queue)
+                    if (!(command is MountedPairSingleAttack))
+                        parts.Add((unit == rider ? "riderQueue=" : "mountQueue=") + DescribeCommand(command));
+            }
+            return string.Join("; ", parts.ToArray());
+        }
+
+        private static string DescribeCommand(UnitCommand command) =>
+            command.GetType().Name + "{type=" + command.Type + ",started=" + command.IsStarted + ",finished=" + command.IsFinished +
+            ",player=" + command.CreatedByPlayer + ",ai=" + (command.AiAction != null) + ",executor=" + command.Executor?.UniqueId +
+            ",target=" + (command.TargetUnit?.UniqueId ?? "<point>") + ",enoughClose=" + (command.IsStarted || command.IsUnitEnoughClose) +
+            ",ability=" + ((command as UnitUseAbility)?.Spell?.Blueprint?.AssetGuid ?? "-") + "}";
 
         // Native Run can queue the pair's own command behind a running one: that is the intent itself, not a newer order.
         private static int CountForeignQueued(UnitEntityData unit)
@@ -2442,9 +2474,12 @@ namespace KingmakerMountedCombat.Integration
             releasing.Release(reason);
         }
 
+        internal long CarriedApproachTerminalCount { get; private set; }
+
         private void HandleCarriedApproachTerminal(MountedCarriedApproach approach, MountedCarriedApproachOutcome outcome)
         {
             LastCarriedApproachOutcome = outcome;
+            CarriedApproachTerminalCount++;
             if (ReferenceEquals(carriedApproach, approach)) carriedApproach = null;
             if (outcome.TerminalReason != null && !outcome.Satisfied)
             {

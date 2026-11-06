@@ -133,7 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (OwnerSurfaceDoorSelected) { BeginOwnerSurfaceDoor(); Next(210); break; }
                     if (OwnerSurfaceF4Selected) { BeginFinalize4Exploration(); Next(220); break; }
                     BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(202); break;
-                case 220: case 221: case 222: case 223: case 224:
+                case 220: case 221: case 222: case 223: case 224: case 225:
                     RequireOwnerSurfaceMounted(); if (!PollFinalize4Exploration()) return;
                     snapshots.Add(CaptureWorld("owner-surface-finalize4-complete"));
                     BeginSpeedLeg("mounted-party", SpeedLegSelection.Party); Next(202); break;
@@ -153,7 +153,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginSpeedLeg("mounted-solo", SpeedLegSelection.SecondRiderAlone); Next(203); break;
                 case 203:
                     RequireOwnerSurfaceMounted(); PumpFinalize4Gait("mounted-solo"); if (!PollSpeedLeg()) return;
+                    // F4 gait contract: the slowed control replaces the legacy unmounted comparison legs.
+                    if (OwnerSurfaceF4Selected) { BeginFinalize4SlowLeg(); Next(230); break; }
                     Input(secondRider, secondRider, controls.DismountAbility, "dismount-owner-pair", ownerSurfaceOther); Next(204); break;
+                case 230:
+                    RequireOwnerSurfaceMounted(); PumpFinalize4Gait("mounted-slowed"); if (!PollSpeedLeg()) return;
+                    EndFinalize4SlowLeg();
+                    Input(secondRider, secondRider, controls.DismountAbility, "dismount-owner-pair", ownerSurfaceOther); Next(231); break;
+                case 231:
+                    if (Mounted(secondRider, secondMount) || !InputSettled()) return;
+                    FinishInput(); RequireOwnerSurfacePair();
+                    snapshots.Add(CaptureWorld("owner-surface-dismounted"));
+                    ownerSurface["legsCompleted"] = speedLegs == null ? 0 : speedLegs.Count;
+                    ownerSurface["legsApplicable"] = speedLegs == null ? 0 : speedLegs.Count(leg => (bool)leg["applicable"]);
+                    CompleteFinalize4();
+                    RequireSpeedLegsAccepted();
+                    Pass(OwnerSurfaceLegsRow); snapshots.Add(CaptureWorld("owner-surface-legs-complete"));
+                    BeginCleanup(); break;
                 case 204:
                     if (Mounted(secondRider, secondMount) || !InputSettled()) return;
                     FinishInput(); RequireOwnerSurfacePair();

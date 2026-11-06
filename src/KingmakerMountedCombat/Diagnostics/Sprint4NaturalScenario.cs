@@ -104,7 +104,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["lastRetirement"] = combat.LastAutomaticRetirement, ["lastObservation"] = combat.LastStockAttackObservation,
             ["holdKept"] = combat.AutomaticHoldKeptCount, ["queuedHoldKept"] = combat.AutomaticQueuedHoldKeptCount, ["queuedRuns"] = combat.AutomaticQueuedRunCount,
             ["queuedRefused"] = combat.AutomaticQueuedRefusedCount, ["playerMoveHold"] = combat.PlayerMoveHoldArmed, ["moveWatched"] = combat.WatchedPlayerMove != null,
-            ["lastMoveOutcome"] = combat.LastPlayerMoveOutcome.ToString() };
+            ["lastMoveOutcome"] = combat.LastPlayerMoveOutcome.ToString(), ["playerOperation"] = combat.LastPlayerOperationDetail };
 
         private JObject Sprint4State() {
             var state = CastingState();
@@ -465,6 +465,26 @@ namespace KingmakerMountedCombat.Diagnostics
             FinishSprint4Row(true, "Ranged retarget observations recorded.");
         }
 
+        private Vector3 f4PreCastMount;
+        private bool f4Repositioning;
+
+        // The native reach the held rider's brain filters by (BlueprintAiAction.IsTargetValid under AiMovementForbidden): weapon
+        // range plus both bodies, with line of sight; one metre of margin.
+        private JObject F4BowPremise()
+        {
+            var weapon = rider.GetFirstWeapon();
+            var range = weapon?.AttackRange.Meters ?? 0f;
+            var rows = new JArray(); var met = false;
+            foreach (var unit in s4Targets.Select(t => t.Unit).Concat(target == null ? new UnitEntityData[0] : new[] { target }))
+            {
+                if (unit?.View == null || unit.Descriptor.State.IsDead || !unit.Descriptor.State.IsConscious) continue;
+                var distance = rider.DistanceTo(unit); var reach = range + rider.View.Corpulence + unit.View.Corpulence - 1f; var los = rider.HasLOS(unit);
+                if (distance <= reach && los) met = true;
+                rows.Add(new JObject { ["id"] = unit.UniqueId, ["distance"] = distance, ["reach"] = reach, ["los"] = los });
+            }
+            return new JObject { ["met"] = met, ["weaponRange"] = range, ["targets"] = rows };
+        }
+
         // ---- F4 AI-02: a fresh engagement, rider AI on, no click, the hostile walking toward the pair ----------------------
         // Setup only, disclosed: the hostile is left one hit point and given one ordinary native move toward the pair (its
         // own brain stays off). The native party brain chooses the target; the pair command approaches a moving target.
@@ -603,6 +623,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (s4Recipient == null) { FailSprint4Row("The fixture party has no eligible recipient besides the pair."); return; }
                 if (!PlaceSprint3Recipient(Sprint4RecipientMetres)) return;
                 WoundSprint3Recipient(s4Recipient);
+                f4PreCastMount = horse.Position;
                 var record = Sprint4Step("beforeCast"); record["recipientDamage"] = s4Recipient.Damage;
                 s3Facts = s4Facts;
                 s4Facts["inputCount"] = 0;
@@ -619,13 +640,41 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (s4Recipient.Damage != 0 && rider.Get<Kingmaker.UnitLogic.Parts.UnitPartTouch>() != null) return;
                 var record = Sprint4Step("castDone"); record["recipientDamage"] = s4Recipient.Damage;
                 record["dispatchesDuringCast"] = combat.AutomaticDispatchCount - s4Baseline;
+                if (IsFinalize4Ai)
+                {
+                    // r03: the cast's carried approach left every live hostile out of the sling's reach or sight, so the
+                    // later "Hold in bow reach" premise was false and native Hold rightly proposed nothing. Disclosed setup:
+                    // when that happens, one ordinary rider-selected ground click returns the pair to its pre-cast place.
+                    var premise = F4BowPremise(); record["bowPremise"] = premise;
+                    if (!(bool)premise["met"])
+                    {
+                        SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                        bool returned;
+                        using (var input = new NativeOrdinaryAttackInput(f4PreCastMount)) returned = input.Click();
+                        ((JArray)s4Facts["inputs"]).Add(new JObject { ["kind"] = "ground-click", ["name"] = "f4-return-to-bow-reach", ["clicked"] = returned, ["frame"] = Time.frameCount,
+                            ["disclosedSetup"] = "returns the pair to its pre-cast position so a hostile is in bow reach and sight" });
+                        f4Repositioning = true;
+                    }
+                }
                 s4Baseline = combat.AutomaticDispatchCount; s4Step = 11; ResetLeafClock(); return;
             }
             // Nothing is holding the pair back now, so the brain's next proposal resumes the automatic path.
             if (s4Step == 11)
             {
+                if (f4Repositioning)
+                {
+                    if (!horse.Commands.Empty || horse.View?.AgentASP?.IsReallyMoving == true) return;
+                    f4Repositioning = false; Sprint4Step("returnedToBowReach")["bowPremise"] = F4BowPremise();
+                    s4Baseline = combat.AutomaticDispatchCount; ResetLeafClock(); return;
+                }
                 if (combat.AutomaticDispatchCount == s4Baseline) return;
-                Sprint4Step("resumedAfterCast");
+                var resumed = Sprint4Step("resumedAfterCast");
+                if (IsFinalize4Ai)
+                {
+                    // The in-reach Hold premise, recorded at the input: without it a stationary dispatch is natively impossible.
+                    var premise = F4BowPremise(); resumed["bowPremise"] = premise;
+                    if (!(bool)premise["met"]) { FailSprint4Row("Hold-in-bow-reach premise not met: no live hostile in the sling's reach and sight."); return; }
+                }
                 // The bow is in reach, so a native Hold leaves the brain proposing: a stationary dispatch that keeps Hold.
                 Sprint4Input("hold", "hold-in-bow-reach", () => SelectionManager.Instance.Hold());
                 s4HoldPosition = horse.Position; s4Baseline = combat.AutomaticDispatchCount; s4Step = 12; ResetLeafClock(); return;
