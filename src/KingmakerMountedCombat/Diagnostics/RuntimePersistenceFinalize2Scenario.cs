@@ -36,6 +36,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string F2Contract = "finalize-f2-upgrade-public-control-v1";
         private const int F2SettleFrames = 10, F2VisibleFrames = 30, F2WatchFrames = 30, F2ShotFrames = 120, F2RemovedWatchFrames = 60;
         private const double F2DeadlineSeconds = 300;
+        // In real-time combat a Dismount spends the rider's native Move action; the Mount shell is possible again only when it
+        // returns (run 20261105-finalize-f2-r04 clicked 10 frames after the dismount, with 2.8 s of Move cooldown left).
+        private const int F2ReadyFrames = 900;
+        private int f2ReadyFrames;
         private bool F2Case => request.Finalize2Controls == true;
         private readonly Stopwatch f2Clock = new Stopwatch();
         private int f2Frames, f2Index = -1, f2Legacy = -1, f2Chosen = -1, f2ShotsPending;
@@ -258,7 +262,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var casts = controls.NativeCastRequestCount; var refusals = controls.NativeRefusalCount;
             var record = new JObject { ["route"] = route, ["mounting"] = mounting, ["slotIndex"] = f2Index, ["slotAbilityBefore"] = data?.Blueprint?.AssetGuid,
                 ["slotHeldLiveFact"] = data != null && ReferenceEquals(data, F2PublicFact()?.Data), ["possible"] = slot?.IsPossibleActive,
-                ["stateBefore"] = relationship.State.ToString(), ["frame"] = Time.frameCount };
+                ["stateBefore"] = relationship.State.ToString(), ["frame"] = Time.frameCount, ["readyFrames"] = f2ReadyFrames,
+                ["riderMoveCooldown"] = rider.CombatState?.Cooldown?.MoveAction, ["partyCombat"] = Game.Instance.Player.IsInCombat };
+            f2ReadyFrames = 0;
             Check(slot != null && handler != null, "f2-public-slot-and-native-handler-available");
             slot.OnClick();
             record["slotAbilityAfter"] = slot.Ability?.Blueprint?.AssetGuid;
@@ -280,6 +286,10 @@ namespace KingmakerMountedCombat.Diagnostics
             record["stateAfterClick"] = relationship.State.ToString();
             return record;
         }
+
+        // The native slot body admits its shell only while that action is possible: wait for it, bounded, instead of clicking
+        // early. Past the bound the click still runs and its record shows the refusal.
+        private bool F2Ready(MechanicActionBarSlotAbility slot) => slot?.IsPossibleActive == true || ++f2ReadyFrames >= F2ReadyFrames;
 
         private MechanicActionBarSlotAbility F2Slot() =>
             rider.UISettings?.Slots != null && f2Index >= 0 && f2Index < rider.UISettings.Slots.Length ? rider.UISettings.Slots[f2Index] as MechanicActionBarSlotAbility : null;
@@ -427,7 +437,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 case 304:
                 {
-                    if (!F2ShotsSettled() || !F2PairIdle()) return;
+                    if (!F2ShotsSettled() || !F2PairIdle() || !F2Ready(F2Slot())) return;
                     Check(F2Mounted(), "f2-pair-mounted-before-cycle");
                     var record = F2Click(F2Slot(), "bar-slot", false);
                     Write("f2-cycle-dismount-click", record);
@@ -438,7 +448,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (relationship.State != RelationshipState.Unmounted || f2Command != null && !f2Command.IsFinished || !F2PairIdle()) return;
                     if (++f2Frames < F2SettleFrames) return;
-                    Write("f2-cycle-dismounted", F2Actor("dismounted"));
+                    if (f2Frames == F2SettleFrames) Write("f2-cycle-dismounted", F2Actor("dismounted"));
+                    if (!F2Ready(F2Slot())) return;
                     var record = F2Click(F2Slot(), "bar-slot", true);
                     Write("f2-cycle-mount-click", record);
                     Check((bool?)record["targetClicked"] == true && f2Command != null, "f2-slot-selects-mount-and-the-target-click-creates-one-shell");
@@ -522,7 +533,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 case 321:
                 {
-                    if (!F2ShotsSettled() || !F2PairIdle()) return;
+                    if (!F2ShotsSettled() || !F2PairIdle() || !F2Ready(F2Slot())) return;
                     Check(F2Mounted(), "f2-cold-pair-mounted-before-cycle");
                     var record = F2Click(F2Slot(), "bar-slot", false);
                     Write("f2-cycle-dismount-click", record);
@@ -533,7 +544,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (relationship.State != RelationshipState.Unmounted || f2Command != null && !f2Command.IsFinished || !F2PairIdle()) return;
                     if (++f2Frames < F2SettleFrames) return;
-                    Write("f2-cycle-dismounted", F2Actor("dismounted"));
+                    if (f2Frames == F2SettleFrames) Write("f2-cycle-dismounted", F2Actor("dismounted"));
+                    if (!F2Ready(F2Slot())) return;
                     var record = F2Click(F2Slot(), "bar-slot", true);
                     Write("f2-cycle-mount-click", record);
                     Check((bool?)record["targetClicked"] == true && f2Command != null, "f2-cold-slot-selects-mount-and-the-target-click-creates-one-shell");
@@ -602,8 +614,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 // 333-338: the view/control cycle through the drawer's slot entry (the control is not on the bar).
                 case 333:
                 {
-                    if (!F2ShotsSettled() || !F2PairIdle()) return;
-                    var record = F2Click(new MechanicActionBarSlotAbility { Unit = rider, Ability = F2PublicFact().Data }, "drawer-entry", false);
+                    var entry = new MechanicActionBarSlotAbility { Unit = rider, Ability = F2PublicFact().Data };
+                    if (!F2ShotsSettled() || !F2PairIdle() || !F2Ready(entry)) return;
+                    var record = F2Click(entry, "drawer-entry", false);
                     Write("f2-removed-dismount-click", record);
                     Check(f2Command != null || relationship.State != RelationshipState.Mounted, "f2-removed-drawer-runs-dismount-once");
                     f2Frames = 0; stage = 334; return;
@@ -612,7 +625,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (relationship.State != RelationshipState.Unmounted || f2Command != null && !f2Command.IsFinished || !F2PairIdle()) return;
                     if (++f2Frames < F2SettleFrames) return;
-                    var record = F2Click(new MechanicActionBarSlotAbility { Unit = rider, Ability = F2PublicFact().Data }, "drawer-entry", true);
+                    var entry = new MechanicActionBarSlotAbility { Unit = rider, Ability = F2PublicFact().Data };
+                    if (!F2Ready(entry)) return;
+                    var record = F2Click(entry, "drawer-entry", true);
                     Write("f2-removed-mount-click", record);
                     Check((bool?)record["targetClicked"] == true && f2Command != null, "f2-removed-drawer-mount-creates-one-shell");
                     f2Frames = 0; stage = 335; return;
