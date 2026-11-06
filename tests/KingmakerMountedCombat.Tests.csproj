@@ -314,6 +314,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatInitiativeObservation.cs"><Link>Shared\Domain\DiagnosticCombatInitiativeObservation.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeMountedControl.cs"><Link>Shared\Domain\NativeMountedControl.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedControlSlotPolicy.cs"><Link>Shared\Domain\MountedControlSlotPolicy.cs</Link></Compile>
+    <Compile Include="MountedControlSlotPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeShellBindingPolicy.cs"><Link>Shared\Domain\NativeShellBindingPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerActionFeedbackState.cs"><Link>Shared\Domain\MountedPlayerActionFeedbackState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>

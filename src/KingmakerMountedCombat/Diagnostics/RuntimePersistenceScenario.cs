@@ -77,7 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (CastingBaselinePersistence) AdvanceCastingBaselinePersistence(); else if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (CastingBaselinePersistence) AdvanceCastingBaselinePersistence(); else if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else if (F2Case && stage >= 300) AdvanceFinalize2(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -161,9 +161,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
                         game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1, "unique-native-actors");
                     var bindings = controls.CapturePersistentSlots();
-                    Check(bindings.Length == savedSlots.Length && savedSlots.All(
-                        s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
-                        "cold-owned-hotbar-bindings");
+                    // F2: an old archive's control rows become the public control and its record, so the producer's
+                    // expected live rows are F2's mapping of the saved ones; the consumer's current rows stay exact.
+                    if (F2Case && legacy != null) ObserveFinalize2Cold(savedSlots, bindings, legacy.SchemaVersion);
+                    else
+                    {
+                        Check(bindings.Length == savedSlots.Length && savedSlots.All(
+                            s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
+                            "cold-owned-hotbar-bindings");
+                        if (F2Case) ObserveFinalize2Cold(savedSlots, bindings, archiveData.SchemaVersion);
+                    }
                     Check(controls.NativeCastRequestCount == 0, "cold-restoration-did-not-cast-mount");
                     if (AreaAutoColdCase) QualifyTransitionAutoColdLoad();
                 }
@@ -359,6 +366,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!targetService.DestroyAndVerify()) return;
                 Check(relationship.State == RelationshipState.Mounted, "mounted-continuation-after-save-or-cold-load");
                 Write("usable-continuation-complete");
+                if (F2Case) { BeginFinalize2(); return; }
                 // A transition autosave must also still support an ordinary
                 // subsequent write from the world it actually restored.
                 if (AreaAutoColdCase || UpgradeResaveCase)

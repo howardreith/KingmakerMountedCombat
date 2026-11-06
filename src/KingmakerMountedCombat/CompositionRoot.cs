@@ -65,6 +65,8 @@ namespace KingmakerMountedCombat
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
+                var removalPreparation = removal;
+                nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
@@ -99,7 +101,9 @@ namespace KingmakerMountedCombat
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint5SmallScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint6FeatScenario(runtimeAutomation.Request.Scenario) &&
                     !Diagnostics.Phase3dHorseScenarioTranche.IsSprint7ChargeScenario(runtimeAutomation.Request.Scenario) &&
-                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario);
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(runtimeAutomation.Request.Scenario) &&
+                    !Diagnostics.Phase3dHorseScenarioTranche.IsFinalize2ControlsScenario(runtimeAutomation.Request.Scenario) &&
+                    runtimeAutomation.Request.Finalize2Controls != true;
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -352,8 +356,7 @@ namespace KingmakerMountedCombat
         {
             ThrowIfDisposed();
             GUILayout.Label("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion);
-            GUILayout.Label("Use Mount Companion in your rider's abilities to ride an eligible animal companion. Use Dismount to get off.");
-            GUILayout.Label("Move, attack and cast with normal controls. Drag abilities to the action bar for quick access.");
+            GUILayout.Label("Ride your animal companion using the Mount / Dismount action. Move and attack with normal controls; Charge adapts automatically while mounted.");
             var selected = world.Selected;
             if (selected != null && !MountedFeedbackPresentationPolicy.IsRoutine(selected.PlayerActions.LastFeedback))
                 GUILayout.Label(selected.PlayerActions.LastFeedback);
@@ -371,7 +374,7 @@ namespace KingmakerMountedCombat
             settings.EnableMountedCharge = GUILayout.Toggle(settings.EnableMountedCharge,
                 "Enable Mounted Charge (this session; on again at the next launch)");
             GUI.enabled = priorEnabled;
-            GUILayout.Label("The rider uses Mounted Charge from the ability list on an enemy in a clear straight line. Change this outside combat with every pair dismounted.");
+            GUILayout.Label("A mounted rider's ordinary Charge is carried by the mount along a clear straight line. Change this outside combat with every pair dismounted.");
             GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod. A Paladin who passes through KMC's level-five selection keeps that reference on either choice.");
             GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
             if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();

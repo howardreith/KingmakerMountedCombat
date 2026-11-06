@@ -47,7 +47,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             PatchBridge.Combat = combat ?? throw new ArgumentNullException(nameof(combat));
-            PatchBridge.ChargeSafety = new MountedChargeSafetyService(service, combat.RejectPairedControl);
+            PatchBridge.ChargeSafety = new MountedChargeSafetyService(service, nativeControls, combat.RejectPairedControl);
             PatchBridge.UnifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
             PatchBridge.Persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
@@ -122,6 +122,8 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.NativeMountMovementInterruptedPrefix), nameof(PatchMethods.NativeMountMovementInterruptedPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "OnClick", 0x06002F5D,
+                    Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopPrefix));
@@ -471,26 +473,50 @@ namespace KingmakerMountedCombat.Integration
                 Kingmaker.UnitLogic.UnitCondition condition, Buff sourceBuff) =>
                 MountedChargeConditionObserver.ObserveMutation(__instance, condition, sourceBuff);
 
-            internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
+            internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance,
+                Kingmaker.Utility.TargetWrapper target, ref bool __result)
             {
                 // The installed native-target extension replaces this method in
-                // a prefix. Restrict only the affected Charge's final result.
-                if (PatchBridge.ChargeSafety?.RejectionReason(__instance) != null) __result = false;
+                // a prefix. Decide only the affected Charge's final result: the
+                // mounted rider's ordinary Charge targets what the mounted Charge can.
+                var decision = PatchBridge.ChargeSafety?.PublicCanTarget(__instance, target?.Unit);
+                if (decision.HasValue) __result = decision.Value;
             }
 
             internal static bool ChargeAvailabilityPrefix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
             {
-                if (PatchBridge.ChargeSafety?.RejectionReason(__instance) == null) return true;
-                __result = false;
+                var availability = PatchBridge.ChargeSafety?.PublicAvailability(__instance);
+                if (availability == null) return true;
+                __result = availability.IsEnabled;
                 return false;
             }
 
             internal static bool ChargeReasonPrefix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref string __result)
             {
-                var reason = PatchBridge.ChargeSafety?.RejectionReason(__instance);
-                if (reason == null) return true;
-                __result = reason;
+                var availability = PatchBridge.ChargeSafety?.PublicAvailability(__instance);
+                if (availability == null || availability.IsEnabled) return true;
+                __result = availability.Reason;
                 return false;
+            }
+
+            // F2: the public slot runs the delivery identity it stands for right now. The native body runs unchanged on
+            // that AbilityData (availability, warning, prediction, target selection or self cast), then the slot gets its
+            // public identity back. Harmony 1 has no finalizer; the control service repairs a slot an exception left behind.
+            internal static void PublicSlotClickPrefix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance,
+                out Kingmaker.UnitLogic.Abilities.AbilityData __state)
+            {
+                __state = null;
+                var delivery = PatchBridge.NativeControls?.ResolvePublicSlotDelivery(__instance,
+                    PatchBridge.ChargeSafety?.Route(__instance.Ability) == MountedChargeRoute.Mounted);
+                if (delivery == null) return;
+                __state = __instance.Ability;
+                __instance.Ability = delivery;
+            }
+
+            internal static void PublicSlotClickPostfix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance,
+                Kingmaker.UnitLogic.Abilities.AbilityData __state)
+            {
+                if (__state != null) __instance.Ability = __state;
             }
 
             internal static bool ChargeClickPrefix(ClickWithSelectedAbilityHandler __instance, UnityEngine.GameObject gameObject, int button,
@@ -512,12 +538,14 @@ namespace KingmakerMountedCombat.Integration
             }
 
             internal static bool ChargeEnqueueOrRunPrefix(UnitCommands __instance, UnitCommand cmd, bool first) =>
-                PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeEnqueueOrRun(__instance, cmd, first) != false;
+                PatchBridge.NativeControls?.AdmitPublicControlCommand(cmd) != false &&
+                (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeEnqueueOrRun(__instance, cmd, first) != false);
 
             internal static bool ChargeEnqueuePrefix(UnitCommands __instance, UnitCommand cmd) =>
                 ChargeAdmissionPrefix(__instance, cmd, MountedChargeRequestRoute.Enqueue);
 
             private static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd, MountedChargeRequestRoute route) =>
+                PatchBridge.NativeControls?.AdmitPublicControlCommand(cmd) != false &&
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
                 (PointerController.SimulatingClick || PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd, route) != false) &&

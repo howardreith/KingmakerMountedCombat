@@ -1,9 +1,21 @@
-# F1 — ENGINEERING COMPLETE, ready for final review (2026-11-05)
+# F2 — ENGINEERING COMPLETE, ready for final review (2026-11-05)
 
-Draft [PR16](https://github.com/howardreith/KingmakerMountedCombat/pull/16), branch codex/kmc-finalize-f1-creation-ui-icons. [Current handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md) has the root cause, identities, retained evidence and restoration.
+Branch codex/kmc-finalize-f2-canonical-controls from main 66e96f90 (F1 PR #16 merged), PR #17. [Handoff](docs/FINALIZE-F2-REVIEW-HANDOFF.md), [identity table](docs/FINALIZE-F2-CANONICAL-CONTROLS.md).
 
-Candidate F1d, source 8c5be488, repairs the stale selected row after a rank removal: native Toggle.Set re-asserted the last active toggle, and KMC now takes the native group clear under the native action guard. Run 20261105-finalize-f1d-native-01: native PASS (observer.8, 48/0), exact restoration, row readable on screen. [Captures](docs/evidence/finalize-f1/README.md). Earlier F1c evidence stays at its own identities.
+What F2 delivers: one persistent Mount / Dismount control, the ordinary Charge mounted and unmounted, one-time placement with remembered removal, old-slot migration, and a new icon.
 
-finalize-f1: 120 min ceiling, 4/4 starts. No start or increase remains. Limitations stay explicit: no matched performance baseline (accepted), no valid scroll observation, owner art approval and owner-stack acceptance separate. F2 owns the single Charge and persistent Mount/Dismount control.
+Native evidence:
+- **Producer** r05 (F2f `ff1f2e5a`) PASS, on the authentic preview.211 Quick:
+  - the toolbar repaint after placement;
+  - the old Dismount row migrated in place;
+  - the slot cycle;
+  - kept {6@9, 7@0} and removed {7@0} Manuals.
+- **Consumer** r07 (F2g `ffb5c328`, through the one declared r05 bridge) PASS:
+  - a new process restored the control at slot 9, drawn and usable;
+  - loading the removed archive kept it absent through updates, reselection and a control cycle.
+- **Earlier runs:** r01–r04 and r06 are FAIL at their original verdicts and are retained.
+- **Restoration:** exact on every run.
 
-No game, lock or installed candidate. No merge, release, install or F2.
+Spend: finalize-f2 44.87/60 min, 7 of 8 starts. No game, lock or installed candidate remains. Owner art approval and laptop-stack acceptance are separate. No merge, release, install or F3.
+
+F1 record: [F1 handoff](docs/FINALIZE-F1-REVIEW-HANDOFF.md).

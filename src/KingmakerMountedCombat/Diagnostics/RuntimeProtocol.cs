@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
@@ -160,6 +160,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public bool ShouldSerializeUpgradeChain() => UpgradeChain.HasValue;
         internal bool IsUpgradeResave => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "quick";
         internal bool IsUpgradeConsumer => UpgradeChain == true && Scenario == "persistence-p05-load" && PersistenceCase == "manual";
+
+        // F2: the upgrade chain also carries the public control. The producer records the authentic old slot mapping,
+        // the first placement and two native Manuals (the control kept at a chosen slot; the control removed); the
+        // consumer loads both in one new process. Explicit true, only beside the upgrade chain.
+        public bool? Finalize2Controls { get; set; }
+        public bool ShouldSerializeFinalize2Controls() => Finalize2Controls.HasValue;
+        internal bool IsFinalize2UpgradeProducer => Finalize2Controls == true && IsUpgradeResave;
+        internal bool IsFinalize2UpgradeConsumer => Finalize2Controls == true && IsUpgradeConsumer;
+        internal const string Finalize2RemovedSaveName = "KMC_F2_REMOVED";
+        internal const string Finalize2RemovedSaveLeaf = "Manual_2_KMC_F2_REMOVED.zks";
 
         // Private, guarded F11 measurement only. The native observer is not a
         // package member and ordinary requests cannot name or load native code.
@@ -312,6 +322,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Scenario != "persistence-p05-load" || PersistenceLoad == null ||
                 (PersistenceCase != "quick" && PersistenceCase != "manual")))
                 errors.Add("The upgrade chain is an explicit true opt-in for the P05 Quick cold load that resaves (producer) and the P05 Manual cold load of that resave (consumer).");
+            if (Finalize2Controls.HasValue && (Finalize2Controls != true || UpgradeChain != true))
+                errors.Add("The F2 public-control upgrade chain is an explicit true opt-in beside the upgrade chain only.");
             if (SchemaVersion != CurrentSchemaVersion && SchemaVersion != SaveBackedSchemaVersion)
             {
                 errors.Add("Unsupported request schemaVersion.");
@@ -441,9 +453,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
-                !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal)))
+                !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal) &&
+                !string.Equals(Branch, "codex/kmc-finalize-f2-canonical-controls", StringComparison.Ordinal)))
             {
-                errors.Add("branch must use the KMC prefix or the exact selected F1 branch.");
+                errors.Add("branch must use the KMC prefix or an exact selected finalize branch.");
             }
 
             if (!IsLowerHex(Commit, 40))
@@ -1185,7 +1198,20 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Alternating archive must be distinct and from the exact same native campaign/area.");
                 }
             }
-            else if (PersistenceAlternate != null) errors.Add("Only exact P05 alternating or P06 validation loads may select a second archive.");
+            else if (IsFinalize2UpgradeConsumer)
+            {
+                // F2: the producer's second output, the same actor with its public control deliberately removed.
+                if (PersistenceAlternate == null) errors.Add("The F2 upgrade consumer requires the producer's removed-control archive.");
+                else
+                {
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", Finalize2RemovedSaveName, "^" + Finalize2RemovedSaveLeaf.Replace(".", "\\.") + "$"));
+                    if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                        PersistenceAlternate.GameId != PersistenceLoad.GameId || PersistenceAlternate.GameName != PersistenceLoad.GameName ||
+                        PersistenceAlternate.Area != PersistenceLoad.Area)
+                        errors.Add("The F2 removed-control archive must be distinct and from the exact same native campaign/area.");
+                }
+            }
+            else if (PersistenceAlternate != null) errors.Add("Only exact P05 alternating, the F2 upgrade consumer or P06 validation loads may select a second archive.");
             if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
             {
                 errors.Add("Schema v2 uses only its exact fixture write authorization.");
@@ -1535,7 +1561,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C4-SUSTAINED-TB-after-early-end",
             "C6D-move-cast-move", "C6D-cast-then-move", "C6D-double-move-ranged", "C6D-movement-exhausted", "C6D-auto-stop-boundary",
             "C6E-swift-on-own-turn", "C6E-swift-out-of-turn", "C6E-attack-on-mount-observed", "C6E-reaction-window",
-            "S8-tb", "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain", "S8-mount-horse", "S8-control", "S8-dog", "S8-mixed", "S8-mixed-reverse", "S8-archetype", "S8-tiers", "S8-smite", "S7-rt-charge", "S7-rt-cancel", "S7-tb-charge", "S7-pounce", "S7-queue", "S7-lane", "S7-reforce", "S6-selection", "S6-rt-defense", "S6-rt-isolation", "S6-rider-feat", "S6-tb-economy", "S6-forced-hit", "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement",
+            "F2-placement", "F2-strings", "F2-mount-cycle", "F2-alias-and-removal", "F2-charge-mounted", "F2-refusals", "F2-charge-unmounted", "S8-tb", "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain", "S8-mount-horse", "S8-control", "S8-dog", "S8-mixed", "S8-mixed-reverse", "S8-archetype", "S8-tiers", "S8-smite", "S7-rt-charge", "S7-rt-cancel", "S7-tb-charge", "S7-pounce", "S7-queue", "S7-lane", "S7-reforce", "S6-selection", "S6-rt-defense", "S6-rt-isolation", "S6-rider-feat", "S6-tb-economy", "S6-forced-hit", "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement",
             "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase", "S4-tb-ordinary-actors", "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors", "S3-trap-disarm", "S3-touch-friendly-distant", "S3-touch-held-charge", "S3-touch-hostile", "S3-ranged-distant", "S3-tb-touch-friendly", "S3-tb-insufficient-movement", "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-scroll-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
             "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",
@@ -1559,7 +1585,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",

@@ -38,8 +38,10 @@ function Assert-KmcChargeAbsentFacts($ObserverRequest,$Observations) {
  if([string]::IsNullOrEmpty($source.riderId)-or[string]::IsNullOrEmpty($source.mountId)-or$source.riderId-ceq$source.mountId-or
     $source.observationsSha256-cnotmatch'^[0-9a-f]{64}$'-or$source.chargeBuffGuid-cnotmatch'^[0-9a-f]{32}$'){ChargeSaveFail 'no-DLL charge source actors or identity differ'}
  $expected=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49')
- if(@($ObserverRequest.kmcBlueprintGuids).Count-ne$expected.Count-or
-    (@($ObserverRequest.kmcBlueprintGuids|Sort-Object)-join'|')-cne(@($expected|Sort-Object)-join'|')){ChargeSaveFail 'no-DLL blueprint inventory omits a KMC reference'}
+ # F2 adds the public Mount / Dismount control; frozen older observer requests keep the nine-identity set.
+ $current=@($expected)+'26151090ad4744ea96dbb7e0537a4a7f'
+ $observed=(@($ObserverRequest.kmcBlueprintGuids|Sort-Object)-join'|')
+ if($observed-cne(@($expected|Sort-Object)-join'|')-and$observed-cne(@($current|Sort-Object)-join'|')){ChargeSaveFail 'no-DLL blueprint inventory omits a KMC reference'}
  foreach($phase in @('chargeLoaded','chargeSettled')){
   $facts=$Observations.$phase
   if($null-eq$facts-or(ConvertTo-KmcChargeCanonical $facts.source)-cne(ConvertTo-KmcChargeCanonical $source)-or
