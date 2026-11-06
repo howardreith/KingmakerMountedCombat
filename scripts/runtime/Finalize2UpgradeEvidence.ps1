@@ -56,6 +56,9 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if($null -eq $C){ Fail ($What+': no click') }
   if((Text (P $C 'route')) -cne $Route -or (P $C 'mounting') -ne $Mounting){ Fail ($What+': the route differs') }
   Yes (P $C 'slotHeldLiveFact') ($What+': the clicked entry was not bound to the live public fact')
+  # The click ran while the native slot admitted the action; a wait before it is explained only by a native Move cooldown.
+  Yes (P $C 'possible') ($What+': the click ran while the native slot reported the action not possible')
+  if((Int (P $C 'readyFrames') ($What+' ready frames')) -gt 0 -and [double](0+(P (P $C 'waitStart') 'riderMoveCooldown')) -le 0){ Fail ($What+': the click waited without a native Move cooldown to explain it') }
   Yes (P $C 'slotDataRestored') ($What+': the entry did not get its public AbilityData back')
   if((Text (P $C 'slotAbilityBefore')) -cne $ids.publicControl -or (Text (P $C 'slotAbilityAfter')) -cne $ids.publicControl){ Fail ($What+': the entry does not hold the public identity') }
   $shell=if($Mounting){$ids.mountShell}else{$ids.dismountShell}

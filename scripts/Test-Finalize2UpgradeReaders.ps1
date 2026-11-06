@@ -20,7 +20,7 @@ function Counters([int]$Placed,[int]$Legacy,[int]$Observed){ [ordered]@{initialP
 function Actor($Bar,$Indices,$Counters,[string]$Relation='Mounted',$Placements=@()){ [ordered]@{relationship=$Relation;placementRecorded=$true;factActive=$true;indices=@($Indices);bar=$Bar;placements=@($Placements);exposure=[ordered]@{hiddenExposed=@()};counters=$Counters} }
 function W([int]$Frames,[bool]$Removed=$false){ [ordered]@{frames=$Frames;removed=$Removed;movedFrames=0;notLiveFrames=0;factReplacedFrames=0;reinsertedFrames=0} }
 function S([string]$A,[int]$I,[int]$K){ [ordered]@{ActorId=$A;Index=$I;Kind=$K} }
-function Click([bool]$Mounting,[string]$Route){ $c=[ordered]@{route=$Route;mounting=$Mounting;slotAbilityBefore=$P;slotAbilityAfter=$P;slotHeldLiveFact=$true;slotDataRestored=$true;caster=$R;refusalDelta=0}
+function Click([bool]$Mounting,[string]$Route){ $c=[ordered]@{route=$Route;mounting=$Mounting;slotAbilityBefore=$P;slotAbilityAfter=$P;slotHeldLiveFact=$true;slotDataRestored=$true;caster=$R;refusalDelta=0;possible=$true;readyFrames=0;waitStart=$null}
  if($Mounting){ $c.handlerAfterSlot=$ids.mountShell;$c.targetClicked=$true;$c.target=$M;$c.commandBlueprint=$ids.mountShell;$c.castDelta=1 } else { $c.handlerAfterSlot=$null;$c.target=$R;$c.commandBlueprint=$ids.dismountShell;$c.castDelta=0 }; $c }
 function Strings{ [ordered]@{tableFound=$true;packPresent=$true;keys=@([ordered]@{key='k1';expected='Mount / Dismount';present=$true;actual='Mount / Dismount'});
  controls=@([ordered]@{guid=$P;name='Mount / Dismount';hidden=$false},[ordered]@{guid=$ids.mountShell;name='Mount Companion';hidden=$true},[ordered]@{guid=$ids.dismountShell;name='Dismount';hidden=$true},[ordered]@{guid=$ids.mountedChargeShell;name='Charge';hidden=$true})} }
@@ -90,6 +90,9 @@ try {
  PNeg { param($r) (Kind $r 'f2-setup-swapped').detail.barAfter[2]=(A 7) } 'producer: a swap that changed another slot refuses'
  PNeg { param($r) (Kind $r 'f2-complete').detail.disclosedSetup+=[pscustomobject]@{action='extra'} } 'producer: an undisclosed-count setup refuses'
  PNeg { param($r) (Kind $r 'f2-cycle-mount-click').detail.castDelta=0 } 'producer: a mount click without its admitted cast refuses'
+ PNeg { param($r) (Kind $r 'f2-cycle-mount-click').detail.possible=$false } 'producer: a click the native slot did not admit refuses'
+ PNeg { param($r) $c=(Kind $r 'f2-cycle-dismount-click').detail; $c.readyFrames=40; $c.waitStart=[pscustomobject]@{riderMoveCooldown=0.0} } 'producer: a wait with no native cooldown to explain it refuses'
+ $waited=Copy-F2 $pRows; $c=(Kind $waited 'f2-cycle-mount-click').detail; $c.readyFrames=170; $c.waitStart=[pscustomobject]@{riderMoveCooldown=2.82}; Check (Accept $pRequest $waited $pGame $pSave $parent) 'producer: a mount click after the native Move cooldown returned is accepted'
  PNeg { param($r) (Kind $r 'f2-cycle-dismount-click').detail.commandBlueprint=$ids.mountShell } 'producer: a dismount click that queued the opposite shell refuses'
  PNeg { param($r) (Kind $r 'attack-delivered').detail.rules=0 } 'producer: a continuation without its native attack refuses'
  PNeg { param($r) (Kind $r 'f2-complete').detail.shots[0].sha256=('f'*64) } 'producer: a screenshot whose bytes differ refuses'
