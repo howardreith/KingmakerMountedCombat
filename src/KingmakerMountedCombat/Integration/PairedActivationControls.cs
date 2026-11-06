@@ -20,6 +20,9 @@ namespace KingmakerMountedCombat.Integration
         private static readonly System.Reflection.MethodInfo NativeSelectMovementLimit =
             ResolveMethod(typeof(TurnController), "TrySelectMovementLimit", 0x06000C42, Type.EmptyTypes);
         private static readonly System.Reflection.FieldInfo NativeMovementLimit = ResolveField(typeof(TurnController), "m_MovementLimit", 0x0400067E);
+        private static readonly System.Reflection.FieldInfo NativeHighlightedUnit = ResolveField(typeof(TurnController), "m_HighlightedUnit", 0x0400068B);
+        private static readonly System.Reflection.FieldInfo NativeHighlightedObject = ResolveField(typeof(TurnController), "m_HighlightedObject", 0x0400068D);
+        private object mirroredGroundLimit;
         private static readonly System.Reflection.FieldInfo NativeModifyCurrent = ResolveField(typeof(TurnController), "m_ModifyMovementCurrentValue", 0x04000680);
         private static readonly System.Reflection.FieldInfo NativeModifyRequested = ResolveField(typeof(TurnController), "m_ModifyMovementRequestValue", 0x04000681);
 
@@ -48,13 +51,16 @@ namespace KingmakerMountedCombat.Integration
             if (selected == activation.Principal && partnerContext.Unit.IsDirectlyControllable &&
                 !(partnerContext.Unit.View?.IsMoving() ?? false))
             {
-                // The step key and cycled limit stay on the native input context, whose click
-                // admission and path refresh read them; the mount mirrors that choice. A limit
-                // forced by the rider's own spent budget is not a choice and is not mirrored.
+                // The step key and cycled ground limit stay on the native input context, whose click
+                // admission and path refresh read them; the mount mirrors those choices. A limit the
+                // rider's own spent budget or a hovered target's smart variant imposes is not a ground
+                // choice: the mount keeps its last one, which native validates against its allocation.
                 var input = SelectedNativeInputContext(native);
                 NativeModifyRequested.SetValue(partnerContext, NativeModifyRequested.GetValue(input));
                 NativeModifyCurrent.SetValue(partnerContext, NativeModifyCurrent.GetValue(input));
-                if (input.HasNormalMovement()) NativeMovementLimit.SetValue(partnerContext, NativeMovementLimit.GetValue(input));
+                if (input.HasNormalMovement() && NativeHighlightedUnit.GetValue(input) == null && NativeHighlightedObject.GetValue(input) == null)
+                    mirroredGroundLimit = NativeMovementLimit.GetValue(input);
+                NativeMovementLimit.SetValue(partnerContext, mirroredGroundLimit ?? TurnController.MovementLimit.TwoActions);
                 NativeSelectMovementLimit.Invoke(partnerContext, null);
             }
             return partnerContext;
