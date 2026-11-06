@@ -94,7 +94,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Advance()
         {
-            if (clock.Elapsed.TotalSeconds > 150) throw new InvalidOperationException("P01 native stage timed out: " + stage);
+            // F4 dungeon entry: two area loads, the native party selection and the after-entry write precede the same continuation.
+            if (clock.Elapsed.TotalSeconds > (DungeonEntryCase ? DungeonEntrySeconds : 150)) throw new InvalidOperationException("P01 native stage timed out: " + stage);
             var game = Game.Instance;
             // A native save runs inside the loading process, so this observation
             // has to precede the loading early return or it never records.
