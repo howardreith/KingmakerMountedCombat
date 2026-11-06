@@ -217,6 +217,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var acquisition = new JObject(); f3Measure["secondCompanionAcquisition"] = acquisition;
                     F3Disclose("The fixture had no second companion: one was acquired through the native Ranger level-up (Sprint 6 route).");
+                    // Sprint 6 setup: the disposable owner first receives the experience for the four native levels it takes.
+                    var progression = owner.Descriptor.Progression;
+                    var needed = Kingmaker.Blueprints.Root.BlueprintRoot.Instance.Progression.XPTable.GetBonus(progression.CharacterLevel + 4);
+                    acquisition["experienceSetup"] = new JObject { ["levelBefore"] = progression.CharacterLevel, ["experienceBefore"] = progression.Experience, ["experienceAfter"] = Math.Max(needed, progression.Experience) };
+                    if (progression.Experience < needed) progression.AdvanceExperienceTo(needed, false);
+                    F3Disclose("Setup: the second owner received the experience for four native levels before the Ranger companion acquisition.");
                     if (!NativeHorseFixtureAcquisition.Create(owner, horseService, logger, acquisition)) { F3Fail("The second pair's native companion did not commit."); return; }
                     source = "acquired";
                 }
