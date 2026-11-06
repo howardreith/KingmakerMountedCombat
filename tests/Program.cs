@@ -379,6 +379,38 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
                     TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a writing scenario.");
                 }
                 {
+                    // F4 dungeon entry reload: cold-only, the same pinned route, exactly the entry's Auto_1 on the floor.
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    f.Area = request.Fixture.Baseline.Area = RuntimeRequest.DungeonEntryFloorArea;
+                    request.Scenario = "persistence-p07-load"; request.PersistenceCase = RuntimeRequest.DungeonEntryAutoCase;
+                    request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget { EnterPoint = RuntimeRequest.DungeonEntryHubEnterPoint,
+                        Area = RuntimeRequest.DungeonEntryHubArea, AutoSaveMode = "AfterEntry" };
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "Autosave1", FileName = "Auto_1.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = RuntimeRequest.DungeonEntryFloorArea,
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact dungeon entry reload rejected: " + string.Join("; ", request.Validate()));
+                    TestRunner.True(RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) && request.ExpectedNativeLoadType == "Auto",
+                        "Dungeon entry reload is not the Auto transition consumer.");
+                    request.PersistenceLoad.Area = RuntimeRequest.DungeonEntryHubArea;
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted the hub area.");
+                    request.PersistenceLoad.Area = RuntimeRequest.DungeonEntryFloorArea;
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted a manual leaf.");
+                    request.PersistenceLoad.FileName = "Auto_1.zks";
+                    request.PersistenceAreaTarget.AutoSaveMode = "BeforeExit";
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted another authored mode.");
+                    request.PersistenceAreaTarget.AutoSaveMode = "AfterEntry";
+                    request.PersistenceAreaTarget.EnterPoint = new string('d', 32);
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted another route.");
+                    request.PersistenceAreaTarget.EnterPoint = RuntimeRequest.DungeonEntryHubEnterPoint;
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted a foreign campaign.");
+                    request.PersistenceLoad.GameId = f.GameId;
+                    request.Scenario = "persistence-p07-save";
+                    TestRunner.True(request.Validate().Count > 0, "Dungeon entry reload accepted a writing scenario.");
+                }
+                {
                     // F4 dungeon entry: save-only, exactly the pinned hub entry with AfterEntry, from the Working fixture floor.
                     var request = ValidSaveBackedRequest();
                     request.Fixture.Working.Area = RuntimeRequest.DungeonEntryFloorArea; request.Fixture.Baseline.Area = RuntimeRequest.DungeonEntryFloorArea;
