@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Integration
         internal const string ObjectName = "KMC_RidingDogTack";
         internal static RidingDogTackService Current { get; private set; }
         private readonly IModLogger logger;
-        private readonly Dictionary<string, SharedTack> shared = new Dictionary<string, SharedTack>(StringComparer.Ordinal);
+        private readonly Dictionary<int, SharedTack> shared = new Dictionary<int, SharedTack>();
         private readonly List<RidingDogTackBinding> live = new List<RidingDogTackBinding>();
         private Texture2D atlas, flatNormal;
         private bool disposed;
@@ -109,24 +109,31 @@ namespace KingmakerMountedCombat.Integration
                 .OrderByDescending(item => item.sharedMesh.vertexCount).FirstOrDefault();
         }
 
+        // One fit per body mesh. It is made from where the bones actually hold the body now, in mount-local space, and stored
+        // as each vertex's pre-image under its own blended skin matrix, so any view of the same mesh carries it in any pose.
         private SharedTack Shared(UnitEntityView view, SkinnedMeshRenderer source)
         {
-            var toRoot = view.transform.worldToLocalMatrix * source.transform.localToWorldMatrix;
-            var key = source.sharedMesh.GetInstanceID() + "|" + string.Join(",", Enumerable.Range(0, 16).Select(i => toRoot[i].ToString("F3")).ToArray());
+            Purge();
+            var mesh = source.sharedMesh;
+            var key = mesh.GetInstanceID();
             if (shared.TryGetValue(key, out var cached)) return cached;
-            var tack = new SharedTack();
+            var tack = new SharedTack { SourceMesh = mesh };
             shared[key] = tack;
             MeshBuilds++;
-            var mesh = source.sharedMesh;
             var vertices = mesh.vertices;
             var normals = mesh.normals;
             var boneWeights = mesh.boneWeights;
-            if (normals.Length != vertices.Length || boneWeights.Length != vertices.Length)
+            var bindposes = mesh.bindposes;
+            var bones = source.bones;
+            if (normals.Length != vertices.Length || boneWeights.Length != vertices.Length || bindposes.Length != bones.Length || bones.Any(bone => bone == null))
             {
-                tack.Failure = "the body mesh has no normals or bone weights";
+                tack.Failure = "the body mesh has no normals, bone weights or complete bones";
                 logger?.Warning("Riding Dog tack: " + tack.Failure + ".");
                 return tack;
             }
+            var toRoot = view.transform.worldToLocalMatrix;
+            var skin = new Matrix4x4[bones.Length];
+            for (var b = 0; b < bones.Length; b++) skin[b] = toRoot * bones[b].localToWorldMatrix * bindposes[b];
             var body = new TackSourceMesh
             {
                 Positions = new float[vertices.Length * 3], Normals = new float[vertices.Length * 3], Triangles = mesh.triangles,
@@ -134,11 +141,12 @@ namespace KingmakerMountedCombat.Integration
             };
             for (var i = 0; i < vertices.Length; i++)
             {
-                var position = toRoot.MultiplyPoint3x4(vertices[i]);
-                var normal = toRoot.MultiplyVector(normals[i]).normalized;
+                var weight = boneWeights[i];
+                var matrix = Blend(skin, weight.boneIndex0, weight.weight0, weight.boneIndex1, weight.weight1, weight.boneIndex2, weight.weight2, weight.boneIndex3, weight.weight3);
+                var position = matrix.MultiplyPoint3x4(vertices[i]);
+                var normal = matrix.MultiplyVector(normals[i]).normalized;
                 body.Positions[i * 3] = position.x; body.Positions[i * 3 + 1] = position.y; body.Positions[i * 3 + 2] = position.z;
                 body.Normals[i * 3] = normal.x; body.Normals[i * 3 + 1] = normal.y; body.Normals[i * 3 + 2] = normal.z;
-                var weight = boneWeights[i];
                 body.BoneIndices[i * 4] = weight.boneIndex0; body.BoneIndices[i * 4 + 1] = weight.boneIndex1;
                 body.BoneIndices[i * 4 + 2] = weight.boneIndex2; body.BoneIndices[i * 4 + 3] = weight.boneIndex3;
                 body.BoneWeights[i * 4] = weight.weight0; body.BoneWeights[i * 4 + 1] = weight.weight1;
@@ -152,7 +160,7 @@ namespace KingmakerMountedCombat.Integration
                 return tack;
             }
             tack.Fit = fit;
-            tack.Mesh = ToMesh(fit, toRoot.inverse, toRoot.determinant < 0f, mesh.bindposes);
+            tack.Mesh = ToMesh(fit, skin, bindposes);
             tack.Material = TackMaterial(source.sharedMaterial, tack);
             logger?.Info("Riding Dog tack fitted: " + fit.VertexCount + " vertices, back " + fit.BackHeightAtSeat.ToString("F3") + ", seat " +
                 fit.SeatTopAtSeat.ToString("F3") + ", cantle " + fit.CantleTop.ToString("F3") + ", pommel " + fit.PommelTop.ToString("F3") +
@@ -160,7 +168,7 @@ namespace KingmakerMountedCombat.Integration
             return tack;
         }
 
-        private static Mesh ToMesh(TackMeshData fit, Matrix4x4 toMesh, bool mirrored, Matrix4x4[] bindposes)
+        private static Mesh ToMesh(TackMeshData fit, Matrix4x4[] skin, Matrix4x4[] bindposes)
         {
             var count = fit.VertexCount;
             var vertices = new Vector3[count];
@@ -169,22 +177,43 @@ namespace KingmakerMountedCombat.Integration
             var weights = new BoneWeight[count];
             for (var i = 0; i < count; i++)
             {
+                var b = fit.BoneIndices; var w = fit.BoneWeights;
+                var toMesh = Blend(skin, b[i * 4], w[i * 4], b[i * 4 + 1], w[i * 4 + 1], b[i * 4 + 2], w[i * 4 + 2], b[i * 4 + 3], w[i * 4 + 3]).inverse;
                 vertices[i] = toMesh.MultiplyPoint3x4(new Vector3(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]));
                 normals[i] = toMesh.MultiplyVector(new Vector3(fit.Normals[i * 3], fit.Normals[i * 3 + 1], fit.Normals[i * 3 + 2])).normalized;
                 uvs[i] = new Vector2(fit.Uvs[i * 2], fit.Uvs[i * 2 + 1]);
                 weights[i] = new BoneWeight
                 {
-                    boneIndex0 = fit.BoneIndices[i * 4], boneIndex1 = fit.BoneIndices[i * 4 + 1], boneIndex2 = fit.BoneIndices[i * 4 + 2], boneIndex3 = fit.BoneIndices[i * 4 + 3],
-                    weight0 = fit.BoneWeights[i * 4], weight1 = fit.BoneWeights[i * 4 + 1], weight2 = fit.BoneWeights[i * 4 + 2], weight3 = fit.BoneWeights[i * 4 + 3]
+                    boneIndex0 = b[i * 4], boneIndex1 = b[i * 4 + 1], boneIndex2 = b[i * 4 + 2], boneIndex3 = b[i * 4 + 3],
+                    weight0 = w[i * 4], weight1 = w[i * 4 + 1], weight2 = w[i * 4 + 2], weight3 = w[i * 4 + 3]
                 };
             }
-            var triangles = (int[])fit.Triangles.Clone();
-            if (mirrored)
-                for (var t = 0; t < triangles.Length; t += 3) { var swap = triangles[t + 1]; triangles[t + 1] = triangles[t + 2]; triangles[t + 2] = swap; }
-            var result = new Mesh { name = ObjectName, vertices = vertices, normals = normals, uv = uvs, boneWeights = weights, bindposes = bindposes, triangles = triangles };
+            // Skinning places each vertex back where the fit put it, so the fit's outward winding is the rendered one.
+            var result = new Mesh { name = ObjectName, vertices = vertices, normals = normals, uv = uvs, boneWeights = weights, bindposes = bindposes, triangles = (int[])fit.Triangles.Clone() };
             result.RecalculateTangents();
             result.RecalculateBounds();
             return result;
+        }
+
+        // Linear blend skinning's own matrix for one vertex.
+        private static Matrix4x4 Blend(Matrix4x4[] skin, int b0, float w0, int b1, float w1, int b2, float w2, int b3, float w3)
+        {
+            var result = new Matrix4x4();
+            for (var e = 0; e < 16; e++)
+                result[e] = skin[b0][e] * w0 + (w1 > 0f ? skin[b1][e] * w1 : 0f) + (w2 > 0f ? skin[b2][e] * w2 : 0f) + (w3 > 0f ? skin[b3][e] * w3 : 0f);
+            return result;
+        }
+
+        // A fit whose body mesh Unity has unloaded can never be used again; its own mesh and material go with it.
+        private void Purge()
+        {
+            foreach (var key in shared.Where(entry => entry.Value.SourceMesh == null).Select(entry => entry.Key).ToList())
+            {
+                var stale = shared[key];
+                if (stale.Mesh != null) Object.Destroy(stale.Mesh);
+                if (stale.Material != null) Object.Destroy(stale.Material);
+                shared.Remove(key);
+            }
         }
 
         // The dog's own material and shader, so native lighting, fog and effects match; only its surface textures are replaced.
@@ -234,7 +263,7 @@ namespace KingmakerMountedCombat.Integration
 
     internal sealed class SharedTack
     {
-        internal Mesh Mesh;
+        internal Mesh Mesh, SourceMesh;
         internal Material Material;
         internal TackMeshData Fit;
         internal string Failure, Shader;

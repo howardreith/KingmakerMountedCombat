@@ -51,7 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Feature acquiredHorse, acquiredRank;
         // Sprint 5: the exploration Manual route with a female Halfling and her Riding Dog as the second pair.
         internal const string RidingDogCaseName = "riding-dog-exploration-manual", RidingDogPairProfile = "small-halfling-female-ridingdog-v1";
-        private bool RidingDogCase => request.PersistenceCase == RidingDogCaseName;
+        private bool RidingDogCase => request.PersistenceCase == RidingDogCaseName || CompanionNamesCase;
         private Kingmaker.Blueprints.Classes.BlueprintFeature SecondCompanionFeature => PaladinBondCase ? horses.DivineMountHorse : RidingDogCase ? horses.RidingDogFeature : horses.HorseFeature;
         private bool ridingDogBodyApplied, ridingDogShotPending;
         private int ridingDogFrames;
@@ -167,7 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!started) Start();
                 if (cleanup) { PollCleanup(); return; }
-                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || CapitalArrivalCase || SixPairCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
+                var withinDeadline = clock.Elapsed.TotalSeconds <= (RepeatedWorldCase ? 600 : CombatCase || AreaAutosaveCase || ManticoreFixtureCase || CapitalArrivalCase || SixPairCase || CompanionNamesCase ? 300 : 180) && clock.Elapsed.TotalSeconds - stageStarted <=
                     (RepeatedWorldCase && stage == 70 ? 450 : CombatCase && (stage == 5 || stage == 20 || stage == 21 || stage == 22) || AreaAutosaveCase && stage == 30 || ManticoreFixtureCase && stage == 92 || CapitalArrivalCase && stage == 50 ? 150 : 35);
                 // The first ordinary Small cold load reached all four native PostLoads
                 // but not presentation. On a recurrence, retain the exact read-only
@@ -266,6 +266,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             }
                             if (!Sprint5Fixture.BodyReady(secondRider) || ++ridingDogFrames < 45) return;
                         }
+                        if (CompanionNamesCase && !f5NamesDone) { BeginCompanionNamesUnmounted(); Next(170); break; }
                         actors = new[] { firstRider, firstMount, secondRider, secondMount };
                         Input(firstRider, firstMount, controls.MountAbility, secondRider, "mount-mammoth"); Next(2); break;
                     case 2:
@@ -277,7 +278,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         Input(secondRider, secondMount, controls.MountAbility, firstRider, "mount-horse"); Next(3); break;
                     case 3:
                         if (!Mounted(secondRider, secondMount) || !InputSettled()) return;
-                        FinishInput(); AfterNativeMounts(); break;
+                        FinishInput();
+                        if (CompanionNamesCase) { BeginCompanionNamesMounted(); Next(175); break; }
+                        AfterNativeMounts(); break;
                     case 6:
                         PollOwnerSeedCheckpointPreparation(); break;
                     case 4:
@@ -352,6 +355,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (PaladinBondCase && Cold) RecordPaladinBondCold();
                         if (RidingDogCase && Cold) { BeginRidingDogCold(); Next(50); break; }
                         BeginCleanup(); break;
+                    case 170: case 175: case 176:
+                        UpdateCompanionNames(); break;
                     case 50: case 51: case 52: case 53: case 54:
                         UpdateRidingDogCold(); break;
                 }
@@ -369,6 +374,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderSkeleton"] = secondRider.View.CharacterAvatar?.Skeleton?.name, ["riderEffectiveSize"] = secondRider.Descriptor.State.Size.ToString(),
                 ["mountEffectiveSize"] = secondMount.Descriptor.State.Size.ToString(), ["riderWorldScale"] = Sprint5Fixture.Vector(secondRider.View.transform.lossyScale),
                 ["shots"] = ridingDogShots, ["dismounted"] = false, ["remounted"] = false };
+            if (CompanionNamesCase) RecordCompanionNamesCold();
             RidingDogShot("dog-cold-restored-side", 90f); RidingDogShot("dog-cold-restored-other", 270f);
         }
 
@@ -402,6 +408,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!Mounted(secondRider, secondMount) || ++ridingDogFrames < 45) return;
                     record["remounted"] = true; RidingDogShot("dog-cold-remounted-side", 90f); Next(54); return;
                 default:
+                    if (CompanionNamesCase) { BeginCompanionNamesColdSheet(); Next(176); return; }
                     BeginCleanup(); return;
             }
         }
