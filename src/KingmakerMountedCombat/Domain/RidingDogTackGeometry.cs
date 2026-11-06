@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Domain
     {
         // Mount-local, measured on the Medium Riding Dog: the rider's pelvis sits over z 0.12 (MountedRiderProfileCatalog).
         public const float SeatForward = 0.12f;
-        private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 1.10f, PadLift = 0.010f, RimLift = 0.0015f;
+        private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 0.95f, PadLift = 0.010f, RimLift = 0.0015f;
         private const float SeatBack = 0.15f, SeatFront = 0.16f, SeatAngle = 0.62f, SeatBase = 0.012f;
         private const float CantleHeight = 0.032f, CantleOffset = -0.10f, PommelHeight = 0.026f, PommelOffset = 0.11f, RollWidth = 0.028f;
         private const float GirthOffset = 0.05f, GirthWidth = 0.036f, GirthLift = 0.016f;
@@ -144,14 +144,22 @@ namespace KingmakerMountedCombat.Domain
             {
                 var grid = new int[PadRows, PadColumns];
                 var hits = new Hit[PadRows, PadColumns];
+                var zs = new float[PadRows, PadColumns];
+                var angles = new float[PadRows, PadColumns];
                 var centre = -1;
                 for (var i = 0; i < PadRows; i++)
                     for (var j = 0; j < PadColumns; j++)
                     {
                         float u = i / (float)(PadRows - 1), v = -1f + 2f * j / (PadColumns - 1);
-                        var hit = Cast(PadZ(u, v), v * PadAngle);
-                        hits[i, j] = hit;
-                        grid[i, j] = hit.Valid ? AddVertex(Lift(hit, PadLift), hit.Normal, PadUvLeft + (PadUvRight - PadUvLeft) * j / (PadColumns - 1), 0.02f + 0.96f * u, hit) : -1;
+                        zs[i, j] = PadZ(u, v); angles[i, j] = v * PadAngle;
+                        hits[i, j] = Cast(zs[i, j], angles[i, j]);
+                    }
+                SmoothGrid(hits, zs, angles, false);
+                for (var i = 0; i < PadRows; i++)
+                    for (var j = 0; j < PadColumns; j++)
+                    {
+                        var hit = hits[i, j];
+                        grid[i, j] = hit.Valid ? AddVertex(Lift(hit, PadLift), hit.Normal, PadUvLeft + (PadUvRight - PadUvLeft) * j / (PadColumns - 1), 0.02f + 0.96f * i / (PadRows - 1), hit) : -1;
                         if (i == PadRows / 2 && j == PadColumns / 2) centre = grid[i, j];
                     }
                 AddGrid(grid, PadRows, PadColumns, false);
@@ -201,14 +209,25 @@ namespace KingmakerMountedCombat.Domain
             {
                 cantleTop = pommelTop = float.MinValue;
                 var grid = new int[SeatRows, SeatColumns];
+                var hits = new Hit[SeatRows, SeatColumns];
+                var zs = new float[SeatRows, SeatColumns];
+                var angles = new float[SeatRows, SeatColumns];
+                for (var i = 0; i < SeatRows; i++)
+                    for (var j = 0; j < SeatColumns; j++)
+                    {
+                        zs[i, j] = seat - SeatBack + i / (float)(SeatRows - 1) * (SeatBack + SeatFront);
+                        angles[i, j] = (-1f + 2f * j / (SeatColumns - 1)) * SeatAngle;
+                        hits[i, j] = Cast(zs[i, j], angles[i, j]);
+                    }
+                SmoothGrid(hits, zs, angles, false);
                 var centre = -1;
                 var bestDistance = float.MaxValue;
                 for (var i = 0; i < SeatRows; i++)
                     for (var j = 0; j < SeatColumns; j++)
                     {
                         float u = i / (float)(SeatRows - 1), v = -1f + 2f * j / (SeatColumns - 1);
-                        var z = seat - SeatBack + u * (SeatBack + SeatFront);
-                        var hit = Cast(z, v * SeatAngle);
+                        var z = zs[i, j];
+                        var hit = hits[i, j];
                         if (!hit.Valid) { grid[i, j] = -1; continue; }
                         var across = (float)Math.Pow(Math.Max(0f, 1f - v * v), 1.5);
                         var edge = Smooth(0f, 0.25f, 1f - Math.Abs(v)) * Smooth(0f, 0.12f, Math.Min(u, 1f - u));
@@ -242,6 +261,10 @@ namespace KingmakerMountedCombat.Domain
             {
                 var rows = new[] { -0.5f, 0f, 0.5f };
                 var grid = new int[rows.Length, GirthSegments + 1];
+                var hits = new Hit[rows.Length, GirthSegments];
+                var zs = new float[rows.Length, GirthSegments];
+                var angles = new float[rows.Length, GirthSegments];
+                var usable = new bool[rows.Length];
                 for (var r = 0; r < rows.Length; r++)
                 {
                     var z = seat + GirthOffset + rows[r] * GirthWidth;
@@ -250,22 +273,32 @@ namespace KingmakerMountedCombat.Domain
                     var radii = new List<float>();
                     for (var k = 0; k < GirthSegments; k++)
                     {
-                        var angle = (float)(-Math.PI + 2.0 * Math.PI * k / GirthSegments);
-                        ring[k] = Cast(z, angle);
+                        zs[r, k] = z; angles[r, k] = (float)(-Math.PI + 2.0 * Math.PI * k / GirthSegments);
+                        ring[k] = Cast(z, angles[r, k]);
                         if (ring[k].Valid) radii.Add(Radius(ring[k], axis));
                     }
-                    if (radii.Count < GirthSegments / 2) { for (var k = 0; k <= GirthSegments; k++) grid[r, k] = -1; continue; }
+                    if (radii.Count < GirthSegments / 2) continue;
+                    usable[r] = true;
                     radii.Sort();
                     var limit = radii[radii.Count / 2] * 1.25f;
                     var good = new bool[GirthSegments];
                     for (var k = 0; k < GirthSegments; k++) good[k] = ring[k].Valid && Radius(ring[k], axis) <= limit;
-                    for (var k = 0; k <= GirthSegments; k++)
+                    for (var k = 0; k < GirthSegments; k++)
                     {
-                        var hit = ring[NearestGood(good, k % GirthSegments)];
-                        grid[r, k] = AddVertex(Lift(hit, GirthLift), hit.Normal, GirthUvLeft + (GirthUvRight - GirthUvLeft) * r / (rows.Length - 1),
-                            0.02f + 0.96f * k / GirthSegments, hit);
+                        // The good neighbour's bone weights and distance from the axis, on this segment's own ray.
+                        var near = ring[NearestGood(good, k)];
+                        var outward = new V3((float)Math.Sin(angles[r, k]), (float)Math.Cos(angles[r, k]), 0f);
+                        hits[r, k] = new Hit { Valid = true, Point = new V3(0f, axis, z) + outward * Radius(near, axis), Normal = outward, Bones = near.Bones, Weights = near.Weights };
                     }
                 }
+                SmoothGrid(hits, zs, angles, true);
+                for (var r = 0; r < rows.Length; r++)
+                    for (var k = 0; k <= GirthSegments; k++)
+                    {
+                        var hit = hits[r, k % GirthSegments];
+                        grid[r, k] = usable[r] && hit.Valid ? AddVertex(Lift(hit, GirthLift), hit.Normal, GirthUvLeft + (GirthUvRight - GirthUvLeft) * r / (rows.Length - 1),
+                            0.02f + 0.96f * k / GirthSegments, hit) : -1;
+                    }
                 AddGrid(grid, rows.Length, GirthSegments + 1, false);
             }
 
@@ -280,6 +313,74 @@ namespace KingmakerMountedCombat.Domain
             }
 
             private static float Radius(Hit hit, float axis) => new V3(hit.Point.X, hit.Point.Y - axis, 0f).Length;
+
+            // Each sample lies on its own ray towards the body's axis, so only its distance along that ray varies. Fur only ever stands
+            // out of the coat; the median of each 3x3 window drops isolated spikes (fur cards, a leg in the way), a 3x3 mean softens
+            // what is left, and normals come from the smoothed surface. Each sample keeps the bone weights of its own hit.
+            private void SmoothGrid(Hit[,] hits, float[,] zs, float[,] angles, bool wrap)
+            {
+                int rows = hits.GetLength(0), columns = hits.GetLength(1);
+                var radius = new float[rows, columns];
+                var valid = new bool[rows, columns];
+                for (var i = 0; i < rows; i++)
+                    for (var j = 0; j < columns; j++)
+                        if (hits[i, j].Valid) { radius[i, j] = Radius(hits[i, j], AxisHeight(zs[i, j])); valid[i, j] = true; }
+                var smoothed = Filter(Filter(radius, valid, wrap, true), valid, wrap, false);
+                var points = new V3[rows, columns];
+                for (var i = 0; i < rows; i++)
+                    for (var j = 0; j < columns; j++)
+                        if (valid[i, j]) points[i, j] = new V3(0f, AxisHeight(zs[i, j]), zs[i, j]) + Outward(angles[i, j]) * smoothed[i, j];
+                for (var i = 0; i < rows; i++)
+                    for (var j = 0; j < columns; j++)
+                    {
+                        if (!valid[i, j]) continue;
+                        var outward = Outward(angles[i, j]);
+                        var normal = V3.Cross(Difference(points, valid, i, j, 1, 0, wrap), Difference(points, valid, i, j, 0, 1, wrap));
+                        if (normal.Length < 1e-6f) normal = outward;
+                        else if (V3.Dot(normal, outward) < 0f) normal = normal * -1f;
+                        hits[i, j] = new Hit { Valid = true, Point = points[i, j], Normal = (normal.Normalized * 0.8f + outward * 0.2f).Normalized,
+                            Bones = hits[i, j].Bones, Weights = hits[i, j].Weights };
+                    }
+            }
+
+            private static V3 Outward(float angle) => new V3((float)Math.Sin(angle), (float)Math.Cos(angle), 0f);
+
+            private static float[,] Filter(float[,] values, bool[,] valid, bool wrap, bool median)
+            {
+                int rows = values.GetLength(0), columns = values.GetLength(1);
+                var result = new float[rows, columns];
+                var window = new List<float>(9);
+                for (var i = 0; i < rows; i++)
+                    for (var j = 0; j < columns; j++)
+                    {
+                        if (!valid[i, j]) continue;
+                        window.Clear();
+                        for (var di = -1; di <= 1; di++)
+                            for (var dj = -1; dj <= 1; dj++)
+                            {
+                                int ii = i + di, jj = wrap ? (j + dj + columns) % columns : j + dj;
+                                if (ii >= 0 && ii < rows && jj >= 0 && jj < columns && valid[ii, jj]) window.Add(values[ii, jj]);
+                            }
+                        if (median) { window.Sort(); result[i, j] = window[window.Count / 2]; }
+                        else { var sum = 0f; foreach (var value in window) sum += value; result[i, j] = sum / window.Count; }
+                    }
+                return result;
+            }
+
+            // Central difference where both neighbours exist, one-sided at an edge, zero when neither does.
+            private static V3 Difference(V3[,] points, bool[,] valid, int i, int j, int di, int dj, bool wrap)
+            {
+                int rows = points.GetLength(0), columns = points.GetLength(1);
+                bool Usable(int r, int c) => r >= 0 && r < rows && c >= 0 && c < columns && valid[r, c];
+                int Column(int c) => wrap ? (c + columns) % columns : c;
+                int ai = i + di, aj = Column(j + dj), bi = i - di, bj = Column(j - dj);
+                var forward = Usable(ai, aj);
+                var backward = Usable(bi, bj);
+                if (forward && backward) return points[ai, aj] - points[bi, bj];
+                if (forward) return points[ai, aj] - points[i, j];
+                if (backward) return points[i, j] - points[bi, bj];
+                return new V3(0f, 0f, 0f);
+            }
 
             private static V3 Lift(Hit hit, float lift) => hit.Point + hit.Normal * lift;
 

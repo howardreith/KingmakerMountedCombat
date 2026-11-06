@@ -578,6 +578,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     slots.Any(s => s.ActorId == firstRider.UniqueId && s.Kind == 3),
                     "Owned schema-1 source has an unrepresentable control; no saved slot may be discarded.");
             }
+            else if (CompanionNamesCase) RequirePostF2Slots();
             else Require(slots.Length == (LegacyPendingCase || PendingMountSave ? 2 : 4) && slots.Count(s => s.ActorId == firstRider.UniqueId) == 2 &&
                 slots.Count(s => s.ActorId == secondRider.UniqueId) == (LegacyPendingCase || PendingMountSave ? 0 : 2), "All-pair native hotbar binding differs.");
         }
