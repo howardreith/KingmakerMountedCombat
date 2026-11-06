@@ -238,7 +238,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // produces. The declared leaf has to be the one the engine will
             // actually choose, or PrepareSave rejects its own descriptor.
             // The UPG-01 resave shares the rule: its root holds just the retained Quick.
-            if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) || request.IsUpgradeResave)
+            // F4: the dungeon entry reload is read-only, so it declares no output leaf at all.
+            if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) && !RuntimeRequest.IsDungeonEntryAutoCase(request.PersistenceCase) ||
+                request.IsUpgradeResave)
                 entries.Add(new PersistenceSaveEntry {
                     FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                     SaveType = "Manual", Area = fixture.Area, Writable = true });

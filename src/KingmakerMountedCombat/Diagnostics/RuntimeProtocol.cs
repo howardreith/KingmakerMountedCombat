@@ -236,7 +236,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // archive. AfterEntry committed in the destination; BeforeExit committed
         // in the departure area before suspension, so each expects its own world.
         internal static bool IsTransitionAutoCase(string persistenceCase) =>
-            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto";
+            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto" || IsDungeonEntryAutoCase(persistenceCase);
+
+        // F4 (WORLD-01 reload): the cold native load of the dungeon entry's one after-entry Auto, committed on the floor.
+        // Unlike the cross-area autosave consumers it is read-only: no subsequent Manual write is declared or made.
+        internal const string DungeonEntryAutoCase = "area-dungeon-entry-auto";
+        internal static bool IsDungeonEntryAutoCase(string persistenceCase) => persistenceCase == DungeonEntryAutoCase;
 
         // F4 (WORLD-01): the real Beneath the Stolen Lands entrance. A disclosed setup transfer (autoSaveMode None) takes the
         // Working fixture's pair from its floor to the roguelike hub; the native entrance action, the native party selection
@@ -679,7 +684,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (chunk7 ? !IsChunk7PersistenceCase(PersistenceCase) : p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto", "area-dungeon-entry" }, PersistenceCase) < 0 :
+            if (chunk7 ? !IsChunk7PersistenceCase(PersistenceCase) : p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto", "area-dungeon-entry", "area-dungeon-entry-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -1151,13 +1156,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("A transition autosave case is cold-load only.");
                 if (IsTransitionAutoCase(PersistenceCase) && PersistenceAreaTarget != null &&
                     PersistenceAreaTarget.AutoSaveMode !=
-                    (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
+                    (PersistenceCase == "area-cross-entry-auto" || IsDungeonEntryAutoCase(PersistenceCase) ? "AfterEntry" : "BeforeExit"))
                     errors.Add("A transition autosave case must declare the mode that produced it.");
                 // The dungeon entry pins its exact route: the hub entry it passes through and the floor it returns to.
                 if (IsDungeonEntryCase(PersistenceCase) && (Scenario != "persistence-p07-save" || PersistenceAreaTarget == null ||
                     PersistenceAreaTarget.EnterPoint != DungeonEntryHubEnterPoint || PersistenceAreaTarget.Area != DungeonEntryHubArea ||
                     PersistenceAreaTarget.AutoSaveMode != "AfterEntry" || Fixture?.Working?.Area != DungeonEntryFloorArea))
                     errors.Add("The dungeon entry requires exactly the roguelike hub entry, AfterEntry, from the Working fixture floor, on the P07 save.");
+                // Its reload declares the same route and opens exactly that Auto, committed on the floor of this campaign.
+                if (IsDungeonEntryAutoCase(PersistenceCase) && (Scenario != "persistence-p07-load" || PersistenceAreaTarget == null ||
+                    PersistenceAreaTarget.EnterPoint != DungeonEntryHubEnterPoint || PersistenceAreaTarget.Area != DungeonEntryHubArea ||
+                    PersistenceAreaTarget.AutoSaveMode != "AfterEntry" || Fixture?.Working?.Area != DungeonEntryFloorArea ||
+                    PersistenceLoad == null || PersistenceLoad.FileName != "Auto_1.zks" || PersistenceLoad.Area != DungeonEntryFloorArea))
+                    errors.Add("The dungeon entry reload opens exactly the entry's Auto_1 on the Working fixture floor, on the P07 load.");
             }
             else if (chunk7 && PersistenceCase == Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint)
             {

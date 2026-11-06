@@ -369,8 +369,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("usable-continuation-complete");
                 if (F2Case) { BeginFinalize2(); return; }
                 // A transition autosave must also still support an ordinary
-                // subsequent write from the world it actually restored.
-                if (AreaAutoColdCase || UpgradeResaveCase)
+                // subsequent write from the world it actually restored. The F4 dungeon entry reload stays read-only.
+                if (AreaAutoColdCase && !RuntimeRequest.IsDungeonEntryAutoCase(request.PersistenceCase) || UpgradeResaveCase)
                 {
                     callback = false;
                     game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);

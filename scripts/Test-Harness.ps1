@@ -5936,6 +5936,31 @@ try {
                 Assert-Test $rejected ('P07 dungeon entry accepted '+$bad)
                 $v2Request['persistenceAreaTarget']=$saved;$v2Request.fixture.working.area='9d1278a2f599b2a4daab53abdfe88d2e';$v2Request.fixture.baseline.area='9d1278a2f599b2a4daab53abdfe88d2e';$v2Request.scenario='persistence-p07-save'
             }
+            # F4 dungeon entry reload: cold-only, the same pinned route, exactly the entry's Auto_1 on the floor.
+            $v2Request.fixture.working.area='9d1278a2f599b2a4daab53abdfe88d2e';$v2Request.fixture.baseline.area='9d1278a2f599b2a4daab53abdfe88d2e'
+            $v2Request.scenario='persistence-p07-load';$v2Request['persistenceCase']='area-dungeon-entry-auto'
+            $v2Request['persistenceAreaTarget']=[ordered]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area='c49315fe499f0e5468af6f19242499a2';autoSaveMode='AfterEntry'}
+            $f=$v2Request.fixture.working
+            $v2Request['persistenceLoad']=[ordered]@{internalName='Autosave1';fileName='Auto_1.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area='9d1278a2f599b2a4daab53abdfe88d2e'}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($bad in @('hub-archive','manual-leaf','mode','route','save-scenario')){
+                $savedLoad=$v2Request['persistenceLoad'];$savedTarget=$v2Request['persistenceAreaTarget']
+                switch($bad){
+                    'hub-archive' {$v2Request['persistenceLoad']=[ordered]@{internalName='Autosave1';fileName='Auto_1.zks';sha256=('c'*64);length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area='c49315fe499f0e5468af6f19242499a2'}}
+                    'manual-leaf' {$v2Request['persistenceLoad']=[ordered]@{internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64);length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area='9d1278a2f599b2a4daab53abdfe88d2e'}}
+                    'mode' {$v2Request['persistenceAreaTarget']=[ordered]@{enterPoint=$savedTarget.enterPoint;area=$savedTarget.area;autoSaveMode='BeforeExit'}}
+                    'route' {$v2Request['persistenceAreaTarget']=[ordered]@{enterPoint=('d'*32);area=$savedTarget.area;autoSaveMode='AfterEntry'}}
+                    'save-scenario' {$v2Request.scenario='persistence-p07-save'}
+                }
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected ('P07 dungeon entry reload accepted '+$bad)
+                $v2Request['persistenceLoad']=$savedLoad;$v2Request['persistenceAreaTarget']=$savedTarget;$v2Request.scenario='persistence-p07-load'
+            }
+            $v2Request.Remove('persistenceLoad')
             $v2Request.fixture.working.area=$floorBefore;$v2Request.fixture.baseline.area=$floorBefore;$v2Request.Remove('persistenceAreaTarget')
             # Save-only removal cases, and the cold-only integration-absent case
             # that opens a prepare-removal run's cleanup archive under its own name.
