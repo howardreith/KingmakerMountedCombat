@@ -468,7 +468,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f2-canonical-controls", StringComparison.Ordinal) &&
-                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal)))
+                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal) &&
+                !string.Equals(Branch, "codex/kmc-finalize-f5-names-dog-tack", StringComparison.Ordinal)))
             {
                 errors.Add("branch must use the KMC prefix or an exact selected finalize branch.");
             }

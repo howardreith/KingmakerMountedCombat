@@ -12,6 +12,8 @@ $cases=@(
     @{branch='codex/kmc-finalize-f3-movement-economy-hud';valid=$true},
     @{branch='codex/kmc-finalize-f4-orders-ai-transitions';valid=$true},
     @{branch='codex/kmc-finalize-f4-orders-ai-transitions-x';valid=$false},
+    @{branch='codex/kmc-finalize-f5-names-dog-tack';valid=$true},
+    @{branch='codex/kmc-finalize-f5-names-dog-tack-x';valid=$false},
     @{branch='codex/kmc-finalize-f3-movement-economy-hud-x';valid=$false},
     @{branch='codex/kmc-finalize-f3';valid=$false},
     @{branch='Codex/kmc-finalize-f3-movement-economy-hud';valid=$false},
