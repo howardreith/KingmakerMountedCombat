@@ -1,8 +1,18 @@
 # F4 review handoff: ordinary world orders, native AI, transitions and Horse gait
 
-## Disposition
+## Disposition after the F4 completion mission (2026-11-06)
 
-**F4: ENGINEERING PARTIAL. Ready for review; owner acceptance is separate.**
+**F4: ENGINEERING PARTIAL. Ready for final review; owner acceptance is separate.** The return label is not COMPLETE, and not INPUT BLOCKED alone. The trap source is still missing, and the hub→dungeon transition is also not demonstrated. The completion mission's sections below supersede the earlier disposition where they differ; the first three runs keep their original verdicts.
+
+| Completion requirement | Outcome |
+|---|---|
+| 1. r03 Hold stall: real cause | **Identified and resolved natively.** The cast's carried approach left every live hostile out of the sling's reach and sight (18.5 m and 13.0 m, no LOS). Native Hold filters the brain's proposals to targets in reach with LOS, so it proposed nothing: proposals stayed at 37 from resume to stall. `player-operation-live` was a stale refusal from the cast period. This is a fixture premise, not KMC. The row now records the premise. When the premise is false, one disclosed ordinary ground click returns the pair, and a native Stop with an AI off/on cycle clears the player-move hold the click leaves (review MAJOR). r04: the premise was met at once (bow 12.19 m, hostile at 8.2 m in LOS). One stationary dispatch under native Hold, Hold kept, displacement 0.0, `playerMoveHold` false, rider Hold true. Reader PASS. |
+| 2. Chest and a coherent exploration result | **PASS (r05, external reader).** The chest order was clicked while the group travelled. It replaced exactly the Horse's travel (native `Interrupt`). One bind and one terminal matching this order; the carry was 12.8 m from 16.8 m out. Opened once by the rider, still mounted; the other members finished their own travel. The four-leg speed comparison is replaced by three mounted legs: party pace, alone, and the native Slowed control. |
+| 3. Real hub→dungeon transition, after-entry Auto, native reload | **Not demonstrated. r06 FAIL (scenario defect).** The setup transfer to the hub wrote nothing and kept the pair. The native `ActionEnterToDungeon` resolved the floor and opened the selector. The native `Go` ran with the pair Mounted. Then the scenario's own post-`Go` check read `GroupManager.gameObject`, which the AfterEntry load had destroyed in the same call, and threw NullReferenceException. So no in-game post-arrival assertion ran. Supporting observation only: the one authorized native write (`Auto_1.zks`, sha `7f64cfed…`, run-scoped isolated root, 0 unauthorized requests) has header Area = floor `9d1278a2…`. Its KMC record holds the same pair (generation 1, rider `b6628a77…`, mount `d79a4f6c…`) at the `Go` tick. Corrected in `c1c56439` (Unity lifetime check); not re-run, because all six starts are used. The reload was not run. |
+| 4. Trap order on a reachable native trap | **INPUT BLOCKED (no start spent).** No admissible save has a revealed, reachable trap: the hub has none, and `Auto_1121`'s three active traps are 87–92 m from the party in an Auto save, which the owner-seed authority refuses. Needed: an owner **Manual** save in a pet-permitted area, enemies cleared, with a revealed interactable trap 4–30 m from an eligible mounted rider. |
+| 5. Horse motion and legitimate slow movement | **PASS (r05).** Ordered motion was inspected: 40-sample traces and four frames per leg, all inside their legs. Party leg: Normal ×40 at 3.048 m/s, equal to the party pace (modified speed 5.08). Solo: Normal at 5.08. Native Slowed control: Slow ×40 at 2.54 m/s (modified 2.54); the condition was removed after (speed 5.08 again). The frames show the run stride under pace and a walk when slowed. |
+
+### First-effort disposition (kept; superseded above where it differs)
 
 All seven requirements (WORLD-01, WORLD-02, WORLD-03, AI-01, GAIT-01, AI-02, REG-01) have a source-established cause and a correction with offline regressions.
 
@@ -64,6 +74,18 @@ All three F4 starts are used. Each run's original outer verdict is **FAIL**; eac
 | `20261106-finalize-f4b-surface-02` | f4b | **FAIL**: owner-surface reader, `legsApplicable` 3 of 4. The rider-on-foot comparison leg found no admissible route after the F4 stage moved the pair. | Kept FAIL; the 4-leg rule was not loosened. Every F4 behaviour fact is recorded (table above). The F4 exploration assertion also stops on `carriedOutcome` null: the observer read the carried-approach outcome before it was published. That is an observer gap, not a product fault. |
 | `20261106-finalize-f4c-ai-rt-03` | f4c | **FAIL**: the leaf deadline in `S4-controls` step 12. After a native Hold in bow reach, KMC's stop/hold cancel interrupted an automatic routine dispatched the same frame; later proposals were refused as `player-operation-live`. | `F4-melee-engage` and `S4-ranged-retarget` rows PASS (row-level F4 and Sprint 4 assertions). The stall's live operation is **not identified**. The same row passed in r01 on f4a, and the code path is unchanged between f4a and f4c. Bounded known issue. |
 
+### Completion mission runs (candidate f4d; original verdicts kept)
+
+| Run | Original verdict | Facts |
+|---|---|---|
+| `20261106-finalize-f4d-ai-rt-04` | **FAIL**: tranche leaf deadline in `S4-melee-retarget` step 0, then cleanup deadline. | `F4-melee-engage`, `S4-ranged-retarget` (with continuation) and `S4-controls` completed. All three pass the current row readers (reader-only, immutable evidence). A native fixture-floor hostile (`a1855a47…`, not a spawned row target) damaged the rider during the controls row and kept the pair in combat, so the melee row's out-of-combat start condition never held. `S4-melee-retarget` and `S4-hold-no-chase` did not run on f4d. They passed in r01 on f4a, whose product behaviour is identical. Bounded known issue: fixture premise. |
+| `20261106-finalize-f4d-surface-05` | **PASS** (external owner-surface reader, F4 exploration contract). | See requirements 2 and 5. Disclosed setup: camera scroll per frame, one 3 m rider step so the rider is the closest selected non-pet, and the native Slowed condition for the control leg only. |
+| `20261106-finalize-f4d-dungeon-06` | **FAIL**: `NullReferenceException` in the scenario after native `Go`. | See requirement 3. |
+
+The first r04 launch request was refused before any lock or launch by the batch guard: two failed equivalent attempts already sat in batch `finalize-f4:ai-1`. It ran under batch `finalize-f4:ai-2` as a materially changed experiment (new candidate, return/clearing step, stricter reader). No start was charged for the refusal.
+
+**Completion restoration (r04–r06):** Mods restored, Working fixture restored, baseline immutable, save protection and allowlist passed, inventory digest `60e3d6cc…` unchanged, no game process left.
+
 **Restoration (all three runs):**
 - Mods restored, Working fixture restored, baseline immutable, save protection and save-write allowlist passed.
 - Save inventory digest `60e3d6cc…` is unchanged.
@@ -80,6 +102,14 @@ A still frame shows a stride pose only. It does not prove gait quality or rule o
 
 ## Remaining work and known issues
 
+**After the completion mission:**
+- WORLD-01: re-run `persistence-p07-save` `area-dungeon-entry` on a candidate with `c1c56439`. This needs a new start and authority. Then run the native reload of its Auto as a cold consumer, which is a further start.
+- WORLD-02: INPUT BLOCKED, as described below.
+- `S4-melee-retarget` and `S4-hold-no-chase` on f4d: not run (fixture hostile; r04).
+- The r03 cause is resolved; the r02 observer gap is resolved (r05 terminal identity).
+
+**First effort (kept as recorded):**
+
 - **WORLD-02 native trap: BLOCKED input.** It needs an owner-made **Manual** save in a pet-permitted area beside a revealed, interactable trap reachable by the pair. The two named retained alternatives were inspected:
   - `KMC_S2_ROGUELIKE_SURFACE_CANDIDATE` (the hub) has no trap.
   - `KMC_S2_DUNGEON_FLOOR_CANDIDATE` (`Auto_1121`) has 3 active traps but is an Auto save; the owner-seed authority admits Manual saves only (Sprint 2 r23). Saved perception state also does not survive a load (Sprint 3).
@@ -92,7 +122,28 @@ A still frame shows a stride pose only. It does not prove gait quality or rule o
 - **r02 observer gap:** the carried outcome is read before it is published. A later run should read the bound approach's own outcome.
 - **Owner UX decision:** under party pace the Horse now shows its run cycle at about 60% of its solo rate. Whether that reads as a natural trot or as foot sliding is the owner's call.
 
-## Spend and state
+## Completion mission: identities, reviews, spend
+
+- **Authority:** the forwarded completion mission raised the start ceiling from 3 to 6 on the same `finalize-f4` record. It was recorded append-only as `startCeilingAdjustments` (2026-11-06T17:39Z); the time ceiling stayed 75 minutes. The dungeon entry declared one write (the after-entry Auto) and one load. No floor-to-floor control was combined.
+- **Commits:**
+  - `d8b54943` (Hold premise, decision snapshot, chest terminal observer, chest during travel, F4 gait contract);
+  - `5bfac302` (review corrections);
+  - `ed99320f` (P07 `area-dungeon-entry`: one leaf `Auto_1.zks`, Area = floor, AdmissionArea = hub, write cap 1, load cap 1; a transfer-admitted leaf's write lease opens only in its commit area);
+  - `8216d551`, `b57712ef` (review corrections);
+  - `c1c56439` (r06 correction, after the runs).
+- **Candidate f4d:** head `b57712ef` · DLL `2c8e3522…` · MVID `07a436fa-51d3-41b3-accc-20dc875af14d` · package `dfa0b231ba6880046b35a0db94babecf26c5b82853d1b160bfef91abd5d1a5df` · suite `finalize-f4d-b57712ef-20261106` (`ec45fd75…`).
+- **Reviews:**
+  - Independent review of `d8b54943`: one MAJOR (the return move armed the player-move hold), fixed in `5bfac302`; MINORs 1–8 applied.
+  - Independent review of `ed99320f`: no MAJOR. MINORs 1, 2, 4 and 5 applied in `b57712ef`. MINOR 3 (record the authority's admitted-write count before `Go`) is deferred: the scenario does not hold the authority. The `workingSaveRequestCount` quota and the timeout cover it.
+  - The MINOR 2 check is what exposed the r06 defect.
+- **Checks:** Fast ×7, Candidate ×1 (12/12; harness PASS, manifest contracts 756/0), one package, one suite, offline request-shape validation of all three requests, and three WhatIf runs. Synthetic readers:
+  - Sprint 4: 141/0;
+  - owner surface: 216/0;
+  - persistence fixtures: 657/0 (26 dungeon-entry faults, each checked to fail for its intended reason).
+- **Spend:** `finalize-f4` **47.88 of 75 min**, **6 of 6 starts**. The launch helper refuses a seventh offline.
+- **Private packet:** `review-packets/finalize-f4/r05-motion/` (lab-relative): 12 hash-verified frames and `CAPTIONS.txt`. Nothing was published.
+
+## Spend and state (first effort, superseded above)
 
 - **Budget** `finalize-f4`: **23.85 of 75 min**, **3 of 3 starts** (r01, r02, r03). The launch helper refuses a fourth start offline.
 - **Checks:**
