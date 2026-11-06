@@ -24,6 +24,7 @@ using Kingmaker.UnitLogic.Mechanics;
 using Kingmaker.UnitLogic.Mechanics.Actions;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
+using Kingmaker.View.MapObjects;
 using Kingmaker.Visual.Animation;
 using Kingmaker.Visual.Animation.Kingmaker;
 using Kingmaker.Visual.CharacterSystem;
@@ -126,6 +127,13 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
+                PatchExact(typeof(ClickMapObjectHandler), "TryInteract", 0x060093E5,
+                    new[] { typeof(InteractionComponent), typeof(List<UnitEntityData>), typeof(bool) },
+                    nameof(PatchMethods.TrapClickScopePrefix), nameof(PatchMethods.TrapClickScopePostfix));
+                PatchExact(typeof(UnitCommands), "InterruptMove", 0x060026C2, Type.EmptyTypes, null, nameof(PatchMethods.InterruptMovePostfix));
+                PatchExact(typeof(Kingmaker.Player), "ReInitPartyCharacters", 0x06000DED,
+                    new[] { typeof(List<Kingmaker.EntitySystem.Entities.UnitReference>) },
+                    nameof(PatchMethods.PartyReinitPrefix), nameof(PatchMethods.PartyReinitPostfix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
@@ -798,6 +806,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void AnimationTickPrefix(UnitAnimationManager __instance)
             {
+                MountedAnimationAdapter.ApplyNaturalHorseGait(__instance, PatchBridge.HorseCompanion?.HorseUnit);
                 (PatchBridge.World?.ForActor(__instance?.View?.EntityData)?.Animation ??
                     (PatchBridge.World == null ? PatchBridge.Animation : null))?.RestoreExactDelegatedMountLocomotion(__instance);
             }
@@ -1108,6 +1117,39 @@ namespace KingmakerMountedCombat.Integration
                 else PatchBridge.World.Visit(pair =>
                 { pair.Combat.CancelSelectedInput("stop or hold"); pair.Relationship.ForwardStopOrHold(); });
             }
+
+            // F4 (WORLD-02): the scope of one real (non-simulated) trap click. Native TryInteract runs the selected units'
+            // InterruptMove loop synchronously inside it, after SelectUnit accepted an interactor.
+            private static InteractionComponent trapClickInteraction;
+            private static int trapClickFrame = -1;
+
+            internal static void TrapClickScopePrefix(InteractionComponent interaction)
+            {
+                trapClickInteraction = interaction != null && MountedTrapGroupStopPolicy.OpensTrapClickScope(
+                    interaction is DisableTrapInteractionComponent, interaction.HasVisibleTrap(), PointerController.SimulatingClick) ? interaction : null;
+                trapClickFrame = UnityEngine.Time.frameCount;
+            }
+
+            internal static void TrapClickScopePostfix()
+            {
+                trapClickInteraction = null;
+                trapClickFrame = -1;
+            }
+
+            internal static void InterruptMovePostfix(UnitCommands __instance)
+            {
+                if (trapClickInteraction == null) return;
+                var inside = MountedTrapGroupStopPolicy.IsAcceptedTrapClickScope(trapClickFrame >= 0, trapClickFrame, UnityEngine.Time.frameCount, true);
+                var owner = PatchBridge.Owner(__instance);
+                var rider = owner?.Rider;
+                if (rider != null && ReferenceEquals(rider.Commands, __instance))
+                    owner.ForwardTrapGroupStop(rider, inside, PointerController.SimulatingClick);
+            }
+
+            // F4 (WORLD-01): native GroupManager.Go re-initialises the party (every member removed, then re-added).
+            internal static void PartyReinitPrefix() => NativePartyReinitScope.Enter();
+
+            internal static void PartyReinitPostfix() => NativePartyReinitScope.Exit();
 
             // Stop additionally holds back the selected pair's automatic proposals (native Stop arms nothing itself).
             internal static void StopPrefix()

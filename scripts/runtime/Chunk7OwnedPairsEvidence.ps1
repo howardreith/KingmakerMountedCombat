@@ -107,11 +107,19 @@ function Test-KmcChunk7OwnedPairsTurnBasedDoor($Request){
  if($s-is[Collections.IDictionary]){$s=[pscustomobject]$s}
  $null-ne$s.PSObject.Properties['turnBasedDoor']-and$s.turnBasedDoor-is[bool]-and$s.turnBasedDoor
 }
+function Test-KmcChunk7OwnedPairsFinalize4Exploration($Request){
+ if($Request-is[Collections.IDictionary]){$Request=[pscustomobject]$Request}
+ if(-not(Test-KmcChunk7OwnedPairsOwnerSurfaceSpeed $Request)){return $false};$s=$Request.ownedPairs
+ if($s-is[Collections.IDictionary]){$s=[pscustomobject]$s}
+ $null-ne$s.PSObject.Properties['finalize4Exploration']-and$s.finalize4Exploration-is[bool]-and$s.finalize4Exploration
+}
 function Assert-KmcChunk7OwnerSurfaceSpeedSelection($Request,$Selection,$Checkpoint){
  $s=$Selection
  # Finishing mission 2026-10-31: the explicit true opt-in runs the single-pair turn-based door stage instead of the speed legs.
  $surfaceFields=@('case','seedId','seedSha256','riderAId','mountAId','partyIds','baseGameOnly','expectedNativeLoadCount','expectedNativeWriteCount')
  if($null-ne$s.PSObject.Properties['turnBasedDoor']){if($s.turnBasedDoor-isnot[bool]-or-not$s.turnBasedDoor){throw 'Turn-based door control on the owner surface is an explicit true opt-in.'};$surfaceFields+='turnBasedDoor'}
+ # F4: the explicit true opt-in for the group chest order and the native party selection, never with the door stage.
+ if($null-ne$s.PSObject.Properties['finalize4Exploration']){if($s.finalize4Exploration-isnot[bool]-or-not$s.finalize4Exploration-or$null-ne$s.PSObject.Properties['turnBasedDoor']){throw 'F4 exploration on the owner surface is an explicit true opt-in without the door stage.'};$surfaceFields+='finalize4Exploration'}
  Assert-KmcExactProperties $s $surfaceFields 'owner-surface speed selection'
  if($Request.runId-isnot[string]-or$Request.runId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'){throw 'Owner-surface run identity is malformed.'}
  if($s.seedId-isnot[string]-or$s.seedId-cnotmatch'^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$'-or$s.seedId-ceq$Request.runId){throw 'Owner-surface speed requires an exact registered owner seed identity.'}

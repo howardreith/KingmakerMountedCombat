@@ -34,7 +34,10 @@ namespace KingmakerMountedCombat.Integration
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             subscription = EventBus.Subscribe(this);
             combat.ChargeNativeModeResumed += CompleteNativeModeObservation;
+            NativePartyReinitScope.Completed += CompletePartyReinitialisation;
         }
+
+        private readonly List<UnitEntityData> deferredPartyRemovals = new List<UnitEntityData>();
 
         public void HandleUnitJoinCombat(UnitEntityData unit)
         {
@@ -194,7 +197,49 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleCompanionRemoved(UnitEntityData unit)
         {
-            if (IsPairUnit(unit)) { CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved", CleanupTrigger.CompanionInvalidated); }
+            // A deferral left by a scope that never closed is decided before any later removal.
+            if (!NativePartyReinitScope.IsActive) CompletePartyReinitialisation();
+            if (!IsPairUnit(unit)) return;
+            if (PartyReinitialisationRetentionPolicy.OnRemoved(NativePartyReinitScope.IsActive, unit.IsInGame) ==
+                PartyRemovalDisposition.DeferUntilReinitialisationEnds)
+            {
+                if (!deferredPartyRemovals.Contains(unit)) deferredPartyRemovals.Add(unit);
+                Observe(NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved(deferred: native party re-initialisation)", unit.UniqueId);
+                return;
+            }
+            CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved", CleanupTrigger.CompanionInvalidated);
+        }
+
+        internal long PartyReinitialisationRetainedCount { get; private set; }
+
+        // The end of native ReInitPartyCharacters (or a later scope that found it never closed).
+        private void CompletePartyReinitialisation()
+        {
+            if (disposed || deferredPartyRemovals.Count == 0) return;
+            var deferred = deferredPartyRemovals.ToArray();
+            deferredPartyRemovals.Clear();
+            var party = Kingmaker.Game.Instance?.Player?.PartyCharacters;
+            foreach (var unit in deferred)
+            {
+                try
+                {
+                    if (!IsPairUnit(unit)) continue;
+                    var backInParty = party != null && party.Any(reference => reference.Value == unit);
+                    if (PartyReinitialisationRetentionPolicy.RetainAtEnd(backInParty, unit.IsInGame))
+                    {
+                        PartyReinitialisationRetainedCount++;
+                        Observe(NativeLifecycleBoundary.PartyRemoved, "Player.ReInitPartyCharacters(retained: back in the party)", unit.UniqueId);
+                        service.ResolveActorOwner(unit)?.ValidateActivePair();
+                        continue;
+                    }
+                    CleanupActor(unit, NativeLifecycleBoundary.PartyRemoved, "IPartyHandler.HandleCompanionRemoved(after native party re-initialisation)", CleanupTrigger.CompanionInvalidated);
+                }
+                catch (Exception exception)
+                {
+                    // One unit's failure never strands the others; the ledger keeps it.
+                    Observe(NativeLifecycleBoundary.PartyRemoved, "Player.ReInitPartyCharacters(decision failed)", unit?.UniqueId + ": " + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
         }
 
         public void HandleObjectInGameChaged(EntityDataBase entityData)
@@ -248,6 +293,7 @@ namespace KingmakerMountedCombat.Integration
             if (disposed) { return; }
             subscription.Dispose();
             combat.ChargeNativeModeResumed -= CompleteNativeModeObservation;
+            NativePartyReinitScope.Completed -= CompletePartyReinitialisation;
             disposed = true;
         }
 
@@ -343,5 +389,47 @@ namespace KingmakerMountedCombat.Integration
         public string ActorId { get; set; }
         public string PreviousLifeState { get; set; }
         public string CurrentLifeState { get; set; }
+    }
+
+    // F4 (WORLD-01): the synchronous scope of one native Player.ReInitPartyCharacters call (prefix and postfix of the
+    // exact native method). A scope that never closed (an exception inside the native call) is completed by the next
+    // Enter, so a deferred removal is never left without its decision.
+    internal static class NativePartyReinitScope
+    {
+        private static int depth;
+        private static int frame = -1;
+
+        internal static event Action Completed;
+
+        // Review MINOR-3: the native call is synchronous, so a scope is only ever live on the frame it opened; a scope that an
+        // exception left open is never treated as live on a later frame.
+        internal static bool IsActive => depth > 0 && frame == UnityEngine.Time.frameCount;
+
+        internal static string LastCompletionError { get; private set; }
+
+        internal static void Enter()
+        {
+            if (depth > 0) { depth = 0; RaiseCompleted(); }
+            depth = 1; frame = UnityEngine.Time.frameCount;
+        }
+
+        internal static void Exit()
+        {
+            if (depth == 0) return;
+            depth = 0;
+            RaiseCompleted();
+        }
+
+        // Each subscriber in isolation, as EventBus isolated the removal handler: a failure never escapes into native SetGroup.
+        private static void RaiseCompleted()
+        {
+            var handlers = Completed;
+            if (handlers == null) return;
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try { handler(); }
+                catch (Exception exception) { LastCompletionError = exception.GetType().Name + ": " + exception.Message; }
+            }
+        }
     }
 }

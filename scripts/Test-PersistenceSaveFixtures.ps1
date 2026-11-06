@@ -723,6 +723,63 @@ foreach($mode in @('AfterEntry','BeforeExit')){
     }
 }
 
+# F4 dungeon entry: a setup transfer to the hub (no write), the native entrance and party selection Go, and the one
+# after-entry Auto admitted in the hub and committed on the floor with the same mounted pair.
+$deFloor='9d1278a2f599b2a4daab53abdfe88d2e';$deHub='c49315fe499f0e5468af6f19242499a2';$deGame='89c49a86-a171-4ea9-871a-f6b3b53d19b9'
+$deRequest=[pscustomobject]@{persistenceCase='area-dungeon-entry'
+    fixture=[pscustomobject]@{working=[pscustomobject]@{area=$deFloor;gameId=$deGame}}
+    persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='AfterEntry'}}
+$deSetup=New-KmcAreaRow 'dungeon-entry-setup-transfer-requested' $deFloor $deFloor;$deSetup.detail.sourceArea=$deFloor;$deSetup.detail|Add-Member snapshots 0
+$deHubRow=New-KmcAreaRow 'dungeon-entry-hub-arrival' $deHub $deFloor;$deHubRow.detail.suspensions=1;$deHubRow.detail.resumes=1;$deHubRow.detail|Add-Member snapshots 0
+$deGo=[pscustomobject]@{kind='dungeon-entry-party-selection-go';detail=[pscustomobject]@{partyBefore='a|b|owned-rider';generationBefore=3;relationship='Mounted'}}
+$deFloorRow=New-KmcAreaRow 'dungeon-entry-floor-arrival' $deFloor $deFloor;$deFloorRow.detail.suspensions=2;$deFloorRow.detail.resumes=2;$deFloorRow.detail|Add-Member snapshots 1
+$deFloorRow.detail|Add-Member route ([pscustomobject]@{setupTransfer=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='None';disclosure='setup'}
+    entrance=[pscustomobject]@{action='native ActionEnterToDungeon.RunAction';resolvedEnterPoint=('c'*32);resolvedArea=$deFloor;stage=1;selectorOpened=$true}})
+$deWrite=[pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{ordinal=1;path='X:\run\Saved Games\Auto_1.zks';sha256=('b'*64);length=4096;nativeType='Auto';mode='AfterEntry'
+    operation='None';nativeCallback=$false;admissionArea=$deHub;area=$deFloor
+    barrier=[pscustomobject]@{relationship='Mounted';area=$deFloor;snapshots=1;suspensions=2;resumes=2;riderId='owned-rider';mountId='owned-mount'}
+    partySelection=[pscustomobject]@{partyBefore='a|b|owned-rider';partyAfter='a|b|owned-rider';generationBefore=3;generationAfter=3}
+    snapshot=[pscustomobject]@{Mounted=$true;AreaId=$deFloor;CampaignId=$deGame;Rider=[pscustomobject]@{Id='owned-rider'};Mount=[pscustomobject]@{Id='owned-mount'}}}}
+foreach($row in @($deSetup,$deHubRow,$deFloorRow)){$row.detail|Add-Member generation 3;$row.detail|Add-Member generationBaseline 3}
+$deRows=@($deSetup,$deHubRow,$deGo,$deFloorRow,$deWrite)
+Assert-KmcDungeonEntryEvidence $deRequest $deRows;$passes++
+foreach($bad in @('hub-write','hub-replaced-world','no-entrance','entrance-other-floor','selector-closed','setup-autosave','party-changed','pair-replaced',
+    'floor-not-reached','views-replaced','extra-transfer','second-write','manual-leaf','admitted-elsewhere','committed-in-hub','autosave-unmounted',
+    'autosave-foreign-campaign','barrier-before-restoration','out-of-order','foreign-record','missing-go','unmounted-at-go','wrong-request-pins',
+    'setup-replaced-generation','floor-replaced-generation','no-native-stage')){
+    $copy=($deRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json;$req=$deRequest
+    switch($bad){
+        'hub-write' {$copy[1].detail.snapshots=1}
+        'hub-replaced-world' {$copy[1].detail.sameWorld=$false}
+        'no-entrance' {$copy[3].detail.route.entrance.action='LoadArea'}
+        'entrance-other-floor' {$copy[3].detail.route.entrance.resolvedArea=('f'*32)}
+        'selector-closed' {$copy[3].detail.route.entrance.selectorOpened=$false}
+        'setup-autosave' {$copy[3].detail.route.setupTransfer.autoSaveMode='AfterEntry'}
+        'party-changed' {$copy[4].detail.partySelection.partyAfter='a|owned-rider'}
+        'pair-replaced' {$copy[4].detail.partySelection.generationAfter=4}
+        'floor-not-reached' {$copy[3].detail.area=$deHub}
+        'views-replaced' {$copy[3].detail.riderView=9}
+        'extra-transfer' {$copy[3].detail.resumes=3}
+        'second-write' {$copy=@($copy)+@(($copy[4]|ConvertTo-Json -Depth 12|ConvertFrom-Json))}
+        'manual-leaf' {$copy[4].detail.path='X:\run\Saved Games\Manual_300_KMC_P01.zks';$copy[4].detail.nativeType='Manual'}
+        'admitted-elsewhere' {$copy[4].detail.admissionArea=('f'*32)}
+        'committed-in-hub' {$copy[4].detail.area=$deHub}
+        'autosave-unmounted' {$copy[4].detail.snapshot.Mounted=$false}
+        'autosave-foreign-campaign' {$copy[4].detail.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+        'barrier-before-restoration' {$copy[4].detail.barrier.resumes=1}
+        'out-of-order' {$copy=@($copy[0],$copy[2],$copy[1],$copy[3],$copy[4])}
+        'foreign-record' {$copy=@($copy)+@([pscustomobject]@{kind='area-initial-write';detail=$null})}
+        'missing-go' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4])}
+        'unmounted-at-go' {$copy[2].detail.relationship='Unmounted'}
+        'setup-replaced-generation' {$copy[1].detail.generation=4}
+        'floor-replaced-generation' {$copy[3].detail.generation=4}
+        'no-native-stage' {$copy[3].detail.route.entrance.stage=0}
+        'wrong-request-pins' {$req=[pscustomobject]@{persistenceCase='area-dungeon-entry';fixture=$deRequest.fixture
+            persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='BeforeExit'}}}
+    }
+    Must-Reject {Assert-KmcDungeonEntryEvidence $req $copy} ('P07 dungeon entry accepted '+$bad)
+}
+
 # The transition autosave cold-loaded on its own. This is a different claim from
 # the destination Manual cold load: it proves the authored Auto archive is itself
 # a loadable world. BeforeExit must reopen the departure area and must not
@@ -1656,6 +1713,77 @@ $bLeak[1].detail.archivePath=Join-Path $bLeakRoot 'Manual_302_KMC_B.zks'
 $bLeak[3].detail.archive.path=Join-Path $bLeakRoot 'Manual_303_KMC_B2.zks';$bLeak[3].detail.archive.sha256=$bLeakSha
 $bLeak[3].detail.archive.length=(Get-Item -LiteralPath (Join-Path $bLeakRoot 'Manual_303_KMC_B2.zks')).Length
 Must-Reject {Assert-KmcCampaignBColdEvidence $bLeakRequest $bLeak} 'P07 campaign B cold accepted an on-disk second archive whose member claims A'
+
+# F4 (WORLD-01 reload): the dungeon entry's one after-entry Auto is admitted as a transition-auto source only from its own
+# completed, restored PASS producer, committed on the floor; any other role, case, type, hash, area or failed source refuses.
+$deSrcId='dungeon-source';$deSrcRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$deSrcId);$deSrcEvidence=Join-Path $script:ownedTestLab ('runtime-evidence/'+$deSrcId)
+[void][IO.Directory]::CreateDirectory((Join-Path $deSrcRoot 'Saved Games'));[void][IO.Directory]::CreateDirectory($deSrcEvidence)
+$deFixture=[pscustomobject]@{baseline=[pscustomobject]@{sha256=('b'*64)};working=[pscustomobject]@{gameId='89c49a86-a171-4ea9-871a-f6b3b53d19b9';gameName='owned fixture';area=$deFloor}}
+$deOwner=[ordered]@{runId=$deSrcId;scenario='persistence-p07-save';persistenceCase='area-dungeon-entry';transactionToken=('c'*64)}
+$deResult=[ordered]@{runId=$deSrcId;scenario='persistence-p07-save';transactionToken=('c'*64);status='PASS';modsRestored=$true;workingRestored=$true}
+Write-KmcJsonAtomic (Join-Path $deSrcRoot 'owner.json') $deOwner;Write-KmcJsonAtomic (Join-Path $deSrcEvidence 'runtime-result.json') $deResult
+$deAutoSha=New-KmcSyntheticArchive (Join-Path $deSrcRoot 'Saved Games/Auto_1.zks') ([ordered]@{Name='Autosave1';Type='Auto';CompatibilityVersion=1;GameId=$deFixture.working.gameId;GameName='owned fixture';Area=$deFloor}) ([ordered]@{SchemaVersion=3;AreaId=$deFloor})
+$deSource={param($case,$role,$area) Get-KmcPersistenceSource -SourceRunId $deSrcId -ExpectedSha256 $deAutoSha -Fixture $deFixture -NativeCase $case -ArtifactRole $role -ExpectedArea $area}
+$deRead=& $deSource 'area-dungeon-entry' 'transition-auto' $deFloor
+if($deRead.descriptor.fileName-cne'Auto_1.zks'-or$deRead.descriptor.sha256-cne$deAutoSha-or$deRead.descriptor.area-cne$deFloor){throw 'Dungeon entry Auto source selection failed'};$passes++
+Must-Reject {& $deSource 'area-dungeon-entry' 'destination-manual' $deFloor} 'Dungeon entry source exported a Manual role'
+Must-Reject {Get-KmcPersistenceSource -SourceRunId $deSrcId -ExpectedSha256 $deAutoSha -Fixture $deFixture -NativeCase area-dungeon-entry -ArtifactRole transition-auto -ExpectedArea $deFloor -Alternate} 'Dungeon entry source exported an alternate'
+Must-Reject {& $deSource 'area-cross-entry' 'transition-auto' $deFloor} 'Dungeon entry Auto admitted under the cross-area case'
+Must-Reject {& $deSource 'area-dungeon-entry' 'transition-auto' $deHub} 'Dungeon entry Auto admitted in the hub area'
+Must-Reject {Get-KmcPersistenceSource -SourceRunId $deSrcId -ExpectedSha256 ('d'*64) -Fixture $deFixture -NativeCase area-dungeon-entry -ArtifactRole transition-auto -ExpectedArea $deFloor} 'Dungeon entry Auto admitted with another hash'
+$deResult.status='FAIL';Write-KmcJsonAtomic (Join-Path $deSrcEvidence 'runtime-result.json') $deResult
+Must-Reject {& $deSource 'area-dungeon-entry' 'transition-auto' $deFloor} 'Failed dungeon entry producer admitted as a source'
+$deResult.status='PASS';$deResult.modsRestored=$false;Write-KmcJsonAtomic (Join-Path $deSrcEvidence 'runtime-result.json') $deResult
+Must-Reject {& $deSource 'area-dungeon-entry' 'transition-auto' $deFloor} 'Unrestored dungeon entry producer admitted as a source'
+$deResult.modsRestored=$true;Write-KmcJsonAtomic (Join-Path $deSrcEvidence 'runtime-result.json') $deResult
+$deOwner.persistenceCase='area-cross-entry';Write-KmcJsonAtomic (Join-Path $deSrcRoot 'owner.json') $deOwner
+Must-Reject {& $deSource 'area-dungeon-entry' 'transition-auto' $deFloor} 'Another P07 case admitted as the dungeon entry producer'
+$deOwner.persistenceCase='area-dungeon-entry';Write-KmcJsonAtomic (Join-Path $deSrcRoot 'owner.json') $deOwner
+Remove-Item -LiteralPath (Join-Path $deSrcRoot 'Saved Games/Auto_1.zks')
+$deManualSha=New-KmcSyntheticArchive (Join-Path $deSrcRoot 'Saved Games/Auto_1.zks') ([ordered]@{Name='Autosave1';Type='Manual';CompatibilityVersion=1;GameId=$deFixture.working.gameId;GameName='owned fixture';Area=$deFloor}) ([ordered]@{SchemaVersion=3})
+Must-Reject {Get-KmcPersistenceSource -SourceRunId $deSrcId -ExpectedSha256 $deManualSha -Fixture $deFixture -NativeCase area-dungeon-entry -ArtifactRole transition-auto -ExpectedArea $deFloor} 'Dungeon entry source of another native type admitted'
+
+# The read-only cold reload of that Auto: the exact archive and floor, no inherited transfer state, the same live pair, the
+# established continuation, and no write of any kind.
+$deColdActor={param($id,$view)[pscustomobject]@{id=$id;nativeActorCount=1;viewId=$view;viewAlive=$true;viewBound=$true;viewDisposition='cold-world';viewExactForPair=$true;boundToRelationship=$true}}
+$deColdRequest=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='area-dungeon-entry-auto';fixture=$deFixture
+    persistenceAreaTarget=[pscustomobject]@{enterPoint='d27d1d11f23ba9b46b6cdf00584ad08c';area=$deHub;autoSaveMode='AfterEntry'}
+    persistenceLoad=[pscustomobject]@{fileName='Auto_1.zks';sha256=$deAutoSha;area=$deFloor}}
+$deColdRows=@([pscustomobject]@{kind='auto-cold-loaded';detail=[pscustomobject]@{case='area-dungeon-entry-auto';autoSaveMode='AfterEntry';expectedArea=$deFloor;loadedArea=$deFloor;archiveArea=$deFloor
+        archiveCampaign=$deFixture.working.gameId;sourceSha256=$deAutoSha;sourceFileName='Auto_1.zks';suspensions=0;resumes=0;pending=$false;riderActor=(& $deColdActor 'owned-rider' 11);mountActor=(& $deColdActor 'owned-mount' 12)}},
+    [pscustomobject]@{kind='initial';detail=$null},
+    [pscustomobject]@{kind='movement-dispatched';detail=$null},
+    [pscustomobject]@{kind='movement-completed';detail=[pscustomobject]@{result='Success';originDistance=3.2}},
+    [pscustomobject]@{kind='attack-delivered';detail=[pscustomobject]@{rules=1;rolls=1;damage=0}},
+    [pscustomobject]@{kind='usable-continuation-complete';detail=$null})
+Assert-KmcDungeonEntryAutoColdEvidence $deColdRequest $deColdRows;$passes++
+foreach($bad in @('other-archive','hub-world','other-campaign','inherited-transfer','pending-transfer','duplicate-actor','unbound-view','foreign-view',
+    'no-movement','short-movement','no-attack','no-continuation','resave','failed-assertion','out-of-order','second-load','wrong-mode','manual-file','later-transfer')){
+    $copy=($deColdRows|ConvertTo-Json -Depth 8)|ConvertFrom-Json;$req=$deColdRequest
+    switch($bad){
+        'other-archive' {$copy[0].detail.sourceSha256=('e'*64)}
+        'hub-world' {$copy[0].detail.loadedArea=$deHub}
+        'other-campaign' {$copy[0].detail.archiveCampaign='00000000-0000-0000-0000-000000000001'}
+        'inherited-transfer' {$copy[0].detail.resumes=1}
+        'pending-transfer' {$copy[0].detail.pending=$true}
+        'duplicate-actor' {$copy[0].detail.mountActor.nativeActorCount=2}
+        'unbound-view' {$copy[0].detail.riderActor.viewBound=$false}
+        'foreign-view' {$copy[0].detail.mountActor.boundToRelationship=$false}
+        'no-movement' {$copy=@($copy|Where-Object kind -CNE 'movement-completed')}
+        'short-movement' {$copy[3].detail.originDistance=0.4}
+        'no-attack' {$copy=@($copy|Where-Object kind -CNE 'attack-delivered')}
+        'no-continuation' {$copy=@($copy|Where-Object kind -CNE 'usable-continuation-complete')}
+        'resave' {$copy=@($copy)+@([pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{ordinal=1}})}
+        'failed-assertion' {$copy=@($copy)+@([pscustomobject]@{kind='assertion-failed';detail=$null})}
+        'out-of-order' {$copy=@($copy[1],$copy[0])+@($copy[2..5])}
+        'second-load' {$copy=@($copy[0])+@($copy)}
+        'wrong-mode' {$copy[0].detail.autoSaveMode='BeforeExit'}
+        'later-transfer' {$copy=@($copy)+@([pscustomobject]@{kind='area-reload-requested';detail=$null})}
+        'manual-file' {$req=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='area-dungeon-entry-auto';fixture=$deFixture;persistenceAreaTarget=$deColdRequest.persistenceAreaTarget
+            persistenceLoad=[pscustomobject]@{fileName='Manual_300_KMC_P01.zks';sha256=$deAutoSha;area=$deFloor}}}
+    }
+    Must-Reject {Assert-KmcDungeonEntryAutoColdEvidence $req $copy} ('P07 dungeon entry reload accepted '+$bad)
+}
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

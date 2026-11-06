@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "finalize4-ai-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
@@ -236,10 +236,23 @@ namespace KingmakerMountedCombat.Diagnostics
         // archive. AfterEntry committed in the destination; BeforeExit committed
         // in the departure area before suspension, so each expects its own world.
         internal static bool IsTransitionAutoCase(string persistenceCase) =>
-            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto";
+            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto" || IsDungeonEntryAutoCase(persistenceCase);
+
+        // F4 (WORLD-01 reload): the cold native load of the dungeon entry's one after-entry Auto, committed on the floor.
+        // Unlike the cross-area autosave consumers it is read-only: no subsequent Manual write is declared or made.
+        internal const string DungeonEntryAutoCase = "area-dungeon-entry-auto";
+        internal static bool IsDungeonEntryAutoCase(string persistenceCase) => persistenceCase == DungeonEntryAutoCase;
+
+        // F4 (WORLD-01): the real Beneath the Stolen Lands entrance. A disclosed setup transfer (autoSaveMode None) takes the
+        // Working fixture's pair from its floor to the roguelike hub; the native entrance action, the native party selection
+        // Go and the native AfterEntry LoadArea return it to the floor with exactly one after-entry Auto write.
+        internal const string DungeonEntryCase = "area-dungeon-entry";
+        internal const string DungeonEntryHubEnterPoint = "d27d1d11f23ba9b46b6cdf00584ad08c", DungeonEntryHubArea = "c49315fe499f0e5468af6f19242499a2",
+            DungeonEntryFloorArea = "9d1278a2f599b2a4daab53abdfe88d2e";
+        internal static bool IsDungeonEntryCase(string persistenceCase) => persistenceCase == DungeonEntryCase;
 
         internal static bool IsCrossAreaFamilyCase(string persistenceCase) =>
-            IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase);
+            IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase) || IsDungeonEntryCase(persistenceCase);
 
         // The harmful-lifecycle boundary cases: the rider or the mount dies to
         // real native damage while mounted, and the no-pair archive that follows
@@ -455,7 +468,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f2-canonical-controls", StringComparison.Ordinal) &&
-                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal)))
+                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal)))
             {
                 errors.Add("branch must use the KMC prefix or an exact selected finalize branch.");
             }
@@ -671,7 +684,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (chunk7 ? !IsChunk7PersistenceCase(PersistenceCase) : p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+            if (chunk7 ? !IsChunk7PersistenceCase(PersistenceCase) : p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto", "area-dungeon-entry", "area-dungeon-entry-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -1143,8 +1156,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("A transition autosave case is cold-load only.");
                 if (IsTransitionAutoCase(PersistenceCase) && PersistenceAreaTarget != null &&
                     PersistenceAreaTarget.AutoSaveMode !=
-                    (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
+                    (PersistenceCase == "area-cross-entry-auto" || IsDungeonEntryAutoCase(PersistenceCase) ? "AfterEntry" : "BeforeExit"))
                     errors.Add("A transition autosave case must declare the mode that produced it.");
+                // The dungeon entry pins its exact route: the hub entry it passes through and the floor it returns to.
+                if (IsDungeonEntryCase(PersistenceCase) && (Scenario != "persistence-p07-save" || PersistenceAreaTarget == null ||
+                    PersistenceAreaTarget.EnterPoint != DungeonEntryHubEnterPoint || PersistenceAreaTarget.Area != DungeonEntryHubArea ||
+                    PersistenceAreaTarget.AutoSaveMode != "AfterEntry" || Fixture?.Working?.Area != DungeonEntryFloorArea))
+                    errors.Add("The dungeon entry requires exactly the roguelike hub entry, AfterEntry, from the Working fixture floor, on the P07 save.");
+                // Its reload declares the same route and opens exactly that Auto, committed on the floor of this campaign.
+                if (IsDungeonEntryAutoCase(PersistenceCase) && (Scenario != "persistence-p07-load" || PersistenceAreaTarget == null ||
+                    PersistenceAreaTarget.EnterPoint != DungeonEntryHubEnterPoint || PersistenceAreaTarget.Area != DungeonEntryHubArea ||
+                    PersistenceAreaTarget.AutoSaveMode != "AfterEntry" || Fixture?.Working?.Area != DungeonEntryFloorArea ||
+                    PersistenceLoad == null || PersistenceLoad.FileName != "Auto_1.zks" || PersistenceLoad.Area != DungeonEntryFloorArea))
+                    errors.Add("The dungeon entry reload opens exactly the entry's Auto_1 on the Working fixture floor, on the P07 load.");
             }
             else if (chunk7 && PersistenceCase == Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint)
             {
@@ -1563,7 +1587,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6D-move-cast-move", "C6D-cast-then-move", "C6D-double-move-ranged", "C6D-movement-exhausted", "C6D-auto-stop-boundary",
             "C6E-swift-on-own-turn", "C6E-swift-out-of-turn", "C6E-attack-on-mount-observed", "C6E-reaction-window",
             "F3-tb-setup", "F3-tb-a-round1", "F3-tb-b-round1", "F3-tb-a-step", "F3-tb-b-charge", "F3-tb-a-double", "F3-tb-b-dismount", "F3-rt-mounted-marker", "F3-rt-unmounted-marker", "F3-rt-attack", "F2-placement", "F2-strings", "F2-mount-cycle", "F2-alias-and-removal", "F2-charge-mounted", "F2-refusals", "F2-charge-unmounted", "S8-tb", "S8-inventory", "S8-weapon", "S8-existing", "S8-retrain", "S8-mount-horse", "S8-control", "S8-dog", "S8-mixed", "S8-mixed-reverse", "S8-archetype", "S8-tiers", "S8-smite", "S7-rt-charge", "S7-rt-cancel", "S7-tb-charge", "S7-pounce", "S7-queue", "S7-lane", "S7-reforce", "S6-selection", "S6-rt-defense", "S6-rt-isolation", "S6-rider-feat", "S6-tb-economy", "S6-forced-hit", "S5-inventory", "S5-medium-control", "S5-acquire", "S5-medium-refused", "S5-boot", "S5-rigs", "S5-actions", "S5-body-actions", "S5-left-handed", "S5-size-change", "S5-growth", "S5-pet-level", "S5-stock-dog", "S5-replacement",
-            "S4-ui-clean", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase", "S4-tb-ordinary-actors", "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors", "S3-trap-disarm", "S3-touch-friendly-distant", "S3-touch-held-charge", "S3-touch-hostile", "S3-ranged-distant", "S3-tb-touch-friendly", "S3-tb-insufficient-movement", "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-scroll-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
+            "S4-ui-clean", "F4-melee-engage", "S4-ranged-retarget", "S4-controls", "S4-melee-retarget", "S4-hold-no-chase", "S4-tb-ordinary-actors", "S4-move-into-combat", "S4-queued-hold", "S4-intent-neighbors", "S3-trap-disarm", "S3-touch-friendly-distant", "S3-touch-held-charge", "S3-touch-hostile", "S3-ranged-distant", "S3-tb-touch-friendly", "S3-tb-insufficient-movement", "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-scroll-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
             "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted", "C6B-CHARGE-combat-ended", "C6B-CHARGE-obstructed-line", "C6B-CHARGE-cancelled",
@@ -1586,7 +1610,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
-            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb", "sprint3-approach-rt", "sprint3-approach-rt-neighbor", "sprint3-approach-rt-spells", "sprint3-approach-rt-trap", "sprint3-approach-tb", "sprint4-natural-rt", "finalize4-ai-rt", "sprint4-natural-tb", "sprint4-intent-rt", "sprint5-small-rt", "sprint5-dog-rt", "sprint6-feat-rt", "sprint6-feat-tb", "sprint6-feat-forced-rt", "sprint7-charge-rt", "sprint7-charge-tb", "sprint7-charge-tb-mount-first", "sprint7-charge-pounce-rt", "sprint7-charge-queue-rt", "sprint7-charge-reforce-tb", "sprint8-paladin-choice-rt", "sprint8-paladin-mount-rt", "sprint8-paladin-dog-rt", "sprint8-paladin-mixed-rt", "sprint8-paladin-celestial-rt", "sprint8-paladin-tb", "finalize-f2-controls-rt", "finalize3-economy-tb", "finalize3-economy-rt",
             "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",

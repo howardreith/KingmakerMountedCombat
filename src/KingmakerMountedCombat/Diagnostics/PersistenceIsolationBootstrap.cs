@@ -59,15 +59,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Cold native slot name differs from the exact localized category.");
                 // Only a writing cross-area run declares a transition; the cold
                 // process already opens in the destination and writes nothing.
+                var dungeonEntry = request.Scenario == "persistence-p07-save" && RuntimeRequest.IsDungeonEntryCase(request.PersistenceCase);
                 var declaresTransfer = request.Scenario == "persistence-p07-save" &&
-                    RuntimeRequest.IsCrossAreaCase(request.PersistenceCase);
+                    (RuntimeRequest.IsCrossAreaCase(request.PersistenceCase) || dungeonEntry);
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
                     request.Fixture.Baseline.Sha256, entries,
                     declaresTransfer ? fixture.Area : null,
-                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, request.Scenario == Chunk7AssistedFixtureSelection.Scenario ? (int?)3 : request.OwnedPairs != null ? (int?)request.OwnedPairs.WriteCount(request.PersistenceCase) : request.Scenario == Chunk7PersistenceScenario.SaveScenario && request.PersistenceCase == Chunk7PersistenceScenario.WorkerCancelSaveCase ? (int?)2 : (schema2Resave || request.Scenario == Chunk7SmallFixtureSelection.Scenario || request.Scenario == Chunk7StockMammothFixtureSelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
+                    declaresTransfer ? request.PersistenceAreaTarget.Area : null, dungeonEntry ? (int?)1 : request.Scenario == Chunk7AssistedFixtureSelection.Scenario ? (int?)3 : request.OwnedPairs != null ? (int?)request.OwnedPairs.WriteCount(request.PersistenceCase) : request.Scenario == Chunk7PersistenceScenario.SaveScenario && request.PersistenceCase == Chunk7PersistenceScenario.WorkerCancelSaveCase ? (int?)2 : (schema2Resave || request.Scenario == Chunk7SmallFixtureSelection.Scenario || request.Scenario == Chunk7StockMammothFixtureSelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7OrdinaryAcquisitionSelection.Scenario ||
                         request.Scenario == Chunk7ProgressionSelection.Scenario && request.Progression.WritesSave ||
                         request.Scenario == Chunk7PersistenceScenario.SaveScenario && Chunk7PersistenceScenario.IsSaveBoundaryCase(request.PersistenceCase)) ? (int?)1 : null,
-                    request.OwnedPairs != null ? (int?)request.OwnedPairs.LoadCount(request.PersistenceCase) : (request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario) ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7SmallFixtureSelection.Scenario || request.Scenario == Chunk7StockMammothFixtureSelection.Scenario || request.Scenario == Chunk7AssistedColdInventorySelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
+                    dungeonEntry ? (int?)1 : request.OwnedPairs != null ? (int?)request.OwnedPairs.LoadCount(request.PersistenceCase) : (request.Scenario == Chunk7NativeBootstrapSelection.Scenario || request.Scenario == Chunk7AssistedFixtureSelection.Scenario) ? (int?)0 : schema2Resave ? (int?)1 : request.Scenario == Chunk7SmallFixtureSelection.Scenario || request.Scenario == Chunk7StockMammothFixtureSelection.Scenario || request.Scenario == Chunk7AssistedColdInventorySelection.Scenario || request.Scenario == Chunk7CumulativeAcquisitionSelection.Scenario || request.Scenario == Chunk7AcquiredManualSelection.Scenario || request.Scenario == Chunk7ManualDerivedSelection.Scenario || request.Scenario == Chunk7ManualSeedSelection.Scenario || request.Scenario == Chunk7BootstrapInventorySelection.Scenario || request.Scenario == Chunk7ProgressionSelection.Scenario || request.Scenario == Chunk7SmallCalibrationSelection.Scenario || request.Scenario == Chunk7OrdinaryFieldSelection.Scenario ? (int?)1 : request.PersistenceCase == Chunk7PersistenceScenario.ThreeLoadsCase ? (int?)3 :
                     request.PersistenceCase == Chunk7PersistenceScenario.ThreeAreasCase ? (int?)1 : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? request : null,
                     request.Scenario == Chunk7AcquiredManualSelection.Scenario ? game : null,
@@ -237,7 +238,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // produces. The declared leaf has to be the one the engine will
             // actually choose, or PrepareSave rejects its own descriptor.
             // The UPG-01 resave shares the rule: its root holds just the retained Quick.
-            if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) || request.IsUpgradeResave)
+            // F4: the dungeon entry reload is read-only, so it declares no output leaf at all.
+            if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) && !RuntimeRequest.IsDungeonEntryAutoCase(request.PersistenceCase) ||
+                request.IsUpgradeResave)
                 entries.Add(new PersistenceSaveEntry {
                     FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                     SaveType = "Manual", Area = fixture.Area, Writable = true });
@@ -301,6 +304,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 // admitted across the transfer is still carrying the previous
                 // save's area, so exactly that leaf declares both endpoints.
                 var cross = RuntimeRequest.IsCrossAreaCase(request.PersistenceCase);
+                // F4 dungeon entry: exactly one output, the native after-entry Auto of the native entrance, admitted while the party
+                // is still in the hub and committed in the floor it returns to; no manual leaf is declared.
+                var dungeonEntryLeaves = RuntimeRequest.IsDungeonEntryCase(request.PersistenceCase);
                 var afterEntry = cross && request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry";
                 // Manual writes are requested after arrival, so both of their
                 // boundaries already observe the destination.
@@ -308,7 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // through MakeNameUnique, so a second NEW archive under a name
                 // the list already holds would be renamed and refused. Campaign
                 // B's second A archive therefore carries its own exact name.
-                for (var n = 0; n < 2; n++)
+                for (var n = 0; n < (dungeonEntryLeaves ? 0 : 2); n++)
                 {
                     var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName :
                         n == 1 && (request.PersistenceCase == "prepare-removal" || request.PersistenceCase == "mounted-charge-removal") ? MountedRemovalPreparation.CleanupSaveName :
@@ -320,6 +326,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         Area = cross ? request.PersistenceAreaTarget.Area : fixture.Area,
                         Writable = true });
                 }
+                if (dungeonEntryLeaves) entries.Add(new PersistenceSaveEntry {
+                    FileName = "Auto_1.zks", InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
+                    SaveType = "Auto", Area = fixture.Area, AdmissionArea = request.PersistenceAreaTarget.Area, Writable = true });
                 if (cross) entries.Add(new PersistenceSaveEntry {
                     FileName = "Auto_1.zks", InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
                     SaveType = "Auto",

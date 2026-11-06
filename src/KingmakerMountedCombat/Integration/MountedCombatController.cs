@@ -1197,7 +1197,7 @@ namespace KingmakerMountedCombat.Integration
             if (decision == MountedAutomaticProposalDecision.Refuse)
             {
                 AutomaticRefusedCount++;
-                LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>");
+                LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>") + ";frame=" + Time.frameCount;
                 return;
             }
             if (decision == MountedAutomaticProposalDecision.ContinueOwnIntent)
@@ -1270,7 +1270,52 @@ namespace KingmakerMountedCombat.Integration
                     });
                 }
             }
-            return MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
+            var live = MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
+            // F4 decision snapshot (r03 Hold stall): the exact operations that made this predicate true, overwritten only
+            // when it is true, so a refusal can always be attributed to a named command.
+            if (live)
+            {
+                try { LastPlayerOperationDetail = DescribePlayerOperation(rider, mount); }
+                catch (Exception exception) { LastPlayerOperationDetail = "frame=" + Time.frameCount + "; <" + exception.GetType().Name + ">"; }
+            }
+            return live;
+        }
+
+        internal string LastPlayerOperationDetail { get; private set; }
+
+        private static string DescribePlayerOperation(UnitEntityData rider, UnitEntityData mount)
+        {
+            var parts = new List<string> { "frame=" + Time.frameCount };
+            var raw = rider?.Commands?.Raw;
+            if (raw != null)
+                foreach (var command in raw)
+                    if (command != null && !command.IsFinished && command.AiAction == null && !(command is MountedPairSingleAttack) &&
+                        !(command is UnitAttackOfOpportunity))
+                        parts.Add("riderSlot=" + DescribeCommand(command));
+            foreach (var unit in new[] { rider, mount })
+            {
+                var queue = unit?.Commands?.Queue;
+                if (queue == null) continue;
+                foreach (var command in queue)
+                    if (!(command is MountedPairSingleAttack))
+                        parts.Add((unit == rider ? "riderQueue=" : "mountQueue=") + DescribeCommand(command));
+            }
+            return string.Join("; ", parts.ToArray());
+        }
+
+        private static string DescribeCommand(UnitCommand command) =>
+            command.GetType().Name + "{type=" + command.Type + ",started=" + command.IsStarted + ",finished=" + command.IsFinished +
+            ",player=" + command.CreatedByPlayer + ",ai=" + (command.AiAction != null) + ",executor=" + command.Executor?.UniqueId +
+            ",target=" + (command.TargetUnit?.UniqueId ?? "<point>") + ",enoughClose=" + DescribeEnoughClose(command) +
+            ",ability=" + ((command as UnitUseAbility)?.Spell?.Blueprint?.AssetGuid ?? "-") + "}";
+
+        // Only the Free/Swift coexistence predicate reads the native distance; other commands are not asked.
+        private static string DescribeEnoughClose(UnitCommand command)
+        {
+            if (command.IsStarted) return "started";
+            if (command.Type != UnitCommand.CommandType.Free && command.Type != UnitCommand.CommandType.Swift) return "-";
+            try { return command.IsUnitEnoughClose.ToString(); }
+            catch (Exception exception) { return "<" + exception.GetType().Name + ">"; }
         }
 
         // Native Run can queue the pair's own command behind a running one: that is the intent itself, not a newer order.
@@ -2193,6 +2238,43 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastCarriedApproachObservation { get; private set; } = "not-observed";
 
+        // F4 review MINOR-2: native UnitCommands.InterruptMove interrupts every command still approaching (IsMoveUnit).
+        // The rider's own approaching orders never run native TickApproaching (the mount carries them), so the trap-order
+        // group stop ends them here: an unstarted carried command, and a pair attack still approaching before any strike.
+        internal int InterruptRiderApproachingOrders(string reason)
+        {
+            if (disposed) return 0;
+            var count = 0;
+            var carried = carriedApproach?.Command;
+            if (carried != null && !carried.IsStarted && !carried.IsFinished) { carried.Interrupt(); count++; }
+            var active = activeCommand;
+            if (active != null && !active.ChargeMode && active.IsApproachingBeforeAttack)
+            {
+                if (HasStockAttackIntent && ReferenceEquals(stockIntentCommand, active)) ClearStockAttackIntent(reason, true);
+                activeCommand = null;
+                pairedCommandScheduler.ObserveExternalInterrupt(active, reason);
+                active.Interrupt();
+                count++;
+            }
+            if (count > 0) logger.Info("Rider approaching orders interrupted by the native group stop: count=" + count + "; reason=" + reason + ".");
+            return count;
+        }
+
+        internal long CarriedApproachReplacedTravelCount { get; private set; }
+
+        // Exact native component types only: a derived chest, loot or door type is "Other" and stays native.
+        internal static MountedCarriedInteractionClass ClassifyCarriedInteraction(UnitCommand command, UnitInteractWithObject interaction)
+        {
+            var component = interaction?.Interaction;
+            if (component == null || command.GetType() != typeof(UnitInteractWithObject)) return MountedCarriedInteractionClass.NotInteraction;
+            if (component is DisableTrapInteractionComponent) return MountedCarriedInteractionClass.TrapDisarm;
+            if (component is StandardDoor) return MountedCarriedInteractionClass.Door;
+            var type = component.GetType();
+            return component.Type == InteractionType.Approach && (type == typeof(StandardChest) || type == typeof(LootComponent))
+                ? MountedCarriedInteractionClass.Container
+                : MountedCarriedInteractionClass.Other;
+        }
+
         // Called from the TickApproaching prefix for every unstarted native command. Returns true when the mount
         // approaches for the rider's own command this tick and the native rider approach must be skipped; false
         // leaves the native code untouched (not a carried command, the command is in range, or another pair
@@ -2202,11 +2284,7 @@ namespace KingmakerMountedCombat.Integration
             if (disposed || command == null) return false;
             var ability = command as UnitUseAbility;
             var interaction = command as UnitInteractWithObject;
-            var kind = ability != null
-                ? MountedCarriedCommandKind.Ability
-                : interaction != null && command.GetType() == typeof(UnitInteractWithObject) && interaction.Interaction is DisableTrapInteractionComponent
-                    ? MountedCarriedCommandKind.TrapInteraction
-                    : MountedCarriedCommandKind.None;
+            var kind = MountedCarriedApproachPolicy.Classify(ability != null, ClassifyCarriedInteraction(command, interaction));
             var chargeShell = ability != null &&
                 (string.Equals(ability.Spell?.Blueprint?.AssetGuid, NativeMountedControlService.MountedChargeAbilityGuid, StringComparison.Ordinal) ||
                  OwnsChargeNativeAction(ability));
@@ -2234,6 +2312,27 @@ namespace KingmakerMountedCombat.Integration
                 {
                     LastCarriedApproachObservation = "deferred: another pair operation owns the mount";
                     return false;
+                }
+                // F4 review MAJOR-1: a new ordinary chest/loot order replaces the pair's own real-time travel, as native Run
+                // makes an unmounted unit's own move yield to its new Standard command (and as a door click does). Only the
+                // exact travel the mount held when this order ran (ObserveContainerOrderRun), once, so a later player move,
+                // a pair operation's delegated move or a charge carrier is never cancelled for an older waiting order.
+                var boundTravel = ReferenceEquals(containerOrderCommand, command) ? containerOrderTravel : null;
+                var firstTick = boundTravel != null;
+                containerOrderTravel = null;
+                var mountCommands = relationship.Mount?.Commands;
+                var mountMove = mountCommands?.GetCommand(UnitCommand.CommandType.Move);
+                if (MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(kind, firstTick, CombatController.IsInTurnBasedCombat(), command.CreatedByPlayer,
+                        mountMove != null && ReferenceEquals(mountMove, boundTravel) && !mountMove.IsFinished,
+                        mountCommands != null && (mountCommands.Standard != null || mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||
+                            mountCommands.GetCommand(UnitCommand.CommandType.Swift) != null),
+                        mountCommands != null && mountCommands.Queue.Count == 0))
+                {
+                    mountMove.Interrupt();
+                    if (mountCommands.Queue.Count == 0) mountCommands.RemoveFinishedAndUpdateQueue();
+                    relationship.Mount.View?.StopMoving();
+                    CarriedApproachReplacedTravelCount++;
+                    logger.Info("Mounted container order replaced the " + MountDisplayName + " travel: command=" + command.GetType().Name + ".");
                 }
                 // Review correction B: any other live or queued command of the mount owns its movement; it is never
                 // cancelled for a carried approach, which binds once the mount is free.
@@ -2277,8 +2376,28 @@ namespace KingmakerMountedCombat.Integration
             }, out ticket);
             command = routed;
             if (disposed) ticket = null;
+            if (admitted) ObserveContainerOrderRun(container, routed);
             return admitted;
         }
+
+        // F4 re-review MAJOR: the exact mount travel a new chest/loot order may replace is the one the mount held when the
+        // rider's order ran (native Run makes a unit's own earlier move yield to its new Standard command). A move issued
+        // later, a pair operation's own delegated move or a charge carrier is never this instance, so it is never cancelled.
+        private void ObserveContainerOrderRun(UnitCommands container, UnitCommand command)
+        {
+            var interaction = command as UnitInteractWithObject;
+            if (disposed || interaction == null || container == null || container != relationship.Rider?.Commands ||
+                relationship.State != RelationshipState.Mounted || !command.CreatedByPlayer ||
+                MountedCarriedApproachPolicy.Classify(false, ClassifyCarriedInteraction(command, interaction)) != MountedCarriedCommandKind.ContainerInteraction)
+                return;
+            var mountMove = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            var ownTravel = mountMove is UnitMoveTo && mountMove.CreatedByPlayer && !mountMove.IsFinished && !(mountMove is MountedDoorApproachMove) &&
+                !HasActiveCommand && !HasActiveDoorInteraction && chargeOwner == null && !OwnsExactPairedNativeCommand(mountMove);
+            containerOrderCommand = command;
+            containerOrderTravel = ownTravel ? mountMove : null;
+        }
+
+        private UnitCommand containerOrderCommand, containerOrderTravel;
 
         internal void CompletePairCommandRun(MountedCarriedRequestTicket ticket, UnitCommand executed)
         {
@@ -2368,16 +2487,18 @@ namespace KingmakerMountedCombat.Integration
             releasing.Release(reason);
         }
 
+        internal long CarriedApproachTerminalCount { get; private set; }
+
         private void HandleCarriedApproachTerminal(MountedCarriedApproach approach, MountedCarriedApproachOutcome outcome)
         {
             LastCarriedApproachOutcome = outcome;
+            CarriedApproachTerminalCount++;
             if (ReferenceEquals(carriedApproach, approach)) carriedApproach = null;
             if (outcome.TerminalReason != null && !outcome.Satisfied)
             {
                 CarriedApproachExhaustedCount++;
                 LastFeedback = MountedCarriedApproachPolicy.ExhaustedFeedback(
-                    outcome.Kind == MountedCarriedCommandKind.TrapInteraction.ToString() ? MountedCarriedCommandKind.TrapInteraction : MountedCarriedCommandKind.Ability,
-                    MountDisplayName, outcome.TerminalReason);
+                    MountedCarriedApproachPolicy.ParseKind(outcome.Kind), MountDisplayName, outcome.TerminalReason);
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.NoPath };
             }
             LastCarriedApproachObservation = "released: " + outcome.Result + "; satisfied=" + outcome.Satisfied;

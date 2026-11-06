@@ -808,6 +808,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginCleanup()
         {
             if (cleanupStarted) return;
+            DisposeFinalize4();
             cleanupStarted = true; stepStarted = clock.Elapsed.TotalSeconds;
             TryCleanup("optional capture window", () => { quietWindow?.Dispose(); quietWindow = null; });
             TryCleanup("measurement", () => { measurement?.Dispose(); measurement = null; });
