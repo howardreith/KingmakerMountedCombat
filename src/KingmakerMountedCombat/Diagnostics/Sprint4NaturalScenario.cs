@@ -423,6 +423,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 s4First = Sprint4Spawn(9f, "s4-ranged-low", false);
                 s4Second = Sprint4Spawn(11f, "s4-ranged-next", true);
                 Sprint4LeaveOneHitPoint(s4First);
+                if (IsFinalize4Ai)
+                {
+                    // F4 setup, disclosed: the low target's armour class is lowered (an untyped native stat modifier) so the
+                    // routine's first arrow very likely kills it and planned arrows remain for the native continuation (r01's
+                    // kill fell on the last arrow). The roll stays native; a natural 1 still misses.
+                    s4First.Stats.AC.AddModifier(-40, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.UntypedStackable);
+                    s4Facts["disclosedSetup"] = new JArray("low target AC -40 (untyped native stat modifier) so planned arrows remain after the kill");
+                    s4Facts["lowTargetAc"] = s4First.Stats.AC.ModifiedValue;
+                }
                 castingCosts.BeginEncounter(request.RunId + ":sprint4-ranged");
                 s4Facts["variation"] = ordinaryVariation.Capture();
                 s4Step = 1; ResetLeafClock(); return;
