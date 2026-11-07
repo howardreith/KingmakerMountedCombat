@@ -10169,7 +10169,7 @@ try {
             'native load admission does not read the same all-pair archive format that SelectLoad restores'
     }
 
-    Invoke-HarnessTest 'private-alpha stabilization is pair-local, view-safe, and preserves native action ownership' {
+    Invoke-HarnessTest 'mounted stabilization is pair-local, view-safe, and preserves native action ownership' {
         $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         $attachmentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs'))
@@ -10251,12 +10251,12 @@ try {
             -not $patchSource.Contains('CombatController), "StartTurn"') -and
             -not $patchSource.Contains('StartTurnPostfix') -and
             -not $combatSource.Contains('ShouldEndMountTurn')) `
-            'private-alpha stabilization still suppresses the Mammoth native turn'
+            'mounted stabilization still suppresses the Mammoth native turn'
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommands), "Run", 0x060026B2') -and
             $patchSource.Contains('nameof(PatchMethods.UnitCommandRunPrefix)') -and
             $combatSource.Contains('MountedStockAttackPolicy.ShouldReject(') -and
             $combatSource.Contains('command.GetType() == typeof(UnitAttack)') -and
-            $stabilizationSource.Contains('Mounted ranged attacks are not supported in this private alpha.') -and
+            $stabilizationSource.Contains('This mounted ranged attack is not supported.') -and
             $stabilizationSource.Contains('relationshipMounted && (ownerIsExactRider || ownerIsExactMount) &&') -and
             $stabilizationSource.Contains('commandIsExactStockUnitAttack;')) `
             'mounted stock attack rejection is not exact-pair-local at the native UnitCommands admission seam'

@@ -958,7 +958,7 @@ namespace KingmakerMountedCombat.Integration
                 return new NativeMountedControlAvailability(
                     true,
                     false,
-                    "Enable private-alpha mounted controls in the KMC mod settings.");
+                    "Enable mounted controls in the KMC mod settings.");
             }
 
             if (caster == null || caster.Descriptor == null || !caster.IsInGame)

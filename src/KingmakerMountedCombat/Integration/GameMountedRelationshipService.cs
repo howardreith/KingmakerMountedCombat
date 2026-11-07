@@ -131,7 +131,7 @@ namespace KingmakerMountedCombat.Integration
             ThrowIfDisposed();
             if (!settings.EnableUnsafeMovementExperiment)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Mounted movement is disabled in this mod's settings." }, false, false));
             }
 
             if (coordinator.State != RelationshipState.Unmounted)
@@ -229,7 +229,7 @@ namespace KingmakerMountedCombat.Integration
             }
             if (!settings.EnableUnsafeMovementExperiment)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Mounted movement is disabled in this mod's settings." }, false, false));
             }
             if (coordinator.State != RelationshipState.Unmounted)
             {
@@ -404,7 +404,7 @@ namespace KingmakerMountedCombat.Integration
             ThrowIfDisposed();
             if (!settings.EnableUnsafeMovementExperiment)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Mounted movement is disabled in this mod's settings." }, false, false));
             }
             if (coordinator.State != RelationshipState.Unmounted)
             {

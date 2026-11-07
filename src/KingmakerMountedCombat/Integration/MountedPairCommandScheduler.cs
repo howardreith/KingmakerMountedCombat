@@ -108,7 +108,7 @@ namespace KingmakerMountedCombat.Integration
             }
             if (!settings.EnablePairedCommandScheduler)
             {
-                reason = "experimental scheduler disabled";
+                reason = "paired command scheduler disabled";
                 return false;
             }
             if (!settings.UseLegacyUnifiedTurn)

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Kingmaker Mounted Combat")]
-[assembly: AssemblyDescription("Private mounted-combat alpha for Pathfinder: Kingmaker")]
+[assembly: AssemblyDescription("Mounted combat for Pathfinder: Kingmaker")]
 [assembly: AssemblyCompany("Kingmaker Mounted Combat")]
 [assembly: AssemblyProduct("Kingmaker Mounted Combat")]
 [assembly: AssemblyCopyright("Copyright © 2026 Howie Reith")]
