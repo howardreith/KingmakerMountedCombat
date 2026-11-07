@@ -226,7 +226,9 @@ function Write-KmcBytesDurableAtomic {
 function Read-KmcJson {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "JSON file is missing: $Path" }
-    return Get-Content -Raw -LiteralPath $Path | ConvertFrom-Json
+    # UTF-8, as every writer here and the game write it. Windows PowerShell's default is the ANSI code page, which split a
+    # renamed companion's accented letters into two characters each and refused the F5 producer r06 that recorded them correctly.
+    return Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json
 }
 
 function Assert-KmcExactProperties {
