@@ -12,11 +12,23 @@ The owner merged PR #21 as `eb16d2f1` (tree identical to the reviewed `4b8a5f02`
   - r01 and r02: FAIL, kept.
 - **Spend:** finalize-f6 at 42.75 of 90 minutes and 5 of 6 starts. Closeout spent nothing.
 
+**Release 0.2.0 (owner order, 2026-11-07):** the first full version. Notes: [docs/RELEASE-NOTES-0.2.0.md](docs/RELEASE-NOTES-0.2.0.md).
+- **Why 0.2.0:** UMM 0.33.2's own `ParseVersion` reads every alpha label as `0.1.x`, at most `0.1.7.103`, so `0.2.0` reads newer than all of them. The assembly version stays `0.1.0.0`.
+- **Package:** `KingmakerMountedCombat-0.2.0-release-diagnostic.zip`, SHA-256 `ab2d51028303576802956e2b1e80dc0c4eb30b70c68abb7ad8a0bb87b25118fd`.
+  - DLL `634f0da67853604f6c0cc090e4f1e578a38b321f83489e7057765f992c2200ab`, MVID `72cad97c-5b3d-4903-993c-50fbeb73833a`.
+  - Built from `3971e487`.
+- **Relation to the tested f6f DLL `87fed161…` (ildasm comparison):** the only differences are
+  - the version string, in five places;
+  - the MVID and image base;
+  - static-data offsets shifted by the shorter string. Every content-hashed field and data blob is identical.
+- **Not run in the game.** Gameplay source is identical to the accepted F6 landing.
+- **Checks:** Fast passed 3/0 on budget `release-0.2.0` (0.5 min); Validate-Package passed 11/0.
+- **Tag:** to be applied to the owner's merge of this branch. A release is not an install.
+
 **Remaining:**
 - WORLD-02 stays deferred and not passed.
 - Owner style and full-stack play acceptance are separate.
-- Publication is a separate, explicit decision.
-- No release, tag, install or further planned engineering.
+- No install or further planned engineering.
 
 # F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
 
