@@ -35,7 +35,7 @@ $aRow=[pscustomobject]@{
     fallBefore=(Snap (Svc 0 0) $mounted $bMounted (U $aR 'Valerie') (U $aM 'Mastodon') (U $bR 'Linzi') (U $bM 'Steed'))
     kill=[pscustomobject]@{requested=90;applied=90}
     fallAfter=(Snap (Svc 1 1) (Pair 'Unmounted' 1 $null) $bMounted (U $aR 'Valerie' 4) (U $aM 'Mastodon' 90 $true 'Dead') (U $bR 'Linzi') (U $bM 'Steed'))
-    placement=[pscustomobject]@{riderToMount=1.4}
+    placement=[pscustomobject]@{riderToMount=1.9;riderCorpulence=0.4;mountCorpulence=1.5}
     fallSettled=(Snap (Svc 1 1) (Pair 'Unmounted' 1 $null) $bMounted (U $aR 'Valerie' 4 $true) (U $aM 'Mastodon' 90 $true 'Dead') (U $bR 'Linzi') (U $bM 'Steed'))
     standUpBefore=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $true) $null (U $bR 'Linzi') (U $bM 'Steed'))
     standUpAfter=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $false 'Conscious' $false $true) $null (U $bR 'Linzi') (U $bM 'Steed'))
@@ -44,7 +44,7 @@ $bRow=[pscustomobject]@{
     fallBefore=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4) $null (U $bR 'Linzi') (U $bM 'Steed'))
     knockOff=[pscustomobject]@{canBeKnockedOff=$true;wasProne=$false}
     fallAfter=(Snap (Svc 2 2) $none (Pair 'Unmounted' 1 $null) (U $aR 'Valerie' 4) $null (U $bR 'Linzi') (U $bM 'Steed' 0 $true))
-    placement=[pscustomobject]@{riderToMount=1.1}
+    placement=[pscustomobject]@{riderToMount=1.1;riderCorpulence=0.4;mountCorpulence=0.6}
     fallSettled=(Snap (Svc 2 2) $none $none (U $aR 'Valerie' 4) $null (U $bR 'Linzi') (U $bM 'Steed' 0 $true))
     repeatKnockOff=[pscustomobject]@{canBeKnockedOff=$false;wasProne=$true}
     deathAfterProne=[pscustomobject]@{requested=60;applied=60}
@@ -82,7 +82,10 @@ TbRefuses { param($a) $a.observations.finalize6Falls.falls[0].record.riderId=$bR
 TbRefuses { param($a) $a.observations.finalize6Falls.falls[0].record.generation=2 } 'a fall on another pair generation refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpAfter.aRider.hasMove=$true } 'a free stand-up refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpAfter.aRider.hasStandard=$false } 'a stand-up that took the Standard action refuses'
-TbRefuses { param($a) $a.rows[5].evidence.steps.placement.riderToMount=0.1 } 'a rider placed inside the dead mount refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.placement.riderToMount=1.2 } 'a rider placed inside the dead mount body refuses'
+TbRefuses { param($a) $a.rows[6].evidence.steps.placement.riderToMount=0.3 } 'a rider placed inside the prone mount body refuses'
+TbRefuses { param($a) $r=$a.observations.finalize6Falls.falls[0].record; $r.proneImposed=$false; $r.proneRefusal='getting up' } 'a hard landing that imposed no prone refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBefore.aRider.prone=$false } 'a stand-up row whose rider was never prone refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.preparations+=[pscustomobject]@{role='aRider';round=2;count=1} } 'a second native preparation in a round refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.disclosedSetup=@() } 'undisclosed labelled outcomes refuse'
 $f=Clone $tbArtifact; $f.status='FAIL'; $f.errors=@('x'); Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'FAIL'; Check $true 'a failed child keeps its FAIL without qualification'
@@ -119,7 +122,7 @@ $prodObs=[pscustomobject]($base+@{cold=$false
         voluntaryRoute='public-control';voluntaryBefore=(FWorld (PSvc 0) $first (FPair $true 'bbbb' 2 2));voluntaryAfter=(FWorld (PSvc 0) $first (FPair $false $null $null $null))
         remounted=(FWorld (PSvc 0) $first (FPair $true 'cccc' 4 4));fallBefore=(FWorld (PSvc 0) $first (FPair $true 'cccc' 4 4))
         knockOff=[pscustomobject]@{canBeKnockedOff=$true};fallAfter=(FWorld (PSvc 1) $first (FPair $false $null $null $null) 4 $false $true @('Linzi: Mobility check',$fall.logText))
-        fall=$fall;placement=[pscustomobject]@{riderToMount=1.0};fallSettled=(FWorld (PSvc 1) $first (FPair $false $null $null $null) 4 $true $true)
+        fall=$fall;placement=[pscustomobject]@{riderToMount=1.0;riderCorpulence=0.3;mountCorpulence=0.6};fallSettled=(FWorld (PSvc 1) $first (FPair $false $null $null $null) 4 $true $true)
         standing=(FWorld (PSvc 1) $first (FPair $false $null $null $null) 4);atSave=(FWorld (PSvc 1) $first (FPair $false $null $null $null) 4)}
     nativeWrite=[pscustomobject]@{nativeType='Manual';sha256=('b'*64);archive=$archive}})
 $fixture=[pscustomobject]@{working=[pscustomobject]@{gameId='camp';area='area';sha256='5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'}}
@@ -138,6 +141,8 @@ ProdRefuses { param($o) $o.riderFall.atSave.secondRider.damage=0 } 'a save witho
 ProdRefuses { param($o) $o.nativeWrite.archive.Pairs+=$o.nativeWrite.archive.Pairs[0] } 'a two-pair archive refuses'
 ProdRefuses { param($o) $o.riderFall.fall.logText=$o.riderFall.fall.logText.Replace($shared,'Riding Dog'); $o.riderFall.fallAfter.log=@($o.riderFall.fall.logText) } 'an explanation without the pet''s current name refuses'
 ProdRefuses { param($o) $o.cleanup.pairsClear=$false } 'incomplete cleanup refuses'
+ProdRefuses { param($o) $o.riderFall.placement.riderToMount=0.4 } 'a rider placed inside the Riding Dog body refuses'
+ProdRefuses { param($o) $o.riderFall.fallSettled.secondRider.prone=$false } 'a hard landing that left the rider standing refuses'
 
 $coldObs=[pscustomobject]($base+@{cold=$true
     companionNamesCold=[pscustomobject]@{dog=(Ident $dogId $dogRider 'b7a14f25d3c94e0d8e6f1a2c5d90e431');mammoth=(Ident $mammothId $mammothRider 'm');labels=(Labels);overtipsCold=(Overtips)

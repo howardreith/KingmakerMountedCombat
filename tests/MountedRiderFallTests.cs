@@ -20,17 +20,19 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("rider fall: a fall resolves only once the rider is unseated", PendingUntilUnseated);
             runner.Run("rider fall: identically named pairs keep separate falls", SeparatePairs);
             runner.Run("rider fall: a remount is a new generation and may fall again", Remount);
+            runner.Run("rider fall: a reload restoring the same generation number is a new seat and may fall again", ReloadedSeat);
+            runner.Run("rider fall: a load abandons every pending fall", LoadAbandons);
             runner.Run("rider fall: a seat that moved on is abandoned with its reason", Abandoned);
             runner.Run("rider fall: the log names mount, rider, check and outcome", LogText);
         }
 
-        private sealed class Pair { internal string Name; internal long Generation; internal bool Unseated; }
+        private sealed class Pair { internal string Name; internal long Generation; internal bool Unseated; internal object Seat = new object(); }
 
         private static MountedRiderFallFacts Facts(MountedRiderFallCause cause, bool exact = true, bool riderAlive = true, bool gameplay = true) =>
             new MountedRiderFallFacts { Cause = cause, ExactMountOfMountedPair = exact, RiderAlive = riderAlive, Gameplay = gameplay };
 
         private static MountedRiderFallRefusal Begin(MountedRiderFallLedger<Pair> ledger, Pair pair, MountedRiderFallFacts facts, out MountedRiderFallEvent<Pair> fall) =>
-            ledger.Begin(pair, pair.Generation, facts, "rider-" + pair.Name, "mount-" + pair.Name, out fall);
+            ledger.Begin(pair, pair.Generation, pair.Seat, facts, "rider-" + pair.Name, "mount-" + pair.Name, out fall);
 
         private static void CausesBeginAFall()
         {
@@ -172,9 +174,33 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderFallEvent<Pair> first, later;
             Begin(ledger, pair, Facts(MountedRiderFallCause.MountFellProne), out first);
             ledger.TakeUnseated(pair, f => true);
-            pair.Generation = 2;
+            pair.Generation = 2; pair.Seat = new object();
             TestRunner.True(Begin(ledger, pair, Facts(MountedRiderFallCause.MountDied), out later) == MountedRiderFallRefusal.None && later.Generation == 2,
                 "After native recovery and a new legal mount, a later collapse is a new fall.");
+        }
+
+        private static void ReloadedSeat()
+        {
+            var ledger = new MountedRiderFallLedger<Pair>();
+            var pair = new Pair { Name = "a", Generation = 3, Unseated = true };
+            MountedRiderFallEvent<Pair> first, later;
+            Begin(ledger, pair, Facts(MountedRiderFallCause.MountDied), out first);
+            ledger.TakeUnseated(pair, f => true);
+            // Quickload: the same relationship object restores the saved generation 3 with a new custody object.
+            pair.Seat = new object();
+            TestRunner.True(Begin(ledger, pair, Facts(MountedRiderFallCause.MountDied), out later) == MountedRiderFallRefusal.None && later != null,
+                "A death after reloading the mounted save is a new fall, not a replay of the old one.");
+        }
+
+        private static void LoadAbandons()
+        {
+            var ledger = new MountedRiderFallLedger<Pair>();
+            MountedRiderFallEvent<Pair> a, b;
+            Begin(ledger, new Pair { Name = "a" }, Facts(MountedRiderFallCause.MountDied), out a);
+            Begin(ledger, new Pair { Name = "b" }, Facts(MountedRiderFallCause.MountFellProne), out b);
+            var abandoned = ledger.AbandonAll("load");
+            TestRunner.True(abandoned.Length == 2 && abandoned.All(f => f.AbandonedReason == "load") && ledger.PendingCount == 0 &&
+                ledger.TakeUnseated(null, f => true).Length == 0, "Nothing captured before a load lands after it.");
         }
 
         private static void Abandoned()

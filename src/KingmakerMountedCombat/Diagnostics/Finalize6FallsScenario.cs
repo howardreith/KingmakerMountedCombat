@@ -168,7 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 2:
                     if (!horse.Descriptor.State.IsDead || F6Service.ResolvedCount <= f6ResolvedAt) return;
                     F3Steps["fallAfter"] = F6Snapshot();
-                    F3Steps["placement"] = new JObject { ["riderToMount"] = HorizontalDistance(rider.Position, horse.Position) };
+                    F3Steps["placement"] = new JObject { ["riderToMount"] = HorizontalDistance(rider.Position, horse.Position), ["riderCorpulence"] = rider.Corpulence, ["mountCorpulence"] = horse.Corpulence };
                     F6KeepFall("tb-a-death", rider);
                     f3Frames = 0; f3Step = 3; return;
                 case 3:
@@ -221,7 +221,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 2:
                     if (F3BState() == RelationshipState.Mounted.ToString() || F6Service.ResolvedCount <= f6ResolvedAt) return;
                     F3Steps["fallAfter"] = F6Snapshot();
-                    F3Steps["placement"] = new JObject { ["riderToMount"] = HorizontalDistance(f3BRider.Position, f3BMount.Position) };
+                    F3Steps["placement"] = new JObject { ["riderToMount"] = HorizontalDistance(f3BRider.Position, f3BMount.Position), ["riderCorpulence"] = f3BRider.Corpulence, ["mountCorpulence"] = f3BMount.Corpulence };
                     F6KeepFall("tb-b-prone", f3BRider);
                     f3Frames = 0; f3Step = 3; return;
                 case 3:

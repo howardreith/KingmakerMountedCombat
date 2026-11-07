@@ -6,6 +6,13 @@
 # stand-up paying its Move.
 function Get-KmcFinalize6TurnBasedCases { @('F3-tb-setup','F3-tb-a-round1','F3-tb-b-round1','F3-tb-a-step','F3-tb-b-charge','F6-tb-a-death-fall','F6-tb-b-prone-fall') }
 function Get-KmcFinalize6ShotNames { @('f6-a-death-fall','f6-a-stood-up','f6-b-prone-fall') }
+# The existing nav-safe dismount placement asks native FreePlaceSelector for a second place of radius max(corpulence)+0.25 m
+# around the mount, so a landed rider's centre is at least the larger body radius from the mount's.
+function Assert-KmcFinalize6Placement($Placement,[string]$What){
+ foreach($f in 'riderToMount','riderCorpulence','mountCorpulence'){ $v=$Placement.$f; if($v -isnot [int] -and $v -isnot [long] -and $v -isnot [double] -and $v -isnot [single] -and $v -isnot [decimal]){ throw ('F6 placement '+$f+' is missing: '+$What) } }
+ $bound=[math]::Max([double]$Placement.riderCorpulence,[double]$Placement.mountCorpulence)
+ if([double]$Placement.mountCorpulence -le 0 -or [double]$Placement.riderToMount -lt $bound){ throw ('F6 assertion failed: '+$What+' (distance '+$Placement.riderToMount+' under '+$bound+')') }
+}
 function Assert-KmcFinalize6FallRecord {
  param([Parameter(Mandatory=$true)]$Record,[Parameter(Mandatory=$true)][string]$What,[Parameter(Mandatory=$true)][string]$Cause,
   [Parameter(Mandatory=$true)][string]$RiderId,[Parameter(Mandatory=$true)][string]$MountId,[Parameter(Mandatory=$true)][bool]$Pass,
@@ -45,7 +52,7 @@ function Assert-KmcFinalize6FallRecord {
   Need ((P $r 'damageDealt') -eq $true -and $rolled -ge 1 -and $rolled -le 6) 'one native 1d6'
   Need ($applied -ge 0 -and $applied -le $rolled -and $applied -eq (Int (P $r 'damageBeforeDifficulty') 'before difficulty')) 'native mitigation only reduces the roll; the party rider''s own fall is not difficulty-scaled'
   Need (($after-$before) -ge 0 -and ($after-$before) -le $applied) 'hit point loss is the applied damage (temporary hit points may absorb it)'
-  Need ((P $r 'proneImposed') -eq $true -or -not [string]::IsNullOrEmpty([string](P $r 'proneRefusal'))) 'native prone imposed or its refusal recorded'
+  Need ((P $r 'proneImposed') -eq $true -and $null -eq (P $r 'proneRefusal')) 'native prone imposed (the fixture riders are not prone-immune)'
  }
  $text=[string](P $r 'logText')
  Need (-not [string]::IsNullOrEmpty($text) -and $text.Contains([string](P $r 'mountName')) -and $text.Contains([string](P $r 'riderName')) -and $text.Contains('Mobility '+$result+' vs DC '+$dc)) 'the explanation names mount, rider, check and DC'
@@ -111,11 +118,11 @@ function Assert-KmcFinalize6FallsEvidence {
  Assert-KmcFinalize6FallRecord -Record (P $fa 'record') -What 'TB death' -Cause 'MountDied' -RiderId $riderId -MountId $mountId -Pass $false -Mode 'TB' -Generation (P (P $ab 'aPair') 'generation')
  $text=Text (P (P $fa 'record') 'logText')
  Need (@(P $fa 'log') -ccontains $text) 'the explanation is in the native battle log'
- Need ((Num (P (Step $a 'placement') 'riderToMount') 'rider to mount') -ge 0.3) 'the rider landed beside the dead mount, not inside it'
- if((P (P $fa 'record') 'proneImposed') -eq $true){ Need ((P (P $as 'aRider') 'prone') -eq $true) 'the hard landing left the rider natively prone' }
+ Assert-KmcFinalize6Placement (Step $a 'placement') 'the rider landed beside the dead mount, not inside it'
+ Need ((P (P $as 'aRider') 'prone') -eq $true) 'the hard landing left the rider natively prone'
  Need ((Text (P (P $as 'aRider') 'life')) -ceq 'Conscious') 'the rider survived the fall'
  $sb=Step $a 'standUpBefore'; $su=Step $a 'standUpAfter'
- Need ((P (P $su 'aRider') 'prone') -eq $false) 'the rider stood up natively'
+ Need ((P (P $sb 'aRider') 'prone') -eq $true -and (P (P $su 'aRider') 'prone') -eq $false) 'the prone rider stood up natively'
  Need ((P (P $sb 'aRider') 'hasMove') -eq $true -and (P (P $su 'aRider') 'hasMove') -eq $false) 'the native stand-up spent the Move action'
  Need ((P (P $su 'aRider') 'hasStandard') -eq (P (P $sb 'aRider') 'hasStandard')) 'the stand-up did not touch the Standard action'
  Need ((Svc $su 'begun') -eq (Svc $aa 'begun')) 'standing up replayed no fall'
@@ -131,6 +138,7 @@ function Assert-KmcFinalize6FallsEvidence {
  Need ((Text (P $fb 'label')) -ceq 'tb-b-prone') 'the second fall is the prone'
  Assert-KmcFinalize6FallRecord -Record (P $fb 'record') -What 'TB prone' -Cause 'MountFellProne' -RiderId $bRiderId -MountId $bMountId -Pass $true -Mode 'TB' -Generation (P (P $bb 'bPair') 'generation')
  Need (@(P $fb 'log') -ccontains (Text (P (P $fb 'record') 'logText'))) 'the safe-landing explanation is in the native battle log'
+ Assert-KmcFinalize6Placement (Step $b 'placement') 'the rider landed beside the prone mount, not inside it'
  Need ((P (P $bs 'bRider') 'prone') -eq $false -and (Int (P (P $bs 'bRider') 'damage') 'B rider damage') -eq (Int (P (P $bb 'bRider') 'damage') 'B rider damage before')) 'the safe landing left the rider standing and unhurt'
  Need ((P (Step $b 'repeatKnockOff') 'canBeKnockedOff') -eq $false) 'the repeat knock-off found the mount already prone'
  Need ((Text (P (P $bd 'bMount') 'life')) -ceq 'Dead') 'the unseated prone mount then died natively'
