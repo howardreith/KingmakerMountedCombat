@@ -1,3 +1,24 @@
+# F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
+
+Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1`. Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md), top section.
+
+**Status:**
+- **r05 completion run** `20261107-finalize-f6f-completion-05`, on the `finalize6-falls-completion-tb` setup plus fall rows. It showed natively:
+  - the TB death hard landing, then the native stand-up on the rider's own next turn: Move 0 → 3 s, Standard untouched, no travel, no replay, and "Stand up" shown in the Move slot;
+  - the TB prone safe landing at the exact threshold (11 vs DC 11), with no damage and no prone;
+  - prone then death with no second throw.
+- **r05 verdict:** ORIGINAL OUTER FAIL from reader-only row registration and two reader expectations, now corrected. The corrected re-evaluation passes over the untouched evidence.
+- **Retained:**
+  - r03: the RT hard landing and the post-fall save, with a separate re-evaluation.
+  - r04: the cold reload PASS. Its Manual holds a standing rider; no prone-save test happened.
+  - r01: the TB death at its own build, FAIL kept.
+  - r02: FAIL in an unrelated F3 row.
+- **Candidate:** frozen head `5fe80073`, DLL `87fed161…`, MVID `a7638ec4…`, package f6f `74baa915…`. Gameplay code is unchanged since `c7ca5989`.
+
+**Spend:** 42.75 of 90 minutes, 5 of 6 starts (ceiling 4 → 6 append-only). The contingency is unused.
+
+**Next:** final review. WORLD-02 stays deferred. Owner art and full-stack acceptance are separate. No merge, release or install.
+
 # F6 ENGINEERING PARTIAL — FALLS SHOWN NATIVELY (TB DEATH, RT PRONE), POST-FALL SAVE/RELOAD PASS; SAFE LANDING AND TB PRONE NOT SHOWN NATIVELY; OWNER ACCEPTANCE SEPARATE (2026-11-07)
 
 Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1` (the F5 landing). Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md).
