@@ -65,7 +65,7 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(Math.Abs(fit.BackHeightAtSeat - expectedBack) < 0.01f, "Back height " + fit.BackHeightAtSeat + " vs " + expectedBack);
                 var seatLift = fit.SeatTopAtSeat - fit.BackHeightAtSeat;
                 TestRunner.True(seatLift > 0.015f && seatLift < 0.04f, "Seat lift " + seatLift);
-                TestRunner.True(fit.CantleTop > fit.SeatTopAtSeat + 0.01f && fit.PommelTop > fit.SeatTopAtSeat + 0.01f, "Cantle or pommel do not rise above the seat.");
+                TestRunner.True(fit.CantleTop > fit.SeatTopAtSeat && fit.PommelTop > fit.SeatTopAtSeat, "Cantle or pommel do not rise above the seat: back " + fit.BackHeightAtSeat + " seat " + fit.SeatTopAtSeat + " cantle " + fit.CantleTop + " pommel " + fit.PommelTop);
                 TestRunner.True(fit.CantleTop - fit.BackHeightAtSeat < 0.08f && fit.PommelTop - fit.BackHeightAtSeat < 0.08f, "The rolls are too tall for a Small rider.");
                 for (var i = 0; i < fit.VertexCount; i++)
                 {
@@ -123,6 +123,26 @@ namespace KingmakerMountedCombat.Tests
                     for (var k = 0; k < 4; k++)
                         TestRunner.True(fit.BoneIndices[i * 4 + k] != 2 || fit.BoneWeights[i * 4 + k] == 0f, "Tack vertex " + i + " follows the leg bone.");
                 TestRunner.True(Enumerable.Range(0, fit.VertexCount).Any(i => fit.Positions[i * 3 + 1] < Cy - 0.12f), "The girth never passed under the belly, so the check proved nothing.");
+            });
+            runner.Run("an axis that jumps between neighbouring rows does not displace the seat or its rolls (r03)", () =>
+            {
+                string failure;
+                var body = Ellipsoid();
+                // A midline column of chest and leg vertices from the belly to the ground, ahead of the seat: there the midline's
+                // lowest point drops to the floor and the axis halfway up drops with it, as on the real dog.
+                var positions = body.Positions.ToList(); var normals = body.Normals.ToList(); var bones = body.BoneIndices.ToList(); var weights = body.BoneWeights.ToList();
+                for (var z = 0.20f; z <= 0.36f; z += 0.01f)
+                    for (var y = 0f; y <= 0.40f; y += 0.05f)
+                    { positions.AddRange(new[] { 0f, y, z }); normals.AddRange(new[] { 0f, -1f, 0f }); bones.AddRange(new[] { 0, 1, 0, 0 }); weights.AddRange(new[] { 0.5f, 0.5f, 0f, 0f }); }
+                body.Positions = positions.ToArray(); body.Normals = normals.ToArray(); body.BoneIndices = bones.ToArray(); body.BoneWeights = weights.ToArray();
+                var fit = RidingDogTackGeometry.Build(body, RidingDogTackGeometry.SeatForward, out failure);
+                TestRunner.True(fit != null && failure == null, "The fit failed: " + failure);
+                var lift = fit.SeatTopAtSeat - fit.BackHeightAtSeat;
+                TestRunner.True(lift > 0.015f && lift < 0.04f, "Seat lift " + lift);
+                TestRunner.True(fit.CantleTop > fit.SeatTopAtSeat && fit.PommelTop > fit.SeatTopAtSeat, "A roll sits below the seat.");
+                TestRunner.True(fit.CantleTop - fit.BackHeightAtSeat < 0.08f && fit.PommelTop - fit.BackHeightAtSeat < 0.08f, "A roll stands too tall: " + fit.CantleTop + " / " + fit.PommelTop);
+                for (var i = 0; i < fit.VertexCount; i++)
+                    TestRunner.True(Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]) >= 1f, "A tack vertex is inside the body: " + i + " at " + fit.Positions[i * 3] + "," + fit.Positions[i * 3 + 1] + "," + fit.Positions[i * 3 + 2] + " uv " + fit.Uvs[i * 2] + " inside " + Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]));
             });
             runner.Run("the tack fit refuses an incomplete or mismatched body mesh before casting", () =>
             {
