@@ -35,14 +35,14 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Finalize3EconomyTurnBased = "finalize3-economy-tb", Finalize3EconomyRealTime = "finalize3-economy-rt";
-        internal static bool IsFinalize3EconomyScenario(string scenario) => scenario == Finalize3EconomyTurnBased || scenario == Finalize3EconomyRealTime || scenario == Finalize6FallsTurnBased;
+        internal static bool IsFinalize3EconomyScenario(string scenario) => scenario == Finalize3EconomyTurnBased || scenario == Finalize3EconomyRealTime || IsFinalize6FallsScenario(scenario);
         private bool IsFinalize3Economy => IsFinalize3EconomyScenario(request.Scenario);
         private bool Finalize3Tb => request.Scenario == Finalize3EconomyTurnBased || IsFinalize6Falls;
         internal const int Finalize3SchemaVersion = 54;
         internal const double Finalize3ScenarioDeadlineSeconds = 420.0d, Finalize3HostDeadlineSeconds = 560.0d;
         internal static readonly string[] Finalize3TurnBasedCases = { "F3-tb-setup", "F3-tb-a-round1", "F3-tb-b-round1", "F3-tb-a-step", "F3-tb-b-charge", "F3-tb-a-double", "F3-tb-b-dismount" };
         internal static readonly string[] Finalize3RealTimeCases = { "F3-rt-mounted-marker", "F3-rt-unmounted-marker", "F3-rt-attack" };
-        private string[] Finalize3Cases => IsFinalize6Falls ? Finalize6TurnBasedCases : Finalize3Tb ? Finalize3TurnBasedCases : Finalize3RealTimeCases;
+        private string[] Finalize3Cases => IsFinalize6Falls ? Finalize6Cases : Finalize3Tb ? Finalize3TurnBasedCases : Finalize3RealTimeCases;
         private string Finalize3Case => Finalize3Cases[f3CaseIndex];
         private const float Finalize3StepBoundSeconds = 25f, Finalize3CaptureBoundSeconds = 5f;
         private const int Finalize3SettleFrames = 20, Finalize3IdleFrames = 12, Finalize3RefusalFrames = 40, Finalize3AttackFrames = 360, Finalize3MountAttempts = 6;
