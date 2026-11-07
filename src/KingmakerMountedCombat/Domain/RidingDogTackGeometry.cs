@@ -29,6 +29,9 @@ namespace KingmakerMountedCombat.Domain
         public float SeatTopAtSeat { get; internal set; }
         public float CantleTop { get; internal set; }
         public float PommelTop { get; internal set; }
+        // Highest pad or seat vertex above the body's own dorsal line at that vertex's z: a fin or a raised edge shows here even
+        // when the seat itself sits correctly (r02, r03).
+        public float MaxRiseAboveBack { get; internal set; }
     }
 
     // PET-02: an original saddle pad, seat and girth draped over the Riding Dog's actual back. Every point is a ray cast onto the
@@ -119,6 +122,7 @@ namespace KingmakerMountedCombat.Domain
                 if (!back.Valid) { failure = "no back surface at the seat"; return null; }
                 var padTop = BuildPad();
                 var seatTop = BuildSeat(out var cantleTop, out var pommelTop);
+                var maxRise = MaxRise(positions.Count);
                 BuildGirth();
                 if (padTop < 0 || seatTop < 0) { failure = "the pad or seat did not reach the back"; return null; }
                 if (misses * 4 > casts) { failure = "too many casts missed the body (" + misses + " of " + casts + ")"; return null; }
@@ -127,9 +131,20 @@ namespace KingmakerMountedCombat.Domain
                 {
                     Positions = Flatten(positions), Normals = Flatten(normals), Uvs = uvs.ToArray(), Triangles = triangles.ToArray(),
                     BoneIndices = bones.ToArray(), BoneWeights = weights.ToArray(), Casts = casts, Misses = misses,
-                    BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop
+                    BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop, MaxRiseAboveBack = maxRise
                 };
                 return data;
+            }
+
+            private float MaxRise(int count)
+            {
+                var rise = float.MinValue;
+                for (var i = 0; i < count; i++)
+                {
+                    var dorsal = DorsalVertex(positions[i].Z);
+                    if (dorsal >= 0) rise = Math.Max(rise, positions[i].Y - source.Positions[dorsal * 3 + 1]);
+                }
+                return rise;
             }
 
             private static float[] Flatten(List<V3> values)
