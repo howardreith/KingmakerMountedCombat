@@ -1,3 +1,26 @@
+# F6 ENGINEERING PARTIAL — FALLS SHOWN NATIVELY (TB DEATH, RT PRONE), POST-FALL SAVE/RELOAD PASS; SAFE LANDING AND TB PRONE NOT SHOWN NATIVELY; OWNER ACCEPTANCE SEPARATE (2026-11-07)
+
+Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1` (the F5 landing). Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md).
+
+**Status:**
+- **Product (FALL-01/FALL-02):**
+  - When the exact ridden mount dies, collapses or newly falls prone, its rider is unseated once and resolves D5 natively: Mobility vs DC 15 (native difficulty adjustment kept), native 1d6 and prone on a failure, and one log line.
+  - Nothing is written to actions, Swift, reactions or feats.
+  - Reviewed independently; the confirmed findings were fixed before any start.
+- **Native:**
+  - r01: the TB mount death fell hard as designed. The run is recorded FAIL because its stand-up row met the existing forced activation end.
+  - r02: FAIL in an unchanged F3 row.
+  - r03: the RT Riding Dog prone fell hard beside the identically named Mastodon pair, and the post-fall Manual `b33eda46…` was written. ORIGINAL OUTER FAIL from a reader-only row name; the corrected readers accept its evidence.
+  - r04: the cold consumer PASS (no replay, damage, names and tack kept, ordinary remount), and the cross-run reader passes.
+- **Not shown natively:** the safe-landing branch, the TB prone, prone-then-death and the TB stand-up cost.
+- **Candidate:** f6e `fbef8638`, DLL `b18cc056…`, MVID `2a9d61d7…`, package `7109cdfd…`.
+
+**Spend:** 32.77 of 90 minutes, 4 of 4 starts. A fifth start is not authorized.
+
+**Next (owner):** either one TB start on f6e unchanged, or accept the shown scope. WORLD-02 stays deferred. No merge, release or install.
+
+**F5 closeout:** accepted and merged by the owner as `730f72d1` (tree identical to the reviewed `badef7f0`). Package `b078d870…` verified. See the F5 handoff's integration closeout.
+
 # F5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, producer/consumer completion mission)
 
 Branch codex/kmc-finalize-f5-names-dog-tack. Frozen and launched at d87b148e (compiled source fd8bb820; DLL `8459126c…`, MVID e90f71ee…, byte-identical to r06). Base main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
