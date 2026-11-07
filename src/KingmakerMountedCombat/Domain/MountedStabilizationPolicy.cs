@@ -515,6 +515,8 @@ namespace KingmakerMountedCombat.Domain
                     return "Dismounted cleanly because a mounted pair member died.";
                 case CleanupTrigger.Incapacitated:
                     return "Dismounted cleanly because a mounted pair member became unconscious.";
+                case CleanupTrigger.MountFellProne:
+                    return "Dismounted because the mount fell prone.";
                 case CleanupTrigger.CompanionInvalidated:
                     return "Dismounted cleanly because the rider/Mammoth relationship became invalid.";
                 case CleanupTrigger.GameModeBoundary:

@@ -22,13 +22,17 @@ function Get-KmcChunk7PersistenceSource {
     foreach($field in @('modsRestored','workingRestored','baselineImmutable','saveProtectionPassed','saveWriteAllowlistPassed')) {
         Assert-KmcChunk7Boolean $result.$field $true
     }
+    # F6: the one pinned reader-only outer failure (Finalize6PinnedFallSource.ps1); its receipts and re-evaluation are proven first.
+    $pinned=Test-KmcFinalize6PinnedFallSource $SourceRunId $ExpectedSha256 $Case
+    if($pinned){Assert-KmcFinalize6PinnedFallSourceReceipts $evidence $request $result $isolation (Read-KmcJson (Join-Path $evidence 'runtime-game-result.json')) $ExpectedDllSha256}
+    $sourceCommit=if($pinned){$script:KmcF6PinnedFallSource.commit}else{$ExpectedCommit}
     if($owner.runId-cne$SourceRunId-or$owner.scenario-cne'chunk7-persistence-save'-or$owner.persistenceCase-cne$Case-or
        $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken-or
-       $result.status-cne'PASS'-or$result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or$result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
+       (-not$pinned-and$result.status-cne'PASS')-or$result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or$result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
        $result.baselineImmutable-ne$true-or$result.saveProtectionPassed-ne$true-or$result.saveWriteAllowlistPassed-ne$true-or
-       $result.errors-isnot[Array]-or$result.errors.Count-ne0-or$result.restoredSaveInventoryDigest-cnotmatch'^[0-9a-f]{64}$'-or
+       $result.errors-isnot[Array]-or(-not$pinned-and$result.errors.Count-ne0)-or$result.restoredSaveInventoryDigest-cnotmatch'^[0-9a-f]{64}$'-or
        $request.runId-cne$SourceRunId-or$request.scenario-cne$owner.scenario-or$request.persistenceCase-cne$Case-or
-       $request.dllSha256-cne$ExpectedDllSha256-or$request.commit-cne$ExpectedCommit-or$request.evidenceRoot-cne$evidence-or
+       $request.dllSha256-cne$ExpectedDllSha256-or$request.commit-cne$sourceCommit-or$request.evidenceRoot-cne$evidence-or
        $request.fixture.working.sha256-cne$Fixture.working.sha256-or$request.fixture.baseline.sha256-cne$Fixture.baseline.sha256){
         throw 'Chunk 7 source is not this exact case/candidate/fixture from a completed restored native process.'
     }
@@ -39,6 +43,8 @@ function Get-KmcChunk7PersistenceSource {
     $expectedArea=Get-KmcChunk7ExpectedArchiveArea $request
     if($isolation.runId-cne$SourceRunId-or$isolation.stagingMode-cne'base-game-only-kmc'){throw 'Chunk 7 source lacks its exact base-only receipt.'}
     foreach($field in @('stageVerified','dependenciesUnchanged','processExited','modsRestored','saveProtectionPassed','gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')) {
+        # The pinned source's outer FAIL recorded these three false; its receipts above pin them.
+        if($pinned-and$field-cin@('gameReportedPass','nativeInventoryObserved','nativeCompatibilityQualified')){continue}
         Assert-KmcChunk7Boolean $isolation.$field $true
     }
     foreach($field in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
@@ -88,8 +94,10 @@ function Assert-KmcChunk7PersistenceColdSource($SourceRunId,$Request,$ColdArtifa
     $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$SourceRunId+'/chunk7-persistence-evidence.json')
     Assert-KmcNotReparsePoint $path 'Chunk 7 source observation';Assert-KmcNotHardLink $path 'Chunk 7 source observation'
     $source=Read-KmcJson $path
+    # F6: the pinned producer ran on its own commit with the identical DLL the consumer carries.
+    $sourceCommit=if(Test-KmcFinalize6PinnedFallSource $SourceRunId $Request.persistenceLoad.sha256 $sourceCase){$script:KmcF6PinnedFallSource.commit}else{$Request.commit}
     if($source.runId-cne$SourceRunId-or$source.scenario-cne'chunk7-persistence-save'-or$source.status-cne'PASS'-or
-       $source.dllSha256-cne$Request.dllSha256-or$source.commit-cne$Request.commit-or$source.observations.checkpoint-cne$sourceCase-or
+       $source.dllSha256-cne$Request.dllSha256-or$source.commit-cne$sourceCommit-or$source.observations.checkpoint-cne$sourceCase-or
        $source.observations.nativeWrite.sha256-cne$Request.persistenceLoad.sha256-or$source.observations.nativeWrite.length-ne$Request.persistenceLoad.length-or
        $source.observations.processId-eq$ColdArtifact.observations.processId-or
        (ConvertTo-KmcChunk7Canonical $source.observations.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $ColdArtifact.observations.loadedArchive)){

@@ -5082,7 +5082,11 @@ try {
             $subscriberSource.Contains('service.Ownership.Owns(owner)') -and
             $subscriberSource.Contains('CleanupOwner(owner.Boundary, NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed') -and
             $subscriberSource.Contains('var owner = service.ResolveActorOwner(actor);') -and
-            $subscriberSource.Contains('return owner == null || CleanupOwner(owner, boundary, source, trigger);')) `
+            $subscriberSource.Contains('if (owner == null) return true;') -and
+            $subscriberSource.IndexOf('if (fallCause != MountedRiderFallCause.None) falls.Capture(owner, actor, fallCause);') -ge 0 -and
+            $subscriberSource.IndexOf('if (fallCause != MountedRiderFallCause.None) falls.Capture(owner, actor, fallCause);') -lt $subscriberSource.IndexOf('var succeeded = CleanupOwner(owner, boundary, source, trigger);') -and
+            $subscriberSource.IndexOf('var succeeded = CleanupOwner(owner, boundary, source, trigger);') -lt $subscriberSource.IndexOf('falls.Complete(owner);') -and
+            $subscriberSource.Contains('return succeeded;')) `
             'pair invalidation is missing an exact actor/captured-owner cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
             $engineSource.Contains('? 7') -and
@@ -13103,7 +13107,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsFinalize3Economy ? Finalize3SchemaVersion : IsFinalize2Controls ? Finalize2SchemaVersion : IsSprint8Paladin ? Sprint8SchemaVersion : IsSprint7Charge ? Sprint7SchemaVersion : IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsFinalize6Falls ? Finalize6SchemaVersion : IsFinalize3Economy ? Finalize3SchemaVersion : IsFinalize2Controls ? Finalize2SchemaVersion : IsSprint8Paladin ? Sprint8SchemaVersion : IsSprint7Charge ? Sprint7SchemaVersion : IsSprint6Feat ? Sprint6SchemaVersion : IsSprint5Small ? Sprint5SchemaVersion : IsSprint4Natural ? Sprint4SchemaVersion : IsSprint3Approach ? Sprint3SchemaVersion : IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

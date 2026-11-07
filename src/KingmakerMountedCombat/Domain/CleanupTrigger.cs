@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Domain
         // as failed. It writes no native resource and refunds no committed Move.
         AdoptionRefused = 65,
         Incapacitated = 70,
+        // FALL-02: the exact ridden mount newly fell prone. The rider is unseated and the soft fall resolves.
+        MountFellProne = 75,
         Death = 80,
         CombatStarted = 90,
         AreaUnloading = 100,

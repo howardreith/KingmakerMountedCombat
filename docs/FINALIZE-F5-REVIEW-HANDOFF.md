@@ -1,5 +1,16 @@
 # F5 review handoff: companion naming and a fitted Riding Dog saddle
 
+## F5 integration closeout (2026-11-07)
+
+**F5 ACCEPTED — ENGINEERING COMPLETE; OWNER ACCEPTANCE SEPARATE.** The engineering review accepted PR #20 at the reviewed head `badef7f02658d10fb66464cf621d6776083e09a7`. The owner then merged PR #20 into main as `730f72d1` (parents: F4 landing `3f19e9bd`, reviewed head `badef7f0`). The merge tree is identical to the reviewed head's tree (`63f5b818`), so no gameplay, harness or safety change was added at integration.
+
+- **Accepted binary (unchanged, not rebuilt):** DLL `8459126ce033443bda4fad9a4444984fa3217ca528aad63d723a5818ee8f9361`, MVID `e90f71ee-c299-40ca-9e80-562fd2b497b1`, compiled source `fd8bb820`, frozen source `d87b148e`.
+- **Owner-test package:** `artifacts/KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f5h-diagnostic.zip` in the lab, SHA-256 `b078d8700e429caff162922cb3c6555227aeb2cd512e2ef3e2fbe274699c23d3`. A local path is not a download link; no release or publication was made.
+- **Provenance limit:** the reviewer inspected code, records and readers; it did not run the game, open the private frames, hash the package or verify restoration. This is not independent native or visual certification.
+- **Owner check (not a lab gate):** on a disposable campaign, Rename and Default Name on a permanent companion; look at the ordinary name and the Riding Dog from both sides while moving; save, quit, reload and confirm the name and the tack.
+- **Unchanged:** WORLD-02 stays deferred, not passed. Physical input, portrait tooltip, combat log and Buff Planner screens were not exercised in F5. F5 closes at 74.9 of 90 minutes and 8 of 8 starts; unused time does not transfer.
+- **Next:** F6 (FALL-01, FALL-02 and the compact integration check) on `codex/kmc-finalize-f6-falls-final-acceptance` from `730f72d1`.
+
 ## Disposition after the producer/consumer completion mission (2026-11-07)
 
 **F5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE.**

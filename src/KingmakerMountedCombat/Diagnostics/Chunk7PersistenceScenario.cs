@@ -348,14 +348,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         Move(firstRider, firstMount, AreaAutosaveCase ? SelectAreaContinuationGoal(firstMount, "first-pair") : firstMount.Position + Vector3.right * 2f, secondRider, "first-pair"); Next(11); break;
                     case 11:
                         AssertOwners(); if (!MovementSettled()) return;
+                        if (RiderFallCase) { Next(12); break; }
                         Move(secondRider, secondMount, AreaAutosaveCase || PaladinBondCase || CompanionNamesCase ? SelectAreaContinuationGoal(secondMount, "second-pair") : secondMount.Position + Vector3.forward * 2f, firstRider, "second-pair"); Next(12); break;
                     case 12:
                         AssertOwners(); if (!MovementSettled()) return;
                         Pass("C7-persistence-native-continuation"); snapshots.Add(Capture("continuation-complete"));
                         if (PaladinBondCase && Cold) RecordPaladinBondCold();
+                        if (RiderFallCase && Cold) { BeginRiderFallCold(); break; }
                         if (RidingDogCase && Cold) { BeginRidingDogCold(); Next(50); break; }
                         BeginCleanup(); break;
-                    case 170: case 175: case 176:
+                    case 170: case 175: case 176: case 177:
                         UpdateCompanionNames(); break;
                     case 50: case 51: case 52: case 53: case 54:
                         UpdateRidingDogCold(); break;
@@ -477,6 +479,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (CombatCase) { ObserveCombatCold(); return; }
             if (SixPairCase) { ObserveSixPairCold(); return; }
+            if (RiderFallCase) { ObserveRiderFallCold(); return; }
             saved = persistence.LoadedArchive;
             Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 2 && saved.Participations.Length == 0 &&
                 saved.Combat == null && saved.AreaId == ColdInputArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
@@ -545,6 +548,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (OwnedSchema1CurrentCase) { AssertOwnedSchema1Owner(); return; }
             if (OwnedSchema1SourceCase) { AssertOwnedSchema1Owner(); return; }
             if (CombatCase) { AssertCombatOwners(); return; }
+            if (RiderFallCase && f6Unseated) { AssertRiderFallOwners(); return; }
             if (SixPairCase) { AssertSixPairOwners(); return; }
             // One-pair worlds of rows 58-59: the main pair only, once the capital is adopted or cold-loaded.
             if (capitalAdopted || CapitalColdCase) { AssertCapitalOwners(); return; }
@@ -620,7 +624,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
             if (CombatCase) { ObserveCombatSaved(read); return; }
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (SixPairCase ? 6 : OwnedSchema1SourceCase ? 1 : 2) &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (SixPairCase ? 6 : OwnedSchema1SourceCase || RiderFallCase ? 1 : 2) &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == request.SelectedChunk7Fixture.GameId &&
                 saved.AreaId == ExpectedArchiveArea, "Native archive readback did not retain the entire exploration world.");
             AssertOwners(); AssertSlots(); AssertDebt(saved);

@@ -35,7 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string CompanionNamesCaseName = "companion-names-tack-manual";
         internal const string SharedName = "Ébène l'Ancien", DogDistinctName = "Biscuit", CancelledName = "Nobody", MarkupName = "<b>Rex</b>";
         private static readonly MethodInfo InputFieldSelected = typeof(KeyboardAccess).GetMethod("IsInputFieldSelected", BindingFlags.Static | BindingFlags.NonPublic) is MethodInfo m && m.MetadataToken == 0x06002DFB ? m : null;
-        private bool CompanionNamesCase => request.PersistenceCase == CompanionNamesCaseName;
+        private bool CompanionNamesCase => request.PersistenceCase == CompanionNamesCaseName || RiderFallCase;
         private readonly JArray f5Shots = new JArray();
         private readonly JObject f5 = new JObject();
         private List<KeyValuePair<string, Func<bool>>> f5Steps;
