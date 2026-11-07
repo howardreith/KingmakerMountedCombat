@@ -104,6 +104,8 @@ function Assert-KmcFinalize6FallsEvidence {
  # ---- the F3 encounter rows ran first, on both mounted pairs --------------------------------------------------------
  $entry=Step $rows['F3-tb-setup'] 'entry'; $combat=Step $rows['F3-tb-setup'] 'combat'
  Need ((Text (P $entry 'aRelationship')) -ceq 'Mounted' -and (Text (P $entry 'bRelationship')) -ceq 'Mounted' -and (P $combat 'turnBased') -eq $true) 'both pairs mounted into turn-based combat'
+ $init=P $combat 'initiative'
+ Need ((Int (P $init 'aRider') 'aRider initiative') -gt (Int (P $init 'aMount') 'aMount initiative') -and (Int (P $init 'bMount') 'bMount initiative') -gt (Int (P $init 'bRider') 'bRider initiative')) 'pair A arranged rider-first and pair B mount-first'
  $start=P $o 'fallServiceAtStart'
  Need ((Int (P $start 'begun') 'begun at start') -eq 0 -and (Int (P $start 'pending') 'pending at start') -eq 0) 'no fall before the fall rows'
  $falls=@(P $o 'falls')
@@ -112,6 +114,7 @@ function Assert-KmcFinalize6FallsEvidence {
  # ---- F6-tb-a-death-fall ------------------------------------------------------------------------------------------
  $a=$rows['F6-tb-a-death-fall']; $ab=Step $a 'fallBefore'; $aa=Step $a 'fallAfter'; $as=Step $a 'fallSettled'
  Need ((Text (P (P $ab 'aPair') 'state')) -ceq 'Mounted' -and (Text (P (P $ab 'bPair') 'state')) -ceq 'Mounted') 'both pairs mounted before the death'
+ Need ((Text (P $ab 'turnRole')) -ceq 'aRider') 'the death was measured on pair A''s own activation'
  Need ((Text (P (P $ab 'aMount') 'life')) -ceq 'Conscious') 'pair A mount alive before'
  $kill=Step $a 'kill'
  Need ((Int (P $kill 'applied') 'kill applied') -ge 1) 'the native lethal rule applied damage'
@@ -133,13 +136,15 @@ function Assert-KmcFinalize6FallsEvidence {
  Need ((Int (P $nt 'round') 'next turn round') -gt (Int (P $ab 'round') 'fall round') -and (Text (P $nt 'turnRole')) -ceq 'aRider' -and (P (P $nt 'aRider') 'prone') -eq $true) 'the still prone rider reached its own next native turn'
  $sb=Step $a 'standUpBefore'; $su=Step $a 'standUpAfter'
  Need ((P (P $sb 'aRider') 'prone') -eq $true -and (P (P $su 'aRider') 'prone') -eq $false) 'the prone rider stood up natively'
- Need ((P (P $sb 'aRider') 'hasMove') -eq $true -and (P (P $su 'aRider') 'hasMove') -eq $false) 'the native stand-up spent the Move action'
- # Native TurnController.HandleUnitWillGetUp adds the turn's Move (+3 s) and cancels the triggering order: the cost is read at the
- # frame prone clears, and no travel may follow, so a later walk can neither pay for nor hide the stand-up.
+ # Native TurnController.HandleUnitWillGetUp adds the turn's Move (+3 s) and cancels the triggering order. The cost is read on the Move
+ # cooldown itself at the frame prone clears: with the Standard unused, native HasMoveAction() is !(MoveAction > 3), so it stays
+ # true after exactly one Move and cannot show the charge. No travel may follow, so a later walk can neither pay for nor hide it.
  $tu=Step $a 'standUpTurn'; $sbd=Step $a 'standUpBoundary'
  Need ((P $tu 'sameTurnAsNext') -eq $true -and (Text (P $tu 'unit')) -ceq $riderId) 'the stand-up order was given on the rider''s own next native turn'
- Need ((P (P $sb 'aRider') 'canStandUp') -eq $true) 'native readiness permitted the stand-up'
- Need ((P (P $sbd 'aRider') 'prone') -eq $false -and (P (P $sbd 'aRider') 'hasMove') -eq $false -and (P (P $sbd 'aRider') 'hasStandard') -eq (P (P $sb 'aRider') 'hasStandard')) 'at the frame prone cleared, the stand-up had taken the Move and left the Standard'
+ Need ((P (P $sb 'aRider') 'canStandUp') -eq $true -and (Num (P (P $sb 'aRider') 'move') 'move before stand-up') -le 0.5) 'native readiness permitted the stand-up on a fresh Move'
+ $moveCost=(Num (P (P $sbd 'aRider') 'move') 'move at stand-up')-(Num (P (P $sb 'aRider') 'move') 'move before stand-up')
+ Need ((P (P $sbd 'aRider') 'prone') -eq $false -and $moveCost -ge 2.5 -and $moveCost -le 3.0001) 'at the frame prone cleared, the native stand-up had charged one Move (+3 s)'
+ Need ([math]::Abs((Num (P (P $sbd 'aRider') 'standard') 'standard at stand-up')-(Num (P (P $sb 'aRider') 'standard') 'standard before stand-up')) -le 0.0001 -and (P (P $sbd 'aRider') 'hasStandard') -eq (P (P $sb 'aRider') 'hasStandard')) 'the stand-up left the Standard action untouched'
  Need ((Num (Step $a 'standUpTravel') 'stand-up travel') -lt 0.5 -and (P (P $su 'aRider') 'commandsEmpty') -eq $true) 'the native stand-up cancelled the triggering order: no travel follows it'
  Need ((Svc $sbd 'begun') -eq (Svc $aa 'begun') -and (Svc $sbd 'resolved') -eq (Svc $aa 'resolved')) 'the stand-up replayed no fall, check or damage'
  Need ((Reaction $ab 'aRider' 'A before') -ceq (Reaction $aa 'aRider' 'A after')) 'the hard landing left the Mounted Combat reaction state untouched'
@@ -150,6 +155,7 @@ function Assert-KmcFinalize6FallsEvidence {
  # ---- F6-tb-b-prone-fall ------------------------------------------------------------------------------------------
  $b=$rows['F6-tb-b-prone-fall']; $bb=Step $b 'fallBefore'; $ba=Step $b 'fallAfter'; $bs=Step $b 'fallSettled'; $bd=Step $b 'afterDeath'
  Need ((Text (P (P $bb 'bPair') 'state')) -ceq 'Mounted') 'pair B mounted before its fall'
+ Need ((Text (P $bb 'turnRole')) -ceq 'bRider') 'the prone was measured on pair B''s own activation'
  Need ((P (Step $b 'knockOff') 'canBeKnockedOff') -eq $true) 'the native knock-off rule allowed the prone'
  Need ((Text (P (P $ba 'bPair') 'state')) -ceq 'Unmounted' -and (P (P $ba 'bMount') 'prone') -eq $true -and (Text (P (P $ba 'bMount') 'life')) -ceq 'Conscious') 'the conscious mount fell prone and unseated its rider'
  Need ((Svc $ba 'begun') -eq (Svc $bb 'begun')+1 -and (Svc $ba 'resolved') -eq (Svc $bb 'resolved')+1 -and (Svc $ba 'pending') -eq 0) 'exactly one fall for the prone'

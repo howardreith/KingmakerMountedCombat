@@ -53,8 +53,9 @@ $bRow=[pscustomobject]@{
 $aRow | Add-Member deathActivationEnded $true; $bRow | Add-Member proneActivationEnded $true
 $aRow | Add-Member standUpTurn ([pscustomobject]@{sameTurnAsNext=$true;unit=$aR;round=3;status='Acting'}); $aRow | Add-Member standUpTravel 0.1
 $aRow | Add-Member standUpBoundary (Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $false 'Conscious' $false $true) $null (U $bR 'Linzi') (U $bM 'Steed'))
+$aRow.standUpBoundary.aRider.move=3; $aRow.fallBefore | Add-Member turnRole 'aRider'; $bRow.fallBefore | Add-Member turnRole 'bRider'
 $nt=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $true) $null (U $bR 'Linzi') (U $bM 'Steed')); $nt.round=3; $nt | Add-Member turnRole 'aRider'; $aRow | Add-Member nextTurn $nt
-$rows=@($cases|ForEach-Object{ if($_ -ceq 'F6-tb-a-death-fall'){Row $_ $aRow}elseif($_ -ceq 'F6-tb-b-prone-fall'){Row $_ $bRow}elseif($_ -ceq 'F3-tb-setup'){Row $_ ([pscustomobject]@{entry=[pscustomobject]@{aRelationship='Mounted';bRelationship='Mounted'};combat=[pscustomobject]@{turnBased=$true}})}else{Row $_ ([pscustomobject]@{})} })
+$rows=@($cases|ForEach-Object{ if($_ -ceq 'F6-tb-a-death-fall'){Row $_ $aRow}elseif($_ -ceq 'F6-tb-b-prone-fall'){Row $_ $bRow}elseif($_ -ceq 'F3-tb-setup'){Row $_ ([pscustomobject]@{entry=[pscustomobject]@{aRelationship='Mounted';bRelationship='Mounted'};combat=[pscustomobject]@{turnBased=$true;initiative=[pscustomobject]@{aRider=40;aMount=-40;bRider=-40;bMount=40}}})}else{Row $_ ([pscustomobject]@{})} })
 $tbArtifact=[pscustomobject]@{schemaVersion=55;status='PASS';errors=@();subscenarioFailCount=0;rows=$rows;observations=[pscustomobject]@{riderId=$aR;horseId=$aM;finalize6Falls=[pscustomobject]@{
     contract='finalize6-falls-v1';mode='TB';rider=$aR;mount=$aM;secondRider=$bR;secondMount=$bM;cases=$cases
     fallPolicy=[pscustomobject]@{dc=15;damageDice=1;damageDieSides=6;stat='SkillMobility'};fallServiceAtStart=(Svc 0 0)
@@ -84,7 +85,7 @@ TbRefuses { param($a) $r=$a.observations.finalize6Falls.falls[1].record; $r.pron
 TbRefuses { param($a) $a.observations.finalize6Falls.falls[0].log=@('Valerie: Mobility check') } 'an explanation missing from the native battle log refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.falls[0].record.riderId=$bR } 'a fall on another rider refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.falls[0].record.generation=2 } 'a fall on another pair generation refuses'
-TbRefuses { param($a) $a.rows[5].evidence.steps.standUpAfter.aRider.hasMove=$true } 'a free stand-up refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpAfter.aRider.commandsEmpty=$false } 'a stand-up that left the triggering order running refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpAfter.aRider.hasStandard=$false } 'a stand-up that took the Standard action refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.placement.riderToMount=1.2 } 'a rider placed inside the dead mount body refuses'
 TbRefuses { param($a) $a.rows[6].evidence.steps.placement.riderToMount=0.3 } 'a rider placed inside the prone mount body refuses'
@@ -95,9 +96,12 @@ TbRefuses { param($a) $a.observations.finalize6Falls.preparations+=[pscustomobje
 TbRefuses { param($a) $a.observations.finalize6Falls.disclosedSetup=@() } 'undisclosed labelled outcomes refuse'
 $f=Clone $tbArtifact; $f.status='FAIL'; $f.errors=@('x'); Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'FAIL'; Check $true 'a failed child keeps its FAIL without qualification'
 Refuses { $f=Clone $tbArtifact; $f.status='FAIL'; Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'PASS' } 'a failed child cannot become PASS'
-TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.hasMove=$true } 'a free stand-up (Move still available when prone cleared) refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.move=0 } 'a free stand-up (no Move charged when prone cleared) refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpTravel=2.4 } 'a stand-up whose cost a following walk could explain refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.hasStandard=$false } 'a stand-up that took the Standard action refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.move=6 } 'a stand-up charged more than one Move refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.fallBefore.turnRole='other' } 'a death measured on another actor''s turn refuses'
+TbRefuses { param($a) $a.rows[0].evidence.steps.combat.initiative.aMount=50 } 'an encounter without pair A rider-first refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpTurn.sameTurnAsNext=$false } 'a stand-up order outside the rider''s own next turn refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.service.begun=2 } 'a stand-up that replayed a fall refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.fallAfter.aRider.mountedCombat.spent=$true } 'a fall that spent the Mounted Combat reaction refuses'
