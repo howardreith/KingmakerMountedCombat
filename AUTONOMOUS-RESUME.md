@@ -1,4 +1,16 @@
-# F5 resume — review stop, start ceiling reached (2026-11-07)
+# F5 resume — completion mission stop (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. r04 (d32fdc28, f5d) has naming and the Manual PASS game-side; the saddle reader FAILs and the frames show shards. The consumer has not run.
+- **Spend:** 4 of 6 starts, 42.52/60 min.
+- **Not authorized:** reusing r04 as a source, a start without a diagnosed correction, more time, merge, release or F6.
+
+Facts for a successor:
+- This TMP's `SetText` never stores `m_text`; read a rendered label from `TMP_Text.m_char_buffer` (0x040014C2) up to its 0.
+- Overtips live in `OvertipManager.m_UnitControllers` (via `Game.Instance.UI.BarkManager`) and draw `CharacterName` with a decorative first letter.
+- The tack's centre-line diagnostics can be on design while the rendered pad is wrong. Judge it by `maxRise` and the frames.
+- The scratch guard `f5-guard.ps1` derives the ceiling from the record's `startCeilingAdjustments` chain, capped at 6.
+# F5 resume — review stop, start ceiling reached (2026-11-07, superseded above)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack from main 3f19e9bd. Read CURRENT.md and docs/FINALIZE-F5-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL. 3 of 3 starts used, 26.83/60 min. The producer runs r01–r03 all FAILed for causes since corrected; the cold consumer has not run.

@@ -1,4 +1,21 @@
-# F5 ENGINEERING PARTIAL — START CEILING REACHED; OWNER ACCEPTANCE SEPARATE (2026-11-07)
+# F5 ENGINEERING PARTIAL — CORRECTED SADDLE STILL MIS-RENDERS; COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
+
+Branch codex/kmc-finalize-f5-names-dog-tack (head after the records commit; product/harness at d32fdc28), from main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
+
+**Status:**
+- **Naming (PET-01):** demonstrated on the producer side in four runs. r04 also covers the ordinary overtip label on both companions.
+- **Saddle (PET-02):** single, adopted, mechanically neutral. The fit along the centre line is now on design, but r04's reader and frames both show the pad rendering as shards and a flank strip, not a drape. The cause is not diagnosed.
+- **Cold consumer:** not run. A FAIL producer is no source.
+
+**Start 4:** `20261106-finalize-f5d-producer-04` (f5d, DLL 119e7a98…, MVID 31f3c7c9…). Game side PASS and the Manual was written (3e70c359…). Reader FAIL: a pad/seat point 0.544 m above the back. Restoration complete.
+
+**Spend:** finalize-f5 is at 42.52/60 min, 4 of 6 starts. This includes 430 s of F5 Fast tiers cross-referenced from the development record. Starts 5 and 6 are unused: with 17.48 min left, a corrected candidate plus two 10-minute admissions does not fit.
+
+**Next (owner):** diagnose the saddle render, likely from per-vertex fit data of the real dog, then decide on time and starts for one producer and one consumer. No game, lock or waiter remains. No merge, release, install or F6.
+
+**F4:** accepted for integration with WORLD-02 deferred, not passed ([deferred items](docs/FINALIZATION-DEFERRED-ITEMS.md)).
+
+# Superseded F5 state at review (2026-11-07)
 
 Branch codex/kmc-finalize-f5-names-dog-tack, worktree worktrees/finalize-f5, from main 3f19e9bd (the F4 landing). Requirements PET-01 and PET-02. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md).
 

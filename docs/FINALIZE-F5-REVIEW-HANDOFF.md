@@ -1,6 +1,89 @@
 # F5 review handoff: companion naming and a fitted Riding Dog saddle
 
-## Disposition (2026-11-07)
+## Disposition after the completion mission (2026-11-07)
+
+**F5 ENGINEERING PARTIAL — CORRECTED SADDLE STILL MIS-RENDERS NATIVELY; COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE.**
+
+The completion mission (review baseline PR #20 at 83863820) raised the start ceiling from 3 to 6 on the same finalize-f5 record. The 60-minute ceiling did not change. One corrected producer ran (start 4). Its game side passed every row and wrote the native Manual. The outer reader then refused the saddle fit, and the captures show the same defect: the pad does not drape but renders as thin red shards standing out of the back, plus a strip down the flank. The cause is not yet diagnosed. The remaining 17.48 minutes cannot cover a corrected candidate plus both admissions: Candidate is about 4.4 min, freezing about 1.5 min, and each launch reserves 10 min. So no further start was used. The consumer never ran, because a FAIL producer is not a source.
+
+**Start 4: `20261106-finalize-f5d-producer-04`. FAIL, kept.**
+- **Identity:**
+  - Commit d32fdc28 on the attached branch.
+  - DLL `119e7a98adcb632bd1a33bc67fb4d128513af021ccc9df5d3f083e9132f0439c`, MVID 31f3c7c9-2d58-4960-a8ab-4ac3067bdf43.
+  - Package finalize-f5d `5cf589cb1e8f806ec0df7a6966797574b573d914fe8cebedf65cccb96076354c`.
+  - Suite `finalize-f5d-d32fdc28-20261106` `c8b233aa9ce850992e29be769fd211a41aec855ab7a93dafa7fc64dfedf8571d`.
+- **Game side: status PASS.** It covered both mounts, the all-pair archive, continuation, cleanup and every naming row:
+  - sheet, dialog and six typed entries;
+  - OK, Esc, the refused markup name, Default Name and the hidden non-pet;
+  - distinct, then duplicate, names.
+- **Ordinary label, new:** each companion's native overtip read `Ébène l'Ancien`, bound to its own unit (dog `91586178…`, Mastodon `d79a4f6c…`).
+  - The run reads the overtip's rendered character buffer. In this TMP the `text` getter keeps the prefab placeholder "New name"; the independent review caught that before launch.
+- **Native Manual:** `Manual_300_KMC_C7_WORLD.zks`, SHA-256 `3e70c359fafe625b82d51679df936bf642bd385e517c5f793e5fef9edbb08bee`, 858106 bytes. It is failed-run evidence and not a consumer source.
+- **Reader verdict, FAIL:** "A pad or seat point leaves the back (0.544 m): unmounted".
+  - **Saddle numbers:** fit values on the seat line are on design. Mount-local, the seat is 2.3 cm over the back (0.8857 over 0.8627), the cantle 4.5 cm and the pommel 7.6 cm.
+  - **Comparison with r03:** r03 had the seat 13 cm *under* the back and the pommel 31 cm over it, so the d307cf97 axis/smoothing correction moved the seat line where intended.
+  - **Same fit throughout:** unmounted, mounted and after motion; 513 vertices, 411 casts, 0 misses, one build.
+- **What the frames show** (private, `runtime-evidence/20261106-finalize-f5d-producer-04/movement-visuals`):
+  - `dog-unmounted-side` / `-other` and `dog-bite-unmounted`: red and ochre shards 10–20 cm tall above mid-back. No continuous pad surface is visible.
+  - `dog-mounted-other`: a thin strip from the rider's hip down the flank.
+  - The female Small rider and her repaired leg are visible and seated. AC 19, speed 40 and size Medium are unchanged across tack, mount and motion. There is no tack on the Mastodon.
+- **Restoration complete:** Mods, protected saves, the Working fixture and the save allowlist all passed. The digest is `60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1`.
+
+**Why the shape is still wrong: not diagnosed.**
+- Facts:
+  - The fit diagnostics along the centre line are right.
+  - Some pad or seat vertex stands 0.544 m above the body's top midline vertex at its own z.
+  - The rendered pad is mostly missing, with shards and strips showing.
+- Hypotheses that fit these facts (not proven):
+  - At some z, `DorsalVertex` picks a non-dorsal vertex. That vertex's skin weights (spine-only skinning) and rise would then both be wrong, so the vertices follow a limb under animation.
+  - The pad surface sits inside the animated body (a fit-pose vs render-pose mismatch), so only edges poke out.
+  - Pad faces are oriented inward and culled.
+- The run records aggregates only, not per-vertex data. Settling the cause needs per-vertex fit data for the real posed dog, which the mission did not select building. The owner decides whether to add it.
+- This is not attributed to anything external. It is a known product defect of PET-02.
+
+**What this mission delivered offline (commits 6686f6e4, d32fdc28):**
+- **Fit diagnostic:** `MaxRiseAboveBack`, the highest pad or seat point above the dorsal line, in the geometry and the scenario.
+  - Regressions assert it, plus finite positions, normals and weights, on the ordinary, fur and chest/leg-column bodies.
+- **Upper fit envelope in `Assert-KmcFinalize5Tack`:**
+  - Seat 1–5 cm over the back.
+  - Rolls and every pad or seat point under 8 cm.
+  - Synthetic refusals: a buried seat, r03's 31 cm pommel, a fin over a correct seat, a floating seat, and evidence without the diagnostic.
+  - r03's real evidence still refuses, and r04 refused natively. The old ordering-only check would have *passed* r04.
+- **Overtip labels** recorded in the producer and consumer.
+- **Cold consumer requirements:**
+  - Its names must be observed with zero naming-service writes and no last outcome.
+  - Dog statistics are compared across tack, mount, motion and reload.
+- **`Assert-KmcFinalize5ColdAgainstSource` / `scripts/Test-Finalize5ColdAgainstSource.ps1`:** the consumer is checked against its producer's recorded ids, owners, names, overtips, archive (name/hash/length) and binary.
+- Reader checks went from 18 to 36, all passing under strict mode.
+- The start guard (lab-local helper) reads the record's append-only `startCeilingAdjustments` and refuses a seventh start. It has 6 synthetic checks.
+
+**Coverage, stated exactly:**
+- **Naming UI path:** native click events on the sheet button and dialog buttons, and keys sent through the field's own `ProcessEvent`. No OS mouse or keyboard test was run; the existing input recipe needs a desktop takeover, and nothing new was built.
+- **Ordinary labels:** native overtip text (rendered buffer) at save. Not covered:
+  - the portrait tooltip (the party portrait has no name text; its tooltip was not driven);
+  - the combat log (no combat in this scene);
+  - Buff Planner (a source reading only, not a UI test).
+- **Persistence after restart:** NOT RUN.
+
+**Budget, reconciled.**
+- **Total:** finalize-f5 is at 42.52 of 60 min, 4 of 6 starts.
+- **Imported spend:** the 18 F5 Fast tiers charged to the shared `development` record (430 s, 2026-11-06 22:51–00:13Z) are now cross-referenced into finalize-f5, one imported entry per source entry id. The development entries are unchanged.
+- **This mission:**
+  - Fast 0.5 min and Candidate 4.36 min (11/0).
+  - Package 0.5 min, plus one 1 s entry for a mistyped package path that ran nothing (recorded, not removed).
+  - Suite 0.9 min, WhatIf 0.3 min, producer 1.97 min.
+- Starts 5 and 6 are unused. No reset, no borrowed capacity, no new record.
+
+**To finish PET-02 and the persistence proof (owner decision):**
+- the saddle-render cause (likely needs per-vertex data for the real dog, or a human look in the editor);
+- a corrected candidate;
+- a producer and consumer on the same record, which needs more than the 17.48 min left.
+
+The naming implementation needs no change.
+
+F4 stays accepted for integration with WORLD-02 deferred, not passed ([deferred items](FINALIZATION-DEFERRED-ITEMS.md)). No merge, release, tag, install, publication or F6. No game, transaction or waiter remains.
+
+## Disposition at review (2026-11-07, superseded above)
 
 **F5 ENGINEERING PARTIAL — START CEILING REACHED; OWNER ACCEPTANCE SEPARATE.**
 
