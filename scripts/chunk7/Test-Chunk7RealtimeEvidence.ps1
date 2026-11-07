@@ -34,7 +34,7 @@ $u=[pscustomobject]@{before=$unmountedBefore;after=$unmountedAfter;actorId=$ids[
     effectsBefore=[pscustomobject]@{events=@()};effectsAfter=[pscustomobject]@{events=@([pscustomobject]@{kind='weapon-resolved';actor=$ids[0];target=$target})}}
 Cost $ids[0] 4000 'Kingmaker.UnitLogic.Commands.UnitAttack' 41
 $core=Base 'chunk7-two-pair-realtime-core';$core.observations.realtimeWindows=$windows
-$core.observations|Add-Member NoteProperty defaultOffCharge @(@(0,2)|ForEach-Object{[pscustomobject]@{casterId=$ids[$_];reason='Enable Mounted Charge in the KMC mod settings.';castDelta=0;featureEnabled=$false;available=$false;visible=$false;nativeFactPresent=$false;clicked=$false;inputAttempted=$false;nativeAbilityFacts=@('3af2b81f4d72bbb30501fa730fcdf36e');stimulus='read-only native ability inventory and availability; default-off fact is not leased';before=(RtSnap 5);after=(RtSnap 5)}})
+$core.observations|Add-Member NoteProperty defaultOffCharge @(@(0,2)|ForEach-Object{[pscustomobject]@{casterId=$ids[$_];reason='Mounted Charge is not available.';castDelta=0;featureEnabled=$false;available=$false;visible=$false;nativeFactPresent=$false;clicked=$false;inputAttempted=$false;nativeAbilityFacts=@('3af2b81f4d72bbb30501fa730fcdf36e');stimulus='read-only native ability inventory and availability; default-off fact is not leased';before=(RtSnap 5);after=(RtSnap 5)}})
 $core.observations|Add-Member NoteProperty unmountedControl $u
 $d=Copy-Value @($good.observations.inputs|Where-Object label -CEQ 'r1-native-dismount-a')[0];$d.label='rt-native-dismount-a';$core.observations.inputs+=,$d
 $core.observations.localFailure=[pscustomobject]@{failureCount=1;injectedPair='b';healthyNeighbourVisited=$true;before=(RtSnap 50);held=(RtSnap 50)}

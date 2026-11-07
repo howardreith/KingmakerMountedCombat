@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Integration
     // has already paid and Commands.Run would interrupt the shell that is paying.
     internal sealed partial class MountedCombatController
     {
-        internal const string MountedChargeDisabledReason = "Enable Mounted Charge in the KMC mod settings.";
+        internal const string MountedChargeDisabledReason = "Mounted Charge is not available.";
 
         // The exact reason the same shared decision gives for this target, for the native target refusal.
         internal string DescribeMountedChargeTargetRejection(UnitEntityData caster, UnitEntityData target) =>

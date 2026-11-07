@@ -47,6 +47,7 @@ $producer=[pscustomobject]@{companionNames=[pscustomobject]@{
     dialogOpen=[pscustomobject]@{shown=$true;prefilled='Mammoth';hotkeysSuspended=$true;inputFocused=$true;actorCommandsIdle=$true}
     typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);cancelReleasedKeyboard=$true;cancelButton=(Mammoth $shared);markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
     blankMessageShown=$true;blankReopenedWith='   ';blankRefused=(Mammoth $shared);mammothLong=(Mammoth $script:KmcF5LongName)
+    ummEntry=[pscustomobject]@{windowOpen=$true;tab=0;id='KingmakerMountedCombat';displayName="Mr. Bard's Kingmaker Mounted Combat";version='0.2.1';active=$true;optionsPanel=$false;chargeEnabled=$true}
     mammothRenamedAgain=(Mammoth $shared);nonPetHidden=$true;riderNameUnstyled=$true;dogDistinct=(Dog 'Biscuit');distinctLabels=(Labels 'Biscuit' $shared)
     dogDuplicate=(Dog $shared);duplicateLabels=(Labels $shared $shared);atSave=(Labels $shared $shared);overtipsAtSave=(Overtips $shared);sheetClosed=$true;shots=(Shots $script:KmcF5ProducerShots)}}
 $producer | Add-Member movements (Moves); $producer | Add-Member areaContinuationPlans (Plans)
@@ -71,6 +72,9 @@ $p=Clone $producer; $p.companionNames.sheetMammothLong.buttons=2; Refuses { Asse
 $p=Clone $producer; $p.companionNames.sheetMammothLong.controlClearOfLevel=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a Rename control over the level line refuses'
 $p=Clone $producer; $p.companionNames.sheetMammothLong.textClearOfControl=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a long name running under the control refuses'
 $p=Clone $producer; $p.companionNames.sheetDog.control.yMin=622; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a control that moved for another companion refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a UMM entry with an options page refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.displayName='Kingmaker Mounted Combat'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'the old UMM display name refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.chargeEnabled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Mounted Charge off at startup refuses'
 $p=Clone $producer; $p.companionNames.riderNameUnstyled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a character name that kept the reserved slot refuses'
 $p=Clone $producer; $p.companionNames.tackMounted.seatTop=0.88; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a seat buried in the back refuses (r03: 0.734 under 0.863)'
 $p=Clone $producer; $p.companionNames.tackMounted.pommelTop=1.175; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a pommel 30 cm over the back refuses (r03)'

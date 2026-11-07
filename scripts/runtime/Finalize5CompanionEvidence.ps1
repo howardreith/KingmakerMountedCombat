@@ -3,9 +3,10 @@
 $script:KmcF5SharedName = [string]::new([char[]]@([char]0x00C9,'b',[char]0x00E8,'n','e',' ','l',"'",'A','n','c','i','e','n'))
 $script:KmcF5DogDistinctName = 'Biscuit'
 $script:KmcF5LongName = 'Wolfgang Maximilian Wynn'
-# Since the UI polish the sheet has one Rename control and no Default Name; evidence from earlier builds keeps its earlier verdicts.
+# Since the UI polish the sheet has one Rename control and no Default Name. This reader is that contract only: it refuses
+# evidence from earlier builds, whose recorded verdicts (taken by the reader at their own commits) stand unchanged.
 $script:KmcF5ProducerShots = @('f5-dog-unmounted-side','f5-dog-unmounted-other','f5-dog-bite-unmounted','f5-sheet-mammoth','f5-dialog-open','f5-dialog-typed',
-    'f5-sheet-mammoth-renamed','f5-invalid-message','f5-blank-message','f5-sheet-mammoth-long','f5-sheet-dog-distinct','f5-sheet-dog-duplicate',
+    'f5-sheet-mammoth-renamed','f5-invalid-message','f5-blank-message','f5-sheet-mammoth-long','f5-sheet-dog-distinct','f5-sheet-dog-duplicate','f5-umm-entry',
     'f5-dog-mounted-side','f5-dog-mounted-other','f5-dog-mounted-cast','f5-dog-mounted-bite','f5-dog-mounted-turn')
 $script:KmcF5ConsumerShots = @('f5-cold-sheet-dog','f5-cold-sheet-mammoth')
 
@@ -169,6 +170,9 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         Assert-KmcFinalize5DogStats @($n.tackUnmounted,$n.tackMounted,$n.tackAfterMotion) 'producer'
         if([string]$n.tackUnmounted.dogStats.id-cne[string]$dog.id){throw 'The tack statistics are not the named Riding Dog.'}
         if($n.sheetClosed-ne$true){throw 'The character sheet did not close.'}
+        $umm=$n.ummEntry
+        if($null-eq$umm-or$umm.windowOpen-ne$true-or[int]$umm.tab-ne0-or[string]$umm.id-cne'KingmakerMountedCombat'-or[string]$umm.displayName-cne"Mr. Bard's Kingmaker Mounted Combat"-or
+           $umm.active-ne$true-or$umm.optionsPanel-ne$false-or$umm.chargeEnabled-ne$true){throw 'The UMM entry is not the public name with no options page and Mounted Charge on.'}
         Assert-KmcFinalize5ContinuationPlan $Observations ([string]$dog.id) 'producer'
         foreach($shot in $script:KmcF5ProducerShots){Assert-KmcFinalize5Shot $n.shots $shot $root}
         return

@@ -41,7 +41,7 @@ namespace KingmakerMountedCombat.Integration
         private CharacterScreenController screen;
         private GameObject rename;
         private UnitEntityData shown;
-        private Component styled;
+        private Component styled, originalOf;
         private LabelStyle original;
         private bool failed, disposed;
 
@@ -62,6 +62,18 @@ namespace KingmakerMountedCombat.Integration
         internal Vector4? ReservedMargin => styled == null ? (Vector4?)null : (Vector4)Margin.GetValue(styled, null);
         internal Component NameLabel => screen == null ? null : CharNameField.GetValue(screen) as Component;
         internal CharacterScreenController Screen => screen;
+
+        // Evidence: whether the live name label carries exactly the settings it had before this control first styled it.
+        // Null when the control has never styled the label now on the sheet. An auto-sized label sets its own font size.
+        internal bool? LabelHasOwnStyle()
+        {
+            var label = NameLabel;
+            if (label == null || !ReferenceEquals(label, originalOf)) return null;
+            var now = LabelStyle.Read(label);
+            return now.Margin == original.Margin && now.WordWrapping == original.WordWrapping && Equals(now.Overflow, original.Overflow) &&
+                now.AutoSizing == original.AutoSizing && now.FontSizeMin == original.FontSizeMin && now.FontSizeMax == original.FontSizeMax &&
+                (original.AutoSizing || now.FontSize == original.FontSize);
+        }
 
         // CharacterScreenController.SetupInfo postfix: the sheet has just filled its name for the displayed unit.
         internal void Refresh(CharacterScreenController controller)
@@ -152,6 +164,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 Unstyle();
                 original = LabelStyle.Read(label);
+                originalOf = label;
                 styled = label;
             }
             var reserved = original.Margin;

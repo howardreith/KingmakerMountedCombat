@@ -94,7 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "rename-again-type", () => TypeText(SharedName));
             Step(steps, "rename-again-commit", () => Commit(firstMount, SharedName, "mammothRenamedAgain"));
             Step(steps, "sheet-rider", () => SwitchSheet(secondRider, null) && Record("nonPetHidden", Sheet.RenameButton == null || !Sheet.RenameButton.activeSelf) &&
-                Record("riderNameUnstyled", Sheet.ReservedMargin == null));
+                Record("riderNameUnstyled", Sheet.ReservedMargin == null && Sheet.LabelHasOwnStyle() == true));
             Step(steps, "sheet-dog", () => SwitchSheet(secondMount, secondMount));
             Step(steps, "dog-distinct-open", () => PressRename());
             Step(steps, "dog-distinct-type", () => TypeText(DogDistinctName));
@@ -105,6 +105,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "dog-duplicate-commit", () => Commit(secondMount, SharedName, "dogDuplicate") && Record("duplicateLabels", Labels()));
             Step(steps, "dog-duplicate-shot", () => Ui("f5-sheet-dog-duplicate"));
             Step(steps, "sheet-close", () => CloseSheet());
+            Step(steps, "umm-open", () => UmmWindow(true));
+            Step(steps, "umm-shot", () => Ui("f5-umm-entry") && Record("ummEntry", UmmEntry()));
+            Step(steps, "umm-close", () => UmmWindow(false));
             StartSteps(steps, () => { f5NamesDone = true; Next(1); });
         }
 
@@ -313,6 +316,26 @@ namespace KingmakerMountedCombat.Diagnostics
             return Settled(12) && ReferenceEquals(Sheet.Shown, expectedShown);
         }
 
+        // The mod's UMM entry as a player opens it (Ctrl+F10, Mods tab): its public name, and no options page of its own.
+        private bool UmmWindow(bool open)
+        {
+            var ui = UnityModManagerNet.UnityModManager.UI.Instance;
+            if (f5Frames == 1) { ui.tabId = 0; ui.ToggleWindow(open); }
+            return Settled(10) && ui.Opened == open;
+        }
+
+        private JObject UmmEntry()
+        {
+            var ui = UnityModManagerNet.UnityModManager.UI.Instance;
+            var mod = UnityModManagerNet.UnityModManager.FindMod("KingmakerMountedCombat");
+            return new JObject
+            {
+                ["windowOpen"] = ui.Opened, ["tab"] = ui.tabId, ["id"] = mod?.Info.Id, ["displayName"] = mod?.Info.DisplayName,
+                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = mod?.OnGUI != null,
+                ["chargeEnabled"] = settings.EnableMountedCharge
+            };
+        }
+
         private bool CloseSheet()
         {
             if (f5Frames == 1) EventBus.RaiseEvent(delegate (IServiceWindowUIHandler handler) { handler.HandleOpenCharScreen(); });
@@ -322,8 +345,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return closed && Record("sheetClosed", true);
         }
 
-        // The one control and where it sits, in the sheet canvas's own space: the line it belongs to, the name's rendered text,
-        // and every visible level/experience text. Overlaps are measured on rendered text, not on the native rects.
+        // The one control and where it sits, in the name label's own UI units (so the tolerances do not depend on the canvas mode or the
+        // screen): the line, the name's rendered text and every visible level/experience text. Overlaps use rendered text, not native rects.
         private JObject SheetState()
         {
             var label = Sheet.NameLabel;
@@ -339,12 +362,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (label == null || button == null || level == null) return state;
             var textType = label.GetType();
             while (textType != null && textType.FullName != "TMPro.TMP_Text") textType = textType.BaseType;
-            var line = WorldRect((RectTransform)label.transform);
-            var control = WorldRect((RectTransform)button.transform);
-            var name = TextRect(label, textType);
+            var line = LocalRect((RectTransform)label.transform, label.transform);
+            var control = LocalRect((RectTransform)button.transform, label.transform);
+            var name = TextRect(label, textType, label.transform);
             var levelTexts = level.GetComponentsInChildren(textType, false)
                 .Where(text => !string.IsNullOrEmpty(textType.GetProperty("text").GetValue(text, null) as string))
-                .Select(text => TextRect(text, textType)).ToArray();
+                .Select(text => TextRect(text, textType, label.transform)).ToArray();
             const float tolerance = 0.5f;
             state["line"] = RectJson(line); state["control"] = RectJson(control); state["nameText"] = RectJson(name);
             state["levelTexts"] = new JArray(levelTexts.Select(RectJson));
@@ -358,18 +381,19 @@ namespace KingmakerMountedCombat.Diagnostics
             return state;
         }
 
-        private static Rect WorldRect(RectTransform rect)
+        private static Rect LocalRect(RectTransform rect, Transform space)
         {
             var corners = new Vector3[4];
             rect.GetWorldCorners(corners);
-            return Rect.MinMaxRect(corners.Min(c => c.x), corners.Min(c => c.y), corners.Max(c => c.x), corners.Max(c => c.y));
+            var local = corners.Select(space.InverseTransformPoint).ToArray();
+            return Rect.MinMaxRect(local.Min(c => c.x), local.Min(c => c.y), local.Max(c => c.x), local.Max(c => c.y));
         }
 
-        private static Rect TextRect(Component text, Type textType)
+        private static Rect TextRect(Component text, Type textType, Transform space)
         {
             var bounds = (Bounds)textType.GetProperty("textBounds").GetValue(text, null);
-            var min = text.transform.TransformPoint(bounds.min);
-            var max = text.transform.TransformPoint(bounds.max);
+            var min = space.InverseTransformPoint(text.transform.TransformPoint(bounds.min));
+            var max = space.InverseTransformPoint(text.transform.TransformPoint(bounds.max));
             return Rect.MinMaxRect(Math.Min(min.x, max.x), Math.Min(min.y, max.y), Math.Max(min.x, max.x), Math.Max(min.y, max.y));
         }
 
