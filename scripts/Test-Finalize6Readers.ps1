@@ -173,4 +173,5 @@ Assert-KmcFinalize6ColdAgainstSource $prodRun $prod $coldRun $coldArtifact; Chec
 $c=Clone $coldArtifact; $c.observations.riderFall.cold.secondRider.damage=8; Refuses { Assert-KmcFinalize6ColdAgainstSource $prodRun $prod $coldRun $c } 'fall damage applied again after the reload refuses'
 $q=Clone $coldRun; $q.persistenceLoad.sha256=('c'*64); Refuses { Assert-KmcFinalize6ColdAgainstSource $prodRun $prod $q $coldArtifact } 'another source Manual refuses'
 $q=Clone $coldRun; $q.dllMvid='other'; Refuses { Assert-KmcFinalize6ColdAgainstSource $prodRun $prod $q $coldArtifact } 'another binary refuses'
+$q=Clone $coldRun; $q.commit='other'; Refuses { Assert-KmcFinalize6ColdAgainstSource $prodRun $prod $q $coldArtifact } 'another commit refuses for a producer that is not the pinned one'
 Write-Host ('TOTAL PASS='+$passes+' FAIL=0')

@@ -123,7 +123,11 @@ function Assert-KmcFinalize6ColdAgainstSource($ProducerRequest,$ProducerEvidence
     if([string]$ProducerEvidence.status-cne'PASS'-or[string]$ConsumerEvidence.status-cne'PASS'){throw 'Both F6 runs must have passed.'}
     if([string]$ProducerRequest.scenario-cne'chunk7-persistence-save'-or[string]$ConsumerRequest.scenario-cne'chunk7-persistence-load'-or
        [string]$ProducerRequest.persistenceCase-cne'rider-fall-integration-manual'-or[string]$ConsumerRequest.persistenceCase-cne'rider-fall-integration-manual'){throw 'The runs are not the F6 producer and consumer.'}
-    foreach($field in 'commit','branch','dllSha256','dllMvid'){if([string]$ProducerRequest.$field-cne[string]$ConsumerRequest.$field){throw ('The consumer ran another '+$field+' than its producer.')}}
+    # The pinned reader-only producer (Finalize6PinnedFallSource.ps1) ran on its own commit; the consumer carries its identical DLL.
+    $pinned=$null-ne(Get-Variable -Name KmcF6PinnedFallSource -Scope Script -ErrorAction SilentlyContinue)-and[string]$ProducerRequest.runId-ceq$script:KmcF6PinnedFallSource.runId-and
+        [string]$ProducerRequest.commit-ceq$script:KmcF6PinnedFallSource.commit
+    foreach($field in 'commit','branch','dllSha256','dllMvid'){if(($field-cne'commit'-or-not$pinned)-and[string]$ProducerRequest.$field-cne[string]$ConsumerRequest.$field){throw ('The consumer ran another '+$field+' than its producer.')}}
+    if($pinned-and[string]$ProducerEvidence.status-cne'PASS'){throw 'The pinned producer evidence did not pass natively.'}
     $write=$ProducerEvidence.observations.nativeWrite;$load=$ConsumerRequest.persistenceLoad
     if($null-eq$write-or[string]$write.nativeType-cne'Manual'-or[string]$load.sha256-cne[string]$write.sha256-or[long]$load.length-ne[long]$write.length-or
        [string]$load.fileName-cne[IO.Path]::GetFileName([string]$write.path)){throw 'The consumer did not load the producer''s exact Manual.'}
