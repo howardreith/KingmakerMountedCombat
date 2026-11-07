@@ -186,7 +186,7 @@ namespace KingmakerMountedCombat
                 if (IsEnabled) { return true; }
                 if (!horseCompanion.SetSelectionEnabled(true))
                 {
-                    logger.Error("Private-alpha services could not enable the exact Ranger horse selection transaction.");
+                    logger.Error("Mounted combat services could not enable the exact Ranger horse selection transaction.");
                     return false;
                 }
                 IsEnabled = true;
@@ -196,7 +196,7 @@ namespace KingmakerMountedCombat
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
                     (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
                 playerAction.SetOverlayEnabled(overlayEnabled);
-                logger.Info("Private-alpha services and native mounted abilities enabled; diagnostic overlay=" +
+                logger.Info("Mounted combat services and native mounted abilities enabled; diagnostic overlay=" +
                     overlayEnabled + ".");
                 return true;
             }
@@ -234,7 +234,7 @@ namespace KingmakerMountedCombat
             }
             if (!horseCompanion.SetSelectionEnabled(false))
             {
-                logger.Error("Private-alpha services could not disable without overwriting an externally changed Ranger selection.");
+                logger.Error("Mounted combat services could not disable without overwriting an externally changed Ranger selection.");
                 return false;
             }
             IsEnabled = false;
@@ -243,7 +243,7 @@ namespace KingmakerMountedCombat
             persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
-            logger.Info("Private-alpha services disabled; native control facts and transient UI removed with no mounted state retained.");
+            logger.Info("Mounted combat services disabled; native control facts and transient UI removed with no mounted state retained.");
             return true;
         }
 

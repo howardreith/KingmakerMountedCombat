@@ -691,7 +691,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // defaults. It now reads the live settings, publishes them verbatim, and
                 // asserts the absence of gameplay state directly.
                 //
-                // The private-alpha mounted movement feature ships ENABLED. That is a
+                // The mounted movement feature ships ENABLED. That is a
                 // fact about the product, not a safety failure at a menu with no area
                 // loaded, so it is recorded rather than suppressed.
                 smokeObservation = ObserveModLoadSmoke();

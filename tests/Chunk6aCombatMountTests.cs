@@ -919,7 +919,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(unpaidAvailability.IsVisible && !unpaidAvailability.IsEnabled,
                 "The escape waived the rider's Move cost for Dismount.");
             TestRunner.True(unpaidAvailability.Feedback.Contains("no Move action") &&
-                !unpaidAvailability.Feedback.Contains("private-alpha"),
+                !unpaidAvailability.Feedback.Contains("Enable mounted movement"),
                 "An unpaid combat Dismount blamed the feature instead of the missing Move action: " +
                 unpaidAvailability.Feedback);
 

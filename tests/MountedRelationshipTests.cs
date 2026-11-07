@@ -83,7 +83,7 @@ namespace KingmakerMountedCombat.Tests
             var inCombat = ValidCandidate(); inCombat.PartyIsInCombat = true;
             var outOfCombat = ValidCandidate();
 
-            TestRunner.Equal("Private-alpha mounting is available only outside combat.",
+            TestRunner.Equal("Mounting is available only outside combat.",
                 inCombat.Validate(MountedRelationshipAdmission.Exploration),
                 "Exploration admitted a live encounter.");
             TestRunner.Equal(null, inCombat.Validate(MountedRelationshipAdmission.VoluntaryCombat),
