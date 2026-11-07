@@ -57,6 +57,7 @@ namespace KingmakerMountedCombat.Diagnostics
             f5["shots"] = f5Shots;
             var steps = new List<KeyValuePair<string, Func<bool>>>();
             Step(steps, "tack-unmounted", () => TackAdopted(secondMount) && Record("tackUnmounted", Tack()));
+            Step(steps, "specimen-unmounted", () => Specimen("unmounted-idle"));
             Step(steps, "shots-unmounted", () => World("f5-dog-unmounted-side", 90f) && World("f5-dog-unmounted-other", 270f));
             Step(steps, "bite-unmounted", () => Bite("f5-dog-bite-unmounted"));
             Step(steps, "sheet-mammoth", () => OpenSheet(firstMount));
@@ -98,12 +99,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var steps = new List<KeyValuePair<string, Func<bool>>>();
             Step(steps, "tack-mounted", () => Mounted(secondRider, secondMount) && Record("tackMounted", Tack()));
+            Step(steps, "specimen-mounted", () => Specimen("mounted-idle"));
             Step(steps, "shots-mounted", () => World("f5-dog-mounted-side", 90f) && World("f5-dog-mounted-other", 270f));
             Step(steps, "cast", () => CastPose());
             Step(steps, "cast-shot", () => Time.time >= f5At && World("f5-dog-mounted-cast", 90f));
             Step(steps, "cast-settle", () => Time.time >= f5At + 1.5f);
             Step(steps, "bite-mounted", () => Bite("f5-dog-mounted-bite"));
             Step(steps, "walk", () => Walk());
+            Step(steps, "specimen-walk", () => Time.time >= f5At && Specimen("mounted-walk"));
             Step(steps, "walk-shot", () => Time.time >= f5At && World("f5-dog-mounted-turn", 60f));
             Step(steps, "walk-settle", () => secondMount.View?.AgentASP?.IsReallyMoving != true && secondMount.Commands.Empty && secondRider.Commands.Empty);
             Step(steps, "at-save", () => Mounted(secondRider, secondMount) && Record("tackAfterMotion", Tack()) && Record("atSave", Labels()));
@@ -142,6 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var steps = new List<KeyValuePair<string, Func<bool>>>();
             Step(steps, "overtips-cold", () => OvertipsReady() && Record("overtipsCold", Overtips()));
+            Step(steps, "specimen-cold", () => Specimen("cold-idle"));
             Step(steps, "tack-remounted", () => Mounted(secondRider, secondMount) && Record("tackRemounted", Tack()));
             Step(steps, "sheet-dog", () => OpenSheet(secondMount));
             Step(steps, "sheet-dog-shot", () => Ui("f5-cold-sheet-dog") && Record("sheetDogCold", SheetState(true)));
