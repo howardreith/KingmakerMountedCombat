@@ -1,3 +1,23 @@
+# F6 ENGINEERING ACCEPTED IN REVIEW AT 4b8a5f02; SELECTED REFINEMENT ENGINEERING COMPLETE WITH WORLD-02 DEFERRED; OWNER ACCEPTANCE SEPARATE (2026-11-07, closeout)
+
+The owner merged PR #21 as `eb16d2f1` (tree identical to the reviewed `4b8a5f02`). Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md), section "Engineering acceptance and integration closeout".
+
+**Status:**
+- **Accepted candidate f6f:** DLL `87fed161…`, MVID `a7638ec4…`.
+  - Package `74baa915…`, re-verified read-only. It is a lab file, not a download link.
+  - Suite `finalize-f6f-5fe80073-20261107`.
+- **Verdicts:**
+  - r05: ORIGINAL OUTER FAIL, native PASS, corrected re-evaluation PASS.
+  - r03: separately re-evaluated. r04: PASS. Both on `b18cc056…`.
+  - r01 and r02: FAIL, kept.
+- **Spend:** finalize-f6 at 42.75 of 90 minutes and 5 of 6 starts. Closeout spent nothing.
+
+**Remaining:**
+- WORLD-02 stays deferred and not passed.
+- Owner style and full-stack play acceptance are separate.
+- Publication is a separate, explicit decision.
+- No release, tag, install or further planned engineering.
+
 # F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
 
 Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1`. Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md), top section.
