@@ -24,7 +24,7 @@ namespace KingmakerMountedCombat.Integration
         internal long Sequence, Generation;
         internal string Cause, RiderId, MountId, RiderName, MountName, Mode, Inability, Outcome, LogText, AbandonedReason, ProneRefusal;
         internal int Round, CaptureFrame, ResolveFrame;
-        internal bool Resolved, Attempted, Forced, Passed, ThresholdAgrees, DamageDealt, ProneImposed, RiderProneBefore, DamageImmune;
+        internal bool Resolved, Attempted, Forced, ForcedPass, Passed, ThresholdAgrees, DamageDealt, ProneImposed, RiderProneBefore, DamageImmune;
         internal int CheckD20, CheckStat, CheckBonus, CheckResult, CheckDc, CheckDcAdjustment;
         internal int DamageRolled, DamageBeforeDifficulty, DamageApplied, RiderDamageBefore, RiderDamageAfter;
         internal float StandardBefore, StandardAfter, MoveBefore, MoveAfter, SwiftBefore, SwiftAfter;
@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Integration
     // Resolves D5 through native rules: RuleSkillCheck (Mobility, the native difficulty DC adjustment included),
     // RuleDealDamage (1d6 bludgeoning, so native reduction, immunity and temporary hit points apply) and the native
     // knock-off rule for prone. It writes no action, cooldown, reaction, feat or initiative state.
-    internal sealed class MountedRiderFallService
+    internal sealed class MountedRiderFallService : IDisposable
     {
         private const int RecordCapacity = 32;
         private readonly MountedRiderFallLedger<GameMountedRelationshipService> ledger = new MountedRiderFallLedger<GameMountedRelationshipService>();
@@ -47,6 +47,14 @@ namespace KingmakerMountedCombat.Integration
         {
             this.restorationPending = restorationPending ?? throw new ArgumentNullException(nameof(restorationPending));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            Current = this;
+        }
+
+        internal static MountedRiderFallService Current { get; private set; }
+
+        public void Dispose()
+        {
+            if (ReferenceEquals(Current, this)) Current = null;
         }
 
         internal long BegunCount => ledger.BegunCount;
@@ -55,8 +63,9 @@ namespace KingmakerMountedCombat.Integration
         internal int PendingCount => ledger.PendingCount;
         internal MountedRiderFallRefusal LastRefusal { get; private set; }
         internal IReadOnlyList<MountedRiderFallRecord> Records => records.ToArray();
-        // Test environment only: replaces the check's d20 for one labelled success or failure row. Null in ordinary play.
-        internal Func<MountedRiderFallRecord, int?> ScenarioD20 { get; set; }
+        // Test environment only, labelled in the record: true selects the d20 that meets the native DC exactly (20 if none
+        // can), false the d20 one below it (1 if none can). The check, its DC and the outcome stay native. Null in ordinary play.
+        internal Func<MountedRiderFallRecord, bool?> ScenarioOutcome { get; set; }
         internal event Action<MountedRiderFallRecord> Observed;
 
         private sealed class Captured
@@ -174,8 +183,9 @@ namespace KingmakerMountedCombat.Integration
             var passed = false;
             if (inability == MountedRiderFallInability.None)
             {
-                var forced = ScenarioD20?.Invoke(record);
+                var forced = ScenarioOutcome?.Invoke(record);
                 record.Forced = forced.HasValue;
+                record.ForcedPass = forced == true;
                 var check = forced.HasValue
                     ? new ControlledFallCheck(rider, MountedRiderFallPolicy.DifficultyClass, forced.Value)
                     : new RuleSkillCheck(rider, StatType.SkillMobility, MountedRiderFallPolicy.DifficultyClass);
@@ -228,11 +238,16 @@ namespace KingmakerMountedCombat.Integration
             if (records.Count > RecordCapacity) records.RemoveAt(0);
         }
 
+        // RollD20 runs inside the native OnTrigger after the stat, bonus and adjusted DC are known.
         private sealed class ControlledFallCheck : RuleSkillCheck
         {
-            private readonly int d20;
-            internal ControlledFallCheck(UnitEntityData unit, int dc, int d20) : base(unit, StatType.SkillMobility, dc) { this.d20 = d20; }
-            protected override RollEntry RollD20() => d20;
+            private readonly bool pass;
+            internal ControlledFallCheck(UnitEntityData unit, int dc, bool pass) : base(unit, StatType.SkillMobility, dc) { this.pass = pass; }
+            protected override RollEntry RollD20()
+            {
+                var threshold = DC - (StatValue + (int)Bonus);
+                return pass ? Math.Max(1, Math.Min(20, threshold)) : Math.Max(1, Math.Min(20, threshold - 1));
+            }
         }
     }
 }

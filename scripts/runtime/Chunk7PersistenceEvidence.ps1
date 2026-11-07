@@ -53,9 +53,11 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7CapitalArrivalEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Finalize5CompanionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Finalize6FallsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Finalize6RiderFallEvidence.ps1')
 # Sprint 5: the same exploration Manual route with a Riding Dog pair as its second pair.
 function Get-KmcChunk7SecondPairProfile($Request){ if($Request.persistenceCase-cin@('riding-dog-exploration-manual','companion-names-tack-manual')){'small-halfling-female-ridingdog-v1'}else{'medium-humanoid-horse-v1'} }
-function Get-KmcChunk7PersistenceCases { @('mounted-charge-tb-committed-manual','integrated-tb-feat-charge-manual','mounted-combat-feat-tb-debt-manual','multi-exploration-manual','riding-dog-exploration-manual','companion-names-tack-manual','paladin-bond-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
+function Get-KmcChunk7PersistenceCases { @('mounted-charge-tb-committed-manual','integrated-tb-feat-charge-manual','mounted-combat-feat-tb-debt-manual','multi-exploration-manual','riding-dog-exploration-manual','companion-names-tack-manual','rider-fall-integration-manual','paladin-bond-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
 # Sprint 1 slot rotation: the owner-seed checkpoint producer overwrites its selected output through
 # ordinary saves (the QuickSave handler body, or SaveGame on the existing Manual). Writes after the
 # first are native replacement commits; the final bytes at the unchanged leaf are the receipt.
@@ -155,7 +157,7 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
         if(($kinds-join',')-cne$expectedKinds){throw 'Each pair must retain its exact declared native controls.'}
     }
 }
-function Test-KmcChunk7PostF2Slots($Request){ $Request.persistenceCase-ceq'companion-names-tack-manual' }
+function Test-KmcChunk7PostF2Slots($Request){ $Request.persistenceCase-cin@('companion-names-tack-manual','rider-fall-integration-manual') }
 function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label,[bool]$PostF2=$false) {
     if($Snapshot.label-cne$Label-or$Snapshot.owners-isnot[Array]-or$Snapshot.owners.Count-ne2-or$Snapshot.actors-isnot[Array]-or$Snapshot.actors.Count-ne4){throw 'All-pair native snapshot incomplete.'}
     Assert-KmcChunk7NativeCounters $Snapshot @('semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests')
@@ -202,6 +204,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($Request.persistenceCase-ceq'legacy-schema1-resave-manual'){Assert-KmcChunk7Schema1Observation $Request $Artifact;return}
     if(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase){Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact;return}
     if((Test-KmcChunk7OwnedPairsScenario $Request.scenario)-and(Test-KmcChunk7SixPairPersistence $Request)){Assert-KmcChunk7SixPairPersistenceObservation $Request $Artifact;return}
+    if($Request.persistenceCase-ceq'rider-fall-integration-manual'){Assert-KmcFinalize6RiderFallObservation $Request $Artifact;return}
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
     $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'
     if(-not(Test-KmcChunk7LoadRefusal $Request)-and$null-ne$o.PSObject.Properties['loadRefusal']){throw 'Another persistence case supplied native refusal evidence.'}
