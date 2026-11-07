@@ -1,6 +1,101 @@
 # F6 review handoff: logged rider falls and final integrated acceptance
 
-## Disposition (2026-11-07)
+## Disposition after the completion mission (2026-11-07)
+
+**F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE.**
+
+The mission (review baseline PR #21 at `ea4fcbc9`) raised the same finalize-f6 record's start ceiling from 4 to 6, append-only. The 90-minute ceiling is unchanged. One focused turn-based run (start 5) demonstrated every outcome that had remained open:
+- the safe landing at the exact threshold;
+- the native turn-based prone fall;
+- prone-then-death with no second throw;
+- the native stand-up paying exactly one Move on the rider's own next turn.
+
+Its recorded verdict is FAIL from reader-only defects, now corrected, and the complete corrected reader chain passes over its untouched evidence. The contingency start 6 is unused.
+
+### What changed in this mission
+
+- **Completion variant `finalize6-falls-completion-tb`:**
+  - It reuses the F3 encounter setup: both pairs mounted, pair A rider-first and pair B mount-first, a durable hostile, turn-based combat.
+  - It then runs the two F6 fall rows directly, without the four F3 action rows. In r02 one of those rows refused before any fall row ran.
+  - Its own contract (`finalize6-falls-completion-v1`), schema 55, and it claims no F3 row.
+- **Native stand-up contract (installed `TurnController.HandleUnitWillGetUp`):** `m_Cooldown.MoveAction += 3f; Unit.TryCancelCommands()`. The stand-up costs the Move and cancels the triggering order.
+  - The A row records the stand-up at the frame prone clears: the turn it was ordered on, native `CanStandUp`, the Move and Standard cooldowns, and the travel after the order.
+  - The reader reads the cost on the Move cooldown. While the Standard is unused, native `HasMoveAction()` is `!(MoveAction > 3)`, so it stays true after one Move; the independent review caught this.
+- **Snapshots** carry each rider's Mounted Combat reaction state.
+- **Healing exclusions:** the measured riders are excluded from the fixture healing for their windows (disclosed). The A rider rejoins once its fall damage is recorded.
+- **Product code:** none changed. `src/KingmakerMountedCombat/Integration` and `Domain` are identical to `c7ca5989`.
+
+### Identities
+
+- **Frozen and launched head:** `5fe80073113712e31ab971636b3e76b69a3085b7`, attached branch.
+  - Later commits change readers and records only: `b9ac2175` and the records commits. The DLL rebuilt at `b9ac2175` is byte-identical.
+- **DLL:** `87fed1617da327e49497f5e5bde32c10448faf0efe01362c8a14890e322fa096`, MVID `a7638ec4-9c19-4d03-9166-4cb7bf59331b`. Only the diagnostics differ from r03/r04's `b18cc056…`.
+- **Owner-test package:** `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f6f-diagnostic.zip`, SHA-256 `74baa915d6e7c8b0561e4f6d2db928009d615e3441b36f4ce4bc36ce46fb56ce`.
+  - A local lab path, not a download link. Not published or installed.
+  - The retained f6e package `7109cdfd…` carries the same gameplay code with the earlier diagnostics (r04).
+- **Suite:** `finalize-f6f-5fe80073-20261107`, snapshot SHA-256 `82b08cee7544117c07df2e05e06bf16b99666d48bc9fb79f462be38c71ad14ca`.
+- **Native target:** Kingmaker 2.1.7b, BaseGameOnly, with the retained Working-fixture dependency selection. Not the owner's full mod stack.
+
+### r05 `20261107-finalize-f6f-completion-05` (start 5): ORIGINAL OUTER FAIL / NATIVE GAME PASS; corrected re-evaluation PASS
+
+- **Rows in the game:** child PASS, 3/3 (setup, A death fall, B prone fall).
+- **Recorded verdict FAIL (reader-only):** "Runtime game-result contains an unknown subscenario: F6-tb-a-death-fall". The F6 rows were missing from `Get-KmcPhase3dHorseRuntimeRows`; r01 stopped earlier and never reached this check. The F6 reader also had two wrong expectations, both corrected:
+  - the unseated pair reads `None` once its custody retires;
+  - pair B's activation ended through the paired split one frame after the resolution snapshot, with no End Turn input.
+- **Re-evaluation:** `scripts/Test-Finalize6CompletionReevaluation.ps1 -RunId 20261107-finalize-f6f-completion-05` passes. It runs the real game-result reader with `-RequirePass` (39/0), the native Mammoth profile (including the child-entry preamble and the F6 reader) and the Phase 3D evidence, and checks that the evidence files are byte-unchanged. The recorded FAIL is kept.
+- **A — hard landing, then the native stand-up on the correct turn:**
+  - **Fall (round 1, pair A's own activation):** genuine Mastodon death. One fall: d20 2 + Mobility 8 = 10 against DC 11 (DC 15 with the native difficulty adjustment of −4). Native 1d6 = 2, native prone, landing 2.86 m from the mount.
+  - **The fall changed nothing else:** cooldowns before and after were equal, and the reaction state was unchanged.
+  - **Other pair:** pair B stayed mounted.
+  - **Activation end:** the existing paired split ended the interrupted activation, as in r01.
+  - **Next turn (round 2, the rider's own):** still natively prone, fresh cooldowns, `CanStandUp` true. One ordinary ground order on that same turn produced the native stand-up.
+  - **At the frame prone cleared:** Move cooldown 0 → 3.0 s, Standard 0 → 0. Travel after the order 0.0 m, and no order remained.
+  - **No replay:** fall service 1/1 before and after standing.
+- **B — safe landing from a genuine TB prone:**
+  - **Fall (round 2, pair B's own activation):** the Horse was knocked prone by the native knock-off writer. One fall: d20 9 + Mobility 2 = 11 against DC 11, the exact threshold, so it passed. Landing 2.52 m from the mount.
+  - **Outcome:** safe landing. No damage, no new prone, cooldowns 0 before and after, reaction state unchanged.
+- **C — prone, then death:**
+  - The repeat knock-off found the mount already prone (refused natively).
+  - The unseated prone mount was then killed: 27 native damage, then dead.
+  - No new fall began or resolved (begun since unseating 0; service 2/2 throughout).
+  - Ten frames after the death the former rider still had 0 damage and was not prone.
+- **Preparations:** at most one native preparation per actor per round.
+- **Restoration:** Mods, Working, save protection and write allowlist all restored. Digest `60e3d6cc…`, as in every F6 and F5 run.
+- **Inspected frames (private, normal camera):**
+  - `finalize3-f6-a-stood-up.png` (round 2): the native action panel shows **"Stand up" in the MOVE ACTION slot**. The rider stands and the log shows the hard-landing lines.
+  - `finalize3-f6-b-prone-fall.png`: the log reads "vbnm: Mobility check succeeded / Horse falls prone; vbnm is thrown: Mobility 11 vs DC 11 - lands safely / Horse receives 27 damage / Horse dies! / Round 3 started". There is no second fall line.
+
+### Coverage map (current against retained)
+
+| Outcome | Evidence |
+|---|---|
+| FALL-01 death, hard landing (TB) | r05 (current DLL `87fed161`); r01 earlier at f6b `b0031038`, kept FAIL |
+| Native stand-up pays exactly one Move on the rider's next native turn, with no travel and no replay | r05 |
+| FALL-02 new prone, safe landing at the exact threshold (TB) | r05 |
+| FALL-02 new prone, hard landing (RT), equal-name isolation, voluntary Dismount and remount with 0 falls | r03 (separate re-evaluation; DLL `b18cc056`) |
+| Prone, then death: no second throw | r05 |
+| Post-fall save and fresh-process reload | r03 → r04 PASS, cross-run PASS. **The Manual holds an unmounted, standing rider with saved damage. No save was taken while a rider was still prone, and that is not claimed.** |
+| Collapse to unconscious, immunities, lifecycle exclusions, reload seats | offline and source (`MountedRiderFallTests`) |
+| F1–F5 integration | retained, on their own artifacts. F3 rows r01 (f6b). F5 names/tack r03/r04. |
+| WORLD-02 | **deferred, not passed** |
+| Owner art, full-stack play acceptance | separate |
+
+### Budget and state
+
+- **finalize-f6:** 42.75 of 90 minutes and 5 of 6 starts (ceiling 4 → 6 append-only; a seventh is refused). This mission's imports cover the direct reader and re-evaluation runs.
+- **Checks:** Candidate 11/0 at `5fe80073`. Test-Finalize6Readers 76/0, Test-Finalize6PinnedSource 9/0, the F3 readers, and the components (1118/0) and Validate-Source (149/0) tiers.
+- **State:** no game, lock or waiter remains.
+
+### Owner playcheck (disposable save)
+
+1. In a turn-based fight, let a ridden mount die. Read the log line, and on the rider's next turn give any order. "Stand up" should take the Move.
+2. Trip or knock a mount prone. A rider with a good Mobility often lands safely, and the log says so.
+3. Kill a mount that is already down. Its former rider should not be thrown again.
+4. Save, reload and confirm that nothing replays. Remount with the ordinary control.
+
+**Stop at review.** No merge, tag, release, install or publication. WORLD-02 stays deferred.
+
+## Superseded disposition after the first F6 mission (2026-11-07)
 
 **F6 ENGINEERING PARTIAL — FALL-01 (TB mount death) AND FALL-02 (RT prone) SHOWN NATIVELY WITH HARD LANDINGS, AND THE POST-FALL SAVE/RELOAD PASSES; THE SAFE-LANDING BRANCH, TB PRONE, PRONE-THEN-DEATH AND THE TB STAND-UP COST ARE NOT SHOWN NATIVELY (4 OF 4 STARTS USED); OWNER ACCEPTANCE SEPARATE.**
 
