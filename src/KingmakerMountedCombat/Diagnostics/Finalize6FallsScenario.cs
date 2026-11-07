@@ -30,11 +30,19 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static readonly string[] Finalize6TurnBasedCases = { "F3-tb-setup", "F3-tb-a-round1", "F3-tb-b-round1", "F3-tb-a-step", "F3-tb-b-charge",
             "F6-tb-a-death-fall", "F6-tb-b-prone-fall" };
         private const string Finalize6Contract = "finalize6-falls-v1";
+        // F6 completion (2026-11-07): the same encounter setup and fall rows without the F3 action rows, which r02 showed can
+        // refuse before the falls are reached. Its own contract and row list; the F3 rows are not claimed by it.
+        internal const string Finalize6CompletionTurnBased = "finalize6-falls-completion-tb";
+        internal static readonly string[] Finalize6CompletionCases = { "F3-tb-setup", "F6-tb-a-death-fall", "F6-tb-b-prone-fall" };
+        private const string Finalize6CompletionContract = "finalize6-falls-completion-v1";
+        internal static bool IsFinalize6FallsScenario(string scenario) => scenario == Finalize6FallsTurnBased || scenario == Finalize6CompletionTurnBased;
+        private string[] Finalize6Cases => request.Scenario == Finalize6CompletionTurnBased ? Finalize6CompletionCases : Finalize6TurnBasedCases;
         private const int Finalize6SettleFrames = 30, Finalize6LogTail = 10;
-        private bool IsFinalize6Falls => request.Scenario == Finalize6FallsTurnBased;
+        private bool IsFinalize6Falls => IsFinalize6FallsScenario(request.Scenario);
         private readonly HashSet<UnitEntityData> f6NoHeal = new HashSet<UnitEntityData>();
         private JArray f6Falls;
         private long f6BegunAt, f6ResolvedAt;
+        private Vector3 f6StandUpFrom;
 
         private static MountedRiderFallService F6Service =>
             MountedRiderFallService.Current ?? throw new InvalidOperationException("The rider fall service is not present.");
@@ -42,7 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginFinalize6Measure()
         {
             f6Falls = new JArray();
-            f3Measure["contract"] = Finalize6Contract;
+            f3Measure["contract"] = request.Scenario == Finalize6CompletionTurnBased ? Finalize6CompletionContract : Finalize6Contract;
             f3Measure["falls"] = f6Falls;
             f3Measure["fallPolicy"] = new JObject { ["dc"] = MountedRiderFallPolicy.DifficultyClass, ["damageDice"] = MountedRiderFallPolicy.DamageDice,
                 ["damageDieSides"] = MountedRiderFallPolicy.DamageDieSides, ["stat"] = "SkillMobility" };
@@ -77,7 +85,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["life"] = state.LifeState.ToString(), ["prone"] = state.Prone.Active, ["proneQueued"] = state.Prone.ShouldBeActive,
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
                 ["hasMove"] = unit.HasMoveAction(), ["hasStandard"] = unit.HasStandardAction(), ["hasSwift"] = unit.HasSwiftAction(),
-                ["position"] = CapturePosition(unit.Position), ["commandsEmpty"] = unit.Commands.Empty, ["inCombat"] = unit.IsInCombat };
+                ["position"] = CapturePosition(unit.Position), ["commandsEmpty"] = unit.Commands.Empty, ["inCombat"] = unit.IsInCombat,
+                ["canStandUp"] = state.CanStandUp, ["mountedCombat"] = F6DefenseState(unit) };
+        }
+
+        // The Mounted Combat reaction state the fall must never touch (Sprint 6 buffs), read through its own service.
+        private static JObject F6DefenseState(UnitEntityData unit)
+        {
+            var service = MountedCombatDefenseService.Current;
+            if (service == null) return null;
+            try { var state = service.ReadState(unit); return new JObject { ["spent"] = state.Spent, ["owed"] = state.Owed, ["window"] = state.Window }; }
+            catch (Exception exception) { return new JObject { ["error"] = exception.GetType().Name }; }
         }
 
         private JObject F6Pair(UnitEntityData pairRider)
@@ -162,6 +180,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     f6BegunAt = service.BegunCount; f6ResolvedAt = service.ResolvedCount;
                     F3Steps["fallBefore"] = F6Snapshot();
                     F6Label(rider, false);
+                    f6NoHeal.Add(rider);
+                    F3Disclose("The aRider is excluded from the setup healing for its measured fall and recovery window.");
                     F3Steps["kill"] = F6Kill(horse, "pair A mount death in pair A's activation");
                     f3Frames = 0; f3Step = 2; return;
                 }
@@ -188,15 +208,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     f3Step = 5; return;
                 case 5:
                 {
-                    // The rider's ordinary order on its own turn: the native stand-up answers it.
+                    // The rider's ordinary order on its own turn. Native TurnController.HandleUnitWillGetUp charges the turn's Move
+                    // (+3 s cooldown) and cancels the triggering command, so the stand-up is measured at the frame prone clears and
+                    // no travel may follow it.
                     F3Select(rider);
                     F3Steps["standUpBefore"] = F6Snapshot();
+                    F3Steps["standUpTurn"] = new JObject { ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["status"] = turn?.Status.ToString(),
+                        ["unit"] = turn?.Unit?.UniqueId, ["sameTurnAsNext"] = ReferenceEquals(turn, f3RowTurn) };
+                    f6StandUpFrom = rider.Position;
                     F3GroundClick("standUp", F3Destination(rider, f3BMount, 3f), true);
                     f3Frames = 0; f3Step = 6; return;
                 }
                 case 6:
-                    if (rider.Descriptor.State.Prone.Active || !F3Settled(rider, null, null)) return;
+                    if (rider.Descriptor.State.Prone.Active) return;
+                    if (F3Steps["standUpBoundary"] == null) F3Steps["standUpBoundary"] = F6Snapshot();
+                    if (!F3Settled(rider, null, null)) return;
                     F3Steps["standUpAfter"] = F6Snapshot();
+                    F3Steps["standUpTravel"] = HorizontalDistance(f6StandUpFrom, rider.Position);
                     F3Shot("f6-a-stood-up", rider);
                     f3Step = 7; return;
                 case 7:
@@ -224,6 +252,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3Steps["fallBefore"] = F6Snapshot();
                     F6Label(f3BRider, true);
                     f6NoHeal.Add(f3BMount);
+                    f6NoHeal.Add(f3BRider);
+                    F3Disclose("The bRider is excluded from the setup healing for its measured fall window.");
                     F3Steps["knockOff"] = F6KnockOff(f3BMount, "pair B mount prone in pair B's activation");
                     f3Frames = 0; f3Step = 2; return;
                 }
@@ -243,7 +273,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3Steps["deathAfterProne"] = F6Kill(f3BMount, "death of the unseated prone mount");
                     f3Frames = 0; f3Step = 4; return;
                 case 4:
-                    if (!f3BMount.Descriptor.State.IsDead || ++f3Frames < Finalize6SettleFrames) return;
+                    // A short settle after the death callbacks: the former rider's state is compared before any later actor could act.
+                    if (!f3BMount.Descriptor.State.IsDead || ++f3Frames < 10) return;
                     F3Steps["afterDeath"] = F6Snapshot();
                     F3Steps["afterDeathLog"] = F6LogTailRows(Finalize6LogTail);
                     F3Steps["begunSinceUnseated"] = F6Service.BegunCount - f6BegunAt;

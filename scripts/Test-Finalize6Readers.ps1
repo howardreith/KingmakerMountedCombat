@@ -12,7 +12,7 @@ $shared=$script:KmcF5SharedName
 # ---- the turn-based child --------------------------------------------------------------------------------------------
 $aR='a1000000-0000-4000-8000-000000000001'; $aM='a1000000-0000-4000-8000-000000000002'; $bR='b1000000-0000-4000-8000-000000000003'; $bM='b1000000-0000-4000-8000-000000000004'
 function U([string]$Id,[string]$Name,[int]$Damage=0,[bool]$Prone=$false,[string]$Life='Conscious',[bool]$HasMove=$true,[bool]$HasStandard=$true){
-    [pscustomobject]@{id=$Id;name=$Name;damage=$Damage;hpLeft=30-$Damage;life=$Life;prone=$Prone;proneQueued=$false;standard=0;move=0;swift=0;hasMove=$HasMove;hasStandard=$HasStandard;hasSwift=$true;commandsEmpty=$true;inCombat=$true}
+    [pscustomobject]@{id=$Id;name=$Name;damage=$Damage;hpLeft=30-$Damage;life=$Life;prone=$Prone;proneQueued=$false;standard=0;move=0;swift=0;hasMove=$HasMove;hasStandard=$HasStandard;hasSwift=$true;commandsEmpty=$true;inCombat=$true;canStandUp=$true;mountedCombat=[pscustomobject]@{spent=$false;owed=$false;window=$false}}
 }
 function Pair([string]$State,[long]$Generation,[string]$Owner){ [pscustomobject]@{state=$State;generation=$Generation;ownerId=$Owner;riderId=$null;mountId=$null} }
 function Svc([long]$Begun,[long]$Resolved){ [pscustomobject]@{begun=$Begun;resolved=$Resolved;abandoned=0;pending=0;lastRefusal='None'} }
@@ -51,6 +51,8 @@ $bRow=[pscustomobject]@{
     afterDeath=(Snap (Svc 2 2) $none $none (U $aR 'Valerie' 4) $null (U $bR 'Linzi') (U $bM 'Steed' 60 $true 'Dead'))
     begunSinceUnseated=0;end=[pscustomobject]@{endedNatively=$true}}
 $aRow | Add-Member deathActivationEnded $true; $bRow | Add-Member proneActivationEnded $true
+$aRow | Add-Member standUpTurn ([pscustomobject]@{sameTurnAsNext=$true;unit=$aR;round=3;status='Acting'}); $aRow | Add-Member standUpTravel 0.1
+$aRow | Add-Member standUpBoundary (Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $false 'Conscious' $false $true) $null (U $bR 'Linzi') (U $bM 'Steed'))
 $nt=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $true) $null (U $bR 'Linzi') (U $bM 'Steed')); $nt.round=3; $nt | Add-Member turnRole 'aRider'; $aRow | Add-Member nextTurn $nt
 $rows=@($cases|ForEach-Object{ if($_ -ceq 'F6-tb-a-death-fall'){Row $_ $aRow}elseif($_ -ceq 'F6-tb-b-prone-fall'){Row $_ $bRow}elseif($_ -ceq 'F3-tb-setup'){Row $_ ([pscustomobject]@{entry=[pscustomobject]@{aRelationship='Mounted';bRelationship='Mounted'};combat=[pscustomobject]@{turnBased=$true}})}else{Row $_ ([pscustomobject]@{})} })
 $tbArtifact=[pscustomobject]@{schemaVersion=55;status='PASS';errors=@();subscenarioFailCount=0;rows=$rows;observations=[pscustomobject]@{riderId=$aR;horseId=$aM;finalize6Falls=[pscustomobject]@{
@@ -93,6 +95,29 @@ TbRefuses { param($a) $a.observations.finalize6Falls.preparations+=[pscustomobje
 TbRefuses { param($a) $a.observations.finalize6Falls.disclosedSetup=@() } 'undisclosed labelled outcomes refuse'
 $f=Clone $tbArtifact; $f.status='FAIL'; $f.errors=@('x'); Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'FAIL'; Check $true 'a failed child keeps its FAIL without qualification'
 Refuses { $f=Clone $tbArtifact; $f.status='FAIL'; Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'PASS' } 'a failed child cannot become PASS'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.hasMove=$true } 'a free stand-up (Move still available when prone cleared) refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpTravel=2.4 } 'a stand-up whose cost a following walk could explain refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.aRider.hasStandard=$false } 'a stand-up that took the Standard action refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpTurn.sameTurnAsNext=$false } 'a stand-up order outside the rider''s own next turn refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBoundary.service.begun=2 } 'a stand-up that replayed a fall refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.fallAfter.aRider.mountedCombat.spent=$true } 'a fall that spent the Mounted Combat reaction refuses'
+TbRefuses { param($a) $a.rows[6].evidence.steps.afterDeath.bRider.damage=7 } 'a former rider hurt again through the death callbacks refuses'
+TbRefuses { param($a) $a.observations.finalize6Falls.falls[1].record.attempted=$false } 'a safe landing with no actual check refuses'
+
+# ---- the completion variant: the same setup and fall rows without the F3 action rows ---------------------------------
+$compRequest=[pscustomobject]@{scenario='finalize6-falls-completion-tb'}
+$comp=Clone $tbArtifact; $o=$comp.observations.finalize6Falls; $o.contract='finalize6-falls-completion-v1'; $o.cases=@(Get-KmcFinalize6CompletionCases)
+$comp.rows=@($comp.rows | Where-Object { $_.name -cin @(Get-KmcFinalize6CompletionCases) })
+Assert-KmcFinalize6FallsEvidence -Request $compRequest -Artifact $comp -Status 'PASS'; Check $true 'the completion reader accepts setup, the death fall with its next-turn stand-up and the safe prone fall'
+Check ((Get-KmcPhase3dEvidenceDispatch 55 'finalize6-falls-completion-tb').validator -ceq 'Assert-KmcFinalize6FallsEvidence' -and (Test-KmcPhase3dSchemaRegistration 55 'finalize6-falls-completion-tb')) 'the completion variant dispatches to the F6 reader under schema 55'
+function CompRefuses([scriptblock]$Mutate,[string]$Message){ $a=Clone $comp; & $Mutate $a; Refuses { Assert-KmcFinalize6FallsEvidence -Request $compRequest -Artifact $a -Status 'PASS' } $Message }
+CompRefuses { param($a) $a.rows=@($a.rows[0],$a.rows[1]) } 'a missing terminal fall row refuses'
+CompRefuses { param($a) $a.observations.finalize6Falls.contract='finalize6-falls-v1' } 'the full-route contract under the completion name refuses'
+CompRefuses { param($a) $a.observations.finalize6Falls.cases=@(Get-KmcFinalize6TurnBasedCases) } 'claiming the F3 action rows it did not run refuses'
+CompRefuses { param($a) $a.observations.finalize6Falls.falls[1].record.riderId=$aR } 'a safe landing on the wrong rider refuses'
+CompRefuses { param($a) $r=$a.observations.finalize6Falls.falls[1].record; $r.damageDealt=$true; $r.riderDamageAfter=3 } 'a success that dealt damage refuses'
+CompRefuses { param($a) $a.rows[2].evidence.steps.begunSinceUnseated=1 } 'a duplicate prone or death resolution refuses'
+CompRefuses { param($a) $a.observations.finalize6Falls.preparations+=[pscustomobject]@{role='bRider';round=2;count=1}; $a.observations.finalize6Falls.preparations+=[pscustomobject]@{role='bRider';round=2;count=1} } 'an extra actor preparation refuses'
 
 # ---- the persistence route ------------------------------------------------------------------------------------------
 $dogId='0f6c2a1e-1d3b-4c5a-9e8f-7a6b5c4d3e2f'; $mammothId='9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'

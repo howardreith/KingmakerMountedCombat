@@ -1,10 +1,12 @@
-# F6 (FALL-01/FALL-02) external reader for finalize6-falls-tb. The child runs the F3 encounter's ordinary rows first
+# F6 (FALL-01/FALL-02) external reader for finalize6-falls-tb and its completion variant finalize6-falls-completion-tb, which
+# runs the same setup and fall rows without the F3 action rows and claims none of them. finalize6-falls-tb runs the F3 rows first
 # (recorded, and required to complete in the game; their detailed F3 verdicts belong to the F3 reader and are not
 # re-asserted here), then the two fall rows, which this reader owns: one soft fall per genuine mount death or new prone,
 # for the exact rider and pair generation, through the native check, damage and prone, with no action written, the other
 # pair untouched, no fall replayed by later callbacks, the explanatory line in the native battle log, and the native
 # stand-up paying its Move.
 function Get-KmcFinalize6TurnBasedCases { @('F3-tb-setup','F3-tb-a-round1','F3-tb-b-round1','F3-tb-a-step','F3-tb-b-charge','F6-tb-a-death-fall','F6-tb-b-prone-fall') }
+function Get-KmcFinalize6CompletionCases { @('F3-tb-setup','F6-tb-a-death-fall','F6-tb-b-prone-fall') }
 function Get-KmcFinalize6ShotNames { @('f6-a-death-fall','f6-a-stood-up','f6-b-prone-fall') }
 # The existing nav-safe dismount placement asks native FreePlaceSelector for a second place of radius max(corpulence)+0.25 m
 # around the mount, so a landed rider's centre is at least the larger body radius from the mount's.
@@ -69,20 +71,25 @@ function Assert-KmcFinalize6FallsEvidence {
  function Step($Row,[string]$Name){ $s=P (P $Row 'steps') $Name; if($null -eq $s){ Fail ('step observation missing: '+$Name) }; $s }
  function Svc($Snap,[string]$Field){ Int (P (P $Snap 'service') $Field) ('fall service '+$Field) }
 
- if([string]$Request.scenario -cne 'finalize6-falls-tb' -or $Artifact.schemaVersion -ne 55){ Fail 'scenario/schema mismatch' }
+ function J($V){ if($null -eq $V){ 'null' } else { $V | ConvertTo-Json -Compress -Depth 5 } }
+ function Reaction($Snap,[string]$Role,[string]$What){ $m=P (P $Snap $Role) 'mountedCombat'; if($null -eq $m -or $null -ne (P $m 'error')){ Fail ($What+': no Mounted Combat reaction state') }; J $m }
+ # F6 completion: the same encounter setup and fall rows without the F3 action rows (r02's refused full attack); it claims no F3 row.
+ $completion=[string]$Request.scenario -ceq 'finalize6-falls-completion-tb'
+ if(([string]$Request.scenario -cnotin @('finalize6-falls-tb','finalize6-falls-completion-tb')) -or $Artifact.schemaVersion -ne 55){ Fail 'scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL'){
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ Fail 'incomplete observation cannot become PASS' }
   return
  }
  if($Artifact.status -cne 'PASS' -or @($Artifact.errors).Count -ne 0 -or @($Artifact.rows | Where-Object status -CNE 'PASS').Count -ne 0 -or $Artifact.subscenarioFailCount -ne 0){ Fail 'envelope differs' }
  $o=P (P $Artifact 'observations') 'finalize6Falls'
- if($null -eq $o -or (Text (P $o 'contract')) -cne 'finalize6-falls-v1' -or (Text (P $o 'mode')) -cne 'TB'){ Fail 'measurement contract differs' }
+ $contract=if($completion){'finalize6-falls-completion-v1'}else{'finalize6-falls-v1'}
+ if($null -eq $o -or (Text (P $o 'contract')) -cne $contract -or (Text (P $o 'mode')) -cne 'TB'){ Fail 'measurement contract differs' }
  $riderId=Text (P $o 'rider'); $mountId=Text (P $o 'mount'); $bRiderId=Text (P $o 'secondRider'); $bMountId=Text (P $o 'secondMount')
  if([string]::IsNullOrEmpty($riderId) -or [string]::IsNullOrEmpty($mountId) -or $riderId -ceq $mountId -or $riderId -cne [string](P $Artifact.observations 'riderId') -or $mountId -cne [string](P $Artifact.observations 'horseId')){ Fail 'measurement identity differs' }
  if([string]::IsNullOrEmpty($bRiderId) -or [string]::IsNullOrEmpty($bMountId) -or @($riderId,$mountId,$bRiderId,$bMountId | Select-Object -Unique).Count -ne 4){ Fail 'the two pairs are not four distinct actors' }
  $policy=P $o 'fallPolicy'
  Need ((Int (P $policy 'dc') 'policy DC') -eq 15 -and (Int (P $policy 'damageDice') 'dice') -eq 1 -and (Int (P $policy 'damageDieSides') 'sides') -eq 6 -and (Text (P $policy 'stat')) -ceq 'SkillMobility') 'the D5 policy constants'
- $expected=@(Get-KmcFinalize6TurnBasedCases)
+ $expected=if($completion){@(Get-KmcFinalize6CompletionCases)}else{@(Get-KmcFinalize6TurnBasedCases)}
  if((@(P $o 'cases') | ConvertTo-Json -Compress) -cne ($expected | ConvertTo-Json -Compress)){ Fail 'registered row order differs' }
  if(@($Artifact.rows).Count -ne $expected.Count){ Fail 'the artifact holds rows other than the registered rows' }
  $rows=@{}
@@ -127,6 +134,15 @@ function Assert-KmcFinalize6FallsEvidence {
  $sb=Step $a 'standUpBefore'; $su=Step $a 'standUpAfter'
  Need ((P (P $sb 'aRider') 'prone') -eq $true -and (P (P $su 'aRider') 'prone') -eq $false) 'the prone rider stood up natively'
  Need ((P (P $sb 'aRider') 'hasMove') -eq $true -and (P (P $su 'aRider') 'hasMove') -eq $false) 'the native stand-up spent the Move action'
+ # Native TurnController.HandleUnitWillGetUp adds the turn's Move (+3 s) and cancels the triggering order: the cost is read at the
+ # frame prone clears, and no travel may follow, so a later walk can neither pay for nor hide the stand-up.
+ $tu=Step $a 'standUpTurn'; $sbd=Step $a 'standUpBoundary'
+ Need ((P $tu 'sameTurnAsNext') -eq $true -and (Text (P $tu 'unit')) -ceq $riderId) 'the stand-up order was given on the rider''s own next native turn'
+ Need ((P (P $sb 'aRider') 'canStandUp') -eq $true) 'native readiness permitted the stand-up'
+ Need ((P (P $sbd 'aRider') 'prone') -eq $false -and (P (P $sbd 'aRider') 'hasMove') -eq $false -and (P (P $sbd 'aRider') 'hasStandard') -eq (P (P $sb 'aRider') 'hasStandard')) 'at the frame prone cleared, the stand-up had taken the Move and left the Standard'
+ Need ((Num (Step $a 'standUpTravel') 'stand-up travel') -lt 0.5 -and (P (P $su 'aRider') 'commandsEmpty') -eq $true) 'the native stand-up cancelled the triggering order: no travel follows it'
+ Need ((Svc $sbd 'begun') -eq (Svc $aa 'begun') -and (Svc $sbd 'resolved') -eq (Svc $aa 'resolved')) 'the stand-up replayed no fall, check or damage'
+ Need ((Reaction $ab 'aRider' 'A before') -ceq (Reaction $aa 'aRider' 'A after')) 'the hard landing left the Mounted Combat reaction state untouched'
  Need ((P (P $su 'aRider') 'hasStandard') -eq (P (P $sb 'aRider') 'hasStandard')) 'the stand-up did not touch the Standard action'
  Need ((Svc $su 'begun') -eq (Svc $aa 'begun')) 'standing up replayed no fall'
  Need ((P (Step $a 'end') 'endedNatively') -eq $true) 'pair A activation ended natively'
@@ -147,6 +163,8 @@ function Assert-KmcFinalize6FallsEvidence {
  Need ((Text (P (P $bd 'bMount') 'life')) -ceq 'Dead') 'the unseated prone mount then died natively'
  Need ((Int (Step $b 'begunSinceUnseated') 'begun since unseated') -eq 0) 'prone then death began no second fall'
  Need ((Svc $bd 'begun') -eq (Svc $ba 'begun') -and (Svc $bd 'resolved') -eq (Svc $ba 'resolved')) 'the former rider was not thrown or hurt again by the fall service'
+ Need ((Int (P (P $bd 'bRider') 'damage') 'B rider damage after death') -eq (Int (P (P $bs 'bRider') 'damage') 'B rider damage before the kill') -and (P (P $bd 'bRider') 'prone') -eq $false) 'the former rider kept its damage and stayed standing through the death callbacks'
+ Need ((Reaction $bb 'bRider' 'B before') -ceq (Reaction $ba 'bRider' 'B after')) 'the safe landing left the Mounted Combat reaction state untouched'
  Need ((P (Step $b 'end') 'endedNatively') -eq $true -or (Step $b 'proneActivationEnded') -eq $true) 'pair B activation ended natively (End Turn, or the paired split ending it)'
 
  # ---- no extra native preparation ------------------------------------------------------------------------------------
