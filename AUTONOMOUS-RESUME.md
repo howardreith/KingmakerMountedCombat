@@ -1,3 +1,17 @@
+# Finalization resume — F6 accepted and merged; no planned engineering (2026-11-07)
+
+**Integration:** main contains F6 as merge `eb16d2f1`, owner-merged; its tree is identical to the reviewed `4b8a5f02`. Read CURRENT.md and the closeout section at the top of docs/FINALIZE-F6-REVIEW-HANDOFF.md.
+
+**State:** the six-sprint selected refinement engineering is complete, except that WORLD-02 stays deferred and not passed (docs/FINALIZATION-DEFERRED-ITEMS.md).
+
+**What remains:**
+- the owner's play acceptance on the f6f package `74baa915…`;
+- an explicit publication decision.
+
+There is no F7. A defect the owner reports selects only its concrete causal correction.
+
+**Not authorized:** release, tag, publication, installation or a new native start. The finalize-f6 record is at 5 of 6 starts and 42.75 of 90 minutes; the sixth start was never used and is not a testing target.
+
 # F6 resume — final review stop, completion PASS on re-evaluation (2026-11-07)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f6; branch codex/kmc-finalize-f6-falls-final-acceptance; draft PR #21. Read CURRENT.md and the top of docs/FINALIZE-F6-REVIEW-HANDOFF.md.
