@@ -389,7 +389,8 @@ namespace KingmakerMountedCombat.Domain
                 positions.Add(point);
                 normals.Add(normal.Normalized);
                 uvs.Add(u); uvs.Add(v);
-                for (var k = 0; k < 4; k++) { bones.Add(hit.Bones[k]); weights.Add(hit.Weights[k]); }
+                SpineWeights(point.Z, out var spineBones, out var spineWeights);
+                for (var k = 0; k < 4; k++) { bones.Add(spineBones[k]); weights.Add(spineWeights[k]); }
                 return positions.Count - 1;
             }
 
@@ -413,6 +414,42 @@ namespace KingmakerMountedCombat.Domain
                 if (facing >= 0f) { triangles.Add(a); triangles.Add(b); triangles.Add(c); }
                 else { triangles.Add(a); triangles.Add(c); triangles.Add(b); }
             }
+
+            // Tack is rigid around the torso, so every vertex is skinned to the spine alone: the bone weights of the dorsal midline
+            // vertex at its own z, mixed with those 2 cm before and behind. A cast that landed on fur, a leg or the neck would
+            // otherwise lend its vertex to a limb that swings away under animation (r02).
+            private void SpineWeights(float z, out int[] indices, out float[] values)
+            {
+                var mixed = new Dictionary<int, float>();
+                foreach (var offset in new[] { -0.02f, 0f, 0.02f })
+                {
+                    var vertex = DorsalVertex(z + offset);
+                    if (vertex >= 0) Accumulate(mixed, vertex, 1f);
+                }
+                Strongest(mixed, out indices, out values);
+            }
+
+            private int DorsalVertex(float z)
+            {
+                var key = (int)Math.Round(z * 1000f);
+                if (dorsalCache.TryGetValue(key, out var cached)) return cached;
+                var best = -1;
+                foreach (var window in new[] { new[] { 0.03f, 0.05f }, new[] { 0.06f, 0.08f } })
+                {
+                    var top = float.MinValue;
+                    var count = source.Positions.Length / 3;
+                    for (var i = 0; i < count; i++)
+                    {
+                        if (Math.Abs(source.Positions[i * 3 + 2] - z) > window[0] || Math.Abs(source.Positions[i * 3]) > window[1]) continue;
+                        if (source.Positions[i * 3 + 1] > top) { top = source.Positions[i * 3 + 1]; best = i; }
+                    }
+                    if (best >= 0) break;
+                }
+                dorsalCache[key] = best;
+                return best;
+            }
+
+            private readonly Dictionary<int, int> dorsalCache = new Dictionary<int, int>();
 
             // Height of the body's midline at z, halfway between the coat on the spine and under the belly.
             private float AxisHeight(float z)
@@ -495,6 +532,12 @@ namespace KingmakerMountedCombat.Domain
             {
                 var mixed = new Dictionary<int, float>();
                 Accumulate(mixed, i0, b0); Accumulate(mixed, i1, b1); Accumulate(mixed, i2, b2);
+                Strongest(mixed, out indices, out values);
+            }
+
+            // The four strongest bones, renormalized.
+            private static void Strongest(Dictionary<int, float> mixed, out int[] indices, out float[] values)
+            {
                 var ordered = new List<KeyValuePair<int, float>>(mixed);
                 ordered.Sort((left, right) => right.Value != left.Value ? right.Value.CompareTo(left.Value) : left.Key.CompareTo(right.Key));
                 indices = new int[4];

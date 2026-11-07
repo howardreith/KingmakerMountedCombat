@@ -563,7 +563,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BindSlots()
         {
             controls.Update();
-            foreach (var rider in new[] { firstRider, secondRider }.Where(r => world.Registry.FindActive(r) != null)) foreach (var blueprint in new[] { controls.DismountAbility, controls.RiderPrimaryAbility })
+            foreach (var rider in new[] { firstRider, secondRider }.Where(r => world.Registry.FindActive(r) != null)) foreach (var blueprint in CompanionNamesCase ? new[] { controls.RiderPrimaryAbility } : new[] { controls.DismountAbility, controls.RiderPrimaryAbility })
             {
                 var fact = rider.Descriptor.Abilities.GetAbility(blueprint); var nativeSlots = rider.UISettings.Slots;
                 var index = Array.FindIndex(nativeSlots, s => s == null || s is MechanicActionBarSlotEmpty);

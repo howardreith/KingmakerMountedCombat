@@ -114,6 +114,16 @@ namespace KingmakerMountedCombat.Tests
                 }
                 TestRunner.True(smooth.VertexCount == spiky.VertexCount && worst < 0.02, "A spike reached the tack: " + worst.ToString("F3") + " m at vertex " + at + " of " + count + " (" + smooth.Positions[at * 3].ToString("F3") + "," + smooth.Positions[at * 3 + 1].ToString("F3") + "," + smooth.Positions[at * 3 + 2].ToString("F3") + ") uv " + smooth.Uvs[at * 2].ToString("F3") + ".");
             });
+            runner.Run("every tack vertex follows the spine only: a leg bone under the belly never reaches the girth or the pad", () =>
+            {
+                string failure;
+                var fit = RidingDogTackGeometry.Build(Ellipsoid(true), RidingDogTackGeometry.SeatForward, out failure);
+                TestRunner.True(fit != null && failure == null, "The fit failed: " + failure);
+                for (var i = 0; i < fit.VertexCount; i++)
+                    for (var k = 0; k < 4; k++)
+                        TestRunner.True(fit.BoneIndices[i * 4 + k] != 2 || fit.BoneWeights[i * 4 + k] == 0f, "Tack vertex " + i + " follows the leg bone.");
+                TestRunner.True(Enumerable.Range(0, fit.VertexCount).Any(i => fit.Positions[i * 3 + 1] < Cy - 0.12f), "The girth never passed under the belly, so the check proved nothing.");
+            });
             runner.Run("the tack fit refuses an incomplete or mismatched body mesh before casting", () =>
             {
                 string failure;
@@ -153,7 +163,7 @@ namespace KingmakerMountedCombat.Tests
         private static float Top(float z) => Cy + Ry * (float)Math.Sqrt(1.0 - ((z - Cz) / Rz) * ((z - Cz) / Rz));
         private static float Inside(float x, float y, float z) => (x / Rx) * (x / Rx) + ((y - Cy) / Ry) * ((y - Cy) / Ry) + ((z - Cz) / Rz) * ((z - Cz) / Rz);
 
-        private static TackSourceMesh Ellipsoid()
+        private static TackSourceMesh Ellipsoid(bool legBone = false)
         {
             const int rings = 40, segments = 48;
             var positions = new List<float>(); var normals = new List<float>(); var bones = new List<int>(); var weights = new List<float>();
@@ -170,7 +180,8 @@ namespace KingmakerMountedCombat.Tests
                     var length = (float)Math.Sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
                     normals.AddRange(new[] { g[0] / length, g[1] / length, g[2] / length });
                     var front = Math.Max(0f, Math.Min(1f, (z - Cz) / Rz * 0.5f + 0.5f));
-                    bones.AddRange(new[] { 0, 1, 0, 0 }); weights.AddRange(new[] { 1f - front, front, 0f, 0f });
+                    if (legBone && y < Cy - 0.12f) { bones.AddRange(new[] { 2, 0, 0, 0 }); weights.AddRange(new[] { 1f, 0f, 0f, 0f }); }
+                    else { bones.AddRange(new[] { 0, 1, 0, 0 }); weights.AddRange(new[] { 1f - front, front, 0f, 0f }); }
                 }
             }
             var triangles = new List<int>();
