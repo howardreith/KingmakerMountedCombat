@@ -198,6 +198,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     // r01: the existing paired split ends the activation it interrupts (native ForceToEnd), so the rider's
                     // turn in which its mount died is over; recorded, not changed.
                     F3Steps["deathActivationEnded"] = !ReferenceEquals(turn, f3RowTurn);
+                    // The fall's damage is recorded; setup healing may resume so a hostile turn cannot drop the rider before it stands.
+                    f6NoHeal.Remove(rider);
+                    F3Disclose("The aRider rejoins the setup healing once its fall damage is recorded.");
                     F3Shot("f6-a-death-fall", rider);
                     f3Step = 4; return;
                 case 4:
@@ -216,6 +219,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3Steps["standUpTurn"] = new JObject { ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber, ["status"] = turn?.Status.ToString(),
                         ["unit"] = turn?.Unit?.UniqueId, ["sameTurnAsNext"] = ReferenceEquals(turn, f3RowTurn) };
                     f6StandUpFrom = rider.Position;
+                    f3IdleFrames = 0;
                     F3GroundClick("standUp", F3Destination(rider, f3BMount, 3f), true);
                     f3Frames = 0; f3Step = 6; return;
                 }
