@@ -29,9 +29,14 @@ namespace KingmakerMountedCombat.Domain
         public float SeatTopAtSeat { get; internal set; }
         public float CantleTop { get; internal set; }
         public float PommelTop { get; internal set; }
-        // Highest pad or seat vertex above the body's own dorsal line at that vertex's z: a fin or a raised edge shows here even
-        // when the seat itself sits correctly (r02, r03).
+        // Highest pad or seat vertex above the back (the midline surface from above) at that vertex's z: a fin or a raised edge
+        // shows here even when the seat itself sits correctly (r02, r03). Measured against the surface, not a nearby vertex (r04).
         public float MaxRiseAboveBack { get; internal set; }
+        // Every vertex's signed distance from the body along the surface normal it was lifted along (negative = inside the body),
+        // and how many have no body under them at all: a shard or a buried strip shows here whatever its height (r04).
+        public float MinClearance { get; internal set; }
+        public float MaxClearance { get; internal set; }
+        public int Unsupported { get; internal set; }
         // Vertices [0, PadVertexEnd) are the pad and its rim, [PadVertexEnd, SeatVertexEnd) the seat, the rest the girth.
         public int PadVertexEnd { get; internal set; }
         public int SeatVertexEnd { get; internal set; }
@@ -47,7 +52,7 @@ namespace KingmakerMountedCombat.Domain
         private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 0.95f, PadLift = 0.010f, RimLift = 0.004f;
         private const float SeatBack = 0.15f, SeatFront = 0.16f, SeatAngle = 0.62f, SeatBase = 0.012f;
         private const float CantleHeight = 0.032f, CantleOffset = -0.10f, PommelHeight = 0.026f, PommelOffset = 0.11f, RollWidth = 0.028f;
-        private const float GirthOffset = 0.05f, GirthWidth = 0.036f, GirthLift = 0.016f;
+        private const float GirthOffset = -0.04f, GirthWidth = 0.036f, GirthLift = 0.016f;
         private const int PadRows = 14, PadColumns = 13, SeatRows = 12, SeatColumns = 9, GirthSegments = 40;
         internal const float PadUvLeft = 0.02f, PadUvRight = 0.48f, SeatUvLeft = 0.52f, SeatUvRight = 0.73f, GirthUvLeft = 0.77f, GirthUvRight = 0.98f;
 
@@ -99,7 +104,7 @@ namespace KingmakerMountedCombat.Domain
             private readonly float seat;
             private readonly List<int> slab = new List<int>();
             private readonly Dictionary<int, float> axisCache = new Dictionary<int, float>();
-            private readonly List<V3> positions = new List<V3>(), normals = new List<V3>();
+            private readonly List<V3> positions = new List<V3>(), normals = new List<V3>(), lifts = new List<V3>();
             private readonly List<float> uvs = new List<float>(), weights = new List<float>();
             private readonly List<int> bones = new List<int>(), triangles = new List<int>();
             private int casts, misses;
@@ -129,6 +134,7 @@ namespace KingmakerMountedCombat.Domain
                 var seatEnd = positions.Count;
                 var maxRise = MaxRise(positions.Count);
                 BuildGirth();
+                Clearance(out var lowest, out var highest, out var unsupported);
                 if (padTop < 0 || seatTop < 0) { failure = "the pad or seat did not reach the back"; return null; }
                 if (misses * 4 > casts) { failure = "too many casts missed the body (" + misses + " of " + casts + ")"; return null; }
 
@@ -137,7 +143,7 @@ namespace KingmakerMountedCombat.Domain
                     Positions = Flatten(positions), Normals = Flatten(normals), Uvs = uvs.ToArray(), Triangles = triangles.ToArray(),
                     BoneIndices = bones.ToArray(), BoneWeights = weights.ToArray(), Casts = casts, Misses = misses,
                     BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop, MaxRiseAboveBack = maxRise,
-                    PadVertexEnd = padEnd, SeatVertexEnd = seatEnd
+                    MinClearance = lowest, MaxClearance = highest, Unsupported = unsupported, PadVertexEnd = padEnd, SeatVertexEnd = seatEnd
                 };
                 return data;
             }
@@ -147,10 +153,46 @@ namespace KingmakerMountedCombat.Domain
                 var rise = float.MinValue;
                 for (var i = 0; i < count; i++)
                 {
-                    var dorsal = DorsalVertex(positions[i].Z);
-                    if (dorsal >= 0) rise = Math.Max(rise, positions[i].Y - source.Positions[dorsal * 3 + 1]);
+                    var back = Dorsal(positions[i].Z);
+                    if (back.Valid) rise = Math.Max(rise, positions[i].Y - back.Point.Y);
                 }
                 return rise;
+            }
+
+            // Along each vertex's own surface normal: outward, a coat it leaves before any it meets means the vertex is inside the body;
+            // inward, the first coat it meets is its gap. A vertex with neither has no body under it.
+            private void Clearance(out float lowest, out float highest, out int unsupported)
+            {
+                lowest = float.MaxValue; highest = float.MinValue; unsupported = 0;
+                for (var i = 0; i < positions.Count; i++)
+                {
+                    var normal = lifts[i];
+                    var leave = Along(positions[i], normal, true);
+                    float value;
+                    if (leave < Along(positions[i], normal, false)) value = -leave;
+                    else
+                    {
+                        value = Along(positions[i], normal * -1f, false);
+                        if (value == float.MaxValue) { unsupported++; continue; }
+                    }
+                    lowest = Math.Min(lowest, value); highest = Math.Max(highest, value);
+                }
+                if (lowest > highest) lowest = highest = float.NaN;
+            }
+
+            // The nearest body triangle along a ray; leaving = only those whose coat faces along the ray (the ray starts inside).
+            private float Along(V3 origin, V3 direction, bool leaving)
+            {
+                var best = float.MaxValue;
+                foreach (var t in slab)
+                {
+                    int i0 = source.Triangles[t], i1 = source.Triangles[t + 1], i2 = source.Triangles[t + 2];
+                    if (!Intersect(origin, direction, P(i0), P(i1), P(i2), out var distance, out var b1, out var b2) || distance >= best) continue;
+                    var facing = V3.Dot(N(i0) * (1f - b1 - b2) + N(i1) * b1 + N(i2) * b2, direction);
+                    if (leaving ? facing <= 0f : facing >= 0f) continue;
+                    best = distance;
+                }
+                return best;
             }
 
             private static float[] Flatten(List<V3> values)
@@ -276,8 +318,9 @@ namespace KingmakerMountedCombat.Domain
                 return t * t * (3f - 2f * t);
             }
 
-            // The girth: a strap all the way round the chest just ahead of the seat. A cast that lands on a leg instead of the
-            // chest (much further from the body's axis than its neighbours) takes the nearest good neighbour's place.
+            // The girth: a strap all the way round the chest under the seat, behind the forelegs' elbows (ahead of the seat it ran
+            // through them, 4 cm deep, r05 specimen). A cast that lands on a leg instead of the chest (much further from the body's
+            // axis than its neighbours) takes the nearest good neighbour's place.
             private void BuildGirth()
             {
                 var rows = new[] { -0.5f, 0f, 0.5f };
@@ -413,6 +456,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 positions.Add(point);
                 normals.Add(normal.Normalized);
+                lifts.Add(hit.Normal);
                 uvs.Add(u); uvs.Add(v);
                 SpineWeights(point.Z, out var spineBones, out var spineWeights);
                 for (var k = 0; k < 4; k++) { bones.Add(spineBones[k]); weights.Add(spineWeights[k]); }
@@ -440,81 +484,68 @@ namespace KingmakerMountedCombat.Domain
                 else { triangles.Add(a); triangles.Add(c); triangles.Add(b); }
             }
 
-            // Tack is rigid around the torso, so every vertex is skinned to the spine alone: the bone weights of the dorsal midline
-            // vertex at its own z, mixed with those 2 cm before and behind. A cast that landed on fur, a leg or the neck would
-            // otherwise lend its vertex to a limb that swings away under animation (r02).
+            // Tack is rigid around the torso, so every vertex is skinned to the spine alone: the bone weights of the back where the
+            // midline meets it at the vertex's own z, mixed with those 2 cm before and behind. A cast that landed on fur, a leg or the
+            // neck would otherwise lend its vertex to a limb that swings away under animation (r02).
             private void SpineWeights(float z, out int[] indices, out float[] values)
             {
                 var mixed = new Dictionary<int, float>();
                 foreach (var offset in new[] { -0.02f, 0f, 0.02f })
                 {
-                    var vertex = DorsalVertex(z + offset);
-                    if (vertex >= 0) Accumulate(mixed, vertex, 1f);
+                    var back = Dorsal(z + offset);
+                    if (!back.Valid) continue;
+                    for (var k = 0; k < 4; k++)
+                    {
+                        if (back.Weights[k] <= 0f) continue;
+                        mixed.TryGetValue(back.Bones[k], out var current);
+                        mixed[back.Bones[k]] = current + back.Weights[k];
+                    }
                 }
                 Strongest(mixed, out indices, out values);
             }
 
-            private int DorsalVertex(float z)
+            // The back at z: where the vertical midline line first meets the coat from above, with the bone weights of the triangle
+            // it meets. The dog's back has a vertex only every 5 to 10 cm, so the highest vertex in a narrow window was often absent
+            // and the window then chose one under the chest instead (0.37 m below the back at z 0.20, r04); the surface is sampled
+            // between its vertices instead.
+            private Hit Dorsal(float z)
             {
                 var key = (int)Math.Round(z * 1000f);
                 if (dorsalCache.TryGetValue(key, out var cached)) return cached;
-                var best = -1;
-                foreach (var window in new[] { new[] { 0.03f, 0.05f }, new[] { 0.06f, 0.08f } })
-                {
-                    var top = float.MinValue;
-                    var count = source.Positions.Length / 3;
-                    for (var i = 0; i < count; i++)
-                    {
-                        if (Math.Abs(source.Positions[i * 3 + 2] - z) > window[0] || Math.Abs(source.Positions[i * 3]) > window[1]) continue;
-                        if (source.Positions[i * 3 + 1] > top) { top = source.Positions[i * 3 + 1]; best = i; }
-                    }
-                    if (best >= 0) break;
-                }
-                dorsalCache[key] = best;
-                return best;
+                var back = Trace(new V3(0f, 10f, z), new V3(0f, -1f, 0f), z);
+                dorsalCache[key] = back;
+                return back;
             }
 
-            private readonly Dictionary<int, int> dorsalCache = new Dictionary<int, int>();
+            private readonly Dictionary<int, Hit> dorsalCache = new Dictionary<int, Hit>();
 
-            // Height of the body's axis at z: the dorsal line there, less the torso's half-depth measured once at the seat. The spine is
-            // found at every z, while the lowest midline point is not: ahead of the seat the chest and legs reach the ground, and an
-            // axis halfway down to them falls outside the body (r03).
+            // Height of the body's axis at z: the back there (the median over 8 cm, so a tuft of fur on the midline does not shift
+            // every ray and anchor at one z), less the torso's half-depth measured once at the seat (halfway between the back and the
+            // belly under it). The back is found at every z, while the belly is not: ahead of the seat the chest and legs reach the
+            // ground, and an axis halfway down to them falls outside the body (r03).
             private float AxisHeight(float z)
             {
                 var key = (int)Math.Round(z * 1000f);
                 if (axisCache.TryGetValue(key, out var cached)) return cached;
                 if (float.IsNaN(halfDepth))
                 {
-                    var middle = MidlineCentre(seat);
-                    var spine = DorsalVertex(seat);
-                    halfDepth = spine < 0 || float.IsNaN(middle) ? float.NaN : source.Positions[spine * 3 + 1] - middle;
+                    var top = Dorsal(seat);
+                    var belly = Trace(new V3(0f, -10f, seat), new V3(0f, 1f, 0f), seat);
+                    halfDepth = top.Valid && belly.Valid ? (top.Point.Y - belly.Point.Y) * 0.5f : float.NaN;
                 }
-                var dorsal = DorsalVertex(z);
-                var result = dorsal < 0 || float.IsNaN(halfDepth) ? float.NaN : source.Positions[dorsal * 3 + 1] - halfDepth;
+                var heights = new List<float>();
+                foreach (var offset in new[] { -0.04f, -0.02f, 0f, 0.02f, 0.04f })
+                {
+                    var back = Dorsal(z + offset);
+                    if (back.Valid) heights.Add(back.Point.Y);
+                }
+                heights.Sort();
+                var result = heights.Count == 0 || float.IsNaN(halfDepth) ? float.NaN : heights[heights.Count / 2] - halfDepth;
                 axisCache[key] = result;
                 return result;
             }
 
             private float halfDepth = float.NaN;
-
-            // Halfway between the coat on the spine and under the belly, at the seat only.
-            private float MidlineCentre(float z)
-            {
-                var result = float.NaN;
-                foreach (var window in new[] { new[] { 0.03f, 0.05f }, new[] { 0.06f, 0.08f } })
-                {
-                    float top = float.MinValue, bottom = float.MaxValue;
-                    var count = source.Positions.Length / 3;
-                    for (var i = 0; i < count; i++)
-                    {
-                        if (Math.Abs(source.Positions[i * 3 + 2] - z) > window[0] || Math.Abs(source.Positions[i * 3]) > window[1]) continue;
-                        top = Math.Max(top, source.Positions[i * 3 + 1]);
-                        bottom = Math.Min(bottom, source.Positions[i * 3 + 1]);
-                    }
-                    if (top > bottom) { result = (top + bottom) * 0.5f; break; }
-                }
-                return result;
-            }
 
             // A ray in the plane z = const, from well outside the body towards its axis at the given angle (0 = straight up,
             // positive towards +x). The first front-facing surface it meets is the coat.
@@ -524,8 +555,15 @@ namespace KingmakerMountedCombat.Domain
                 var axis = AxisHeight(z);
                 if (float.IsNaN(axis)) { misses++; return new Hit(); }
                 var outward = new V3((float)Math.Sin(angle), (float)Math.Cos(angle), 0f);
-                var origin = new V3(0f, axis, z) + outward * 2f;
-                var direction = outward * -1f;
+                var hit = Trace(new V3(0f, axis, z) + outward * 2f, outward * -1f, z);
+                if (!hit.Valid) misses++;
+                return hit;
+            }
+
+            // The first front-facing body surface along a ray that lies in the plane z = const.
+            private Hit Trace(V3 origin, V3 direction, float z)
+            {
+                var outward = direction * -1f;
                 var best = new Hit();
                 var bestT = float.MaxValue;
                 var positionsArray = source.Positions;
@@ -543,7 +581,6 @@ namespace KingmakerMountedCombat.Domain
                     best = new Hit { Valid = true, Point = origin + direction * distance, Normal = (normal * 0.6f + outward * 0.4f).Normalized };
                     BlendWeights(i0, i1, i2, b0, b1, b2, out best.Bones, out best.Weights);
                 }
-                if (!best.Valid) misses++;
                 return best;
             }
 

@@ -19,7 +19,7 @@ function Labels([string]$Dog,[string]$Mammoth){ [pscustomobject]@{dog=[pscustomo
 # The overtip text as native SetName formats it: the first letter in the decorative saber font.
 function Overtip([string]$Id,[string]$Name){ [pscustomobject]@{id=$Id;controllerUnit=$Id;characterName=$Name;text=('<font="Saber_Dist32"><color=#672B31><size=140%>'+$Name[0]+'</size></color></font>'+$Name.Substring(1))} }
 function Overtips([string]$Name){ [pscustomobject]@{dog=(Overtip $dogId $Name);mammoth=(Overtip $mammothId $Name);writes=0;lastOutcome=$null} }
-$tack=[pscustomobject]@{dogBindings=1;mammothBindings=0;adopted=$true;rendererEnabled=$true;sameBones=$true;vertices=600;triangles=900;casts=410;misses=3;meshBuilds=1;attachments=1;backAtSeat=0.89;seatTop=0.913;cantleTop=0.95;pommelTop=0.94;maxRise=0.06
+$tack=[pscustomobject]@{dogBindings=1;mammothBindings=0;adopted=$true;rendererEnabled=$true;sameBones=$true;vertices=600;triangles=900;casts=410;misses=3;meshBuilds=1;attachments=1;backAtSeat=0.89;seatTop=0.913;cantleTop=0.95;pommelTop=0.94;maxRise=0.06;minClearance=0.002;maxClearance=0.051;unsupported=0
     dogStats=[pscustomobject]@{id=$dogId;size='Medium';armorClass=19;speed=40}}
 function Shots($Names){ @($Names|ForEach-Object{ [pscustomobject]@{name=$_;file=('movement-visuals/finalize5-'+$_+'.png');bytes=10;sha256=('0'*64)} }) }
 $typing=@($shared,'Nobody','<b>Rex</b>',$shared,'Biscuit',$shared|ForEach-Object{ [pscustomobject]@{intended=$_;field=$_;hotkeysSuspended=$true;actorsIdleBefore=$true;actorsIdleAfter=$true} })
@@ -50,6 +50,11 @@ $p=Clone $producer; $p.companionNames.tackMounted.pommelTop=1.175; Refuses { Ass
 $p=Clone $producer; $p.companionNames.tackAfterMotion.maxRise=0.21; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fin over a correctly placed seat refuses'
 $p=Clone $producer; $p.companionNames.tackUnmounted.seatTop=0.96; $p.companionNames.tackUnmounted.cantleTop=0.965; $p.companionNames.tackUnmounted.pommelTop=0.962; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a seat floating 7 cm over the back refuses'
 $p=Clone $producer; $p.companionNames.tackUnmounted.PSObject.Properties.Remove('maxRise'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fit without the rise diagnostic (r01-r03 evidence shape) refuses'
+$p=Clone $producer; $p.companionNames.tackUnmounted.minClearance=-0.132; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a girth 13 cm into the chest refuses (r04 replay)'
+$p=Clone $producer; $p.companionNames.tackMounted.unsupported=39; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'pad shards with no body under them refuse (r04 replay)'
+$p=Clone $producer; $p.companionNames.tackAfterMotion.maxClearance=0.17; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a pad point 17 cm off the flank refuses (r04 replay)'
+$p=Clone $producer; $p.companionNames.tackUnmounted.PSObject.Properties.Remove('minClearance'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fit without the clearance diagnostic (r01-r05 evidence shape) refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.minClearance=$null; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a clearance that was not finite refuses'
 $p=Clone $producer; $p.companionNames.tackMounted.dogStats.armorClass=21; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a dog whose armour class changed under the tack refuses'
 $p=Clone $producer; $p.companionNames.overtipsAtSave.dog.text='Riding Dog'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'an overtip still showing the default name refuses'
 $p=Clone $producer; $p.companionNames.overtipsAtSave.mammoth.controllerUnit=$dogId; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'an overtip bound to the other companion refuses'
@@ -67,6 +72,7 @@ $c=Clone $consumer; $c.companionNamesCold.labels.writes=1; Refuses { Assert-KmcF
 $c=Clone $consumer; $c.companionNamesCold.overtipsCold.mammoth.text='Mastodon'; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold overtip showing the default name refuses'
 $c=Clone $consumer; $c.companionNamesCold.tackRemounted.dogStats.speed=30; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold dog whose speed changed refuses'
 $c=Clone $consumer; $c.companionNamesCold.tackCold.maxRise=0.3; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold fit outside the envelope refuses'
+$c=Clone $consumer; $c.companionNamesCold.tackCold.unsupported=12; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold rebuilt tack with shards refuses'
 # Cross-run: the consumer against its producer's recorded values.
 $manual='5'*64
 $preq=[pscustomobject]@{scenario='chunk7-persistence-save';persistenceCase='companion-names-tack-manual';commit='abc';branch='codex/kmc-finalize-f5-names-dog-tack';dllSha256=('d'*64);dllMvid='m'}

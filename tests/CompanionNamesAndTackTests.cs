@@ -148,6 +148,29 @@ namespace KingmakerMountedCombat.Tests
                 for (var i = 0; i < fit.VertexCount; i++)
                     TestRunner.True(Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]) >= 1f, "A tack vertex is inside the body: " + i + " at " + fit.Positions[i * 3] + "," + fit.Positions[i * 3 + 1] + "," + fit.Positions[i * 3 + 2] + " uv " + fit.Uvs[i * 2] + " inside " + Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]));
             });
+            runner.Run("a sparse back over a midline keel: the back is sampled on its surface, not at a keel vertex below it (r04)", () =>
+            {
+                string failure;
+                var fit = RidingDogTackGeometry.Build(SparseBackOverKeel(), RidingDogTackGeometry.SeatForward, out failure);
+                TestRunner.True(fit != null && failure == null, "The fit failed: " + failure);
+                TestRunner.True(fit.MaxRiseAboveBack > 0.015f && fit.MaxRiseAboveBack < 0.08f, "The highest pad or seat point stands " + fit.MaxRiseAboveBack + " above the back.");
+                TestRunner.True(fit.MinClearance > -0.005f && fit.MaxClearance < 0.08f && fit.Unsupported == 0,
+                    "Clearance " + fit.MinClearance + " .. " + fit.MaxClearance + ", " + fit.Unsupported + " vertices with no body under them.");
+                var lift = fit.SeatTopAtSeat - fit.BackHeightAtSeat;
+                TestRunner.True(lift > 0.01f && lift < 0.05f, "Seat lift " + lift);
+                TestRunner.True(fit.Positions.All(Finite) && fit.Normals.All(Finite) && fit.BoneWeights.All(Finite), "A tack position, normal or weight is not finite.");
+                for (var i = 0; i < fit.VertexCount; i++)
+                    for (var k = 0; k < 4; k++)
+                        TestRunner.True(fit.BoneIndices[i * 4 + k] != 2 || fit.BoneWeights[i * 4 + k] == 0f, "Tack vertex " + i + " follows the keel's bone.");
+            });
+            runner.Run("an ordinary fit is neither buried nor unsupported along its surface normals", () =>
+            {
+                string failure;
+                var fit = RidingDogTackGeometry.Build(Ellipsoid(), RidingDogTackGeometry.SeatForward, out failure);
+                TestRunner.True(fit != null && failure == null, "The fit failed: " + failure);
+                TestRunner.True(fit.MinClearance > 0f && fit.MaxClearance < 0.08f && fit.Unsupported == 0,
+                    "Clearance " + fit.MinClearance + " .. " + fit.MaxClearance + ", " + fit.Unsupported + " unsupported.");
+            });
             runner.Run("the tack fit refuses an incomplete or mismatched body mesh before casting", () =>
             {
                 string failure;
@@ -188,9 +211,32 @@ namespace KingmakerMountedCombat.Tests
         private static float Top(float z) => Cy + Ry * (float)Math.Sqrt(1.0 - ((z - Cz) / Rz) * ((z - Cz) / Rz));
         private static float Inside(float x, float y, float z) => (x / Rx) * (x / Rx) + ((y - Cy) / Ry) * ((y - Cy) / Ry) + ((z - Cz) / Rz) * ((z - Cz) / Rz);
 
-        private static TackSourceMesh Ellipsoid(bool legBone = false)
+        // A sparse back (the real dog has a top vertex only every 5 to 10 cm) over a keel of small chest triangles on the midline,
+        // 1 cm inside the belly and weighted to bone 2: the highest vertex in a narrow window around most z is then a keel vertex
+        // 0.5 m under the back (r04).
+        private static TackSourceMesh SparseBackOverKeel()
         {
-            const int rings = 40, segments = 48;
+            var body = Ellipsoid(false, 12);
+            var positions = body.Positions.ToList(); var normals = body.Normals.ToList(); var bones = body.BoneIndices.ToList(); var weights = body.BoneWeights.ToList();
+            var triangles = body.Triangles.ToList();
+            for (var z = -0.25f; z <= 0.45f; z += 0.01f)
+            {
+                var first = positions.Count / 3;
+                foreach (var corner in new[] { new[] { -0.02f, 0f }, new[] { 0.02f, 0f }, new[] { 0.02f, 0.01f }, new[] { -0.02f, 0.01f } })
+                {
+                    var along = (z + corner[1] - Cz) / Rz;
+                    positions.AddRange(new[] { corner[0], Cy - Ry * (float)Math.Sqrt(Math.Max(0.0, 1.0 - along * along)) + 0.01f, z + corner[1] });
+                    normals.AddRange(new[] { 0f, -1f, 0f }); bones.AddRange(new[] { 2, 0, 0, 0 }); weights.AddRange(new[] { 1f, 0f, 0f, 0f });
+                }
+                triangles.AddRange(new[] { first, first + 1, first + 2, first, first + 2, first + 3 });
+            }
+            body.Positions = positions.ToArray(); body.Normals = normals.ToArray(); body.BoneIndices = bones.ToArray(); body.BoneWeights = weights.ToArray(); body.Triangles = triangles.ToArray();
+            return body;
+        }
+
+        private static TackSourceMesh Ellipsoid(bool legBone = false, int rings = 40)
+        {
+            const int segments = 48;
             var positions = new List<float>(); var normals = new List<float>(); var bones = new List<int>(); var weights = new List<float>();
             for (var r = 0; r <= rings; r++)
             {
