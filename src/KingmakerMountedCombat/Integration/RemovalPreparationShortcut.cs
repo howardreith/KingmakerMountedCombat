@@ -54,9 +54,11 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                confirmedFrame = -1; awaiting = false; reportPending = false;
+                // A cleanup save already being written still gets its own verdict reported when it settles.
+                confirmedFrame = -1; reportPending = false;
+                awaiting = removal.State == RemovalPreparationState.Saving;
                 logger.Exception("Removal preparation shortcut", exception);
-                try { if (!NativeTextDialog.IsShown) dialog.OpenMessage("Not prepared: " + exception.GetType().Name + ". See the mod log.", null); }
+                try { if (!awaiting && !NativeTextDialog.IsShown) dialog.OpenMessage("Not prepared: " + exception.GetType().Name + ". See the mod log.", null); }
                 catch (Exception) { }
             }
         }
