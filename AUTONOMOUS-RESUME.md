@@ -1,4 +1,24 @@
-# F5 resume — completion mission stop (2026-11-07)
+# F5 resume — saddle-diagnosis mission stop (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. Saddle cause proven and corrected. r06 (fd8bb820) is game PASS with the corrected saddle and all naming rows, but its recorded verdict is FAIL (harness UTF-8 defect, fixed in d6c88978). The consumer has not run.
+- **Spend:** 6 of 7 starts, 63.97/90 minutes.
+- **Not authorized:** reusing r06 (recorded FAIL) as a source, an eighth start, more time, merge, release or F6.
+- **To finish once the owner raises the ceiling to 8:**
+  - Run a Candidate at the current head.
+  - Run `scripts/Package.ps1 -ArtifactQualifier`, then the suite snapshot.
+  - Run the producer `companion-names-tack-manual` (chunk7-persistence-save) and inspect its frames.
+  - Run the consumer (chunk7-persistence-load) from the producer's run id and Manual hash.
+  - Run `scripts/Test-Finalize5ColdAgainstSource.ps1`.
+  - Make no records commit between producer and consumer.
+
+Facts for a successor:
+- **Real dog body:** the dog3 back has a top vertex only every 5–10 cm. Sample surfaces with rays, never with the "highest vertex in a window" rule.
+- **Specimen and replay:** the tack specimen (`tack-specimen/` in a run's evidence) plus the replay in `analysis-cache/finalize-f5-saddle-replay/` reproduce any fit offline. `Replay.cs` compiles with the VS 2022 BuildTools Roslyn `csc`, Kingmaker's Newtonsoft.Json, and the UnityEngine and CoreModule DLLs copied beside it for type loading only.
+- **Evidence encoding:** game evidence is UTF-8 without a byte-order mark. Read it with `-Encoding UTF8` (`Read-KmcJson` now does).
+- **Earlier F5 facts:** the TMP `m_char_buffer`, overtip and post-F2 slot facts are in the superseded section below.
+
+# Superseded F5 resume — completion mission stop (2026-11-07)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL. r04 (d32fdc28, f5d) has naming and the Manual PASS game-side; the saddle reader FAILs and the frames show shards. The consumer has not run.
