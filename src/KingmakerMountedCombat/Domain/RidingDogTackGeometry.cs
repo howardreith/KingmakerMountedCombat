@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Domain
     {
         // Mount-local, measured on the Medium Riding Dog: the rider's pelvis sits over z 0.12 (MountedRiderProfileCatalog).
         public const float SeatForward = 0.12f;
-        private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 0.95f, PadLift = 0.010f, RimLift = 0.0015f;
+        private const float PadBack = 0.19f, PadFront = 0.16f, PadAngle = 0.95f, PadLift = 0.010f, RimLift = 0.004f;
         private const float SeatBack = 0.15f, SeatFront = 0.16f, SeatAngle = 0.62f, SeatBase = 0.012f;
         private const float CantleHeight = 0.032f, CantleOffset = -0.10f, PommelHeight = 0.026f, PommelOffset = 0.11f, RollWidth = 0.028f;
         private const float GirthOffset = 0.05f, GirthWidth = 0.036f, GirthLift = 0.016f;
@@ -314,22 +314,22 @@ namespace KingmakerMountedCombat.Domain
 
             private static float Radius(Hit hit, float axis) => new V3(hit.Point.X, hit.Point.Y - axis, 0f).Length;
 
-            // Each sample lies on its own ray towards the body's axis, so only its distance along that ray varies. Fur only ever stands
-            // out of the coat; the median of each 3x3 window drops isolated spikes (fur cards, a leg in the way), a 3x3 mean softens
-            // what is left, and normals come from the smoothed surface. Each sample keeps the bone weights of its own hit.
+            // Each sample lies on its own ray from its own axis point. Its 3x3 neighbours are measured as distances from that same point in
+            // the cross-section (never from their own axis points: a real body's axis height jumps between neighbouring z, r03); the median
+            // drops isolated spikes (fur cards, a leg in the way), a second pass takes their mean, and normals come from the smoothed surface.
             private void SmoothGrid(Hit[,] hits, float[,] zs, float[,] angles, bool wrap)
             {
                 int rows = hits.GetLength(0), columns = hits.GetLength(1);
-                var radius = new float[rows, columns];
                 var valid = new bool[rows, columns];
-                for (var i = 0; i < rows; i++)
-                    for (var j = 0; j < columns; j++)
-                        if (hits[i, j].Valid) { radius[i, j] = Radius(hits[i, j], AxisHeight(zs[i, j])); valid[i, j] = true; }
-                var smoothed = Filter(Filter(radius, valid, wrap, true), valid, wrap, false);
                 var points = new V3[rows, columns];
+                var anchors = new V3[rows, columns];
                 for (var i = 0; i < rows; i++)
                     for (var j = 0; j < columns; j++)
-                        if (valid[i, j]) points[i, j] = new V3(0f, AxisHeight(zs[i, j]), zs[i, j]) + Outward(angles[i, j]) * smoothed[i, j];
+                    {
+                        anchors[i, j] = new V3(0f, AxisHeight(zs[i, j]), zs[i, j]);
+                        if (hits[i, j].Valid) { points[i, j] = hits[i, j].Point; valid[i, j] = true; }
+                    }
+                points = Project(Project(points, anchors, angles, valid, wrap, true), anchors, angles, valid, wrap, false);
                 for (var i = 0; i < rows; i++)
                     for (var j = 0; j < columns; j++)
                     {
@@ -345,24 +345,28 @@ namespace KingmakerMountedCombat.Domain
 
             private static V3 Outward(float angle) => new V3((float)Math.Sin(angle), (float)Math.Cos(angle), 0f);
 
-            private static float[,] Filter(float[,] values, bool[,] valid, bool wrap, bool median)
+            // One pass: each sample moves along its own ray to the median (or mean) of its neighbours' distances from its axis point.
+            private static V3[,] Project(V3[,] points, V3[,] anchors, float[,] angles, bool[,] valid, bool wrap, bool median)
             {
-                int rows = values.GetLength(0), columns = values.GetLength(1);
-                var result = new float[rows, columns];
+                int rows = points.GetLength(0), columns = points.GetLength(1);
+                var result = new V3[rows, columns];
                 var window = new List<float>(9);
                 for (var i = 0; i < rows; i++)
                     for (var j = 0; j < columns; j++)
                     {
                         if (!valid[i, j]) continue;
+                        var outward = Outward(angles[i, j]);
                         window.Clear();
                         for (var di = -1; di <= 1; di++)
                             for (var dj = -1; dj <= 1; dj++)
                             {
                                 int ii = i + di, jj = wrap ? (j + dj + columns) % columns : j + dj;
-                                if (ii >= 0 && ii < rows && jj >= 0 && jj < columns && valid[ii, jj]) window.Add(values[ii, jj]);
+                                if (ii >= 0 && ii < rows && jj >= 0 && jj < columns && valid[ii, jj]) window.Add(new V3(points[ii, jj].X - anchors[i, j].X, points[ii, jj].Y - anchors[i, j].Y, 0f).Length);
                             }
-                        if (median) { window.Sort(); result[i, j] = window[window.Count / 2]; }
-                        else { var sum = 0f; foreach (var value in window) sum += value; result[i, j] = sum / window.Count; }
+                        float distance;
+                        if (median) { window.Sort(); distance = window[window.Count / 2]; }
+                        else { var sum = 0f; foreach (var value in window) sum += value; distance = sum / window.Count; }
+                        result[i, j] = anchors[i, j] + outward * distance;
                     }
                 return result;
             }
@@ -451,11 +455,30 @@ namespace KingmakerMountedCombat.Domain
 
             private readonly Dictionary<int, int> dorsalCache = new Dictionary<int, int>();
 
-            // Height of the body's midline at z, halfway between the coat on the spine and under the belly.
+            // Height of the body's axis at z: the dorsal line there, less the torso's half-depth measured once at the seat. The spine is
+            // found at every z, while the lowest midline point is not: ahead of the seat the chest and legs reach the ground, and an
+            // axis halfway down to them falls outside the body (r03).
             private float AxisHeight(float z)
             {
                 var key = (int)Math.Round(z * 1000f);
                 if (axisCache.TryGetValue(key, out var cached)) return cached;
+                if (float.IsNaN(halfDepth))
+                {
+                    var middle = MidlineCentre(seat);
+                    var spine = DorsalVertex(seat);
+                    halfDepth = spine < 0 || float.IsNaN(middle) ? float.NaN : source.Positions[spine * 3 + 1] - middle;
+                }
+                var dorsal = DorsalVertex(z);
+                var result = dorsal < 0 || float.IsNaN(halfDepth) ? float.NaN : source.Positions[dorsal * 3 + 1] - halfDepth;
+                axisCache[key] = result;
+                return result;
+            }
+
+            private float halfDepth = float.NaN;
+
+            // Halfway between the coat on the spine and under the belly, at the seat only.
+            private float MidlineCentre(float z)
+            {
                 var result = float.NaN;
                 foreach (var window in new[] { new[] { 0.03f, 0.05f }, new[] { 0.06f, 0.08f } })
                 {
@@ -469,7 +492,6 @@ namespace KingmakerMountedCombat.Domain
                     }
                     if (top > bottom) { result = (top + bottom) * 0.5f; break; }
                 }
-                axisCache[key] = result;
                 return result;
             }
 
