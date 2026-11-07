@@ -1,6 +1,106 @@
 # F5 review handoff: companion naming and a fitted Riding Dog saddle
 
-## Disposition after the saddle-diagnosis mission (2026-11-07)
+## Disposition after the producer/consumer completion mission (2026-11-07)
+
+**F5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE.**
+
+The mission (review baseline PR #20 at d87b148e) raised the same finalize-f5 record's start ceiling from 7 to 8, append-only. The 90-minute time ceiling is unchanged. Exactly two starts ran: a producer under the corrected UTF-8 reader and its cold consumer in a fresh game process. Both PASS, and the cross-run reader passes. No gameplay code changed.
+
+### Identities
+
+- **Compiled source:** fd8bb82018d70c93732c7a1bedcf4a9a60c2c2af (r06's).
+- **Frozen and launched head:** d87b148edfc9b48989f253ca31054c047bac5033, attached branch `codex/kmc-finalize-f5-names-dog-tack`, never detached.
+  - fd8bb820 → d87b148e changes only `Read-KmcJson`, its focused regression and three records. There is no C# or project-file delta.
+- **DLL:** `8459126ce033443bda4fad9a4444984fa3217ca528aad63d723a5818ee8f9361`, MVID e90f71ee-c299-40ca-9e80-562fd2b497b1.
+  - Byte-identical to r06's. Verified before and after the Candidate rebuild and after packaging.
+- **Package:** `KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f5h-diagnostic.zip`, SHA-256 `b078d8700e429caff162922cb3c6555227aeb2cd512e2ef3e2fbe274699c23d3`.
+  - It differs from r06's package `2013e870…` only because its manifest records the new head.
+- **Suite:** `finalize-f5h-d87b148e-20261107`, snapshot SHA-256 `664ad81f3a55b5f88a966fe45e4b0ed268841cdd04e78f5d5754fc80c67a6b90`.
+  - r06's suite `finalize-f5g-fd8bb820-20261107` has full snapshot SHA-256 `6b9bce9573e211ad089bad4a955e84642148481626c5565bbfe0d64f75dde523`, from the frozen file.
+- **Native target:** Kingmaker 2.1.7b, BaseGameOnly, with the retained dependency selection `retained-dependencies-final211.json`. This is the fixture configuration, not the owner's full mod stack.
+
+### Gates before freezing
+
+- **Focused reader regression:** 55/55 under Windows PowerShell 5.1.19041 Desktop, the launch runtime. It includes the UTF-8 no-BOM accented-name probe against the real helper.
+- **Reader paths:**
+  - The launcher dot-sources the worktree's `RuntimeHarness.Common.ps1`, the only non-test `Read-KmcJson`.
+  - The cross-run checker reads with `-Encoding UTF8`.
+- **Candidate:** 11/0 at d87b148e in 4.31 min, including Fast, with every sub-suite at FAIL=0.
+- **Other checks:**
+  - The request validator passed both shapes.
+  - The producer and consumer WhatIf checks passed.
+  - No new review: the only delta since the reviewed fd8bb820 is the owner-reviewed d6c88978.
+
+### Producer r07 (start 7): PASS
+
+- **Run:** `20261107-finalize-f5h-producer-07`, game process 32424. Result PASS, evidence PASS, 4/4 subscenarios, no errors.
+- **Naming:** every row passes in the external reader:
+  - the duplicate Unicode name `Ébène l'Ancien`;
+  - Esc and cancel;
+  - markup refusal;
+  - reset;
+  - the distinct name;
+  - labels and overtips.
+- **Identities at save:**
+  - Riding Dog `f56df47a-0b0d-4113-80d2-6c42540166bc` (blueprint b7a14f25…, master `d17c8fd0…`, the female Small halfling).
+  - Mastodon `d79a4f6c-b74e-4868-95bd-533899131acb` (master `b6628a77…`).
+  - Both have CustomName and CharacterName `Ébène l'Ancien`.
+- **Saddle:** in every pose, clearance −0.0036…0.0508 with 0 unsupported. Fit 109.3 ms. One binding on the dog and none on the Mammoth. Dog AC 19, speed 40, Medium, unchanged.
+- **Inspected frames** (private, `movement-visuals`): unmounted side and mounted side show one continuous pad and seat on the back and the girth behind the elbow. The rider is seated with her leg unchanged, and there is no shard or buried surface.
+- **Continuation:** the planned second-pair continuation passed its plan check.
+- **Native Manual:** `Manual_300_KMC_C7_WORLD.zks`, SHA-256 `d39f8b46e37d3f39af73053b45846be0da525a679004086b7d76f51c4dc4d90b`, 858008 bytes.
+  - Schema 3, area 9d1278a2…, campaign d41185be…. Two pairs: Mastodon generation 1, and Riding Dog `small-halfling-female-ridingdog-v1` generation 2. Five control slots.
+- **Archive size:** larger than r06's 376897 bytes only because its `header.png` thumbnail is a real 480659-byte render; r06's was a 4100-byte near-blank image. The world, party and player entries match r06's within a few KB.
+- **Restoration:**
+  - Mods, Working, baseline, save protection and the write allowlist are all true.
+  - Save-inventory digest `60e3d6cc271af65408d8b0d7db6c132ca4f0f42f38eba4dee46589a21db9c2a1`, the same as r06's.
+
+### Cold consumer r08 (start 8): PASS
+
+- **Run:** `20261107-finalize-f5h-consumer-08`, a fresh game process 33832. Same commit, branch, DLL and MVID as r07.
+  - It loaded r07's exact Manual (`d39f8b46…`, 858008 bytes) through the unchanged source rule.
+  - Result PASS, evidence PASS, 3/3 subscenarios, no errors.
+- **Names:**
+  - Before any rename, reset or sheet action, both companions read CustomName and CharacterName `Ébène l'Ancien`: the duplicate Unicode name, unchanged.
+  - The overtips render it on both.
+  - Naming-service writes: 0 at the cold-name observation and 0 at the overtips. The last outcome is null, so nothing test-side renamed them.
+- **Identities:** the cold dog and Mastodon have the saved unit IDs, masters and blueprints. Both are the restored archive mounts of their pairs, and both still own their pets and are eligible.
+- **Saddle:**
+  - It was re-fitted in the new process: fit 105.6 ms, against the producer's 109.3, with clearance equal to float noise.
+  - One binding on the dog (`unitBound` f56df47a…) and none on the Mammoth. Adopted, visible, the same bones as `dog3`, `PF/StandardDynamic`. 513 vertices, 411 casts, 0 misses, back at seat 0.8627.
+  - The same holds after the dismount/remount cycle (`tackRemounted`).
+  - Dog AC 19, speed 40, Medium, unchanged.
+- **Frames** (inspected, private): cold restored side and cold remounted side show the same coherent saddle with the rider seated. The cold dog sheet shows `Ébène l'Ancien` with Default Name and Rename, AC 19 and speed 40.
+- **Lifecycle:**
+  - The cold sheets for both companions offered Rename and Default Name and closed.
+  - Native continuation followed its plan, and the terminal reader passed.
+- **Writes and restoration:** the consumer wrote no save. The source Manual is still `d39f8b46…`, 858008 bytes. Restoration is complete with the same digest `60e3d6cc…`.
+- **Cross-run reader:** `scripts/Test-Finalize5ColdAgainstSource.ps1 -ProducerRunId 20261107-finalize-f5h-producer-07 -ConsumerRunId 20261107-finalize-f5h-consumer-08` passes.
+  - It checks both PASS, the same commit, branch, DLL and MVID, and the exact Manual.
+  - Per companion: the saved ID, CustomName and CharacterName, the master, the blueprint and the overtip text.
+  - The dog's statistics.
+
+### Earlier runs, kept
+
+- **r06** `20261107-finalize-f5g-producer-06`: ORIGINAL OUTER FAIL / NATIVE GAME PASS. The verdict, evidence bytes and archive (`c673673c…`, 376897 bytes) are kept untouched. Its UTF-8 re-evaluation (below) is separate evidence, and r06 was not used as a source.
+- **r01–r05:** FAIL verdicts kept at their own builds. r05's private specimen is kept.
+
+### Budget
+
+- **Spend:** 74.9 of 90 minutes and 8 of 8 starts on the same finalize-f5 record.
+  - The ceiling chain is 3 → 6 → 7 → 8, append-only, and the time ceiling is unchanged.
+  - A ninth start is refused offline, as checked against the real record.
+  - The 430 s development cross-references are retained and not recharged.
+- **This mission:** Candidate 4.31 min, package and suite about 2.2 min, two WhatIf checks, producer 2.03 min and consumer 1.75 min.
+- **State:** no game, waiter or transaction lock remains.
+
+### Not tested, and unchanged
+
+- **Not tested:** physical mouse and keyboard input, the portrait tooltip, the combat log and Buff Planner screens. Posed clearance is verified offline on one specimen; in-game clearance is checked in the fit pose.
+- **Owner acceptance:** saddle art and taste, and full-stack play, remain separate.
+- **Unchanged:** WORLD-02 stays deferred and not passed. F6 is not started. No merge, release, tag, install or publication.
+
+## Superseded disposition after the saddle-diagnosis mission (2026-11-07)
 
 **F5 ENGINEERING PARTIAL — SADDLE CAUSE PROVEN, CORRECTED AND DEMONSTRATED NATIVELY; PRODUCER r06 GAME PASS BUT REFUSED BY A HARNESS ENCODING DEFECT (NOW FIXED); COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE.**
 

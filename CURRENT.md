@@ -1,4 +1,24 @@
-# F5 ENGINEERING PARTIAL — SADDLE CORRECTED AND DEMONSTRATED; r06 GAME PASS, HARNESS-REFUSED (ENCODING, FIXED); COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE (2026-11-07, saddle-diagnosis mission)
+# F5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, producer/consumer completion mission)
+
+Branch codex/kmc-finalize-f5-names-dog-tack. Frozen and launched at d87b148e (compiled source fd8bb820; DLL `8459126c…`, MVID e90f71ee…, byte-identical to r06). Base main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
+
+**Status:**
+- **Producer r07** `20261107-finalize-f5h-producer-07`: PASS.
+  - Every naming row passes, including the duplicate Unicode `Ébène l'Ancien`.
+  - The corrected saddle is coherent, with clearance −0.0036…0.0508 and 0 unsupported.
+  - Native Manual `d39f8b46…`, 858008 bytes. Restored, digest `60e3d6cc…`.
+- **Cold consumer r08** `20261107-finalize-f5h-consumer-08`: PASS, in a fresh process loading r07's exact Manual.
+  - The saved IDs, masters, blueprints and both names are intact, with zero naming-service writes.
+  - One saddle was re-fitted in the new process and survived the remount. Dog statistics are unchanged.
+  - No save was written, and restoration is complete.
+  - The cross-run reader `Test-Finalize5ColdAgainstSource.ps1` passes.
+- **r06:** ORIGINAL OUTER FAIL / NATIVE GAME PASS, kept. It was not used as a source.
+
+**Spend:** 74.9 of 90 minutes, 8 of 8 starts, on the same finalize-f5 record (ceiling 7 → 8 append-only). A ninth start is refused.
+
+**Next:** final review. Owner art and full-stack acceptance are separate. WORLD-02 stays deferred; F6 is not started; no merge, release or install.
+
+# Superseded F5 state after the saddle-diagnosis mission (2026-11-07)
 
 Branch codex/kmc-finalize-f5-names-dog-tack. Product at fd8bb820 (r06); harness reader fix at d6c88978; records commit after it. Base main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
 

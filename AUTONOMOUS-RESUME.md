@@ -1,4 +1,14 @@
-# F5 resume — saddle-diagnosis mission stop (2026-11-07)
+# F5 resume — final review stop, cold consumer PASS (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING COMPLETE — READY FOR FINAL REVIEW.
+  - Producer r07 and cold consumer r08 both PASS at d87b148e (DLL `8459126c…`), and the cross-run reader passes.
+  - Manual `d39f8b46…`, 858008 bytes.
+- **Spend:** 8 of 8 starts, 74.9/90 minutes. No further start is authorized.
+- **Not authorized:** merge, release, tag, install, publication or F6.
+- **Next:** final review and owner acceptance.
+
+# Superseded F5 resume — saddle-diagnosis mission stop (2026-11-07)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
 - **State:** ENGINEERING PARTIAL. Saddle cause proven and corrected. r06 (fd8bb820) is game PASS with the corrected saddle and all naming rows, but its recorded verdict is FAIL (harness UTF-8 defect, fixed in d6c88978). The consumer has not run.
