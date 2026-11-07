@@ -1,6 +1,18 @@
-# F5 IN PROGRESS — companion names and Riding Dog tack (2026-11-06)
+# F5 ENGINEERING PARTIAL — START CEILING REACHED; OWNER ACCEPTANCE SEPARATE (2026-11-07)
 
-Branch codex/kmc-finalize-f5-names-dog-tack, worktree worktrees/finalize-f5, from main 3f19e9bd (the F4 landing). Requirements PET-01 and PET-02. Record finalize-f5: 60 min, at most 3 starts. No merge, release, install or F6.
+Branch codex/kmc-finalize-f5-names-dog-tack, worktree worktrees/finalize-f5, from main 3f19e9bd (the F4 landing). Requirements PET-01 and PET-02. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md).
+
+**Status:**
+- **Naming (PET-01):** fully exercised in the game on the producer side through the real sheet button and native dialog, in all three runs.
+- **Tack (PET-02):** attached, adopted, single and mechanically neutral in every run. Its fitted shape failed the reader in r03 and has been corrected offline only.
+- **Cold consumer:** not run.
+
+**Runs (all FAIL, verdicts kept, causes corrected; restoration complete each time):**
+- r01 (f5a): a pre-F2 slot assertion.
+- r02 (f5b): F2's control migration of a stale harness Dismount binding.
+- r03 (f5c): game side PASS on every row and the Manual written; the reader refused the tack shape.
+
+**Next:** two more starts on this record (producer + consumer) from the branch head, which needs owner authorization. Spend: finalize-f5 26.83/60 min, 3 of 3 starts. No game, lock or waiter remains. No merge, release, install or F6.
 
 **F4 closeout:** F4 ACCEPTED FOR INTEGRATION WITH WORLD-02 NATIVE VALIDATION DEFERRED; OWNER ACCEPTANCE SEPARATE. The owner merged PR #19 at the reviewed head 46f76f7e as 3f19e9bd. WORLD-02 is deferred, not passed: see [docs/FINALIZATION-DEFERRED-ITEMS.md](docs/FINALIZATION-DEFERRED-ITEMS.md) and the F4 handoff's integration closeout.
 
