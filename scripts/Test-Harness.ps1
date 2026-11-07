@@ -5082,7 +5082,11 @@ try {
             $subscriberSource.Contains('service.Ownership.Owns(owner)') -and
             $subscriberSource.Contains('CleanupOwner(owner.Boundary, NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed') -and
             $subscriberSource.Contains('var owner = service.ResolveActorOwner(actor);') -and
-            $subscriberSource.Contains('return owner == null || CleanupOwner(owner, boundary, source, trigger);')) `
+            $subscriberSource.Contains('if (owner == null) return true;') -and
+            $subscriberSource.IndexOf('if (fallCause != MountedRiderFallCause.None) falls.Capture(owner, actor, fallCause);') -ge 0 -and
+            $subscriberSource.IndexOf('if (fallCause != MountedRiderFallCause.None) falls.Capture(owner, actor, fallCause);') -lt $subscriberSource.IndexOf('var succeeded = CleanupOwner(owner, boundary, source, trigger);') -and
+            $subscriberSource.IndexOf('var succeeded = CleanupOwner(owner, boundary, source, trigger);') -lt $subscriberSource.IndexOf('falls.Complete(owner);') -and
+            $subscriberSource.Contains('return succeeded;')) `
             'pair invalidation is missing an exact actor/captured-owner cleanup boundary'
         Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
             $engineSource.Contains('? 7') -and
