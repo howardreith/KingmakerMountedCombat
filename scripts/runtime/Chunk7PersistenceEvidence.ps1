@@ -52,9 +52,10 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
 . (Join-Path $PSScriptRoot 'Chunk7RepeatedWorldEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7CapitalArrivalEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7SaveBoundaryEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Finalize5CompanionEvidence.ps1')
 # Sprint 5: the same exploration Manual route with a Riding Dog pair as its second pair.
-function Get-KmcChunk7SecondPairProfile($Request){ if($Request.persistenceCase-ceq'riding-dog-exploration-manual'){'small-halfling-female-ridingdog-v1'}else{'medium-humanoid-horse-v1'} }
-function Get-KmcChunk7PersistenceCases { @('mounted-charge-tb-committed-manual','integrated-tb-feat-charge-manual','mounted-combat-feat-tb-debt-manual','multi-exploration-manual','riding-dog-exploration-manual','paladin-bond-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
+function Get-KmcChunk7SecondPairProfile($Request){ if($Request.persistenceCase-cin@('riding-dog-exploration-manual','companion-names-tack-manual')){'small-halfling-female-ridingdog-v1'}else{'medium-humanoid-horse-v1'} }
+function Get-KmcChunk7PersistenceCases { @('mounted-charge-tb-committed-manual','integrated-tb-feat-charge-manual','mounted-combat-feat-tb-debt-manual','multi-exploration-manual','riding-dog-exploration-manual','companion-names-tack-manual','paladin-bond-exploration-manual','multi-exploration-quick','multi-exploration-auto','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','pending-schema3-control-manual','multi-area-autosave','legacy-schema1-resave-manual','multi-exploration-three-loads-manual','multi-exploration-three-area-transfers-manual','multi-exploration-capital-arrival-manual','multi-exploration-capital-arrival-cold-manual','multi-nonselected-mount-unsettled-manual','multi-owned-worker-cancel-manual','owned-schema1-manual','owned-schema1-resave-manual','owned-schema1-current-manual','owned-schema2-pending-current-manual','multi-malformed-refusal-manual','multi-future-refusal-manual','owner-seed-manticore-fixture-manual','owner-seed-tomb-door-fixture-manual','owner-seed-thorn-river-door-fixture-manual','manticore-fixture-cold-manual','multi-exploration-rotation-quick','multi-exploration-overwrite-manual') }
 # Sprint 1 slot rotation: the owner-seed checkpoint producer overwrites its selected output through
 # ordinary saves (the QuickSave handler body, or SaveGame on the existing Manual). Writes after the
 # first are native replacement commits; the final bytes at the unchanged leaf are the receipt.
@@ -108,11 +109,12 @@ function Assert-KmcChunk7PersistenceNativeActor($Actor) {
 function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     $partialSlots=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
     $slotCount=if($partialSlots){2}else{4}
+    $postF2=Test-KmcChunk7PostF2Slots $Request
     Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 native archive'
     if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
-       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne$slotCount){
+       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or(-not$postF2-and$Archive.Slots.Count-ne$slotCount)-or($postF2-and($Archive.Slots.Count-lt2-or$Archive.Slots.Count-gt6))){
         throw 'Exploration native archive omitted owners, invented combat/retained state or changed version/policy/slots.'
     }
     $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -144,15 +146,17 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     foreach($slot in $Archive.Slots) {
         Assert-KmcExactProperties $slot @('ActorId','Index','Kind') 'Chunk 7 native slot'
         if($slot.ActorId-cnotin@($first[0].Rider.Id,$second[0].Rider.Id)-or-not(Test-KmcExactJsonInteger $slot.Index)-or$slot.Index-lt0-or$slot.Index-gt127-or
-           -not(Test-KmcExactJsonInteger $slot.Kind)-or$slot.Kind-cnotin@(2,3)-or-not$slotIds.Add($slot.ActorId+':'+$slot.Index)){throw 'Owned native control slot invalid or duplicated.'}
+           -not(Test-KmcExactJsonInteger $slot.Kind)-or$slot.Kind-cnotin$(if($postF2){@(2,3,6,7)}else{@(2,3)})-or($slot.Kind-eq7-and$slot.Index-ne0)-or($slot.Kind-ne7-and-not$slotIds.Add($slot.ActorId+':'+$slot.Index))){throw 'Owned native control slot invalid or duplicated.'}
     }
     foreach($rider in @($first[0].Rider.Id,$second[0].Rider.Id)) {
         $kinds=@($Archive.Slots|Where-Object ActorId -CEQ $rider|ForEach-Object{$_.Kind}|Sort-Object)
-        $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}else{'2,3'}
+        if($postF2){if(@($kinds|Where-Object{$_-eq6}).Count-gt1-or@($kinds|Where-Object{$_-eq7}).Count-gt1){throw 'Each pair must retain its exact declared native controls.'};$kinds=@($kinds|Where-Object{$_-in@(2,3)})}
+        $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}elseif($postF2){'3'}else{'2,3'}
         if(($kinds-join',')-cne$expectedKinds){throw 'Each pair must retain its exact declared native controls.'}
     }
 }
-function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) {
+function Test-KmcChunk7PostF2Slots($Request){ $Request.persistenceCase-ceq'companion-names-tack-manual' }
+function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label,[bool]$PostF2=$false) {
     if($Snapshot.label-cne$Label-or$Snapshot.owners-isnot[Array]-or$Snapshot.owners.Count-ne2-or$Snapshot.actors-isnot[Array]-or$Snapshot.actors.Count-ne4){throw 'All-pair native snapshot incomplete.'}
     Assert-KmcChunk7NativeCounters $Snapshot @('semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests')
     Assert-KmcChunk7NativeCounters $Snapshot.controls @('DuplicateFactCount','ManagedHotbarSlotCount')
@@ -178,7 +182,7 @@ function Assert-KmcChunk7PersistenceSnapshot($Snapshot,$Archive,[string]$Label) 
         }
         if($a.ReactionsRemaining-ne$b.ReactionsRemaining-or$a.LastSurpriseTicks-ne$b.LastSurpriseTicks){throw 'Native reaction/surprise history changed across restoration.'}
     }
-    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count){throw 'Native control restoration differs.'}
+    if($Snapshot.controls.DuplicateFactCount-ne0-or$Snapshot.controls.SerializationSuspended-ne$false-or$(if($PostF2){$Snapshot.controls.ManagedHotbarSlotCount-lt@($Archive.Slots|Where-Object{$_.Kind-ne7}).Count}else{$Snapshot.controls.ManagedHotbarSlotCount-ne$Archive.Slots.Count})){throw 'Native control restoration differs.'}
 }
 function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Status) {
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-persistence-evidence'
@@ -201,7 +205,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     if($Artifact.status-cne'PASS'){throw 'Native persistence artifact failed.'}
     $o=$Artifact.observations;$cold=(Get-KmcChunk7SelectedScenario $Request)-ceq'chunk7-persistence-load'
     if(-not(Test-KmcChunk7LoadRefusal $Request)-and$null-ne$o.PSObject.Properties['loadRefusal']){throw 'Another persistence case supplied native refusal evidence.'}
-    if($Request.persistenceCase-ceq'riding-dog-exploration-manual'-and$cold){
+    if($Request.persistenceCase-ceq'companion-names-tack-manual'){Assert-KmcFinalize5CompanionNames $Request $o $cold}
+    if($Request.persistenceCase-cin@('riding-dog-exploration-manual','companion-names-tack-manual')-and$cold){
         $d=$o.ridingDogCold
         if($null-eq$d-or$d.restoredProfile-cne'small-halfling-female-ridingdog-v1'-or$d.mountBlueprint-cne'b7a14f25d3c94e0d8e6f1a2c5d90e431'-or$d.mountEffectiveSize-cne'Medium'-or
            $d.riderEffectiveSize-cne'Small'-or$d.dismounted-ne$true-or$d.remounted-ne$true-or$d.owner-cne'd17c8fd0-6627-40c4-bf9a-024cf001c1f7'-or$d.featureSourced-ne$true){throw 'The cold Riding Dog pair lost its identity, size, owner or usable controls.'}
@@ -236,7 +241,7 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     $label=if($cold){'cold-restored-before-input'}else{'native-write-complete'}
     $snapshot=@($o.snapshots|Where-Object label -CEQ $label)
     if($snapshot.Count-ne1){throw 'Exact archive completion snapshot is missing or duplicated.'}
-    Assert-KmcChunk7PersistenceSnapshot $snapshot[0] $archive $label
+    Assert-KmcChunk7PersistenceSnapshot $snapshot[0] $archive $label (Test-KmcChunk7PostF2Slots $Request)
     if($cold) {
         if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)-or
            $snapshot[0].semanticRestores-ne4-or$snapshot[0].presentationRestores-ne2-or$snapshot[0].nativePostLoads-ne4-or$snapshot[0].snapshots-ne0-or$snapshot[0].nativeCastRequests-ne0-or

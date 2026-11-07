@@ -386,7 +386,7 @@ $aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p0
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
-if ([string]$request.branch -cne 'codex/kmc-finalize-f1-creation-ui-icons' -and [string]$request.branch -cne 'codex/kmc-finalize-f2-canonical-controls' -and [string]$request.branch -cne 'codex/kmc-finalize-f3-movement-economy-hud' -and [string]$request.branch -cne 'codex/kmc-finalize-f4-orders-ai-transitions' -and [string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
+if ([string]$request.branch -cne 'codex/kmc-finalize-f1-creation-ui-icons' -and [string]$request.branch -cne 'codex/kmc-finalize-f2-canonical-controls' -and [string]$request.branch -cne 'codex/kmc-finalize-f3-movement-economy-hud' -and [string]$request.branch -cne 'codex/kmc-finalize-f4-orders-ai-transitions' -and [string]$request.branch -cne 'codex/kmc-finalize-f5-names-dog-tack' -and [string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
 if ([string]$request.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Runtime request commit must be a full lowercase Git SHA.' }
 $expectedProductVersion = [string](Read-KmcJson (Join-Path (Get-KmcRepositoryRoot) 'version.json')).productVersion
 if ([string]$request.productVersion -cne $expectedProductVersion) { throw 'Runtime request product version is not exact.' }

@@ -1,3 +1,58 @@
+# F5 resume — final review stop, cold consumer PASS (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING COMPLETE — READY FOR FINAL REVIEW.
+  - Producer r07 and cold consumer r08 both PASS at d87b148e (DLL `8459126c…`), and the cross-run reader passes.
+  - Manual `d39f8b46…`, 858008 bytes.
+- **Spend:** 8 of 8 starts, 74.9/90 minutes. No further start is authorized.
+- **Not authorized:** merge, release, tag, install, publication or F6.
+- **Next:** final review and owner acceptance.
+
+# Superseded F5 resume — saddle-diagnosis mission stop (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. Saddle cause proven and corrected. r06 (fd8bb820) is game PASS with the corrected saddle and all naming rows, but its recorded verdict is FAIL (harness UTF-8 defect, fixed in d6c88978). The consumer has not run.
+- **Spend:** 6 of 7 starts, 63.97/90 minutes.
+- **Not authorized:** reusing r06 (recorded FAIL) as a source, an eighth start, more time, merge, release or F6.
+- **To finish once the owner raises the ceiling to 8:**
+  - Run a Candidate at the current head.
+  - Run `scripts/Package.ps1 -ArtifactQualifier`, then the suite snapshot.
+  - Run the producer `companion-names-tack-manual` (chunk7-persistence-save) and inspect its frames.
+  - Run the consumer (chunk7-persistence-load) from the producer's run id and Manual hash.
+  - Run `scripts/Test-Finalize5ColdAgainstSource.ps1`.
+  - Make no records commit between producer and consumer.
+
+Facts for a successor:
+- **Real dog body:** the dog3 back has a top vertex only every 5–10 cm. Sample surfaces with rays, never with the "highest vertex in a window" rule.
+- **Specimen and replay:** the tack specimen (`tack-specimen/` in a run's evidence) plus the replay in `analysis-cache/finalize-f5-saddle-replay/` reproduce any fit offline. `Replay.cs` compiles with the VS 2022 BuildTools Roslyn `csc`, Kingmaker's Newtonsoft.Json, and the UnityEngine and CoreModule DLLs copied beside it for type loading only.
+- **Evidence encoding:** game evidence is UTF-8 without a byte-order mark. Read it with `-Encoding UTF8` (`Read-KmcJson` now does).
+- **Earlier F5 facts:** the TMP `m_char_buffer`, overtip and post-F2 slot facts are in the superseded section below.
+
+# Superseded F5 resume — completion mission stop (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. r04 (d32fdc28, f5d) has naming and the Manual PASS game-side; the saddle reader FAILs and the frames show shards. The consumer has not run.
+- **Spend:** 4 of 6 starts, 42.52/60 min.
+- **Not authorized:** reusing r04 as a source, a start without a diagnosed correction, more time, merge, release or F6.
+
+Facts for a successor:
+- This TMP's `SetText` never stores `m_text`; read a rendered label from `TMP_Text.m_char_buffer` (0x040014C2) up to its 0.
+- Overtips live in `OvertipManager.m_UnitControllers` (via `Game.Instance.UI.BarkManager`) and draw `CharacterName` with a decorative first letter.
+- The tack's centre-line diagnostics can be on design while the rendered pad is wrong. Judge it by `maxRise` and the frames.
+- The scratch guard `f5-guard.ps1` derives the ceiling from the record's `startCeilingAdjustments` chain, capped at 6.
+# F5 resume — review stop, start ceiling reached (2026-11-07, superseded above)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack from main 3f19e9bd. Read CURRENT.md and docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. 3 of 3 starts used, 26.83/60 min. The producer runs r01–r03 all FAILed for causes since corrected; the cold consumer has not run.
+- **Not authorized:** a fourth start, merge, release or F6.
+- **F4:** integrated by the owner (3f19e9bd). WORLD-02 is deferred, not passed ([deferred items](docs/FINALIZATION-DEFERRED-ITEMS.md)).
+
+Facts for a successor:
+- **Post-F2 controls:** a rider can hold the public control (kind 6) and its placement record (kind 7, index 0). A saved hidden Dismount (kind 2) binding is migrated into kind 6, so the old Chunk 7 two-per-rider slot expectations predate F2 (the F5 case binds Rider Primary only).
+- **Native text dialog:** while its field holds focus, KeyboardAccess runs no binding, Esc included. Keys sent through `TMP_InputField.ProcessEvent` need `ForceLabelUpdate` before they are drawn.
+- **Real dog body:** fur and limbs spike ray casts, and the midline's lowest point drops to the ground ahead of the seat. Tack geometry must smooth from one anchor per sample and be skinned to the spine only.
+- **Launch:** freeze from the attached head and commit records only after both runs.
+
 # F4 resume — final review stop, reload PASS (2026-11-06)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f4; branch codex/kmc-finalize-f4-orders-ai-transitions; draft PR #19. Read CURRENT.md and the current section of docs/FINALIZE-F4-REVIEW-HANDOFF.md.

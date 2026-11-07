@@ -75,6 +75,9 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState), typeof(Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem),
                         typeof(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer), typeof(UnityEngine.Events.UnityAction) },
                     nameof(PatchMethods.FeatRowPreviewRebindPrefix));
+                // PET-01: the sheet's name line offers Rename Companion for the companion it is showing.
+                PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController), "SetupInfo", 0x060049BE,
+                    new[] { typeof(bool) }, null, nameof(PatchMethods.CharacterSheetNamePostfix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -438,6 +441,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 __state = MountedFeatSelectorRefreshService.BeforeRefresh(PatchBridge.HorseCompanion, __instance, selectionState, ref refreshSort);
             }
+
+            internal static void CharacterSheetNamePostfix(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController __instance)
+            {
+                CompanionNameService.Current?.Sheet.Refresh(__instance);
+            }
+
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)
             {
                 MountedFeatSelectorRefreshService.AfterRefresh(__instance, __state);

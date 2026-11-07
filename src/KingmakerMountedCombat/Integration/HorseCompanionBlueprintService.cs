@@ -133,6 +133,15 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.DivineMount.Horse.Description", "Your bonded mount is a Large horse. Medium and Small riders can ride it." },
             { "KMC.DivineMount.RidingDog.Name", "Divine Mount: Riding Dog" },
             { "KMC.DivineMount.RidingDog.Description", "Your bonded mount is a Medium riding dog. It can carry a Small rider; a Medium rider is too large for it." },
+            { "KMC.Companion.Rename.Button", "Rename" },
+            { "KMC.Companion.Rename.Confirm", "Rename" },
+            { "KMC.Companion.Rename.Prompt", "Rename {0}. Its default name is {1}." },
+            { "KMC.Companion.Rename.Invalid.Empty", "Enter a name with at least one visible character." },
+            { "KMC.Companion.Rename.Invalid.TooLong", "That name is too long. Use at most 24 characters." },
+            { "KMC.Companion.Rename.Invalid.ControlCharacter", "That name contains an invisible or control character. Use letters, numbers, spaces and punctuation." },
+            { "KMC.Companion.Rename.Invalid.MarkupCharacter", "Names cannot contain angle brackets or curly braces, which the game reads as formatting." },
+            { "KMC.Companion.Reset.Button", "Default Name" },
+            { "KMC.Companion.Reset.Prompt", "Restore {0}'s default name, {1}?" },
             { "KMC.DivineMount.Call.Name", "Call Divine Mount" },
             { "KMC.DivineMount.Call.Description", "As a full-round action, you call your mount to your side. Once per day at 5th level, plus once per day for every 4 levels thereafter, to four times per day at 17th level. It cannot be used while mounted or if your mount cannot act." },
             { "KMC.DivineMount.CallUse.Name", "Call Divine Mount: Additional Use" },
@@ -1134,6 +1143,14 @@ namespace KingmakerMountedCombat.Integration
             var value = new LocalizedString();
             LocalizedStringKeyField.SetValue(value, key);
             return value;
+        }
+
+        // A KMC interface string from the current native pack, or its registered English text before the pack has it.
+        internal string Text(string key)
+        {
+            var strings = LocalizationManager.CurrentPack?.Strings;
+            if (strings != null && strings.TryGetValue(key, out var value) && !string.IsNullOrEmpty(value)) return value;
+            return localization.TryGetValue(key, out value) ? value : key;
         }
 
         private bool EnsureLocalization()
