@@ -200,8 +200,30 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static OvertipController OvertipOf(UnitEntityData unit)
         {
-            var controllers = OvertipControllers?.GetValue(Game.Instance.UI.BarkManager as OvertipManager) as IDictionary;
+            var manager = Game.Instance.UI.BarkManager as OvertipManager;
+            if (manager == null) return null;
+            var controllers = OvertipControllers?.GetValue(manager) as IDictionary;
             return controllers != null && controllers.Contains(unit) ? controllers[unit] as OvertipController : null;
+        }
+
+        // This TMP's SetText(string) fills the character buffer it renders from and never stores the string in m_text (the `text`
+        // getter), so the drawn label is read back from that buffer up to its terminator (TMP_Text.m_char_buffer, exact token).
+        private static string RenderedText(object label)
+        {
+            for (var type = label?.GetType(); type != null; type = type.BaseType)
+            {
+                var field = type.GetField("m_char_buffer", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                if (field == null) continue;
+                if (field.MetadataToken != 0x040014C2 || !(field.GetValue(label) is int[] buffer)) return null;
+                var text = new System.Text.StringBuilder();
+                foreach (var code in buffer)
+                {
+                    if (code == 0) break;
+                    if (code > 0xFFFF && code <= 0x10FFFF) text.Append(char.ConvertFromUtf32(code)); else text.Append((char)code);
+                }
+                return text.ToString();
+            }
+            return null;
         }
 
         private bool OvertipsReady() => (OvertipOf(secondMount) != null && OvertipOf(firstMount) != null && Settled(4)) || f5Frames > 300;
@@ -215,7 +237,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new JObject
                 {
                     ["id"] = unit.UniqueId, ["controllerUnit"] = controller?.Unit?.UniqueId, ["characterName"] = unit.CharacterName,
-                    ["text"] = label?.GetType().GetProperty("text")?.GetValue(label, null) as string
+                    ["text"] = RenderedText(label), ["serializedText"] = label?.GetType().GetProperty("text")?.GetValue(label, null) as string
                 };
             }
             return new JObject { ["dog"] = Row(secondMount), ["mammoth"] = Row(firstMount), ["writes"] = Names.Writes, ["lastOutcome"] = Names.LastOutcome };
