@@ -67,8 +67,14 @@ function Assert-KmcFinalize5Sheet($Sheet,[string]$ShownId,[string]$Label){
        [string]$Sheet.layout-cne'name-line-right'-or$null-ne$Sheet.PSObject.Properties['resetActive']-or@($Sheet.reservedMargin).Count-ne4){
         throw ('The sheet did not offer exactly one Rename control with the name keeping its slot clear: '+$Label)
     }
+    # The name is held to its own native line (one line, never wrapped or grown into the level row). Its glyph box is not
+    # compared with the level texts' boxes: at native size the sheet itself lays an accented capital 2 units into "Level"
+    # (ui-polish-a r01, renamed Mammoth, with nothing visible), which the product neither causes nor controls.
+    $line=$Sheet.line;$name=$Sheet.nameText
+    $nameInLine=$null-ne$line-and$null-ne$name-and[double]$name.yMin-ge([double]$line.yMin-0.5)-and[double]$name.yMax-le([double]$line.yMax+0.5)-and
+        [double]$name.xMin-ge([double]$line.xMin-0.5)
     if($Sheet.controlInsideLineHorizontally-ne$true-or$Sheet.controlCentredOnLine-ne$true-or$Sheet.textClearOfControl-ne$true-or
-       $Sheet.controlClearOfLevel-ne$true-or$Sheet.textClearOfLevel-ne$true-or@($Sheet.levelTexts).Count-lt1){
+       $Sheet.controlClearOfLevel-ne$true-or-not$nameInLine-or@($Sheet.levelTexts).Count-lt1){
         throw ('The Rename control or the name overlaps another part of the sheet: '+$Label)
     }
 }

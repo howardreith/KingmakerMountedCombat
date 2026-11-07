@@ -70,6 +70,8 @@ $p=Clone $producer; $p.companionNames.cancelButton.customName='Nobody'; $p.compa
 $p=Clone $producer; $p.companionNames.sheetMammothRenamed|Add-Member resetActive $true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a sheet that still offers Default Name refuses'
 $p=Clone $producer; $p.companionNames.sheetMammothLong.buttons=2; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a duplicated Rename control refuses'
 $p=Clone $producer; $p.companionNames.sheetMammothLong.controlClearOfLevel=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a Rename control over the level line refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothLong.nameText.yMin=620; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a name wrapped below its own line into the level row refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothRenamed.textClearOfLevel=$false; $p.companionNames.sheetMammothRenamed.nameText.yMin=641; Assert-KmcFinalize5CompanionNames $request $p $false; Check $true 'a native-size name whose glyph box touches the level text but stays in its line is accepted (r01 renamed Mammoth)'
 $p=Clone $producer; $p.companionNames.sheetMammothLong.textClearOfControl=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a long name running under the control refuses'
 $p=Clone $producer; $p.companionNames.sheetDog.control.yMin=622; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a control that moved for another companion refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a UMM entry with an options page refuses'
