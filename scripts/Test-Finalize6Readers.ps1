@@ -50,6 +50,8 @@ $bRow=[pscustomobject]@{
     deathAfterProne=[pscustomobject]@{requested=60;applied=60}
     afterDeath=(Snap (Svc 2 2) $none $none (U $aR 'Valerie' 4) $null (U $bR 'Linzi') (U $bM 'Steed' 60 $true 'Dead'))
     begunSinceUnseated=0;end=[pscustomobject]@{endedNatively=$true}}
+$aRow | Add-Member deathActivationEnded $true; $bRow | Add-Member proneActivationEnded $true
+$nt=(Snap (Svc 1 1) $none $bMounted (U $aR 'Valerie' 4 $true) $null (U $bR 'Linzi') (U $bM 'Steed')); $nt.round=3; $nt | Add-Member turnRole 'aRider'; $aRow | Add-Member nextTurn $nt
 $rows=@($cases|ForEach-Object{ if($_ -ceq 'F6-tb-a-death-fall'){Row $_ $aRow}elseif($_ -ceq 'F6-tb-b-prone-fall'){Row $_ $bRow}elseif($_ -ceq 'F3-tb-setup'){Row $_ ([pscustomobject]@{entry=[pscustomobject]@{aRelationship='Mounted';bRelationship='Mounted'};combat=[pscustomobject]@{turnBased=$true}})}else{Row $_ ([pscustomobject]@{})} })
 $tbArtifact=[pscustomobject]@{schemaVersion=55;status='PASS';errors=@();subscenarioFailCount=0;rows=$rows;observations=[pscustomobject]@{riderId=$aR;horseId=$aM;finalize6Falls=[pscustomobject]@{
     contract='finalize6-falls-v1';mode='TB';rider=$aR;mount=$aM;secondRider=$bR;secondMount=$bM;cases=$cases
@@ -86,6 +88,7 @@ TbRefuses { param($a) $a.rows[5].evidence.steps.placement.riderToMount=1.2 } 'a 
 TbRefuses { param($a) $a.rows[6].evidence.steps.placement.riderToMount=0.3 } 'a rider placed inside the prone mount body refuses'
 TbRefuses { param($a) $r=$a.observations.finalize6Falls.falls[0].record; $r.proneImposed=$false; $r.proneRefusal='getting up' } 'a hard landing that imposed no prone refuses'
 TbRefuses { param($a) $a.rows[5].evidence.steps.standUpBefore.aRider.prone=$false } 'a stand-up row whose rider was never prone refuses'
+TbRefuses { param($a) $a.rows[5].evidence.steps.nextTurn.round=2 } 'a stand-up not on a later native turn of the rider refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.preparations+=[pscustomobject]@{role='aRider';round=2;count=1} } 'a second native preparation in a round refuses'
 TbRefuses { param($a) $a.observations.finalize6Falls.disclosedSetup=@() } 'undisclosed labelled outcomes refuse'
 $f=Clone $tbArtifact; $f.status='FAIL'; $f.errors=@('x'); Assert-KmcFinalize6FallsEvidence -Request $tbRequest -Artifact $f -Status 'FAIL'; Check $true 'a failed child keeps its FAIL without qualification'

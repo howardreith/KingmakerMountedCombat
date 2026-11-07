@@ -121,6 +121,9 @@ function Assert-KmcFinalize6FallsEvidence {
  Assert-KmcFinalize6Placement (Step $a 'placement') 'the rider landed beside the dead mount, not inside it'
  Need ((P (P $as 'aRider') 'prone') -eq $true) 'the hard landing left the rider natively prone'
  Need ((Text (P (P $as 'aRider') 'life')) -ceq 'Conscious') 'the rider survived the fall'
+ $dae=Step $a 'deathActivationEnded'; Need ($dae -is [bool]) 'whether the death ended its activation is recorded'
+ $nt=Step $a 'nextTurn'
+ Need ((Int (P $nt 'round') 'next turn round') -gt (Int (P $ab 'round') 'fall round') -and (Text (P $nt 'turnRole')) -ceq 'aRider' -and (P (P $nt 'aRider') 'prone') -eq $true) 'the still prone rider reached its own next native turn'
  $sb=Step $a 'standUpBefore'; $su=Step $a 'standUpAfter'
  Need ((P (P $sb 'aRider') 'prone') -eq $true -and (P (P $su 'aRider') 'prone') -eq $false) 'the prone rider stood up natively'
  Need ((P (P $sb 'aRider') 'hasMove') -eq $true -and (P (P $su 'aRider') 'hasMove') -eq $false) 'the native stand-up spent the Move action'
@@ -139,12 +142,12 @@ function Assert-KmcFinalize6FallsEvidence {
  Assert-KmcFinalize6FallRecord -Record (P $fb 'record') -What 'TB prone' -Cause 'MountFellProne' -RiderId $bRiderId -MountId $bMountId -Pass $true -Mode 'TB' -Generation (P (P $bb 'bPair') 'generation')
  Need (@(P $fb 'log') -ccontains (Text (P (P $fb 'record') 'logText'))) 'the safe-landing explanation is in the native battle log'
  Assert-KmcFinalize6Placement (Step $b 'placement') 'the rider landed beside the prone mount, not inside it'
- Need ((P (P $bs 'bRider') 'prone') -eq $false -and (Int (P (P $bs 'bRider') 'damage') 'B rider damage') -eq (Int (P (P $bb 'bRider') 'damage') 'B rider damage before')) 'the safe landing left the rider standing and unhurt'
+ Need ((P (P $bs 'bRider') 'prone') -eq $false) 'the safe landing left the rider standing (unhurt: the fall record)'
  Need ((P (Step $b 'repeatKnockOff') 'canBeKnockedOff') -eq $false) 'the repeat knock-off found the mount already prone'
  Need ((Text (P (P $bd 'bMount') 'life')) -ceq 'Dead') 'the unseated prone mount then died natively'
  Need ((Int (Step $b 'begunSinceUnseated') 'begun since unseated') -eq 0) 'prone then death began no second fall'
- Need ((Int (P (P $bd 'bRider') 'damage') 'B rider damage after death') -eq (Int (P (P $bs 'bRider') 'damage') 'B rider damage settled')) 'the former rider was not hurt again'
- Need ((P (Step $b 'end') 'endedNatively') -eq $true) 'pair B activation ended natively'
+ Need ((Svc $bd 'begun') -eq (Svc $ba 'begun') -and (Svc $bd 'resolved') -eq (Svc $ba 'resolved')) 'the former rider was not thrown or hurt again by the fall service'
+ Need ((P (Step $b 'end') 'endedNatively') -eq $true -or (Step $b 'proneActivationEnded') -eq $true) 'pair B activation ended natively (End Turn, or the paired split ending it)'
 
  # ---- no extra native preparation ------------------------------------------------------------------------------------
  $prep=@(P $o 'preparations')

@@ -123,6 +123,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "fall-settled", () => Settled(30) && Record6("fallSettled", FallWorld("fall-settled")));
             Step(steps, "fall-shots", () => Ui("f6-rt-fall-log") && World("f6-rt-fall-side", 90f));
             Step(steps, "standing", () => BothStanding() && Record6("standing", FallWorld("standing")));
+            // The unseated pair's custody retires on the world's own settled-admission pass; the save follows it.
+            Step(steps, "owner-retired", () => (world.Registry.FindOwner(secondRider) == null && world.Registry.FindOwner(secondMount) == null) || f5Frames > 600);
             StartSteps(steps, AfterRiderFall);
             Next(177);
         }
