@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
+        private readonly MountedRiderFallService riderFalls;
         private readonly CompanionNameService companionNames;
         private readonly RidingDogTackService ridingDogTack;
         private bool disposed;
@@ -68,7 +69,8 @@ namespace KingmakerMountedCombat
                 persistence = new MountedPersistenceService(world, settings, logger);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
-                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
+                riderFalls = new MountedRiderFallService(() => persistence.CombatRestorationPending, logger);
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence, riderFalls);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
@@ -172,6 +174,8 @@ namespace KingmakerMountedCombat
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
 
         internal MountedLifecycleSubscriber Lifecycle => lifecycle;
+
+        internal MountedRiderFallService RiderFalls => riderFalls;
 
         internal MountedPersistenceService Persistence => persistence;
 
@@ -335,6 +339,7 @@ namespace KingmakerMountedCombat
             }
             nativeControls.Update();
             mountedCombatDefense.Update();
+            riderFalls.Update();
             companionNames.Update();
             runtimeAutomation?.ObserveStartupPreHostEnd();
             runtimeAutomation?.Update(deltaTime);
