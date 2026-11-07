@@ -1,3 +1,18 @@
+# RELEASE 0.2.2 (OWNER ORDER, 2026-11-07)
+
+The owner accepted and merged the UI polish (PR #25, merge `617f2e63`, tree identical to the reviewed `9d63a0bf`), then
+ordered a release with the version incremented. Notes: [docs/RELEASE-NOTES-0.2.2.md](docs/RELEASE-NOTES-0.2.2.md).
+
+- **Version:** 0.2.2, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.2-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Recipe:**
+  1. Open the version PR.
+  2. The owner merges it.
+  3. Tag the merge `v0.2.2`.
+  4. Publish the prebuilt package and its manifest, marked Latest.
+- **Not done:** no install.
+
 # UI POLISH ENGINEERING COMPLETE — READY FOR OWNER REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07)
 
 Branch `codex/mounted-combat-ui-polish` from main `98bac4bc`. Read the [handoff](docs/UI-POLISH-REVIEW-HANDOFF.md).
