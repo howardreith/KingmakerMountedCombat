@@ -96,7 +96,7 @@ namespace KingmakerMountedCombat.Integration
                 Gameplay = Gameplay
             };
             MountedRiderFallEvent<GameMountedRelationshipService> fall;
-            LastRefusal = ledger.Begin(owner, owner.MountedPairGeneration, (object)owner.PairOwner ?? owner, facts, rider?.UniqueId, mount?.UniqueId, out fall);
+            LastRefusal = ledger.Begin(owner, owner.MountedPairGeneration, (object)owner.PairOwner ?? Tuple.Create(owner, owner.MountedPairGeneration), facts, rider?.UniqueId, mount?.UniqueId, out fall);
             if (fall == null) return;
             var record = new MountedRiderFallRecord
             {

@@ -160,7 +160,8 @@ namespace KingmakerMountedCombat.Domain
     internal sealed class MountedRiderFallLedger<TPair> where TPair : class
     {
         // The last seat that fell per relationship. The seat is the exact mounted custody object: a remount and a saved pair
-        // restored by a load are new seats even where a restored generation number repeats.
+        // restored by a load are new seats even where a restored generation number repeats. Custody objects compare by
+        // reference; a value key (relationship and generation) is the fallback when no custody object exists.
         private readonly Dictionary<TPair, object> fallenSeat = new Dictionary<TPair, object>();
         private readonly List<MountedRiderFallEvent<TPair>> pending = new List<MountedRiderFallEvent<TPair>>();
         private long sequence;
@@ -177,7 +178,7 @@ namespace KingmakerMountedCombat.Domain
             if (pair == null) throw new ArgumentNullException(nameof(pair));
             if (seat == null) throw new ArgumentNullException(nameof(seat));
             object fallen;
-            if (fallenSeat.TryGetValue(pair, out fallen) && ReferenceEquals(fallen, seat)) return MountedRiderFallRefusal.AlreadyFell;
+            if (fallenSeat.TryGetValue(pair, out fallen) && Equals(fallen, seat)) return MountedRiderFallRefusal.AlreadyFell;
             fallenSeat[pair] = seat;
             fall = new MountedRiderFallEvent<TPair>(++sequence, pair, generation, facts.Cause, riderId, mountId);
             pending.Add(fall);

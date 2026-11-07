@@ -69,7 +69,7 @@ namespace KingmakerMountedCombat
                 persistence = new MountedPersistenceService(world, settings, logger);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
-                riderFalls = new MountedRiderFallService(() => persistence.CombatRestorationPending, logger);
+                riderFalls = new MountedRiderFallService(() => persistence.CombatRestorationPending || persistence.SaveSuspended || persistence.AreaTransitionPending, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence, riderFalls);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 var removalPreparation = removal;

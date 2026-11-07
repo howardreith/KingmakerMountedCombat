@@ -138,9 +138,12 @@ namespace KingmakerMountedCombat.Diagnostics
             slots = controls.CapturePersistentSlots();
             f6["slotsBound"] = new JArray(bound.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
             f6["slotsAtSave"] = new JArray(slots.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
-            Require(slots.All(s => bound.Count(b => b.ActorId == s.ActorId && b.Index == s.Index && b.Kind == s.Kind) == 1) &&
-                bound.Where(b => b.ActorId == firstRider.UniqueId).All(b => slots.Count(s => s.ActorId == b.ActorId && s.Index == b.Index && s.Kind == b.Kind) == 1),
-                "The fall changed the mounted rider's controls or invented a control.");
+            // The remount may place the unseated rider's public control again; its rows only stay within the post-F2 kinds.
+            var mountedRows = slots.Where(s => s.ActorId == firstRider.UniqueId).ToArray();
+            var boundMounted = bound.Where(b => b.ActorId == firstRider.UniqueId).ToArray();
+            Require(mountedRows.Length == boundMounted.Length && boundMounted.All(b => mountedRows.Count(s => s.Index == b.Index && s.Kind == b.Kind) == 1) &&
+                slots.All(s => s.ActorId == firstRider.UniqueId || s.ActorId == secondRider.UniqueId && (s.Kind == 3 || s.Kind == 6 || s.Kind == 7)),
+                "The fall changed the mounted rider's controls or gave a rider a control outside its post-F2 bar.");
             AssertOwners();
             f6["atSave"] = FallWorld("at-save");
             snapshots.Add(Capture("rider-fall-before-native-save"));
