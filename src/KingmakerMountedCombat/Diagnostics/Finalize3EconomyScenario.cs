@@ -35,14 +35,14 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Finalize3EconomyTurnBased = "finalize3-economy-tb", Finalize3EconomyRealTime = "finalize3-economy-rt";
-        internal static bool IsFinalize3EconomyScenario(string scenario) => scenario == Finalize3EconomyTurnBased || scenario == Finalize3EconomyRealTime;
+        internal static bool IsFinalize3EconomyScenario(string scenario) => scenario == Finalize3EconomyTurnBased || scenario == Finalize3EconomyRealTime || IsFinalize6FallsScenario(scenario);
         private bool IsFinalize3Economy => IsFinalize3EconomyScenario(request.Scenario);
-        private bool Finalize3Tb => request.Scenario == Finalize3EconomyTurnBased;
+        private bool Finalize3Tb => request.Scenario == Finalize3EconomyTurnBased || IsFinalize6Falls;
         internal const int Finalize3SchemaVersion = 54;
         internal const double Finalize3ScenarioDeadlineSeconds = 420.0d, Finalize3HostDeadlineSeconds = 560.0d;
         internal static readonly string[] Finalize3TurnBasedCases = { "F3-tb-setup", "F3-tb-a-round1", "F3-tb-b-round1", "F3-tb-a-step", "F3-tb-b-charge", "F3-tb-a-double", "F3-tb-b-dismount" };
         internal static readonly string[] Finalize3RealTimeCases = { "F3-rt-mounted-marker", "F3-rt-unmounted-marker", "F3-rt-attack" };
-        private string[] Finalize3Cases => Finalize3Tb ? Finalize3TurnBasedCases : Finalize3RealTimeCases;
+        private string[] Finalize3Cases => IsFinalize6Falls ? Finalize6Cases : Finalize3Tb ? Finalize3TurnBasedCases : Finalize3RealTimeCases;
         private string Finalize3Case => Finalize3Cases[f3CaseIndex];
         private const float Finalize3StepBoundSeconds = 25f, Finalize3CaptureBoundSeconds = 5f;
         private const int Finalize3SettleFrames = 20, Finalize3IdleFrames = 12, Finalize3RefusalFrames = 40, Finalize3AttackFrames = 360, Finalize3MountAttempts = 6;
@@ -96,7 +96,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attackRules"] = f3Rules.Attacks, ["screenshots"] = f3Shots, ["disclosedSetup"] = f3Setup, ["turnStarts"] = f3TurnStarts,
                 ["preparations"] = f3Preparations, ["trackers"] = f3Trackers, ["endTurns"] = f3EndTurns, ["startRelationship"] = relationship.State.ToString(),
                 ["policy"] = "Locomotion belongs to the mount whichever pair actor is selected; each actor keeps its own native actions." };
-            observations["finalize3Economy"] = f3Measure;
+            observations[CastingMeasurementKeyFor(request.Scenario)] = f3Measure;
+            if (IsFinalize6Falls) BeginFinalize6Measure();
             castingOriginalSlots = new NativeCastingOriginalSlots(rider, castingTrace);
             F3NewFacts();
             step = Phase3dHorseStep.Phase3gControls;
@@ -241,6 +242,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "F3-tb-b-charge": TickF3BCharge(turn); return;
                 case "F3-tb-a-double": TickF3ADouble(turn); return;
                 case "F3-tb-b-dismount": TickF3BDismount(turn); return;
+                case "F6-tb-a-death-fall": TickF6ADeathFall(turn); return;
+                case "F6-tb-b-prone-fall": TickF6BProneFall(turn); return;
                 case "F3-rt-mounted-marker": TickF3RtMounted(); return;
                 case "F3-rt-unmounted-marker": TickF3RtUnmounted(); return;
                 case "F3-rt-attack": TickF3RtAttack(); return;
@@ -488,7 +491,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void F3KeepStanding()
         {
             foreach (var unit in new[] { rider, horse, f3BRider, f3BMount })
-                if (unit != null && unit.HPLeft < unit.MaxHP / 2 && unit.Descriptor.State.IsConscious)
+                if (unit != null && !f6NoHeal.Contains(unit) && unit.HPLeft < unit.MaxHP / 2 && unit.Descriptor.State.IsConscious)
                 {
                     unit.Damage = 0; f3HealCount++; f3Measure["healCount"] = f3HealCount;
                     if (f3HealCount == 1) F3Disclose("An actor below half hit points was healed (Damage = 0); repeated silently, counted in healCount.");

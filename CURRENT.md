@@ -1,3 +1,47 @@
+# F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
+
+Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1`. Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md), top section.
+
+**Status:**
+- **r05 completion run** `20261107-finalize-f6f-completion-05`, on the `finalize6-falls-completion-tb` setup plus fall rows. It showed natively:
+  - the TB death hard landing, then the native stand-up on the rider's own next turn: Move 0 → 3 s, Standard untouched, no travel, no replay, and "Stand up" shown in the Move slot;
+  - the TB prone safe landing at the exact threshold (11 vs DC 11), with no damage and no prone;
+  - prone then death with no second throw.
+- **r05 verdict:** ORIGINAL OUTER FAIL from reader-only row registration and two reader expectations, now corrected. The corrected re-evaluation passes over the untouched evidence.
+- **Retained:**
+  - r03: the RT hard landing and the post-fall save, with a separate re-evaluation.
+  - r04: the cold reload PASS. Its Manual holds a standing rider; no prone-save test happened.
+  - r01: the TB death at its own build, FAIL kept.
+  - r02: FAIL in an unrelated F3 row.
+- **Candidate:** frozen head `5fe80073`, DLL `87fed161…`, MVID `a7638ec4…`, package f6f `74baa915…`. Gameplay code is unchanged since `c7ca5989`.
+
+**Spend:** 42.75 of 90 minutes, 5 of 6 starts (ceiling 4 → 6 append-only). The contingency is unused.
+
+**Next:** final review. WORLD-02 stays deferred. Owner art and full-stack acceptance are separate. No merge, release or install.
+
+# F6 ENGINEERING PARTIAL — FALLS SHOWN NATIVELY (TB DEATH, RT PRONE), POST-FALL SAVE/RELOAD PASS; SAFE LANDING AND TB PRONE NOT SHOWN NATIVELY; OWNER ACCEPTANCE SEPARATE (2026-11-07)
+
+Branch `codex/kmc-finalize-f6-falls-final-acceptance` from main `730f72d1` (the F5 landing). Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md).
+
+**Status:**
+- **Product (FALL-01/FALL-02):**
+  - When the exact ridden mount dies, collapses or newly falls prone, its rider is unseated once and resolves D5 natively: Mobility vs DC 15 (native difficulty adjustment kept), native 1d6 and prone on a failure, and one log line.
+  - Nothing is written to actions, Swift, reactions or feats.
+  - Reviewed independently; the confirmed findings were fixed before any start.
+- **Native:**
+  - r01: the TB mount death fell hard as designed. The run is recorded FAIL because its stand-up row met the existing forced activation end.
+  - r02: FAIL in an unchanged F3 row.
+  - r03: the RT Riding Dog prone fell hard beside the identically named Mastodon pair, and the post-fall Manual `b33eda46…` was written. ORIGINAL OUTER FAIL from a reader-only row name; the corrected readers accept its evidence.
+  - r04: the cold consumer PASS (no replay, damage, names and tack kept, ordinary remount), and the cross-run reader passes.
+- **Not shown natively:** the safe-landing branch, the TB prone, prone-then-death and the TB stand-up cost.
+- **Candidate:** f6e `fbef8638`, DLL `b18cc056…`, MVID `2a9d61d7…`, package `7109cdfd…`.
+
+**Spend:** 32.77 of 90 minutes, 4 of 4 starts. A fifth start is not authorized.
+
+**Next (owner):** either one TB start on f6e unchanged, or accept the shown scope. WORLD-02 stays deferred. No merge, release or install.
+
+**F5 closeout:** accepted and merged by the owner as `730f72d1` (tree identical to the reviewed `badef7f0`). Package `b078d870…` verified. See the F5 handoff's integration closeout.
+
 # F5 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07, producer/consumer completion mission)
 
 Branch codex/kmc-finalize-f5-names-dog-tack. Frozen and launched at d87b148e (compiled source fd8bb820; DLL `8459126c…`, MVID e90f71ee…, byte-identical to r06). Base main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.

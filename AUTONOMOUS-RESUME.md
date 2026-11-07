@@ -1,3 +1,32 @@
+# F6 resume — final review stop, completion PASS on re-evaluation (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f6; branch codex/kmc-finalize-f6-falls-final-acceptance; draft PR #21. Read CURRENT.md and the top of docs/FINALIZE-F6-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING COMPLETE — READY FOR FINAL REVIEW.
+- **Spend:** 5 of 6 starts, 42.75/90 minutes. Start 6 is a contingency for a concrete diagnosed defect only.
+- **Not authorized:** merge, release, tag, install or publication.
+
+Facts for a successor:
+- **Native stand-up:** TurnController.HandleUnitWillGetUp adds +3 s to Move and cancels the order. While the Standard is unused, HasMoveAction() stays true after one Move, so read the Move cooldown.
+- **Every new Phase 3D row name** must be in `Get-KmcPhase3dHorseRuntimeRows`, and every new chunk7 persistence row in `Get-KmcChunk7PersistenceRows`. Otherwise the outer reader refuses the run as an "unknown subscenario".
+- **Retired custody:** an unseated pair whose custody retired reads `None`, not `Unmounted`.
+- **Split timing:** the paired split can end the activation a frame after the fall resolves.
+
+# F6 resume — review stop, 4 of 4 starts (2026-11-07)
+
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f6; branch codex/kmc-finalize-f6-falls-final-acceptance. Read CURRENT.md and the top of docs/FINALIZE-F6-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL.
+  - Shown natively: the TB death fall, the RT prone fall, and the post-fall save/reload (r03 pinned reader-only source, r04 PASS).
+  - Not shown natively: the safe-landing branch, the TB prone, prone-then-death and the TB stand-up cost.
+- **Spend:** 32.77/90 minutes, 4/4 starts. No further start is authorized.
+- **Not authorized:** merge, release, tag, install or publication.
+
+Facts for a successor:
+- **Mount death during the pair's own activation:** the existing paired split force-ends that activation (native ForceToEnd). A stand-up row must wait for the rider's next native turn.
+- **New chunk7 persistence row names** must be added to `Get-KmcChunk7PersistenceRows`, or the runtime-result readers refuse the run as an "unknown subscenario".
+- **New Phase 3D child scenarios** need the `-clike` lists in `ChildEntryPreambleEvidence.ps1`, not only the exact-name lists.
+- **Labelled test outcome:** `MountedRiderFallService.ScenarioOutcome` picks the d20 inside the native check from its own stat and adjusted DC. It is null in play.
+- **The F3 row `F3-tb-b-round1`** can refuse its full attack non-deterministically (r02).
+
 # F5 resume — final review stop, cold consumer PASS (2026-11-07)
 
 Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack; draft PR #20. Read CURRENT.md and the top of docs/FINALIZE-F5-REVIEW-HANDOFF.md.
