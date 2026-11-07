@@ -105,7 +105,7 @@ function Assert-KmcChunk7RealtimeEvidence($Request,$Artifact,[string]$Status){
 }
 function Assert-KmcChunk7RealtimeCore($o,[string[]]$ids,$trace){
     if(@($o.defaultOffCharge).Count-ne2){throw 'Both default-off Charge controls require evidence.'}
-    for($i=0;$i-lt2;$i++){$r=$o.defaultOffCharge[$i];if($r.casterId-cne$ids[$i*2]-or$r.reason-cne'Enable Mounted Charge in the KMC mod settings.'-or$r.castDelta-ne0){throw 'Default-off native Charge refusal differs.'};foreach($f in @('featureEnabled','available','visible','nativeFactPresent','clicked','inputAttempted')){Assert-KmcChunk7Boolean $r.$f $false}
+    for($i=0;$i-lt2;$i++){$r=$o.defaultOffCharge[$i];if($r.casterId-cne$ids[$i*2]-or$r.reason-cne'Mounted Charge is not available.'-or$r.castDelta-ne0){throw 'Default-off native Charge refusal differs.'};foreach($f in @('featureEnabled','available','visible','nativeFactPresent','clicked','inputAttempted')){Assert-KmcChunk7Boolean $r.$f $false}
         if($r.nativeAbilityFacts-isnot[Array]-or$r.nativeAbilityFacts-ccontains'd79eaec224a7a832e738eb81baef9d49'-or$r.nativeAbilityFacts-cnotcontains'3af2b81f4d72bbb30501fa730fcdf36e'-or$r.stimulus-cne'read-only native ability inventory and availability; default-off fact is not leased'){throw 'Default-off native Charge fact/visibility contract differs.'}
         Assert-KmcChunk7SameCombatBudget $r.before $r.after $ids}
     $windows=@($o.realtimeWindows);if($windows.Count-ne2-or$windows[0].kind-cne'two-native-primary-inputs'-or$windows[1].kind-cne'native-stop-local'){throw 'RT core windows differ.'}

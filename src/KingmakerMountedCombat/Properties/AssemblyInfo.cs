@@ -1,10 +1,10 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("Kingmaker Mounted Combat")]
+[assembly: AssemblyTitle("Mr. Bard's Kingmaker Mounted Combat")]
 [assembly: AssemblyDescription("Mounted combat for Pathfinder: Kingmaker")]
 [assembly: AssemblyCompany("Kingmaker Mounted Combat")]
-[assembly: AssemblyProduct("Kingmaker Mounted Combat")]
+[assembly: AssemblyProduct("Mr. Bard's Kingmaker Mounted Combat")]
 [assembly: AssemblyCopyright("Copyright © 2026 Howie Reith")]
 [assembly: ComVisible(false)]
 [assembly: Guid("4288a536-4986-46c5-bd42-c1f726223f65")]

@@ -248,7 +248,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (strings == null) { return false; }
             return HasExactString(strings, "KMC.Horse.Name", "Horse") &&
                 HasExactString(strings, "KMC.Horse.Feature.Name", "Animal Companion — Horse") &&
-                HasExactString(strings, "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be ridden with Kingmaker Mounted Combat.") &&
+                HasExactString(strings, "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be ridden with Mr. Bard's Kingmaker Mounted Combat.") &&
                 HasExactString(strings, "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement") &&
                 HasExactString(strings, "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution.");
         }

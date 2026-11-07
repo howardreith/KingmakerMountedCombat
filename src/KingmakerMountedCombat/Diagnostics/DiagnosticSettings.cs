@@ -31,8 +31,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;
         internal bool UsePairedTurnControls => EnablePairedActivation || EnableUnifiedMountedTurn;
 
-        // CHARGE-01: the pair-owned Mounted Charge, on by default in both combat modes. This session-scoped switch
-        // is the only preference: the mod keeps no settings file, so an opt-out holds until the next launch.
+        // CHARGE-01: the pair-owned Mounted Charge, on in both combat modes whenever the mod is enabled. There is no
+        // player switch and no settings file, so nothing stored can turn it off; only explicit lab scenarios that
+        // exercise the disabled refusal write this, and they restore it.
         public bool EnableMountedCharge { get; set; }
 
         public bool EnableDiagnosticOverlay { get; set; }

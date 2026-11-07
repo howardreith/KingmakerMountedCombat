@@ -1,3 +1,24 @@
+# UI POLISH ENGINEERING COMPLETE — READY FOR OWNER REVIEW; OWNER ACCEPTANCE SEPARATE (2026-11-07)
+
+Branch `codex/mounted-combat-ui-polish` from main `98bac4bc`. Read the [handoff](docs/UI-POLISH-REVIEW-HANDOFF.md).
+
+**Changes (owner playtest follow-up):**
+- **Rename control:** one Rename button sits at the right end of the companion name line, with the name keeping its
+  slot clear. Default Name is removed.
+- **UMM:** the options panel is gone. Mounted Charge is always on. Removal preparation now runs from Ctrl+Shift+F11 in
+  game, documented in the new `README.md`.
+- **Public name:** **Mr. Bard's Kingmaker Mounted Combat**. Every internal identity is unchanged.
+
+**Native evidence** (frozen ui-polish-b at `1d98bf68`, DLL `b70709a2…`): producer r02 PASS, cold consumer r03 PASS and
+charge row r04 PASS. Producer r01 is an ORIGINAL OUTER FAIL from a reader check; its game side passed and its corrected
+re-evaluation passes.
+
+**Spend:** budget `ui-polish` at 19.93 of 90 min.
+
+**Not verified in game:** the Ctrl+Shift+F11 route, physical mouse states, other resolutions and an owner campaign.
+
+**Not authorized:** merge, release, tag or install.
+
 # F6 ENGINEERING ACCEPTED IN REVIEW AT 4b8a5f02; SELECTED REFINEMENT ENGINEERING COMPLETE WITH WORLD-02 DEFERRED; OWNER ACCEPTANCE SEPARATE (2026-11-07, closeout)
 
 The owner merged PR #21 as `eb16d2f1` (tree identical to the reviewed `4b8a5f02`). Read the [handoff](docs/FINALIZE-F6-REVIEW-HANDOFF.md), section "Engineering acceptance and integration closeout".

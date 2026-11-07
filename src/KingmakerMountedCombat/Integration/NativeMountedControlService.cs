@@ -958,7 +958,7 @@ namespace KingmakerMountedCombat.Integration
                 return new NativeMountedControlAvailability(
                     true,
                     false,
-                    "Enable mounted controls in the KMC mod settings.");
+                    "Mounted controls are not available.");
             }
 
             if (caster == null || caster.Descriptor == null || !caster.IsInGame)

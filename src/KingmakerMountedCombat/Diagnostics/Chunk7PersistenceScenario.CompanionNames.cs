@@ -33,7 +33,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Chunk7PersistenceScenario
     {
         internal const string CompanionNamesCaseName = "companion-names-tack-manual";
-        internal const string SharedName = "Ébène l'Ancien", DogDistinctName = "Biscuit", CancelledName = "Nobody", MarkupName = "<b>Rex</b>";
+        internal const string SharedName = "Ébène l'Ancien", DogDistinctName = "Biscuit", CancelledName = "Nobody", MarkupName = "<b>Rex</b>",
+            BlankName = "   ", LongName = "Wolfgang Maximilian Wynn";
         private static readonly MethodInfo InputFieldSelected = typeof(KeyboardAccess).GetMethod("IsInputFieldSelected", BindingFlags.Static | BindingFlags.NonPublic) is MethodInfo m && m.MetadataToken == 0x06002DFB ? m : null;
         private bool CompanionNamesCase => request.PersistenceCase == CompanionNamesCaseName || RiderFallCase;
         private readonly JArray f5Shots = new JArray();
@@ -61,36 +62,52 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "shots-unmounted", () => World("f5-dog-unmounted-side", 90f) && World("f5-dog-unmounted-other", 270f));
             Step(steps, "bite-unmounted", () => Bite("f5-dog-bite-unmounted"));
             Step(steps, "sheet-mammoth", () => OpenSheet(firstMount));
-            Step(steps, "sheet-mammoth-shot", () => Ui("f5-sheet-mammoth") && Record("sheetMammoth", SheetState(false)));
+            Step(steps, "sheet-mammoth-shot", () => Ui("f5-sheet-mammoth") && Record("sheetMammoth", SheetState()));
             Step(steps, "rename-open", () => PressRename() && Record("dialogOpen", DialogState()) && Ui("f5-dialog-open"));
             Step(steps, "rename-type", () => TypeText(SharedName) && Ui("f5-dialog-typed"));
             Step(steps, "rename-commit", () => Commit(firstMount, SharedName, "mammothRenamed"));
-            Step(steps, "sheet-renamed-shot", () => Ui("f5-sheet-mammoth-renamed") && Record("sheetMammothRenamed", SheetState(true)));
+            Step(steps, "sheet-renamed-shot", () => Ui("f5-sheet-mammoth-renamed") && Record("sheetMammothRenamed", SheetState()));
             Step(steps, "cancel-open", () => PressRename());
             Step(steps, "cancel-type", () => TypeText(CancelledName));
             Step(steps, "cancel-esc", () => EscField() && Unchanged(firstMount, SharedName, "cancelled") && Record("cancelReleasedKeyboard", !(bool)InputFieldSelected.Invoke(null, null)));
+            Step(steps, "cancel-button-open", () => PressRename());
+            Step(steps, "cancel-button-type", () => TypeText(CancelledName));
+            Step(steps, "cancel-button", () => PressDialog(false) && Unchanged(firstMount, SharedName, "cancelButton"));
             Step(steps, "markup-open", () => PressRename());
             Step(steps, "markup-type", () => TypeText(MarkupName));
             Step(steps, "markup-commit", () => CommitOnly() && Ui("f5-invalid-message") && Record("markupMessageShown", DialogMessageBox.Instance.IsShown));
             Step(steps, "markup-dismiss", () => EscBox());
             Step(steps, "markup-reopened", () => NativeTextDialog.IsShown && Settled(10) && Record("markupReopenedWith", Typed()));
             Step(steps, "markup-reopened-esc", () => EscField() && Unchanged(firstMount, SharedName, "markupRefused"));
-            Step(steps, "reset-open", () => Press(Sheet.ResetButton) && Ui("f5-reset-confirm"));
-            Step(steps, "reset-yes", () => PressDialog(true) && Reset(firstMount));
+            // A blank entry is refused like any invalid one; it never restores the default name.
+            Step(steps, "blank-open", () => PressRename());
+            Step(steps, "blank-type", () => TypeText(BlankName));
+            Step(steps, "blank-commit", () => CommitOnly() && Ui("f5-blank-message") && Record("blankMessageShown", DialogMessageBox.Instance.IsShown));
+            Step(steps, "blank-dismiss", () => EscBox());
+            Step(steps, "blank-reopened", () => NativeTextDialog.IsShown && Settled(10) && Record("blankReopenedWith", Typed()));
+            Step(steps, "blank-reopened-esc", () => EscField() && Unchanged(firstMount, SharedName, "blankRefused"));
+            Step(steps, "long-open", () => PressRename());
+            Step(steps, "long-type", () => TypeText(LongName));
+            Step(steps, "long-commit", () => Commit(firstMount, LongName, "mammothLong"));
+            Step(steps, "sheet-long-shot", () => Ui("f5-sheet-mammoth-long") && Record("sheetMammothLong", SheetState()));
             Step(steps, "rename-again-open", () => PressRename());
             Step(steps, "rename-again-type", () => TypeText(SharedName));
             Step(steps, "rename-again-commit", () => Commit(firstMount, SharedName, "mammothRenamedAgain"));
-            Step(steps, "sheet-rider", () => SwitchSheet(secondRider, null) && Record("nonPetHidden", Sheet.RenameButton == null || !Sheet.RenameButton.activeSelf));
+            Step(steps, "sheet-rider", () => SwitchSheet(secondRider, null) && Record("nonPetHidden", Sheet.RenameButton == null || !Sheet.RenameButton.activeSelf) &&
+                Record("riderNameUnstyled", Sheet.ReservedMargin == null && Sheet.LabelHasOwnStyle() == true));
             Step(steps, "sheet-dog", () => SwitchSheet(secondMount, secondMount));
             Step(steps, "dog-distinct-open", () => PressRename());
             Step(steps, "dog-distinct-type", () => TypeText(DogDistinctName));
             Step(steps, "dog-distinct-commit", () => Commit(secondMount, DogDistinctName, "dogDistinct") && Record("distinctLabels", Labels()));
-            Step(steps, "dog-distinct-shot", () => Ui("f5-sheet-dog-distinct"));
+            Step(steps, "dog-distinct-shot", () => Ui("f5-sheet-dog-distinct") && Record("sheetDog", SheetState()));
             Step(steps, "dog-duplicate-open", () => PressRename());
             Step(steps, "dog-duplicate-type", () => TypeText(SharedName));
             Step(steps, "dog-duplicate-commit", () => Commit(secondMount, SharedName, "dogDuplicate") && Record("duplicateLabels", Labels()));
             Step(steps, "dog-duplicate-shot", () => Ui("f5-sheet-dog-duplicate"));
             Step(steps, "sheet-close", () => CloseSheet());
+            Step(steps, "umm-open", () => UmmWindow(true));
+            Step(steps, "umm-shot", () => Ui("f5-umm-entry") && Record("ummEntry", UmmEntry()));
+            Step(steps, "umm-close", () => UmmWindow(false));
             StartSteps(steps, () => { f5NamesDone = true; Next(1); });
         }
 
@@ -148,9 +165,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "specimen-cold", () => Specimen("cold-idle"));
             Step(steps, "tack-remounted", () => Mounted(secondRider, secondMount) && Record("tackRemounted", Tack()));
             Step(steps, "sheet-dog", () => OpenSheet(secondMount));
-            Step(steps, "sheet-dog-shot", () => Ui("f5-cold-sheet-dog") && Record("sheetDogCold", SheetState(true)));
+            Step(steps, "sheet-dog-shot", () => Ui("f5-cold-sheet-dog") && Record("sheetDogCold", SheetState()));
             Step(steps, "sheet-mammoth", () => SwitchSheet(firstMount, firstMount));
-            Step(steps, "sheet-mammoth-shot", () => Ui("f5-cold-sheet-mammoth") && Record("sheetMammothCold", SheetState(true)));
+            Step(steps, "sheet-mammoth-shot", () => Ui("f5-cold-sheet-mammoth") && Record("sheetMammothCold", SheetState()));
             Step(steps, "sheet-close", () => CloseSheet());
             StartSteps(steps, BeginCleanup);
         }
@@ -299,6 +316,26 @@ namespace KingmakerMountedCombat.Diagnostics
             return Settled(12) && ReferenceEquals(Sheet.Shown, expectedShown);
         }
 
+        // The mod's UMM entry as a player opens it (Ctrl+F10, Mods tab): its public name, and no options page of its own.
+        private bool UmmWindow(bool open)
+        {
+            var ui = UnityModManagerNet.UnityModManager.UI.Instance;
+            if (f5Frames == 1) { ui.tabId = 0; ui.ToggleWindow(open); }
+            return Settled(10) && ui.Opened == open;
+        }
+
+        private JObject UmmEntry()
+        {
+            var ui = UnityModManagerNet.UnityModManager.UI.Instance;
+            var mod = UnityModManagerNet.UnityModManager.FindMod("KingmakerMountedCombat");
+            return new JObject
+            {
+                ["windowOpen"] = ui.Opened, ["tab"] = ui.tabId, ["id"] = mod?.Info.Id, ["displayName"] = mod?.Info.DisplayName,
+                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = mod?.OnGUI != null,
+                ["chargeEnabled"] = settings.EnableMountedCharge
+            };
+        }
+
         private bool CloseSheet()
         {
             if (f5Frames == 1) EventBus.RaiseEvent(delegate (IServiceWindowUIHandler handler) { handler.HandleOpenCharScreen(); });
@@ -308,12 +345,59 @@ namespace KingmakerMountedCombat.Diagnostics
             return closed && Record("sheetClosed", true);
         }
 
-        private JObject SheetState(bool expectReset) => new JObject
+        // The one control and where it sits, in the name label's own UI units (so the tolerances do not depend on the canvas mode or the
+        // screen): the line, the name's rendered text and every visible level/experience text. Overlaps use rendered text, not native rects.
+        private JObject SheetState()
         {
-            ["shown"] = Sheet.Shown?.UniqueId, ["renameActive"] = Sheet.RenameButton != null && Sheet.RenameButton.activeInHierarchy,
-            ["resetActive"] = Sheet.ResetButton != null && Sheet.ResetButton.activeInHierarchy, ["expectReset"] = expectReset,
-            ["renameLabel"] = Sheet.RenameLabel, ["resetLabel"] = Sheet.ResetLabel, ["layout"] = Sheet.Layout
-        };
+            var label = Sheet.NameLabel;
+            var button = Sheet.RenameButton;
+            var state = new JObject
+            {
+                ["shown"] = Sheet.Shown?.UniqueId, ["renameActive"] = button != null && button.activeInHierarchy,
+                ["renameLabel"] = Sheet.RenameLabel, ["layout"] = Sheet.Layout,
+                ["buttons"] = label == null ? 0 : label.GetComponentsInChildren<Transform>(true).Count(t => t.name == "KMC_RenameCompanion"),
+                ["reservedMargin"] = Sheet.ReservedMargin is Vector4 margin ? new JArray(margin.x, margin.y, margin.z, margin.w) : null
+            };
+            var level = Sheet.Screen?.Level;
+            if (label == null || button == null || level == null) return state;
+            var textType = label.GetType();
+            while (textType != null && textType.FullName != "TMPro.TMP_Text") textType = textType.BaseType;
+            var line = LocalRect((RectTransform)label.transform, label.transform);
+            var control = LocalRect((RectTransform)button.transform, label.transform);
+            var name = TextRect(label, textType, label.transform);
+            var levelTexts = level.GetComponentsInChildren(textType, false)
+                .Where(text => !string.IsNullOrEmpty(textType.GetProperty("text").GetValue(text, null) as string))
+                .Select(text => TextRect(text, textType, label.transform)).ToArray();
+            const float tolerance = 0.5f;
+            state["line"] = RectJson(line); state["control"] = RectJson(control); state["nameText"] = RectJson(name);
+            state["levelTexts"] = new JArray(levelTexts.Select(RectJson));
+            state["controlInsideLineHorizontally"] = control.xMin >= line.xMin - tolerance && control.xMax <= line.xMax + tolerance;
+            state["controlCentredOnLine"] = Math.Abs(control.center.y - line.center.y) <= tolerance;
+            state["textClearOfControl"] = name.xMax <= control.xMin + tolerance;
+            state["controlClearOfLevel"] = levelTexts.Length > 0 && levelTexts.All(text => !text.Overlaps(control));
+            state["textClearOfLevel"] = levelTexts.Length > 0 && levelTexts.All(text => !text.Overlaps(name));
+            state["textOverflowing"] = Convert.ToBoolean(textType.GetProperty("isTextOverflowing").GetValue(label, null));
+            state["fontSize"] = Convert.ToSingle(textType.GetProperty("fontSize").GetValue(label, null));
+            return state;
+        }
+
+        private static Rect LocalRect(RectTransform rect, Transform space)
+        {
+            var corners = new Vector3[4];
+            rect.GetWorldCorners(corners);
+            var local = corners.Select(space.InverseTransformPoint).ToArray();
+            return Rect.MinMaxRect(local.Min(c => c.x), local.Min(c => c.y), local.Max(c => c.x), local.Max(c => c.y));
+        }
+
+        private static Rect TextRect(Component text, Type textType, Transform space)
+        {
+            var bounds = (Bounds)textType.GetProperty("textBounds").GetValue(text, null);
+            var min = space.InverseTransformPoint(text.transform.TransformPoint(bounds.min));
+            var max = space.InverseTransformPoint(text.transform.TransformPoint(bounds.max));
+            return Rect.MinMaxRect(Math.Min(min.x, max.x), Math.Min(min.y, max.y), Math.Max(min.x, max.x), Math.Max(min.y, max.y));
+        }
+
+        private static JObject RectJson(Rect rect) => new JObject { ["xMin"] = rect.xMin, ["yMin"] = rect.yMin, ["xMax"] = rect.xMax, ["yMax"] = rect.yMax };
 
         private bool PressRename() => Press(Sheet.RenameButton) && WaitDialog();
         private bool Press(GameObject button)
@@ -426,12 +510,6 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(!NativeTextDialog.IsShown, "The dialog stayed open after Esc.");
             Require(unit.Descriptor.CustomName == expected, "A cancelled or refused entry changed the name to " + unit.Descriptor.CustomName + ".");
             return Record(key, Identity(unit));
-        }
-
-        private bool Reset(UnitEntityData unit)
-        {
-            Require(string.IsNullOrEmpty(unit.Descriptor.CustomName) && unit.CharacterName == CompanionNameService.DefaultName(unit), "Default Name did not restore the default name.");
-            return Record("mammothReset", Identity(unit));
         }
 
         // ---- Visual-only poses and motion. ----

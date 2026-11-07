@@ -29,18 +29,26 @@ function Overtip([string]$Id,[string]$Name){ [pscustomobject]@{id=$Id;controller
 function Overtips([string]$Name){ [pscustomobject]@{dog=(Overtip $dogId $Name);mammoth=(Overtip $mammothId $Name);writes=0;lastOutcome=$null} }
 $tack=[pscustomobject]@{dogBindings=1;mammothBindings=0;adopted=$true;rendererEnabled=$true;sameBones=$true;vertices=600;triangles=900;casts=410;misses=3;meshBuilds=1;attachments=1;backAtSeat=0.89;seatTop=0.913;cantleTop=0.95;pommelTop=0.94;maxRise=0.06;minClearance=0.002;maxClearance=0.051;unsupported=0
     dogStats=[pscustomobject]@{id=$dogId;size='Medium';armorClass=19;speed=40}}
+# One Rename control at the right end of the name line (sheet canvas units at 1280x720), clear of the level/experience texts.
+function Box([double]$X0,[double]$Y0,[double]$X1,[double]$Y1){ [pscustomobject]@{xMin=$X0;yMin=$Y0;xMax=$X1;yMax=$Y1} }
+function Sheet([string]$Id){
+    [pscustomobject]@{shown=$Id;renameActive=$true;renameLabel='Rename';layout='name-line-right';buttons=1;reservedMargin=@(93,0,93,0)
+        line=(Box 47 640 437 666);control=(Box 352 646 437 660);nameText=(Box 190 642 300 664);levelTexts=@((Box 59 622 134 636),(Box 223 622 273 636),(Box 352 622 435 636))
+        controlInsideLineHorizontally=$true;controlCentredOnLine=$true;textClearOfControl=$true;controlClearOfLevel=$true;textClearOfLevel=$true;textOverflowing=$false;fontSize=30}
+}
 function Shots($Names){ @($Names|ForEach-Object{ [pscustomobject]@{name=$_;file=('movement-visuals/finalize5-'+$_+'.png');bytes=10;sha256=('0'*64)} }) }
-$typing=@($shared,'Nobody','<b>Rex</b>',$shared,'Biscuit',$shared|ForEach-Object{ [pscustomobject]@{intended=$_;field=$_;hotkeysSuspended=$true;actorsIdleBefore=$true;actorsIdleAfter=$true} })
+$typing=@($shared,'Nobody','Nobody','<b>Rex</b>','   ',$script:KmcF5LongName,$shared,'Biscuit',$shared|ForEach-Object{ [pscustomobject]@{intended=$_;field=$_;hotkeysSuspended=$true;actorsIdleBefore=$true;actorsIdleAfter=$true} })
 function Point([double]$X,[double]$Z){ [pscustomobject]@{x=$X;y=6.096;z=$Z} }
 function Moves { @([pscustomobject]@{label='first-pair';executorId=$mammothId;goal=(Point 3.87 50.17)},[pscustomobject]@{label='second-pair';executorId=$dogId;goal=(Point -0.05 56.2)}) }
 function Plans { [pscustomobject]@{'second-pair'=[pscustomobject]@{moverId=$dogId;selectedAngle=0;selectedGoal=(Point -0.05 56.2);proposals=@([pscustomobject]@{angle=90;eligible=$false},[pscustomobject]@{angle=0;eligible=$true})}} }
 $producer=[pscustomobject]@{companionNames=[pscustomobject]@{
     dog=(Dog '');mammoth=(Mammoth '');tackUnmounted=$tack;tackMounted=$tack;tackAfterMotion=$tack
-    sheetMammoth=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$false;renameLabel='Rename';resetLabel='Default Name'}
-    sheetMammothRenamed=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$true;renameLabel='Rename';resetLabel='Default Name'}
+    sheetMammoth=(Sheet $mammothId);sheetMammothRenamed=(Sheet $mammothId);sheetMammothLong=(Sheet $mammothId);sheetDog=(Sheet $dogId)
     dialogOpen=[pscustomobject]@{shown=$true;prefilled='Mammoth';hotkeysSuspended=$true;inputFocused=$true;actorCommandsIdle=$true}
-    typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);cancelReleasedKeyboard=$true;markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
-    mammothReset=(Mammoth '');mammothRenamedAgain=(Mammoth $shared);nonPetHidden=$true;dogDistinct=(Dog 'Biscuit');distinctLabels=(Labels 'Biscuit' $shared)
+    typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);cancelReleasedKeyboard=$true;cancelButton=(Mammoth $shared);markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
+    blankMessageShown=$true;blankReopenedWith='   ';blankRefused=(Mammoth $shared);mammothLong=(Mammoth $script:KmcF5LongName)
+    ummEntry=[pscustomobject]@{windowOpen=$true;tab=0;id='KingmakerMountedCombat';displayName="Mr. Bard's Kingmaker Mounted Combat";version='0.2.1';active=$true;optionsPanel=$false;chargeEnabled=$true}
+    mammothRenamedAgain=(Mammoth $shared);nonPetHidden=$true;riderNameUnstyled=$true;dogDistinct=(Dog 'Biscuit');distinctLabels=(Labels 'Biscuit' $shared)
     dogDuplicate=(Dog $shared);duplicateLabels=(Labels $shared $shared);atSave=(Labels $shared $shared);overtipsAtSave=(Overtips $shared);sheetClosed=$true;shots=(Shots $script:KmcF5ProducerShots)}}
 $producer | Add-Member movements (Moves); $producer | Add-Member areaContinuationPlans (Plans)
 $request=[pscustomobject]@{persistenceCase='companion-names-tack-manual'}
@@ -56,7 +64,20 @@ $p=Clone $producer; $p.companionNames.dialogOpen.hotkeysSuspended=$false; Refuse
 $p=Clone $producer; $p.companionNames.typing[0].field='bne lAncien'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a dropped glyph refuses'
 $p=Clone $producer; $p.companionNames.cancelReleasedKeyboard=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a cancel that kept the keyboard refuses'
 $p=Clone $producer; $p.companionNames.nonPetHidden=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Rename offered to a non-companion refuses'
-$p=Clone $producer; $p.companionNames.mammothReset.customName=$shared; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a reset that kept the custom name refuses'
+$p=Clone $producer; $p.companionNames.blankRefused.customName=''; $p.companionNames.blankRefused.characterName='Mammoth'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a blank entry that restored the default name refuses'
+$p=Clone $producer; $p.companionNames.blankMessageShown=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a blank entry with no explanation refuses'
+$p=Clone $producer; $p.companionNames.cancelButton.customName='Nobody'; $p.companionNames.cancelButton.characterName='Nobody'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a Cancel button that renamed refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothRenamed|Add-Member resetActive $true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a sheet that still offers Default Name refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothLong.buttons=2; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a duplicated Rename control refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothLong.controlClearOfLevel=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a Rename control over the level line refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothLong.nameText.yMin=620; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a name wrapped below its own line into the level row refuses'
+$p=Clone $producer; $p.companionNames.sheetMammothRenamed.textClearOfLevel=$false; $p.companionNames.sheetMammothRenamed.nameText.yMin=641; Assert-KmcFinalize5CompanionNames $request $p $false; Check $true 'a native-size name whose glyph box touches the level text but stays in its line is accepted (r01 renamed Mammoth)'
+$p=Clone $producer; $p.companionNames.sheetMammothLong.textClearOfControl=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a long name running under the control refuses'
+$p=Clone $producer; $p.companionNames.sheetDog.control.yMin=622; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a control that moved for another companion refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a UMM entry with an options page refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.displayName='Kingmaker Mounted Combat'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'the old UMM display name refuses'
+$p=Clone $producer; $p.companionNames.ummEntry.chargeEnabled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Mounted Charge off at startup refuses'
+$p=Clone $producer; $p.companionNames.riderNameUnstyled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a character name that kept the reserved slot refuses'
 $p=Clone $producer; $p.companionNames.tackMounted.seatTop=0.88; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a seat buried in the back refuses (r03: 0.734 under 0.863)'
 $p=Clone $producer; $p.companionNames.tackMounted.pommelTop=1.175; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a pommel 30 cm over the back refuses (r03)'
 $p=Clone $producer; $p.companionNames.tackAfterMotion.maxRise=0.21; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fin over a correctly placed seat refuses'
@@ -85,7 +106,7 @@ $p=Clone $producer; $p.companionNames.shots=@($p.companionNames.shots|Where-Obje
 
 $consumer=[pscustomobject]@{ridingDogCold=[pscustomobject]@{owner=$dogMaster};loadedArchive=[pscustomobject]@{Pairs=@([pscustomobject]@{Mount=[pscustomobject]@{Id=$dogId}},[pscustomobject]@{Mount=[pscustomobject]@{Id=$mammothId}})}
     companionNamesCold=[pscustomobject]@{dog=(Dog $shared);mammoth=(Mammoth $shared);labels=(Labels $shared $shared);overtipsCold=(Overtips $shared);tackCold=$tack;tackRemounted=$tack
-        sheetDogCold=[pscustomobject]@{shown=$dogId;renameActive=$true;resetActive=$true};sheetMammothCold=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$true};sheetClosed=$true;shots=(Shots $script:KmcF5ConsumerShots)}}
+        sheetDogCold=(Sheet $dogId);sheetMammothCold=(Sheet $mammothId);sheetClosed=$true;shots=(Shots $script:KmcF5ConsumerShots)}}
 $consumer | Add-Member movements (Moves); $consumer | Add-Member areaContinuationPlans (Plans)
 Assert-KmcFinalize5CompanionNames $request $consumer $true; Check $true 'the consumer reader accepts persisted duplicate names, identities and one tack'
 $c=Clone $consumer; $c.companionNamesCold.labels.dog.characterName='Riding Dog'; $c.companionNamesCold.labels.dog.customName=''; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a name lost on load refuses'

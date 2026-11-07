@@ -107,7 +107,7 @@ namespace KingmakerMountedCombat.Integration
         {
             { "KMC.Horse.Name", "Horse" },
             { "KMC.Horse.Feature.Name", "Animal Companion — Horse" },
-            { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be ridden with Kingmaker Mounted Combat." },
+            { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be ridden with Mr. Bard's Kingmaker Mounted Combat." },
             { "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement" },
             { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." },
             { "KMC.RidingDog.Name", "Riding Dog" },
@@ -140,8 +140,6 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.Companion.Rename.Invalid.TooLong", "That name is too long. Use at most 24 characters." },
             { "KMC.Companion.Rename.Invalid.ControlCharacter", "That name contains an invisible or control character. Use letters, numbers, spaces and punctuation." },
             { "KMC.Companion.Rename.Invalid.MarkupCharacter", "Names cannot contain angle brackets or curly braces, which the game reads as formatting." },
-            { "KMC.Companion.Reset.Button", "Default Name" },
-            { "KMC.Companion.Reset.Prompt", "Restore {0}'s default name, {1}?" },
             { "KMC.DivineMount.Call.Name", "Call Divine Mount" },
             { "KMC.DivineMount.Call.Description", "As a full-round action, you call your mount to your side. Once per day at 5th level, plus once per day for every 4 levels thereafter, to four times per day at 17th level. It cannot be used while mounted or if your mount cannot act." },
             { "KMC.DivineMount.CallUse.Name", "Call Divine Mount: Additional Use" },

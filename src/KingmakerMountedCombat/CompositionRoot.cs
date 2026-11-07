@@ -36,8 +36,8 @@ namespace KingmakerMountedCombat
         private readonly MountedRiderFallService riderFalls;
         private readonly CompanionNameService companionNames;
         private readonly RidingDogTackService ridingDogTack;
+        private readonly RemovalPreparationShortcut removalShortcut;
         private bool disposed;
-        private bool showDiagnostics;
         // An update failure whose destructive cleanup was deferred because an
         // owned save was in flight; consumed by Update once that save settles.
         private bool failureCleanupPending;
@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat
                 riderFalls = new MountedRiderFallService(() => persistence.CombatRestorationPending || persistence.SaveSuspended || persistence.AreaTransitionPending, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence, riderFalls);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
+                removalShortcut = new RemovalPreparationShortcut(removal, new NativeTextDialog(), logger);
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
@@ -329,6 +330,7 @@ namespace KingmakerMountedCombat
             // Debt retries precede the ordinary disabled/save/area/restore update gates.
             if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Combat.UpdateChargeCleanup());
             removal.Update();
+            removalShortcut.Update();
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled.
             if (failureCleanupPending && !persistence.SaveSuspended)
@@ -363,47 +365,6 @@ namespace KingmakerMountedCombat
             var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { unifiedTurn.Update(); }
             finally { phaseMeasurement?.EndTurnUpdate(turnStarted); }
-        }
-
-        public void DrawGui()
-        {
-            ThrowIfDisposed();
-            GUILayout.Label("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion);
-            GUILayout.Label("Ride your animal companion using the Mount / Dismount action. Move and attack with normal controls; Charge adapts automatically while mounted.");
-            var selected = world.Selected;
-            if (selected != null && !MountedFeedbackPresentationPolicy.IsRoutine(selected.PlayerActions.LastFeedback))
-                GUILayout.Label(selected.PlayerActions.LastFeedback);
-            if (selected != null && !MountedFeedbackPresentationPolicy.IsRoutine(selected.Combat.LastFeedback))
-                GUILayout.Label(selected.Combat.LastFeedback);
-            // Persistence refusals and failures stay visible in the ordinary view.
-            if (!persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
-            if (!string.IsNullOrEmpty(horseCompanion.MountedCombatFailure))
-                GUILayout.Label("Mounted Combat feat unavailable: " + horseCompanion.MountedCombatFailure);
-            var priorEnabled = GUI.enabled;
-            GUI.enabled = priorEnabled && unifiedTurn.CanConfigurePairedActivation &&
-                !nativeControls.HasUnsettledRelationshipTransition && !world.AnyChargeFenced &&
-                !persistence.HasSaveAdmissionFence && !persistence.LoadInFlight &&
-                world.Pairs.All(pair => !nativeControls.HasUnsettledShellFor(pair.Relationship));
-            settings.EnableMountedCharge = GUILayout.Toggle(settings.EnableMountedCharge,
-                "Enable Mounted Charge (this session; on again at the next launch)");
-            GUI.enabled = priorEnabled;
-            GUILayout.Label("A mounted rider's ordinary Charge is carried by the mount along a clear straight line. Change this outside combat with every pair dismounted.");
-            GUILayout.Label("Before removing KMC, prepare a clean save. A campaign with a KMC Horse, Riding Dog, Mounted Combat feat or Divine Bond still requires the mod. A Paladin who passes through KMC's level-five selection keeps that reference on either choice.");
-            GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
-            if (GUILayout.Button("Prepare to disable / remove KMC")) removal.Begin();
-            GUI.enabled = priorEnabled;
-            GUILayout.Label(removal.Status);
-            showDiagnostics = GUILayout.Toggle(showDiagnostics, "Show diagnostics");
-            if (showDiagnostics)
-            {
-                if (selected != null && MountedFeedbackPresentationPolicy.IsRoutine(selected.PlayerActions.LastFeedback))
-                    GUILayout.Label(selected.PlayerActions.LastFeedback);
-                if (selected != null && MountedFeedbackPresentationPolicy.IsRoutine(selected.Combat.LastFeedback))
-                    GUILayout.Label(selected.Combat.LastFeedback);
-                if (persistence.FeedbackIsRoutine) GUILayout.Label(persistence.Feedback);
-                GUILayout.Label("Mounted pairs: " + world.Registry.Owners.Count(owner => owner.State == MountedPairOwnershipState.Active) +
-                    " / " + GameMountedRelationshipService.NativePairCapacity + ". Paired turns are the supported configuration.");
-            }
         }
 
         public void Dispose()
