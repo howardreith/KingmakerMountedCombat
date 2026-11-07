@@ -272,7 +272,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["vertices"] = fit?.VertexCount ?? 0, ["triangles"] = (fit?.Triangles.Length ?? 0) / 3, ["casts"] = fit?.Casts ?? 0, ["misses"] = fit?.Misses ?? 0,
                 ["backAtSeat"] = fit?.BackHeightAtSeat ?? 0f, ["seatTop"] = fit?.SeatTopAtSeat ?? 0f, ["cantleTop"] = fit?.CantleTop ?? 0f, ["pommelTop"] = fit?.PommelTop ?? 0f,
                 ["maxRise"] = fit?.MaxRiseAboveBack ?? 0f, ["minClearance"] = Finite(fit?.MinClearance), ["maxClearance"] = Finite(fit?.MaxClearance), ["unsupported"] = fit?.Unsupported ?? -1,
-                ["failure"] = binding?.Tack?.Failure,
+                ["failure"] = binding?.Tack?.Failure, ["fitMilliseconds"] = binding?.Tack?.FitMilliseconds ?? 0.0,
                 ["attachments"] = RidingDogTackService.Current.Attachments, ["meshBuilds"] = RidingDogTackService.Current.MeshBuilds,
                 ["dogStats"] = Identity(secondMount)
             };

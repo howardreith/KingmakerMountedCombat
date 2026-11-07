@@ -171,6 +171,19 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(fit.MinClearance > 0f && fit.MaxClearance < 0.08f && fit.Unsupported == 0,
                     "Clearance " + fit.MinClearance + " .. " + fit.MaxClearance + ", " + fit.Unsupported + " unsupported.");
             });
+            runner.Run("the clearance measure reports a buried point, a floating point and a point with no body under it", () =>
+            {
+                var body = Ellipsoid();
+                var all = Enumerable.Range(0, body.Triangles.Length / 3).Select(t => t * 3).ToList();
+                var top = Top(Cz);
+                float lowest, highest; int unsupported;
+                RidingDogTackGeometry.MeasureClearance(body, all, new[] { 0f, top - 0.02f, Cz }, new[] { 0f, 1f, 0f }, out lowest, out highest, out unsupported);
+                TestRunner.True(Math.Abs(lowest + 0.02f) < 0.003f && unsupported == 0, "A point 2 cm inside the back measured " + lowest + ".");
+                RidingDogTackGeometry.MeasureClearance(body, all, new[] { 0f, top + 0.03f, Cz }, new[] { 0f, 1f, 0f }, out lowest, out highest, out unsupported);
+                TestRunner.True(Math.Abs(highest - 0.03f) < 0.003f && unsupported == 0, "A point 3 cm over the back measured " + highest + ".");
+                RidingDogTackGeometry.MeasureClearance(body, all, new[] { 1f, Cy, Cz }, new[] { 0f, 1f, 0f }, out lowest, out highest, out unsupported);
+                TestRunner.True(unsupported == 1 && float.IsNaN(lowest) && float.IsNaN(highest), "A point beside the body with nothing under it was measured.");
+            });
             runner.Run("the tack fit refuses an incomplete or mismatched body mesh before casting", () =>
             {
                 string failure;
