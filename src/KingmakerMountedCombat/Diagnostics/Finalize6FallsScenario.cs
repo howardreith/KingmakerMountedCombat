@@ -175,22 +175,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (++f3Frames < Finalize6SettleFrames) return;
                     F3Steps["fallSettled"] = F6Snapshot();
                     F3Steps["fallSettledLog"] = F6LogTailRows(Finalize6LogTail);
+                    // r01: the existing paired split ends the activation it interrupts (native ForceToEnd), so the rider's
+                    // turn in which its mount died is over; recorded, not changed.
+                    F3Steps["deathActivationEnded"] = !ReferenceEquals(turn, f3RowTurn);
                     F3Shot("f6-a-death-fall", rider);
                     f3Step = 4; return;
                 case 4:
+                    // The rider's own next native turn, prepared by the engine; other party turns meanwhile are ended natively.
+                    if (!F3Activation(turn, rider, null, f3RowTurn)) return;
+                    f3LastATurn = turn; f3RowTurn = turn;
+                    F3Steps["nextTurn"] = F6Snapshot();
+                    f3Step = 5; return;
+                case 5:
                 {
                     // The rider's ordinary order on its own turn: the native stand-up answers it.
                     F3Select(rider);
                     F3Steps["standUpBefore"] = F6Snapshot();
                     F3GroundClick("standUp", F3Destination(rider, f3BMount, 3f), true);
-                    f3Frames = 0; f3Step = 5; return;
+                    f3Frames = 0; f3Step = 6; return;
                 }
-                case 5:
+                case 6:
                     if (rider.Descriptor.State.Prone.Active || !F3Settled(rider, null, null)) return;
                     F3Steps["standUpAfter"] = F6Snapshot();
                     F3Shot("f6-a-stood-up", rider);
-                    f3Step = 6; return;
-                case 6:
+                    f3Step = 7; return;
+                case 7:
                     if (!F3CloseActivation(turn, rider, null, null)) return;
                     FinishF3Row(true, "Pair A mount death and soft fall observations recorded.");
                     return;
@@ -223,6 +232,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     F3Steps["fallAfter"] = F6Snapshot();
                     F3Steps["placement"] = new JObject { ["riderToMount"] = HorizontalDistance(f3BRider.Position, f3BMount.Position), ["riderCorpulence"] = f3BRider.Corpulence, ["mountCorpulence"] = f3BMount.Corpulence };
                     F6KeepFall("tb-b-prone", f3BRider);
+                    F3Steps["proneActivationEnded"] = !ReferenceEquals(turn, f3RowTurn);
                     f3Frames = 0; f3Step = 3; return;
                 case 3:
                     if (++f3Frames < Finalize6SettleFrames) return;
