@@ -8,6 +8,14 @@ function Refuses([scriptblock]$Body,[string]$Message){ $threw=$false; try{ & $Bo
 function Clone($Value){ $Value|ConvertTo-Json -Depth 20|ConvertFrom-Json }
 
 $shared=$script:KmcF5SharedName
+
+# The harness reads the game's evidence (UTF-8 without a byte-order mark) back as UTF-8: r06 was refused when it read ANSI.
+. (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+$utf8Probe=[IO.Path]::Combine([IO.Path]::GetTempPath(),'kmc-f5-utf8-'+[Guid]::NewGuid().ToString('N')+'.json')
+try{
+    [IO.File]::WriteAllBytes($utf8Probe,(New-Object Text.UTF8Encoding($false)).GetBytes('{"customName":"'+$shared+'"}'))
+    Check ([string](Read-KmcJson $utf8Probe).customName-ceq$shared) 'the harness JSON reader keeps a game-written accented name intact'
+}finally{ Remove-Item -LiteralPath $utf8Probe -Force -ErrorAction SilentlyContinue }
 $dogId='0f6c2a1e-1d3b-4c5a-9e8f-7a6b5c4d3e2f'; $mammothId='9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
 $dogMaster='d17c8fd0-6627-40c4-bf9a-024cf001c1f7'; $mammothMaster='2b4d6f80-1a3c-4e5f-8a9b-0c1d2e3f4a5b'
 function Unit([string]$Id,[string]$Master,[string]$Blueprint,[string]$Default,[string]$Name){
