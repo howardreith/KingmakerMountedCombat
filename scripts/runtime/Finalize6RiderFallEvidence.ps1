@@ -83,8 +83,9 @@ function Assert-KmcFinalize6RiderFallObservation($Request,$Artifact){
         Assert-KmcFinalize6FallRecord -Record $f.fall -What 'RT prone' -Cause 'MountFellProne' -RiderId ([string]$fb.secondRider.id) -MountId ([string]$fb.secondMount.id) -Pass $false -Mode 'RT' -Generation $fb.secondPair.relationshipGeneration
         if(@($fa.log)-cnotcontains[string]$f.fall.logText){throw 'F6 the explanation is not in the native battle log.'}
         if(-not([string]$f.fall.logText).StartsWith($shared+' falls prone; ')){throw 'F6 the explanation does not use the named Riding Dog.'}
-        if([double]$f.placement.riderToMount-lt0.3){throw 'F6 the rider landed inside the Riding Dog.'}
-        if($f.fall.proneImposed-eq$true-and$f.fallSettled.secondRider.prone-ne$true){throw 'F6 the hard landing did not leave the rider natively prone.'}
+        Assert-KmcFinalize6Placement $f.placement 'the rider landed beside the Riding Dog, not inside it'
+        if($f.fallSettled.secondRider.prone-ne$true){throw 'F6 the hard landing did not leave the rider natively prone.'}
+        if($f.standing.secondRider.prone-ne$false){throw 'F6 the prone rider did not stand natively.'}
         $st=Get-KmcFinalize6Service $f.standing 'standing'
         if([long]$st.begun-ne[long]$sa.begun-or$f.standing.secondRider.prone-ne$false-or$f.standing.secondMount.prone-ne$false){throw 'F6 both did not stand natively without a further fall.'}
         $at=$f.atSave

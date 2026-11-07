@@ -99,7 +99,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Mounted(secondRider, secondMount) || FallService.ResolvedCount <= f6ResolvedAt) return false;
             f6["fallAfter"] = FallWorld("fall-after");
             f6["fall"] = Phase3dHorseScenarioTranche.F6Record(FallService.Records.LastOrDefault(record => record.RiderId == secondRider.UniqueId));
-            f6["placement"] = new JObject { ["riderToMount"] = Vector3.Distance(secondRider.Position, secondMount.Position) };
+            f6["placement"] = new JObject { ["riderToMount"] = Vector3.Distance(secondRider.Position, secondMount.Position), ["riderCorpulence"] = secondRider.Corpulence, ["mountCorpulence"] = secondMount.Corpulence };
             FallService.ScenarioOutcome = null;
             return true;
         }
@@ -132,9 +132,15 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AfterRiderFall()
         {
             f6Unseated = true;
-            // The bar as it stands at the save; the archive must carry exactly these controls.
-            slots = controls.CapturePersistentSlots(); RequirePostF2Slots();
+            // The bar as it stands at the save; the archive must carry exactly these controls. The mounted rider's bar is
+            // unchanged and nothing appears that the bound bars did not hold; the unseated rider's rows are recorded as they are.
+            var bound = slots;
+            slots = controls.CapturePersistentSlots();
+            f6["slotsBound"] = new JArray(bound.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
             f6["slotsAtSave"] = new JArray(slots.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
+            Require(slots.All(s => bound.Count(b => b.ActorId == s.ActorId && b.Index == s.Index && b.Kind == s.Kind) == 1) &&
+                bound.Where(b => b.ActorId == firstRider.UniqueId).All(b => slots.Count(s => s.ActorId == b.ActorId && s.Index == b.Index && s.Kind == b.Kind) == 1),
+                "The fall changed the mounted rider's controls or invented a control.");
             AssertOwners();
             f6["atSave"] = FallWorld("at-save");
             snapshots.Add(Capture("rider-fall-before-native-save"));

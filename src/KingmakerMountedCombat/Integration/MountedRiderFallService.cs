@@ -76,7 +76,14 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Called before the relationship cleanup for the same native callback: the rider and mount are still the pair's.
+        // Never throws into the native callback or the cleanup that follows it.
         internal void Capture(GameMountedRelationshipService owner, UnitEntityData actor, MountedRiderFallCause cause)
+        {
+            try { CaptureCore(owner, actor, cause); }
+            catch (Exception exception) { logger.Exception("Mounted rider fall capture", exception); }
+        }
+
+        private void CaptureCore(GameMountedRelationshipService owner, UnitEntityData actor, MountedRiderFallCause cause)
         {
             if (owner == null || actor == null) return;
             var rider = owner.Rider;
@@ -86,10 +93,10 @@ namespace KingmakerMountedCombat.Integration
                 Cause = cause,
                 ExactMountOfMountedPair = owner.State == RelationshipState.Mounted && mount != null && ReferenceEquals(mount, actor) && rider != null,
                 RiderAlive = rider?.Descriptor != null && !rider.Descriptor.State.IsDead,
-                Gameplay = !restorationPending() && LoadingProcess.Instance?.IsLoadingInProcess != true
+                Gameplay = Gameplay
             };
             MountedRiderFallEvent<GameMountedRelationshipService> fall;
-            LastRefusal = ledger.Begin(owner, owner.MountedPairGeneration, facts, rider?.UniqueId, mount?.UniqueId, out fall);
+            LastRefusal = ledger.Begin(owner, owner.MountedPairGeneration, (object)owner.PairOwner ?? owner, facts, rider?.UniqueId, mount?.UniqueId, out fall);
             if (fall == null) return;
             var record = new MountedRiderFallRecord
             {
@@ -105,25 +112,30 @@ namespace KingmakerMountedCombat.Integration
         // Called after the relationship cleanup: every pending fall of this pair whose rider is now unseated resolves once.
         internal void Complete(GameMountedRelationshipService owner)
         {
-            if (owner == null || resolving) return;
-            foreach (var fall in ledger.TakeUnseated(owner, Unseated)) Resolve(fall);
+            if (owner == null || resolving || !Gameplay) return;
+            try { foreach (var fall in ledger.TakeUnseated(owner, Unseated)) Resolve(fall); }
+            catch (Exception exception) { logger.Exception("Mounted rider fall completion", exception); }
         }
 
-        // A fall whose detachment completed through a later retry, or whose seat moved on without unseating its rider.
+        private bool Gameplay => !restorationPending() && LoadingProcess.Instance?.IsLoadingInProcess != true;
+
+        // A fall whose detachment completed through a later retry, or whose seat moved on without unseating its rider. A load or
+        // restoration in between abandons it: nothing captured in the old world lands in the new one.
         internal void Update()
         {
             if (resolving || ledger.PendingCount == 0) return;
+            if (!Gameplay) { foreach (var fall in ledger.AbandonAll("load or restoration before the rider landed")) Abandon(fall); return; }
             foreach (var fall in ledger.TakeUnseated(null, Unseated)) Resolve(fall);
             foreach (var fall in ledger.TakeAbandoned(Abandoned)) Abandon(fall);
         }
 
-        private static bool Unseated(MountedRiderFallEvent<GameMountedRelationshipService> fall) =>
-            fall.Pair.State == RelationshipState.Unmounted && fall.Pair.MountedPairGeneration == fall.Generation;
+        // The captured rider is released from the seat; an idle boundary may already have advanced its generation since.
+        private static bool Unseated(MountedRiderFallEvent<GameMountedRelationshipService> fall) => fall.Pair.State == RelationshipState.Unmounted;
 
         private static string Abandoned(MountedRiderFallEvent<GameMountedRelationshipService> fall)
         {
             if (fall.Pair.State == RelationshipState.Disposed) return "relationship disposed before the rider was unseated";
-            return fall.Pair.MountedPairGeneration != fall.Generation ? "relationship generation advanced before the rider was unseated" : null;
+            return fall.Pair.State == RelationshipState.Mounted && fall.Pair.MountedPairGeneration != fall.Generation ? "relationship remounted before the rider was unseated" : null;
         }
 
         private void Abandon(MountedRiderFallEvent<GameMountedRelationshipService> fall)
@@ -246,7 +258,7 @@ namespace KingmakerMountedCombat.Integration
             protected override RollEntry RollD20()
             {
                 var threshold = DC - (StatValue + (int)Bonus);
-                return pass ? Math.Max(1, Math.Min(20, threshold)) : Math.Max(1, Math.Min(20, threshold - 1));
+                return pass ? Math.Max(1, Math.Min(20, threshold)) : Math.Max(1, Math.Min(20, threshold - 1 - Math.Max(0, SuccessBonus)));
             }
         }
     }

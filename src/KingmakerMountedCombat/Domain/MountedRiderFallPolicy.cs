@@ -159,26 +159,38 @@ namespace KingmakerMountedCombat.Domain
     // is a new fall.
     internal sealed class MountedRiderFallLedger<TPair> where TPair : class
     {
-        private readonly Dictionary<TPair, long> fallenGeneration = new Dictionary<TPair, long>();
+        // The last seat that fell per relationship. The seat is the exact mounted custody object: a remount and a saved pair
+        // restored by a load are new seats even where a restored generation number repeats.
+        private readonly Dictionary<TPair, object> fallenSeat = new Dictionary<TPair, object>();
         private readonly List<MountedRiderFallEvent<TPair>> pending = new List<MountedRiderFallEvent<TPair>>();
         private long sequence;
 
         internal int PendingCount => pending.Count;
         internal long BegunCount => sequence;
 
-        internal MountedRiderFallRefusal Begin(TPair pair, long generation, MountedRiderFallFacts facts, string riderId, string mountId,
+        internal MountedRiderFallRefusal Begin(TPair pair, long generation, object seat, MountedRiderFallFacts facts, string riderId, string mountId,
             out MountedRiderFallEvent<TPair> fall)
         {
             fall = null;
             var refusal = MountedRiderFallPolicy.Admit(facts);
             if (refusal != MountedRiderFallRefusal.None) return refusal;
             if (pair == null) throw new ArgumentNullException(nameof(pair));
-            long fallen;
-            if (fallenGeneration.TryGetValue(pair, out fallen) && fallen == generation) return MountedRiderFallRefusal.AlreadyFell;
-            fallenGeneration[pair] = generation;
+            if (seat == null) throw new ArgumentNullException(nameof(seat));
+            object fallen;
+            if (fallenSeat.TryGetValue(pair, out fallen) && ReferenceEquals(fallen, seat)) return MountedRiderFallRefusal.AlreadyFell;
+            fallenSeat[pair] = seat;
             fall = new MountedRiderFallEvent<TPair>(++sequence, pair, generation, facts.Cause, riderId, mountId);
             pending.Add(fall);
             return MountedRiderFallRefusal.None;
+        }
+
+        // Loading or restoring replaces the world: nothing captured before it may land afterwards.
+        internal MountedRiderFallEvent<TPair>[] AbandonAll(string reason)
+        {
+            var taken = pending.ToArray();
+            foreach (var fall in taken) fall.AbandonedReason = reason;
+            pending.Clear();
+            return taken;
         }
 
         // Returns the pending falls of this pair, in capture order, and retires them: each resolves exactly once.
@@ -195,8 +207,8 @@ namespace KingmakerMountedCombat.Domain
             return taken.ToArray();
         }
 
-        // A pending fall whose relationship moved on without unseating this rider (a later generation, a disposed
-        // pair) is abandoned with its reason rather than resolved against a different seat.
+        // A pending fall whose relationship moved on without unseating this rider (remounted, disposed) is abandoned with
+        // its reason rather than resolved against a different seat.
         internal MountedRiderFallEvent<TPair>[] TakeAbandoned(Func<MountedRiderFallEvent<TPair>, string> abandonedReason)
         {
             if (abandonedReason == null) throw new ArgumentNullException(nameof(abandonedReason));
