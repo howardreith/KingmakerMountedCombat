@@ -275,6 +275,7 @@
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Combat.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.CompanionNames.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.RiderFall.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.TackSpecimen.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.SaveBoundary.cs" />
@@ -546,6 +547,7 @@
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
     <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
     <Compile Include="Diagnostics\Finalize3EconomyScenario.cs" />
+    <Compile Include="Diagnostics\Finalize6FallsScenario.cs" />
     <Compile Include="Diagnostics\Finalize3CleanupEscModePolicy.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />

@@ -129,6 +129,7 @@ namespace KingmakerMountedCombat
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { riderFalls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { companionNames?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { world?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -174,8 +175,6 @@ namespace KingmakerMountedCombat
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
 
         internal MountedLifecycleSubscriber Lifecycle => lifecycle;
-
-        internal MountedRiderFallService RiderFalls => riderFalls;
 
         internal MountedPersistenceService Persistence => persistence;
 
@@ -442,6 +441,7 @@ namespace KingmakerMountedCombat
             runtimeAutomation?.Dispose();
             patches.Dispose();
             mountedCombatDefense.Dispose();
+            riderFalls.Dispose();
             ridingDogTack.Dispose();
             companionNames.Dispose();
             nativeControls.Dispose();

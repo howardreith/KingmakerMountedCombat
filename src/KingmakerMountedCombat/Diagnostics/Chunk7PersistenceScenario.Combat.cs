@@ -49,6 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (PendingMountSave) BeginPendingMountSave();
             else if (WorkerCancelSave) BeginWorkerCancelSave();
             else if (AreaAutosaveCase) BeginAreaAutosave();
+            else if (RiderFallCase) BeginRiderFallRows();
             else { RequestSave(); Next(4); }
         }
         private void PrepareCombatSave()
