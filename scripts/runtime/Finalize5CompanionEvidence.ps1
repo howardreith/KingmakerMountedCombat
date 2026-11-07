@@ -2,8 +2,10 @@
 # Names are the native per-unit CustomName; the tack is one adopted renderer on the Riding Dog's view and none elsewhere.
 $script:KmcF5SharedName = [string]::new([char[]]@([char]0x00C9,'b',[char]0x00E8,'n','e',' ','l',"'",'A','n','c','i','e','n'))
 $script:KmcF5DogDistinctName = 'Biscuit'
+$script:KmcF5LongName = 'Wolfgang Maximilian Wynn'
+# Since the UI polish the sheet has one Rename control and no Default Name; evidence from earlier builds keeps its earlier verdicts.
 $script:KmcF5ProducerShots = @('f5-dog-unmounted-side','f5-dog-unmounted-other','f5-dog-bite-unmounted','f5-sheet-mammoth','f5-dialog-open','f5-dialog-typed',
-    'f5-sheet-mammoth-renamed','f5-invalid-message','f5-reset-confirm','f5-sheet-dog-distinct','f5-sheet-dog-duplicate',
+    'f5-sheet-mammoth-renamed','f5-invalid-message','f5-blank-message','f5-sheet-mammoth-long','f5-sheet-dog-distinct','f5-sheet-dog-duplicate',
     'f5-dog-mounted-side','f5-dog-mounted-other','f5-dog-mounted-cast','f5-dog-mounted-bite','f5-dog-mounted-turn')
 $script:KmcF5ConsumerShots = @('f5-cold-sheet-dog','f5-cold-sheet-mammoth')
 
@@ -56,6 +58,25 @@ function Assert-KmcFinalize5Overtips($Overtips,[string]$Dog,[string]$Mammoth,[st
         $plain=if($null-eq$row.text){$null}else{[regex]::Replace([string]$row.text,'<[^>]*>','')}
         if([string]$row.controllerUnit-cne[string]$row.id-or$plain-cne$pair[1]-or[string]$row.characterName-cne$pair[1]){throw ('A companion overtip shows another name or unit: '+$Label)}}
     if([string]$Overtips.dog.id-ceq[string]$Overtips.mammoth.id){throw ('The overtips name one unit twice: '+$Label)}
+}
+
+# One Rename control at the right end of the name line; neither it nor the name's rendered text touches a level/experience text.
+function Assert-KmcFinalize5Sheet($Sheet,[string]$ShownId,[string]$Label){
+    if($null-eq$Sheet-or$Sheet.renameActive-ne$true-or[string]$Sheet.renameLabel-cne'Rename'-or[string]$Sheet.shown-cne$ShownId-or[int]$Sheet.buttons-ne1-or
+       [string]$Sheet.layout-cne'name-line-right'-or$null-ne$Sheet.PSObject.Properties['resetActive']-or@($Sheet.reservedMargin).Count-ne4){
+        throw ('The sheet did not offer exactly one Rename control with the name keeping its slot clear: '+$Label)
+    }
+    if($Sheet.controlInsideLineHorizontally-ne$true-or$Sheet.controlCentredOnLine-ne$true-or$Sheet.textClearOfControl-ne$true-or
+       $Sheet.controlClearOfLevel-ne$true-or$Sheet.textClearOfLevel-ne$true-or@($Sheet.levelTexts).Count-lt1){
+        throw ('The Rename control or the name overlaps another part of the sheet: '+$Label)
+    }
+}
+
+# The control does not move with the name or the character shown.
+function Assert-KmcFinalize5SameControl($A,$B,[string]$Label){
+    foreach($edge in 'xMin','yMin','xMax','yMax'){
+        if([Math]::Abs([double]$A.control.$edge-[double]$B.control.$edge)-gt0.5){throw ('The Rename control moved: '+$Label)}
+    }
 }
 
 function Assert-KmcFinalize5Identity($Value,$Expected,[string]$Name,[string]$Label){
@@ -116,21 +137,29 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         Assert-KmcFinalize5Tack $n.tackUnmounted 'unmounted'
         Assert-KmcFinalize5Tack $n.tackMounted 'mounted'
         Assert-KmcFinalize5Tack $n.tackAfterMotion 'after motion'
-        if($n.sheetMammoth.renameActive-ne$true-or$n.sheetMammoth.resetActive-ne$false-or[string]$n.sheetMammoth.shown-cne[string]$mammoth.id-or[string]$n.sheetMammoth.renameLabel-cne'Rename'){throw 'The sheet did not offer Rename for the default-named Mammoth.'}
-        if($n.sheetMammothRenamed.resetActive-ne$true-or[string]$n.sheetMammothRenamed.resetLabel-cne'Default Name'){throw 'The sheet did not offer Default Name after the rename.'}
+        Assert-KmcFinalize5Sheet $n.sheetMammoth ([string]$mammoth.id) 'default-named Mammoth'
+        Assert-KmcFinalize5Sheet $n.sheetMammothRenamed ([string]$mammoth.id) 'renamed Mammoth'
+        Assert-KmcFinalize5Sheet $n.sheetMammothLong ([string]$mammoth.id) 'long name'
+        Assert-KmcFinalize5Sheet $n.sheetDog ([string]$dog.id) 'Riding Dog'
+        foreach($pair in @(@($n.sheetMammothRenamed,'renamed'),@($n.sheetMammothLong,'long name'),@($n.sheetDog,'another companion'))){Assert-KmcFinalize5SameControl $n.sheetMammoth $pair[0] $pair[1]}
         $open=$n.dialogOpen
         if($open.shown-ne$true-or[string]$open.prefilled-cne[string]$mammoth.characterName-or$open.hotkeysSuspended-ne$true-or$open.inputFocused-ne$true-or$open.actorCommandsIdle-ne$true){throw 'The naming dialog did not open focused on the current name with game hotkeys suspended.'}
         $typing=@($n.typing)
-        if($typing.Count-ne6){throw 'The naming dialog was not typed into exactly six times.'}
+        if($typing.Count-ne9){throw 'The naming dialog was not typed into exactly nine times.'}
         foreach($entry in $typing){if([string]$entry.field-cne[string]$entry.intended-or$entry.hotkeysSuspended-ne$true-or$entry.actorsIdleAfter-ne$true){throw ('Typing did not reach the field alone: '+[string]$entry.intended)}}
         Assert-KmcFinalize5Identity $n.mammothRenamed $mammoth $shared 'renamed'
         Assert-KmcFinalize5Identity $n.cancelled $mammoth $shared 'cancel'
         if($n.cancelReleasedKeyboard-ne$true){throw 'A cancelled rename left the name field holding the keyboard.'}
         if($n.markupMessageShown-ne$true-or[string]$n.markupReopenedWith-cne'<b>Rex</b>'){throw 'The refused markup name did not explain itself and reopen with the typed text.'}
+        Assert-KmcFinalize5Identity $n.cancelButton $mammoth $shared 'cancel button'
         Assert-KmcFinalize5Identity $n.markupRefused $mammoth $shared 'markup refused'
-        Assert-KmcFinalize5Identity $n.mammothReset $mammoth '' 'reset'
+        # A blank entry explains itself and reopens; it never restores the default name.
+        if($n.blankMessageShown-ne$true-or[string]$n.blankReopenedWith-cne'   '){throw 'The refused blank name did not explain itself and reopen with the typed text.'}
+        Assert-KmcFinalize5Identity $n.blankRefused $mammoth $shared 'blank refused'
+        Assert-KmcFinalize5Identity $n.mammothLong $mammoth $script:KmcF5LongName 'long name'
         Assert-KmcFinalize5Identity $n.mammothRenamedAgain $mammoth $shared 'renamed again'
         if($n.nonPetHidden-ne$true){throw 'Rename was offered for a character who is not a companion.'}
+        if($n.riderNameUnstyled-ne$true){throw 'A non-companion name kept the reserved Rename slot.'}
         Assert-KmcFinalize5Identity $n.dogDistinct $dog $script:KmcF5DogDistinctName 'dog distinct'
         Assert-KmcFinalize5Labels $n.distinctLabels $script:KmcF5DogDistinctName $shared 'distinct'
         Assert-KmcFinalize5Identity $n.dogDuplicate $dog $shared 'dog duplicate'
@@ -164,8 +193,9 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
     Assert-KmcFinalize5Tack $c.tackRemounted 'cold remounted'
     Assert-KmcFinalize5DogStats @($c.tackCold,$c.tackRemounted) 'cold'
     if([string]$c.tackCold.dogStats.id-cne[string]$c.dog.id){throw 'The cold tack statistics are not the named Riding Dog.'}
-    foreach($sheet in @($c.sheetDogCold,$c.sheetMammothCold)){if($sheet.renameActive-ne$true-or$sheet.resetActive-ne$true){throw 'The cold sheet did not offer Rename and Default Name for a renamed companion.'}}
-    if([string]$c.sheetDogCold.shown-cne[string]$c.dog.id-or[string]$c.sheetMammothCold.shown-cne[string]$c.mammoth.id){throw 'The cold sheet showed another unit.'}
+    Assert-KmcFinalize5Sheet $c.sheetDogCold ([string]$c.dog.id) 'cold Riding Dog'
+    Assert-KmcFinalize5Sheet $c.sheetMammothCold ([string]$c.mammoth.id) 'cold Mammoth'
+    Assert-KmcFinalize5SameControl $c.sheetDogCold $c.sheetMammothCold 'cold switch'
     if($c.sheetClosed-ne$true){throw 'The cold character sheet did not close.'}
     Assert-KmcFinalize5ContinuationPlan $Observations ([string]$c.dog.id) 'cold'
     foreach($shot in $script:KmcF5ConsumerShots){Assert-KmcFinalize5Shot $c.shots $shot $root}

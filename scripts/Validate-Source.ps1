@@ -45,6 +45,14 @@ Assert-Kmc (
 ) 'compiled build identity matches version source'
 Assert-Kmc ($info.AssemblyName -ceq 'KingmakerMountedCombat.dll' -and $info.EntryMethod -ceq 'KingmakerMountedCombat.Main.Load') 'UMM identity is standalone'
 Assert-Kmc (@($info.Requirements).Count -eq 0) 'UMM metadata has no gameplay-mod dependency'
+# The public name is presentation only: the mod ID, assembly and entry point above stay as existing saves and installs know them.
+Assert-Kmc ($info.DisplayName -ceq "Mr. Bard's Kingmaker Mounted Combat") 'UMM shows the public display name'
+# The UMM entry has no options page, and nothing outside explicit lab scenarios can switch Mounted Charge off.
+$ordinaryChargeWriters = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -Filter '*.cs' |
+    Where-Object { $_.FullName -notmatch '\\Diagnostics\\' -and [IO.File]::ReadAllText($_.FullName) -match 'EnableMountedCharge\s*=[^=]' })
+Assert-Kmc ($mainText -notmatch 'OnGUI\s*=' -and $ordinaryChargeWriters.Count -eq 0 -and
+    (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs')) -match 'EnableMountedCharge = true;') `
+    'the UMM entry has no options panel and Mounted Charge has no ordinary switch'
 Assert-Kmc ($typeMap.authority.kingmakerMvid -ceq '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'type map binds exact Kingmaker MVID'
 Assert-Kmc ($fingerprint.kingmaker.displayVersion -ceq '2.1.7b') 'fingerprint binds Kingmaker 2.1.7b'
 

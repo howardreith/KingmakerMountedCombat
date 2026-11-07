@@ -105,7 +105,8 @@ function Assert-KmcFinalize6RiderFallObservation($Request,$Artifact){
     Assert-KmcFinalize5Tack $c.tackCold 'cold unseated'
     Assert-KmcFinalize5Tack $c.tackRemounted 'cold remounted'
     Assert-KmcFinalize5DogStats @($c.tackCold,$c.tackRemounted) 'cold'
-    foreach($sheet in @($c.sheetDogCold,$c.sheetMammothCold)){if($sheet.renameActive-ne$true-or$sheet.resetActive-ne$true){throw 'The cold sheet did not offer Rename and Default Name.'}}
+    # Default Name was removed in the UI polish; F6 runs before it recorded the button and keep their verdicts.
+    foreach($sheet in @($c.sheetDogCold,$c.sheetMammothCold)){if($sheet.renameActive-ne$true){throw 'The cold sheet did not offer Rename.'}}
     if($c.sheetClosed-ne$true){throw 'The cold character sheet did not close.'}
     $w=$f.cold;$s=Get-KmcFinalize6Service $w 'cold'
     if([long]$s.begun-ne0-or[long]$s.resolved-ne0-or[long]$s.pending-ne0-or@($s.records).Count-ne0){throw 'F6 the cold load replayed a fall, check or damage.'}

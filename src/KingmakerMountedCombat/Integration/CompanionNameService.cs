@@ -60,7 +60,6 @@ namespace KingmakerMountedCombat.Integration
         internal static string Refusal(UnitEntityData unit) => CompanionRenameEligibility.Refusal(Subject(unit));
         internal static bool IsEligible(UnitEntityData unit) => Refusal(unit) == null;
         internal static string DefaultName(UnitEntityData unit) => unit?.Blueprint?.CharacterName ?? string.Empty;
-        internal static bool HasCustomName(UnitEntityData unit) => !string.IsNullOrEmpty(unit?.Descriptor?.CustomName);
 
         // Confirmation re-reads ownership on the exact unit the dialog opened for; the current selection plays no part.
         internal CompanionNameVerdict Rename(UnitEntityData unit, CompanionRenameSubject opened, string typed, out string refusal)
@@ -72,15 +71,6 @@ namespace KingmakerMountedCombat.Integration
             Write(unit, name);
             Record("renamed " + unit.UniqueId);
             return verdict;
-        }
-
-        internal bool ResetToDefault(UnitEntityData unit, CompanionRenameSubject opened, out string refusal)
-        {
-            refusal = CompanionRenameEligibility.ConfirmationRefusal(opened, Subject(unit));
-            if (refusal != null) { Record("reset refused: " + refusal); return false; }
-            Write(unit, string.Empty);
-            Record("reset " + unit.UniqueId);
-            return true;
         }
 
         private void Write(UnitEntityData unit, string value)
@@ -98,7 +88,8 @@ namespace KingmakerMountedCombat.Integration
             logger?.Info("Companion name: " + outcome + ".");
         }
 
-        // Rename Companion: the native text dialog, prefilled with the current name. Cancel and Esc change nothing.
+        // Rename Companion: the native text dialog, prefilled with the current name. Cancel and Esc change nothing, and an empty
+        // or blank entry is refused and reopened, never taken as the default name: there is no separate way back to the default.
         internal bool OpenRename(UnitEntityData unit)
         {
             var opened = Subject(unit);
@@ -130,19 +121,6 @@ namespace KingmakerMountedCombat.Integration
             var next = pending;
             pending = null;
             next();
-        }
-
-        internal bool OpenReset(UnitEntityData unit)
-        {
-            var opened = Subject(unit);
-            if (disposed || CompanionRenameEligibility.Refusal(opened) != null || !HasCustomName(unit)) return false;
-            var prompt = string.Format(Text("KMC.Companion.Reset.Prompt"), unit.CharacterName, DefaultName(unit));
-            return Dialog.OpenConfirm(prompt, yes =>
-            {
-                if (disposed) return;
-                if (!yes) { Record("reset cancelled"); return; }
-                ResetToDefault(unit, opened, out _);
-            });
         }
 
         public void Dispose()

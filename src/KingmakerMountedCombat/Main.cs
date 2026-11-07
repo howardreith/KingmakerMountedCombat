@@ -25,7 +25,8 @@ namespace KingmakerMountedCombat
                 modEntry.OnToggle = OnToggle;
                 modEntry.OnUnload = OnUnload;
                 modEntry.OnUpdate = OnUpdate;
-                modEntry.OnGUI = OnGui;
+                // No OnGUI: the mod has no player options, so UMM shows only its standard entry and built-in controls.
+                // Removal preparation is reached in game (RemovalPreparationShortcut); the README describes it.
                 modEntry.OnSessionStop = OnSessionStop;
                 logger.Info("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion + " loaded with mounted combat services.");
                 // Support fact, read-only: the exact root form the engine mints
@@ -134,18 +135,6 @@ namespace KingmakerMountedCombat
             finally
             {
                 root?.ObserveStartupCallbackExit();
-            }
-        }
-
-        private static void OnGui(UnityModManager.ModEntry modEntry)
-        {
-            try
-            {
-                root?.DrawGui();
-            }
-            catch (Exception exception)
-            {
-                modEntry.Logger.LogException("OnGUI", exception);
             }
         }
 

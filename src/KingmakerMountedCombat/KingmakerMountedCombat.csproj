@@ -428,6 +428,7 @@
     <Compile Include="Diagnostics\RuntimePersistenceEligibilityScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCampaignBColdScenario.cs" />
     <Compile Include="Integration\MountedRemovalPreparation.cs" />
+    <Compile Include="Integration\RemovalPreparationShortcut.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAreaScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceDungeonEntryScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />

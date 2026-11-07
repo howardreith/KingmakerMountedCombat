@@ -10,13 +10,15 @@ using Object = UnityEngine.Object;
 
 namespace KingmakerMountedCombat.Integration
 {
-    // PET-01's entry point: two copies of the native message box's own button on the character sheet's name line, shown only
-    // while the sheet displays a renameable companion. Rename opens the native text dialog; Default Name (shown once a custom
-    // name exists) asks before restoring the blueprint name. The product does not reference UnityEngine.UI, so the button and
+    // PET-01's entry point: one copy of the native message box's own button, fixed at the right end of the character sheet's
+    // name line and shown only while the sheet displays a renameable companion. It opens the native text dialog. The name
+    // keeps a slot clear for it: while the control shows, the name text gets an equal margin on both sides (so it stays
+    // centred where the sheet puts it), shrinks to fit, and ends in an ellipsis rather than wrapping into the level line.
+    // Every other unit gets the label's own settings back. The product does not reference UnityEngine.UI, so the button and
     // label members are reached by exact token.
     internal sealed class CompanionRenameSheetControl : IDisposable
     {
-        private const float Scale = 0.75f, Gap = 8f;
+        private const float Scale = 0.75f, Gap = 8f, MinimumFontRatio = 0.7f;
         private static readonly FieldInfo CharNameField = Field(typeof(CharacterScreenController), "CharName", 0x0400313D, BindingFlags.Public);
         private static readonly FieldInfo CurrentField = Field(typeof(CharacterScreenController), "m_CurrentCharacter", 0x04003140, BindingFlags.NonPublic);
         private static readonly FieldInfo YesButtonField = Field(typeof(Kingmaker.UI.DialogMessageBox), "m_ButtonYes", 0x04001DFB, BindingFlags.NonPublic);
@@ -25,13 +27,22 @@ namespace KingmakerMountedCombat.Integration
         private static readonly MethodInfo SetInteractable = Exact(ButtonType?.GetProperty("interactable", BindingFlags.Instance | BindingFlags.Public)?.GetSetMethod(), 0x0600043D);
         private static readonly Type LabelType = CharNameField?.FieldType.BaseType?.FullName == "TMPro.TMP_Text" ? CharNameField.FieldType.BaseType : null;
         private static readonly PropertyInfo LabelText = ExactProperty(LabelType?.GetProperty("text", BindingFlags.Instance | BindingFlags.Public), 0x17000117);
-        private static readonly PropertyInfo PreferredWidth = LabelType?.GetProperty("preferredWidth", BindingFlags.Instance | BindingFlags.Public);
+        private static readonly PropertyInfo Margin = ExactProperty(LabelType?.GetProperty("margin", BindingFlags.Instance | BindingFlags.Public), 0x17000155);
+        private static readonly PropertyInfo WordWrapping = ExactProperty(LabelType?.GetProperty("enableWordWrapping", BindingFlags.Instance | BindingFlags.Public), 0x17000139);
+        private static readonly PropertyInfo Overflow = ExactProperty(LabelType?.GetProperty("overflowMode", BindingFlags.Instance | BindingFlags.Public), 0x1700013B);
+        private static readonly PropertyInfo AutoSizing = ExactProperty(LabelType?.GetProperty("enableAutoSizing", BindingFlags.Instance | BindingFlags.Public), 0x1700012D);
+        private static readonly PropertyInfo FontSizeMin = ExactProperty(LabelType?.GetProperty("fontSizeMin", BindingFlags.Instance | BindingFlags.Public), 0x1700012E);
+        private static readonly PropertyInfo FontSizeMax = ExactProperty(LabelType?.GetProperty("fontSizeMax", BindingFlags.Instance | BindingFlags.Public), 0x1700012F);
+        private static readonly PropertyInfo FontSize = ExactProperty(LabelType?.GetProperty("fontSize", BindingFlags.Instance | BindingFlags.Public), 0x17000129);
+        private static readonly object Ellipsis = Overflow != null && Enum.IsDefined(Overflow.PropertyType, "Ellipsis") ? Enum.Parse(Overflow.PropertyType, "Ellipsis") : null;
 
         private readonly CompanionNameService names;
         private readonly IModLogger logger;
         private CharacterScreenController screen;
-        private GameObject rename, reset;
+        private GameObject rename;
         private UnitEntityData shown;
+        private Component styled;
+        private LabelStyle original;
         private bool failed, disposed;
 
         internal CompanionRenameSheetControl(CompanionNameService names, IModLogger logger)
@@ -41,13 +52,16 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal static bool ContractAvailable => CharNameField != null && CurrentField != null && ButtonType != null && GetOnClick != null &&
-            SetInteractable != null && LabelType != null && LabelText != null && PreferredWidth != null;
+            SetInteractable != null && LabelType != null && LabelText != null && Margin != null && WordWrapping != null && Overflow != null &&
+            AutoSizing != null && FontSizeMin != null && FontSizeMax != null && FontSize != null && Ellipsis != null;
         internal UnitEntityData Shown => shown;
         internal GameObject RenameButton => rename;
-        internal GameObject ResetButton => reset;
         internal string Layout { get; private set; }
         internal string RenameLabel => Label(rename);
-        internal string ResetLabel => Label(reset);
+        // The name label's margin (left, top, right, bottom) while the control shows; null when the label has its own settings.
+        internal Vector4? ReservedMargin => styled == null ? (Vector4?)null : (Vector4)Margin.GetValue(styled, null);
+        internal Component NameLabel => screen == null ? null : CharNameField.GetValue(screen) as Component;
+        internal CharacterScreenController Screen => screen;
 
         // CharacterScreenController.SetupInfo postfix: the sheet has just filled its name for the displayed unit.
         internal void Refresh(CharacterScreenController controller)
@@ -61,13 +75,13 @@ namespace KingmakerMountedCombat.Integration
                 if (!Ensure(controller)) return;
                 shown = eligible ? unit : null;
                 rename.SetActive(eligible);
-                reset.SetActive(eligible && CompanionNameService.HasCustomName(unit));
-                if (eligible) Arrange();
+                if (eligible) Arrange(); else Unstyle();
             }
             catch (Exception exception)
             {
-                // Presentation only: the sheet keeps working without the control.
+                // Presentation only: the sheet keeps working without the control, and its name gets its own settings back.
                 failed = true;
+                try { if (rename != null) rename.SetActive(false); Unstyle(); } catch (Exception) { }
                 logger?.Warning("Companion rename control failed: " + exception.GetType().Name + ": " + exception.Message);
             }
         }
@@ -90,7 +104,7 @@ namespace KingmakerMountedCombat.Integration
 
         private bool Ensure(CharacterScreenController controller)
         {
-            if (screen == controller && rename != null && reset != null) return true;
+            if (screen == controller && rename != null) return true;
             if (!ContractAvailable) { failed = true; logger?.Warning("Companion rename control unavailable: a native UI contract differs."); return false; }
             var source = YesButtonField.GetValue(Kingmaker.UI.DialogMessageBox.Instance) as Component;
             var name = CharNameField.GetValue(controller) as Component;
@@ -98,7 +112,6 @@ namespace KingmakerMountedCombat.Integration
             Destroy();
             screen = controller;
             rename = Clone(source.gameObject, name.transform, "KMC_RenameCompanion", names.Text("KMC.Companion.Rename.Button"), OnRename);
-            reset = Clone(source.gameObject, name.transform, "KMC_ResetCompanionName", names.Text("KMC.Companion.Reset.Button"), OnReset);
             return true;
         }
 
@@ -120,45 +133,51 @@ namespace KingmakerMountedCombat.Integration
             return clone;
         }
 
-        // Right end of the name line when the centred name leaves room; otherwise centred just under it.
+        // Always the right end of the name line, vertically centred on it, in the line's own units, so the sheet's canvas
+        // scaling moves both together. The name gives up the button's width plus a gap on each side.
         private void Arrange()
         {
             var name = CharNameField.GetValue(screen) as Component;
-            var line = (RectTransform)name.transform;
             var renameRect = (RectTransform)rename.transform;
-            var resetRect = (RectTransform)reset.transform;
-            var renameWidth = renameRect.rect.width * Scale;
-            var resetWidth = reset.activeSelf ? resetRect.rect.width * Scale + Gap : 0f;
-            var textWidth = Convert.ToSingle(PreferredWidth.GetValue(name, null));
-            var room = (line.rect.width - textWidth) * 0.5f;
-            if (room >= renameWidth + resetWidth + Gap)
-            {
-                Place(renameRect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), Vector2.zero);
-                Place(resetRect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-(renameWidth + Gap), 0f));
-                Layout = "name-line-right";
-            }
-            else
-            {
-                var total = renameWidth + resetWidth;
-                Place(renameRect, new Vector2(0.5f, 0f), new Vector2(1f, 1f), new Vector2(total * 0.5f, -Gap * 0.5f));
-                Place(resetRect, new Vector2(0.5f, 0f), new Vector2(1f, 1f), new Vector2(total * 0.5f - renameWidth - Gap, -Gap * 0.5f));
-                Layout = "under-name";
-            }
+            renameRect.anchorMin = renameRect.anchorMax = renameRect.pivot = new Vector2(1f, 0.5f);
+            renameRect.anchoredPosition = Vector2.zero;
+            var reserve = renameRect.rect.width * Scale + Gap;
+            Style(name, reserve);
+            Layout = "name-line-right";
         }
 
-        private static void Place(RectTransform rect, Vector2 anchor, Vector2 pivot, Vector2 position)
+        private void Style(Component label, float reserve)
         {
-            rect.anchorMin = anchor; rect.anchorMax = anchor; rect.pivot = pivot; rect.anchoredPosition = position;
+            if (!ReferenceEquals(styled, label))
+            {
+                Unstyle();
+                original = LabelStyle.Read(label);
+                styled = label;
+            }
+            var reserved = original.Margin;
+            reserved.x = Math.Max(reserved.x, reserve);
+            reserved.z = Math.Max(reserved.z, reserve);
+            var largest = original.AutoSizing ? original.FontSizeMax : original.FontSize;
+            Margin.SetValue(label, reserved, null);
+            WordWrapping.SetValue(label, false, null);
+            Overflow.SetValue(label, Ellipsis, null);
+            FontSizeMax.SetValue(label, largest, null);
+            FontSizeMin.SetValue(label, original.AutoSizing ? Math.Min(original.FontSizeMin, largest * MinimumFontRatio) : largest * MinimumFontRatio, null);
+            AutoSizing.SetValue(label, true, null);
+        }
+
+        // The label is the sheet's one name field for every character, so anything not a companion gets it back unchanged.
+        private void Unstyle()
+        {
+            var label = styled;
+            styled = null;
+            if (label == null) return;
+            original.Write(label);
         }
 
         private void OnRename()
         {
             if (shown != null && CompanionNameService.IsEligible(shown)) names.OpenRename(shown);
-        }
-
-        private void OnReset()
-        {
-            if (shown != null && CompanionNameService.IsEligible(shown)) names.OpenReset(shown);
         }
 
         private static string Label(GameObject button)
@@ -170,9 +189,9 @@ namespace KingmakerMountedCombat.Integration
 
         private void Destroy()
         {
+            Unstyle();
             if (rename != null) Object.Destroy(rename);
-            if (reset != null) Object.Destroy(reset);
-            rename = reset = null;
+            rename = null;
             shown = null;
         }
 
@@ -182,6 +201,38 @@ namespace KingmakerMountedCombat.Integration
             disposed = true;
             Destroy();
             screen = null;
+        }
+
+        private struct LabelStyle
+        {
+            internal Vector4 Margin;
+            internal bool WordWrapping, AutoSizing;
+            internal object Overflow;
+            internal float FontSizeMin, FontSizeMax, FontSize;
+
+            internal static LabelStyle Read(Component label) => new LabelStyle
+            {
+                Margin = (Vector4)CompanionRenameSheetControl.Margin.GetValue(label, null),
+                WordWrapping = (bool)CompanionRenameSheetControl.WordWrapping.GetValue(label, null),
+                Overflow = CompanionRenameSheetControl.Overflow.GetValue(label, null),
+                AutoSizing = (bool)CompanionRenameSheetControl.AutoSizing.GetValue(label, null),
+                FontSizeMin = (float)CompanionRenameSheetControl.FontSizeMin.GetValue(label, null),
+                FontSizeMax = (float)CompanionRenameSheetControl.FontSizeMax.GetValue(label, null),
+                FontSize = (float)CompanionRenameSheetControl.FontSize.GetValue(label, null)
+            };
+
+            // A destroyed label (the sheet was rebuilt) needs nothing back.
+            internal void Write(Component label)
+            {
+                if (label == null) return;
+                CompanionRenameSheetControl.AutoSizing.SetValue(label, AutoSizing, null);
+                CompanionRenameSheetControl.FontSizeMin.SetValue(label, FontSizeMin, null);
+                CompanionRenameSheetControl.FontSizeMax.SetValue(label, FontSizeMax, null);
+                CompanionRenameSheetControl.FontSize.SetValue(label, FontSize, null);
+                CompanionRenameSheetControl.Overflow.SetValue(label, Overflow, null);
+                CompanionRenameSheetControl.WordWrapping.SetValue(label, WordWrapping, null);
+                CompanionRenameSheetControl.Margin.SetValue(label, Margin, null);
+            }
         }
 
         private static FieldInfo Field(Type type, string name, int token, BindingFlags visibility)
