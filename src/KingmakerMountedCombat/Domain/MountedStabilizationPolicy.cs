@@ -217,7 +217,7 @@ namespace KingmakerMountedCombat.Domain
                     " primary, then click one visible hostile target.";
             }
             return selectedWeaponIsRanged
-                ? "Mounted ranged attacks are not supported in this private alpha."
+                ? "This mounted ranged attack is not supported."
                 : "Use Rider melee, then click one visible hostile target.";
         }
     }

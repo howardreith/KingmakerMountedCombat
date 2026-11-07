@@ -115,7 +115,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
                     TestRunner.Equal(0, result.Validate().Count, "Sustained TB native leaf was lost at serialization.");
                 }
             });
-            runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
+            runner.Run("request accepts human-play combat rows", RequestAcceptsHumanPlayCombatRows);
             runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
             runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
             runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
@@ -752,7 +752,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
         private static void DiagnosticSettingsDefaultsAreSafe()
         {
             var settings = new DiagnosticSettings();
-            TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on for the enabled private alpha.");
+            TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on.");
             TestRunner.Equal(false, settings.EnableUnifiedMountedTurn, "The retired unified-turn experiment must default off.");
             TestRunner.Equal(false, settings.EnablePairedCommandScheduler, "The unqualified paired-command scheduler must default off.");
             TestRunner.Equal(true, settings.EnablePairedActivation, "The supported transport preset must use paired activation by default.");

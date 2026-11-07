@@ -1982,7 +1982,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     rowPoseMaximumSegmentLengthResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
             assertions.Check(rowPoseMaximumApplyMicroseconds <= MaximumPoseApplyMicroseconds &&
                     rowPoseAverageApplyMicroseconds <= MaximumPoseAverageApplyMicroseconds,
-                "Procedural pose frame cost remained within the private-alpha technical bound.",
+                "Procedural pose frame cost remained within the technical bound.",
                 "Pose frame cost exceeded its bound: max/average=" +
                     rowPoseMaximumApplyMicroseconds.ToString("0.0", CultureInfo.InvariantCulture) + "/" +
                     rowPoseAverageApplyMicroseconds.ToString("0.0", CultureInfo.InvariantCulture) + " microseconds.");

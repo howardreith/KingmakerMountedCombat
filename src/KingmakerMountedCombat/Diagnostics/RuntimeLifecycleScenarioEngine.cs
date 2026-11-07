@@ -392,9 +392,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = false;
                 var disabled = playerAction.GetAvailability();
                 assertions.Check(disabled.IsVisible && !disabled.IsEnabled,
-                    "Disabled private-alpha feature retained visible eligibility feedback without an executable action.",
-                    "Disabled private-alpha feature did not fail closed with visible feedback.");
-                assertions.Check(disabled.Feedback.IndexOf("Enable the private-alpha", StringComparison.Ordinal) >= 0,
+                    "Disabled mounted movement retained visible eligibility feedback without an executable action.",
+                    "Disabled mounted movement did not fail closed with visible feedback.");
+                assertions.Check(disabled.Feedback.IndexOf("Enable mounted movement", StringComparison.Ordinal) >= 0,
                     "Disabled feature explained the exact enablement requirement.",
                     "Disabled feature did not expose its exact enablement requirement: " + disabled.Feedback);
                 settings.EnableUnsafeMovementExperiment = true;

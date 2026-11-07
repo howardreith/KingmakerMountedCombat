@@ -107,7 +107,7 @@ namespace KingmakerMountedCombat.Integration
         {
             { "KMC.Horse.Name", "Horse" },
             { "KMC.Horse.Feature.Name", "Animal Companion — Horse" },
-            { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be used by KMC's private-alpha mounted profile." },
+            { "KMC.Horse.Description", "A Large native Kingmaker horse animal companion. It is fully controllable while unmounted and can be ridden with Kingmaker Mounted Combat." },
             { "KMC.Horse.Upgrade.Name", "Horse Animal Companion Advancement" },
             { "KMC.Horse.Upgrade.Description", "At animal-companion rank 4, the horse gains +2 Strength and +2 Constitution." },
             { "KMC.RidingDog.Name", "Riding Dog" },
@@ -1062,7 +1062,7 @@ namespace KingmakerMountedCombat.Integration
             target.HideNotAvailibleInUI = source.HideNotAvailibleInUI;
             // KMC owns these definitions. Copying the stock Mammoth's DLC
             // entitlement can hide or reject the Horse on installations whose
-            // owned DLC set differs, so the private-alpha feature is explicitly
+            // owned DLC set differs, so the feature is explicitly
             // base-game available.
             target.DlcType = Kingmaker.Blueprints.Root.DlcType.None;
         }
