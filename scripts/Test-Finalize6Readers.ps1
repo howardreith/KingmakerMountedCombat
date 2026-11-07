@@ -164,7 +164,7 @@ ColdRefuses { param($o) $o.companionNamesCold.labels.writes=1 } 'names written t
 ColdRefuses { param($o) $o.riderFall.coldRemounted.secondPair.mounted=$false } 'a cold Mount control that did not seat the rider refuses'
 ColdRefuses { param($o) $o.riderFall.coldRemounted.service.begun=1 } 'a cold remount that began a fall refuses'
 
-$prodRun=[pscustomobject]@{scenario='chunk7-persistence-save';persistenceCase='rider-fall-integration-manual';commit='c';branch='b';dllSha256='d';dllMvid='m'}
+$prodRun=[pscustomobject]@{runId='synthetic-producer';scenario='chunk7-persistence-save';persistenceCase='rider-fall-integration-manual';commit='c';branch='b';dllSha256='d';dllMvid='m'}
 $coldRun=[pscustomobject]@{scenario='chunk7-persistence-load';persistenceCase='rider-fall-integration-manual';commit='c';branch='b';dllSha256='d';dllMvid='m'
     persistenceLoad=[pscustomobject]@{sha256=('b'*64);length=10;fileName='Manual_300_KMC_C7_WORLD.zks'}}
 $prod.observations.nativeWrite | Add-Member length 10; $prod.observations.nativeWrite | Add-Member path 'x\Manual_300_KMC_C7_WORLD.zks'
