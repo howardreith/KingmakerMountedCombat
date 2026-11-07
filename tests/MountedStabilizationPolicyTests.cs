@@ -151,7 +151,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!MountedStockAttackPolicy.ShouldReject(false, true, false, true), "Unmounted rider attack was changed.");
             TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, false, false, true), "Non-pair attack was changed.");
             TestRunner.True(!MountedStockAttackPolicy.ShouldReject(true, true, false, false), "A non-exact UnitAttack subclass, including an opportunity or KMC child attack, was changed.");
-            TestRunner.Equal("Mounted ranged attacks are not supported in this private alpha.", MountedStockAttackPolicy.RejectionFeedback(false, true), "Mounted ranged feedback changed.");
+            TestRunner.Equal("This mounted ranged attack is not supported.", MountedStockAttackPolicy.RejectionFeedback(false, true), "Mounted ranged feedback changed.");
             TestRunner.Equal("Use Mammoth primary, then click one visible hostile target.", MountedStockAttackPolicy.RejectionFeedback(true, false), "Mounted Mammoth stock-attack feedback changed.");
         }
 

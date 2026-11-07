@@ -342,7 +342,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.FeatureEnabled)
             {
-                reasons.Add("The private-alpha mounted combat feature is disabled.");
+                reasons.Add("Mounted combat is disabled in this mod's settings.");
                 codes.Add(MountedCombatRejectionCode.FeatureDisabled);
             }
             if (!context.ExactRiderSelection)

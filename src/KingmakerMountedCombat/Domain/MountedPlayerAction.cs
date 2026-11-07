@@ -242,7 +242,7 @@ namespace KingmakerMountedCombat.Domain
                 : context.MountDisplayName;
             if (!context.FeatureEnabled)
             {
-                reasons.Add("Enable the private-alpha mounted movement feature in this mod's settings.");
+                reasons.Add("Enable mounted movement in this mod's settings.");
             }
             if (context.RelationshipTransitionInFlight)
             {
@@ -270,7 +270,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (!context.RiderBodyProfileSupported)
             {
-                reasons.Add("The selected rider's current body rig is not supported by the private-alpha pose profile.");
+                reasons.Add("The selected rider's current body rig is not supported for riding.");
             }
             if (!context.ExactActiveOwnedSupportedMount)
             {

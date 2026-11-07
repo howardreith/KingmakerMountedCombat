@@ -92,7 +92,7 @@ namespace KingmakerMountedCombat.Domain
                     {
                         // The free exploration transition never admits a live
                         // encounter. Voluntary combat mounting is its own mode.
-                        return "Private-alpha mounting is available only outside combat.";
+                        return "Mounting is available only outside combat.";
                     }
                     break;
                 case MountedRelationshipAdmission.VoluntaryCombat:
@@ -141,7 +141,7 @@ namespace KingmakerMountedCombat.Domain
 
             if (!SafeMovementMode)
             {
-                return "Private-alpha mounting is available only in Default or Pause game mode.";
+                return "Mounting is available only in Default or Pause game mode.";
             }
 
             return null;

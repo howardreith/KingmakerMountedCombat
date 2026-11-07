@@ -23,7 +23,22 @@ The owner merged PR #21 as `eb16d2f1` (tree identical to the reviewed `4b8a5f02`
   - static-data offsets shifted by the shorter string. Every content-hashed field and data blob is identical.
 - **Not run in the game.** Gameplay source is identical to the accepted F6 landing.
 - **Checks:** Fast passed 3/0 on budget `release-0.2.0` (0.5 min); Validate-Package passed 11/0.
-- **Tag:** to be applied to the owner's merge of this branch. A release is not an install.
+- **Published:** release [v0.2.0](https://github.com/howardreith/KingmakerMountedCombat/releases/tag/v0.2.0), not draft and not prerelease, marked Latest.
+  - The tag is on the owner's PR #22 merge `c5848306`, whose tree equals the PR head. It differs from the package's build commit `3971e487` only in this file.
+  - Assets: the package and its manifest. The downloaded asset's hash matches `ab2d5102…`.
+  - A release is not an install.
+
+**After 0.2.0 (owner order): final-release wording.**
+- Player-visible and log text no longer calls the mod a "private alpha" or an "experiment". That covers:
+  - refusal messages;
+  - the Horse description;
+  - the load and enable log lines;
+  - the assembly description.
+- Test and audit pins move with the text, and the readers' keys ("… <version> loaded", "diagnostic overlay=False") are kept.
+- The text changes alter the DLL, so this is not the 0.2.0 binary. It ships with the next version.
+- **Checks** (budget `release-wording`):
+  - Fast passed 3/0: components 1118/0, Validate-Source 149/0.
+  - Candidate passed 7/0, including Test-Harness. A first Candidate attempt lost its shell host while starting Test-Harness and was rerun detached.
 
 **Remaining:**
 - WORLD-02 stays deferred and not passed.

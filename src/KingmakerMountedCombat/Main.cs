@@ -27,7 +27,7 @@ namespace KingmakerMountedCombat
                 modEntry.OnUpdate = OnUpdate;
                 modEntry.OnGUI = OnGui;
                 modEntry.OnSessionStop = OnSessionStop;
-                logger.Info("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion + " loaded with transient private-alpha mounted melee services.");
+                logger.Info("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion + " loaded with mounted combat services.");
                 // Support fact, read-only: the exact root form the engine mints
                 // every archive path from (SaveManager.PrepareSave joins it with
                 // "Saved Games"). Unity writes it with forward slashes on Windows.
