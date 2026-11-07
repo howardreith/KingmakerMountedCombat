@@ -77,6 +77,50 @@ namespace KingmakerMountedCombat.Domain
             return null;
         }
 
+        // Every point's signed distance from the body along its own surface normal, over the given body triangles (each index the
+        // first of three): outward, a coat it leaves before any it meets means the point is inside the body; inward, the first
+        // coat it meets is its gap; a point with neither has no body under it. Static so that a regression can measure points the
+        // fit did not make.
+        internal static void MeasureClearance(TackSourceMesh body, IList<int> triangleStarts, float[] points, float[] normals,
+            out float lowest, out float highest, out int unsupported)
+        {
+            lowest = float.MaxValue; highest = float.MinValue; unsupported = 0;
+            for (var i = 0; i < points.Length / 3; i++)
+            {
+                var origin = new V3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+                var normal = new V3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+                Nearest(body, triangleStarts, origin, normal, out var leave, out var enter);
+                float value;
+                if (leave < enter) value = -leave;
+                else
+                {
+                    Nearest(body, triangleStarts, origin, normal * -1f, out _, out value);
+                    if (value == float.MaxValue) { unsupported++; continue; }
+                }
+                lowest = Math.Min(lowest, value); highest = Math.Max(highest, value);
+            }
+            if (lowest > highest) lowest = highest = float.NaN;
+        }
+
+        // The nearest coat a ray leaves (it faces along the ray) and the nearest it meets (it faces against it), in one pass;
+        // float.MaxValue when there is none.
+        private static void Nearest(TackSourceMesh body, IList<int> triangleStarts, V3 origin, V3 direction, out float leave, out float enter)
+        {
+            leave = enter = float.MaxValue;
+            float[] p = body.Positions, n = body.Normals;
+            foreach (var t in triangleStarts)
+            {
+                int i0 = body.Triangles[t] * 3, i1 = body.Triangles[t + 1] * 3, i2 = body.Triangles[t + 2] * 3;
+                if (!Builder.Intersect(origin, direction, new V3(p[i0], p[i0 + 1], p[i0 + 2]), new V3(p[i1], p[i1 + 1], p[i1 + 2]), new V3(p[i2], p[i2 + 1], p[i2 + 2]),
+                    out var distance, out var b1, out var b2) || distance >= Math.Max(leave, enter)) continue;
+                var b0 = 1f - b1 - b2;
+                var facing = (n[i0] * b0 + n[i1] * b1 + n[i2] * b2) * direction.X + (n[i0 + 1] * b0 + n[i1 + 1] * b1 + n[i2 + 1] * b2) * direction.Y +
+                    (n[i0 + 2] * b0 + n[i1 + 2] * b1 + n[i2 + 2] * b2) * direction.Z;
+                if (facing > 0f) leave = Math.Min(leave, distance);
+                else if (facing < 0f) enter = Math.Min(enter, distance);
+            }
+        }
+
         internal struct V3
         {
             internal readonly float X, Y, Z;
@@ -114,6 +158,8 @@ namespace KingmakerMountedCombat.Domain
             internal TackMeshData Run(out string failure)
             {
                 failure = null;
+                // 5 cm beyond the tack: AxisHeight samples the back 4 cm either side of a row and SpineWeights 2 cm, and a ray at a z
+                // outside this slab would find no body.
                 var low = seat - Math.Max(PadBack, SeatBack) - 0.05f;
                 var high = seat + Math.Max(PadFront, Math.Max(SeatFront, GirthOffset + GirthWidth)) + 0.05f;
                 var triangleList = source.Triangles;
@@ -159,41 +205,8 @@ namespace KingmakerMountedCombat.Domain
                 return rise;
             }
 
-            // Along each vertex's own surface normal: outward, a coat it leaves before any it meets means the vertex is inside the body;
-            // inward, the first coat it meets is its gap. A vertex with neither has no body under it.
-            private void Clearance(out float lowest, out float highest, out int unsupported)
-            {
-                lowest = float.MaxValue; highest = float.MinValue; unsupported = 0;
-                for (var i = 0; i < positions.Count; i++)
-                {
-                    var normal = lifts[i];
-                    var leave = Along(positions[i], normal, true);
-                    float value;
-                    if (leave < Along(positions[i], normal, false)) value = -leave;
-                    else
-                    {
-                        value = Along(positions[i], normal * -1f, false);
-                        if (value == float.MaxValue) { unsupported++; continue; }
-                    }
-                    lowest = Math.Min(lowest, value); highest = Math.Max(highest, value);
-                }
-                if (lowest > highest) lowest = highest = float.NaN;
-            }
-
-            // The nearest body triangle along a ray; leaving = only those whose coat faces along the ray (the ray starts inside).
-            private float Along(V3 origin, V3 direction, bool leaving)
-            {
-                var best = float.MaxValue;
-                foreach (var t in slab)
-                {
-                    int i0 = source.Triangles[t], i1 = source.Triangles[t + 1], i2 = source.Triangles[t + 2];
-                    if (!Intersect(origin, direction, P(i0), P(i1), P(i2), out var distance, out var b1, out var b2) || distance >= best) continue;
-                    var facing = V3.Dot(N(i0) * (1f - b1 - b2) + N(i1) * b1 + N(i2) * b2, direction);
-                    if (leaving ? facing <= 0f : facing >= 0f) continue;
-                    best = distance;
-                }
-                return best;
-            }
+            private void Clearance(out float lowest, out float highest, out int unsupported) =>
+                MeasureClearance(source, slab, Flatten(positions), Flatten(lifts), out lowest, out highest, out unsupported);
 
             private static float[] Flatten(List<V3> values)
             {
@@ -588,7 +601,7 @@ namespace KingmakerMountedCombat.Domain
             private V3 N(int i) => new V3(source.Normals[i * 3], source.Normals[i * 3 + 1], source.Normals[i * 3 + 2]);
 
             // Möller–Trumbore, both windings.
-            private static bool Intersect(V3 origin, V3 direction, V3 p0, V3 p1, V3 p2, out float t, out float u, out float v)
+            internal static bool Intersect(V3 origin, V3 direction, V3 p0, V3 p1, V3 p2, out float t, out float u, out float v)
             {
                 t = u = v = 0f;
                 var e1 = p1 - p0;

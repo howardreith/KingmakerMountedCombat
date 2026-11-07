@@ -36,7 +36,7 @@ function Assert-KmcFinalize5Tack($Tack,[string]$Label){
     # through the chest while its centre line was on design): none more than 5 mm inside (half the pad's 1 cm lift), none 8 cm
     # or more off the coat, and none without body under it. maxRise is measured against the back's surface since r05; r04's
     # 0.544 m was against a chest vertex under it.
-    if($null-eq$Tack.PSObject.Properties['minClearance']-or$null-eq$Tack.minClearance-or$null-eq$Tack.maxClearance-or$null-eq$Tack.PSObject.Properties['unsupported']){throw ('The tack fit recorded no clearance from the body: '+$Label)}
+    if($null-eq$Tack.PSObject.Properties['minClearance']-or$null-eq$Tack.minClearance-or$null-eq$Tack.maxClearance-or$null-eq$Tack.PSObject.Properties['unsupported']-or$null-eq$Tack.unsupported){throw ('The tack fit recorded no clearance from the body: '+$Label)}
     if([double]$Tack.minClearance-le-0.005-or[double]$Tack.maxClearance-ge0.08-or[int]$Tack.unsupported-ne0){
         throw ('The tack leaves or enters the body (clearance '+([double]$Tack.minClearance).ToString('F3')+' .. '+([double]$Tack.maxClearance).ToString('F3')+' m, '+[int]$Tack.unsupported+' unsupported): '+$Label)
     }
@@ -91,6 +91,19 @@ function Assert-KmcFinalize5ColdAgainstSource($ProducerRequest,$ProducerEvidence
     if([string]$after.id-cne[string]$before.id-or[string]$after.size-cne[string]$before.size-or[int]$after.armorClass-ne[int]$before.armorClass-or[int]$after.speed-ne[int]$before.speed){throw 'The Riding Dog statistics changed across the reload.'}
 }
 
+# F5's second pair plans its 2 m continuation from wherever its visual walk ended (r05 overshot a fixed +z click): the click the
+# generic movement reader measured must be the plan's own eligible goal for the Riding Dog.
+function Assert-KmcFinalize5ContinuationPlan($Observations,[string]$DogId,[string]$Label){
+    $plan=if($null-ne$Observations.PSObject.Properties['areaContinuationPlans']-and$null-ne$Observations.areaContinuationPlans){$Observations.areaContinuationPlans.'second-pair'}else{$null}
+    $move=@($Observations.movements|Where-Object{$_.label-ceq'second-pair'})
+    if($null-eq$plan-or$move.Count-ne1-or[string]$plan.moverId-cne$DogId-or[string]$move[0].executorId-cne$DogId){throw ('The second pair continuation has no plan for the Riding Dog: '+$Label)}
+    $chosen=@($plan.proposals|Where-Object{$_.eligible-eq$true-and[double]$_.angle-eq[double]$plan.selectedAngle})
+    $g=$plan.selectedGoal;$m=$move[0].goal
+    if($chosen.Count-ne1-or[Math]::Abs([double]$g.x-[double]$m.x)-gt0.0001-or[Math]::Abs([double]$g.y-[double]$m.y)-gt0.0001-or[Math]::Abs([double]$g.z-[double]$m.z)-gt0.0001){
+        throw ('The second pair continuation clicked a goal its plan did not choose: '+$Label)
+    }
+}
+
 function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
     $root=if($null-ne$Request.PSObject.Properties['evidenceRoot']){[string]$Request.evidenceRoot}else{$null}
     $shared=$script:KmcF5SharedName
@@ -127,6 +140,7 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         Assert-KmcFinalize5DogStats @($n.tackUnmounted,$n.tackMounted,$n.tackAfterMotion) 'producer'
         if([string]$n.tackUnmounted.dogStats.id-cne[string]$dog.id){throw 'The tack statistics are not the named Riding Dog.'}
         if($n.sheetClosed-ne$true){throw 'The character sheet did not close.'}
+        Assert-KmcFinalize5ContinuationPlan $Observations ([string]$dog.id) 'producer'
         foreach($shot in $script:KmcF5ProducerShots){Assert-KmcFinalize5Shot $n.shots $shot $root}
         return
     }
@@ -153,5 +167,6 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
     foreach($sheet in @($c.sheetDogCold,$c.sheetMammothCold)){if($sheet.renameActive-ne$true-or$sheet.resetActive-ne$true){throw 'The cold sheet did not offer Rename and Default Name for a renamed companion.'}}
     if([string]$c.sheetDogCold.shown-cne[string]$c.dog.id-or[string]$c.sheetMammothCold.shown-cne[string]$c.mammoth.id){throw 'The cold sheet showed another unit.'}
     if($c.sheetClosed-ne$true){throw 'The cold character sheet did not close.'}
+    Assert-KmcFinalize5ContinuationPlan $Observations ([string]$c.dog.id) 'cold'
     foreach($shot in $script:KmcF5ConsumerShots){Assert-KmcFinalize5Shot $c.shots $shot $root}
 }

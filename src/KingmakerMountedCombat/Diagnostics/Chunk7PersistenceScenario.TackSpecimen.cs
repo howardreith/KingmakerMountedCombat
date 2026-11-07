@@ -84,7 +84,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     ["positions"] = new JArray(fit.Positions), ["normals"] = new JArray(fit.Normals), ["uvs"] = new JArray(fit.Uvs), ["triangles"] = new JArray(fit.Triangles),
                     ["boneIndices"] = new JArray(fit.BoneIndices), ["boneWeights"] = new JArray(fit.BoneWeights),
-                    ["padVertexEnd"] = fit.PadVertexEnd, ["seatVertexEnd"] = fit.SeatVertexEnd, ["maxRise"] = fit.MaxRiseAboveBack, ["backAtSeat"] = fit.BackHeightAtSeat
+                    ["padVertexEnd"] = fit.PadVertexEnd, ["seatVertexEnd"] = fit.SeatVertexEnd, ["maxRise"] = fit.MaxRiseAboveBack, ["backAtSeat"] = fit.BackHeightAtSeat,
+                    ["minClearance"] = Finite(fit.MinClearance), ["maxClearance"] = Finite(fit.MaxClearance), ["unsupported"] = fit.Unsupported, ["fitMilliseconds"] = tack.FitMilliseconds
                 },
                 ["tackMesh"] = tack.Mesh == null ? null : new JObject
                 {

@@ -174,7 +174,9 @@ namespace KingmakerMountedCombat.Integration
             }
             // Kept with the fit, accepted or refused, so a diagnostic specimen can replay exactly this input.
             tack.Body = body; tack.FitSkin = skin; tack.FitViewToWorld = view.transform.localToWorldMatrix;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
             var fit = RidingDogTackGeometry.Build(body, RidingDogTackGeometry.SeatForward, out var failure);
+            tack.FitMilliseconds = clock.Elapsed.TotalMilliseconds;
             if (fit == null)
             {
                 tack.Failure = failure;
@@ -293,6 +295,7 @@ namespace KingmakerMountedCombat.Integration
         internal TackSourceMesh Body;
         internal Matrix4x4[] FitSkin;
         internal Matrix4x4 FitViewToWorld;
+        internal double FitMilliseconds;
         internal string Failure, Shader;
         internal string[] ReplacedTextures, KeptTextures;
     }

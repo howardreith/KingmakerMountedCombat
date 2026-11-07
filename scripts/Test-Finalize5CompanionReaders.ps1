@@ -23,6 +23,9 @@ $tack=[pscustomobject]@{dogBindings=1;mammothBindings=0;adopted=$true;rendererEn
     dogStats=[pscustomobject]@{id=$dogId;size='Medium';armorClass=19;speed=40}}
 function Shots($Names){ @($Names|ForEach-Object{ [pscustomobject]@{name=$_;file=('movement-visuals/finalize5-'+$_+'.png');bytes=10;sha256=('0'*64)} }) }
 $typing=@($shared,'Nobody','<b>Rex</b>',$shared,'Biscuit',$shared|ForEach-Object{ [pscustomobject]@{intended=$_;field=$_;hotkeysSuspended=$true;actorsIdleBefore=$true;actorsIdleAfter=$true} })
+function Point([double]$X,[double]$Z){ [pscustomobject]@{x=$X;y=6.096;z=$Z} }
+function Moves { @([pscustomobject]@{label='first-pair';executorId=$mammothId;goal=(Point 3.87 50.17)},[pscustomobject]@{label='second-pair';executorId=$dogId;goal=(Point -0.05 56.2)}) }
+function Plans { [pscustomobject]@{'second-pair'=[pscustomobject]@{moverId=$dogId;selectedAngle=0;selectedGoal=(Point -0.05 56.2);proposals=@([pscustomobject]@{angle=90;eligible=$false},[pscustomobject]@{angle=0;eligible=$true})}} }
 $producer=[pscustomobject]@{companionNames=[pscustomobject]@{
     dog=(Dog '');mammoth=(Mammoth '');tackUnmounted=$tack;tackMounted=$tack;tackAfterMotion=$tack
     sheetMammoth=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$false;renameLabel='Rename';resetLabel='Default Name'}
@@ -31,6 +34,7 @@ $producer=[pscustomobject]@{companionNames=[pscustomobject]@{
     typing=$typing;mammothRenamed=(Mammoth $shared);cancelled=(Mammoth $shared);cancelReleasedKeyboard=$true;markupMessageShown=$true;markupReopenedWith='<b>Rex</b>';markupRefused=(Mammoth $shared)
     mammothReset=(Mammoth '');mammothRenamedAgain=(Mammoth $shared);nonPetHidden=$true;dogDistinct=(Dog 'Biscuit');distinctLabels=(Labels 'Biscuit' $shared)
     dogDuplicate=(Dog $shared);duplicateLabels=(Labels $shared $shared);atSave=(Labels $shared $shared);overtipsAtSave=(Overtips $shared);sheetClosed=$true;shots=(Shots $script:KmcF5ProducerShots)}}
+$producer | Add-Member movements (Moves); $producer | Add-Member areaContinuationPlans (Plans)
 $request=[pscustomobject]@{persistenceCase='companion-names-tack-manual'}
 
 Assert-KmcFinalize5CompanionNames $request $producer $false; Check $true 'the producer reader accepts the complete naming and tack observation'
@@ -55,6 +59,17 @@ $p=Clone $producer; $p.companionNames.tackMounted.unsupported=39; Refuses { Asse
 $p=Clone $producer; $p.companionNames.tackAfterMotion.maxClearance=0.17; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a pad point 17 cm off the flank refuses (r04 replay)'
 $p=Clone $producer; $p.companionNames.tackUnmounted.PSObject.Properties.Remove('minClearance'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fit without the clearance diagnostic (r01-r05 evidence shape) refuses'
 $p=Clone $producer; $p.companionNames.tackMounted.minClearance=$null; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a clearance that was not finite refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.minClearance=-0.004; $p.companionNames.tackMounted.maxClearance=0.079; Assert-KmcFinalize5CompanionNames $request $p $false; Check $true 'clearance just inside the envelope (-4 mm, 7.9 cm) is accepted'
+$p=Clone $producer; $p.companionNames.tackMounted.minClearance=-0.006; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a point 6 mm inside the body refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.maxClearance=0.081; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a point 8.1 cm off the coat refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.unsupported=1; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a single unsupported vertex refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.PSObject.Properties.Remove('maxClearance'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fit without its largest clearance refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.PSObject.Properties.Remove('unsupported'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a fit without its unsupported count refuses'
+$p=Clone $producer; $p.companionNames.tackMounted.unsupported=$null; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a null unsupported count refuses'
+$p=Clone $producer; $p.areaContinuationPlans.'second-pair'.selectedGoal.z=58.2; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a continuation click its plan did not choose refuses'
+$p=Clone $producer; $p.areaContinuationPlans.'second-pair'.moverId=$mammothId; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a continuation plan for another unit refuses'
+$p=Clone $producer; $p.areaContinuationPlans.'second-pair'.proposals[1].eligible=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a continuation plan whose chosen ray was ineligible refuses'
+$p=Clone $producer; $p.PSObject.Properties.Remove('areaContinuationPlans'); Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a producer without its continuation plan (r05 shape) refuses'
 $p=Clone $producer; $p.companionNames.tackMounted.dogStats.armorClass=21; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a dog whose armour class changed under the tack refuses'
 $p=Clone $producer; $p.companionNames.overtipsAtSave.dog.text='Riding Dog'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'an overtip still showing the default name refuses'
 $p=Clone $producer; $p.companionNames.overtipsAtSave.mammoth.controllerUnit=$dogId; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'an overtip bound to the other companion refuses'
@@ -63,6 +78,7 @@ $p=Clone $producer; $p.companionNames.shots=@($p.companionNames.shots|Where-Obje
 $consumer=[pscustomobject]@{ridingDogCold=[pscustomobject]@{owner=$dogMaster};loadedArchive=[pscustomobject]@{Pairs=@([pscustomobject]@{Mount=[pscustomobject]@{Id=$dogId}},[pscustomobject]@{Mount=[pscustomobject]@{Id=$mammothId}})}
     companionNamesCold=[pscustomobject]@{dog=(Dog $shared);mammoth=(Mammoth $shared);labels=(Labels $shared $shared);overtipsCold=(Overtips $shared);tackCold=$tack;tackRemounted=$tack
         sheetDogCold=[pscustomobject]@{shown=$dogId;renameActive=$true;resetActive=$true};sheetMammothCold=[pscustomobject]@{shown=$mammothId;renameActive=$true;resetActive=$true};sheetClosed=$true;shots=(Shots $script:KmcF5ConsumerShots)}}
+$consumer | Add-Member movements (Moves); $consumer | Add-Member areaContinuationPlans (Plans)
 Assert-KmcFinalize5CompanionNames $request $consumer $true; Check $true 'the consumer reader accepts persisted duplicate names, identities and one tack'
 $c=Clone $consumer; $c.companionNamesCold.labels.dog.characterName='Riding Dog'; $c.companionNamesCold.labels.dog.customName=''; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a name lost on load refuses'
 $c=Clone $consumer; $c.companionNamesCold.tackRemounted.dogBindings=2; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a tack duplicated by remount refuses'
@@ -73,6 +89,7 @@ $c=Clone $consumer; $c.companionNamesCold.overtipsCold.mammoth.text='Mastodon'; 
 $c=Clone $consumer; $c.companionNamesCold.tackRemounted.dogStats.speed=30; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold dog whose speed changed refuses'
 $c=Clone $consumer; $c.companionNamesCold.tackCold.maxRise=0.3; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold fit outside the envelope refuses'
 $c=Clone $consumer; $c.companionNamesCold.tackCold.unsupported=12; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold rebuilt tack with shards refuses'
+$c=Clone $consumer; $c.areaContinuationPlans.'second-pair'.selectedGoal.x=1.5; Refuses { Assert-KmcFinalize5CompanionNames $request $c $true } 'a cold continuation click its plan did not choose refuses'
 # Cross-run: the consumer against its producer's recorded values.
 $manual='5'*64
 $preq=[pscustomobject]@{scenario='chunk7-persistence-save';persistenceCase='companion-names-tack-manual';commit='abc';branch='codex/kmc-finalize-f5-names-dog-tack';dllSha256=('d'*64);dllMvid='m'}
