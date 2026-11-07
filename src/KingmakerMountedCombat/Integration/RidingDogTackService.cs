@@ -172,6 +172,8 @@ namespace KingmakerMountedCombat.Integration
                 body.BoneWeights[i * 4] = weight.weight0; body.BoneWeights[i * 4 + 1] = weight.weight1;
                 body.BoneWeights[i * 4 + 2] = weight.weight2; body.BoneWeights[i * 4 + 3] = weight.weight3;
             }
+            // Kept with the fit, accepted or refused, so a diagnostic specimen can replay exactly this input.
+            tack.Body = body; tack.FitSkin = skin; tack.FitViewToWorld = view.transform.localToWorldMatrix;
             var fit = RidingDogTackGeometry.Build(body, RidingDogTackGeometry.SeatForward, out var failure);
             if (fit == null)
             {
@@ -288,6 +290,9 @@ namespace KingmakerMountedCombat.Integration
         internal Mesh Mesh, SourceMesh;
         internal Material Material;
         internal TackMeshData Fit;
+        internal TackSourceMesh Body;
+        internal Matrix4x4[] FitSkin;
+        internal Matrix4x4 FitViewToWorld;
         internal string Failure, Shader;
         internal string[] ReplacedTextures, KeptTextures;
     }

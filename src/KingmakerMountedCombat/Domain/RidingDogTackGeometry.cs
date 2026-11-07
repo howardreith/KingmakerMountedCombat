@@ -32,6 +32,9 @@ namespace KingmakerMountedCombat.Domain
         // Highest pad or seat vertex above the body's own dorsal line at that vertex's z: a fin or a raised edge shows here even
         // when the seat itself sits correctly (r02, r03).
         public float MaxRiseAboveBack { get; internal set; }
+        // Vertices [0, PadVertexEnd) are the pad and its rim, [PadVertexEnd, SeatVertexEnd) the seat, the rest the girth.
+        public int PadVertexEnd { get; internal set; }
+        public int SeatVertexEnd { get; internal set; }
     }
 
     // PET-02: an original saddle pad, seat and girth draped over the Riding Dog's actual back. Every point is a ray cast onto the
@@ -121,7 +124,9 @@ namespace KingmakerMountedCombat.Domain
                 var back = Cast(seat, 0f);
                 if (!back.Valid) { failure = "no back surface at the seat"; return null; }
                 var padTop = BuildPad();
+                var padEnd = positions.Count;
                 var seatTop = BuildSeat(out var cantleTop, out var pommelTop);
+                var seatEnd = positions.Count;
                 var maxRise = MaxRise(positions.Count);
                 BuildGirth();
                 if (padTop < 0 || seatTop < 0) { failure = "the pad or seat did not reach the back"; return null; }
@@ -131,7 +136,8 @@ namespace KingmakerMountedCombat.Domain
                 {
                     Positions = Flatten(positions), Normals = Flatten(normals), Uvs = uvs.ToArray(), Triangles = triangles.ToArray(),
                     BoneIndices = bones.ToArray(), BoneWeights = weights.ToArray(), Casts = casts, Misses = misses,
-                    BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop, MaxRiseAboveBack = maxRise
+                    BackHeightAtSeat = back.Point.Y, SeatTopAtSeat = positions[seatTop].Y, CantleTop = cantleTop, PommelTop = pommelTop, MaxRiseAboveBack = maxRise,
+                    PadVertexEnd = padEnd, SeatVertexEnd = seatEnd
                 };
                 return data;
             }
