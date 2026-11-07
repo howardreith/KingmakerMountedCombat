@@ -119,7 +119,8 @@ function Assert-KmcFinalize6FallsEvidence {
  $kill=Step $a 'kill'
  Need ((Int (P $kill 'applied') 'kill applied') -ge 1) 'the native lethal rule applied damage'
  Need ((Text (P (P $aa 'aMount') 'life')) -ceq 'Dead') 'pair A mount died natively'
- Need ((Text (P (P $aa 'aPair') 'state')) -ceq 'Unmounted') 'pair A rider unseated'
+ # r05: an unseated pair reads Unmounted, or None once its custody retires (both mean no mounted owner).
+ Need ((Text (P (P $aa 'aPair') 'state')) -cin @('Unmounted','None')) 'pair A rider unseated'
  Need ((Text (P (P $aa 'bPair') 'state')) -ceq 'Mounted' -and (Int (P (P $aa 'bPair') 'generation') 'B generation after') -eq (Int (P (P $ab 'bPair') 'generation') 'B generation before') -and
   (Text (P (P $aa 'bPair') 'ownerId')) -ceq (Text (P (P $ab 'bPair') 'ownerId'))) 'the other pair stays mounted under the same owner and generation'
  Need ((Svc $aa 'begun') -eq (Svc $ab 'begun')+1 -and (Svc $aa 'resolved') -eq (Svc $ab 'resolved')+1 -and (Svc $aa 'pending') -eq 0 -and (Svc $aa 'abandoned') -eq 0) 'exactly one fall for the death'
@@ -157,7 +158,7 @@ function Assert-KmcFinalize6FallsEvidence {
  Need ((Text (P (P $bb 'bPair') 'state')) -ceq 'Mounted') 'pair B mounted before its fall'
  Need ((Text (P $bb 'turnRole')) -ceq 'bRider') 'the prone was measured on pair B''s own activation'
  Need ((P (Step $b 'knockOff') 'canBeKnockedOff') -eq $true) 'the native knock-off rule allowed the prone'
- Need ((Text (P (P $ba 'bPair') 'state')) -ceq 'Unmounted' -and (P (P $ba 'bMount') 'prone') -eq $true -and (Text (P (P $ba 'bMount') 'life')) -ceq 'Conscious') 'the conscious mount fell prone and unseated its rider'
+ Need ((Text (P (P $ba 'bPair') 'state')) -cin @('Unmounted','None') -and (P (P $ba 'bMount') 'prone') -eq $true -and (Text (P (P $ba 'bMount') 'life')) -ceq 'Conscious') 'the conscious mount fell prone and unseated its rider'
  Need ((Svc $ba 'begun') -eq (Svc $bb 'begun')+1 -and (Svc $ba 'resolved') -eq (Svc $bb 'resolved')+1 -and (Svc $ba 'pending') -eq 0) 'exactly one fall for the prone'
  $fb=$falls[1]
  Need ((Text (P $fb 'label')) -ceq 'tb-b-prone') 'the second fall is the prone'
@@ -171,7 +172,10 @@ function Assert-KmcFinalize6FallsEvidence {
  Need ((Svc $bd 'begun') -eq (Svc $ba 'begun') -and (Svc $bd 'resolved') -eq (Svc $ba 'resolved')) 'the former rider was not thrown or hurt again by the fall service'
  Need ((Int (P (P $bd 'bRider') 'damage') 'B rider damage after death') -eq (Int (P (P $bs 'bRider') 'damage') 'B rider damage before the kill') -and (P (P $bd 'bRider') 'prone') -eq $false) 'the former rider kept its damage and stayed standing through the death callbacks'
  Need ((Reaction $bb 'bRider' 'B before') -ceq (Reaction $ba 'bRider' 'B after')) 'the safe landing left the Mounted Combat reaction state untouched'
- Need ((P (Step $b 'end') 'endedNatively') -eq $true -or (Step $b 'proneActivationEnded') -eq $true) 'pair B activation ended natively (End Turn, or the paired split ending it)'
+ # r05: the split ended pair B's activation a frame after the resolution snapshot; no End Turn input was given for it.
+ $bRound=Int (P $bb 'round') 'pair B fall round'
+ $bInput=@(@(P $o 'endTurns') | Where-Object { (Text (P $_ 'role')) -ceq 'bRider' -and (P $_ 'round') -eq $bRound }).Count
+ Need ((P (Step $b 'end') 'endedNatively') -eq $true -or (Step $b 'proneActivationEnded') -eq $true -or $bInput -eq 0) 'pair B activation ended natively (End Turn, or the paired split ending it with no End Turn input)'
 
  # ---- no extra native preparation ------------------------------------------------------------------------------------
  $prep=@(P $o 'preparations')

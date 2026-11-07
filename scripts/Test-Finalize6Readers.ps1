@@ -114,6 +114,7 @@ $comp=Clone $tbArtifact; $o=$comp.observations.finalize6Falls; $o.contract='fina
 $comp.rows=@($comp.rows | Where-Object { $_.name -cin @(Get-KmcFinalize6CompletionCases) })
 Assert-KmcFinalize6FallsEvidence -Request $compRequest -Artifact $comp -Status 'PASS'; Check $true 'the completion reader accepts setup, the death fall with its next-turn stand-up and the safe prone fall'
 Check ((Get-KmcPhase3dEvidenceDispatch 55 'finalize6-falls-completion-tb').validator -ceq 'Assert-KmcFinalize6FallsEvidence' -and (Test-KmcPhase3dSchemaRegistration 55 'finalize6-falls-completion-tb')) 'the completion variant dispatches to the F6 reader under schema 55'
+Check (@('F6-tb-a-death-fall','F6-tb-b-prone-fall','finalize6-falls-tb','finalize6-falls-completion-tb' | Where-Object { $_ -cnotin @(Get-KmcPhase3dHorseRuntimeRows) }).Count -eq 0) 'the F6 rows and scenarios are registered result rows (r05 was refused as an unknown subscenario)'
 function CompRefuses([scriptblock]$Mutate,[string]$Message){ $a=Clone $comp; & $Mutate $a; Refuses { Assert-KmcFinalize6FallsEvidence -Request $compRequest -Artifact $a -Status 'PASS' } $Message }
 CompRefuses { param($a) $a.rows=@($a.rows[0],$a.rows[1]) } 'a missing terminal fall row refuses'
 CompRefuses { param($a) $a.observations.finalize6Falls.contract='finalize6-falls-v1' } 'the full-route contract under the completion name refuses'
