@@ -32,6 +32,14 @@ function Assert-KmcFinalize5Tack($Tack,[string]$Label){
     if($lift-lt0.010-or$lift-gt0.050){throw ('The seat is buried in or floats above the back ('+$lift.ToString('F3')+' m): '+$Label)}
     if([double]$Tack.cantleTop-[double]$Tack.backAtSeat-ge0.08-or[double]$Tack.pommelTop-[double]$Tack.backAtSeat-ge0.08){throw ('A roll stands too tall above the back: '+$Label)}
     if([double]$Tack.maxRise-ge0.08-or[double]$Tack.maxRise-le0){throw ('A pad or seat point leaves the back ('+([double]$Tack.maxRise).ToString('F3')+' m): '+$Label)}
+    # Every vertex against the body along its own surface normal (r04 rendered pad shards with no body under them and a girth
+    # through the chest while its centre line was on design): none more than 5 mm inside (half the pad's 1 cm lift), none 8 cm
+    # or more off the coat, and none without body under it. maxRise is measured against the back's surface since r05; r04's
+    # 0.544 m was against a chest vertex under it.
+    if($null-eq$Tack.PSObject.Properties['minClearance']-or$null-eq$Tack.minClearance-or$null-eq$Tack.maxClearance-or$null-eq$Tack.PSObject.Properties['unsupported']){throw ('The tack fit recorded no clearance from the body: '+$Label)}
+    if([double]$Tack.minClearance-le-0.005-or[double]$Tack.maxClearance-ge0.08-or[int]$Tack.unsupported-ne0){
+        throw ('The tack leaves or enters the body (clearance '+([double]$Tack.minClearance).ToString('F3')+' .. '+([double]$Tack.maxClearance).ToString('F3')+' m, '+[int]$Tack.unsupported+' unsupported): '+$Label)
+    }
 }
 
 # The same dog keeps its statistics across tack, mount, motion and reload.
