@@ -1,5 +1,79 @@
 # F6 review handoff: logged rider falls and final integrated acceptance
 
+## Engineering acceptance and integration closeout (2026-11-07)
+
+**F6 ENGINEERING ACCEPTED IN REVIEW AT `4b8a5f02`; SELECTED REFINEMENT ENGINEERING COMPLETE WITH WORLD-02 DEFERRED; OWNER ACCEPTANCE SEPARATE.**
+
+### Review and integration
+
+- **Review:** the owner-forwarded closeout accepted PR #21 at head `4b8a5f0293e190bf945ac2501df7478ecae867a1` in engineering review. It found no new blocking defect in the completion delta.
+  - The reviewer inspected the source, the comparisons, the completion scenario, the corrected readers, the synthetic rejection tests, the re-evaluation script and this handoff.
+  - The reviewer did not run Kingmaker, and did not inspect the private runtime receipts, the package bytes, the screenshots or the machine restoration.
+- **Integration (owner):** the owner merged PR #21 at 2026-11-07T20:27:35Z.
+  - Merge commit: `eb16d2f15b1b8e3e53de667a637c70205e9649f8`.
+  - Parents: `730f72d1` (the F5 landing) and `4b8a5f02`.
+  - The merge tree `b965f288…` is identical to the reviewed head's tree, so the landed source is exactly the reviewed source.
+  - Gameplay code was last changed at `c7ca5989`. The frozen launch source `5fe80073` differs from the landing only in readers, tests and records.
+  - The closeout made no game launch, rebuild or repackage.
+- **Not authorized and not done:** release, tag, publication and permanent installation.
+
+### Accepted candidate (verified read-only at closeout)
+
+| Item | Value |
+|---|---|
+| Candidate | finalize-f6f; version label `0.1.0-chunk7b-preview.103`. This label is a shared development version, not a unique identity. |
+| DLL | SHA-256 `87fed1617da327e49497f5e5bde32c10448faf0efe01362c8a14890e322fa096`, MVID `a7638ec4-9c19-4d03-9166-4cb7bf59331b` |
+| Package | `KingmakerMountedCombat-0.1.0-chunk7b-preview.103-finalize-f6f-diagnostic.zip`, SHA-256 `74baa915d6e7c8b0561e4f6d2db928009d615e3441b36f4ce4bc36ce46fb56ce`. The hash was re-checked at closeout and matches. |
+| Location | Lab file `C:\Dev\KingmakerMountedCombatLab\artifacts\…-finalize-f6f-diagnostic.zip`. It is not a download link, and no private handoff destination has been created. |
+| Suite | `finalize-f6f-5fe80073-20261107`, snapshot SHA-256 `82b08cee7544117c07df2e05e06bf16b99666d48bc9fb79f462be38c71ad14ca` |
+
+### Verdicts kept as recorded
+
+- **r05 `20261107-finalize-f6f-completion-05`:**
+  - ORIGINAL OUTER FAIL, kept.
+  - NATIVE GAME PASS.
+  - The corrected-reader re-evaluation (`scripts/Test-Finalize6CompletionReevaluation.ps1`) passes.
+  - It ran the declared contract (setup plus both fall rows) and claims no F3 action row.
+- **r03 `20261107-finalize-f6c-producer-03`:** ORIGINAL OUTER FAIL / NATIVE GAME PASS, separately re-evaluated.
+- **r04 `20261107-finalize-f6e-consumer-04`:** PASS.
+- Both r03 and r04 ran on the earlier DLL `b18cc056…`, not the final diagnostic DLL.
+- **r01 and r02:** FAIL, kept.
+
+### Player notes
+
+- **No action change from the fall:** the fall service does not spend or refund any action. The existing pair detachment, however, ends the interrupted paired activation.
+- **Stand-up:** on the rider's next turn, the native stand-up takes the Move and cancels the order that triggered it. A later action is still subject to the rider's normal resources.
+- **DC:** the base DC is 15, and the game's difficulty adjustment is kept; it was 11 on the fixture. The test rolls were deterministic and disclosed. Ordinary play rolls natively at random.
+- **Not a feat:** this is not the Mounted Combat feat, and it needs no Swift action or reaction.
+
+### Final support and acceptance map
+
+| Area | Status |
+|---|---|
+| F1–F6 selected refinement engineering | Complete. Each sprint was accepted and merged by the owner (F6 as `eb16d2f1`), on its own recorded artifacts. |
+| WORLD-02 mounted trap-order native validation | **Deferred, not passed**, under the owner's F4 decision ([deferred items](FINALIZATION-DEFERRED-ITEMS.md)). Closeout does not reopen it. |
+| Engine and mod stack | Kingmaker 2.1.7b observed. The lab ran with the retained fixture dependencies, including CotW/CMI. A BaseGameOnly flag with those dependencies proves neither a KMC-only run nor the owner's full mod stack. |
+| Fall coverage | Collapse to unconscious, condition and immunity combinations, and non-gameplay lifecycle exclusions are covered by source and offline tests, not by every native combination. A save taken while a rider is still prone is not proven. |
+| UI | The combat-log fall line was observed. Physical input and previously untested foreign UI surfaces (other log lines, tooltips, Buff Planner screens) are not claimed. The F3 post-success refusal banner and the disabled-slider polish notes still stand, and no code is selected for them. |
+| Saves | Custom KMC content can bind a save to the mod, and clean removal from dependent saves is not generally proven. Roll back with pre-upgrade saves and the matching package and dependencies. Pre-F2 binaries do not support F2-written saves. |
+| Owner style and full-stack play acceptance | **Separate and pending**; not marked accepted on the owner's behalf. |
+| Publication | A separate, explicit decision. |
+
+### Final accounting and state
+
+- **Budget:** finalize-f6 spent 42.75 of 90 minutes and 5 of 6 starts. The ceiling went from 4 to 6 append-only, the sixth start was never used, and closeout spent nothing.
+- **Machine state:** no Kingmaker process, live run transaction or waiter is owned by this assignment.
+
+### Owner playcheck
+
+Use a disposable, backed-up save and the candidate above.
+1. Read the bottom-right outcome when a ridden mount dies or falls prone.
+2. After a TB hard landing, give the rider an ordinary order on its next turn. The stand-up takes the Move.
+3. A mount that falls prone and then dies does not throw its already-unseated rider twice.
+4. Save after the fall, reload, and confirm there is no extra fall, check or damage. Remount through the ordinary controls.
+
+Actual owner results are recorded when supplied. A defect found there selects its concrete causal correction, not a new sprint.
+
 ## Disposition after the completion mission (2026-11-07)
 
 **F6 ENGINEERING COMPLETE — READY FOR FINAL REVIEW; OWNER ACCEPTANCE SEPARATE.**
