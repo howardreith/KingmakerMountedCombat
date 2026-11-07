@@ -274,6 +274,8 @@
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Schema2.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Scope.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Combat.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.CompanionNames.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.TackSpecimen.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.SaveBoundary.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.WorkerCancel.cs" />
@@ -528,6 +530,8 @@
     <Compile Include="Domain\MountedGroundOrderAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedStabilizationPolicy.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
+    <Compile Include="Domain\CompanionNamePolicy.cs" />
+    <Compile Include="Domain\RidingDogTackGeometry.cs" />
     <Compile Include="Domain\RelationshipState.cs" />
     <Compile Include="Domain\ScopedPoseBaselineLease.cs" />
     <Compile Include="Domain\ScopedDiagnosticAiLease.cs" />
@@ -590,6 +594,10 @@
     <Compile Include="Integration\NativeMountedApproachInterruption.cs" />
     <Compile Include="Integration\MountedRiderPoseAdapter.cs" />
     <Compile Include="Integration\SmallRiderRigCompletion.cs" />
+    <Compile Include="Integration\CompanionNameService.cs" />
+    <Compile Include="Integration\CompanionRenameSheetControl.cs" />
+    <Compile Include="Integration\RidingDogTackService.cs" />
+    <Compile Include="Integration\RidingDogTackTexture.cs" />
     <Compile Include="Integration\RiderMovementAgent.cs" />
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />

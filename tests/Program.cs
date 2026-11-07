@@ -133,6 +133,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             TransformAttachmentSlotTests.Register(runner);
             MountedPlayerActionTests.Register(runner);
             SmallProfilePolicyTests.Register(runner);
+            CompanionNamesAndTackTests.Register(runner);
             StockMammothFixtureSelectionTests.Register(runner);
             MountedPresentationReadinessTests.Register(runner);
             MountedCombatDomainTests.Register(runner);

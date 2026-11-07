@@ -280,7 +280,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk7NativeLifeScenario(string scenario) => scenario == "chunk7-two-pair-native-life-cleanup";
         internal static bool IsChunk7PersistenceScenario(string scenario) => scenario == "chunk7-persistence-save" || scenario == "chunk7-persistence-load";
         internal static bool IsChunk7PersistenceCase(string value) => Array.IndexOf(new[] {
-            "mounted-charge-tb-committed-manual", "integrated-tb-feat-charge-manual", "mounted-combat-feat-tb-debt-manual", "multi-exploration-manual", "riding-dog-exploration-manual", "paladin-bond-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
+            "mounted-charge-tb-committed-manual", "integrated-tb-feat-charge-manual", "mounted-combat-feat-tb-debt-manual", "multi-exploration-manual", "riding-dog-exploration-manual", "companion-names-tack-manual", "paladin-bond-exploration-manual", "multi-exploration-quick", "multi-exploration-auto", "multi-rt-debt-manual",
             "multi-tb-debt-manual", "zero-mounted-tb-retained-manual", "legacy-mounted-pending-tb-manual", "pending-schema3-control-manual", "multi-area-autosave", "legacy-schema1-resave-manual", "owned-schema1-manual", "owned-schema1-resave-manual", "owned-schema1-current-manual", "owned-schema2-pending-current-manual", "multi-exploration-three-loads-manual", "multi-exploration-three-area-transfers-manual",
             Chunk7OwnedPairsSelection.CapitalArrivalCheckpoint, Chunk7OwnedPairsSelection.CapitalArrivalColdCheckpoint,
             "multi-nonselected-mount-unsettled-manual", "multi-owned-worker-cancel-manual", "multi-malformed-refusal-manual", "multi-future-refusal-manual",
@@ -468,7 +468,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (string.IsNullOrEmpty(Branch) || (!Branch.StartsWith("codex/mounted-combat-", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f1-creation-ui-icons", StringComparison.Ordinal) &&
                 !string.Equals(Branch, "codex/kmc-finalize-f2-canonical-controls", StringComparison.Ordinal) &&
-                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal)))
+                !string.Equals(Branch, "codex/kmc-finalize-f3-movement-economy-hud", StringComparison.Ordinal) &&                !string.Equals(Branch, "codex/kmc-finalize-f4-orders-ai-transitions", StringComparison.Ordinal) &&
+                !string.Equals(Branch, "codex/kmc-finalize-f5-names-dog-tack", StringComparison.Ordinal)))
             {
                 errors.Add("branch must use the KMC prefix or an exact selected finalize branch.");
             }

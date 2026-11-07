@@ -361,10 +361,13 @@ namespace KingmakerMountedCombat.Diagnostics
         // the restored movement authority is sound. Select the first of eight
         // exact two-metre rays whose stock navmesh trace reaches a free endpoint.
         // This is read-only fixture planning; Move still sends one ordinary click
-        // and MovementSettled keeps the same travel/residual requirements.
+        // and MovementSettled keeps the same travel/residual requirements. F5's
+        // second pair starts wherever its visual walk ended, which follows the
+        // dog's spawn facing: r05's fixed +z click from there ended 1.57 m past
+        // its goal, so that pair plans its ray the same way.
         private UnityEngine.Vector3 SelectAreaContinuationGoal(UnitEntityData mover, string label)
         {
-            Require((AreaAutosaveCase || PaladinBondCase) && mover?.View?.AgentASP != null && AstarPath.active != null,
+            Require((AreaAutosaveCase || PaladinBondCase || CompanionNamesCase) && mover?.View?.AgentASP != null && AstarPath.active != null,
                 "Area continuation has no exact stock movement/navmesh boundary.");
             var start = mover.Position;
             Require(FiniteAreaPoint(start) && FiniteAreaNumber(mover.View.Corpulence) && mover.View.Corpulence > 0f,

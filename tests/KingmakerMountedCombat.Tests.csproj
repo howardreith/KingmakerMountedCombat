@@ -80,6 +80,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderProfileCatalog.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationReadiness.cs" />
     <Compile Include="SmallProfilePolicyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\CompanionNamePolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\RidingDogTackGeometry.cs" />
+    <Compile Include="CompanionNamesAndTackTests.cs" />
     <Compile Include="MountedPresentationReadinessTests.cs" />
     <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ActorAllocationLifetimeTests.cs" />
