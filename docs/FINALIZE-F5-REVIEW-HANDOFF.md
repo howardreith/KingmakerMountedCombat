@@ -1,6 +1,98 @@
 # F5 review handoff: companion naming and a fitted Riding Dog saddle
 
-## Disposition after the completion mission (2026-11-07)
+## Disposition after the saddle-diagnosis mission (2026-11-07)
+
+**F5 ENGINEERING PARTIAL — SADDLE CAUSE PROVEN, CORRECTED AND DEMONSTRATED NATIVELY; PRODUCER r06 GAME PASS BUT REFUSED BY A HARNESS ENCODING DEFECT (NOW FIXED); COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE.**
+
+The mission (review baseline PR #20 at f384591c) raised the same finalize-f5 record from 60 to 90 minutes and from 6 to 7 starts, both append-only. A focused check refuses an eighth start. Two starts ran: one bounded specimen collection and one corrected producer. The seventh start is unused, because a consumer cannot take r06 as its source (see "Why the consumer did not run").
+
+### Proven saddle cause (first failing stage: sampling/fit)
+
+- **Specimen:** start 5, `20261107-finalize-f5e-specimen-05` (commit 8caa860c, DLL `7aca0d94…`, MVID 70dc8a63…).
+  - Captured privately: the exact fit input (body `dog3`, 2488 vertices, 3672 triangles, 37 bones, quality Auto, blendWeights FourBones, no LOD group, the only body renderer), the fit output and its mesh pre-image.
+  - Same-frame `BakeMesh` snapshots of body and tack, with every matrix, at unmounted idle, mounted idle and mid-walk.
+  - The specimen is in the run's evidence folder. The offline replay, its reports and a hash receipt are under `analysis-cache/finalize-f5-saddle-replay/` (`receipt.json`). Nothing proprietary is committed.
+- **Replay identity:** the r04 fitter on the captured input reproduces the captured tack to 1.25e-6 m.
+- **Conversion and skinning are exact, so not the cause:**
+  - Fit → mesh pre-image → fit-pose skin round trip: 1.4e-7 m over all 513 vertices.
+  - The native baked tack equals an independent linear-blend skin in all three poses (0.0000 m).
+  - BakeMesh output matched renderer-local space in every pose (body within 5e-6 m of the independent skin).
+- **Cause:**
+  - The dog's back has a top vertex only every 5–10 cm. At z 0.11–0.13 (the seat) and 0.19–0.20, `DorsalVertex`'s narrow window held only chest-underside vertices: vertex 206 at y 0.369 (UpperTorso/Neck0), and y 0.400–0.447. The real back from above is at 0.862–0.870 there.
+  - That reference set the axis for every cast, every smoothing anchor and the girth ring at those z.
+  - The pad folded into shards: 39 vertices more than 5 cm off the body, up to 17 cm. The seat's front normals turned forward: 36 vertices more than 5 cm off. The girth ran up to 13 cm into the chest: 55 vertices buried. This is what r04's frames showed.
+- **r04's 0.544 m `maxRise`:** measured against that wrong chest vertex (vertex 139 sat 4.3 cm above the true back). The refusal was right in substance, because the independent clearance shows real shards, but its number used a wrong reference.
+
+### Correction (bad4d0f5, review corrections fd8bb820, harness fix d6c88978)
+
+- **Back sampling:** the back is where the vertical midline line meets the coat from above, with that triangle's bone weights. The axis uses the median of five such samples over 8 cm, so a fur tuft on the midline cannot shift a row.
+- **Girth:** sits behind the forelegs' elbows (4 cm behind the seat). At its old place it ran 4 cm into the elbows even after the sampling fix.
+- **Clearance:** the fit measures every vertex's signed clearance along its surface normal, as `MinClearance`, `MaxClearance` and `Unsupported`, using one shared static measure.
+  - The reader requires all three: nothing more than 5 mm inside the body (half the pad's 1 cm lift), nothing 8 cm or more off it, and nothing without body under it.
+  - `maxRise` is now against the back surface. Existing bounds are unchanged.
+- **Weights:** spine-only bones remain: UpperTorso, LowerTorso, Neck0, plus traces of Neck1 and Pelvis (summed weights 0.5 and 0.1 across 513 vertices).
+- **Before → after on the real specimen** (independent signed closest-point clearance, all three poses):
+  - Pad: −3.4 mm…1.7 cm, none more than 5 cm off (before: 39 more than 5 cm off).
+  - Seat: 3 mm…5.1 cm, the designed cantle and pommel (before: 36 more than 5 cm off).
+  - Girth: 2.3 mm…3.1 cm, none buried (before: 55 buried, up to 13 cm).
+- **Regressions:**
+  - A synthetic sparse back over a midline keel inside the belly. The r04 fitter fails it (`maxRise` 0.705 m) and the corrected one passes (0.051 m, no keel-bone weight).
+  - The fur-card test holds at 1.29 cm displacement against its 2 cm bound.
+  - The clearance measure classifies a buried point, a floating point and an unsupported point.
+  - The reader refuses the r04 shapes and is pinned at ±1 mm of each bound. 55 reader checks.
+- **Review and gates:** one independent read-only review, nothing blocking; its should-fix items were batched into fd8bb820. Candidate 11/0 at fd8bb820, including Fast: 1100 unit and 149 component checks.
+
+### Producer r06 (start 6): game PASS, recorded verdict FAIL, kept
+
+- **Run:** `20261107-finalize-f5g-producer-06`.
+  - Commit fd8bb82018d70c93732c7a1bedcf4a9a60c2c2af. DLL `8459126ce033443bda4fad9a4444984fa3217ca528aad63d723a5818ee8f9361`, MVID e90f71ee-c299-40ca-9e80-562fd2b497b1.
+  - Package `2013e8706281e8ec773574cb0b746fa8903588d10de2e9d2c6891725122a934a`; suite `finalize-f5g-fd8bb820-20261107` (`6b9bce95…`).
+  - BaseGameOnly with the retained dependency selection.
+- **Saddle in-game:** the numbers are identical to the replay: `maxRise` 0.0509, clearance −0.0036…0.0508, 0 unsupported, fit 118 ms.
+  - One binding on the dog and none on the Mammoth, adopted. Dog AC 19, speed 40, Medium, unchanged through tack, mount and motion.
+  - Inspected frames: one continuous pad on the back with the seat and rolls, a girth strap behind the elbow on both sides, and the female Small rider seated with her leg unchanged. Walking shows the pad and girth following the dog. No shards, fin or buried surface.
+  - Frames stay private in the run's `movement-visuals`.
+- **Naming in-game:**
+  - Every naming row from r04 recurs: the duplicate name `Ébène l'Ancien`, Esc and cancel, markup refusal, reset, the distinct name, and labels.
+  - Overtips render the name on the dog (0c7e9a2f…) and on the Mastodon (d79a4f6c…).
+- **Continuation and save:** the planned second-pair continuation (angle 270) landed with residual 0.433 m. The native Manual was written: `Manual_300_KMC_C7_WORLD.zks`, SHA-256 `c673673c44cd2dcb3665fdde5cb8141ddd9434cd4f3ced3b03fca7ba4d8f3f1e`, 376897 bytes.
+- **Restoration:** complete, save-inventory digest `60e3d6cc…`.
+- **Why it FAILed:**
+  - The harness's shared `Read-KmcJson` decoded the game's UTF-8 evidence (no byte-order mark) as ANSI under Windows PowerShell 5.1, so `Ébène` became `Ã‰bÃ¨ne`. The first non-ASCII comparison, the renamed Mammoth, refused the run.
+  - r01–r04 never reached that comparison; r04 stopped at the saddle.
+  - Reading the recorded evidence offline with UTF-8, r06 passes the whole persistence reader chain, including the F5 naming, overtip, saddle clearance, statistics, plan and capture checks. ANSI reproduces the recorded refusal exactly.
+  - The recorded verdict stays FAIL. d6c88978 fixes the reader and adds a regression that fails on the old body.
+
+### Why the consumer did not run
+
+- The launcher accepts a cold source only with a recorded PASS from the same commit and DLL. r06 is FAIL, and the reader fix is a new commit.
+- Accepting r06 anyway would be a source-check bypass, which is not done.
+- A fresh producer on the seventh start would leave no consumer. The seventh start is therefore unused.
+
+### Also in this mission
+
+- **r05's own FAIL:** the second pair's fixed +z 2 m continuation from where F5's visual walk ended overshot by 1.57 m (residual 1.573). That walk's endpoint follows the dog's spawn facing.
+- **Fix:** F5's second pair now plans that ray with the existing `SelectAreaContinuationGoal`, as the area-autosave and Paladin cases already do, and the reader checks the click is the plan's own eligible goal. r06's residual was 0.433.
+- **Movement claim:** this is an inferred, not proven, native cause (an off-navmesh clamp), guarded by the selector's clamp, trace and occupancy rules.
+
+### Exact remaining cause and the next owner decision
+
+- **Remaining:** fresh-process persistence of the corrected saddle and names is undemonstrated. One start remains and two are needed: a producer whose verdict can be PASS under the fixed reader, and its consumer.
+- **Recommended:** raise the same record's start ceiling 7 → 8 (no time increase). The remaining 26.03 minutes cover a Candidate at d6c88978 plus a package, suite and two launches (estimated about 18 minutes). Then run producer then consumer from the attached branch with no records commit between them.
+- **Alternative:** a narrowly pinned owner-authorized re-evaluation route admitting r06 as a source. This would need new guard code and review; it is not recommended.
+
+### Budget
+
+- **Spend:** 63.97 of 90 minutes, 6 of 7 starts, on the same finalize-f5 record. The 18 development cross-references (430 s) are retained and not recharged.
+- **Starts:** r01–r04 FAIL (kept); r05 specimen FAIL (the continuation; its specimen is complete); r06 game PASS / recorded FAIL.
+- **State:** no game, waiter or transaction lock remains.
+
+### Not tested, and unchanged
+
+- **Not tested:** physical mouse and keyboard input, portrait tooltip, combat log and Buff Planner screens. Posed clearance is checked offline on one specimen; in-game clearance is checked in the fit pose.
+- **Unchanged:** WORLD-02 stays deferred and not passed. F6 is not started. No merge, release, tag, install or publication.
+
+## Disposition after the completion mission (2026-11-07, superseded above)
 
 **F5 ENGINEERING PARTIAL — CORRECTED SADDLE STILL MIS-RENDERS NATIVELY; COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE.**
 

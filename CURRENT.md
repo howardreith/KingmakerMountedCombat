@@ -1,4 +1,19 @@
-# F5 ENGINEERING PARTIAL — CORRECTED SADDLE STILL MIS-RENDERS; COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE (2026-11-07, completion mission)
+# F5 ENGINEERING PARTIAL — SADDLE CORRECTED AND DEMONSTRATED; r06 GAME PASS, HARNESS-REFUSED (ENCODING, FIXED); COLD CONSUMER NOT RUN; OWNER ACCEPTANCE SEPARATE (2026-11-07, saddle-diagnosis mission)
+
+Branch codex/kmc-finalize-f5-names-dog-tack. Product at fd8bb820 (r06); harness reader fix at d6c88978; records commit after it. Base main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
+
+**Status:**
+- **Saddle (PET-02):** the cause is proven by an offline replay of a private real-dog specimen (r05). The first failing stage was sampling: the back reference fell on chest-underside vertices where the dog's back has no nearby vertex. Conversion and skinning are exact.
+  - Corrected: the back is sampled on the surface, the girth sits behind the elbows, and the fit measures per-vertex clearance, which the reader requires.
+  - r06 shows one coherent pad, seat and girth, unmounted, mounted and walking, with numbers identical to the replay.
+- **Naming (PET-01):** every producer row passes game-side again in r06 (Manual `c673673c…`, 376897 bytes).
+- **Cold consumer:** not run. r06's recorded verdict is FAIL because the harness read the game's UTF-8 evidence as ANSI and mis-compared `Ébène`. A UTF-8 re-read passes its whole reader chain. A FAIL is no source.
+
+**Spend:** 63.97 of 90 minutes, 6 of 7 starts, on the same finalize-f5 record. An eighth start is refused.
+
+**Next:** owner decision. Recommended: start ceiling 7 → 8 (no time increase), then a Candidate at d6c88978, one producer and its consumer. WORLD-02 stays deferred; F6 is not started; no merge, release or install.
+
+# Superseded F5 state after the completion mission (2026-11-07)
 
 Branch codex/kmc-finalize-f5-names-dog-tack (head after the records commit; product/harness at d32fdc28), from main 3f19e9bd. Read the [handoff](docs/FINALIZE-F5-REVIEW-HANDOFF.md), top section.
 
