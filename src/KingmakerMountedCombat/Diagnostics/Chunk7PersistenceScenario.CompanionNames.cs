@@ -110,8 +110,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // Since F2 a rider can also hold the one public Mount / Dismount control (kind 6) and its one-placement record (kind 7,
-        // index 0, not a hotbar slot). The declared Dismount and Rider Primary bindings stay exactly once each, nothing else
-        // may appear, and the rows are recorded as found.
+        // index 0, not a hotbar slot), and a saved hidden Dismount binding (kind 2) is collapsed into that public control (r02).
+        // So this case binds only Rider Primary (kind 3), exactly once per rider; nothing else may appear (rows recorded).
         private void RequirePostF2Slots()
         {
             f5["slotsAtSave"] = new JArray(slots.Select(s => new JObject { ["actor"] = s.ActorId, ["index"] = s.Index, ["kind"] = s.Kind }));
@@ -119,8 +119,8 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var rider in new[] { firstRider, secondRider })
             {
                 var own = slots.Where(s => s.ActorId == rider.UniqueId).ToArray();
-                Require(own.Count(s => s.Kind == 2) == 1 && own.Count(s => s.Kind == 3) == 1 && own.Count(s => s.Kind == 6) <= 1 &&
-                    own.Count(s => s.Kind == 7) <= 1 && own.All(s => s.Kind == 2 || s.Kind == 3 || s.Kind == 6 || s.Kind == 7 && s.Index == 0),
+                Require(own.Count(s => s.Kind == 2) == 0 && own.Count(s => s.Kind == 3) == 1 && own.Count(s => s.Kind == 6) <= 1 &&
+                    own.Count(s => s.Kind == 7) <= 1 && own.All(s => s.Kind == 3 || s.Kind == 6 || s.Kind == 7 && s.Index == 0),
                     "All-pair native hotbar binding differs.");
             }
             Require(slots.All(s => s.ActorId == firstRider.UniqueId || s.ActorId == secondRider.UniqueId), "All-pair native hotbar binding differs.");

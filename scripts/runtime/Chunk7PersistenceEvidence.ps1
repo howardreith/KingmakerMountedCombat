@@ -114,7 +114,7 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
-       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or(-not$postF2-and$Archive.Slots.Count-ne$slotCount)-or($postF2-and($Archive.Slots.Count-lt4-or$Archive.Slots.Count-gt8))){
+       $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or(-not$postF2-and$Archive.Slots.Count-ne$slotCount)-or($postF2-and($Archive.Slots.Count-lt2-or$Archive.Slots.Count-gt6))){
         throw 'Exploration native archive omitted owners, invented combat/retained state or changed version/policy/slots.'
     }
     $ids=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -151,7 +151,7 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     foreach($rider in @($first[0].Rider.Id,$second[0].Rider.Id)) {
         $kinds=@($Archive.Slots|Where-Object ActorId -CEQ $rider|ForEach-Object{$_.Kind}|Sort-Object)
         if($postF2){if(@($kinds|Where-Object{$_-eq6}).Count-gt1-or@($kinds|Where-Object{$_-eq7}).Count-gt1){throw 'Each pair must retain its exact declared native controls.'};$kinds=@($kinds|Where-Object{$_-in@(2,3)})}
-        $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}else{'2,3'}
+        $expectedKinds=if($partialSlots-and$rider-ceq$second[0].Rider.Id){''}elseif($postF2){'3'}else{'2,3'}
         if(($kinds-join',')-cne$expectedKinds){throw 'Each pair must retain its exact declared native controls.'}
     }
 }
