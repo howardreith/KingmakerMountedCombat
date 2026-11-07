@@ -1,8 +1,15 @@
-# F5 resume — started (2026-11-06)
+# F5 resume — review stop, start ceiling reached (2026-11-07)
 
-Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack from main 3f19e9bd. Read CURRENT.md.
-- **F4:** integrated by the owner (3f19e9bd) with WORLD-02 deferred, not passed ([deferred items](docs/FINALIZATION-DEFERRED-ITEMS.md)). The finalize-f4 record is closed at 68.17/80 min, 10/10 starts.
-- **F5 scope:** PET-01 companion naming and PET-02 Riding Dog tack. Record finalize-f5: 60 min, 3 starts.
+Worktree C:\Dev\KingmakerMountedCombatLab\worktrees\finalize-f5; branch codex/kmc-finalize-f5-names-dog-tack from main 3f19e9bd. Read CURRENT.md and docs/FINALIZE-F5-REVIEW-HANDOFF.md.
+- **State:** ENGINEERING PARTIAL. 3 of 3 starts used, 26.83/60 min. The producer runs r01–r03 all FAILed for causes since corrected; the cold consumer has not run.
+- **Not authorized:** a fourth start, merge, release or F6.
+- **F4:** integrated by the owner (3f19e9bd). WORLD-02 is deferred, not passed ([deferred items](docs/FINALIZATION-DEFERRED-ITEMS.md)).
+
+Facts for a successor:
+- **Post-F2 controls:** a rider can hold the public control (kind 6) and its placement record (kind 7, index 0). A saved hidden Dismount (kind 2) binding is migrated into kind 6, so the old Chunk 7 two-per-rider slot expectations predate F2 (the F5 case binds Rider Primary only).
+- **Native text dialog:** while its field holds focus, KeyboardAccess runs no binding, Esc included. Keys sent through `TMP_InputField.ProcessEvent` need `ForceLabelUpdate` before they are drawn.
+- **Real dog body:** fur and limbs spike ray casts, and the midline's lowest point drops to the ground ahead of the seat. Tack geometry must smooth from one anchor per sample and be skinned to the spine only.
+- **Launch:** freeze from the attached head and commit records only after both runs.
 
 # F4 resume — final review stop, reload PASS (2026-11-06)
 
