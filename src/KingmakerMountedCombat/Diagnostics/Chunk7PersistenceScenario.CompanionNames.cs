@@ -12,6 +12,7 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.PubSubSystem;
 using Kingmaker.UI;
 using Kingmaker.UI.Group;
+using Kingmaker.UI.Overtip;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
@@ -106,6 +107,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Step(steps, "walk-shot", () => Time.time >= f5At && World("f5-dog-mounted-turn", 60f));
             Step(steps, "walk-settle", () => secondMount.View?.AgentASP?.IsReallyMoving != true && secondMount.Commands.Empty && secondRider.Commands.Empty);
             Step(steps, "at-save", () => Mounted(secondRider, secondMount) && Record("tackAfterMotion", Tack()) && Record("atSave", Labels()));
+            Step(steps, "overtips-at-save", () => OvertipsReady() && Record("overtipsAtSave", Overtips()));
             StartSteps(steps, AfterNativeMounts);
         }
 
@@ -139,6 +141,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginCompanionNamesColdSheet()
         {
             var steps = new List<KeyValuePair<string, Func<bool>>>();
+            Step(steps, "overtips-cold", () => OvertipsReady() && Record("overtipsCold", Overtips()));
             Step(steps, "tack-remounted", () => Mounted(secondRider, secondMount) && Record("tackRemounted", Tack()));
             Step(steps, "sheet-dog", () => OpenSheet(secondMount));
             Step(steps, "sheet-dog-shot", () => Ui("f5-cold-sheet-dog") && Record("sheetDogCold", SheetState(true)));
@@ -190,6 +193,34 @@ namespace KingmakerMountedCombat.Diagnostics
             ["writes"] = Names.Writes, ["lastOutcome"] = Names.LastOutcome
         };
 
+        // The ordinary in-world name label: each companion's native overtip, which sets its text from CharacterName on spawn, view
+        // attach and IUnitNameHandler (with a decorative first letter in rich text). Read, never written; visibility is not forced.
+        private static readonly FieldInfo OvertipControllers = typeof(OvertipManager).GetField("m_UnitControllers", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo OvertipName = typeof(OvertipControllerBase).GetField("Name", BindingFlags.Instance | BindingFlags.Public);
+
+        private static OvertipController OvertipOf(UnitEntityData unit)
+        {
+            var controllers = OvertipControllers?.GetValue(Game.Instance.UI.BarkManager as OvertipManager) as IDictionary;
+            return controllers != null && controllers.Contains(unit) ? controllers[unit] as OvertipController : null;
+        }
+
+        private bool OvertipsReady() => (OvertipOf(secondMount) != null && OvertipOf(firstMount) != null && Settled(4)) || f5Frames > 300;
+
+        private JObject Overtips()
+        {
+            JObject Row(UnitEntityData unit)
+            {
+                var controller = OvertipOf(unit);
+                var label = controller == null ? null : OvertipName?.GetValue(controller);
+                return new JObject
+                {
+                    ["id"] = unit.UniqueId, ["controllerUnit"] = controller?.Unit?.UniqueId, ["characterName"] = unit.CharacterName,
+                    ["text"] = label?.GetType().GetProperty("text")?.GetValue(label, null) as string
+                };
+            }
+            return new JObject { ["dog"] = Row(secondMount), ["mammoth"] = Row(firstMount), ["writes"] = Names.Writes, ["lastOutcome"] = Names.LastOutcome };
+        }
+
         private bool TackAdopted(UnitEntityData unit)
         {
             var bindings = RidingDogTackService.Bindings(unit.View);
@@ -212,6 +243,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["replacedTextures"] = new JArray(binding?.Tack?.ReplacedTextures ?? new string[0]), ["keptTextures"] = new JArray(binding?.Tack?.KeptTextures ?? new string[0]),
                 ["vertices"] = fit?.VertexCount ?? 0, ["triangles"] = (fit?.Triangles.Length ?? 0) / 3, ["casts"] = fit?.Casts ?? 0, ["misses"] = fit?.Misses ?? 0,
                 ["backAtSeat"] = fit?.BackHeightAtSeat ?? 0f, ["seatTop"] = fit?.SeatTopAtSeat ?? 0f, ["cantleTop"] = fit?.CantleTop ?? 0f, ["pommelTop"] = fit?.PommelTop ?? 0f,
+                ["maxRise"] = fit?.MaxRiseAboveBack ?? 0f,
                 ["attachments"] = RidingDogTackService.Current.Attachments, ["meshBuilds"] = RidingDogTackService.Current.MeshBuilds,
                 ["dogStats"] = Identity(secondMount)
             };

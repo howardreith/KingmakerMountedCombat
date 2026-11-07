@@ -67,6 +67,8 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(seatLift > 0.015f && seatLift < 0.04f, "Seat lift " + seatLift);
                 TestRunner.True(fit.CantleTop > fit.SeatTopAtSeat && fit.PommelTop > fit.SeatTopAtSeat, "Cantle or pommel do not rise above the seat: back " + fit.BackHeightAtSeat + " seat " + fit.SeatTopAtSeat + " cantle " + fit.CantleTop + " pommel " + fit.PommelTop);
                 TestRunner.True(fit.CantleTop - fit.BackHeightAtSeat < 0.08f && fit.PommelTop - fit.BackHeightAtSeat < 0.08f, "The rolls are too tall for a Small rider.");
+                TestRunner.True(fit.MaxRiseAboveBack > 0.015f && fit.MaxRiseAboveBack < 0.08f, "The highest pad or seat point stands " + fit.MaxRiseAboveBack + " above the back.");
+                TestRunner.True(fit.Positions.All(Finite) && fit.Normals.All(Finite) && fit.BoneWeights.All(Finite), "A tack position, normal or weight is not finite.");
                 for (var i = 0; i < fit.VertexCount; i++)
                 {
                     float x = fit.Positions[i * 3], y = fit.Positions[i * 3 + 1], z = fit.Positions[i * 3 + 2];
@@ -141,6 +143,8 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(lift > 0.015f && lift < 0.04f, "Seat lift " + lift);
                 TestRunner.True(fit.CantleTop > fit.SeatTopAtSeat && fit.PommelTop > fit.SeatTopAtSeat, "A roll sits below the seat.");
                 TestRunner.True(fit.CantleTop - fit.BackHeightAtSeat < 0.08f && fit.PommelTop - fit.BackHeightAtSeat < 0.08f, "A roll stands too tall: " + fit.CantleTop + " / " + fit.PommelTop);
+                TestRunner.True(fit.MaxRiseAboveBack < 0.08f, "A pad or seat point stands " + fit.MaxRiseAboveBack + " above the back.");
+                TestRunner.True(fit.Positions.All(Finite) && fit.Normals.All(Finite) && fit.BoneWeights.All(Finite), "A tack position, normal or weight is not finite.");
                 for (var i = 0; i < fit.VertexCount; i++)
                     TestRunner.True(Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]) >= 1f, "A tack vertex is inside the body: " + i + " at " + fit.Positions[i * 3] + "," + fit.Positions[i * 3 + 1] + "," + fit.Positions[i * 3 + 2] + " uv " + fit.Uvs[i * 2] + " inside " + Inside(fit.Positions[i * 3], fit.Positions[i * 3 + 1], fit.Positions[i * 3 + 2]));
             });
@@ -180,6 +184,7 @@ namespace KingmakerMountedCombat.Tests
 
         // A dog-sized ellipsoid body: top of the back near 0.87 over z 0.05, two bones blended front to back.
         private const float Rx = 0.2f, Ry = 0.25f, Rz = 0.5f, Cy = 0.62f, Cz = 0.05f;
+        private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
         private static float Top(float z) => Cy + Ry * (float)Math.Sqrt(1.0 - ((z - Cz) / Rz) * ((z - Cz) / Rz));
         private static float Inside(float x, float y, float z) => (x / Rx) * (x / Rx) + ((y - Cy) / Ry) * ((y - Cy) / Ry) + ((z - Cz) / Rz) * ((z - Cz) / Rz);
 
