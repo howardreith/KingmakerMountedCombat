@@ -435,6 +435,7 @@
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
     <Compile Include="Domain\MountedCombatDefensePolicy.cs" />
+    <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionScenarioDeadlinePolicy.cs" />
@@ -558,6 +559,7 @@
     <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
+    <Compile Include="Integration\MountedRiderFallService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />

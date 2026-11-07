@@ -186,6 +186,7 @@
     <Compile Include="ExpectedAttackDispatchLedgerTests.cs" />
     <Compile Include="ExactAppendOnlyArrayLeaseTests.cs" />
     <Compile Include="MountedCombatDefensePolicyTests.cs" />
+    <Compile Include="MountedRiderFallTests.cs" />
     <Compile Include="HorseCompanionLifeTransitionPolicyTests.cs" />
     <Compile Include="HorseCompanionProgressionPolicyTests.cs" />
     <Compile Include="HorseCompanionScenarioDeadlinePolicyTests.cs" />
@@ -340,6 +341,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\TransitionResult.cs"><Link>Shared\Domain\TransitionResult.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ExactAppendOnlyArrayLease.cs"><Link>Shared\Domain\ExactAppendOnlyArrayLease.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatDefensePolicy.cs"><Link>Shared\Domain\MountedCombatDefensePolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderFallPolicy.cs"><Link>Shared\Domain\MountedRiderFallPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionLifeTransitionPolicy.cs"><Link>Shared\Domain\HorseCompanionLifeTransitionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionProgressionPolicy.cs"><Link>Shared\Domain\HorseCompanionProgressionPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseCompanionScenarioDeadlinePolicy.cs"><Link>Shared\Domain\HorseCompanionScenarioDeadlinePolicy.cs</Link></Compile>

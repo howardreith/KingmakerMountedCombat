@@ -25,7 +25,8 @@ namespace KingmakerMountedCombat.Diagnostics
         UnitIncapacitated,
         UnitDeath,
         UnitFinallyDead,
-        ModDisable
+        ModDisable,
+        MountFellProne
     }
 
     public sealed class NativeLifecycleDeliveryRecord

@@ -12,26 +12,28 @@ using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IAreaLoadingStagesHandler, IUnitViewAttachedUIHandler, IUnitFinallyDeadHandler, IUnitHandler, IPartyHandler, IInGameHandler, IDisposable
+    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IAreaLoadingStagesHandler, IUnitViewAttachedUIHandler, IUnitFinallyDeadHandler, IUnitHandler, IPartyHandler, IInGameHandler, IUnitFallProneHandler, IDisposable
     {
         private readonly GameMountedRelationshipService service;
         private readonly NativeLifecycleDeliveryLedger ledger;
         private readonly MountedCombatController combat;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
         private readonly MountedPersistenceService persistence;
+        private readonly MountedRiderFallService falls;
         private readonly IDisposable subscription;
         private readonly object lifeTransitionGate = new object();
         private readonly List<NativePairLifeStateObservation> pairLifeTransitions = new List<NativePairLifeStateObservation>();
         private long pairLifeTransitionSequence;
         private bool disposed;
 
-        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, MountedPersistenceService persistence)
+        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, MountedPersistenceService persistence, MountedRiderFallService falls)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.unifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
+            this.falls = falls ?? throw new ArgumentNullException(nameof(falls));
             subscription = EventBus.Subscribe(this);
             combat.ChargeNativeModeResumed += CompleteNativeModeObservation;
             NativePartyReinitScope.Completed += CompletePartyReinitialisation;
@@ -71,7 +73,21 @@ namespace KingmakerMountedCombat.Integration
                 });
                 if (pairLifeTransitions.Count > 32) { pairLifeTransitions.RemoveAt(0); }
             }
-            if (!unit.Descriptor.State.IsConscious) { CleanupActor(unit, NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated); }
+            if (!unit.Descriptor.State.IsConscious)
+            {
+                CleanupActor(unit, NativeLifecycleBoundary.UnitIncapacitated, "IUnitLifeStateChanged.HandleUnitLifeStateChanged", CleanupTrigger.Incapacitated,
+                    MountedRiderFallPolicy.CauseOfLifeTransition(prevLifeState.ToString(), unit.Descriptor.State.LifeState.ToString()));
+            }
+        }
+
+        // FALL-02: the native prone controller raises this once, when the unit newly enters prone (death and
+        // unconsciousness included, which by then have already unseated the rider and so find no mounted pair).
+        // A prone rider (a trip, or the hard landing this service imposes) or an unmounted pet is not a fall and starts no cleanup.
+        public void HandleUnitFallProne(UnitEntityData unit)
+        {
+            var owner = unit == null ? null : service.ResolveActorOwner(unit);
+            if (owner == null || owner.State != RelationshipState.Mounted || !ReferenceEquals(owner.Mount, unit)) return;
+            CleanupActor(unit, NativeLifecycleBoundary.MountFellProne, "IUnitFallProneHandler.HandleUnitFallProne", CleanupTrigger.MountFellProne, MountedRiderFallCause.MountFellProne);
         }
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
@@ -180,7 +196,8 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitDeath(UnitEntityData entityData)
         {
-            if (IsPairUnit(entityData)) { CleanupActor(entityData, NativeLifecycleBoundary.UnitDeath, "IUnitHandler.HandleUnitDeath", CleanupTrigger.Death); }
+            // Native OnUnitDeath raises this before the life-state event, so the death is captured here first.
+            if (IsPairUnit(entityData)) { CleanupActor(entityData, NativeLifecycleBoundary.UnitDeath, "IUnitHandler.HandleUnitDeath", CleanupTrigger.Death, MountedRiderFallCause.MountDied); }
         }
 
         public void HandleUnitBecameFinallyDead(UnitEntityData unit)
@@ -330,10 +347,17 @@ namespace KingmakerMountedCombat.Integration
             if (errors.Length != 0) throw new AggregateException("Mounted owner boundary did not settle.", errors);
         }
 
-        private bool CleanupActor(UnitEntityData actor, NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger)
+        // A fall cause is captured only for the exact ridden mount of a mounted pair, before cleanup ends the association,
+        // and resolved once the rider is actually unseated. Every other cleanup (and the rider's own incapacity) has none.
+        private bool CleanupActor(UnitEntityData actor, NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger,
+            MountedRiderFallCause fallCause = MountedRiderFallCause.None)
         {
             var owner = service.ResolveActorOwner(actor);
-            return owner == null || CleanupOwner(owner, boundary, source, trigger);
+            if (owner == null) return true;
+            if (fallCause != MountedRiderFallCause.None) falls.Capture(owner, actor, fallCause);
+            var succeeded = CleanupOwner(owner, boundary, source, trigger);
+            falls.Complete(owner);
+            return succeeded;
         }
 
         private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)
