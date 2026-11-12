@@ -253,6 +253,8 @@ namespace KingmakerMountedCombat.Integration
                 logger.Error(Status);
                 return false;
             }
+            // Exploration repair: a removal save never carries retained mounted intent (its pairs are already dismounted).
+            persistence.DropRetainedIntent("removal preparation started");
             var game = Game.Instance;
             SaveInfo descriptor;
             try

@@ -202,6 +202,7 @@ namespace KingmakerMountedCombat.Integration
             ClearArchivePresentationReadiness();
             loadedArchive = null; archiveGraphReady = false; archiveOwnersReady = false;
             retainedPendingReentry = null;
+            ClearPendingLoadedRetainedIntent();
             archiveActors.Clear(); archiveOwners.Clear(); archivePostLoadObserved.Clear(); ArchiveRestorePhase = "not-selected";
         }
 

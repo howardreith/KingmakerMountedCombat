@@ -1,3 +1,28 @@
+# EXPLORATION REPAIR SPRINT — OWNER REVIEW CORRECTIONS IN SOURCE; NATIVE BLOCKED; OWNER ACCEPTANCE SEPARATE (2026-11-12)
+
+Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`, draft PR #27. Read the
+[handoff](docs/EXPLORATION-REPAIR-HANDOFF.md).
+
+- **Issues 3–7 corrected in source:** the world map, scripted events and the lever cart, camping, corpse looting, and
+  the cat (lowest priority). None is demonstrated in the game.
+- **Owner review (request changes):** every finding is corrected.
+  - Restore residue is never reported as a clean dismount.
+  - Suspended intent is saved in a new `kmc-retained-intent` member.
+  - A camp that follows a dialog adopts the camp rules.
+  - The owner identity is imported on restore.
+  - A transient arrival refusal is retried.
+- **Second owner review (3 P2):** corrected.
+  - An after-arrival save records only the still-deferred pairs.
+  - A carried capital arrival retires through the native rule.
+  - A world-map save keeps the Mount/Dismount slot rows.
+  - A pending record is bound to the load that selected it.
+- **Third owner review (1 P2):** corrected. The departure merge keeps a retained hotbar slot behind a live placement
+  marker.
+- **Issues 1–2:** parked by the owner until they can reproduce them. The log-only observations stay in the build.
+- **Checks:** Fast PASS 3/0 (components 1135/0, Validate-Source 151/0).
+- **Native:** NOT RUN. This machine has no KMC install, no KMC fixture and no runtime-state.
+- **Not authorized:** merge, release, tag or install.
+
 # RELEASE 0.2.2 (OWNER ORDER, 2026-11-07)
 
 The owner accepted and merged the UI polish (PR #25, merge `617f2e63`, tree identical to the reviewed `9d63a0bf`), then

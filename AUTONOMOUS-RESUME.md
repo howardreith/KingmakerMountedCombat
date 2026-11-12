@@ -1,3 +1,25 @@
+# Exploration repair resume — partial, native blocked (2026-11-12)
+
+Branch `codex/kmc-exploration-markers-speed-events` (draft PR). Read CURRENT.md and docs/EXPLORATION-REPAIR-HANDOFF.md.
+- **State:** source repairs for issues 3–7 have the owner review's corrections and pass Fast. Issues 1–2 are parked by
+  the owner and have diagnostics only.
+- **Saved intent:** archive member `kmc-retained-intent` (Domain `MountedRetainedIntentRecord`). It is written only
+  when intent exists, adopted at `OnAreaLoaded` only for the exact campaign, area and `TimeController.GameTime`
+  ticks, and never for a pair that `kmc-mounted-state` holds.
+- **Native:** every row is NOT RUN. It needs the Working fixture and runtime-state, or an owner session with this DLL.
+- **Next:** owner play on the branch DLL. Issues 1–2 wait for the owner's details.
+
+Facts for a successor:
+- **World map:** the area whose `CustomUIScene.SceneName == SceneName.CustomUIGlobalMap`. Native `GlobalMapRules` enters
+  `GlobalMap` mode during scene init, so no attachment is admitted there.
+- **Console selection:** `UnitSelectionManager` (console UI) exists only under gamepad control. The `AgentOverride`
+  click-point branch of `MoveSelectedUnitsToPoint` does not run in mouse play.
+- **Corpse:** a corpse click is `UnitLootUnit` (Standard, 1 m). Loot bags (`DroppedLoot`) are map objects with a
+  `LootComponent`.
+- **Camp:** `RestInteraction.OnInteract` issues `UnitApproachCamp` per unit (pets included) under one
+  `RestGroupCommand` with no timeout.
+- **Familiar:** `TeleportToMaster` copies `Master.View.transform.parent`.
+
 # Finalization resume — F6 accepted and merged; no planned engineering (2026-11-07)
 
 **Integration:** main contains F6 as merge `eb16d2f1`, owner-merged; its tree is identical to the reviewed `4b8a5f02`. Read CURRENT.md and the closeout section at the top of docs/FINALIZE-F6-REVIEW-HANDOFF.md.

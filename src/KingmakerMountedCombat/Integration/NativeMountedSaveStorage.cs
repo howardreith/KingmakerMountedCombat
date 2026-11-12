@@ -10,6 +10,10 @@ namespace KingmakerMountedCombat.Integration
     internal static class NativeMountedSaveStorage
     {
         private const int MaximumBytes = 131072;
+        // Exploration repair (review finding 2): suspended mounted intent, written only when it exists, in its own
+        // bounded member so the strict schema-3 kmc-mounted-state member and every existing save stay unchanged.
+        internal const string RetainedIntentMember = "kmc-retained-intent";
+        private const int MaximumRetainedIntentBytes = 4096;
         private static readonly UTF8Encoding Encoding = new UTF8Encoding(false, true);
         private static readonly Type ZipSaver = typeof(SaveManager).Assembly.GetType(
             "Kingmaker.EntitySystem.Persistence.ZipSaver", true);
@@ -97,7 +101,8 @@ namespace KingmakerMountedCombat.Integration
                 var type = entry.GetType();
                 var name = (string)type.GetProperty("FileName").GetValue(entry, null);
                 if (string.IsNullOrEmpty(name)) throw new InvalidDataException("An archive member has no name.");
-                if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && name != MountedSaveData.ArchiveMember) continue;
+                if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && name != MountedSaveData.ArchiveMember &&
+                    name != RetainedIntentMember) continue;
                 var length = (long)type.GetProperty("UncompressedSize").GetValue(entry, null);
                 if (length < 0 || length > MaximumScanMemberBytes)
                     throw new InvalidDataException("Archive member exceeds the scan bound: " + name);
@@ -131,6 +136,43 @@ namespace KingmakerMountedCombat.Integration
             // Exact get_WriteStream (0600021E) chooses this folder or Name's
             // parent. Both are now the same authorized run-owned directory.
             temporary.SetValue(zip, root, null);
+        }
+
+        internal static void StageRetainedIntent(ISaver saver, string record)
+        {
+            if (saver == null || saver.GetType() != ZipSaver)
+                throw new InvalidOperationException("Retained mounted intent requires the qualified native archive writer.");
+            if (record == null) throw new ArgumentNullException(nameof(record));
+            var bytes = Encoding.GetBytes(record);
+            if (bytes.Length == 0 || bytes.Length > MaximumRetainedIntentBytes)
+                throw new InvalidDataException("Retained mounted intent exceeds its bounded size.");
+            saver.SaveBytes(RetainedIntentMember, bytes);
+        }
+
+        // The retained-intent member text, or null when the save has none. A duplicated, oversized or non-UTF-8
+        // member is refused (the caller then loads the pairs dismounted).
+        internal static string ReadRetainedIntent(ISaver saver)
+        {
+            if (saver == null || saver.GetType() != ZipSaver) return null;
+            var zip = NativeZip.Invoke(saver, null);
+            if (zip == null) return null;
+            var entries = (IEnumerable)zip.GetType().GetProperty("Entries").GetValue(zip, null);
+            var matches = 0;
+            long length = 0;
+            foreach (var entry in entries)
+            {
+                var type = entry.GetType();
+                if ((string)type.GetProperty("FileName").GetValue(entry, null) != RetainedIntentMember) continue;
+                matches++;
+                length = (long)type.GetProperty("UncompressedSize").GetValue(entry, null);
+            }
+            if (matches == 0) return null;
+            if (matches != 1 || length <= 0 || length > MaximumRetainedIntentBytes)
+                throw new InvalidDataException("Retained mounted intent member is duplicated or exceeds its bounded size.");
+            var bytes = saver.ReadBytes(RetainedIntentMember);
+            if (bytes == null || bytes.LongLength != length)
+                throw new InvalidDataException("Retained mounted intent member changed while reading.");
+            return Encoding.GetString(bytes);
         }
 
         internal static void Stage(ISaver saver, string immutableJson)

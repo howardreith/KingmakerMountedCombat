@@ -42,7 +42,7 @@ namespace KingmakerMountedCombat.Integration
         internal void BeginAreaTransition(BlueprintArea area, SaveInfo saveInfo)
         {
             var world = Game.Instance?.Player;
-            if (saveInfo != null) { CancelAreaTransition(); return; }
+            if (saveInfo != null) { CancelAreaTransition(); DropRetainedIntent("a save is being loaded"); return; }
             if (areaTransfer != null && areaTransfer.World.Target == world && areaTransfer.AreaId == area?.AssetGuidThreadSafe) return;
             CancelAreaTransition();
             if (restoreLoad != null && (!restoreLoad.World.NativeCompleted || presentationPending))
@@ -54,22 +54,48 @@ namespace KingmakerMountedCombat.Integration
             if (HasAreaParticipationObligations())
                 throw new InvalidOperationException("Area transfer cannot discard retained native participation.");
             var mounted = WorldRelationships.Where(r => r.State == RelationshipState.Mounted).ToArray();
-            if (!Enabled || world == null || area == null || mounted.Length == 0 || world.IsInCombat ||
-                mounted.Any(r => r.Rider.IsInCombat || r.Mount.IsInCombat)) return;
+            // Exploration repair (issue 7): intent retained by world-map travel or by a scripted event in this world
+            // is carried by the transfer like the pairs mounted at departure; an area change never discards it.
+            var carried = retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world) &&
+                retainedIntent.CampaignId == world.GameId ? retainedIntent : null;
+            if (retainedIntent != null && carried == null) DropRetainedIntent("the world changed");
+            if (mounted.Length == 0 && carried == null) return;
+            if (world.IsInCombat || mounted.Any(r => r.Rider.IsInCombat || r.Mount.IsInCombat))
+            {
+                if (carried != null) DropRetainedIntent("combat began");
+                return;
+            }
             if (SaveDraining || SaveSuspended || HasSaveAdmissionFence)
             {
                 RefusedAreaTransferCount++;
+                if (carried != null) DropRetainedIntent("a mounted save is still owned");
                 Report("A mounted save is still owned; pairs are not carried across this area change.");
                 return;
             }
+            var departing = mounted.Select(r => new AreaPair { RiderId = r.Rider.UniqueId, MountId = r.Mount.UniqueId,
+                ProfileId = r.Runtime.MountProfileId, OwnerId = r.PairOwner?.Id.ToString("N"),
+                Generation = r.PairOwner?.Generation ?? 0, Participation = unifiedTurn.SnapshotParticipants
+                    .Single(p => ReferenceEquals(p.Relationship, r)).CaptureParticipation() }).ToArray();
+            var departingIds = new HashSet<string>(departing.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+            var carriedPairs = (carried?.Pairs ?? new AreaPair[0])
+                .Where(p => !departingIds.Contains(p.RiderId) && !departingIds.Contains(p.MountId))
+                .Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId,
+                    Generation = p.Generation, Participation = p.Participation, Carried = true }).ToArray();
+            var slots = controls.CapturePersistentSlots();
+            // Third owner review: merge live and retained control rows per logical row, never per actor.
+            var mergedSlots = MountedRetainedIntentRecord.MergeSlotRows(
+                slots.Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }),
+                (carried?.Slots ?? new SavedMountedSlot[0]).Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }))
+                .Select(s => new SavedMountedSlot { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }).ToArray();
             areaTransfer = new AreaTransfer {
                 World = new WeakReference(world), CampaignId = world.GameId, AreaId = area.AssetGuidThreadSafe,
-                Pairs = mounted.Select(r => new AreaPair { RiderId = r.Rider.UniqueId, MountId = r.Mount.UniqueId,
-                    ProfileId = r.Runtime.MountProfileId, OwnerId = r.PairOwner?.Id.ToString("N"),
-                    Generation = r.PairOwner?.Generation ?? 0, Participation = unifiedTurn.SnapshotParticipants
-                        .Single(p => ReferenceEquals(p.Relationship, r)).CaptureParticipation() }).ToArray(),
-                TurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), Slots = controls.CapturePersistentSlots()
+                Pairs = departing.Concat(carriedPairs).ToArray(),
+                TurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
+                Slots = mergedSlots,
+                WorldMap = IsWorldMapArea(area),
+                CarriedKind = carried != null ? retainedIntentKind : MountedRetainedIntentKind.WorldMapTravel
             };
+            if (carried != null) { retainedIntent = null; ResetRetainedSettle(); }
         }
 
         internal bool SuspendAreaPair()
@@ -122,14 +148,46 @@ namespace KingmakerMountedCombat.Integration
                 if (!Enabled || transfer.World.Target != game?.Player || game.Player.GameId != transfer.CampaignId ||
                     game.CurrentlyLoadedArea?.AssetGuidThreadSafe != transfer.AreaId)
                     throw new InvalidOperationException("Area world changed before mounted restoration.");
+                // Exploration repair (issue 7): the world map has no physical rider-and-mount placement (native
+                // GlobalMapRules enters GlobalMap mode during scene init, so attachment is never admitted there).
+                // The suspended pairs travel as retained intent and restore at the next local area's arrival;
+                // nothing is latched, so saving and area entry stay admitted.
+                if (transfer.WorldMap)
+                {
+                    // Review finding 2: only the carried pairs' own control rows travel; another unit's row that later
+                    // fails to resolve must never be able to latch the all-pair failure at the next arrival.
+                    var pairActors = new HashSet<string>(transfer.Pairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+                    retainedIntent = new AreaTransfer { World = transfer.World, CampaignId = transfer.CampaignId, AreaId = transfer.AreaId,
+                        Pairs = transfer.Pairs.Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId,
+                            OwnerId = p.OwnerId, Generation = p.Generation, Participation = p.Participation, Carried = true }).ToArray(),
+                        Slots = transfer.Slots.Where(s => pairActors.Contains(s.ActorId)).ToArray() };
+                    retainedIntentKind = MountedRetainedIntentKind.WorldMapTravel;
+                    ResetRetainedSettle();
+                    areaTransfer = null;
+                    RetainedSuspensionCount++;
+                    Report(transfer.Pairs.Length + " mounted relationship" + (transfer.Pairs.Length == 1 ? "" : "s") +
+                        " carried across the world map; the pair remounts on arrival in the next area.", true);
+                    return;
+                }
+                var carriedDropped = new List<string>();
+                var carriedDroppedPairs = new List<AreaPair>();
+                // The uncertain case of the review: a carried refusal that may be transient (a mode or agent not settled
+                // at OnAreaLoaded, an earlier owner identity not yet retired) is retained for the in-area retry.
+                var carriedRetained = new List<AreaPair>();
+                var arrivalInCombat = game.Player.IsInCombat;
                 // Resolve every pair and slot before changing the first attachment.
                 var resolved = new Dictionary<string, Kingmaker.EntitySystem.Entities.UnitEntityData>(StringComparer.Ordinal);
                 foreach (var id in transfer.Pairs.SelectMany(p => new[] { p.RiderId, p.MountId })
                     .Concat(transfer.Slots.Select(s => s.ActorId)).Distinct(StringComparer.Ordinal))
                 {
                     var matches = game.State.Units.Concat(game.Player.AllCharacters).Where(u => u != null && u.UniqueId == id).Distinct().ToArray();
-                    if (matches.Length != 1) throw new InvalidOperationException("An area actor did not resolve uniquely: " + id);
-                    resolved.Add(id, matches[0]);
+                    if (matches.Length == 1) { resolved.Add(id, matches[0]); continue; }
+                    // A carried pair (intent retained over the world map or an earlier event) whose actor is gone stays
+                    // dismounted on its own; it never blocks the other pairs or later area changes. A control row of
+                    // such an actor is skipped the same way (RestorePersistentSlots ignores unresolved actors).
+                    if (transfer.Pairs.Any(p => p.Carried && (p.RiderId == id || p.MountId == id)) &&
+                        !transfer.Pairs.Any(p => !p.Carried && (p.RiderId == id || p.MountId == id))) continue;
+                    throw new InvalidOperationException("An area actor did not resolve uniquely: " + id);
                 }
                 // Admission is all-pair: a destination that cannot directly
                 // control the second pair must not attach the first pair. The one
@@ -139,6 +197,43 @@ namespace KingmakerMountedCombat.Integration
                 var restore = new List<AreaPair>(); var retire = new List<AreaPair>();
                 foreach (var pair in transfer.Pairs)
                 {
+                    if (pair.Carried)
+                    {
+                        Kingmaker.EntitySystem.Entities.UnitEntityData carriedRider, carriedMount;
+                        resolved.TryGetValue(pair.RiderId, out carriedRider); resolved.TryGetValue(pair.MountId, out carriedMount);
+                        var present = carriedRider != null && carriedMount != null;
+                        string carriedRefusal = null;
+                        var sameProfile = false;
+                        var permanent = false;
+                        var capitalRetirement = false;
+                        try
+                        {
+                            if (present)
+                            {
+                                sameProfile = SupportedMountedProfiles.Resolve(carriedRider, carriedMount)?.Id == pair.ProfileId;
+                                var carriedCandidate = KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount);
+                                permanent = PermanentlyIneligible(carriedCandidate);
+                                carriedRefusal = carriedCandidate?.ValidateSavedRelationship();
+                                capitalRetirement = carriedRefusal != null &&
+                                    IsCapitalControlRetirement(area, carriedRider, carriedMount, carriedCandidate, carriedRefusal);
+                            }
+                        }
+                        catch (Exception classification) { carriedRefusal = classification.Message; }
+                        var arrival = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
+                            carriedRefusal, capitalRetirement);
+                        if (arrival == MountedCarriedArrivalDecision.Restore) restore.Add(pair);
+                        // The established capital retirement, with its clean-separation checks below; never pending intent.
+                        else if (arrival == MountedCarriedArrivalDecision.Retire) retire.Add(pair);
+                        else if (arrival == MountedCarriedArrivalDecision.Retain) carriedRetained.Add(pair);
+                        else
+                        {
+                            carriedDroppedPairs.Add(pair);
+                            carriedDropped.Add((carriedRider?.CharacterName ?? pair.RiderId) + " and " + (carriedMount?.CharacterName ?? pair.MountId) +
+                                " (" + (!present ? "an actor is not present" : !sameProfile ? "the mount profile changed" :
+                                    arrivalInCombat ? "the party arrived in combat" : carriedRefusal ?? "the pair is no longer eligible") + ")");
+                        }
+                        continue;
+                    }
                     var rider = resolved[pair.RiderId]; var mount = resolved[pair.MountId];
                     var profile = SupportedMountedProfiles.Resolve(rider, mount);
                     var candidate = KingmakerMountedPairRuntime.CreateCandidate(rider, mount);
@@ -157,6 +252,21 @@ namespace KingmakerMountedCombat.Integration
                 }
                 foreach (var pair in restore)
                 {
+                    if (pair.Carried)
+                    {
+                        // Retained intent (world-map travel, an earlier event or a loaded record): the established import
+                        // lifecycle with the captured owner identity (review findings 1 and 4). A clean refusal is retried
+                        // in ordinary play; an attempt that left owned state is never reported as a clean dismount.
+                        string carriedDetail;
+                        var carriedOutcome = RestoreRetainedPair(pair, resolved[pair.RiderId], resolved[pair.MountId], resolved,
+                            transfer.TurnBased, out carriedDetail);
+                        if (carriedOutcome == MountedRetainedRestoreOutcome.RetainedResidue)
+                            throw new InvalidOperationException("Carried mounted restoration left owned state for " +
+                                resolved[pair.RiderId].CharacterName + " and " + resolved[pair.MountId].CharacterName + ": " + carriedDetail);
+                        if (carriedOutcome == MountedRetainedRestoreOutcome.CleanRefusal) { carriedRetained.Add(pair); continue; }
+                        AreaResumeCount++; RetainedRestoreCount++;
+                        continue;
+                    }
                     var owner = ArchiveNativeEnabled ? mountedWorld.CreateRestoredBoundary().Relationship : relationship;
                     if (ArchiveNativeEnabled)
                         owner.ImportSavedOwnership(resolved[pair.RiderId], resolved[pair.MountId], pair.OwnerId, pair.Generation, true);
@@ -170,8 +280,34 @@ namespace KingmakerMountedCombat.Integration
                     AreaResumeCount++;
                 }
                 controls.ResumeAreaControls();
-                controls.RestorePersistentSlots(transfer.Slots);
+                // A carried pair that stayed dismounted (dropped or retained for retry) keeps its current control bindings.
+                var droppedActors = new HashSet<string>(carriedDroppedPairs.Concat(carriedRetained)
+                    .SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+                if (carriedRetained.Count != 0)
+                {
+                    var retainedActors = new HashSet<string>(carriedRetained.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+                    retainedIntent = new AreaTransfer { World = transfer.World, CampaignId = transfer.CampaignId, AreaId = transfer.AreaId,
+                        Pairs = carriedRetained.ToArray(), Slots = transfer.Slots.Where(s => retainedActors.Contains(s.ActorId)).ToArray() };
+                    retainedIntentKind = transfer.CarriedKind;
+                    ResetRetainedSettle();
+                }
+                controls.RestorePersistentSlots(transfer.Slots.Where(s => !droppedActors.Contains(s.ActorId)).ToArray());
                 AreaRetiredPairCount += retire.Count;
+                RetainedDropCount += carriedDropped.Count;
+                if (carriedDropped.Count != 0)
+                {
+                    Report("Stayed dismounted on arrival: " + string.Join(", ", carriedDropped.ToArray()) + ". Mount again when ready. " +
+                        (transfer.Pairs.Length - carriedDropped.Count - carriedRetained.Count - retire.Count) + " of " + transfer.Pairs.Length +
+                        " mounted relationships restored without Mount or preparation.");
+                    return;
+                }
+                if (carriedRetained.Count != 0 && retire.Count == 0)
+                {
+                    Report((transfer.Pairs.Length - carriedRetained.Count) + " of " + transfer.Pairs.Length +
+                        " mounted relationships restored on arrival without Mount or preparation; " + carriedRetained.Count +
+                        " will remount when ordinary play settles.", true);
+                    return;
+                }
                 // Report keeps one feedback line, so the dismounted pairs are named in the summary itself.
                 Report(retire.Count == 0
                     ? "All " + transfer.Pairs.Length + " mounted relationships restored before area autosave without Mount or preparation."
@@ -252,7 +388,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private sealed class AreaPair
-        { internal string RiderId, MountId, ProfileId, OwnerId; internal long Generation; internal SavedPairedState Participation; }
+        { internal string RiderId, MountId, ProfileId, OwnerId; internal long Generation; internal SavedPairedState Participation; internal bool Carried; }
         private sealed class AreaTransfer
         {
             internal WeakReference World;
@@ -260,6 +396,10 @@ namespace KingmakerMountedCombat.Integration
             internal AreaPair[] Pairs;
             internal SavedMountedSlot[] Slots;
             internal bool Suspended, ResumeAttempted, TurnBased;
+            // Exploration repair (issue 7): the destination is the world map, so arrival keeps retained intent.
+            internal bool WorldMap;
+            // The kind of the retained intent this transfer carries (its carried pairs restore under its rules).
+            internal MountedRetainedIntentKind CarriedKind;
         }
     }
 }

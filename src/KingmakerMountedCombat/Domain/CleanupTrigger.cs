@@ -10,6 +10,9 @@ namespace KingmakerMountedCombat.Domain
         SaveRequested = 40,
         LoadRequested = 41,
         GameModeBoundary = 45,
+        // Exploration repair: a scripted event (dialog, locked cutscene), camp or world-map travel suspends the
+        // attachment while the pair's mounted intent is retained and restored without a Mount action afterwards.
+        EventSuspension = 46,
         ViewDetached = 50,
         ViewReplaced = 51,
         CompanionInvalidated = 60,

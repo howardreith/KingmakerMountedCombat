@@ -292,6 +292,7 @@ namespace KingmakerMountedCombat.Integration
             });
             if (errors.Length != 0 || !drained || service.Ownership.Owners.Length == 0 && !combat.TryDrainChargeOwnership("mod disable")) return false;
             unifiedTurn.EndPairedServiceParticipation();
+            persistence.DropRetainedIntent("Kingmaker Mounted Combat was disabled");
             return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
         }
 
@@ -394,6 +395,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
         {
+            // Review finding 3: an event mode that begins after the pairs were already suspended (Rest after a dialog)
+            // updates the retained intent of this world even though nothing is physically mounted any more.
+            if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()))
+                persistence.PromoteRetainedIntent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent);
             if (persistence.SaveSuspended ||
                 (gameMode == GameModeType.None && persistence.AreaTransitionPending) ||
                 MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) ||
@@ -403,6 +408,15 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            // Exploration repair (issues 3 and 4): a native scripted event (Dialog, a locked Cutscene) or Rest suspends
+            // the attachment with the pair's mounted intent retained, and the pair remounts once ordinary play resumes.
+            // A refused suspension (combat, an owned save, unsettled participation) keeps the clean dismount below.
+            if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()) &&
+                persistence.TrySuspendForEvent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent, source))
+            {
+                Observe(boundary, source + "(mounted intent retained)", service.CapturePresentationObservation(false));
+                return;
+            }
             Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation(false));
         }
     }

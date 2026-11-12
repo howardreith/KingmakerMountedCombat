@@ -176,6 +176,17 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix), nameof(PatchMethods.LoadPostfix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
+                // Exploration repair C1: the native camp interaction issues one UnitApproachCamp per party unit, each to
+                // its own camp slot. A mounted rider's stock agent is disabled, so its approach never succeeds and the
+                // RestGroupCommand waits forever. The party's mounted pairs are suspended with retained intent first.
+                PatchExact(typeof(Kingmaker.View.MapObjects.RestInteraction), "OnInteract", 0x06001A7B, new[] { typeof(UnitEntityData) },
+                    nameof(PatchMethods.CampInteractionPrefix));
+                // Exploration repair P1/P2: an item familiar of a mounted rider follows the physical mover and never
+                // adopts the pair's owned attachment anchor (exact installed Kingmaker.Visual.Critters.Familiar).
+                PatchExact(typeof(Kingmaker.Visual.Critters.Familiar), "UpdateMovingToMaster", 0x060013BF, Type.EmptyTypes,
+                    nameof(PatchMethods.FamiliarFollowPrefix));
+                PatchExact(typeof(Kingmaker.Visual.Critters.Familiar), "TeleportToMaster", 0x060013C5, new[] { typeof(bool) },
+                    null, nameof(PatchMethods.FamiliarTeleportPostfix));
                 PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
@@ -1402,7 +1413,33 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
                 return true;
             }
-            internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
+            internal static void AreaEntitiesReadyPostfix()
+            {
+                PatchBridge.Persistence?.RestoreAreaPair();
+                // Review finding 2: the exact loaded world adopts its saved retained mounted intent at native arrival.
+                PatchBridge.Persistence?.AdoptLoadedRetainedIntent();
+            }
+
+            internal static void CampInteractionPrefix(Kingmaker.View.MapObjects.RestInteraction __instance)
+            {
+                // Native refusals (combat, no camp view) run unchanged afterwards; nothing is suspended for them.
+                if (__instance == null || Kingmaker.Game.Instance?.Player?.IsInCombat != false ||
+                    __instance.GetComponent<Kingmaker.View.MapObjects.CampPlaceView>() == null) return;
+                try { PatchBridge.Persistence?.TrySuspendForEvent(MountedRetainedIntentKind.Camp, "RestInteraction.OnInteract"); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted camp suspension left the native camp interaction unchanged", error); }
+            }
+
+            internal static bool FamiliarFollowPrefix(Kingmaker.Visual.Critters.Familiar __instance)
+            {
+                var mount = MountedFamiliarFollowAdapter.RiddenMount(__instance?.Master, PatchBridge.Owner);
+                return mount == null || !MountedFamiliarFollowAdapter.TryUpdateMovingToMaster(__instance, mount, PatchBridge.Logger);
+            }
+
+            internal static void FamiliarTeleportPostfix(Kingmaker.Visual.Critters.Familiar __instance)
+            {
+                var mount = MountedFamiliarFollowAdapter.RiddenMount(__instance?.Master, PatchBridge.Owner);
+                if (mount != null) MountedFamiliarFollowAdapter.AfterTeleportToMaster(__instance, mount, PatchBridge.Logger);
+            }
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)
                 => GameLoadAdmissionCore(saveInfo, "Game.LoadGame");

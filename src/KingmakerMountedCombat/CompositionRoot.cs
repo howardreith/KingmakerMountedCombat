@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
         private readonly MountedRiderFallService riderFalls;
+        private readonly MountedExplorationObserver explorationObserver;
         private readonly CompanionNameService companionNames;
         private readonly RidingDogTackService ridingDogTack;
         private readonly RemovalPreparationShortcut removalShortcut;
@@ -69,6 +70,7 @@ namespace KingmakerMountedCombat
                 persistence = new MountedPersistenceService(world, settings, logger);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
+                explorationObserver = new MountedExplorationObserver(world, logger);
                 riderFalls = new MountedRiderFallService(() => persistence.CombatRestorationPending || persistence.SaveSuspended || persistence.AreaTransitionPending, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence, riderFalls);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
@@ -300,6 +302,8 @@ namespace KingmakerMountedCombat
             });
             if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
             persistence.ReleaseRetainedPendingReentry();
+            // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
+            persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
             IsEnabled = false;
         }
 
@@ -362,6 +366,7 @@ namespace KingmakerMountedCombat
             var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { world.UpdatePairs(); }
             finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
+            explorationObserver.Update();
             var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { unifiedTurn.Update(); }
             finally { phaseMeasurement?.EndTurnUpdate(turnStarted); }

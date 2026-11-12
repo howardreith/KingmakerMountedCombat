@@ -2263,8 +2263,12 @@ namespace KingmakerMountedCombat.Integration
         internal long CarriedApproachReplacedTravelCount { get; private set; }
 
         // Exact native component types only: a derived chest, loot or door type is "Other" and stays native.
+        // A corpse click is the exact native UnitLootUnit (a Standard command on the dead unit, ApproachRadius 1 m,
+        // opened by its own OnAction); a derived command type stays native.
         internal static MountedCarriedInteractionClass ClassifyCarriedInteraction(UnitCommand command, UnitInteractWithObject interaction)
         {
+            if (command != null && command.GetType() == typeof(UnitLootUnit))
+                return command.TargetUnit != null ? MountedCarriedInteractionClass.UnitLoot : MountedCarriedInteractionClass.NotInteraction;
             var component = interaction?.Interaction;
             if (component == null || command.GetType() != typeof(UnitInteractWithObject)) return MountedCarriedInteractionClass.NotInteraction;
             if (component is DisableTrapInteractionComponent) return MountedCarriedInteractionClass.TrapDisarm;
@@ -2386,7 +2390,7 @@ namespace KingmakerMountedCombat.Integration
         private void ObserveContainerOrderRun(UnitCommands container, UnitCommand command)
         {
             var interaction = command as UnitInteractWithObject;
-            if (disposed || interaction == null || container == null || container != relationship.Rider?.Commands ||
+            if (disposed || command == null || container == null || container != relationship.Rider?.Commands ||
                 relationship.State != RelationshipState.Mounted || !command.CreatedByPlayer ||
                 MountedCarriedApproachPolicy.Classify(false, ClassifyCarriedInteraction(command, interaction)) != MountedCarriedCommandKind.ContainerInteraction)
                 return;

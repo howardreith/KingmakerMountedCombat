@@ -17,6 +17,31 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("F4 AI-02 the elapsed bound grows only by the travel time to the initial gap, capped, and never for Charge", ApproachAllowance);
             runner.Run("F4 AI-01 a started routine continues on another target only after its target is down", RoutineContinuation);
             runner.Run("F4 GAIT-01 only the unimpaired party-paced Horse shows its run cycle; every other regime keeps the native gait", HorseGait);
+            runner.Run("exploration L1 a mounted corpse loot order is carried like a container order and replaces only the pair's own travel", CorpseLootOrdersCarried);
+        }
+
+        private static void CorpseLootOrdersCarried()
+        {
+            TestRunner.Equal(MountedCarriedCommandKind.ContainerInteraction, MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot),
+                "The native corpse loot order (UnitLootUnit) was not carried by the mount.");
+            TestRunner.Equal(MountedCarriedApproachDisposition.Carry, MountedCarriedApproachPolicy.Decide(true, true, false, false,
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), false, false, false, false),
+                "The rider's own out-of-range corpse order was not carried.");
+            TestRunner.Equal(MountedCarriedApproachDisposition.NotCarried, MountedCarriedApproachPolicy.Decide(true, true, true, false,
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), false, false, false, false),
+                "An already-started (in-range) corpse order must stay with the native rider command.");
+            TestRunner.Equal(MountedCarriedApproachDisposition.NotCarried, MountedCarriedApproachPolicy.Decide(true, true, false, false,
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), false, false, true, false),
+                "An AI loot order must stay native.");
+            TestRunner.Equal(MountedCarriedApproachDisposition.NotCarried, MountedCarriedApproachPolicy.Decide(false, true, false, false,
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), false, false, false, false),
+                "An unmounted looter must keep the native approach.");
+            TestRunner.True(MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), true, false, true, true, false, true),
+                "A real-time corpse click must replace the pair's own earlier travel, as native Run does for the rider.");
+            TestRunner.True(!MountedCarriedApproachPolicy.NewOrderReplacesOwnTravel(
+                MountedCarriedApproachPolicy.Classify(false, MountedCarriedInteractionClass.UnitLoot), false, false, true, true, false, true),
+                "A waiting corpse order must never cancel a later player move.");
         }
 
         private static void ContainerOrdersCarried()
