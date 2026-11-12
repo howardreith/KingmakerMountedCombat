@@ -102,6 +102,9 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueueOrRunPrefix));
                 PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
                 PatchExact(typeof(UnitCommand), "Tick", 0x060027A7, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
+                // Horse speed repair: the native accelerated group move is offered to selected units only.
+                PatchExact(typeof(UnitCommand), "AccelerateIfPathIsLong", 0x060027B4, null,
+                    nameof(PatchMethods.NativeGroupAccelerationPrefix), nameof(PatchMethods.NativeGroupAccelerationPostfix));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ChargeClickPrefix));
@@ -660,6 +663,25 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (PatchBridge.World == null) PatchBridge.Service?.BeginNativeMovementUpdate();
                 else PatchBridge.World.Visit(pair => pair.Relationship.BeginNativeMovementUpdate());
+            }
+
+            internal static void NativeGroupAccelerationPrefix(UnitCommand __instance, out bool __state)
+            {
+                __state = __instance != null && __instance.IsAccelerated;
+            }
+
+            // After native AccelerateIfPathIsLong offered Accelerate() to every selected unit's commands, offer it to
+            // each pair's mount that executes its selected rider's routed ground order (MountedGroupPacePolicy).
+            internal static void NativeGroupAccelerationPostfix(UnitCommand __instance, bool __state)
+            {
+                if (__instance == null || !MountedGroupPacePolicy.NativeGroupOfferRan(__state, __instance.IsAccelerated)) return;
+                try
+                {
+                    if (PatchBridge.World == null) PatchBridge.Combat?.CarryNativeGroupAcceleration();
+                    else foreach (var error in PatchBridge.World.Visit(pair => pair.Combat?.CarryNativeGroupAcceleration()))
+                        PatchBridge.Logger?.Exception("Mounted group pace was not carried to a mount", error);
+                }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted group pace was not carried to a mount", error); }
             }
 
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)

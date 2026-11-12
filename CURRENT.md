@@ -1,3 +1,23 @@
+# HORSE GROUP PACE REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE BLOCKED (2026-11-12)
+
+Branch `codex/kmc-horse-group-pace` from main `bd22a045` (0.2.6). Read the [handoff](docs/HORSE-GROUP-PACE-REPAIR-HANDOFF.md).
+
+- **Cause (installed-assembly source; not shown in game):** native long group moves accelerate in a specific way.
+  - `UnitCommand.AccelerateIfPathIsLong` sets the Charge gait and multiplies the limit by 1.8, which turns 3.048 into 5.49.
+  - It then offers `Accelerate()` only to the commands of units in `SelectedUnits`.
+  - KMC projects the mount onto its rider and runs the rider's order on the mount, so the offer skipped the horse.
+  - The horse therefore kept the 3.05 group walk while the party ran. The log fits this: 103 legs at 3.05 and 2 own-path accelerated legs at 5.49, with `modifiedSpeed` 4.06 throughout.
+- **Fix:** an exact-token postfix on `AccelerateIfPathIsLong` offers the same native `Accelerate()` to each pair's routed ground order. This applies only when the rider is selected, the mount is not, and play is real time.
+  - Native `CanAccelerate` keeps every refusal: setting, combat, speed-affecting conditions, encumbrance and gait.
+  - Owned approaches and charge are untouched.
+  - Bounded diagnostics were added.
+- **Checks:**
+  - Fast PASS 3/0 (components 1175/0, Validate-Source 151/0).
+  - Kingmaker assembly contracts: all 8 new pins pass. The 3 pre-existing UMM identity failures are unchanged.
+  - A mutation check confirms the regression detects the defect.
+- **Native:** NOT RUN. This machine has no KMC install, fixture or fixture qualification.
+- **Not authorized:** merge, release, tag or install.
+
 # RELEASE 0.2.6 (OWNER ORDER, 2026-11-12)
 
 The owner approved PR #33, the attack completion warnings repair (merge `b8359e31`, tree identical to the reviewed
