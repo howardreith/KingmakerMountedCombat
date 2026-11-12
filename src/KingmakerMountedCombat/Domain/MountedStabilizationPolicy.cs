@@ -521,6 +521,8 @@ namespace KingmakerMountedCombat.Domain
                     return "Dismounted cleanly because the rider/Mammoth relationship became invalid.";
                 case CleanupTrigger.GameModeBoundary:
                     return "Dismounted cleanly because the game left an active world or non-world menu mode.";
+                case CleanupTrigger.EventSuspension:
+                    return "Dismounted for a scripted event, camp or world-map travel; the pair remounts automatically when ordinary play resumes.";
                 case CleanupTrigger.ModDisabled:
                     return "Dismounted cleanly because Kingmaker Mounted Combat was disabled.";
                 case CleanupTrigger.Exception:

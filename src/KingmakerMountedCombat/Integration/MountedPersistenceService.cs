@@ -808,6 +808,7 @@ namespace KingmakerMountedCombat.Integration
             ReplayDeferredResetIfSettled();
             ContinueWorldRelease();
             CompleteAreaTransitionIfReady();
+            TryRestoreRetainedIntent();
             TryRestoreCombat();
             if (CombatSemanticRestorationPending) return;
             if (!Enabled || !presentationPending || SaveSuspended || restoreLoad == null ||

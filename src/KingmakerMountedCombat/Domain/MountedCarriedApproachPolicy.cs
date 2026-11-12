@@ -29,6 +29,9 @@ namespace KingmakerMountedCombat.Domain
         TrapDisarm,
         // Exact StandardChest or LootComponent: the chest/open/loot orders the owner reported.
         Container,
+        // Exact native UnitLootUnit: the ordinary corpse click (ClickUnitHandler issues it for a dead unit with
+        // loot). A corpse is a unit, not a map object, so it never reaches the Container case above.
+        UnitLoot,
         // Doors keep their own Sprint 2 routing (MountedDoorInteractionCommand).
         Door,
         // Every other map-object kind (devices, buttons, skill checks, derived types) stays native: no blind
@@ -75,6 +78,7 @@ namespace KingmakerMountedCombat.Domain
                 case MountedCarriedInteractionClass.TrapDisarm:
                     return MountedCarriedCommandKind.TrapInteraction;
                 case MountedCarriedInteractionClass.Container:
+                case MountedCarriedInteractionClass.UnitLoot:
                     return MountedCarriedCommandKind.ContainerInteraction;
                 default:
                     return MountedCarriedCommandKind.None;

@@ -129,6 +129,9 @@
     <Compile Include="MountedRiderPoseTests.cs" />
     <Compile Include="MountedRiderGroundingPolicyTests.cs" />
     <Compile Include="MountedStabilizationPolicyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedIntentPolicy.cs"><Link>Shared\Domain\MountedRetainedIntentPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFamiliarFollowPolicy.cs"><Link>Shared\Domain\MountedFamiliarFollowPolicy.cs</Link></Compile>
+    <Compile Include="ExplorationRepairTests.cs" />
     <Compile Include="MountedDoorApproachPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
     <Compile Include="NativeShellBindingPolicyTests.cs" />

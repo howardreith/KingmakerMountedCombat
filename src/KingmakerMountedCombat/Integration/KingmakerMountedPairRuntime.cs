@@ -643,6 +643,12 @@ namespace KingmakerMountedCombat.Integration
                         {
                             throw new InvalidOperationException("Refusing to destroy an owned attachment anchor while the rider remains parented beneath it.");
                         }
+                        // A native object can adopt the owned anchor (an item familiar's TeleportToMaster copies the
+                        // rider view's parent). It is not ours: it keeps its world pose under the rider's restored
+                        // parent and is never destroyed with the anchor.
+                        var adoptiveParent = riderView != null ? riderView.transform.parent : positionAnchor.parent?.parent;
+                        for (var child = positionAnchor.childCount - 1; child >= 0; child--)
+                            positionAnchor.GetChild(child).SetParent(adoptiveParent, true);
                         positionAnchor.SetParent(null, true);
                         UnityEngine.Object.Destroy(positionAnchorObject);
                     }

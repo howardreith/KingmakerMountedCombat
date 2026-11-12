@@ -292,6 +292,7 @@ namespace KingmakerMountedCombat.Integration
             });
             if (errors.Length != 0 || !drained || service.Ownership.Owners.Length == 0 && !combat.TryDrainChargeOwnership("mod disable")) return false;
             unifiedTurn.EndPairedServiceParticipation();
+            persistence.DropRetainedIntent("Kingmaker Mounted Combat was disabled");
             return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
         }
 
@@ -403,6 +404,15 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            // Exploration repair (issues 3 and 4): a native scripted event (Dialog, a locked Cutscene) or Rest suspends
+            // the attachment with the pair's mounted intent retained, and the pair remounts once ordinary play resumes.
+            // A refused suspension (combat, an owned save, unsettled participation) keeps the clean dismount below.
+            if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()) &&
+                persistence.TrySuspendForEvent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent, source))
+            {
+                Observe(boundary, source + "(mounted intent retained)", service.CapturePresentationObservation(false));
+                return;
+            }
             Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation(false));
         }
     }

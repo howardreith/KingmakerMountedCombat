@@ -680,6 +680,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             MountedRiderPoseTests.Register(runner);
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
+            ExplorationRepairTests.Register(runner);
             MountedDoorApproachPolicyTests.Register(runner);
             MountedDoorOccupancyPolicyTests.Register(runner);
             MountedDoorLifecycleTests.Register(runner);
