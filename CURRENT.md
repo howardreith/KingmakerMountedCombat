@@ -1,3 +1,17 @@
+# ATTACK COMPLETION WARNINGS — SOURCE FIX; NATIVE CONFIRMATION PENDING (2026-11-12)
+
+Branch `codex/kmc-attack-completion-warnings` from main `680d02cb` (0.2.5). Read the
+[handoff](docs/ATTACK-COMPLETION-WARNINGS-HANDOFF.md).
+
+- **Cause:** successful attack cleanup clears the command reference but retains its intent. The next exhausted-action
+  update treated that missing reference as a fresh refused click and displayed the no-Standard warning.
+- **Fix:** retain per-intent dispatch history. Normal completion and later internal dispatch refusals are quiet;
+  genuinely new unavailable player requests keep their feedback. Native action costs and command admission are unchanged.
+- **Focused checks:** 92/0 actual domain tests with C# 7.3 on .NET 8, including nine regressions; independent source
+  review found no blocking defect. This is not the repository Fast/Candidate tier or a production DLL build.
+- **Native:** NOT RUN. DATA is offline; no game/UMM references, fixture, or installed-build identity are available here.
+- **Delivery:** review branch only; no merge, release, tag, package, installation, or game launch.
+
 # RELEASE 0.2.5 (OWNER ORDER, 2026-11-12)
 
 The owner ordered PR #31, the save/load and entrance repair (merge `af138c57`, tree identical to the reviewed

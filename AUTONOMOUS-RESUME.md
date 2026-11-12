@@ -1,3 +1,15 @@
+# Attack completion warnings — review checkpoint (2026-11-12)
+
+Branch `codex/kmc-attack-completion-warnings`; base main `680d02cb` (0.2.5). Read CURRENT.md and
+docs/ATTACK-COMPLETION-WARNINGS-HANDOFF.md.
+
+- **State:** source correction and nine regressions; focused domain suite 92/0; independent source review found no blocker.
+- **Lifetime:** command-terminal cleanup clears `stockIntentCommand` but intentionally retains `stockIntent`. The
+  latter now remembers accepted dispatch, so spent-action completion is quiet and only a fresh refused request warns.
+  Read the rejection feedback before clearing the intent; same-target promotion must preserve dispatch history.
+- **Limits:** no net47 game DLL build or native run. DATA was offline and exact game/UMM assemblies were unavailable.
+- **Delivery:** review branch only; no merge/release/tag/install/launch. Existing unrelated defects remain open.
+
 # Exploration repair resume — partial, native blocked (2026-11-12)
 
 Branch `codex/kmc-exploration-markers-speed-events` (draft PR). Read CURRENT.md and docs/EXPLORATION-REPAIR-HANDOFF.md.

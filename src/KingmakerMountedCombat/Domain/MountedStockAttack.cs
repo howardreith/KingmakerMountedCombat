@@ -213,6 +213,7 @@ namespace KingmakerMountedCombat.Domain
         public bool PreferMount { get; private set; }
         // AI-01: admitted from the native party brain, not a click. Same dispatch; different boundaries.
         public bool Automatic { get; private set; }
+        private bool hasDispatched;
         private object riderContext;
         private object mountContext;
         private object weaponContext;
@@ -236,6 +237,7 @@ namespace KingmakerMountedCombat.Domain
             MountActor = mountActor;
             PreferMount = false;
             Automatic = automatic;
+            hasDispatched = false;
             HasEnteredCombat = inCombat;
             riderContext = rider;
             mountContext = mount;
@@ -258,7 +260,20 @@ namespace KingmakerMountedCombat.Domain
 
         public void ObserveDispatch(bool mountActor)
         {
-            if (Target != null) PreferMount = !mountActor;
+            if (Target != null)
+            {
+                PreferMount = !mountActor;
+                hasDispatched = true;
+            }
+        }
+
+        // A terminal command releases its reference before the retained intent observes spent actions.
+        // That is completion of accepted work, not a fresh refused click. The same applies to later
+        // dispatch attempts by a repeating intent. Keep their diagnostics, but answer only the first
+        // refused player request with a warning. Same-target continuation never re-arms feedback.
+        public string GetRejectionFeedback(string feedback)
+        {
+            return Target != null && !Automatic && !hasDispatched ? feedback : null;
         }
 
         public bool ObserveCombatEnded(bool inCombat)
@@ -275,6 +290,7 @@ namespace KingmakerMountedCombat.Domain
             MountActor = false;
             PreferMount = false;
             Automatic = false;
+            hasDispatched = false;
             riderContext = mountContext = weaponContext = mountWeaponContext = null;
             actionContext = 0;
             Generation++;

@@ -1448,12 +1448,13 @@ namespace KingmakerMountedCombat.Integration
             }
             if (decision == MountedStockAttackDecision.CompleteTurnBasedIntent)
             {
-                if (stockIntentCommand == null)
+                var spent = stockIntent.MountActor ? mount : rider;
+                var partner = stockIntent.MountActor ? rider : mount;
+                var feedback = stockIntent.GetRejectionFeedback(UnifiedMountedStockAttackPolicy.NoStandardFeedback(
+                    spent?.CharacterName, partner?.CharacterName, partner != null && partner.HasStandardAction()));
+                if (feedback != null)
                 {
-                    var spent = stockIntent.MountActor ? mount : rider;
-                    var partner = stockIntent.MountActor ? rider : mount;
-                    LastFeedback = UnifiedMountedStockAttackPolicy.NoStandardFeedback(spent?.CharacterName,
-                        partner?.CharacterName, partner != null && partner.HasStandardAction());
+                    LastFeedback = feedback;
                     LastStandardRefusalTrace = "actor=" + spent?.UniqueId +
                         ";riderStandard=" + rider?.CombatState.Cooldown.StandardAction.ToString("R") +
                         ";riderMove=" + rider?.CombatState.Cooldown.MoveAction.ToString("R") +
@@ -1493,9 +1494,10 @@ namespace KingmakerMountedCombat.Integration
                     LastStockAttackObservation = "automatic-intent-cancel-dispatch-rejected;action=" + action;
                     return;
                 }
+                var feedback = stockIntent.GetRejectionFeedback(LastFeedback);
                 ClearStockAttackIntent("stock dispatch rejected", true);
                 LastStockAttackObservation = "intent-cancel-dispatch-rejected;action=" + action;
-                ShowStockFeedback();
+                if (feedback != null) ShowStockFeedback();
                 return;
             }
             if (!stockIntent.Owns(target, generation))
