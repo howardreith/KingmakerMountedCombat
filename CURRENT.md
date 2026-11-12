@@ -1,3 +1,15 @@
+# RELEASE 0.2.3 (OWNER ORDER, 2026-11-12)
+
+The owner accepted PR #27, the exploration repairs (merge `ff183945`, tree identical to the reviewed `3a547ad8`), and
+ordered a release. Notes: [docs/RELEASE-NOTES-0.2.3.md](docs/RELEASE-NOTES-0.2.3.md).
+
+- **Version:** 0.2.3, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.3-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** The owner is testing it in the campaign where the bugs were found.
+  Issues 1–2 (extra marker, horse lag) remain parked.
+- **Not done:** no install.
+
 # EXPLORATION REPAIR SPRINT — OWNER REVIEW CORRECTIONS IN SOURCE; NATIVE BLOCKED; OWNER ACCEPTANCE SEPARATE (2026-11-12)
 
 Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`, draft PR #27. Read the
