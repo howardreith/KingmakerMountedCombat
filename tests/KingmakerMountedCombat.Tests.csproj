@@ -134,6 +134,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFamiliarFollowPolicy.cs"><Link>Shared\Domain\MountedFamiliarFollowPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAreaTransferLifecycle.cs"><Link>Shared\Domain\MountedAreaTransferLifecycle.cs</Link></Compile>
     <Compile Include="ExplorationRepairTests.cs" />
+    <Compile Include="MountedGroupPacePolicyTests.cs" />
     <Compile Include="RatnookDoorRepairTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldBoundaryAdmissionPolicy.cs"><Link>Shared\Domain\MountedWorldBoundaryAdmissionPolicy.cs</Link></Compile>
     <Compile Include="SaveLoadEntranceRepairTests.cs" />
@@ -339,6 +340,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderPoseProfile.cs"><Link>Shared\Domain\MountedRiderPoseProfile.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRiderGroundingPolicy.cs"><Link>Shared\Domain\MountedRiderGroundingPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs"><Link>Shared\Domain\MountedStabilizationPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroupPacePolicy.cs"><Link>Shared\Domain\MountedGroupPacePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs"><Link>Shared\Domain\MountedGroundOrderAdmissionPolicy.cs</Link></Compile>
     <Compile Include="MountedGroundOrderAdmissionPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PoseVector3.cs"><Link>Shared\Domain\PoseVector3.cs</Link></Compile>

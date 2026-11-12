@@ -540,6 +540,7 @@
     <Compile Include="Domain\MountedRiderGroundingPolicy.cs" />
     <Compile Include="Domain\MountedGroundOrderAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedStabilizationPolicy.cs" />
+    <Compile Include="Domain\MountedGroupPacePolicy.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
     <Compile Include="Domain\CompanionNamePolicy.cs" />
     <Compile Include="Domain\RidingDogTackGeometry.cs" />
@@ -602,6 +603,7 @@
     <Compile Include="Integration\MountedChargeGeometry.cs" />
     <Compile Include="Integration\MountedCombatController.Charge.cs" />
     <Compile Include="Integration\MountedCombatController.Entrance.cs" />
+    <Compile Include="Integration\MountedCombatController.GroupPace.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\NativeMountedControlService.Ownership.cs" />

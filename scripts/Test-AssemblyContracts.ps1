@@ -1414,6 +1414,18 @@ if($Target-eq'Kingmaker'){
     $dialogSelect=$assembly.ManifestModule.ResolveMethod(0x06009325)
     Assert-Contract ((Test-MethodIlContainsToken $dialogSelect 0x0600977A) -and (Test-MethodIlContainsToken $dialogSelect 0x04005E67) -and (Test-MethodIlContainsToken $dialogSelect 0x04005621) -and (Test-MethodIlContainsToken $dialogSelect 0x06009326) -and (Test-MethodIlContainsToken $dialogSelect 0x06009324) -and (Test-MethodIlContainsToken $dialogSelect 0x06009321)) 'SelectAnswer consults IsSystem against the m_Answers Contains check, runs the answer OnSelect, and schedules the next cue or stops the dialog'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'dialog continue contract pinned to the diagnosed Assembly-CSharp MVID'
+    # Horse speed repair: the native accelerated group move that the mount's routed order must receive.
+    foreach($member in @(@(0x060027B4,'AccelerateIfPathIsLong','System.Void','Pathfinding.Path'),@(0x060027B5,'Accelerate','System.Void',''),
+        @(0x060027B7,'CanAccelerate','System.Boolean',''),@(0x06002798,'get_IsAccelerated','System.Boolean',''))){
+        $found=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' $member[0])
+        Assert-Contract ($found.Count-eq1-and$found[0].Name-ceq$member[1]-and$found[0].ReturnType.FullName-ceq$member[2]-and
+            ((@($found[0].GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$member[3]) ('native group pace member '+$member[1])
+    }
+    $accelerateIfLong=$assembly.ManifestModule.ResolveMethod(0x060027B4)
+    Assert-Contract ((Test-MethodIlContainsToken $accelerateIfLong 0x060027B7)-and(Test-MethodIlContainsToken $accelerateIfLong 0x060027B5)) 'AccelerateIfPathIsLong accelerates its own command through CanAccelerate'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060027B5) 0x060027B7) 'native Accelerate re-applies CanAccelerate for every offered command'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060027B7) 0x0600830E) 'native CanAccelerate refuses a speed-affected executor'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060018B9) 0x060027B4) 'UnitMovementAgent.OnPathComplete offers long-path acceleration'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

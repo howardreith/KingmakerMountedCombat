@@ -1,3 +1,16 @@
+# Horse group pace — review checkpoint (2026-11-12)
+
+Branch `codex/kmc-horse-group-pace` (draft PR); base main `bd22a045` (0.2.6). Read CURRENT.md and
+docs/HORSE-GROUP-PACE-REPAIR-HANDOFF.md.
+
+- **State:** source fix plus diagnostics. Fast PASS on genuine references. Native NOT RUN.
+- **Seam:** `UnitCommand.AccelerateIfPathIsLong` 0x060027B4. The routed order's identity is `MountedCombatController.playerMove`, bound only by the ground click's own Run.
+- **Native next step:** owner play with the branch DLL, or a qualified KMC fixture. Use a whole-party move longer than 13 m with Accelerated Move on, then the restriction, short-move and turn-based rows in the handoff.
+- **Open, same mechanism, not changed:**
+  - the entrance-carried `UnitAreaTransition`;
+  - gamepad stick acceleration;
+  - the group limit computed from the rider rather than the horse.
+
 # Attack completion warnings — review checkpoint after the lab continuation (2026-11-12)
 
 Branch `codex/kmc-attack-completion-warnings`, draft PR #33; base main `680d02cb` (0.2.5). Read CURRENT.md and the top

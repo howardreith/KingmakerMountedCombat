@@ -20,6 +20,10 @@ namespace KingmakerMountedCombat.Integration
     //   - a mounted rider holding its own live move command (it can never execute: the rider's stock agent is off);
     //   - the ridden mount stopped short of a marked destination (what keeps its marker visible);
     //   - one pace summary per mount group order: limits, speeds, pauses and separation from the party.
+    // Horse speed repair: the limit, speeds and gait are read when the leg is first sampled, which can precede the
+    // native path completion that accelerates a long group move. The summary therefore also reports whether the mount's
+    // order and the ordinary party members' orders were accelerated at any sample, their highest limits, the mount's
+    // limit and gait at the end, and the selection the order came from. Times are unscaled seconds (pauses included).
     // It reads only; it writes no command, position, agent, marker or native state.
     internal sealed class MountedExplorationObserver
     {
@@ -122,10 +126,12 @@ namespace KingmakerMountedCombat.Integration
                 leg = new Leg { Command = move, StartTime = now, StartPosition = position, LastPosition = position, Target = move.Target,
                     SpeedLimit = move.SpeedLimit, ModifiedSpeed = mount.ModifiedSpeedMps, CurrentSpeed = mount.CurrentSpeedMps,
                     AgentMaxSpeed = agent != null ? agent.MaxSpeed : -1f, Corpulence = mount.View != null ? mount.View.Corpulence : -1f,
-                    Party = PartyMovers(game, relationship) };
+                    Party = PartyMovers(game, relationship), Selection = SelectionSummary(game, relationship) };
+                SampleOrders(leg, move, agent);
                 legs[relationship] = leg;
                 return;
             }
+            SampleOrders(leg, move, agent);
             var step = Distance2D(position, leg.LastPosition);
             leg.Travelled += step;
             leg.LastPosition = position;
@@ -160,7 +166,40 @@ namespace KingmakerMountedCombat.Integration
                 "; elapsed=" + Metres(elapsed) + "; meanSpeed=" + Metres(leg.Travelled / elapsed) +
                 "; stillFraction=" + Metres(leg.StillSamples / (float)leg.Samples) + "; maxFromPartyCentroid=" + Metres(leg.MaxBehind) +
                 "; partyMeanDisplacementSpeed=" + (partySpeeds.Length == 0 ? "n/a" : Metres(partySpeeds.Average())) +
-                "; endRemaining=" + Metres(Distance2D(relationship.Mount.Position, leg.Target)) + "; stalled=" + leg.StallReported + ".");
+                "; endRemaining=" + Metres(Distance2D(relationship.Mount.Position, leg.Target)) + "; stalled=" + leg.StallReported +
+                "; selection=" + leg.Selection + "; mountAccelerated=" + leg.Accelerated + "; speedLimitMax=" + Limit(leg.MaxSpeedLimit) +
+                "; speedLimitAtEnd=" + Limit(leg.EndSpeedLimit) + "; gaitAtEnd=" + leg.EndGait + "; agentMaxSpeedMax=" + Metres(leg.MaxAgentSpeed) +
+                "; partyOrders=" + leg.Party.Count(p => p.Ordered) + "/" + leg.Party.Length + "; partyAccelerated=" + leg.Party.Count(p => p.Accelerated) +
+                "; partySpeedLimitMax=" + Limit(leg.Party.Where(p => p.MaxSpeedLimit.HasValue).Select(p => p.MaxSpeedLimit).Max()) + ".");
+        }
+
+        // The mount's routed order and each ordinary party member's own player move at this sample.
+        private static void SampleOrders(Leg leg, UnitMoveTo move, Kingmaker.View.UnitMovementAgentBase agent)
+        {
+            leg.Accelerated |= move.IsAccelerated;
+            leg.MaxSpeedLimit = Higher(leg.MaxSpeedLimit, move.SpeedLimit);
+            leg.EndSpeedLimit = move.SpeedLimit;
+            leg.EndGait = move.MovementType.ToString();
+            if (agent != null) leg.MaxAgentSpeed = Mathf.Max(leg.MaxAgentSpeed, agent.MaxSpeed);
+            foreach (var member in leg.Party)
+            {
+                var order = member.Unit?.Commands?.Move;
+                if (order == null || order.IsFinished || !order.CreatedByPlayer) continue;
+                member.Ordered = true;
+                member.Accelerated |= order.IsAccelerated;
+                member.MaxSpeedLimit = Higher(member.MaxSpeedLimit, order.SpeedLimit);
+            }
+        }
+
+        private static float? Higher(float? a, float? b) => !a.HasValue ? b : !b.HasValue ? a : Mathf.Max(a.Value, b.Value);
+
+        private static string Limit(float? value) => value.HasValue ? Metres(value.Value) : "none";
+
+        private static string SelectionSummary(Game game, GameMountedRelationshipService relationship)
+        {
+            var selected = game.UI?.SelectionManager?.SelectedUnits;
+            if (selected == null) return "unknown";
+            return selected.Count + "(rider=" + selected.Contains(relationship.Rider) + ",mount=" + selected.Contains(relationship.Mount) + ")";
         }
 
         private static PartyMover[] PartyMovers(Game game, GameMountedRelationshipService relationship) =>
@@ -184,13 +223,20 @@ namespace KingmakerMountedCombat.Integration
         private static string Metres(float value) => value.ToString("F2", CultureInfo.InvariantCulture);
         private static string Format(Vector3 v) => "(" + Metres(v.x) + "," + Metres(v.y) + "," + Metres(v.z) + ")";
 
-        private sealed class PartyMover { internal UnitEntityData Unit; internal Vector3 Start; }
+        private sealed class PartyMover
+        {
+            internal UnitEntityData Unit; internal Vector3 Start;
+            internal bool Ordered, Accelerated; internal float? MaxSpeedLimit;
+        }
 
         private sealed class Leg
         {
             internal UnitCommand Command;
             internal float StartTime, ModifiedSpeed, CurrentSpeed, AgentMaxSpeed, Corpulence, Travelled, MaxBehind, StillSince = -1f;
-            internal float? SpeedLimit;
+            internal float? SpeedLimit, MaxSpeedLimit, EndSpeedLimit;
+            internal float MaxAgentSpeed;
+            internal bool Accelerated;
+            internal string EndGait = "unknown", Selection = "unknown";
             internal Vector3 StartPosition, LastPosition, Target;
             internal int Samples, StillSamples;
             internal bool StallReported;
