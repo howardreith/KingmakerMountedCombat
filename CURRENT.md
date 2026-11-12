@@ -1,3 +1,15 @@
+# RELEASE 0.2.4 (OWNER ORDER, 2026-11-12)
+
+The owner accepted PR #29, the Ratnook door repair (merge `9d7f575e`, tree identical to the reviewed `da917b68`), and
+ordered it merged and released. Notes: [docs/RELEASE-NOTES-0.2.4.md](docs/RELEASE-NOTES-0.2.4.md).
+
+- **Version:** 0.2.4, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.4-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native Ratnook acceptance remains NOT RUN; the owner is testing it in the
+  campaign where the bug was found. The arrival view-activity dismount and issues 1–2 remain open.
+- **Not done:** no install.
+
 # RATNOOK HILL DOOR REPAIR — SOURCE FIX WITH OFFLINE AND CONTRACT CHECKS; NATIVE BLOCKED; OWNER ACCEPTANCE SEPARATE (2026-11-12)
 
 Branch `codex/kmc-ratnook-door-repair` from main `44b6f606` (v0.2.3). Read the
