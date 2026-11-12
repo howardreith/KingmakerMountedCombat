@@ -82,12 +82,16 @@ namespace KingmakerMountedCombat.Integration
                 .Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId,
                     Generation = p.Generation, Participation = p.Participation, Carried = true }).ToArray();
             var slots = controls.CapturePersistentSlots();
-            var slotActors = new HashSet<string>(slots.Select(s => s.ActorId), StringComparer.Ordinal);
+            // Third owner review: merge live and retained control rows per logical row, never per actor.
+            var mergedSlots = MountedRetainedIntentRecord.MergeSlotRows(
+                slots.Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }),
+                (carried?.Slots ?? new SavedMountedSlot[0]).Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }))
+                .Select(s => new SavedMountedSlot { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }).ToArray();
             areaTransfer = new AreaTransfer {
                 World = new WeakReference(world), CampaignId = world.GameId, AreaId = area.AssetGuidThreadSafe,
                 Pairs = departing.Concat(carriedPairs).ToArray(),
                 TurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
-                Slots = slots.Concat((carried?.Slots ?? new SavedMountedSlot[0]).Where(s => !slotActors.Contains(s.ActorId))).ToArray(),
+                Slots = mergedSlots,
                 WorldMap = IsWorldMapArea(area),
                 CarriedKind = carried != null ? retainedIntentKind : MountedRetainedIntentKind.WorldMapTravel
             };

@@ -16,8 +16,10 @@ Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`, draft 
   - A carried capital arrival retires through the native rule.
   - A world-map save keeps the Mount/Dismount slot rows.
   - A pending record is bound to the load that selected it.
+- **Third owner review (1 P2):** corrected. The departure merge keeps a retained hotbar slot behind a live placement
+  marker.
 - **Issues 1–2:** parked by the owner until they can reproduce them. The log-only observations stay in the build.
-- **Checks:** Fast PASS 3/0 (components 1134/0, Validate-Source 151/0).
+- **Checks:** Fast PASS 3/0 (components 1135/0, Validate-Source 151/0).
 - **Native:** NOT RUN. This machine has no KMC install, no KMC fixture and no runtime-state.
 - **Not authorized:** merge, release, tag or install.
 

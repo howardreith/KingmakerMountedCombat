@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("second review 1 after an attempted arrival a save records only the deferred pair; before exit it records travelling intent", ArrivalThenSaveRecordsOnlyPending);
             runner.Run("second review 2 a carried capital arrival retires an excluded companion pair and keeps a main-character pair", CarriedCapitalRetirement);
             runner.Run("second review 3 the retained pairs' Mount/Dismount slot rows and placement records survive the world-map save", RetainedSlotRowsRoundTrip);
+            runner.Run("third review the departure merge keeps a retained slot behind a live placement marker and invents no binding", DepartureSlotMergeKeepsRetainedBinding);
             runner.Run("exploration P1 a mounted rider's familiar follows the mount's path end or ground position under the native leash", FamiliarFollow);
             runner.Run("exploration event suspension feedback says the pair remounts automatically", SuspensionFeedback);
         }
@@ -378,6 +379,41 @@ namespace KingmakerMountedCombat.Tests
                 try { MountedRetainedIntentRecord.Decode(malformed); } catch (System.IO.InvalidDataException) { refused = true; }
                 TestRunner.True(refused, "A malformed slot section was accepted.");
             }
+        }
+
+        private static void DepartureSlotMergeKeepsRetainedBinding()
+        {
+            var placement = MountedControlSlotPolicy.SavedPlacementRecord;
+            var control = MountedControlSlotPolicy.SavedMountState;
+            // Rider A placed Mount/Dismount in slot 9. Area suspension cleared it; on the world map the live capture holds
+            // only A's placement marker. The retained snapshot (in memory, or decoded from a world-map save) keeps slot 9
+            // and the marker. Rider B deliberately removed the control: its retained rows are a marker only.
+            var pairs = new[] { PairRecord(RiderA, MountA, OwnerA, 3), PairRecord(RiderB, MountB, OwnerB, 7) };
+            var savedRetained = MountedRetainedIntentRecord.Decode(new MountedRetainedIntentRecord { CampaignId = Campaign, AreaId = WorldMapArea,
+                GameTimeTicks = 11L, Kind = MountedRetainedIntentKind.WorldMapTravel, Pairs = pairs,
+                Slots = MountedRetainedIntentRecord.RecordableSlots(new[] {
+                    new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 9, Kind = control },
+                    new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 0, Kind = placement },
+                    new MountedRetainedIntentSlotRecord { ActorId = RiderB, Index = 0, Kind = placement } }, pairs) }.Encode()).Slots;
+            var live = new[] { new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 0, Kind = placement } };
+            var merged = MountedRetainedIntentRecord.MergeSlotRows(live, savedRetained);
+            TestRunner.True(merged.Any(x => x.ActorId == RiderA && x.Index == 9 && x.Kind == control),
+                "A live placement-only marker discarded rider A's retained slot-9 binding at departure.");
+            TestRunner.Equal(1, merged.Count(x => x.ActorId == RiderA && x.Kind == placement), "Rider A's placement marker was duplicated.");
+            TestRunner.True(merged.Any(x => x.ActorId == RiderB && x.Kind == placement) && !merged.Any(x => x.ActorId == RiderB && x.Kind != placement),
+                "A binding was invented for rider B's deliberately removed control.");
+            TestRunner.Equal(3, merged.Length, "The merge produced unexpected rows.");
+            // A binding the player holds now keeps its slot and comes first, so it wins the public control's first index.
+            var current = MountedRetainedIntentRecord.MergeSlotRows(
+                new[] { new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 3, Kind = control } }, savedRetained);
+            TestRunner.True(current.Length > 0 && current[0].ActorId == RiderA && current[0].Index == 3 && current[0].Kind == control,
+                "A legitimate current binding did not keep precedence.");
+            // The same slot index holds one binding: the live row wins over a retained row of another kind.
+            var sameIndex = MountedRetainedIntentRecord.MergeSlotRows(
+                new[] { new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 9, Kind = MountedControlSlotPolicy.SavedMountCompanion } }, savedRetained);
+            TestRunner.Equal(1, sameIndex.Count(x => x.ActorId == RiderA && x.Index == 9), "One slot index carried two bindings.");
+            TestRunner.Equal(MountedControlSlotPolicy.SavedMountCompanion, sameIndex.Single(x => x.ActorId == RiderA && x.Index == 9).Kind,
+                "A retained row replaced the player's current binding in the same slot.");
         }
 
         private static void FamiliarFollow()

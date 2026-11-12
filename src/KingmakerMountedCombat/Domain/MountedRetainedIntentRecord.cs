@@ -96,6 +96,28 @@ namespace KingmakerMountedCombat.Domain
                 .ToArray();
         }
 
+        // Third owner review: the departure merge of live and retained control rows works per logical row
+        // (MountedControlSlotPolicy.SavedRowKey: actor plus slot index, or actor plus the one placement record), never
+        // per actor, so a live placement-only marker cannot hide a retained Mount/Dismount binding. Live rows come
+        // first: a binding the player holds now wins its slot index, and RestorePersistentSlots places the public control
+        // at the first saved index that is free. Nothing is invented: a retained placement marker without a slot row
+        // (a deliberately removed control) stays a marker.
+        public static MountedRetainedIntentSlotRecord[] MergeSlotRows(IEnumerable<MountedRetainedIntentSlotRecord> current,
+            IEnumerable<MountedRetainedIntentSlotRecord> retained)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var merged = new List<MountedRetainedIntentSlotRecord>();
+            foreach (var row in (current ?? Enumerable.Empty<MountedRetainedIntentSlotRecord>())
+                .Concat(retained ?? Enumerable.Empty<MountedRetainedIntentSlotRecord>()))
+            {
+                if (row == null || row.ActorId == null) continue;
+                var actor = Guid.TryParse(row.ActorId, out var parsed) ? parsed.ToString("N") : row.ActorId;
+                if (keys.Add(MountedControlSlotPolicy.SavedRowKey(actor, row.Index, row.Kind)))
+                    merged.Add(new MountedRetainedIntentSlotRecord { ActorId = row.ActorId, Index = row.Index, Kind = row.Kind });
+            }
+            return merged.ToArray();
+        }
+
         // A loaded record is adopted only by the exact world it was written into.
         public bool MatchesLoadedWorld(string campaignId, string areaId, long gameTimeTicks)
         {

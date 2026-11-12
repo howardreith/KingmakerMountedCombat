@@ -14,6 +14,26 @@ not a demonstrated outcome.
 - **Owner direction (2026-11-12):** issues 1 and 2 cannot currently be reproduced by the owner and are parked until
   the owner sends details; their log-only observations stay in the build.
 
+## Third owner review of `5483b9a0` (request changes, 1 P2) — resolution
+
+- **Finding:** the departure merge in `BeginAreaTransition` deduplicated control rows per actor. On the world map the
+  live capture holds only the placement marker of a rider whose Mount/Dismount slot area suspension cleared, so the
+  retained slot row was discarded on the next area entry (with or without a save and reload).
+- **Correction:** `MountedRetainedIntentRecord.MergeSlotRows` merges per logical row
+  (`MountedControlSlotPolicy.SavedRowKey`: actor plus slot index, or actor plus the one placement record). Live rows
+  come first, so a binding the player holds now keeps its slot and the public control's first free saved index. A
+  retained placement marker without a slot row (a deliberately removed control) stays a marker.
+- **Regression:** the reviewer's case through the merge, with a decoded world-map record:
+  - rider A has a live placement-only row, plus retained slot 9 and its marker;
+  - rider B has a retained marker only.
+  - Result: A keeps slot 9 and one marker, and B gets no binding.
+  - Two controls also hold: a current binding keeps precedence, and one slot index never carries two bindings.
+- **Remaining assumption:** on the world map the player cannot edit the KMC hotbar row. If they could remove the
+  control there, the retained slot would be restored on arrival. This is not verified in game.
+- **Checks:** Fast PASS 3/0, 0.66 min (components 1135/0, Validate-Source 151/0), budget 2.82 of 90 min.
+- **Closed by the reviewer in source:** the cancelled-intent, capital-retirement and load-lifetime items of the second
+  review.
+
 ## Second owner review of `7fc4c898` (request changes) — resolution
 
 | Finding | Resolution | Offline regression |
