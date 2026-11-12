@@ -5,7 +5,7 @@ RUN (BLOCKED: NO KMC FIXTURE OR DISPOSABLE SAVE ON THIS MACHINE); OWNER ACCEPTAN
 or install.
 
 - **Branch:** `codex/kmc-ratnook-door-repair`, from main `44b6f606` (the v0.2.3 release merge; `origin/main` was
-  fetched at intake and was unchanged). Draft PR: see the PR body.
+  fetched at intake and was unchanged). Draft PR [#29](https://github.com/howardreith/KingmakerMountedCombat/pull/29); repair commit `3c6ba2f1`.
 - **Owner report:** "Just buffed and went through a door at Ratnook hill. On going through the door, my rider dismounted
   and now the party can't move." The supplied log (`output_log(2).txt`, 2,431,057 bytes, SHA-256 `42c16ec9…365d`,
   11,484 LF lines) reports KMC 0.2.3. The owner's DLL was not byte-matched to the release. The log is kept local and is
