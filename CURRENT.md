@@ -1,3 +1,15 @@
+# RELEASE 0.2.7 (OWNER ORDER, 2026-11-12)
+
+The owner accepted PR #35, the horse group pace repair, and ordered it merged and released. Merge `2e97cbd4`, tree
+identical to the reviewed `ed82ec27`. Notes: [docs/RELEASE-NOTES-0.2.7.md](docs/RELEASE-NOTES-0.2.7.md).
+
+- **Version:** 0.2.7, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.7-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native acceptance rows in the handoff remain NOT RUN: this machine has no
+  KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # HORSE GROUP PACE REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE BLOCKED (2026-11-12)
 
 Branch `codex/kmc-horse-group-pace` from main `bd22a045` (0.2.6). Read the [handoff](docs/HORSE-GROUP-PACE-REPAIR-HANDOFF.md).
