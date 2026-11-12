@@ -1420,7 +1420,8 @@ namespace KingmakerMountedCombat.Integration
                 // Native refusals (combat, no camp view) run unchanged afterwards; nothing is suspended for them.
                 if (__instance == null || Kingmaker.Game.Instance?.Player?.IsInCombat != false ||
                     __instance.GetComponent<Kingmaker.View.MapObjects.CampPlaceView>() == null) return;
-                PatchBridge.Persistence?.TrySuspendForEvent(MountedRetainedIntentKind.Camp, "RestInteraction.OnInteract");
+                try { PatchBridge.Persistence?.TrySuspendForEvent(MountedRetainedIntentKind.Camp, "RestInteraction.OnInteract"); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted camp suspension left the native camp interaction unchanged", error); }
             }
 
             internal static bool FamiliarFollowPrefix(Kingmaker.Visual.Critters.Familiar __instance)

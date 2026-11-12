@@ -302,6 +302,8 @@ namespace KingmakerMountedCombat
             });
             if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
             persistence.ReleaseRetainedPendingReentry();
+            // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
+            persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
             IsEnabled = false;
         }
 

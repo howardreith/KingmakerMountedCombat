@@ -45,7 +45,8 @@ namespace KingmakerMountedCombat.Integration
             var mounted = WorldRelationships.Where(r => r.State == RelationshipState.Mounted && r.Rider != null && r.Mount != null).ToArray();
             if (mounted.Length == 0) return retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world);
             if (world.IsInCombat || mounted.Any(r => r.Rider.IsInCombat || r.Mount.IsInCombat)) return false;
-            if (areaTransfer != null || SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope ||
+            // An area arrival that already restored (an arrival cutscene follows OnAreaLoaded) no longer owns the pairs.
+            if ((areaTransfer != null && !areaTransfer.ResumeAttempted) || SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope ||
                 presentationPending || CombatSemanticRestorationPending || HasAreaParticipationObligations() ||
                 !DrainWorldCharge("scripted event suspension"))
                 return false;
@@ -89,6 +90,19 @@ namespace KingmakerMountedCombat.Integration
         // Ordinary-play restoration inside the current area. Polled from Update; the decision itself is pure policy.
         internal void TryRestoreRetainedIntent()
         {
+            if (retainedIntent == null) return;
+            try { RestoreRetainedIntentCore(); }
+            catch (Exception error)
+            {
+                // Review finding 5: a fault while deciding restoration never becomes a per-frame mod update failure;
+                // the retained pairs simply stay dismounted.
+                logger.Exception("Retained mounted intent restoration failed", error);
+                DropRetainedIntent("restoration could not be evaluated");
+            }
+        }
+
+        private void RestoreRetainedIntentCore()
+        {
             var custody = retainedIntent;
             if (custody == null) return;
             var game = Game.Instance;
@@ -102,7 +116,7 @@ namespace KingmakerMountedCombat.Integration
                 game == null ? "None" : game.CurrentMode.ToString(),
                 game != null && (game.IsModeActive(GameModeType.Dialog) || game.IsModeActive(GameModeType.Cutscene) || game.IsModeActive(GameModeType.Rest)),
                 LoadingProcess.Instance != null && LoadingProcess.Instance.IsLoadingInProcess,
-                areaTransfer != null || HasActiveSaveScope || SaveDraining || SaveSuspended || HasSaveAdmissionFence || presentationPending ||
+                (areaTransfer != null) || HasActiveSaveScope || SaveDraining || SaveSuspended || HasSaveAdmissionFence || presentationPending ||
                     CombatSemanticRestorationPending,
                 CampAssemblyPending(custody, game));
             if (decision == MountedRetainedIntentDecision.Cancel)
@@ -175,7 +189,7 @@ namespace KingmakerMountedCombat.Integration
             RetainedRestoreCount += restored.Count;
             RetainedDropCount += dropped.Count;
             custody.Pairs = remaining.ToArray();
-            if (remaining.Count == 0) { retainedIntent = null; ResetRetainedSettle(); retainedEligibleSince = -1f; }
+            if (remaining.Count == 0) { retainedIntent = null; ResetRetainedSettle(); }
             if (restored.Count != 0 || dropped.Count != 0)
                 Report((restored.Count != 0 ? restored.Count + " mounted relationship" + (restored.Count == 1 ? "" : "s") +
                         " restored after " + Describe(retainedIntentKind) + " without Mount or preparation." : "") +
@@ -190,7 +204,6 @@ namespace KingmakerMountedCombat.Integration
             if (custody == null) return;
             retainedIntent = null;
             ResetRetainedSettle();
-            retainedEligibleSince = -1f;
             RetainedDropCount += custody.Pairs.Length;
             if (custody.Pairs.Length != 0)
                 Report("Automatic remount cancelled because " + reason + "; " + custody.Pairs.Length + " pair" +
@@ -239,7 +252,8 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception) { return false; }
         }
 
-        private void ResetRetainedSettle() { retainedSettledFrames = 0; retainedSettledSince = -1f; }
+        // Review finding 4: patience counts only continuous settled ordinary play of the current custody.
+        private void ResetRetainedSettle() { retainedSettledFrames = 0; retainedSettledSince = -1f; retainedEligibleSince = -1f; }
 
         private static string DescribePair(UnitEntityData rider, UnitEntityData mount, AreaPair pair) =>
             (rider?.CharacterName ?? pair.RiderId) + " and " + (mount?.CharacterName ?? pair.MountId);

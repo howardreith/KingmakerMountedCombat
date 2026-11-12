@@ -149,8 +149,11 @@ namespace KingmakerMountedCombat.Integration
                 // nothing is latched, so saving and area entry stay admitted.
                 if (transfer.WorldMap)
                 {
+                    // Review finding 2: only the carried pairs' own control rows travel; another unit's row that later
+                    // fails to resolve must never be able to latch the all-pair failure at the next arrival.
+                    var pairActors = new HashSet<string>(transfer.Pairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
                     retainedIntent = new AreaTransfer { World = transfer.World, CampaignId = transfer.CampaignId, AreaId = transfer.AreaId,
-                        Pairs = transfer.Pairs, Slots = transfer.Slots };
+                        Pairs = transfer.Pairs, Slots = transfer.Slots.Where(s => pairActors.Contains(s.ActorId)).ToArray() };
                     retainedIntentKind = MountedRetainedIntentKind.WorldMapTravel;
                     ResetRetainedSettle();
                     areaTransfer = null;
@@ -160,6 +163,7 @@ namespace KingmakerMountedCombat.Integration
                     return;
                 }
                 var carriedDropped = new List<string>();
+                var carriedDroppedPairs = new List<AreaPair>();
                 var arrivalInCombat = game.Player.IsInCombat;
                 // Resolve every pair and slot before changing the first attachment.
                 var resolved = new Dictionary<string, Kingmaker.EntitySystem.Entities.UnitEntityData>(StringComparer.Ordinal);
@@ -169,7 +173,8 @@ namespace KingmakerMountedCombat.Integration
                     var matches = game.State.Units.Concat(game.Player.AllCharacters).Where(u => u != null && u.UniqueId == id).Distinct().ToArray();
                     if (matches.Length == 1) { resolved.Add(id, matches[0]); continue; }
                     // A carried pair (intent retained over the world map or an earlier event) whose actor is gone stays
-                    // dismounted on its own; it never blocks the other pairs or later area changes.
+                    // dismounted on its own; it never blocks the other pairs or later area changes. A control row of
+                    // such an actor is skipped the same way (RestorePersistentSlots ignores unresolved actors).
                     if (transfer.Pairs.Any(p => p.Carried && (p.RiderId == id || p.MountId == id)) &&
                         !transfer.Pairs.Any(p => !p.Carried && (p.RiderId == id || p.MountId == id))) continue;
                     throw new InvalidOperationException("An area actor did not resolve uniquely: " + id);
@@ -187,12 +192,21 @@ namespace KingmakerMountedCombat.Integration
                         Kingmaker.EntitySystem.Entities.UnitEntityData carriedRider, carriedMount;
                         resolved.TryGetValue(pair.RiderId, out carriedRider); resolved.TryGetValue(pair.MountId, out carriedMount);
                         var present = carriedRider != null && carriedMount != null;
-                        var carriedRefusal = !present ? "an actor is not present" :
-                            SupportedMountedProfiles.Resolve(carriedRider, carriedMount)?.Id != pair.ProfileId ? "the mount profile changed" :
-                            KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount)?.ValidateSavedRelationship();
+                        string carriedRefusal;
+                        try
+                        {
+                            carriedRefusal = !present ? "an actor is not present" :
+                                SupportedMountedProfiles.Resolve(carriedRider, carriedMount)?.Id != pair.ProfileId ? "the mount profile changed" :
+                                KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount)?.ValidateSavedRelationship();
+                        }
+                        catch (Exception classification) { carriedRefusal = classification.Message; }
                         if (MountedRetainedIntentPolicy.CarriedArrivalRestores(arrivalInCombat, present, carriedRefusal)) restore.Add(pair);
-                        else carriedDropped.Add((carriedRider?.CharacterName ?? pair.RiderId) + " and " + (carriedMount?.CharacterName ?? pair.MountId) +
+                        else
+                        {
+                            carriedDroppedPairs.Add(pair);
+                            carriedDropped.Add((carriedRider?.CharacterName ?? pair.RiderId) + " and " + (carriedMount?.CharacterName ?? pair.MountId) +
                             " (" + (arrivalInCombat ? "the party arrived in combat" : carriedRefusal) + ")");
+                        }
                         continue;
                     }
                     var rider = resolved[pair.RiderId]; var mount = resolved[pair.MountId];
@@ -219,10 +233,20 @@ namespace KingmakerMountedCombat.Integration
                         // combat with settled participation, so it is admitted like an ordinary pair boundary and
                         // re-attached without Mount or preparation; a refusal leaves only that pair dismounted.
                         var carriedRider = resolved[pair.RiderId]; var carriedMount = resolved[pair.MountId];
-                        var admitted = mountedWorld != null ? mountedWorld.GetOrCreateAdmission(carriedRider, carriedMount) : relationship;
-                        var carriedResult = admitted?.RestoreSavedPair(carriedRider, carriedMount, pair.ProfileId);
+                        TransitionResult carriedResult;
+                        try
+                        {
+                            var admitted = mountedWorld != null ? mountedWorld.GetOrCreateAdmission(carriedRider, carriedMount) : relationship;
+                            carriedResult = admitted?.RestoreSavedPair(carriedRider, carriedMount, pair.ProfileId);
+                        }
+                        catch (Exception carriedError)
+                        {
+                            logger.Exception("Carried mounted intent left a pair dismounted", carriedError);
+                            carriedResult = null;
+                        }
                         if (carriedResult == null || !carriedResult.Succeeded)
                         {
+                            carriedDroppedPairs.Add(pair);
                             carriedDropped.Add(carriedRider.CharacterName + " and " + carriedMount.CharacterName + " (" +
                                 (carriedResult == null ? "no pair boundary is available" : string.Join("; ", carriedResult.Errors)) + ")");
                             continue;
@@ -243,9 +267,8 @@ namespace KingmakerMountedCombat.Integration
                     AreaResumeCount++;
                 }
                 controls.ResumeAreaControls();
-                var restoredActors = new HashSet<string>(restore.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
-                var droppedActors = new HashSet<string>(transfer.Pairs.Where(p => p.Carried && !restore.Contains(p))
-                    .SelectMany(p => new[] { p.RiderId, p.MountId }).Where(id => !restoredActors.Contains(id)), StringComparer.Ordinal);
+                // A carried pair that stayed dismounted keeps its current (unmounted) control bindings.
+                var droppedActors = new HashSet<string>(carriedDroppedPairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
                 controls.RestorePersistentSlots(transfer.Slots.Where(s => !droppedActors.Contains(s.ActorId)).ToArray());
                 AreaRetiredPairCount += retire.Count;
                 RetainedDropCount += carriedDropped.Count;

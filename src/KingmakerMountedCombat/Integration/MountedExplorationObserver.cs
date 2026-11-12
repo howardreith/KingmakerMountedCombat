@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception error)
             {
                 // A diagnostic must never affect play; drop its state and stay quiet.
-                legs.Clear(); reported.Clear();
+                legs.Clear(); reported.Clear(); started.Clear();
                 logger.Exception("Mounted exploration observer stopped one sample", error);
             }
         }
@@ -57,7 +57,8 @@ namespace KingmakerMountedCombat.Integration
             if (game?.Player == null || game.CurrentMode != GameModeType.Default || game.Player.IsInCombat ||
                 LoadingProcess.Instance == null || LoadingProcess.Instance.IsLoadingInProcess)
             {
-                legs.Clear();
+                // Review finding 7: no command or unit reference outlives ordinary play of this world.
+                legs.Clear(); reported.Clear(); started.Clear();
                 return;
             }
             var live = new HashSet<GameMountedRelationshipService>();
