@@ -612,6 +612,9 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Mounted controls could not enter native serialization scope.");
             SuspendWorldSaveAi(scope);
             NativeMountedSaveStorage.Stage(saver, scope.Json);
+            // Review finding 2: suspended mounted intent is captured at the same barrier, in its own member.
+            var retainedRecord = CaptureRetainedIntentRecord();
+            if (retainedRecord != null) NativeMountedSaveStorage.StageRetainedIntent(saver, retainedRecord);
             SnapshotCount++;
             SaveSnapshotStaged?.Invoke();
             logger.Info("Mounted immutable snapshot staged at native header barrier; capture=" + SnapshotCount + ".");
@@ -737,6 +740,7 @@ namespace KingmakerMountedCombat.Integration
         private void SelectLoad(SaveInfo save)
         {
             selectedCampaign = save.GameId;
+            SelectRetainedIntentRecord(save);
             if (ArchiveNativeEnabled)
             {
                 loadedArchive = NativeMountedSaveStorage.ReadArchive(save.Saver);

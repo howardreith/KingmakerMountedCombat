@@ -27,6 +27,25 @@ namespace KingmakerMountedCombat.Domain
         Drop
     }
 
+    // Review finding 1: what one restoration attempt left behind.
+    public enum MountedRetainedRestoreOutcome
+    {
+        Restored,
+        // Refused or rolled back with every owned attachment returned: the pair is cleanly dismounted.
+        CleanRefusal,
+        // The attempt failed but movement authority, presentation or a prepared/faulted relationship remains owned.
+        // Its cleanup ownership is kept and the all-pair failure latch blocks saving and new participation.
+        RetainedResidue
+    }
+
+    // The uncertain case of the review: a carried arrival refusal that may be transient is retained for in-area retry.
+    public enum MountedCarriedArrivalDecision
+    {
+        Restore,
+        Retain,
+        Drop
+    }
+
     public static class MountedRetainedIntentPolicy
     {
         // Rider and mount must finish the event close together. RestoreSavedPair seats the rider on the mount where
@@ -104,11 +123,34 @@ namespace KingmakerMountedCombat.Domain
             return patienceExpired ? MountedRetainedPairDecision.Drop : MountedRetainedPairDecision.Retry;
         }
 
-        // On arrival in a local area carried from the world map (or a scripted relocation), a pair the destination
-        // refuses is dropped individually; it never blocks the other pairs, saving or later area changes.
-        public static bool CarriedArrivalRestores(bool partyInCombat, bool unitsResolved, string eligibilityRefusal)
+        // On arrival in a local area with carried intent (world-map travel, an earlier event): an invalidated pair
+        // (missing actor, changed profile or pairing, dead) or an arrival in combat is dropped individually; any other
+        // refusal (a mode or agent not yet settled at OnAreaLoaded) is retained for the in-area retry, which applies
+        // the bounded patience. Neither blocks the other pairs, saving or later area changes.
+        public static MountedCarriedArrivalDecision DecideCarriedArrival(bool partyInCombat, bool unitsResolved,
+            bool sameReciprocalProfile, bool permanentlyIneligible, string eligibilityRefusal)
         {
-            return !partyInCombat && unitsResolved && eligibilityRefusal == null;
+            if (!unitsResolved || !sameReciprocalProfile || permanentlyIneligible || partyInCombat) return MountedCarriedArrivalDecision.Drop;
+            return eligibilityRefusal == null ? MountedCarriedArrivalDecision.Restore : MountedCarriedArrivalDecision.Retain;
+        }
+
+        // Review finding 3: a camp that begins while a pair is already suspended for a scripted event adopts the camp
+        // rules (its native slot separation); world-map travel keeps restoring only through the next arrival.
+        public static MountedRetainedIntentKind Promote(MountedRetainedIntentKind current, MountedRetainedIntentKind incoming)
+        {
+            return current == MountedRetainedIntentKind.ScriptedEvent && incoming == MountedRetainedIntentKind.Camp
+                ? MountedRetainedIntentKind.Camp : current;
+        }
+
+        // Review finding 1: only an attempt whose relationship is observed cleanly unmounted (no movement authority,
+        // presentation, prepared pair or attachment residue) may be treated as a pair that simply stayed dismounted.
+        public static MountedRetainedRestoreOutcome ClassifyRestore(bool succeeded, bool movementAuthorityResidual,
+            bool presentationResidual, bool relationshipUnmounted, bool noPreparedPairResidue, bool noAttachmentResidue)
+        {
+            if (succeeded) return MountedRetainedRestoreOutcome.Restored;
+            return !movementAuthorityResidual && !presentationResidual && relationshipUnmounted && noPreparedPairResidue && noAttachmentResidue
+                ? MountedRetainedRestoreOutcome.CleanRefusal
+                : MountedRetainedRestoreOutcome.RetainedResidue;
         }
     }
 }

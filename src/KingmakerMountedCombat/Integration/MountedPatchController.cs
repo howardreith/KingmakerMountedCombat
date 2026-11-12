@@ -1413,7 +1413,12 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
                 return true;
             }
-            internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
+            internal static void AreaEntitiesReadyPostfix()
+            {
+                PatchBridge.Persistence?.RestoreAreaPair();
+                // Review finding 2: the exact loaded world adopts its saved retained mounted intent at native arrival.
+                PatchBridge.Persistence?.AdoptLoadedRetainedIntent();
+            }
 
             internal static void CampInteractionPrefix(Kingmaker.View.MapObjects.RestInteraction __instance)
             {

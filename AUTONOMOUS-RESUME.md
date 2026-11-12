@@ -1,9 +1,13 @@
 # Exploration repair resume — partial, native blocked (2026-11-12)
 
 Branch `codex/kmc-exploration-markers-speed-events` (draft PR). Read CURRENT.md and docs/EXPLORATION-REPAIR-HANDOFF.md.
-- **State:** source repairs for issues 3–7 are reviewed and pass Fast. Issues 1–2 have diagnostics only.
+- **State:** source repairs for issues 3–7 have the owner review's corrections and pass Fast. Issues 1–2 are parked by
+  the owner and have diagnostics only.
+- **Saved intent:** archive member `kmc-retained-intent` (Domain `MountedRetainedIntentRecord`). It is written only
+  when intent exists, adopted at `OnAreaLoaded` only for the exact campaign, area and `TimeController.GameTime`
+  ticks, and never for a pair that `kmc-mounted-state` holds.
 - **Native:** every row is NOT RUN. It needs the Working fixture and runtime-state, or an owner session with this DLL.
-- **Next:** owner play on the branch DLL, then read the "Mounted exploration observation" log lines to fix issues 1–2.
+- **Next:** owner play on the branch DLL. Issues 1–2 wait for the owner's details.
 
 Facts for a successor:
 - **World map:** the area whose `CustomUIScene.SceneName == SceneName.CustomUIGlobalMap`. Native `GlobalMapRules` enters

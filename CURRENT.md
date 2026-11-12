@@ -1,16 +1,18 @@
-# EXPLORATION REPAIR SPRINT — ENGINEERING PARTIAL; NATIVE BLOCKED ON THIS MACHINE; OWNER ACCEPTANCE SEPARATE (2026-11-12)
+# EXPLORATION REPAIR SPRINT — OWNER REVIEW CORRECTIONS IN SOURCE; NATIVE BLOCKED; OWNER ACCEPTANCE SEPARATE (2026-11-12)
 
-Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`. Read the
+Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`, draft PR #27. Read the
 [handoff](docs/EXPLORATION-REPAIR-HANDOFF.md).
 
-- **Fixed in source (product head `7b964c75`):**
-  - issue 7: the world map no longer latches a failed restore that refuses every area change;
-  - issues 3/4: scripted events, the lever cart and camping keep the pair's mounted intent and remount after;
-  - issue 5: a corpse click carries the rider to the corpse;
-  - issue 6 (lowest priority): the inventory cat follows the mount and is no longer parented under the saddle anchor.
-- **Not fixed:** issues 1 (extra marker) and 2 (horse lag). The cause is not established; log-only observations were added.
-- **Checks:** Fast PASS 3/0 (components 1126/0, Validate-Source 151/0); independent review findings fixed.
-  Budget `exploration-repair` 1.2 of 90 min.
+- **Issues 3–7 corrected in source:** the world map, scripted events and the lever cart, camping, corpse looting, and
+  the cat (lowest priority). None is demonstrated in the game.
+- **Owner review (request changes):** every finding is corrected.
+  - Restore residue is never reported as a clean dismount.
+  - Suspended intent is saved in a new `kmc-retained-intent` member.
+  - A camp that follows a dialog adopts the camp rules.
+  - The owner identity is imported on restore.
+  - A transient arrival refusal is retried.
+- **Issues 1–2:** parked by the owner until they can reproduce them. The log-only observations stay in the build.
+- **Checks:** Fast PASS 3/0 (components 1131/0, Validate-Source 151/0).
 - **Native:** NOT RUN. This machine has no KMC install, no KMC fixture and no runtime-state.
 - **Not authorized:** merge, release, tag or install.
 

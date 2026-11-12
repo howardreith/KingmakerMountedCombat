@@ -1,14 +1,28 @@
 # Exploration repair sprint — review handoff (2026-11-12)
 
-**Status: ENGINEERING PARTIAL — SOURCE REPAIRS FOR ISSUES 3–7 READY FOR REVIEW; ISSUES 1–2 DIAGNOSED ONLY; NO
-NATIVE EVIDENCE (BLOCKED ON THIS MACHINE); OWNER ACCEPTANCE SEPARATE.** No merge, release, tag or install.
+**Status: ENGINEERING PARTIAL — SOURCE CORRECTIONS FOR ISSUES 3–7 AFTER THE OWNER'S REVIEW (REQUEST CHANGES, 4
+FINDINGS) ARE IMPLEMENTED AND PASS FAST; NONE IS DEMONSTRATED IN GAME; ISSUES 1–2 PARKED BY THE OWNER; OWNER ACCEPTANCE
+SEPARATE.** No merge, release, tag or install. "Fixed in source" below means a source correction with offline tests,
+not a demonstrated outcome.
 
 - **Branch:** `codex/kmc-exploration-markers-speed-events`, from main `aade80e5` (the 0.2.2 release merge; the remote
-  head was rechecked at intake and was unchanged).
-- **Product head:** `7b964c75`. Built DLL (Release, local, not packaged) SHA-256
-  `5e84f835c602632dff8494b2c43eac728a1aa31f3a2469ea516f5436221d4bee`. Not a release build; version stays 0.2.2.
+  head was rechecked at intake and was unchanged). Draft PR #27.
+- **Heads:** first repairs `2977de16`, first-review fixes `7b964c75`, owner-review corrections in the commit that adds
+  this paragraph. Local Release DLLs only; not packaged; version stays 0.2.2.
 - **Installed package:** KMC is **not installed** on this machine (`Mods` has no KMC folder). The owner's installed
   DLL is therefore unknown here; nothing was staged, deployed or launched.
+- **Owner direction (2026-11-12):** issues 1 and 2 cannot currently be reproduced by the owner and are parked until
+  the owner sends details; their log-only observations stay in the build.
+
+## Owner review (request changes) — resolution
+
+| Finding | Resolution | Offline regression |
+|---|---|---|
+| P1 failed restoration reported as a clean dismount | Every retained/carried restore now goes through one helper. A failed attempt is a clean refusal only when the relationship is observed `Unmounted` with no movement-authority, presentation, prepared-pair or attachment residue (`ClassifyRestore`). Otherwise the faulted relationship keeps its cleanup ownership and retry, and the existing `areaRestoreFailure` latch blocks saving (`NativeCombatBlocksSave` → `CombatRestorationPending`) and new participation until a valid load. A participation-import failure after attachment is also residue. | The real `MountedRelationshipCoordinator.RestoreSaved` with an injected attach failure (rolled back → clean) and attach + rollback failure (Faulted/presentation residue → latch), plus the world-map mode refusal as the clean control |
+| P2 suspended intent not saved | New archive member `kmc-retained-intent`, written at the save header barrier only when retained intent exists. It holds campaign, area, native game time, kind, and per pair rider, mount, profile, owner id and generation. It is bounded (4 KiB, 6 pairs) and strictly parsed, and is separate from the strict schema-3 `kmc-mounted-state`, so existing saves and older readers are unchanged. A load reads it at selection and adopts it at native `OnAreaLoaded` only for the exact campaign, area and game time (stale member refused) and never for a pair the mounted-state member already holds. A world-map save keeps the intent until the next local arrival; a local save (the post-rest autosave) restores it in ordinary play. Carried pairs of a pending before-exit transfer are recorded too. Removal preparation drops intent before its cleanup save, and the removal reference scan reads the new member. | Two-pair round trip with a physically mounted control excluded, owner ids and generations preserved, world-map hold then arrival restore, Camp record reload, exact-world adoption and nine malformed or oversized records refused |
+| P2 event → camp misses camp rules | `PromoteRetainedIntent` runs before the empty-mounted early return and from the lifecycle for every event mode even when nothing is physically mounted. It updates only this world's retained pairs (ScriptedEvent → Camp; world-map travel unchanged). | Suspend as ScriptedEvent, promote on camp, 8 m separation restores (control without promotion refuses) |
+| P2 owner identity discarded | Retained and carried restores use the established lifecycle: `ReleaseSettledAdmissions`, `CreateRestoredBoundary`, `ImportSavedOwnership(ownerId, generation)`, `RestoreSavedPair`, participation restore, `CompleteSavedParticipationImport`; `CancelSavedOwnershipImport` on failure. An import refused because the previous owner has not yet retired is a clean refusal and is retried. Event suspension now also captures settled participation like the area transfer. | Registry: the exact id and generation import after the old owner retires and refuse cleanly while it still holds obligations |
+| Uncertain: carried arrival discards transient refusals | Carried arrival now drops only an invalidated pair (missing actor, changed profile or pairing, dead) or an arrival in combat. Any other refusal at `OnAreaLoaded` is retained and retried in ordinary play under the bounded patience. | Arrival decision cases, including the original world-map refusal text |
 
 ## Why native evidence is blocked
 
@@ -35,8 +49,8 @@ reflection and re-verified by the reviewer.
   admitted. The next local area's transfer carries them and restores them at arrival without Mount or preparation.
   A carried pair the destination refuses (actor missing, profile changed, not attachable, arrival in combat) stays
   dismounted **on its own**; it never latches the all-pair failure. Only the carried pairs' own control rows travel.
-- **Limit:** a save made **on the world map** does not record the travel intent; loading it gives unmounted pairs
-  (mount once). The archive format is unchanged.
+- **Saving:** a save made on the world map records the travel intent in `kmc-retained-intent` (owner review finding
+  2), so a cold load followed by entering an area restores the pairs once.
 - **Recovery for an already-stuck campaign:** load a save from inside a local area (loading clears the latch).
 
 ### 3. Miner's Lever cart dismounts — FIXED IN SOURCE (exact event not observed)
@@ -56,8 +70,7 @@ reflection and re-verified by the reviewer.
   attachable. Combat, a world change, loading, mod disable or an update failure cancel the intent.
 - **Unchanged:** `MountedGameModePolicy.Classify` still returns CleanDismount for these modes (the attachment never
   survives them); an initially unmounted pair is never captured; a refused suspension keeps the clean dismount.
-- **Identity:** an in-area restore re-admits the same rider and mount (ids, names, profile) through the ordinary
-  boundary admission; the internal pair-owner id/generation is new (reviewer finding 8, no entitlement impact).
+- **Identity:** restoration imports the captured pair-owner id and generation (owner review finding 4).
 
 ### 4. Cannot camp while mounted — FIXED IN SOURCE
 
@@ -69,8 +82,8 @@ reflection and re-verified by the reviewer.
   holds while the `RestGroupCommand` is pending and while Rest runs, and restores after settled `Default` (rest
   completed or cancelled). Native rest restrictions, supplies, effects, ambushes and costs are untouched; an ambush
   (combat) cancels the remount.
-- **Limit:** the native post-rest autosave runs before the settle window, so that autosave records the pairs
-  unmounted.
+- **Saving:** the native post-rest autosave runs before the settle window; it records the pairs as retained camp
+  intent, which reloads and restores once (owner review finding 2).
 
 ### 5. Corpse looting — FIXED IN SOURCE
 
@@ -115,32 +128,38 @@ reflection and re-verified by the reviewer.
 |---|---|
 | Baseline Fast on `aade80e5` (unchanged) | PASS 3/0, 0.78 min (components 1118/0, Validate-Source 151/0) |
 | Fast after the repairs (`2977de16`) | PASS 3/0, 0.29 min (components 1126/0) |
-| Fast after review fixes (`7b964c75`) | PASS 3/0, 0.13 min (components 1126/0, Validate-Source 151/0) |
-| Independent review of the production diff | 1 high, 5 low/medium findings; all fixed except finding 8 (documented) |
+| Fast after first-review fixes (`7b964c75`) | PASS 3/0, 0.13 min (components 1126/0, Validate-Source 151/0) |
+| Fast after owner-review corrections | PASS 3/0, 0.51 min (components 1131/0, Validate-Source 151/0) |
+| First independent review | 1 high, 5 low/medium findings, all fixed; its finding 8 (new owner identity) is now resolved by owner finding 4 |
+| Owner review (request changes) | 4 findings plus 1 uncertain case, all corrected in source with offline regressions (table above) |
 | Native rows | NOT RUN — blocked (no fixture, no KMC install, no runtime-state on this machine) |
 
-Budget record `exploration-repair`: 1.2 of 90 min. New offline tests: `tests/ExplorationRepairTests.cs` (7 groups) and
-one corpse-loot group in `Finalize4OrdersAiTransitionsTests`. Candidate was not run: no native candidate was frozen.
+The owner-review corrections were not given a second independent review; they were self-reviewed against the review
+text and the installed contracts. Offline tests exercise domain decisions, the real coordinator, the registry and the
+record codec; the integration wiring (save staging, load adoption, Harmony hooks) is verified only by compilation and
+review until a native run.
 
 ## Issue table
 
 | # | Issue | Source cause | Product change | Offline tests | Native evidence | Owner acceptance |
 |---|---|---|---|---|---|---|
-| 7 | World map blocks areas | Established (log + source) | Yes | Yes | Not run | Pending |
+| 7 | World map blocks areas | Established (log + source) | Yes, with saved intent | Yes | Not run | Pending |
 | 3 | Lever cart dismounts | Mode policy established; lever blueprint inferred | Yes | Yes | Not run | Pending |
 | 4 | Cannot camp | Established (source) | Yes | Yes | Not run | Pending |
 | 5 | Corpse loot | Established (source) | Yes | Yes | Not run | Pending |
 | 6 | Cat swings (lowest) | Established (source) | Yes | Yes | Not run | Pending |
-| 1 | Extra marker | Not established | Diagnostics only | — | Not run | Pending |
-| 2 | Horse lags | Not established | Diagnostics only | — | Not run | Pending |
+| 1 | Extra marker | Not established | Diagnostics only; parked by the owner | — | Not run | Pending |
+| 2 | Horse lags | Not established | Diagnostics only; parked by the owner | — | Not run | Pending |
 
 ## Smallest remaining checks
 
 1. Stage this branch's DLL through the guarded workflow on a machine with the Working fixture, or install it for owner
    play.
-2. Owner session: leave a local area mounted → world map → enter another area (Old Sycamore → Oleg's), save and reload
-   on the world map; pull the lever cart mounted; camp mounted through a completed rest and a cancel; loot an
-   out-of-range corpse mounted; watch the cat; then send `output_log.txt`. Its "Mounted exploration observation" lines
-   identify the marker/pace cause for issues 1–2.
-3. Then fix 1–2 at the seam the observations name, and run the affected native rows (M1–M3, S1–S3) against unmounted
-   controls.
+2. Run these mounted, in an owner session:
+   - leave a local area for the world map and enter another area (Old Sycamore → Oleg's);
+   - save on the world map, reload it, then enter an area;
+   - pull the lever cart;
+   - camp through a completed rest, reload the post-rest autosave, and cancel a camp;
+   - loot an out-of-range corpse;
+   - watch the cat.
+3. Issues 1–2: wait for the owner's details, then read the "Mounted exploration observation" log lines.

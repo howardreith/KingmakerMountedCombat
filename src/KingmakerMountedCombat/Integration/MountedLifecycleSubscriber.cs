@@ -395,6 +395,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
         {
+            // Review finding 3: an event mode that begins after the pairs were already suspended (Rest after a dialog)
+            // updates the retained intent of this world even though nothing is physically mounted any more.
+            if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()))
+                persistence.PromoteRetainedIntent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent);
             if (persistence.SaveSuspended ||
                 (gameMode == GameModeType.None && persistence.AreaTransitionPending) ||
                 MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) ||

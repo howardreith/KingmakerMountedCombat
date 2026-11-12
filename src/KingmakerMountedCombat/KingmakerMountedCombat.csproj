@@ -177,6 +177,7 @@
     <Compile Include="Integration\MountedFamiliarFollowAdapter.cs" />
     <Compile Include="Domain\MountedFamiliarFollowPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentPolicy.cs" />
+    <Compile Include="Domain\MountedRetainedIntentRecord.cs" />
     <Compile Include="Integration\MountedRetainedIntent.cs" />
     <Compile Include="Integration\MountedExplorationObserver.cs" />
     <Compile Include="Diagnostics\SpeedLegSampler.cs" />
