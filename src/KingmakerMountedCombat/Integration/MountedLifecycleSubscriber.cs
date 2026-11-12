@@ -12,7 +12,7 @@ using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IAreaLoadingStagesHandler, IUnitViewAttachedUIHandler, IUnitFinallyDeadHandler, IUnitHandler, IPartyHandler, IInGameHandler, IUnitFallProneHandler, IDisposable
+    internal sealed class MountedLifecycleSubscriber : IUnitCombatHandler, IPartyCombatHandler, IUnitLifeStateChanged, IPartyLeaveAreaHandler, ITurnBasedModeEnabledHandler, IGameModeHandler, ISceneHandler, IAreaLoadingStagesHandler, IUnitViewAttachedUIHandler, IUnitFinallyDeadHandler, IUnitHandler, IPartyHandler, IInGameHandler, IUnitFallProneHandler, ITeleportHandler, IDisposable
     {
         private readonly GameMountedRelationshipService service;
         private readonly NativeLifecycleDeliveryLedger ledger;
@@ -92,8 +92,16 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
         {
-            persistence.BeginAreaTransition(targetArea?.Area, null);
+            // The native route is not known yet: ExecuteTransition dispatches it right after this event, either as the
+            // full LoadArea or, for an enter point of the loaded area, as Game.Teleport (Ratnook door repair).
+            persistence.BeginAreaTransition(targetArea?.Area, null, false, targetArea);
             SuspendArea("IPartyLeaveAreaHandler.HandlePartyLeaveArea");
+        }
+
+        // Native TeleportParty, after Player.MoveCharacters placed the party: the placement of a local door transfer.
+        public void HandlePartyTeleport()
+        {
+            persistence.CompleteLocalTeleportPlacement();
         }
 
         public void HandleTurnBasedModeStateChanged(bool enabled)

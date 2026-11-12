@@ -55,7 +55,7 @@ namespace KingmakerMountedCombat.Integration
             if (mounted.Length == 0) return retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world);
             if (world.IsInCombat || mounted.Any(r => r.Rider.IsInCombat || r.Mount.IsInCombat)) return false;
             // An area arrival that already restored (an arrival cutscene follows OnAreaLoaded) no longer owns the pairs.
-            if ((areaTransfer != null && !areaTransfer.ResumeAttempted) || SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope ||
+            if ((areaTransfer != null && !areaTransfer.Lifecycle.ResumeAttempted) || SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope ||
                 presentationPending || CombatSemanticRestorationPending || HasAreaParticipationObligations() ||
                 !DrainWorldCharge("scripted event suspension"))
                 return false;
@@ -324,7 +324,7 @@ namespace KingmakerMountedCombat.Integration
                 var retained = retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, player) &&
                     retainedIntent.CampaignId == player.GameId ? retainedIntent : null;
                 var transfer = areaTransfer != null && ReferenceEquals(areaTransfer.World.Target, player) ? areaTransfer : null;
-                var transferPending = transfer != null && !transfer.ResumeAttempted;
+                var transferPending = transfer != null && !transfer.Lifecycle.ResumeAttempted;
                 var rows = MountedRetainedIntentCapture.PendingRows(ToRecords(retained?.Pairs), ToRecords(transfer?.Pairs), !transferPending);
                 var kind = MountedRetainedIntentCapture.Kind(retainedIntentKind, transferPending && transfer.Pairs.Length != 0,
                     transfer?.WorldMap ?? false, transfer?.CarriedKind ?? MountedRetainedIntentKind.WorldMapTravel);

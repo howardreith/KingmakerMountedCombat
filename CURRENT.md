@@ -1,3 +1,20 @@
+# RATNOOK HILL DOOR REPAIR — SOURCE FIX WITH OFFLINE AND CONTRACT CHECKS; NATIVE BLOCKED; OWNER ACCEPTANCE SEPARATE (2026-11-12)
+
+Branch `codex/kmc-ratnook-door-repair` from main `44b6f606` (v0.2.3). Read the
+[handoff](docs/RATNOOK-DOOR-REPAIR-HANDOFF.md).
+
+- **Cause (installed-assembly contract plus log elimination):** a door whose enter point is in the loaded area goes
+  `ExecuteTransition` → party-leave → `LoadArea 06000CC9` → `Game.Teleport`. That route never reaches
+  `OnAreaLoaded`, which was KMC's only restore point. The idle watchdog therefore latched `areaRestoreFailure`, and the
+  global command guard blocked the whole party.
+- **Fix:** the transfer records its observed native route. A local teleport restores at
+  `ITeleportHandler.HandlePartyTeleport` through the existing all-pair restore. A full load still restores at
+  `OnAreaLoaded`. A transfer that was never dispatched restores in place. A dispatched route that never placed the party
+  keeps the unchanged protective latch.
+- **Not fixed here:** the separate arrival view-activity dismount (log 11213–11214).
+- **Native:** NOT RUN. This machine has no KMC install, fixture or disposable Ratnook save.
+- **Not authorized:** merge, release, tag or install.
+
 # RELEASE 0.2.3 (OWNER ORDER, 2026-11-12)
 
 The owner accepted PR #27, the exploration repairs (merge `ff183945`, tree identical to the reviewed `3a547ad8`), and
