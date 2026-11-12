@@ -1,3 +1,19 @@
+# EXPLORATION REPAIR SPRINT — ENGINEERING PARTIAL; NATIVE BLOCKED ON THIS MACHINE; OWNER ACCEPTANCE SEPARATE (2026-11-12)
+
+Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`. Read the
+[handoff](docs/EXPLORATION-REPAIR-HANDOFF.md).
+
+- **Fixed in source (product head `7b964c75`):**
+  - issue 7: the world map no longer latches a failed restore that refuses every area change;
+  - issues 3/4: scripted events, the lever cart and camping keep the pair's mounted intent and remount after;
+  - issue 5: a corpse click carries the rider to the corpse;
+  - issue 6 (lowest priority): the inventory cat follows the mount and is no longer parented under the saddle anchor.
+- **Not fixed:** issues 1 (extra marker) and 2 (horse lag). The cause is not established; log-only observations were added.
+- **Checks:** Fast PASS 3/0 (components 1126/0, Validate-Source 151/0); independent review findings fixed.
+  Budget `exploration-repair` 1.2 of 90 min.
+- **Native:** NOT RUN. This machine has no KMC install, no KMC fixture and no runtime-state.
+- **Not authorized:** merge, release, tag or install.
+
 # RELEASE 0.2.2 (OWNER ORDER, 2026-11-07)
 
 The owner accepted and merged the UI polish (PR #25, merge `617f2e63`, tree identical to the reviewed `9d63a0bf`), then
