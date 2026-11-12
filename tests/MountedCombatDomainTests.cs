@@ -1210,7 +1210,7 @@ namespace KingmakerMountedCombat.Tests
                 "An impossible duplicate child-start count passed liveness admission.");
         }
 
-        private static MountedCombatActionContext Eligible(MountedCombatActionKind action)
+        internal static MountedCombatActionContext Eligible(MountedCombatActionKind action)
         {
             return new MountedCombatActionContext
             {

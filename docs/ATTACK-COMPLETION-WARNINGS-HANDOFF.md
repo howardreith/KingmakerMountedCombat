@@ -1,8 +1,78 @@
-# Attack completion warnings — source fix, native confirmation pending (2026-11-12)
+# Attack completion warnings — source fix refined, Fast PASS on genuine references, native BLOCKED (2026-11-12)
 
-Branch: `codex/kmc-attack-completion-warnings`.
+Branch: `codex/kmc-attack-completion-warnings`, draft PR #33.
 Base: main `680d02cb2cae62bbf646f2064b42014d145b3e71` (0.2.5, including PR #31).
 Scope: the owner's report of a no-Standard warning after Royon's full attack, and related ordinary attack warnings.
+
+## Continuation on the lab machine: review correction and production build
+
+Continued from the reviewed handoff commit `421cd82e` (still the PR head; PR open, not merged). No newer remote work existed.
+
+**Review finding (corrected).** The first correction quieted *every* later dispatch refusal once the intent had
+dispatched. Since `HandleCommandTerminal` retains the intent only after `Success` or native ranged-tail termination
+(any failure retires it), a later dispatch is an RT repetition, the ranged-tail continuation, or the explicit legacy
+unified TB alternation. Its refusal may be a routine reassessment, but `TryExecuteAction` has three
+`CommandAdmissionFailure` paths that log nothing: scheduler registration, native command-container admission and
+scheduler confirmation. For those the banner was the only visible signal, so a real admission fault in a
+continuation would have left no trace.
+
+**Refinement.**
+- `UnifiedMountedStockAttackPolicy.IsRoutineContinuationRefusal(codes)` treats only re-read state as routine: turn,
+  action, selection, relationship, combat, life state, target, path, range and lifecycle codes. A fault or configuration
+  code (`CommandAdmissionFailure`, `RangeOriginMismatch`, `FeatureDisabled`, `BodyProfileUnsupported`,
+  `NoEligibleWeapon`, `UnsupportedWeaponCategory`, `MountedRangedUnsupported`), an unknown future code or no code at
+  all is not routine.
+- `MountedAttackIntent.GetDispatchRejectionFeedback(feedback, codes)` answers a player request that never dispatched.
+  After accepted work, a later refusal is quiet only when it is routine. A fault or configuration refusal still
+  answers. The rejection retires the intent, so that answer appears at most once. Automatic intents never answer the
+  player, which is unchanged.
+- The controller logs every stock dispatch rejection, automatic or player, with action, generation, codes, the
+  presentation decision and the feedback text. This is read before the intent is cleared.
+- `GetRejectionFeedback` (exhausted TB intent) is unchanged: exhaustion after accepted dispatch is routine by
+  definition.
+
+Native budgets, ownership, eligibility, attack counts, movement, turns, command admission and the paired-turn
+configuration are unchanged. No action is cleared, refunded, synthesized or replayed.
+
+**Tests.** `RealTimeContinuationFeedback` now drives the API the controller calls, using eight refusals produced by
+the actual `MountedCombatActionEvaluator`. Each is quiet after dispatch and answered for a new request. The new
+`LaterDispatchFaultFeedback` covers six fault/configuration refusals from the real evaluator, a mixed routine+fault
+refusal, the code-only admission failure and an uncoded refusal. It checks that each still answers after dispatch, is
+quiet for an automatic intent and is quiet once retired. `MountedCombatDomainTests.Eligible` became `internal` for
+reuse.
+
+**Mutation check.** With the dispatch API temporarily reverted to the blanket rule (test project only, direct MSBuild,
+source restored and verified), the new test failed and nothing else did: `1167 PASS / 1 FAIL`.
+
+**Checks run (budget `attack-completion-warnings`, 1.25 of 90 min).** Both used `scripts/Test-Tiers.ps1 -Tier Fast`
+with MSBuild 17.14 against the installed Kingmaker `Assembly-CSharp.dll` (`3b6450ff…`) and UMM `0Harmony12.dll`
+(`aa1cd483…`), via `LocalGamePaths.props`. This is a net47, C# 7.3 production build.
+
+| Input | Build | Components | Validate-Source | Tier |
+| --- | --- | --- | --- | --- |
+| Unchanged PR head `421cd82e` | PASS 27.5 s | 1167/0, 1.7 s | 151/0, 6.4 s | PASS 3/0, 0.6 min |
+| Refinement (this commit) | PASS 30.8 s | 1168/0, 1.7 s | 151/0, 6.3 s | PASS 3/0, 0.65 min |
+
+The refined build's `bin/Release/KingmakerMountedCombat.dll` is SHA-256
+`4c60638b175c06e3c6dbdb031afce85715c8ba600750b35fda248e93d9cfae52`, MVID `fcbb4221-85e2-4ba7-adb5-21968daecc9d`. It is a
+local build artifact, not packaged or installed. The impact map selected no further family. `Test-AssemblyContracts.ps1`
+was not added because no native member, token or contract changed.
+
+**Native: BLOCKED, NOT RUN.** This machine has the game, but:
+- no KMC build is installed (`Mods` holds only other projects' mods);
+- no `KMC_AUTOMATION_BASELINE`/`KMC_AUTOMATION_WORKING` archive is among the 95 saves, which `Get-KmcValidatedFixturePair`
+  requires;
+- no `runtime-state\fixture-qualification.json` exists;
+- no KMC line or owner log exists (the local `output_log.txt` has no KMC entries).
+
+The KBP/KMG fixtures belong to other projects and are not admissible. No staging, deployment, launch, lock or save
+access happened, so there was nothing to restore. The native cause therefore remains established from source only.
+
+**Residual (not changed).** In a still-active paired TB turn, a same-target click that lands after the command's
+terminal but before the next `Update` retires the intent would be treated as continuation and stay quiet. The drive
+runs at the end of every `Update`, so the window is about one frame. Native evidence could confirm it.
+
+## Original offline checkpoint (2026-11-12, kept)
 
 ## Cause and action economy
 

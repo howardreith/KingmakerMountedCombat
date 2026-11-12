@@ -1,16 +1,22 @@
-# ATTACK COMPLETION WARNINGS — SOURCE FIX; NATIVE CONFIRMATION PENDING (2026-11-12)
+# ATTACK COMPLETION WARNINGS — SOURCE FIX REFINED; FAST PASS ON GENUINE REFERENCES; NATIVE BLOCKED (2026-11-12)
 
-Branch `codex/kmc-attack-completion-warnings` from main `680d02cb` (0.2.5). Read the
-[handoff](docs/ATTACK-COMPLETION-WARNINGS-HANDOFF.md).
+Branch `codex/kmc-attack-completion-warnings` (draft PR #33) from main `680d02cb` (0.2.5). Read the
+[handoff](docs/ATTACK-COMPLETION-WARNINGS-HANDOFF.md), top section.
 
-- **Cause:** successful attack cleanup clears the command reference but retains its intent. The next exhausted-action
-  update treated that missing reference as a fresh refused click and displayed the no-Standard warning.
-- **Fix:** retain per-intent dispatch history. Normal completion and later internal dispatch refusals are quiet;
-  genuinely new unavailable player requests keep their feedback. Native action costs and command admission are unchanged.
-- **Focused checks:** 92/0 actual domain tests with C# 7.3 on .NET 8, including nine regressions; independent source
-  review found no blocking defect. This is not the repository Fast/Candidate tier or a production DLL build.
-- **Native:** NOT RUN. DATA is offline; no game/UMM references, fixture, or installed-build identity are available here.
-- **Delivery:** review branch only; no merge, release, tag, package, installation, or game launch.
+- **Cause (source only):** successful attack cleanup clears the command reference but retains its intent. The next
+  exhausted-action update treated that missing reference as a fresh refused click and displayed the no-Standard
+  warning. No action-economy defect was found; the warning followed legitimate native spending.
+- **Fix:** retain per-intent dispatch history. Completion is quiet; genuinely new unavailable player requests keep
+  their feedback.
+- **Review correction:** later dispatch refusals of accepted work are quiet only when their codes are routine
+  reassessment. Admission faults, configuration and uncoded refusals still answer once. Every stock dispatch
+  rejection is now logged, because three admission-fault paths had no other diagnostic.
+- **Checks:** Fast PASS 3/0 against the installed Kingmaker/UMM references (net47 build; components 1168/0;
+  Validate-Source 151/0). The unchanged PR head also passed (1167/0, 151/0). A mutation check confirms the new
+  regression detects the blanket rule. Budget `attack-completion-warnings`: 1.25 of 90 min.
+- **Native:** BLOCKED, NOT RUN. This machine has no KMC install, no KMC Baseline/Working fixture and no fixture
+  qualification. Nothing was staged, launched or restored.
+- **Delivery:** review branch only; no merge, release, tag, package or installation.
 
 # RELEASE 0.2.5 (OWNER ORDER, 2026-11-12)
 
