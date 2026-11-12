@@ -39,11 +39,20 @@ namespace KingmakerMountedCombat.Integration
             return unsettled;
         }
 
-        internal void BeginAreaTransition(BlueprintArea area, SaveInfo saveInfo)
+        // nativeDispatch: true from the admitted full Game.LoadArea (06000CD5) prefix, false from the party-leave event
+        // that precedes the native dispatch (Ratnook door repair: the dispatch may instead be a same-area Game.Teleport).
+        internal void BeginAreaTransition(BlueprintArea area, SaveInfo saveInfo, bool nativeDispatch, BlueprintAreaEnterPoint enterPoint = null)
         {
             var world = Game.Instance?.Player;
             if (saveInfo != null) { CancelAreaTransition(); DropRetainedIntent("a save is being loaded"); return; }
-            if (areaTransfer != null && areaTransfer.World.Target == world && areaTransfer.AreaId == area?.AssetGuidThreadSafe) return;
+            // The same unfinished transfer: a full-load dispatch only records its route. A transfer that already attempted
+            // restoration is finished, so a newer load of the same area starts its own transfer instead of inheriting it.
+            if (areaTransfer != null && areaTransfer.World.Target == world && areaTransfer.AreaId == area?.AssetGuidThreadSafe &&
+                !areaTransfer.Lifecycle.ResumeAttempted)
+            {
+                if (nativeDispatch && areaTransfer.Lifecycle.ObserveFullLoadDispatch()) TraceAreaTransfer(areaTransfer, "full area load dispatched");
+                return;
+            }
             CancelAreaTransition();
             if (restoreLoad != null && (!restoreLoad.World.NativeCompleted || presentationPending))
             {
@@ -88,6 +97,9 @@ namespace KingmakerMountedCombat.Integration
                 (carried?.Slots ?? new SavedMountedSlot[0]).Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }))
                 .Select(s => new SavedMountedSlot { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }).ToArray();
             areaTransfer = new AreaTransfer {
+                Lifecycle = new MountedAreaTransferLifecycle(nativeDispatch ? MountedAreaTransferRoute.FullLoad : MountedAreaTransferRoute.Requested),
+                Sequence = ++areaTransferSequence, DepartureAreaId = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                EnterPointId = enterPoint?.AssetGuidThreadSafe,
                 World = new WeakReference(world), CampaignId = world.GameId, AreaId = area.AssetGuidThreadSafe,
                 Pairs = departing.Concat(carriedPairs).ToArray(),
                 TurnBased = TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
@@ -96,13 +108,14 @@ namespace KingmakerMountedCombat.Integration
                 CarriedKind = carried != null ? retainedIntentKind : MountedRetainedIntentKind.WorldMapTravel
             };
             if (carried != null) { retainedIntent = null; ResetRetainedSettle(); }
+            TraceAreaTransfer(areaTransfer, nativeDispatch ? "began at full area load" : "began at party leave");
         }
 
         internal bool SuspendAreaPair()
         {
             var transfer = areaTransfer;
             if (transfer == null || !Enabled || transfer.World.Target != Game.Instance?.Player) return false;
-            if (transfer.Suspended) return true;
+            if (transfer.Lifecycle.Suspended) return true;
             try
             {
                 if (!DrainWorldCharge("area suspension"))
@@ -123,7 +136,7 @@ namespace KingmakerMountedCombat.Integration
                     catch (Exception error) { errors.Add(error); }
                 if (errors.Count != 0) throw new AggregateException(errors);
                 mountedWorld?.DiscardAdmissionBindings();
-                transfer.Suspended = true; AreaSuspensionCount++;
+                transfer.Lifecycle.ObserveSuspended(); AreaSuspensionCount++;
                 Report("All " + transfer.Pairs.Length + " mounted relationships suspended for native area placement.");
                 return true;
             }
@@ -140,8 +153,7 @@ namespace KingmakerMountedCombat.Integration
         internal void RestoreAreaPair()
         {
             var transfer = areaTransfer;
-            if (transfer == null || !transfer.Suspended || transfer.ResumeAttempted) return;
-            transfer.ResumeAttempted = true;
+            if (transfer == null || !transfer.Lifecycle.BeginRestore()) return;
             var game = Game.Instance;
             try
             {
@@ -366,19 +378,101 @@ namespace KingmakerMountedCombat.Integration
         private static bool Finite(UnityEngine.Vector3 v) =>
             !float.IsNaN(v.x) && !float.IsInfinity(v.x) && !float.IsNaN(v.y) && !float.IsInfinity(v.y) && !float.IsNaN(v.z) && !float.IsInfinity(v.z);
 
+        // Ratnook door repair: the exact installed TeleportParty loading process (Game.Teleport 06000CCB queues it).
+        internal const string NativeTeleportProcessName = "<TeleportParty>d__161";
+
+        // Harmony prefix of Game.Teleport (06000CCB). Only an enter point of the transfer's own destination, which must
+        // be the loaded area, is this transfer's dispatch; any other teleport (a cutscene, the capital exit) is foreign.
+        internal void ObserveLocalTeleportDispatch(BlueprintAreaEnterPoint enterPoint)
+        {
+            var transfer = areaTransfer;
+            var game = Game.Instance;
+            if (transfer == null || enterPoint == null || transfer.World.Target != game?.Player) return;
+            var areaId = enterPoint.Area?.AssetGuidThreadSafe;
+            if (areaId == null || areaId != transfer.AreaId || game.CurrentlyLoadedArea?.AssetGuidThreadSafe != areaId) return;
+            if (!transfer.Lifecycle.ObserveLocalTeleportDispatch()) return;
+            transfer.EnterPointId = transfer.EnterPointId ?? enterPoint.AssetGuidThreadSafe;
+            TraceAreaTransfer(transfer, "local teleport dispatched");
+        }
+
+        // Native ITeleportHandler.HandlePartyTeleport: Player.MoveCharacters has placed the party for this transfer's
+        // own teleport, inside the native loading process exactly as OnAreaLoaded is for a full load.
+        internal void CompleteLocalTeleportPlacement()
+        {
+            var transfer = areaTransfer;
+            if (transfer == null || transfer.World.Target != Game.Instance?.Player) return;
+            // Review P2: a TeleportParty still queued places the party later; restore only at the last one.
+            var anotherQueued = LoadingProcess.Instance != null &&
+                LoadingProcess.Instance.QueuedNames.Any(name => string.Equals(name, NativeTeleportProcessName, StringComparison.Ordinal));
+            if (!transfer.Lifecycle.ObserveLocalTeleportPlacement(anotherQueued))
+            {
+                if (anotherQueued && transfer.Lifecycle.Route == MountedAreaTransferRoute.LocalTeleport && !transfer.Lifecycle.Placed)
+                    TraceAreaTransfer(transfer, "teleport placement deferred to a later queued teleport");
+                return;
+            }
+            TraceAreaTransfer(transfer, "native local placement observed");
+            RestoreAreaPair();
+        }
+
+        // Native Game.OnAreaLoaded postfix: only a transfer whose full load was dispatched completes here.
+        internal void CompleteFullAreaPlacement()
+        {
+            var transfer = areaTransfer;
+            if (transfer == null || !transfer.Lifecycle.ObserveFullLoadPlacement()) return;
+            RestoreAreaPair();
+        }
+
         private void CompleteAreaTransitionIfReady()
         {
-            if (areaTransfer == null) return;
-            if (areaTransfer.World.Target != Game.Instance?.Player) { CancelAreaTransition(); return; }
+            var transfer = areaTransfer;
+            if (transfer == null) return;
+            if (transfer.World.Target != Game.Instance?.Player) { CancelAreaTransition(); return; }
             if (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any() ||
                 NativeDeferredSave.Waiting(LoadingProcess.Instance)) return;
-            if (!areaTransfer.ResumeAttempted)
+            var decision = transfer.Lifecycle.DecideAtIdleLoader();
+            // Review P2: the refusal that left the transfer undispatched may be an owned save or charge boundary. Wait
+            // (state-based, never a timer) until that boundary settles before re-attaching anything; an earlier latched
+            // failure keeps its own custody record and is never replaced by this transfer.
+            if (decision == MountedAreaTransferIdleDecision.RestoreInPlace)
             {
-                failedAreaTransfer = areaTransfer;
+                if (HasActiveSaveScope || HasSaveAdmissionFence || SaveDraining || SaveSuspended || AnyChargeFence) return;
+                if (areaRestoreFailure != null)
+                {
+                    TraceAreaTransfer(transfer, "no native dispatch under an existing restore failure; left dismounted");
+                    CancelAreaTransition();
+                    return;
+                }
+            }
+            // The native dispatch is synchronous with the party-leave event (ExecuteTransition 0600263E), so an idle queue
+            // with no observed dispatch is a refused transition: the party was never moved. Restore in place only when the
+            // same world still holds the departure area; anything else stays an unknown placement.
+            if (decision == MountedAreaTransferIdleDecision.RestoreInPlace && transfer.DepartureAreaId != null &&
+                Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == transfer.DepartureAreaId &&
+                transfer.Lifecycle.ObserveRefusedBeforeDispatch())
+            {
+                TraceAreaTransfer(transfer, "no native dispatch; restoring in the departure area");
+                transfer.AreaId = transfer.DepartureAreaId; transfer.WorldMap = false;
+                RestoreAreaPair();
+            }
+            else if (decision != MountedAreaTransferIdleDecision.Finish)
+            {
+                TraceAreaTransfer(transfer, "idle without native placement");
+                failedAreaTransfer = transfer;
                 areaRestoreFailure = "Native area placement did not complete before the mounted restore boundary.";
                 Report(areaRestoreFailure);
             }
             CancelAreaTransition();
+        }
+
+        private long areaTransferSequence;
+
+        // Bounded correlation for one transfer: begin, route, placement and failure only (never per frame).
+        private void TraceAreaTransfer(AreaTransfer transfer, string phase)
+        {
+            if (transfer == null) return;
+            logger.Info("Mounted area transfer " + transfer.Sequence + ": " + phase + "; from=" + (transfer.DepartureAreaId ?? "none") +
+                "; to=" + (transfer.AreaId ?? "none") + "; enter=" + (transfer.EnterPointId ?? "none") + "; pairs=" + (transfer.Pairs?.Length ?? 0) +
+                "; " + transfer.Lifecycle.Describe() + "; sameWorld=" + ReferenceEquals(transfer.World.Target, Game.Instance?.Player) + ".");
         }
 
         private void CancelAreaTransition()
@@ -395,7 +489,11 @@ namespace KingmakerMountedCombat.Integration
             internal string CampaignId, AreaId;
             internal AreaPair[] Pairs;
             internal SavedMountedSlot[] Slots;
-            internal bool Suspended, ResumeAttempted, TurnBased;
+            internal bool TurnBased;
+            // Ratnook door repair: the native route and phase of this transfer (retained-intent custody never uses it).
+            internal MountedAreaTransferLifecycle Lifecycle = new MountedAreaTransferLifecycle(MountedAreaTransferRoute.Requested);
+            internal long Sequence;
+            internal string DepartureAreaId, EnterPointId;
             // Exploration repair (issue 7): the destination is the world map, so arrival keeps retained intent.
             internal bool WorldMap;
             // The kind of the retained intent this transfer carries (its carried pairs restore under its rules).

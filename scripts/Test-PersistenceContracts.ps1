@@ -28,6 +28,69 @@ public static class KmcPersistenceContractProbe
         else type.GetField(name).SetValue(instance,value);
     }
 
+    // Ratnook door repair: native call order of the door transition route, read from the exact installed IL.
+    private static System.Collections.Generic.List<MethodBase> RouteCalls(MethodInfo read, MethodBase method)
+    {
+        var found=new System.Collections.Generic.List<MethodBase>();
+        foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{method,null}))
+        {
+            var call=ins.GetType().GetField("operand").GetValue(ins) as MethodBase;
+            if(call!=null) found.Add(call);
+        }
+        return found;
+    }
+    private static int RouteIndex(System.Collections.Generic.List<MethodBase> calls, Func<MethodBase,bool> match)
+    {
+        for(var i=0;i<calls.Count;i++) if(match(calls[i])) return i;
+        return -1;
+    }
+    private static Func<MethodBase,bool> RouteRaise(string handler)
+    {
+        return m=>m.Name=="RaiseEvent" && m.IsGenericMethod && m.GetGenericArguments()[0].FullName==handler;
+    }
+    private static Func<MethodBase,bool> RouteToken(Assembly native, int token)
+    {
+        return m=>m.Module==native.ManifestModule && m.MetadataToken==token;
+    }
+    // Every instruction as (flow control, operand) so ordering checks can see branches, not only calls.
+    private static System.Collections.Generic.List<object[]> RouteInstructions(MethodInfo read, MethodBase method)
+    {
+        var found=new System.Collections.Generic.List<object[]>();
+        foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{method,null}))
+        {
+            var opcode=(System.Reflection.Emit.OpCode)ins.GetType().GetField("opcode").GetValue(ins);
+            found.Add(new object[]{opcode.FlowControl,ins.GetType().GetField("operand").GetValue(ins)});
+        }
+        return found;
+    }
+    private static int RouteInstructionIndex(System.Collections.Generic.List<object[]> instructions, Func<MethodBase,bool> match)
+    {
+        for(var i=0;i<instructions.Count;i++){var m=instructions[i][1] as MethodBase; if(m!=null && match(m)) return i;}
+        return -1;
+    }
+    // Methods of the native assembly whose IL calls the exact method token (callvirt or call, little-endian token).
+    private static System.Collections.Generic.List<string> RouteCallers(Assembly native, int token)
+    {
+        var callers=new System.Collections.Generic.List<string>();
+        Type[] types;
+        try { types=native.GetTypes(); } catch(ReflectionTypeLoadException e) { types=e.Types; }
+        var t0=(byte)(token&0xFF); var t1=(byte)((token>>8)&0xFF); var t2=(byte)((token>>16)&0xFF); var t3=(byte)((token>>24)&0xFF);
+        foreach(var type in types)
+        {
+            if(type==null) continue;
+            foreach(var method in type.GetMethods(BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static|BindingFlags.DeclaredOnly))
+            {
+                byte[] il=null;
+                try { var body=method.GetMethodBody(); if(body!=null) il=body.GetILAsByteArray(); } catch { }
+                if(il==null) continue;
+                for(var i=0;i+4<il.Length;i++)
+                    if((il[i]==0x6F||il[i]==0x28) && il[i+1]==t0 && il[i+2]==t1 && il[i+3]==t2 && il[i+4]==t3)
+                    { callers.Add(type.FullName+"::"+method.Name); break; }
+            }
+        }
+        return callers;
+    }
+
     private static void VerifyNativeColdDescriptor(Assembly native, Assembly candidate, string owned)
     {
         var infoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
@@ -850,6 +913,77 @@ public static class KmcPersistenceContractProbe
             Check(readyCalls.IndexOf(0x06001906)>readyCalls.IndexOf(0x06000DD1) &&
                 readyCalls.IndexOf(0x06000DD1)>readyCalls.IndexOf(0x06007E66),
                 "native area post-hook follows scene activation, party load and navmesh placement");
+            // Ratnook door repair: the door's party-leave event is followed synchronously by LoadArea 06000CC9, which
+            // sends an enter point of the loaded area to Game.Teleport 06000CCB (never the full load or OnAreaLoaded);
+            // TeleportParty places the party before raising ITeleportHandler.HandlePartyTeleport 06007512.
+            var execute=native.ManifestModule.ResolveMethod(0x0600263E);
+            var enterLoad=native.ManifestModule.ResolveMethod(0x06000CC9);
+            var teleport=native.ManifestModule.ResolveMethod(0x06000CCB);
+            var teleportHandler=native.ManifestModule.ResolveMethod(0x06007512);
+            Check(execute.DeclaringType.FullName=="Kingmaker.UnitLogic.Commands.AreaTransitionGroupCommand" && execute.Name=="ExecuteTransition" &&
+                enterLoad.Name=="LoadArea" && enterLoad.GetParameters().Length==2 && teleport.Name=="Teleport" &&
+                teleport.GetParameters().Length==1 && teleport.GetParameters()[0].Name=="areaEnterPoint" &&
+                teleportHandler.DeclaringType.FullName=="Kingmaker.PubSubSystem.ITeleportHandler" && teleportHandler.Name=="HandlePartyTeleport",
+                "exact native door transition, enter-point load, local teleport and party-teleport handler contracts");
+            var executeCalls=RouteCalls(read,execute);
+            var leave=RouteIndex(executeCalls,RouteRaise("Kingmaker.PubSubSystem.IPartyLeaveAreaHandler"));
+            var dispatch=RouteIndex(executeCalls,RouteToken(native,0x06000CC9));
+            var executeIl=RouteInstructions(read,execute);
+            var leaveIl=RouteInstructionIndex(executeIl,RouteRaise("Kingmaker.PubSubSystem.IPartyLeaveAreaHandler"));
+            var dispatchIl=RouteInstructionIndex(executeIl,RouteToken(native,0x06000CC9));
+            var straight=leaveIl>=0 && dispatchIl>leaveIl;
+            for(var i=leaveIl+1;straight && i<dispatchIl;i++)
+            {
+                var flow=(System.Reflection.Emit.FlowControl)executeIl[i][0];
+                if(flow!=System.Reflection.Emit.FlowControl.Next && flow!=System.Reflection.Emit.FlowControl.Call) straight=false;
+            }
+            Check(leave>=0 && dispatch==executeCalls.Count-1 && dispatch>leave && straight &&
+                executeCalls.GetRange(leave+1,dispatch-leave-1).TrueForAll(m=>m.Name=="get_Instance" || m.Name=="get_AreaEnterPoint"),
+                "the door raises party-leave and then dispatches LoadArea 06000CC9 synchronously, with no branch between them");
+            var enterCalls=RouteCalls(read,enterLoad);
+            var enterIl=RouteInstructions(read,enterLoad);
+            var equality=RouteInstructionIndex(enterIl,m=>m.Name=="op_Equality");
+            var teleportIl=RouteInstructionIndex(enterIl,RouteToken(native,0x06000CCB));
+            Check(RouteIndex(enterCalls,m=>m.Name=="get_CurrentlyLoadedArea")>=0 && RouteIndex(enterCalls,m=>m.Name=="get_Area")>=0 &&
+                equality>=0 && teleportIl==equality+4 &&
+                (System.Reflection.Emit.FlowControl)enterIl[equality+1][0]==System.Reflection.Emit.FlowControl.Cond_Branch,
+                "LoadArea 06000CC9 takes Game.Teleport exactly when CurrentlyLoadedArea equals the enter point's area");
+            Check(RouteIndex(enterCalls,RouteToken(native,0x06000CCB))>=0 && RouteIndex(enterCalls,RouteToken(native,0x06000CD5))>RouteIndex(enterCalls,RouteToken(native,0x06000CCB)) &&
+                RouteIndex(enterCalls,RouteToken(native,0x06000CD7))<0,
+                "an enter point of the loaded area takes Game.Teleport; only another area reaches the full LoadArea 06000CD5");
+            var teleportCalls=RouteCalls(read,teleport);
+            Check(RouteIndex(teleportCalls,m=>m.Name=="TeleportParty")>=0 && RouteIndex(teleportCalls,RouteToken(native,0x06007FC4))>=0 &&
+                RouteIndex(teleportCalls,RouteToken(native,0x06000CD5))<0 && RouteIndex(teleportCalls,RouteToken(native,0x06000CD7))<0,
+                "Game.Teleport queues only the TeleportParty loading process (no full load, no OnAreaLoaded)");
+            var party=native.ManifestModule.ResolveMethod(0x0600A304);
+            var partyCalls=RouteCalls(read,party);
+            var processName=(string)candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true)
+                .GetField("NativeTeleportProcessName",BindingFlags.Static|BindingFlags.NonPublic).GetRawConstantValue();
+            Check(party.Name=="MoveNext" && party.DeclaringType.Name==processName &&
+                party.DeclaringType.DeclaringType.FullName=="Kingmaker.Game" &&
+                RouteIndex(partyCalls,RouteToken(native,0x06000DCC))>=0 &&
+                RouteIndex(partyCalls,RouteRaise("Kingmaker.PubSubSystem.ITeleportHandler"))>RouteIndex(partyCalls,RouteToken(native,0x06000DCC)),
+                "TeleportParty (the product's exact process name) places the party before HandlePartyTeleport");
+            var raisers=RouteCallers(native,0x06007512);
+            Check(raisers.Count==1 && raisers[0]=="Kingmaker.Game+<>c::<TeleportParty>b__161_0" &&
+                RouteIndex(partyCalls,m=>m.Name=="<TeleportParty>b__161_0")>=0,
+                "HandlePartyTeleport has exactly one native caller, the delegate raised by TeleportParty");
+            var loading=native.GetType("Kingmaker.EntitySystem.Persistence.LoadingProcess",true);
+            var queuedNames=loading.GetProperty("QueuedNames").GetGetMethod();
+            var queuedIl=RouteInstructions(read,queuedNames);
+            var readsQueue=false; var readsCurrent=false; MethodBase selector=null;
+            foreach(var ins in queuedIl)
+            {
+                var field=ins[1] as FieldInfo;
+                if(field!=null && field.Name=="m_Queue") readsQueue=true;
+                if(field!=null && field.Name=="m_CurrentProcess") readsCurrent=true;
+                var m=ins[1] as MethodBase;
+                if(m!=null && m.Name.StartsWith("<get_QueuedNames>")) selector=m;
+            }
+            var selectorCalls=selector==null?null:RouteCalls(read,selector);
+            Check(readsQueue && !readsCurrent && selectorCalls!=null && RouteIndex(selectorCalls,m=>m.Name=="GetType")>=0 &&
+                RouteIndex(selectorCalls,m=>m.Name=="get_Name")>RouteIndex(selectorCalls,m=>m.Name=="GetType"),
+                "LoadingProcess.QueuedNames lists only queued processes (never the current one) by coroutine type name");
             var original=native.ManifestModule.ResolveMethod(0x06008025);
             var instructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{original,null});
             var legacyInstruction=harmonyAssembly.GetType("Harmony12.CodeInstruction",true);

@@ -171,6 +171,11 @@ namespace KingmakerMountedCombat.Integration
                         typeof(AutoSaveMode), typeof(bool), typeof(SaveInfo) }, nameof(PatchMethods.AreaTransitionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "OnAreaLoaded", 0x06000CD7, Type.EmptyTypes,
                     null, nameof(PatchMethods.AreaEntitiesReadyPostfix));
+                // Ratnook door repair: Game.LoadArea(enterPoint, mode) 06000CC9 sends an enter point of the loaded area to
+                // Game.Teleport, which never reaches the full LoadArea or OnAreaLoaded. Its dispatch binds the transfer's
+                // route; ITeleportHandler.HandlePartyTeleport (MountedLifecycleSubscriber) is that route's placement.
+                PatchExact(typeof(Kingmaker.Game), "Teleport", 0x06000CCB, new[] { typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint) },
+                    nameof(PatchMethods.LocalTeleportDispatchPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameMainMenuLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
@@ -1410,12 +1415,18 @@ namespace KingmakerMountedCombat.Integration
             internal static bool AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo)
             {
                 if (PatchBridge.Persistence?.AdmitChargeAreaTransition() == false) return false;
-                PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
+                PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo, true);
                 return true;
+            }
+            internal static void LocalTeleportDispatchPrefix(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint areaEnterPoint)
+            {
+                // Observation only: the native teleport always runs. A fault here must never stop the party's move.
+                try { PatchBridge.Persistence?.ObserveLocalTeleportDispatch(areaEnterPoint); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted local teleport dispatch was not observed", error); }
             }
             internal static void AreaEntitiesReadyPostfix()
             {
-                PatchBridge.Persistence?.RestoreAreaPair();
+                PatchBridge.Persistence?.CompleteFullAreaPlacement();
                 // Review finding 2: the exact loaded world adopts its saved retained mounted intent at native arrival.
                 PatchBridge.Persistence?.AdoptLoadedRetainedIntent();
             }
