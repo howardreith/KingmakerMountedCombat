@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
@@ -19,6 +20,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("review 2 a saved record is adopted only by its exact world and malformed records are refused", RetainedRecordAdmission);
             runner.Run("review 3 a camp that follows a scripted event adopts the camp separation rules", EventThenCampPromotion);
             runner.Run("review 4 the captured owner identity is imported once its previous owner retired, and refuses cleanly before", OwnerIdentityImport);
+            runner.Run("second review 1 after an attempted arrival a save records only the deferred pair; before exit it records travelling intent", ArrivalThenSaveRecordsOnlyPending);
+            runner.Run("second review 2 a carried capital arrival retires an excluded companion pair and keeps a main-character pair", CarriedCapitalRetirement);
+            runner.Run("second review 3 the retained pairs' Mount/Dismount slot rows and placement records survive the world-map save", RetainedSlotRowsRoundTrip);
             runner.Run("exploration P1 a mounted rider's familiar follows the mount's path end or ground position under the native leash", FamiliarFollow);
             runner.Run("exploration event suspension feedback says the pair remounts automatically", SuspensionFeedback);
         }
@@ -277,6 +281,103 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(id, restored.Id, "The restored pair did not keep its owner identity.");
             TestRunner.Equal(4L, restored.Generation, "The restored pair did not keep its generation.");
             registry.Commit(restored);
+        }
+
+        private static void ArrivalThenSaveRecordsOnlyPending()
+        {
+            // A carried arrival of four pairs: A restores, B is deferred (a transient refusal), C is dropped (its companion
+            // left), D is retired by the native capital rule. The arrival handling keeps exactly its Retain rows as the
+            // authoritative retained set; the transfer stays alive (arrival attempted) until loading completes.
+            var a = PairRecord(RiderA, MountA, OwnerA, 3);
+            var b = PairRecord(RiderB, MountB, OwnerB, 7);
+            var c = PairRecord(RiderC, MountC, null, 0);
+            var d = PairRecord("77777777-7777-7777-7777-777777777777", "88888888-8888-8888-8888-888888888888", null, 0);
+            var decisions = new System.Collections.Generic.Dictionary<MountedRetainedIntentPairRecord, MountedCarriedArrivalDecision>
+            {
+                { a, MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, null) },
+                { b, MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, "Both stock movement agents must be enabled before mounting.") },
+                { c, MountedRetainedIntentPolicy.DecideCarriedArrival(false, false, false, false, null) },
+                { d, MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, MountedAreaControlRule.ControlRefusal,
+                    MountedAreaControlRule.IsCapitalControlRetirement(true, MountedAreaControlRule.ControlRefusal, null, false, false, false, false)) }
+            };
+            TestRunner.Equal(MountedCarriedArrivalDecision.Restore, decisions[a], "A did not restore.");
+            TestRunner.Equal(MountedCarriedArrivalDecision.Retain, decisions[b], "B was not deferred.");
+            TestRunner.Equal(MountedCarriedArrivalDecision.Drop, decisions[c], "C was not dropped.");
+            TestRunner.Equal(MountedCarriedArrivalDecision.Retire, decisions[d], "D was not retired.");
+            var retained = decisions.Where(x => x.Value == MountedCarriedArrivalDecision.Retain).Select(x => x.Key).ToArray();
+            var transfer = new[] { a, b, c, d };
+            // The after-entry save: A is physically mounted (kmc-mounted-state); only B is pending intent.
+            var afterEntry = MountedRetainedIntentRecord.Recordable(
+                MountedRetainedIntentCapture.PendingRows(retained, transfer, true), new System.Collections.Generic.HashSet<string> { RiderA, MountA });
+            TestRunner.Equal(1, afterEntry.Length, "The after-entry save recorded a restored, dropped or retired pair as pending intent.");
+            TestRunner.Equal(RiderB, afterEntry[0].RiderId, "The after-entry save lost the deferred pair.");
+            // An immediate subsequent departure carries only the authoritative retained set.
+            var nextDeparture = MountedRetainedIntentCapture.PendingRows(new MountedRetainedIntentPairRecord[0], retained, false).ToArray();
+            TestRunner.True(nextDeparture.Length == 1 && nextDeparture[0] == b, "A retired or dropped pair travelled into the next transfer.");
+            // A before-exit save of a transfer whose arrival is not yet attempted keeps the legitimate travelling intent.
+            var beforeExit = MountedRetainedIntentRecord.Recordable(
+                MountedRetainedIntentCapture.PendingRows(new MountedRetainedIntentPairRecord[0], transfer, false), new System.Collections.Generic.HashSet<string>());
+            TestRunner.Equal(4, beforeExit.Length, "A before-exit save lost travelling intent.");
+            TestRunner.Equal(MountedRetainedIntentKind.WorldMapTravel, MountedRetainedIntentCapture.Kind(MountedRetainedIntentKind.ScriptedEvent, true, true,
+                MountedRetainedIntentKind.Camp), "A pending world-map transfer was not recorded as world-map travel.");
+            TestRunner.Equal(MountedRetainedIntentKind.Camp, MountedRetainedIntentCapture.Kind(MountedRetainedIntentKind.Camp, false, true,
+                MountedRetainedIntentKind.WorldMapTravel), "After arrival the retained kind was not authoritative.");
+        }
+
+        private static void CarriedCapitalRetirement()
+        {
+            var control = MountedAreaControlRule.ControlRefusal;
+            // An ordinary companion pair that the native capital rule makes not directly controllable.
+            var companion = MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, control,
+                MountedAreaControlRule.IsCapitalControlRetirement(true, control, null, false, false, false, false));
+            TestRunner.Equal(MountedCarriedArrivalDecision.Retire, companion, "A capital-excluded carried companion pair became pending intent.");
+            // The main character and its pet stay controllable in the capital: no refusal, ordinary restoration.
+            var main = MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, null,
+                false);
+            TestRunner.Equal(MountedCarriedArrivalDecision.Restore, main, "The main-character pair did not restore in the capital.");
+            // A main-character pair that lost control is not explained by the capital rule: it stays retryable, not retired.
+            var lostMain = MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, control,
+                MountedAreaControlRule.IsCapitalControlRetirement(true, control, null, false, true, false, true));
+            TestRunner.Equal(MountedCarriedArrivalDecision.Retain, lostMain, "A main-character pair was retired by the capital rule.");
+            // Outside a capital the same refusal is an ordinary transient refusal.
+            TestRunner.Equal(MountedCarriedArrivalDecision.Retain, MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, control,
+                MountedAreaControlRule.IsCapitalControlRetirement(false, control, null, false, false, false, false)), "A non-capital control refusal was retired.");
+        }
+
+        private static void RetainedSlotRowsRoundTrip()
+        {
+            var pairs = new[] { PairRecord(RiderA, MountA, OwnerA, 3), PairRecord(RiderB, MountB, OwnerB, 7) };
+            var slots = MountedRetainedIntentRecord.RecordableSlots(new[]
+            {
+                // Rider A: the public Mount/Dismount control in a non-default slot plus its one-placement record.
+                new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState },
+                new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord },
+                // Rider B deliberately removed the control: a placement record and no slot row.
+                new MountedRetainedIntentSlotRecord { ActorId = RiderB, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord },
+                // Another unit's row and an invalid row never travel.
+                new MountedRetainedIntentSlotRecord { ActorId = RiderC, Index = 3, Kind = MountedControlSlotPolicy.SavedMountState },
+                new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 200, Kind = MountedControlSlotPolicy.SavedMountState },
+                new MountedRetainedIntentSlotRecord { ActorId = RiderA, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState }
+            }, pairs);
+            TestRunner.Equal(3, slots.Length, "Only the retained pairs' valid, distinct control rows may travel.");
+            var decoded = MountedRetainedIntentRecord.Decode(new MountedRetainedIntentRecord { CampaignId = Campaign, AreaId = WorldMapArea,
+                GameTimeTicks = 9L, Kind = MountedRetainedIntentKind.WorldMapTravel, Pairs = pairs, Slots = slots }.Encode());
+            TestRunner.Equal(3, decoded.Slots.Length, "Slot rows did not survive the world-map save.");
+            TestRunner.True(decoded.Slots.Any(x => x.ActorId == RiderA && x.Index == 9 && x.Kind == MountedControlSlotPolicy.SavedMountState),
+                "The exact non-default Mount/Dismount slot did not survive the save.");
+            TestRunner.True(decoded.Slots.Any(x => x.ActorId == RiderB && x.Kind == MountedControlSlotPolicy.SavedPlacementRecord) &&
+                !decoded.Slots.Any(x => x.ActorId == RiderB && x.Kind == MountedControlSlotPolicy.SavedMountState),
+                "A deliberately removed control would be replaced after loading.");
+            // A slot row for an actor outside the recorded pairs, or an invalid row, makes the whole record invalid.
+            var good = new MountedRetainedIntentRecord { CampaignId = Campaign, AreaId = WorldMapArea, GameTimeTicks = 9L,
+                Kind = MountedRetainedIntentKind.WorldMapTravel, Pairs = pairs, Slots = slots }.Encode();
+            foreach (var malformed in new[] { good + "slot " + RiderC + " 3 6\n", good + "slot " + RiderA + " 200 6\n",
+                good + "slot " + RiderA + " 9 6\n", good + "pair " + RiderC + " " + MountC + " " + MountedRiderProfileCatalog.MediumHorseId + " - 0\n" })
+            {
+                var refused = false;
+                try { MountedRetainedIntentRecord.Decode(malformed); } catch (System.IO.InvalidDataException) { refused = true; }
+                TestRunner.True(refused, "A malformed slot section was accepted.");
+            }
         }
 
         private static void FamiliarFollow()

@@ -11,8 +11,13 @@ Branch `codex/kmc-exploration-markers-speed-events` from main `aade80e5`, draft 
   - A camp that follows a dialog adopts the camp rules.
   - The owner identity is imported on restore.
   - A transient arrival refusal is retried.
+- **Second owner review (3 P2):** corrected.
+  - An after-arrival save records only the still-deferred pairs.
+  - A carried capital arrival retires through the native rule.
+  - A world-map save keeps the Mount/Dismount slot rows.
+  - A pending record is bound to the load that selected it.
 - **Issues 1–2:** parked by the owner until they can reproduce them. The log-only observations stay in the build.
-- **Checks:** Fast PASS 3/0 (components 1131/0, Validate-Source 151/0).
+- **Checks:** Fast PASS 3/0 (components 1134/0, Validate-Source 151/0).
 - **Native:** NOT RUN. This machine has no KMC install, no KMC fixture and no runtime-state.
 - **Not authorized:** merge, release, tag or install.
 

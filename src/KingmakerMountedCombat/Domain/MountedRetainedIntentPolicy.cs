@@ -43,7 +43,10 @@ namespace KingmakerMountedCombat.Domain
     {
         Restore,
         Retain,
-        Drop
+        Drop,
+        // Second owner review finding 2: the established native capital rule ends the relationship at arrival
+        // (retired, cleanly separated, never pending or saved intent).
+        Retire
     }
 
     public static class MountedRetainedIntentPolicy
@@ -128,10 +131,12 @@ namespace KingmakerMountedCombat.Domain
         // refusal (a mode or agent not yet settled at OnAreaLoaded) is retained for the in-area retry, which applies
         // the bounded patience. Neither blocks the other pairs, saving or later area changes.
         public static MountedCarriedArrivalDecision DecideCarriedArrival(bool partyInCombat, bool unitsResolved,
-            bool sameReciprocalProfile, bool permanentlyIneligible, string eligibilityRefusal)
+            bool sameReciprocalProfile, bool permanentlyIneligible, string eligibilityRefusal, bool capitalControlRetirement = false)
         {
             if (!unitsResolved || !sameReciprocalProfile || permanentlyIneligible || partyInCombat) return MountedCarriedArrivalDecision.Drop;
-            return eligibilityRefusal == null ? MountedCarriedArrivalDecision.Restore : MountedCarriedArrivalDecision.Retain;
+            if (eligibilityRefusal == null) return MountedCarriedArrivalDecision.Restore;
+            // The exact capital predicate (MountedAreaControlRule) is terminal and is decided before any retry.
+            return capitalControlRetirement ? MountedCarriedArrivalDecision.Retire : MountedCarriedArrivalDecision.Retain;
         }
 
         // Review finding 3: a camp that begins while a pair is already suspended for a scripted event adopts the camp

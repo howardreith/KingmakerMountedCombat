@@ -17,6 +17,37 @@ namespace KingmakerMountedCombat.Domain
         public long Generation { get; set; }
     }
 
+    // Second owner review finding 3: a retained pair's own control-slot rows (the archive SavedMountedSlot shape:
+    // actor, index, kind), so a world-map save keeps the exact Mount/Dismount hotbar placement that area suspension
+    // cleared, including a kind-7 placement record without a slot row (a control the player deliberately removed).
+    public sealed class MountedRetainedIntentSlotRecord
+    {
+        public string ActorId { get; set; }
+        public int Index { get; set; }
+        public int Kind { get; set; }
+    }
+
+    // Second owner review finding 1: which rows a save records. Before an area arrival is attempted, the in-flight
+    // transfer's suspended rows are legitimate travelling intent. Once arrival has been attempted, only the
+    // authoritative unresolved retained set remains (restored pairs are physically mounted and belong to
+    // kmc-mounted-state; dropped and retired pairs are not pending at all).
+    public static class MountedRetainedIntentCapture
+    {
+        public static IEnumerable<MountedRetainedIntentPairRecord> PendingRows(IEnumerable<MountedRetainedIntentPairRecord> retained,
+            IEnumerable<MountedRetainedIntentPairRecord> transfer, bool transferArrivalAttempted)
+        {
+            var rows = (retained ?? Enumerable.Empty<MountedRetainedIntentPairRecord>());
+            return transferArrivalAttempted || transfer == null ? rows : rows.Concat(transfer);
+        }
+
+        public static MountedRetainedIntentKind Kind(MountedRetainedIntentKind retainedKind, bool transferPending,
+            bool transferToWorldMap, MountedRetainedIntentKind transferCarriedKind)
+        {
+            if (!transferPending) return retainedKind;
+            return transferToWorldMap ? MountedRetainedIntentKind.WorldMapTravel : transferCarriedKind;
+        }
+    }
+
     // Exploration repair (review finding 2): suspended mounted intent is saved as its own bounded archive member
     // ("kmc-retained-intent"), separate from the strict schema-3 kmc-mounted-state member, so existing saves and
     // older readers are unaffected. It names only stable actor ids, the profile and the owner identity; it never
@@ -27,12 +58,28 @@ namespace KingmakerMountedCombat.Domain
         public const string Header = "KMC-RETAINED-INTENT 1";
         public const int MaximumPairs = 6;
         public const int MaximumCharacters = 4096;
+        public const int MaximumSlots = 64;
 
         public string CampaignId { get; set; }
         public string AreaId { get; set; }
         public long GameTimeTicks { get; set; }
         public MountedRetainedIntentKind Kind { get; set; }
         public MountedRetainedIntentPairRecord[] Pairs { get; set; } = new MountedRetainedIntentPairRecord[0];
+        public MountedRetainedIntentSlotRecord[] Slots { get; set; } = new MountedRetainedIntentSlotRecord[0];
+
+        // Only the recorded pairs' own valid control rows, deduplicated, bounded.
+        public static MountedRetainedIntentSlotRecord[] RecordableSlots(IEnumerable<MountedRetainedIntentSlotRecord> slots,
+            IEnumerable<MountedRetainedIntentPairRecord> pairs)
+        {
+            var actors = new HashSet<string>((pairs ?? Enumerable.Empty<MountedRetainedIntentPairRecord>())
+                .SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+            return (slots ?? Enumerable.Empty<MountedRetainedIntentSlotRecord>())
+                .Where(s => s != null && actors.Contains(s.ActorId) && MountedControlSlotPolicy.IsValidSavedRow(s.Index, s.Kind))
+                .GroupBy(s => s.ActorId + "|" + s.Index + "|" + s.Kind, StringComparer.Ordinal).Select(g => g.First())
+                .Take(MaximumSlots)
+                .Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind })
+                .ToArray();
+        }
 
         // The pairs a save records as retained intent: only suspended pairs, never a pair physically mounted at the
         // barrier (the kmc-mounted-state member owns it), one record per rider, at most MaximumPairs.
@@ -68,6 +115,9 @@ namespace KingmakerMountedCombat.Domain
             foreach (var pair in Pairs)
                 text.Append("pair ").Append(pair.RiderId).Append(' ').Append(pair.MountId).Append(' ').Append(pair.ProfileId).Append(' ')
                     .Append(pair.OwnerId ?? "-").Append(' ').Append(pair.Generation.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            foreach (var slot in Slots)
+                text.Append("slot ").Append(slot.ActorId).Append(' ').Append(slot.Index.ToString(CultureInfo.InvariantCulture)).Append(' ')
+                    .Append(slot.Kind.ToString(CultureInfo.InvariantCulture)).Append('\n');
             var result = text.ToString();
             if (result.Length > MaximumCharacters) throw new InvalidDataException("Retained mounted intent exceeds its bound.");
             return result;
@@ -88,14 +138,24 @@ namespace KingmakerMountedCombat.Domain
                 Kind = ParseKind(Field(lines[4], "kind"))
             };
             var pairs = new List<MountedRetainedIntentPairRecord>();
-            for (var index = 5; index < lines.Length - 1; index++)
+            var slots = new List<MountedRetainedIntentSlotRecord>();
+            var index = 5;
+            for (; index < lines.Length - 1 && lines[index].StartsWith("pair ", StringComparison.Ordinal); index++)
             {
                 var parts = Field(lines[index], "pair").Split(' ');
                 if (parts.Length != 5) throw new InvalidDataException("Retained mounted pair has an unknown shape.");
                 pairs.Add(new MountedRetainedIntentPairRecord { RiderId = parts[0], MountId = parts[1], ProfileId = parts[2],
                     OwnerId = parts[3] == "-" ? null : parts[3], Generation = ParseLong(parts[4]) });
             }
+            // Slot rows follow every pair row; anything else is an unknown shape.
+            for (; index < lines.Length - 1; index++)
+            {
+                var parts = Field(lines[index], "slot").Split(' ');
+                if (parts.Length != 3) throw new InvalidDataException("Retained mounted slot has an unknown shape.");
+                slots.Add(new MountedRetainedIntentSlotRecord { ActorId = parts[0], Index = ParseInt(parts[1]), Kind = ParseInt(parts[2]) });
+            }
             record.Pairs = pairs.ToArray();
+            record.Slots = slots.ToArray();
             record.Validate();
             return record;
         }
@@ -122,6 +182,13 @@ namespace KingmakerMountedCombat.Domain
                 else Require(Guid.TryParse(pair.OwnerId, out var owner) && owner != Guid.Empty && pair.OwnerId.IndexOf(' ') < 0 &&
                     owners.Add(owner) && pair.Generation > 0, "Retained mounted pair owner identity is invalid or duplicated.");
             }
+            Require(Slots != null && Slots.Length <= MaximumSlots, "Retained mounted slot count is invalid.");
+            var slotKeys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var slot in Slots)
+                Require(slot != null && ActorId(slot.ActorId) && actors.Contains(Guid.Parse(slot.ActorId)) &&
+                    MountedControlSlotPolicy.IsValidSavedRow(slot.Index, slot.Kind) &&
+                    slotKeys.Add(Guid.Parse(slot.ActorId).ToString("N") + "|" + slot.Index + "|" + slot.Kind),
+                    "Retained mounted slot is invalid, duplicated or belongs to no recorded pair.");
         }
 
         private static bool ActorId(string value) => value != null && value.Length <= 64 && value.IndexOf(' ') < 0 &&
@@ -137,6 +204,13 @@ namespace KingmakerMountedCombat.Domain
         private static long ParseLong(string value)
         {
             if (!long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
+                throw new InvalidDataException("Retained mounted intent number is invalid.");
+            return parsed;
+        }
+
+        private static int ParseInt(string value)
+        {
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed))
                 throw new InvalidDataException("Retained mounted intent number is invalid.");
             return parsed;
         }

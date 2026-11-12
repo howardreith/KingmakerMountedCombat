@@ -14,7 +14,20 @@ not a demonstrated outcome.
 - **Owner direction (2026-11-12):** issues 1 and 2 cannot currently be reproduced by the owner and are parked until
   the owner sends details; their log-only observations stay in the build.
 
-## Owner review (request changes) — resolution
+## Second owner review of `7fc4c898` (request changes) — resolution
+
+| Finding | Resolution | Offline regression |
+|---|---|---|
+| P2 An arrival save records intent that arrival just discarded | The save capture uses `MountedRetainedIntentCapture`. An in-flight transfer contributes its suspended rows only while its arrival is not yet attempted. After arrival, `retainedIntent` (the deferred rows only) is the authoritative set. Restored pairs belong to `kmc-mounted-state`; dropped and retired pairs are never recorded. | Arrival of four pairs (restore, defer, drop, capital-retire), then the after-entry selection records only the deferred pair; the next departure carries only it; a before-exit save keeps all travelling intent |
+| P2 Carried retry bypasses the capital retirement | The carried branch evaluates the exact `IsCapitalControlRetirement` predicate (main-character and main-pet exceptions included) before the retry policy. `DecideCarriedArrival` returns `Retire`, and the pair joins the existing retire list with its clean-separation checks. A retired pair is never pending, saved or carried. | Capital companion pair retires; main-character pair restores; an uncontrollable main pair and a non-capital refusal stay retryable |
+| P2 World-map save loses the Mount/Dismount slot | The record now carries the retained pairs' own control rows (`slot actor index kind`), including kind-7 placement records. They are validated (`IsValidSavedRow`, the actor must be in a recorded pair, no duplicates, at most 64) and adopted into `retainedIntent.Slots`. Arrival restores them through the existing `RestorePersistentSlots` rules, which never replace an occupied slot and honour a placement record without a slot row. | A non-default slot 9 survives the save; a deliberately removed control (placement record, no slot row) stays removed; foreign, invalid or duplicate rows refused |
+| Uncertainty: load-cancellation lifetime | The pending record is bound to the selecting load's sequence and is adopted only while that exact `restoreLoad` is current. `ClearArchiveRestoration` (load start, abandoned or replaced load, later area transition) and load housekeeping clear it. | Integration only (review); the adoption predicate is unit-tested for exact world, area and time |
+
+Test-evidence limit, as the reviewer noted: these regressions run the production selection and decision functions,
+the real coordinator, the registry and the record codec. The Unity-side wiring (header-barrier staging, zip member
+read, `OnAreaLoaded` adoption, `RestoreAreaPair` partitioning) runs only in the game, and remains a native gap.
+
+## First owner review (request changes) — resolution
 
 | Finding | Resolution | Offline regression |
 |---|---|---|
@@ -129,9 +142,11 @@ reflection and re-verified by the reviewer.
 | Baseline Fast on `aade80e5` (unchanged) | PASS 3/0, 0.78 min (components 1118/0, Validate-Source 151/0) |
 | Fast after the repairs (`2977de16`) | PASS 3/0, 0.29 min (components 1126/0) |
 | Fast after first-review fixes (`7b964c75`) | PASS 3/0, 0.13 min (components 1126/0, Validate-Source 151/0) |
-| Fast after owner-review corrections | PASS 3/0, 0.51 min (components 1131/0, Validate-Source 151/0) |
+| Fast after owner-review corrections (`7fc4c898`) | PASS 3/0, 0.51 min (components 1131/0, Validate-Source 151/0) |
+| Fast after second owner-review corrections | PASS 3/0, 0.43 min (components 1134/0, Validate-Source 151/0); budget 2.15 of 90 min |
 | First independent review | 1 high, 5 low/medium findings, all fixed; its finding 8 (new owner identity) is now resolved by owner finding 4 |
 | Owner review (request changes) | 4 findings plus 1 uncertain case, all corrected in source with offline regressions (table above) |
+| Second owner review (request changes) | 3 P2 findings plus the load-lifetime uncertainty, all corrected in source (table above) |
 | Native rows | NOT RUN — blocked (no fixture, no KMC install, no runtime-state on this machine) |
 
 The owner-review corrections were not given a second independent review; they were self-reviewed against the review

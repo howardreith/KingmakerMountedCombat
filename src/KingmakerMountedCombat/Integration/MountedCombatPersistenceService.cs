@@ -173,7 +173,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Load refused: charge cleanup ownership is unresolved.");
             CancelAreaTransition();
             // A load replaces the world: retained mounted intent never crosses it (its pairs are already dismounted).
-            retainedIntent = null; pendingLoadedRetainedIntent = null; ResetRetainedSettle();
+            retainedIntent = null; ClearPendingLoadedRetainedIntent(); ResetRetainedSettle();
             NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();
             var cleanupErrors = new List<Exception>();

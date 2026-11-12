@@ -201,6 +201,7 @@ namespace KingmakerMountedCombat.Integration
                         string carriedRefusal = null;
                         var sameProfile = false;
                         var permanent = false;
+                        var capitalRetirement = false;
                         try
                         {
                             if (present)
@@ -209,11 +210,16 @@ namespace KingmakerMountedCombat.Integration
                                 var carriedCandidate = KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount);
                                 permanent = PermanentlyIneligible(carriedCandidate);
                                 carriedRefusal = carriedCandidate?.ValidateSavedRelationship();
+                                capitalRetirement = carriedRefusal != null &&
+                                    IsCapitalControlRetirement(area, carriedRider, carriedMount, carriedCandidate, carriedRefusal);
                             }
                         }
                         catch (Exception classification) { carriedRefusal = classification.Message; }
-                        var arrival = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent, carriedRefusal);
+                        var arrival = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
+                            carriedRefusal, capitalRetirement);
                         if (arrival == MountedCarriedArrivalDecision.Restore) restore.Add(pair);
+                        // The established capital retirement, with its clean-separation checks below; never pending intent.
+                        else if (arrival == MountedCarriedArrivalDecision.Retire) retire.Add(pair);
                         else if (arrival == MountedCarriedArrivalDecision.Retain) carriedRetained.Add(pair);
                         else
                         {

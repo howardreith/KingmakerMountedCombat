@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Integration
         private AreaTransfer retainedIntent;
         private MountedRetainedIntentKind retainedIntentKind;
         private MountedRetainedIntentRecord pendingLoadedRetainedIntent;
+        // The selecting load's sequence: a record is adopted only by the load that read it (never by a replacement).
+        private long pendingLoadedRetainedSequence = -1;
         private int retainedSettledFrames;
         private float retainedSettledSince = -1f;
         private float retainedEligibleSince = -1f;
@@ -316,22 +318,26 @@ namespace KingmakerMountedCombat.Integration
                 var player = game?.Player;
                 var area = game?.CurrentlyLoadedArea;
                 if (!Enabled || player == null || area == null) return null;
-                var pairs = new List<AreaPair>();
-                var kind = retainedIntentKind;
-                if (retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, player) && retainedIntent.CampaignId == player.GameId)
-                    pairs.AddRange(retainedIntent.Pairs);
-                if (areaTransfer != null && ReferenceEquals(areaTransfer.World.Target, player))
-                {
-                    var carried = areaTransfer.Pairs.Where(p => p.Carried).ToArray();
-                    if (carried.Length != 0) { pairs.AddRange(carried); kind = areaTransfer.CarriedKind; }
-                }
+                // Second owner review finding 1: an in-flight transfer contributes its suspended rows only before its
+                // arrival is attempted. Afterwards retainedIntent is the authoritative unresolved set: restored pairs are
+                // physically mounted (kmc-mounted-state), dropped and retired pairs are not pending.
+                var retained = retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, player) &&
+                    retainedIntent.CampaignId == player.GameId ? retainedIntent : null;
+                var transfer = areaTransfer != null && ReferenceEquals(areaTransfer.World.Target, player) ? areaTransfer : null;
+                var transferPending = transfer != null && !transfer.ResumeAttempted;
+                var rows = MountedRetainedIntentCapture.PendingRows(ToRecords(retained?.Pairs), ToRecords(transfer?.Pairs), !transferPending);
+                var kind = MountedRetainedIntentCapture.Kind(retainedIntentKind, transferPending && transfer.Pairs.Length != 0,
+                    transfer?.WorldMap ?? false, transfer?.CarriedKind ?? MountedRetainedIntentKind.WorldMapTravel);
                 var mounted = new HashSet<string>(WorldRelationships.Where(r => r.State == RelationshipState.Mounted)
                     .SelectMany(r => new[] { r.Rider?.UniqueId, r.Mount?.UniqueId }).Where(id => id != null), StringComparer.Ordinal);
-                var records = MountedRetainedIntentRecord.Recordable(pairs.Select(p => new MountedRetainedIntentPairRecord {
-                    RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId, Generation = p.Generation }), mounted);
+                var records = MountedRetainedIntentRecord.Recordable(rows, mounted);
                 if (records.Length == 0) return null;
+                // Second owner review finding 3: the retained pairs' own control rows travel with their intent.
+                var slotRows = (retained?.Slots ?? new SavedMountedSlot[0]).Concat(transferPending ? transfer.Slots : new SavedMountedSlot[0])
+                    .Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind });
                 var text = new MountedRetainedIntentRecord { CampaignId = player.GameId, AreaId = area.AssetGuidThreadSafe,
-                    GameTimeTicks = game.TimeController.GameTime.Ticks, Kind = kind, Pairs = records }.Encode();
+                    GameTimeTicks = game.TimeController.GameTime.Ticks, Kind = kind, Pairs = records,
+                    Slots = MountedRetainedIntentRecord.RecordableSlots(slotRows, records) }.Encode();
                 RetainedSavedCount++;
                 return text;
             }
@@ -342,10 +348,16 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private static IEnumerable<MountedRetainedIntentPairRecord> ToRecords(IEnumerable<AreaPair> pairs) =>
+            (pairs ?? Enumerable.Empty<AreaPair>()).Select(p => new MountedRetainedIntentPairRecord {
+                RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId, Generation = p.Generation });
+
+        private void ClearPendingLoadedRetainedIntent() { pendingLoadedRetainedIntent = null; pendingLoadedRetainedSequence = -1; }
+
         // Read at load selection: accepted only for the selected campaign and area; adopted at native arrival.
         private void SelectRetainedIntentRecord(SaveInfo save)
         {
-            pendingLoadedRetainedIntent = null;
+            ClearPendingLoadedRetainedIntent();
             try
             {
                 var text = NativeMountedSaveStorage.ReadRetainedIntent(save.Saver);
@@ -357,6 +369,7 @@ namespace KingmakerMountedCombat.Integration
                     return;
                 }
                 pendingLoadedRetainedIntent = record;
+                pendingLoadedRetainedSequence = loadSequence;
             }
             catch (Exception error) { logger.Exception("Saved retained mounted intent could not be read; the pairs load dismounted", error); }
         }
@@ -367,8 +380,15 @@ namespace KingmakerMountedCombat.Integration
         internal void AdoptLoadedRetainedIntent()
         {
             var record = pendingLoadedRetainedIntent;
+            var sequence = pendingLoadedRetainedSequence;
             if (record == null) return;
-            pendingLoadedRetainedIntent = null;
+            ClearPendingLoadedRetainedIntent();
+            // Only the exact load that selected the record, still current, may adopt it.
+            if (restoreLoad == null || restoreLoad.Sequence != sequence || loadSequence != sequence)
+            {
+                logger.Warning("Saved retained mounted intent belongs to a replaced or cancelled load; it is ignored.");
+                return;
+            }
             try
             {
                 var game = Game.Instance;
@@ -385,8 +405,10 @@ namespace KingmakerMountedCombat.Integration
                     .Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId,
                         OwnerId = p.OwnerId, Generation = p.Generation, Carried = true }).ToArray();
                 if (pairs.Length == 0) return;
+                var adoptedActors = new HashSet<string>(pairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
                 retainedIntent = new AreaTransfer { World = new WeakReference(player), CampaignId = player.GameId, AreaId = record.AreaId,
-                    Pairs = pairs, Slots = new SavedMountedSlot[0] };
+                    Pairs = pairs, Slots = record.Slots.Where(s => adoptedActors.Contains(s.ActorId))
+                        .Select(s => new SavedMountedSlot { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }).ToArray() };
                 retainedIntentKind = record.Kind;
                 ResetRetainedSettle();
                 RetainedAdoptedCount++;
