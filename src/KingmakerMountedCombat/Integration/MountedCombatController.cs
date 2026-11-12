@@ -1448,12 +1448,13 @@ namespace KingmakerMountedCombat.Integration
             }
             if (decision == MountedStockAttackDecision.CompleteTurnBasedIntent)
             {
-                if (stockIntentCommand == null)
+                var spent = stockIntent.MountActor ? mount : rider;
+                var partner = stockIntent.MountActor ? rider : mount;
+                var feedback = stockIntent.GetRejectionFeedback(UnifiedMountedStockAttackPolicy.NoStandardFeedback(
+                    spent?.CharacterName, partner?.CharacterName, partner != null && partner.HasStandardAction()));
+                if (feedback != null)
                 {
-                    var spent = stockIntent.MountActor ? mount : rider;
-                    var partner = stockIntent.MountActor ? rider : mount;
-                    LastFeedback = UnifiedMountedStockAttackPolicy.NoStandardFeedback(spent?.CharacterName,
-                        partner?.CharacterName, partner != null && partner.HasStandardAction());
+                    LastFeedback = feedback;
                     LastStandardRefusalTrace = "actor=" + spent?.UniqueId +
                         ";riderStandard=" + rider?.CombatState.Cooldown.StandardAction.ToString("R") +
                         ";riderMove=" + rider?.CombatState.Cooldown.MoveAction.ToString("R") +
@@ -1486,6 +1487,16 @@ namespace KingmakerMountedCombat.Integration
                 !stationary && (!ranged || action != MountedCombatActionKind.MountPrimaryNatural));
             if (result != MountedCombatClickResult.HandledAccepted || activeCommand == null)
             {
+                // Read before clearing: whether the request already dispatched decides its answer. Every rejection
+                // is logged, since several admission faults have no other diagnostic.
+                var codes = LastRejectionCodes ?? new MountedCombatRejectionCode[0];
+                var feedback = stockIntent.GetDispatchRejectionFeedback(LastFeedback, codes);
+                logger.Info("Mounted stock attack dispatch rejected: action=" + action +
+                    "; origin=" + (automaticOrigin ? "automatic" : "player") +
+                    "; generation=" + generation +
+                    "; codes=" + string.Join(",", codes.Select(code => code.ToString()).ToArray()) +
+                    "; presented=" + (feedback != null) +
+                    "; feedback=" + LastFeedback);
                 if (automaticOrigin)
                 {
                     // No player click to answer: the brain's next proposal re-decides, without a player-facing warning.
@@ -1495,7 +1506,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 ClearStockAttackIntent("stock dispatch rejected", true);
                 LastStockAttackObservation = "intent-cancel-dispatch-rejected;action=" + action;
-                ShowStockFeedback();
+                if (feedback != null) ShowStockFeedback();
                 return;
             }
             if (!stockIntent.Owns(target, generation))

@@ -37,6 +37,236 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted ranged stock attack never pulls mount into melee", RangedDoesNotForceMountMelee);
             runner.Run("mounted stock attack waits persistently only in real time", WaitsPersistentlyOnlyInRealTime);
             runner.Run("mounted stock attack cancels invalid target exactly", CancelsInvalidTarget);
+            runner.Run("a dispatched rider or mount attack ends quietly when its native Standard is spent", CompletedAttackFeedback);
+            runner.Run("a fresh spent-actor click keeps its refusal without using the partner's action", FreshSpentActorFeedback);
+            runner.Run("same-target continuation does not turn attack completion into a new refusal", ContinuedAttackFeedback);
+            runner.Run("Stop retires feedback and a fresh click on the same target earns its own answer", CancelledAttackFeedback);
+            runner.Run("retarget and action-context replacement restore fresh-request feedback", ReplacementAttackFeedback);
+            runner.Run("automatic attack proposals and continuations produce no player refusal", AutomaticAttackFeedback);
+            runner.Run("promoting an automatic intent preserves whether an attack was already dispatched", PromotedAttackFeedback);
+            runner.Run("one mounted pair's completed attack does not hide another pair's fresh refusal", PairLocalAttackFeedback);
+            runner.Run("a later real-time dispatch refusal is quiet until a new player request", RealTimeContinuationFeedback);
+            runner.Run("a later dispatch fault or configuration refusal still answers after an accepted attack", LaterDispatchFaultFeedback);
+        }
+
+        // The refusal the actual evaluator returns for an otherwise eligible rider attack with one fact changed.
+        private static MountedCombatActionAvailability Refusal(Action<MountedCombatActionContext> change)
+        {
+            var context = MountedCombatDomainTests.Eligible(MountedCombatActionKind.RiderMelee);
+            change(context);
+            var availability = MountedCombatActionEvaluator.Evaluate(context);
+            TestRunner.True(!availability.IsAllowed, "The changed fact did not refuse the attack.");
+            return availability;
+        }
+
+        // Offline intent/feedback behavior. Single and full native routines share this dispatch/terminal
+        // sequence; these checks do not execute a game command or claim native resource-spending evidence.
+        private static void CompletedAttackFeedback()
+        {
+            foreach (var mountActor in new[] { false, true })
+            {
+                var intent = new MountedAttackIntent<object, object>();
+                var target = new object(); var turn = new object();
+                intent.Begin(target, turn, mountActor, true);
+                TestRunner.Equal(mountActor ? MountedStockAttackDecision.DispatchMount : MountedStockAttackDecision.DispatchRider,
+                    UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, true, true, false, true,
+                        riderIsLegalActor: !mountActor, mountIsLegalActor: mountActor), "The requested actor did not receive its attack.");
+                intent.ObserveDispatch(mountActor);
+                // The command has ended, its slot is no longer active, and its actor's Standard is spent.
+                // Its partner remains ready; this player's intent must not spend that partner's action.
+                TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent,
+                    UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, mountActor, !mountActor, false, true,
+                        riderIsLegalActor: !mountActor, mountIsLegalActor: mountActor), "A completed attack dispatched its partner or stayed pending.");
+                var refusal = UnifiedMountedStockAttackPolicy.NoStandardFeedback(
+                    mountActor ? "Greased Lightning" : "Royon", mountActor ? "Royon" : "Greased Lightning", true);
+                TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "Ordinary attack completion displayed a spent-action refusal.");
+                TestRunner.True(intent.CanContinue(target, turn, mountActor), "Reading feedback changed the accepted intent.");
+            }
+        }
+
+        private static void FreshSpentActorFeedback()
+        {
+            foreach (var mountActor in new[] { false, true })
+            {
+                var intent = new MountedAttackIntent<object, object>();
+                intent.Begin(new object(), new object(), mountActor, true);
+                TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent,
+                    UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, mountActor, !mountActor, false, true,
+                        riderIsLegalActor: !mountActor, mountIsLegalActor: mountActor), "A fresh spent-actor request used its ready partner's action.");
+                var refusal = UnifiedMountedStockAttackPolicy.NoStandardFeedback(
+                    mountActor ? "Greased Lightning" : "Royon", mountActor ? "Royon" : "Greased Lightning", true);
+                TestRunner.Equal(refusal, intent.GetRejectionFeedback(refusal), "A genuinely new invalid click lost its actor-specific explanation.");
+                intent.Cancel();
+                TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "A retired click could produce another refusal.");
+            }
+        }
+
+        private static void ContinuedAttackFeedback()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object(); var rider = new object(); var mount = new object();
+            var weapon = new object(); var mountWeapon = new object();
+            intent.Begin(target, turn, false, true, rider, mount, weapon, mountWeapon, 1);
+            var generation = intent.Generation;
+            intent.ObserveDispatch(false);
+            TestRunner.True(intent.CanContinue(target, turn, false, rider, mount, weapon, mountWeapon, 1), "The repeated target did not preserve its current attack.");
+            intent.PromoteToPlayer();
+            TestRunner.Equal(null, intent.GetRejectionFeedback("The action actor has no Standard action available."),
+                "A repeated same-target click made the already dispatched attack warn on completion.");
+            TestRunner.True(intent.Owns(target, generation), "Repeated input replaced the accepted generation.");
+        }
+
+        private static void CancelledAttackFeedback()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            const string refusal = "Royon has no Standard action left this turn.";
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "An idle pair produced a player refusal.");
+            intent.Begin(target, turn, false, true);
+            intent.ObserveDispatch(false);
+            intent.Cancel();
+            intent.ObserveDispatch(false); // A late observation without a live intent must not revive it.
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "A cancelled attack revived its feedback.");
+            intent.Begin(target, turn, false, true);
+            TestRunner.Equal(refusal, intent.GetRejectionFeedback(refusal), "Stop followed by a new click inherited the old completion's silence.");
+        }
+
+        private static void ReplacementAttackFeedback()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object(); var next = new object(); var turn = new object();
+            var rider = new object(); var mount = new object(); var weapon = new object(); var mountWeapon = new object();
+            const string refusal = "The target is not currently attackable.";
+            intent.Begin(target, turn, false, true, rider, mount, weapon, mountWeapon, 1);
+            intent.ObserveDispatch(false);
+            TestRunner.True(!intent.CanContinue(next, turn, false, rider, mount, weapon, mountWeapon, 1), "Retarget retained the old request.");
+            intent.Begin(next, turn, false, true, rider, mount, weapon, mountWeapon, 1);
+            TestRunner.Equal(refusal, intent.GetRejectionFeedback(refusal), "A new target inherited the old request's dispatch history.");
+            intent.ObserveDispatch(false);
+            TestRunner.True(!intent.CanContinue(next, turn, false, rider, mount, weapon, mountWeapon, 2), "A changed action context retained the old request.");
+            intent.Begin(next, turn, false, true, rider, mount, weapon, mountWeapon, 2);
+            TestRunner.Equal(refusal, intent.GetRejectionFeedback(refusal), "A new action context inherited the old request's dispatch history.");
+        }
+
+        private static void AutomaticAttackFeedback()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            const string refusal = "The action actor has no Standard action available.";
+            intent.Begin(new object(), null, false, true, automatic: true);
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "An automatic proposal produced player feedback before dispatch.");
+            intent.ObserveDispatch(false);
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "Automatic continuation produced player feedback after dispatch.");
+            intent.Cancel();
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "A retired automatic intent produced player feedback.");
+        }
+
+        private static void PromotedAttackFeedback()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object();
+            const string refusal = "The target is not currently attackable.";
+            intent.Begin(target, null, false, true, automatic: true);
+            intent.PromoteToPlayer();
+            TestRunner.Equal(refusal, intent.GetRejectionFeedback(refusal), "A player request that never dispatched lost its explanation after promotion.");
+            intent.Begin(target, null, false, true, automatic: true);
+            intent.ObserveDispatch(false);
+            intent.PromoteToPlayer();
+            TestRunner.Equal(null, intent.GetRejectionFeedback(refusal), "Promoting an already dispatched attack made its later completion a new refusal.");
+        }
+
+        private static void PairLocalAttackFeedback()
+        {
+            var first = new MountedAttackIntent<object, object>(); var second = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            const string refusal = "The action actor has no Standard action available.";
+            first.Begin(target, turn, false, true);
+            second.Begin(target, turn, true, true);
+            first.ObserveDispatch(false);
+            TestRunner.Equal(null, first.GetRejectionFeedback(refusal), "The first pair warned after its attack.");
+            TestRunner.Equal(refusal, second.GetRejectionFeedback(refusal), "The first pair's attack hid the second pair's fresh refusal.");
+            second.ObserveDispatch(true);
+            first.Cancel();
+            first.Begin(target, turn, false, true);
+            TestRunner.Equal(refusal, first.GetRejectionFeedback(refusal), "The second pair's attack hid the first pair's new refusal.");
+            TestRunner.Equal(null, second.GetRejectionFeedback(refusal), "Restarting the first pair revived the second pair's completion warning.");
+        }
+
+        private static void RealTimeContinuationFeedback()
+        {
+            var target = new object();
+            var routine = new Action<MountedCombatActionContext>[]
+            {
+                c => c.ActionActorHasStandardAction = false,
+                c => c.TargetAttackable = false,
+                c => c.TargetVisible = false,
+                c => c.ActionActorOwnsCurrentTurnOrRealTime = false,
+                c => c.TransactionIdle = false,
+                c => c.PathKnownUnavailable = true,
+                c => c.WithinSupportedRangeEnvelope = false,
+                c => c.ExactRiderSelection = false
+            };
+            foreach (var change in routine)
+            {
+                var refusal = Refusal(change);
+                var intent = new MountedAttackIntent<object, object>();
+                intent.Begin(target, null, false, true);
+                intent.ObserveDispatch(false);
+                TestRunner.Equal(MountedStockAttackDecision.Wait,
+                    UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, false, false, true),
+                    "Native cooldown ended the real-time intent.");
+                TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                    UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, false, false, true),
+                    "A ready actor could not resume its real-time intent.");
+                // A later admission may refuse after the decision; it is not a new click from the player.
+                TestRunner.Equal(null, intent.GetDispatchRejectionFeedback(refusal.Feedback, refusal.RejectionCodes),
+                    "A later routine refusal warned for the original successful click: " + refusal.Feedback);
+                intent.Cancel();
+                intent.Begin(target, null, false, true);
+                TestRunner.Equal(refusal.Feedback, intent.GetDispatchRejectionFeedback(refusal.Feedback, refusal.RejectionCodes),
+                    "A new real-time player request lost its rejection feedback: " + refusal.Feedback);
+            }
+        }
+
+        private static void LaterDispatchFaultFeedback()
+        {
+            var target = new object();
+            var meaningful = new Action<MountedCombatActionContext>[]
+            {
+                c => c.CommandAdmissionReady = false,
+                c => c.RangeOriginConsistent = false,
+                c => c.FeatureEnabled = false,
+                c => c.SupportedMountProfile = false,
+                c => c.RiderHasEligibleWeapon = false,
+                c => c.RiderWeaponIsRanged = true,
+                // A routine fact beside a fault still reports the fault.
+                c => { c.ActionActorHasStandardAction = false; c.CommandAdmissionReady = false; }
+            };
+            foreach (var change in meaningful)
+            {
+                var refusal = Refusal(change);
+                var intent = new MountedAttackIntent<object, object>();
+                intent.Begin(target, null, false, true);
+                intent.ObserveDispatch(false);
+                TestRunner.Equal(refusal.Feedback, intent.GetDispatchRejectionFeedback(refusal.Feedback, refusal.RejectionCodes),
+                    "A fault after an accepted attack lost its explanation: " + refusal.Feedback);
+                // An automatic intent never answers a player; the controller logs the refusal instead.
+                intent.Begin(target, null, false, true, automatic: true);
+                intent.ObserveDispatch(false);
+                TestRunner.Equal(null, intent.GetDispatchRejectionFeedback(refusal.Feedback, refusal.RejectionCodes),
+                    "An automatic continuation produced player feedback: " + refusal.Feedback);
+                intent.Cancel();
+                TestRunner.Equal(null, intent.GetDispatchRejectionFeedback(refusal.Feedback, refusal.RejectionCodes),
+                    "A retired intent produced player feedback.");
+            }
+            // A scheduler or command-container admission failure reports this code alone.
+            const string admission = "Mounted pair command failed to enter the action actor Standard slot.";
+            var later = new MountedAttackIntent<object, object>();
+            later.Begin(target, null, false, true);
+            later.ObserveDispatch(true);
+            TestRunner.Equal(admission, later.GetDispatchRejectionFeedback(admission, new[] { MountedCombatRejectionCode.CommandAdmissionFailure }),
+                "A native admission failure after an accepted attack was hidden.");
+            TestRunner.Equal(admission, later.GetDispatchRejectionFeedback(admission, new MountedCombatRejectionCode[0]),
+                "An uncoded refusal after an accepted attack was treated as routine.");
         }
 
         private static void MovementPrepayment()

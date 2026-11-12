@@ -1,3 +1,18 @@
+# Attack completion warnings — review checkpoint after the lab continuation (2026-11-12)
+
+Branch `codex/kmc-attack-completion-warnings`, draft PR #33; base main `680d02cb` (0.2.5). Read CURRENT.md and the top
+of docs/ATTACK-COMPLETION-WARNINGS-HANDOFF.md.
+
+- **State:** source correction plus a review refinement (code-classified later-dispatch refusals; all stock dispatch
+  rejections logged). Ten regressions in total. Fast PASS 3/0 on genuine references (components 1168/0).
+- **Lifetime:** command-terminal cleanup clears `stockIntentCommand` but intentionally retains `stockIntent`. The
+  latter remembers accepted dispatch. Read the rejection feedback before clearing the intent; same-target promotion
+  must preserve dispatch history.
+- **Native next step:** it needs a qualified KMC Baseline/Working fixture and `runtime-state\fixture-qualification.json`
+  on this machine (neither exists), or an owner session with the branch DLL. Take the scenarios from the handoff's
+  remaining-evidence section.
+- **Delivery:** review branch only; no merge/release/tag/install/launch. Existing unrelated defects remain open.
+
 # Exploration repair resume — partial, native blocked (2026-11-12)
 
 Branch `codex/kmc-exploration-markers-speed-events` (draft PR). Read CURRENT.md and docs/EXPLORATION-REPAIR-HANDOFF.md.

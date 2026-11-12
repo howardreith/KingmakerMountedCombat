@@ -200,6 +200,41 @@ namespace KingmakerMountedCombat.Domain
                 ? feedback + " Select " + partnerName + " to attack with it."
                 : feedback;
         }
+
+        // A later dispatch of an already accepted request re-reads turn, action, selection, target, path and
+        // lifecycle state that may have changed since the click: routine reassessment, not a new player error.
+        // Faults and configuration (command admission, disagreeing range gates, a disabled feature, an unsupported
+        // body or weapon) and an uncoded refusal are not routine, so they keep their answer.
+        public static bool IsRoutineContinuationRefusal(IEnumerable<MountedCombatRejectionCode> codes)
+        {
+            if (codes == null) { return false; }
+            var any = false;
+            foreach (var code in codes)
+            {
+                switch (code)
+                {
+                    case MountedCombatRejectionCode.WrongActorOrSelection:
+                    case MountedCombatRejectionCode.RelationshipInvalidated:
+                    case MountedCombatRejectionCode.NotInCombat:
+                    case MountedCombatRejectionCode.PairLifeStateInvalid:
+                    case MountedCombatRejectionCode.TargetInvalid:
+                    case MountedCombatRejectionCode.TargetNotVisible:
+                    case MountedCombatRejectionCode.TargetNotHostile:
+                    case MountedCombatRejectionCode.TargetNotAttackable:
+                    case MountedCombatRejectionCode.WrongTurn:
+                    case MountedCombatRejectionCode.WrongActionState:
+                    case MountedCombatRejectionCode.AlreadyActiveCommand:
+                    case MountedCombatRejectionCode.LifecycleBoundary:
+                    case MountedCombatRejectionCode.NoPath:
+                    case MountedCombatRejectionCode.OutsideSupportedRange:
+                        any = true;
+                        break;
+                    default:
+                        return false;
+                }
+            }
+            return any;
+        }
     }
 
     /// <summary>Only admitted pointer intent owns this state. Cancellation invalidates all prior generations.</summary>
@@ -213,6 +248,7 @@ namespace KingmakerMountedCombat.Domain
         public bool PreferMount { get; private set; }
         // AI-01: admitted from the native party brain, not a click. Same dispatch; different boundaries.
         public bool Automatic { get; private set; }
+        private bool hasDispatched;
         private object riderContext;
         private object mountContext;
         private object weaponContext;
@@ -236,6 +272,7 @@ namespace KingmakerMountedCombat.Domain
             MountActor = mountActor;
             PreferMount = false;
             Automatic = automatic;
+            hasDispatched = false;
             HasEnteredCombat = inCombat;
             riderContext = rider;
             mountContext = mount;
@@ -258,7 +295,28 @@ namespace KingmakerMountedCombat.Domain
 
         public void ObserveDispatch(bool mountActor)
         {
-            if (Target != null) PreferMount = !mountActor;
+            if (Target != null)
+            {
+                PreferMount = !mountActor;
+                hasDispatched = true;
+            }
+        }
+
+        // A terminal command releases its reference before the retained intent observes spent actions.
+        // That is completion of accepted work, not a fresh refused click: only a player request that
+        // never dispatched is answered. Same-target continuation never re-arms feedback.
+        public string GetRejectionFeedback(string feedback)
+        {
+            return Target != null && !Automatic && !hasDispatched ? feedback : null;
+        }
+
+        // A refused dispatch answers a player request that never dispatched. After accepted work, a later
+        // refusal by the repeating intent stays quiet only when it is routine reassessment; a fault or
+        // configuration refusal still answers once, since the rejection retires the intent.
+        public string GetDispatchRejectionFeedback(string feedback, IEnumerable<MountedCombatRejectionCode> codes)
+        {
+            if (Target == null || Automatic) { return null; }
+            return !hasDispatched || !UnifiedMountedStockAttackPolicy.IsRoutineContinuationRefusal(codes) ? feedback : null;
         }
 
         public bool ObserveCombatEnded(bool inCombat)
@@ -275,6 +333,7 @@ namespace KingmakerMountedCombat.Domain
             MountActor = false;
             PreferMount = false;
             Automatic = false;
+            hasDispatched = false;
             riderContext = mountContext = weaponContext = mountWeaponContext = null;
             actionContext = 0;
             Generation++;
