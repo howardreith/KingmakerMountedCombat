@@ -178,6 +178,7 @@
     <Compile Include="Domain\MountedFamiliarFollowPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentPolicy.cs" />
     <Compile Include="Domain\MountedAreaTransferLifecycle.cs" />
+    <Compile Include="Domain\MountedWorldBoundaryAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentRecord.cs" />
     <Compile Include="Integration\MountedRetainedIntent.cs" />
     <Compile Include="Integration\MountedExplorationObserver.cs" />
@@ -600,6 +601,7 @@
     <Compile Include="Integration\MountedRelationshipDeliveryFault.cs" />
     <Compile Include="Integration\MountedChargeGeometry.cs" />
     <Compile Include="Integration\MountedCombatController.Charge.cs" />
+    <Compile Include="Integration\MountedCombatController.Entrance.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\NativeMountedControlService.Ownership.cs" />

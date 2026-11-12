@@ -195,6 +195,65 @@ public static class KmcPersistenceContractProbe
         Check((bool)read.Invoke(null,new[]{controller}),"a second unfinished native spell cannot hide behind a completed process");
     }
 
+    // Review of PR #31 (P2): a logger that throws must not interrupt save-scope cleanup. Every IModLogger call throws.
+    private sealed class ThrowingLogger : System.Runtime.Remoting.Proxies.RealProxy
+    {
+        internal int Calls;
+        internal ThrowingLogger(Type type) : base(type) {}
+        public override System.Runtime.Remoting.Messaging.IMessage Invoke(System.Runtime.Remoting.Messaging.IMessage message)
+        {
+            Calls++;
+            return new System.Runtime.Remoting.Messaging.ReturnMessage(new InvalidOperationException("terminal logger failed"),
+                (System.Runtime.Remoting.Messaging.IMethodCallMessage)message);
+        }
+    }
+
+    // Drives the actual compiled ReleaseSaveScope on a detached service: a completed save whose completion report throws
+    // still releases its scope, its relationships' serialization suspension and the service's ownership fields, records
+    // the completion, and leaves the next save and load admissible. No game is launched.
+    private static void VerifySaveCompletionReportIsolation(Assembly candidate)
+    {
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+        var scopeType=serviceType.GetNestedType("SaveScope",BindingFlags.NonPublic);
+        var relationshipType=candidate.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+        var loggerType=candidate.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+        var service=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(serviceType);
+        var throwing=new ThrowingLogger(loggerType);
+        serviceType.GetField("logger",flags).SetValue(service,throwing.GetTransparentProxy());
+        var scope=Activator.CreateInstance(scopeType,true);
+        scopeType.GetField("Completed",flags).SetValue(scope,true);
+        var relationship=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(relationshipType);
+        var suspended=relationshipType.GetProperty("SaveSerializationSuspended",flags);
+        suspended.SetValue(relationship,true,null);
+        var relationships=Array.CreateInstance(relationshipType,1);relationships.SetValue(relationship,0);
+        scopeType.GetField("Relationships",flags).SetValue(scope,relationships);
+        foreach(var field in new[]{"activeSave","drainingSave","releasingSave"}) serviceType.GetField(field,flags).SetValue(service,scope);
+        var release=serviceType.GetMethod("ReleaseSaveScope",flags);
+        Exception escaped=null;
+        try { release.Invoke(service,new[]{scope}); } catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(throwing.Calls>=1,"the completion report actually reached the throwing logger");
+        Check(escaped==null,"a throwing completion report does not escape save-scope release: "+(escaped==null?"":escaped.Message));
+        Check((bool)scopeType.GetField("Released",flags).GetValue(scope) && !(bool)suspended.GetValue(relationship,null),
+            "a throwing completion report still releases the scope and its relationships' serialization suspension");
+        Check(serviceType.GetField("activeSave",flags).GetValue(service)==null && serviceType.GetField("drainingSave",flags).GetValue(service)==null &&
+            serviceType.GetField("releasingSave",flags).GetValue(service)==null,
+            "a throwing completion report still clears the active, draining and releasing save ownership");
+        Check((int)serviceType.GetProperty("CompletedSaveCount",flags).GetValue(service,null)==1 &&
+            serviceType.GetProperty("LastCompletedSave",flags).GetValue(service,null)!=null &&
+            (int)serviceType.GetProperty("CompletedSaveReportFailureCount",flags).GetValue(service,null)==1,
+            "the completion is recorded once and the failed report is counted, not lost");
+        Check(!(bool)serviceType.GetProperty("HasActiveSaveScope",flags).GetValue(service,null) &&
+            !(bool)serviceType.GetProperty("SaveDraining",flags).GetValue(service,null),
+            "after a throwing completion report the next save and load are not held by the finished scope");
+        var next=Activator.CreateInstance(scopeType,true);
+        serviceType.GetField("activeSave",flags).SetValue(service,next);
+        try { release.Invoke(service,new[]{next}); } catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(escaped==null && serviceType.GetField("activeSave",flags).GetValue(service)==null &&
+            (int)serviceType.GetProperty("CompletedSaveCount",flags).GetValue(service,null)==1,
+            "a subsequent (uncompleted) operation still acquires and releases ownership normally");
+    }
+
     private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
     {
         var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
@@ -984,6 +1043,65 @@ public static class KmcPersistenceContractProbe
             Check(readsQueue && !readsCurrent && selectorCalls!=null && RouteIndex(selectorCalls,m=>m.Name=="GetType")>=0 &&
                 RouteIndex(selectorCalls,m=>m.Name=="get_Name")>RouteIndex(selectorCalls,m=>m.Name=="GetType"),
                 "LoadingProcess.QueuedNames lists only queued processes (never the current one) by coroutine type name");
+            // Save/load and entrance repair (2026-11-12).
+            var loadGame=native.ManifestModule.ResolveMethod(0x06000CE0);
+            var loadGameCalls=RouteCalls(read,loadGame);
+            var loadGameIl=RouteInstructions(read,loadGame);
+            var fullLoad=RouteInstructionIndex(loadGameIl,RouteToken(native,0x06000CD5));
+            Check(loadGame.Name=="LoadGame" && RouteIndex(loadGameCalls,m=>m.Name=="PrecheckSaveCorruption")>=0 &&
+                RouteIndex(loadGameCalls,RouteToken(native,0x06000CD5))>RouteIndex(loadGameCalls,m=>m.Name=="PrecheckSaveCorruption") &&
+                fullLoad>0 && loadGameIl[fullLoad-1][1] is FieldInfo && ((FieldInfo)loadGameIl[fullLoad-1][1]).Name=="saveInfo",
+                "Game.LoadGame calls the full LoadArea 06000CD5 with the selected SaveInfo as its last argument (a world replacement, not travel)");
+            var saveGame=native.ManifestModule.ResolveMethod(0x06000CE4);
+            var saveGameCalls=RouteCalls(read,saveGame);
+            Check(saveGame.Name=="SaveGame" && saveGame.GetParameters().Length==2 && saveGame.GetParameters()[0].Name=="saveInfo" &&
+                RouteIndex(saveGameCalls,RouteToken(native,0x06008028))>=0 &&
+                RouteIndex(saveGameCalls,RouteToken(native,0x06008029))>RouteIndex(saveGameCalls,RouteToken(native,0x06008028)),
+                "Game.SaveGame consults IsSaveAllowed before it queues SaveRoutine (a refusal there leaves only a UI warning)");
+            var start=native.ManifestModule.ResolveMethod(0x0600378A);
+            var startCalls=RouteCalls(read,start);
+            var partyList=RouteIndex(startCalls,RouteToken(native,0x06000DE0));
+            var selectAll=RouteIndex(startCalls,m=>m.Name=="SelectAll");
+            var moveSelected=RouteIndex(startCalls,m=>m.Name=="MoveSelectedUnitsToPoint");
+            Check(start.Name=="StartAreaTransition" && RouteIndex(startCalls,m=>m.Name=="get_IsInCombat")>=0 &&
+                partyList>=0 && selectAll>partyList && moveSelected>selectAll && RouteIndex(startCalls,m=>m.Name=="<StartAreaTransition>b__0")>=0,
+                "an entrance click builds its group from the party list, selects all, then orders only the selected units");
+            var callback=native.ManifestModule.ResolveMethod(0x0600AE7E);
+            var runTransition=native.ManifestModule.ResolveMethod(0x0600378B);
+            var runCalls=RouteCalls(read,runTransition);
+            Check(RouteIndex(RouteCalls(read,callback),RouteToken(native,0x0600378B))>=0 &&
+                RouteIndex(runCalls,RouteToken(native,0x0600264D))>=0 && RouteIndex(runCalls,RouteToken(native,0x060026B2))>RouteIndex(runCalls,RouteToken(native,0x0600264D)),
+                "each selected unit receives its own UnitAreaTransition through UnitCommands.Run (the KMC Run patch sees the rider's)");
+            var selectAllNative=native.ManifestModule.ResolveMethod(0x060034FE);
+            Check(RouteIndex(RouteCalls(read,selectAllNative),RouteToken(native,0x060034F5))>=0,
+                "SelectionManager.SelectAll selects through MultiSelect (KMC projects a mounted horse onto its rider there)");
+            var partyCalls2=RouteCalls(read,native.ManifestModule.ResolveMethod(0x06000DE0));
+            Check(RouteIndex(partyCalls2,m=>m.Name=="get_ControllableCharacters")>=0 &&
+                RouteIndex(RouteCalls(read,native.ManifestModule.ResolveMethod(0x0600A38E)),m=>m.Name=="get_IsDirectlyControllable")>=0,
+                "group membership comes from the directly controllable party, not the selection (a mounted horse is a member)");
+            var proximity=RouteInstructions(read,native.ManifestModule.ResolveMethod(0x0600263F));
+            var thirtySix=false; foreach(var ins in proximity) if(ins[1] is float && (float)ins[1]==36f) thirtySix=true;
+            Check(thirtySix && RouteInstructionIndex(proximity,m=>m.Name=="SqrMechanicsDistance")>=0,
+                "an entrance group may also start once every member stands within 6 m of the transition");
+            var ended=RouteCalls(read,native.ManifestModule.ResolveMethod(0x060026D0));
+            Check(RouteIndex(ended,RouteToken(native,0x06002748))>=0 && RouteIndex(ended,RouteToken(native,0x0600274D))>=0,
+                "a member command that ends without success interrupts the whole group; a successful one counts its unit once");
+            var transitionType=native.GetType("Kingmaker.UnitLogic.Commands.UnitAreaTransition",true);
+            var groupField=native.GetType("Kingmaker.UnitLogic.Commands.UnitGroupCommand",true).GetField("GroupCommand");
+            var publicCtor=false;
+            foreach(var ctor in transitionType.GetConstructors())
+            {
+                var ps=ctor.GetParameters();
+                if(ps.Length==2 && ps[0].ParameterType.FullName=="Kingmaker.UnitLogic.Commands.AreaTransitionGroupCommand" &&
+                    ps[1].ParameterType.FullName=="UnityEngine.Vector3" && ctor.MetadataToken==0x0600264D) publicCtor=true;
+            }
+            var groupCtorAssigns=false;
+            foreach(var ins in RouteInstructions(read,native.ManifestModule.ResolveMethod(0x060026CE)))
+                if(ins[1] is FieldInfo && ((FieldInfo)ins[1]).MetadataToken==0x04001A4A) groupCtorAssigns=true;
+            var transitionCtorCalls=RouteCalls(read,native.ManifestModule.ResolveMethod(0x0600264D));
+            Check(publicCtor && groupField!=null && groupField.IsPublic && groupCtorAssigns &&
+                RouteIndex(transitionCtorCalls,RouteToken(native,0x060026CE))>=0,
+                "the product's entrance carrier uses the public native UnitAreaTransition constructor and group field");
             var original=native.ManifestModule.ResolveMethod(0x06008025);
             var instructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{original,null});
             var legacyInstruction=harmonyAssembly.GetType("Harmony12.CodeInstruction",true);
@@ -1087,6 +1205,7 @@ public static class KmcPersistenceContractProbe
                 "exact native tick rewrite preserves progress, queue, screen, timer and callback bookkeeping");
 
             VerifyNativeDeferredOwner(native,candidate);
+            VerifySaveCompletionReportIsolation(candidate);
             VerifyNativeAbilitySettlement(native,candidate);
             VerifyNativeTouchCommitment(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);

@@ -166,6 +166,10 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) },
                     nameof(PatchMethods.SaveWorkerPrefix), null, nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
+                // Save/load repair: observation only. Game.SaveGame refuses through IsSaveAllowed with a UI warning and no
+                // log; this records each request and the refusing term before that native check.
+                PatchExact(typeof(Kingmaker.Game), "SaveGame", 0x06000CE4, new[] { typeof(SaveInfo), typeof(Action) },
+                    nameof(PatchMethods.SaveRequestObservationPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadArea", 0x06000CD5,
                     new[] { typeof(Kingmaker.Blueprints.Area.BlueprintArea), typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint),
                         typeof(AutoSaveMode), typeof(bool), typeof(SaveInfo) }, nameof(PatchMethods.AreaTransitionPrefix));
@@ -708,8 +712,12 @@ namespace KingmakerMountedCombat.Integration
             internal static void UnitCommandRunPostfix(UnitCommands __instance, UnitCommand cmd, MountedCarriedRequestTicket __state)
             {
                 PatchBridge.CombatFor(__instance)?.ObserveGroundOrderRun(__instance, cmd);
-                if (__state == null) return;
-                PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
+                if (__state != null) PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
+                // Entrance repair: after native Run executed the rider's own UnitAreaTransition (and its own request ticket
+                // settled), its horse, a native member of the same group that selection projected onto the rider,
+                // receives its member command.
+                try { PatchBridge.CombatFor(__instance)?.CarryRiderEntranceTransition(__instance, cmd); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted entrance approach was not carried", error); }
             }
 
             internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)
@@ -1405,6 +1413,12 @@ namespace KingmakerMountedCombat.Integration
                 return authorized;
             }
 
+            internal static void SaveRequestObservationPrefix(SaveInfo saveInfo)
+            {
+                try { PatchBridge.Persistence?.ObserveSaveRequest(saveInfo); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mounted save request was not observed", error); }
+            }
+
             internal static void SavePostfix(SaveInfo saveInfo, ref IEnumerator<object> __result, bool __state)
             {
                 if (__state && __result != null)
@@ -1414,6 +1428,11 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo)
             {
+                // Save/load repair: Game.LoadGame (06000CE0) reaches this full LoadArea with the selected SaveInfo. That is a
+                // saved-world replacement, admitted by its own load policy and released through load housekeeping; only
+                // area travel (saveInfo == null) is subject to the exploration travel guard.
+                if (MountedWorldBoundaryAdmissionPolicy.Classify(saveInfo != null) == MountedWorldBoundaryKind.SavedWorldReplacement)
+                    return PatchBridge.Persistence?.AdmitSavedWorldReplacement(area, saveInfo) != false;
                 if (PatchBridge.Persistence?.AdmitChargeAreaTransition() == false) return false;
                 PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo, true);
                 return true;
@@ -1479,10 +1498,13 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
                 var accepted = PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
-                if (authorization?.HasArmedOwnerSeedLoadRefusal != true) return accepted;
-                return authorization.FenceOwnerSeedLoadRefusalDecision(accepted,
-                    saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
-                    Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
+                if (authorization?.HasArmedOwnerSeedLoadRefusal == true)
+                    accepted = authorization.FenceOwnerSeedLoadRefusalDecision(accepted,
+                        saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
+                        Kingmaker.Game.Instance.SaveManager.SavePath, nativeEntry);
+                // The full LoadArea this entry calls synchronously recognises the exact admitted descriptor.
+                if (accepted) PatchBridge.Persistence?.BindAdmittedLoad(saveInfo);
+                return accepted;
             }
 
             internal static bool GameMainMenuLoadAdmissionPrefix(SaveInfo saveInfo) =>

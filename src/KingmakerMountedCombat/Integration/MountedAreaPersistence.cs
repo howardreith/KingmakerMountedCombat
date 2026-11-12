@@ -20,22 +20,132 @@ namespace KingmakerMountedCombat.Integration
         internal int AreaRetiredPairCount { get; private set; }
         internal int RefusedAreaTransferCount { get; private set; }
 
+        // Area TRAVEL in the same world (a door, a world-map arrival, a scripted area change): the 0.2.4 terms in their
+        // exact order and with the same lazy evaluation; the first refusing term is now named in the log.
         internal bool AdmitChargeAreaTransition()
         {
-            if (areaRestoreFailure == null && !HasAreaParticipationObligations() &&
-                !HasActiveSaveScope && !HasSaveAdmissionFence && !AnyChargeFence &&
-                DrainWorldCharge("area transition admission")) return true;
+            string participant = null;
+            var refusal = MountedWorldBoundaryAdmissionPolicy.DecideTravel(areaRestoreFailure != null,
+                () => HasAreaParticipationObligations(out participant), HasActiveSaveScope, HasSaveAdmissionFence, AnyChargeFence,
+                () => DrainWorldCharge("area transition admission"));
+            if (refusal == MountedWorldBoundaryRefusal.None) return true;
             RefusedAreaTransferCount++;
             Report("Area change refused: a mounted activation, pending survivor, command, cleanup or save still owns this world boundary.");
+            TraceBoundary("Mounted world boundary refused: operation=area-travel; entry=Game.LoadArea(06000CD5, saveInfo=null); reason=" +
+                refusal + " (" + MountedWorldBoundaryAdmissionPolicy.Describe(refusal) + ")" + (participant != null ? "; " + participant : "") +
+                "; " + BoundaryStateDetail() + ".");
             return false;
         }
 
-        private bool HasAreaParticipationObligations()
+        // Save/load repair: Game.LoadGame (06000CE0) admitted this exact descriptor in its prefix and calls the full LoadArea
+        // synchronously with it, so the binding is the same object within the same frame. Anything else re-runs the
+        // selected-load admission here.
+        private WeakReference admittedLoadSave;
+        private int admittedLoadFrame = -1;
+        internal int SavedWorldReplacementCount { get; private set; }
+        internal int RefusedSavedWorldReplacementCount { get; private set; }
+
+        internal void BindAdmittedLoad(SaveInfo save)
         {
+            admittedLoadSave = save == null ? null : new WeakReference(save);
+            admittedLoadFrame = UnityEngine.Time.frameCount;
+        }
+
+        // A saved-world REPLACEMENT through the full LoadArea (saveInfo != null). It never applies the exploration travel
+        // guard, and it releases nothing itself (independent review F1/F2): the established load path releases the
+        // outgoing world (OnAreaBeginUnloading cleanup, then WrapLoadRoutine, which retires the previous load scope before
+        // BeginLoadHousekeeping). Archive workers, a queued save, a charge fence, retained charge cleanup on any pair and
+        // the selected archive's own admission still refuse.
+        internal bool AdmitSavedWorldReplacement(BlueprintArea area, SaveInfo save)
+        {
+            var bound = admittedLoadSave != null && ReferenceEquals(admittedLoadSave.Target, save) &&
+                admittedLoadFrame == UnityEngine.Time.frameCount;
+            admittedLoadSave = null; admittedLoadFrame = -1;
+            var game = Game.Instance;
+            var detail = "operation=saved-world-replacement; entry=Game.LoadArea(06000CD5, saveInfo); save=" + (save?.Name ?? "none") +
+                "; selectedCampaign=" + (save?.GameId ?? "none") + "; selectedArea=" + (save?.Area?.AssetGuidThreadSafe ?? "none") +
+                "; outgoingCampaign=" + (game?.Player?.GameId ?? "none") + "; outgoingArea=" +
+                (game?.CurrentlyLoadedArea?.AssetGuidThreadSafe ?? "none") + "; admittedByLoadGame=" + bound +
+                "; inCombat=" + (game?.Player?.IsInCombat ?? false) + "; turnBased=" + TurnBased.Controllers.CombatController.IsInTurnBasedCombat() +
+                "; activation=" + (unifiedTurn.ActivationIdentity ?? "none");
+            var before = BoundaryStateDetail();
+            var refusal = DecideSavedWorldReplacement(save, bound);
+            if (refusal != MountedWorldBoundaryRefusal.None)
+            {
+                RefusedSavedWorldReplacementCount++;
+                TraceBoundary("Mounted world boundary refused: " + detail + "; reason=" + refusal + " (" +
+                    MountedWorldBoundaryAdmissionPolicy.Describe(refusal) + "); " + before + "; chargeOwnersAfterDrain=" + RetainedChargeOwnerCount + ".");
+                // The selected-load admission reports its own refusal; every other refusal is reported here once.
+                if (refusal != MountedWorldBoundaryRefusal.SelectedLoadRefused)
+                {
+                    var message = "Load canceled: " + MountedWorldBoundaryAdmissionPolicy.Describe(refusal) + "; try again once it finishes.";
+                    Report(message);
+                    try { Kingmaker.PubSubSystem.EventBus.RaiseEvent<Kingmaker.PubSubSystem.IWarningNotificationUIHandler>(
+                        handler => handler.HandleWarning(message, true)); }
+                    catch (Exception error) { logger.Exception("Mounted load warning display failed", error); }
+                }
+                return false;
+            }
+            SavedWorldReplacementCount++;
+            BeginAreaTransition(area, save, true);
+            TraceBoundary("Mounted world boundary admitted: " + detail + "; " + before +
+                "; the outgoing mounted world is released by the native unload and load housekeeping.");
+            return true;
+        }
+
+        // The admission decision itself, free of frame and game-instance reads so the contract probe can drive it over real
+        // pair controllers. Every pair's charge custody is drained (not only the primary's, and not only a fenced one);
+        // a drain that throws refuses the load rather than letting the native unload begin over unresolved custody.
+        private MountedWorldBoundaryRefusal DecideSavedWorldReplacement(SaveInfo save, bool bound) =>
+            MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => bound || CanLoadBeforeWorldReplacement(save),
+                HasActiveSaveScope, SaveDraining, HasSaveAdmissionFence, AnyChargeFence,
+                () => TryDrainWorldChargeForLoad("saved-world replacement admission"));
+
+        private bool TryDrainWorldChargeForLoad(string reason)
+        {
+            try { return DrainWorldCharge(reason); }
+            catch (Exception error)
+            {
+                try { logger.Exception("Mounted charge cleanup failed during load admission", error); } catch { }
+                return false;
+            }
+        }
+
+        // Boundary diagnostics never change the boundary decision: the admitted line is written after the transition
+        // began, and the logger itself has no exception guard (review of PR #31).
+        private void TraceBoundary(string message)
+        {
+            try { logger.Info(message); } catch { }
+        }
+
+        private int RetainedChargeOwnerCount => WorldCombats.Count(c => c.HasChargeOwnership);
+
+        private string BoundaryStateDetail() =>
+            "transfer=" + (areaTransfer?.Lifecycle.Describe() ?? "none") + "; restoreFailure=" + (areaRestoreFailure != null) +
+            "; saveScope=" + HasActiveSaveScope + "; saveFence=" + HasSaveAdmissionFence + "; saveDraining=" + SaveDraining +
+            "; saveSuspended=" + SaveSuspended + "; chargeFence=" + AnyChargeFence + "; chargeOwners=" + RetainedChargeOwnerCount + "; mode=" + (Game.Instance?.CurrentMode.ToString() ?? "none");
+
+        private bool HasAreaParticipationObligations() { string ignored; return HasAreaParticipationObligations(out ignored); }
+
+        // Every participant is still visited (the settlement's side effects are unchanged); the first unsettled one is named.
+        private bool HasAreaParticipationObligations(out string first)
+        {
+            first = null;
             var unsettled = false;
             foreach (var participant in unifiedTurn.SnapshotParticipants)
-                if (!participant.TrySettleExplorationParticipation() || controls.HasUnsettledShellFor(participant.Relationship))
-                    unsettled = true;
+            {
+                var participation = participant.TrySettleExplorationParticipation();
+                var shell = controls.HasUnsettledShellFor(participant.Relationship);
+                if (participation && !shell) continue;
+                unsettled = true;
+                if (first != null) continue;
+                var relationship = participant.Relationship;
+                first = "participant=" + (relationship?.Rider?.UniqueId ?? "none") + "/" + (relationship?.Mount?.UniqueId ?? "none") +
+                    "; owner=" + (relationship?.PairOwner?.Id.ToString("N") ?? "none") + ":" + (relationship?.PairOwner?.Generation ?? 0) +
+                    "; participationSettled=" + participation + "; controlShellUnsettled=" + shell +
+                    "; riderInCombat=" + (relationship?.Rider?.IsInCombat ?? false) + "; mountInCombat=" + (relationship?.Mount?.IsInCombat ?? false) +
+                    "; activation=" + (unifiedTurn.ActivationIdentity ?? "none");
+            }
             return unsettled;
         }
 

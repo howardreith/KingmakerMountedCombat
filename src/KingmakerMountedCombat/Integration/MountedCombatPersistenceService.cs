@@ -37,6 +37,50 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
+        // Save/load repair: the KMC term of the native combat save gate, named (null when KMC does not refuse).
+        internal string CombatSaveBlockReason(Player player)
+        {
+            if (player == null) return "no world";
+            if (CombatSemanticRestorationPending) return "mounted combat restoration is pending";
+            if (ArchiveSmallPresentationPending) return "mounted presentation restoration is pending";
+            if (!player.IsInCombat) return null;
+            if (!Enabled) return "the mod is disabled";
+            if (!settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler)
+                return "the paired configuration does not support combat saving";
+            if (CombatController.IsInTurnBasedCombat() && !Game.Instance.TurnBasedCombatController.Initialized)
+                return "the native turn controller is not initialized";
+            return null;
+        }
+
+        // Save/load repair: one bounded line per native save request (Game.SaveGame 06000CE4, before its IsSaveAllowed
+        // refusal, which raises only a UI warning). Pure reads: IsSaveAllowed and the KMC gate change nothing.
+        internal void ObserveSaveRequest(Kingmaker.EntitySystem.Persistence.SaveInfo save)
+        {
+            var game = Game.Instance;
+            var player = game?.Player;
+            if (game == null || player == null) return;
+            var allowed = game.SaveManager.IsSaveAllowed();
+            string nativeTerm = null;
+            if (!allowed)
+            {
+                if (game.CurrentlyLoadedArea == null) nativeTerm = "no loaded area";
+                else if (NativeCombatBlocksSave(player))
+                    nativeTerm = (player.IsInCombat ? "combat (" : "KMC (") + (CombatSaveBlockReason(player) ?? "native") + ")";
+                else if (player.GameOverReason.HasValue) nativeTerm = "game over";
+                else if (game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog)) nativeTerm = "dialog";
+                else if (game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene)) nativeTerm = "cutscene";
+                else if (player.GlobalMap?.CurrentEncounterData != null) nativeTerm = "random encounter";
+                else nativeTerm = "another native term";
+            }
+            logger.Info("Mounted save request observed: type=" + (save?.Type.ToString() ?? "none") + "; name=" + (save?.Name ?? "none") +
+                "; nativeAllowed=" + allowed + (nativeTerm != null ? "; refusedBy=" + nativeTerm : "") +
+                "; kmcCombatGate=" + (CombatSaveBlockReason(player) ?? "open") + "; inCombat=" + player.IsInCombat +
+                "; turnBased=" + CombatController.IsInTurnBasedCombat() + "; mode=" + game.CurrentMode +
+                "; saveScope=" + HasActiveSaveScope + "; saveFence=" + HasSaveAdmissionFence + "; saveDraining=" + SaveDraining +
+                "; restoreFailure=" + (areaRestoreFailure != null) + "; loading=" +
+                (Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance?.IsLoadingInProcess ?? false) + ".");
+        }
+
         private UnitEntityData[] CombatActors() =>
             NativeCombatTurnPersistence.ReferencedActors(Game.Instance.TurnBasedCombatController)
                 .Concat(unifiedTurn.PersistenceActors).Concat(WorldRelationships.SelectMany(r => new[] { r.Rider, r.Mount }))

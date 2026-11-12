@@ -470,6 +470,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Game',0x06000CC9,'LoadArea'),@('Kingmaker.Game',0x06000CD5,'LoadArea'),
         @('Kingmaker.Game',0x06000CCB,'Teleport'),@('Kingmaker.PubSubSystem.ITeleportHandler',0x06007512,'HandlePartyTeleport'),
         @('Kingmaker.UnitLogic.Commands.AreaTransitionGroupCommand',0x0600263E,'ExecuteTransition'),
+        @('Kingmaker.UnitLogic.Commands.UnitAreaTransition',0x0600264D,'.ctor'),
         @('Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint',0x06009C5E,'get_Area'),
         @('Kingmaker.EntitySystem.Persistence.AutoSaveMode',0x04005417,'None'),
         @('Kingmaker.Game',0x06000CE4,'SaveGame'),@('Kingmaker.Game',0x06000CE9,'GetCamera'),
