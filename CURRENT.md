@@ -1,3 +1,16 @@
+# RELEASE 0.2.5 (OWNER ORDER, 2026-11-12)
+
+The owner ordered PR #31, the save/load and entrance repair (merge `af138c57`, tree identical to the reviewed
+`d512db91`), merged and released. Notes: [docs/RELEASE-NOTES-0.2.5.md](docs/RELEASE-NOTES-0.2.5.md).
+
+- **Version:** 0.2.5, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.5-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native acceptance rows in the handoff remain NOT RUN. Saving after the
+  Ratnook door remains unresolved (diagnostics only). `Test-ChargeOwnershipContracts.ps1` still fails its pre-existing
+  two-pair reservation check.
+- **Not done:** no install.
+
 # SAVE/LOAD AND ENTRANCE REPAIR — LOAD AND ENTRANCE FIXED IN SOURCE; SAVING UNRESOLVED (DIAGNOSTICS ONLY); NATIVE BLOCKED (2026-11-12)
 
 Branch `codex/kmc-save-load-entrance-repair` from main `bcc176ec` (v0.2.4). Read the
