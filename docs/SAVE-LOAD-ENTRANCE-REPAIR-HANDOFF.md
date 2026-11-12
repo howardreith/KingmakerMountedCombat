@@ -5,7 +5,7 @@ SAVING DIAGNOSED AS NOT REPRODUCED IN THE EVIDENCE (BOUNDED DIAGNOSTICS ADDED); 
 ACCEPTANCE SEPARATE.** No merge, release, tag or install.
 
 - **Branch:** `codex/kmc-save-load-entrance-repair`, from main `bcc176ec` (v0.2.4; `origin/main` fetched at intake and
-  unchanged). Draft PR: see below.
+  unchanged). Draft PR [#31](https://github.com/howardreith/KingmakerMountedCombat/pull/31); repair commit `07468efb`.
 - **Owner report (0.2.4):** "Alright got through the door OK, but now saving and loading a game are completely broken.
   Also clicking on the entrance to the door does not result in the party moving toward it."
 - **Evidence:** `output_log(3).txt` (2,357,817 bytes, SHA-256 `da0f9578…2729`, 10,916 LF lines). It reports KMC 0.2.4.
