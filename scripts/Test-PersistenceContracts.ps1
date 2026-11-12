@@ -984,6 +984,65 @@ public static class KmcPersistenceContractProbe
             Check(readsQueue && !readsCurrent && selectorCalls!=null && RouteIndex(selectorCalls,m=>m.Name=="GetType")>=0 &&
                 RouteIndex(selectorCalls,m=>m.Name=="get_Name")>RouteIndex(selectorCalls,m=>m.Name=="GetType"),
                 "LoadingProcess.QueuedNames lists only queued processes (never the current one) by coroutine type name");
+            // Save/load and entrance repair (2026-11-12).
+            var loadGame=native.ManifestModule.ResolveMethod(0x06000CE0);
+            var loadGameCalls=RouteCalls(read,loadGame);
+            var loadGameIl=RouteInstructions(read,loadGame);
+            var fullLoad=RouteInstructionIndex(loadGameIl,RouteToken(native,0x06000CD5));
+            Check(loadGame.Name=="LoadGame" && RouteIndex(loadGameCalls,m=>m.Name=="PrecheckSaveCorruption")>=0 &&
+                RouteIndex(loadGameCalls,RouteToken(native,0x06000CD5))>RouteIndex(loadGameCalls,m=>m.Name=="PrecheckSaveCorruption") &&
+                fullLoad>0 && loadGameIl[fullLoad-1][1] is FieldInfo && ((FieldInfo)loadGameIl[fullLoad-1][1]).Name=="saveInfo",
+                "Game.LoadGame calls the full LoadArea 06000CD5 with the selected SaveInfo as its last argument (a world replacement, not travel)");
+            var saveGame=native.ManifestModule.ResolveMethod(0x06000CE4);
+            var saveGameCalls=RouteCalls(read,saveGame);
+            Check(saveGame.Name=="SaveGame" && saveGame.GetParameters().Length==2 && saveGame.GetParameters()[0].Name=="saveInfo" &&
+                RouteIndex(saveGameCalls,RouteToken(native,0x06008028))>=0 &&
+                RouteIndex(saveGameCalls,RouteToken(native,0x06008029))>RouteIndex(saveGameCalls,RouteToken(native,0x06008028)),
+                "Game.SaveGame consults IsSaveAllowed before it queues SaveRoutine (a refusal there leaves only a UI warning)");
+            var start=native.ManifestModule.ResolveMethod(0x0600378A);
+            var startCalls=RouteCalls(read,start);
+            var partyList=RouteIndex(startCalls,RouteToken(native,0x06000DE0));
+            var selectAll=RouteIndex(startCalls,m=>m.Name=="SelectAll");
+            var moveSelected=RouteIndex(startCalls,m=>m.Name=="MoveSelectedUnitsToPoint");
+            Check(start.Name=="StartAreaTransition" && RouteIndex(startCalls,m=>m.Name=="get_IsInCombat")>=0 &&
+                partyList>=0 && selectAll>partyList && moveSelected>selectAll && RouteIndex(startCalls,m=>m.Name=="<StartAreaTransition>b__0")>=0,
+                "an entrance click builds its group from the party list, selects all, then orders only the selected units");
+            var callback=native.ManifestModule.ResolveMethod(0x0600AE7E);
+            var runTransition=native.ManifestModule.ResolveMethod(0x0600378B);
+            var runCalls=RouteCalls(read,runTransition);
+            Check(RouteIndex(RouteCalls(read,callback),RouteToken(native,0x0600378B))>=0 &&
+                RouteIndex(runCalls,RouteToken(native,0x0600264D))>=0 && RouteIndex(runCalls,RouteToken(native,0x060026B2))>RouteIndex(runCalls,RouteToken(native,0x0600264D)),
+                "each selected unit receives its own UnitAreaTransition through UnitCommands.Run (the KMC Run patch sees the rider's)");
+            var selectAllNative=native.ManifestModule.ResolveMethod(0x060034FE);
+            Check(RouteIndex(RouteCalls(read,selectAllNative),RouteToken(native,0x060034F5))>=0,
+                "SelectionManager.SelectAll selects through MultiSelect (KMC projects a mounted horse onto its rider there)");
+            var partyCalls2=RouteCalls(read,native.ManifestModule.ResolveMethod(0x06000DE0));
+            Check(RouteIndex(partyCalls2,m=>m.Name=="get_ControllableCharacters")>=0 &&
+                RouteIndex(RouteCalls(read,native.ManifestModule.ResolveMethod(0x0600A38E)),m=>m.Name=="get_IsDirectlyControllable")>=0,
+                "group membership comes from the directly controllable party, not the selection (a mounted horse is a member)");
+            var proximity=RouteInstructions(read,native.ManifestModule.ResolveMethod(0x0600263F));
+            var thirtySix=false; foreach(var ins in proximity) if(ins[1] is float && (float)ins[1]==36f) thirtySix=true;
+            Check(thirtySix && RouteInstructionIndex(proximity,m=>m.Name=="SqrMechanicsDistance")>=0,
+                "an entrance group may also start once every member stands within 6 m of the transition");
+            var ended=RouteCalls(read,native.ManifestModule.ResolveMethod(0x060026D0));
+            Check(RouteIndex(ended,RouteToken(native,0x06002748))>=0 && RouteIndex(ended,RouteToken(native,0x0600274D))>=0,
+                "a member command that ends without success interrupts the whole group; a successful one counts its unit once");
+            var transitionType=native.GetType("Kingmaker.UnitLogic.Commands.UnitAreaTransition",true);
+            var groupField=native.GetType("Kingmaker.UnitLogic.Commands.UnitGroupCommand",true).GetField("GroupCommand");
+            var publicCtor=false;
+            foreach(var ctor in transitionType.GetConstructors())
+            {
+                var ps=ctor.GetParameters();
+                if(ps.Length==2 && ps[0].ParameterType.FullName=="Kingmaker.UnitLogic.Commands.AreaTransitionGroupCommand" &&
+                    ps[1].ParameterType.FullName=="UnityEngine.Vector3" && ctor.MetadataToken==0x0600264D) publicCtor=true;
+            }
+            var groupCtorAssigns=false;
+            foreach(var ins in RouteInstructions(read,native.ManifestModule.ResolveMethod(0x060026CE)))
+                if(ins[1] is FieldInfo && ((FieldInfo)ins[1]).MetadataToken==0x04001A4A) groupCtorAssigns=true;
+            var transitionCtorCalls=RouteCalls(read,native.ManifestModule.ResolveMethod(0x0600264D));
+            Check(publicCtor && groupField!=null && groupField.IsPublic && groupCtorAssigns &&
+                RouteIndex(transitionCtorCalls,RouteToken(native,0x060026CE))>=0,
+                "the product's entrance carrier uses the public native UnitAreaTransition constructor and group field");
             var original=native.ManifestModule.ResolveMethod(0x06008025);
             var instructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{original,null});
             var legacyInstruction=harmonyAssembly.GetType("Harmony12.CodeInstruction",true);

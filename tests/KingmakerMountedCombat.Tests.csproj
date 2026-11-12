@@ -135,6 +135,8 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAreaTransferLifecycle.cs"><Link>Shared\Domain\MountedAreaTransferLifecycle.cs</Link></Compile>
     <Compile Include="ExplorationRepairTests.cs" />
     <Compile Include="RatnookDoorRepairTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldBoundaryAdmissionPolicy.cs"><Link>Shared\Domain\MountedWorldBoundaryAdmissionPolicy.cs</Link></Compile>
+    <Compile Include="SaveLoadEntranceRepairTests.cs" />
     <Compile Include="MountedDoorApproachPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
     <Compile Include="NativeShellBindingPolicyTests.cs" />

@@ -1,3 +1,21 @@
+# SAVE/LOAD AND ENTRANCE REPAIR — LOAD AND ENTRANCE FIXED IN SOURCE; SAVE DIAGNOSTICS ONLY; NATIVE BLOCKED (2026-11-12)
+
+Branch `codex/kmc-save-load-entrance-repair` from main `bcc176ec` (v0.2.4). Read the
+[handoff](docs/SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md).
+
+- **Running-game loading:** `Game.LoadGame` reaches the full `LoadArea` with the selected `SaveInfo`. KMC's prefix
+  applied the exploration travel guard first, so loading during a paired combat turn was refused (log 3: four "Area
+  change refused" lines). A saved-world replacement now uses its own admission. It releases nothing itself: the
+  established load path releases the outgoing world. Writers, queued saves, charge custody and incompatible archives
+  still refuse.
+- **Entrance approach:** KMC's selection normalization left the mounted horse, a native group member, without its
+  entrance command, so the native group never started. The horse now receives its native member command in the same
+  group.
+- **Saving:** no save request reached KMC in the log. The traced code admits a paired-combat save. Bounded request and
+  completion diagnostics were added; save behaviour is unchanged.
+- **Native:** NOT RUN. This machine has no KMC install or fixture.
+- **Not authorized:** merge, release, tag or install.
+
 # RELEASE 0.2.4 (OWNER ORDER, 2026-11-12)
 
 The owner accepted PR #29, the Ratnook door repair (merge `9d7f575e`, tree identical to the reviewed `da917b68`), and

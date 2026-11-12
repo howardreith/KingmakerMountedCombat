@@ -442,6 +442,10 @@ namespace KingmakerMountedCombat.Integration
         private void RecordCompletedSave(SaveScope scope)
         {
             CompletedSaveCount++;
+            // Save/load repair: the terminal success of one save operation (its worker completed and its scope released).
+            logger.Info("Mounted save completed: count=" + CompletedSaveCount + "; requested=" + (scope.Requested?.Name ?? "none") +
+                "; type=" + (scope.Requested?.Type.ToString() ?? "none") + "; archive=" + (System.IO.Path.GetFileName(scope.Prepared?.FolderName ?? "") ?? "") +
+                "; commitsDuringOperation=" + (NativeMountedArchiveCommit.CommitCount - scope.CommitsAtStart) + ".");
             LastCompletedSave = new NativeSaveCompletion(CompletedSaveCount, scope.Requested, scope.Prepared, scope.Prepared?.FolderName);
         }
 
