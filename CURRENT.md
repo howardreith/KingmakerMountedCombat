@@ -1,3 +1,15 @@
+# RELEASE 0.2.6 (OWNER ORDER, 2026-11-12)
+
+The owner approved PR #33, the attack completion warnings repair (merge `b8359e31`, tree identical to the reviewed
+`f46946a5`), and ordered it merged and released. Notes: [docs/RELEASE-NOTES-0.2.6.md](docs/RELEASE-NOTES-0.2.6.md).
+
+- **Version:** 0.2.6, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.6-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native acceptance rows in the handoff remain NOT RUN: this machine has no
+  KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # ATTACK COMPLETION WARNINGS — SOURCE FIX REFINED; FAST PASS ON GENUINE REFERENCES; NATIVE BLOCKED (2026-11-12)
 
 Branch `codex/kmc-attack-completion-warnings` (draft PR #33) from main `680d02cb` (0.2.5). Read the

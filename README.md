@@ -4,9 +4,9 @@ A Unity Mod Manager (UMM) mod for Pathfinder: Kingmaker (engine build 2.1.7b) th
 companion: a Horse or Riding Dog added by the mod, or a supported stock Mammoth. Rider and mount keep their own actions,
 health and defenses. No other mod is required.
 
-Release notes: [0.2.5](docs/RELEASE-NOTES-0.2.5.md) (current), [0.2.4](docs/RELEASE-NOTES-0.2.4.md),
-[0.2.3](docs/RELEASE-NOTES-0.2.3.md), [0.2.2](docs/RELEASE-NOTES-0.2.2.md), [0.2.0](docs/RELEASE-NOTES-0.2.0.md) (what is
-supported and the known limits) and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
+Release notes: [0.2.6](docs/RELEASE-NOTES-0.2.6.md) (current), [0.2.5](docs/RELEASE-NOTES-0.2.5.md),
+[0.2.4](docs/RELEASE-NOTES-0.2.4.md), [0.2.3](docs/RELEASE-NOTES-0.2.3.md), [0.2.2](docs/RELEASE-NOTES-0.2.2.md),
+[0.2.0](docs/RELEASE-NOTES-0.2.0.md) (what is supported and the known limits) and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 
 ## Install
 
