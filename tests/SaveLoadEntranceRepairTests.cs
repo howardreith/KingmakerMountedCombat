@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("save/load: a latched restore failure does not refuse a load (load housekeeping is its recovery) but still refuses travel", LatchedFailureRefusesTravelOnly);
             runner.Run("save/load: an archive worker, a queued save, charge custody and an incompatible archive still refuse a load", ReplacementKeepsProtectiveRefusals);
             runner.Run("save/load: a load refused by a writer, a queued save or charge custody reads no archive and releases nothing", RefusedLoadReadsAndReleasesNothing);
+            runner.Run("save/load: retained charge cleanup on a secondary pair refuses a load with no charge fence until it settles", SecondaryRetainedChargeRefusesLoad);
+            runner.Run("save/load: every pair's charge cleanup is drained only after the save guards admitted", ChargeDrainFollowsSaveGuards);
             runner.Run("save/load: area travel keeps the 0.2.4 terms, order and lazy evaluation", TravelKeepsOrderAndLaziness);
             runner.Run("save/load: only a non-null SaveInfo is a world replacement", ClassificationBySaveInfo);
             runner.Run("entrance: a mounted rider's entrance command gives its horse the native member command once", RiderCommandCarriesHorseOnce);
@@ -32,7 +34,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(MountedWorldBoundaryRefusal.ParticipationUnsettled, travel, "The 0.2.4 travel guard no longer refuses an unsettled paired turn.");
             TestRunner.True(participationAsked, "Travel did not consult participation.");
 
-            var load = MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => true, false, false, false, false);
+            var load = MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => true, false, false, false, false, () => true);
             TestRunner.Equal(MountedWorldBoundaryRefusal.None, load, "A valid in-session load during a paired combat turn was refused.");
         }
 
@@ -42,18 +44,20 @@ namespace KingmakerMountedCombat.Tests
                 MountedWorldBoundaryAdmissionPolicy.DecideTravel(true, () => false, false, false, false, () => true),
                 "A latched restore failure stopped protecting area travel.");
             TestRunner.Equal(MountedWorldBoundaryRefusal.None,
-                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => true, false, false, false, false),
+                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => true, false, false, false, false, () => true),
                 "The documented recovery (load a valid save) is still refused while the failure is latched.");
         }
 
         private static void ReplacementKeepsProtectiveRefusals()
         {
-            MountedWorldBoundaryRefusal Load(bool scope = false, bool draining = false, bool fence = false, bool charge = false, bool selected = true) =>
-                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => selected, scope, draining, fence, charge);
+            MountedWorldBoundaryRefusal Load(bool scope = false, bool draining = false, bool fence = false, bool charge = false, bool selected = true,
+                bool drained = true) =>
+                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => selected, scope, draining, fence, charge, () => drained);
             TestRunner.Equal(MountedWorldBoundaryRefusal.SaveScopeActive, Load(scope: true), "A load raced a save being written.");
             TestRunner.Equal(MountedWorldBoundaryRefusal.SaveDraining, Load(draining: true), "A load raced an archive worker that can still commit.");
             TestRunner.Equal(MountedWorldBoundaryRefusal.SaveAdmissionFence, Load(fence: true), "A load raced a queued save admission.");
             TestRunner.Equal(MountedWorldBoundaryRefusal.ChargeFence, Load(charge: true), "A load discarded unresolved charge custody.");
+            TestRunner.Equal(MountedWorldBoundaryRefusal.ChargeCleanupUnresolved, Load(drained: false), "A load discarded retained charge cleanup.");
             TestRunner.Equal(MountedWorldBoundaryRefusal.SelectedLoadRefused, Load(selected: false), "An incompatible or unavailable archive replaced the world.");
         }
 
@@ -63,17 +67,75 @@ namespace KingmakerMountedCombat.Tests
         {
             foreach (var refusing in new[] { "scope", "draining", "fence", "charge" })
             {
-                var archiveReads = 0;
+                var archiveReads = 0; var drains = 0;
                 var refusal = MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => { archiveReads++; return true; },
-                    refusing == "scope", refusing == "draining", refusing == "fence", refusing == "charge");
+                    refusing == "scope", refusing == "draining", refusing == "fence", refusing == "charge", () => { drains++; return true; });
                 TestRunner.True(refusal != MountedWorldBoundaryRefusal.None, refusing + " did not refuse the load.");
-                TestRunner.Equal(0, archiveReads, "The selected archive was read (and charge drained) while " + refusing + " still owned the world.");
+                TestRunner.Equal(0, archiveReads, "The selected archive was read while " + refusing + " still owned the world.");
+                TestRunner.Equal(0, drains, "Charge cleanup was drained while " + refusing + " still owned the world.");
             }
             var reads = 0;
             TestRunner.Equal(MountedWorldBoundaryRefusal.None,
-                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => { reads++; return true; }, false, false, false, false),
+                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => { reads++; return true; }, false, false, false, false, () => true),
                 "A settled load was refused.");
             TestRunner.Equal(1, reads, "The selected-load admission was not consulted exactly once.");
+        }
+
+        // Review of PR #31 (P2): pair A (primary) is clean; pair B retains charge ownership because its native ability
+        // process has not ended, and holds NO charge fence. The world drain visits every pair, as the production
+        // DrainWorldCharge does; the load is refused (so the native unload never begins) until B settles. The detached
+        // probe in Test-ChargeOwnershipContracts drives the same decision over two real MountedCombatController owners.
+        private sealed class ChargeOwnerModel
+        {
+            internal bool Owned, ProcessEnded; internal int Attempts;
+            internal bool TryDrain() { Attempts++; if (Owned && ProcessEnded) Owned = false; return !Owned; }
+        }
+
+        private static bool DrainEvery(IEnumerable<ChargeOwnerModel> owners)
+        {
+            var settled = true;
+            foreach (var owner in owners) if (!owner.TryDrain()) settled = false;
+            return settled;
+        }
+
+        private static void SecondaryRetainedChargeRefusesLoad()
+        {
+            var primary = new ChargeOwnerModel();
+            var secondary = new ChargeOwnerModel { Owned = true };
+            var owners = new[] { primary, secondary };
+            var unloads = 0;
+            Func<MountedWorldBoundaryRefusal> load = () =>
+            {
+                var refusal = MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => !primary.Owned, false, false, false,
+                    false, () => DrainEvery(owners)); // no pair holds a charge fence
+                if (refusal == MountedWorldBoundaryRefusal.None) unloads++;
+                return refusal;
+            };
+            TestRunner.Equal(MountedWorldBoundaryRefusal.ChargeCleanupUnresolved, load(),
+                "A secondary pair's retained charge cleanup (no fence) did not refuse the load; the primary-only admission passed.");
+            TestRunner.Equal(0, unloads, "The native unload began over retained charge cleanup.");
+            TestRunner.True(primary.Attempts == 1 && secondary.Attempts == 1, "The world drain did not visit every pair exactly once.");
+            secondary.ProcessEnded = true;
+            TestRunner.Equal(MountedWorldBoundaryRefusal.None, load(), "The load stayed refused after the secondary pair's cleanup settled.");
+            TestRunner.Equal(1, unloads, "The settled load did not proceed to the native unload exactly once.");
+            // Control: an ordinary paired combat turn (unsettled participation, no charge) is still replaced by a valid load.
+            TestRunner.Equal(MountedWorldBoundaryRefusal.None,
+                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => true, false, false, false, false, () => DrainEvery(new[] { new ChargeOwnerModel() })),
+                "An ordinary paired combat turn with no charge custody could not be replaced by a valid load.");
+        }
+
+        private static void ChargeDrainFollowsSaveGuards()
+        {
+            var order = new List<string>();
+            MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => { order.Add("selected"); return true; }, false, false, false, false,
+                () => { order.Add("drain"); return true; });
+            TestRunner.True(order.Count == 2 && order[0] == "drain" && order[1] == "selected",
+                "The world charge drain did not run exactly once, after the save guards and before the selected archive.");
+            order.Clear();
+            TestRunner.Equal(MountedWorldBoundaryRefusal.ChargeCleanupUnresolved,
+                MountedWorldBoundaryAdmissionPolicy.DecideSavedReplacement(() => { order.Add("selected"); return true; }, false, false, false, false,
+                    () => { order.Add("drain"); return false; }), "Unresolved charge cleanup did not refuse the load.");
+            TestRunner.True(order.Count == 1 && order[0] == "drain", "The selected archive was read after charge cleanup refused.");
         }
 
         private static void TravelKeepsOrderAndLaziness()

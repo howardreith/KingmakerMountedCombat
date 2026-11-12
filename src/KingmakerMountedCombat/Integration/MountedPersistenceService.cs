@@ -442,12 +442,25 @@ namespace KingmakerMountedCombat.Integration
         private void RecordCompletedSave(SaveScope scope)
         {
             CompletedSaveCount++;
-            // Save/load repair: the terminal success of one save operation (its worker completed and its scope released).
-            logger.Info("Mounted save completed: count=" + CompletedSaveCount + "; requested=" + (scope.Requested?.Name ?? "none") +
-                "; type=" + (scope.Requested?.Type.ToString() ?? "none") + "; archive=" + (System.IO.Path.GetFileName(scope.Prepared?.FolderName ?? "") ?? "") +
-                "; commitsDuringOperation=" + (NativeMountedArchiveCommit.CommitCount - scope.CommitsAtStart) + ".");
             LastCompletedSave = new NativeSaveCompletion(CompletedSaveCount, scope.Requested, scope.Prepared, scope.Prepared?.FolderName);
         }
+
+        // Save/load repair diagnostic: the terminal success of one save operation. Emitted only AFTER the scope's
+        // ownership was cleared, and isolated (review of PR #31, P2): the logger has no exception guard, and a
+        // throw here before cleanup left the scope marked Released while activeSave and serialization suspension
+        // stayed owned, so every later release returned early and saving and loading stayed blocked.
+        private void ReportCompletedSave(SaveScope scope)
+        {
+            try
+            {
+                logger.Info("Mounted save completed: count=" + CompletedSaveCount + "; requested=" + (scope.Requested?.Name ?? "none") +
+                    "; type=" + (scope.Requested?.Type.ToString() ?? "none") + "; archive=" + (System.IO.Path.GetFileName(scope.Prepared?.FolderName ?? "") ?? "") +
+                    "; commitsDuringOperation=" + (NativeMountedArchiveCommit.CommitCount - scope.CommitsAtStart) + ".");
+            }
+            catch (Exception) { CompletedSaveReportFailureCount++; }
+        }
+
+        internal int CompletedSaveReportFailureCount { get; private set; }
 
         private void ReleaseSaveScope(SaveScope scope)
         {
@@ -475,6 +488,7 @@ namespace KingmakerMountedCombat.Integration
             if (ReferenceEquals(activeSave, scope)) activeSave = null;
             if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
             if (ReferenceEquals(releasingSave, scope)) releasingSave = null;
+            if (scope.Completed) ReportCompletedSave(scope);
         }
 
         // Teardown only. Disposal unpatches the archive-commit transpiler and

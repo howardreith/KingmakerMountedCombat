@@ -195,6 +195,65 @@ public static class KmcPersistenceContractProbe
         Check((bool)read.Invoke(null,new[]{controller}),"a second unfinished native spell cannot hide behind a completed process");
     }
 
+    // Review of PR #31 (P2): a logger that throws must not interrupt save-scope cleanup. Every IModLogger call throws.
+    private sealed class ThrowingLogger : System.Runtime.Remoting.Proxies.RealProxy
+    {
+        internal int Calls;
+        internal ThrowingLogger(Type type) : base(type) {}
+        public override System.Runtime.Remoting.Messaging.IMessage Invoke(System.Runtime.Remoting.Messaging.IMessage message)
+        {
+            Calls++;
+            return new System.Runtime.Remoting.Messaging.ReturnMessage(new InvalidOperationException("terminal logger failed"),
+                (System.Runtime.Remoting.Messaging.IMethodCallMessage)message);
+        }
+    }
+
+    // Drives the actual compiled ReleaseSaveScope on a detached service: a completed save whose completion report throws
+    // still releases its scope, its relationships' serialization suspension and the service's ownership fields, records
+    // the completion, and leaves the next save and load admissible. No game is launched.
+    private static void VerifySaveCompletionReportIsolation(Assembly candidate)
+    {
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+        var scopeType=serviceType.GetNestedType("SaveScope",BindingFlags.NonPublic);
+        var relationshipType=candidate.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+        var loggerType=candidate.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+        var service=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(serviceType);
+        var throwing=new ThrowingLogger(loggerType);
+        serviceType.GetField("logger",flags).SetValue(service,throwing.GetTransparentProxy());
+        var scope=Activator.CreateInstance(scopeType,true);
+        scopeType.GetField("Completed",flags).SetValue(scope,true);
+        var relationship=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(relationshipType);
+        var suspended=relationshipType.GetProperty("SaveSerializationSuspended",flags);
+        suspended.SetValue(relationship,true,null);
+        var relationships=Array.CreateInstance(relationshipType,1);relationships.SetValue(relationship,0);
+        scopeType.GetField("Relationships",flags).SetValue(scope,relationships);
+        foreach(var field in new[]{"activeSave","drainingSave","releasingSave"}) serviceType.GetField(field,flags).SetValue(service,scope);
+        var release=serviceType.GetMethod("ReleaseSaveScope",flags);
+        Exception escaped=null;
+        try { release.Invoke(service,new[]{scope}); } catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(throwing.Calls>=1,"the completion report actually reached the throwing logger");
+        Check(escaped==null,"a throwing completion report does not escape save-scope release: "+(escaped==null?"":escaped.Message));
+        Check((bool)scopeType.GetField("Released",flags).GetValue(scope) && !(bool)suspended.GetValue(relationship,null),
+            "a throwing completion report still releases the scope and its relationships' serialization suspension");
+        Check(serviceType.GetField("activeSave",flags).GetValue(service)==null && serviceType.GetField("drainingSave",flags).GetValue(service)==null &&
+            serviceType.GetField("releasingSave",flags).GetValue(service)==null,
+            "a throwing completion report still clears the active, draining and releasing save ownership");
+        Check((int)serviceType.GetProperty("CompletedSaveCount",flags).GetValue(service,null)==1 &&
+            serviceType.GetProperty("LastCompletedSave",flags).GetValue(service,null)!=null &&
+            (int)serviceType.GetProperty("CompletedSaveReportFailureCount",flags).GetValue(service,null)==1,
+            "the completion is recorded once and the failed report is counted, not lost");
+        Check(!(bool)serviceType.GetProperty("HasActiveSaveScope",flags).GetValue(service,null) &&
+            !(bool)serviceType.GetProperty("SaveDraining",flags).GetValue(service,null),
+            "after a throwing completion report the next save and load are not held by the finished scope");
+        var next=Activator.CreateInstance(scopeType,true);
+        serviceType.GetField("activeSave",flags).SetValue(service,next);
+        try { release.Invoke(service,new[]{next}); } catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(escaped==null && serviceType.GetField("activeSave",flags).GetValue(service)==null &&
+            (int)serviceType.GetProperty("CompletedSaveCount",flags).GetValue(service,null)==1,
+            "a subsequent (uncompleted) operation still acquires and releases ownership normally");
+    }
+
     private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
     {
         var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
@@ -1146,6 +1205,7 @@ public static class KmcPersistenceContractProbe
                 "exact native tick rewrite preserves progress, queue, screen, timer and callback bookkeeping");
 
             VerifyNativeDeferredOwner(native,candidate);
+            VerifySaveCompletionReportIsolation(candidate);
             VerifyNativeAbilitySettlement(native,candidate);
             VerifyNativeTouchCommitment(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);

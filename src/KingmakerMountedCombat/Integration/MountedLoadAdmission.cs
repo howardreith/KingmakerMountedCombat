@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat.Integration
                 // A world replacement while an owned archive worker can still
                 // commit would race that write. Refuse before disposal rather
                 // than destroy the world the worker is still describing.
-                if (SaveDraining || HasActiveSaveScope || combat.ChargeAdmissionFenced)
+                if (SaveDraining || HasActiveSaveScope || AnyChargeFence)
                     rejection = "a save is still being written; try again once it finishes.";
                 else if (save == null || !save.HasFileOnDisk || save.Saver == null)
                     rejection = "The selected native archive is not available.";
@@ -69,7 +69,9 @@ namespace KingmakerMountedCombat.Integration
                 logger.Exception("Mounted metadata admission failed before native world disposal", exception);
                 rejection = "Mounted save metadata could not be read safely; the archive remains unchanged.";
             }
-            if (rejection == null && !combat.TryDrainChargeOwnership("load admission"))
+            // Every pair, not only the primary (review of PR #31): a secondary pair can retain charge cleanup
+            // without a fence, and nothing later can veto the native unload.
+            if (rejection == null && !TryDrainWorldChargeForLoad("load admission"))
                 rejection = "mounted charge cleanup must finish before world replacement.";
             if (rejection == null) return true;
             RejectedLoadCount++;

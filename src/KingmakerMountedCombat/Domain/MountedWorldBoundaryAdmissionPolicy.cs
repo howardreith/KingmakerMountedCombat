@@ -53,16 +53,22 @@ namespace KingmakerMountedCombat.Domain
         // established load path, not here: the native unload's OnAreaBeginUnloading cleanup, then WrapLoadRoutine, which
         // retires the previous load scope before BeginLoadHousekeeping (releasing participation without End or forfeit and
         // clearing the latch only after cleanup). Nothing is released at admission, so a refused load changes nothing.
-        // What still refuses: an archive worker that can still commit, an active save, a queued save admission, charge
-        // custody, and the selected archive's own admission (compatibility, availability, metadata, charge drain).
+        // What still refuses: an archive worker that can still commit, an active save, a queued save admission, a charge
+        // fence, retained charge cleanup on ANY pair, and the selected archive's own admission (compatibility, availability,
+        // metadata). Review of PR #31 (P2): a pair can retain charge ownership without holding a charge fence (its native
+        // ability process has not ended), and the area-unloading cleanup cannot veto an unload, so every pair's charge
+        // custody is drained here, once the save guards have admitted and before the native unload can begin. Ordinary
+        // participation is still never consulted.
         public static MountedWorldBoundaryRefusal DecideSavedReplacement(Func<bool> selectedLoadAdmitted, bool saveScopeActive,
-            bool saveDraining, bool saveAdmissionFence, bool chargeFence)
+            bool saveDraining, bool saveAdmissionFence, bool chargeFence, Func<bool> worldChargeDrained)
         {
             if (selectedLoadAdmitted == null) throw new ArgumentNullException(nameof(selectedLoadAdmitted));
+            if (worldChargeDrained == null) throw new ArgumentNullException(nameof(worldChargeDrained));
             if (saveDraining) return MountedWorldBoundaryRefusal.SaveDraining;
             if (saveScopeActive) return MountedWorldBoundaryRefusal.SaveScopeActive;
             if (saveAdmissionFence) return MountedWorldBoundaryRefusal.SaveAdmissionFence;
             if (chargeFence) return MountedWorldBoundaryRefusal.ChargeFence;
+            if (!worldChargeDrained()) return MountedWorldBoundaryRefusal.ChargeCleanupUnresolved;
             if (!selectedLoadAdmitted()) return MountedWorldBoundaryRefusal.SelectedLoadRefused;
             return MountedWorldBoundaryRefusal.None;
         }
