@@ -1,3 +1,24 @@
+# MOUNTED ARCHERY — FEAT AND TB MOUNTED RANGED PENALTY; OFFLINE CHECKS PASS; NATIVE NOT RUN (2026-11-13)
+
+Branch `codex/mounted-archery` from main `6b6a3e6a` (0.2.8). Read the [handoff](docs/MOUNTED-ARCHERY-HANDOFF.md).
+Source: the owner's Mounted_Archery_Mission_Packet (checksums verified; icon and provenance in
+`assets-source/mounted-archery/`).
+
+- **Behaviour:** new base rule for every mounted rider, turn-based only: a ranged weapon attack takes -4 once the
+  mount's normal travel in the rider's own paired activation exceeds one Move (3 s + 0.25 s native borrowed-tick
+  tolerance); Mounted Archery reduces it to -2. Read at each roll; earlier shots are never revised. Real time unchanged;
+  no Run. This is a balance change for mounted shooters without the feat.
+- **Feat:** `MountedArcheryFeature` `b81926bca1d24a3997cdc8471a84014b`, Mobility 1 trained rank + KMC Mounted Combat,
+  combat feat, original icon. Mounted Combat and Mounted Archery now share one coordinated lease per selection array.
+- **Seam:** global about-to-trigger on the roll's own `RuleCalculateAttackBonus` (inside `RuleAttackRoll.OnTrigger`),
+  one native `BonusSource`; `AttackBonusPenalty` untouched. 15 new native contract pins.
+- **Review:** independent; one medium finding (riderless mount travel counted for a later rider) and three low ones,
+  all corrected with a regression.
+- **Checks:** Fast PASS 3/0 (components 1205/0, Validate-Source 151/0); contracts 799/3 (the 3 UMM identity failures
+  are pre-existing); Sprint 6 readers 84/0; six mutations caught.
+- **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Owner art acceptance PENDING.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.8 (OWNER ORDER, 2026-11-12)
 
 The owner approved PR #37 and ordered it merged and released. PR #37 covers the cutscene continuity repair, the Bald

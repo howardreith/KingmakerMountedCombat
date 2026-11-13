@@ -125,6 +125,12 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.MountedCombat.Spent.Description", "You have used your Mounted Combat reaction this round." },
             { "KMC.MountedCombat.Owed.Name", "Mounted Combat: Swift Action Owed" },
             { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." },
+            { "KMC.MountedArchery.Name", "Mounted Archery" },
+            { "KMC.MountedArchery.Description", "In turn-based combat, this feat reduces the penalty on your ranged weapon attacks from -4 to -2 after your mount has used more than one move action's worth of normal movement in its current turn. Five-foot steps and charges are not normal movement. The penalty is determined when each attack is made; it does not change attacks already resolved. It does not apply in real-time combat." },
+            { "KMC.MountedRangedMovement.Name", "Mounted movement" },
+            { "KMC.MountedRangedMovement.Description", "A ranged weapon attack made after your mount has used more than one move action's worth of normal movement this turn takes a -4 penalty." },
+            { "KMC.MountedRangedMovement.Reduced.Name", "Mounted movement (Mounted Archery)" },
+            { "KMC.MountedRangedMovement.Reduced.Description", "Mounted Archery reduces the mounted movement penalty on this ranged weapon attack to -2." },
             { "KMC.DivineBond.Name", "Divine Bond" },
             { "KMC.DivineBond.Description", "Upon reaching 5th level, a paladin forms a divine bond with her god: a bonded weapon or a bonded mount. Once the form is chosen, it can only be changed by retraining. The weapon-bond upgrades in the class's level table apply to a bonded weapon only; a bonded mount receives its own features instead." },
             { "KMC.DivineMount.Name", "Divine Mount" },
@@ -1249,6 +1255,7 @@ namespace KingmakerMountedCombat.Integration
             }
             RemoveDivineMount(library);
             RemoveRidingDog(library);
+            RemoveMountedArcheryFeat(library);
             RemoveMountedCombatFeat(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);

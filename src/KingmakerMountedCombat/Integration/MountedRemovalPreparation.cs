@@ -90,7 +90,7 @@ namespace KingmakerMountedCombat.Integration
 
         // The KMC-registered blueprint identities a save cannot carry without the
         // mod: the Horse companion trio and its portrait, the Riding Dog set, and the four native
-        // mounted-control abilities. Native blueprints KMC only references are
+        // mounted-control abilities, the Mounted Combat set and Mounted Archery. Native blueprints KMC only references are
         // not in this list; they resolve without KMC.
         internal static string[] RegisteredBlueprintGuids => new[]
         {
@@ -101,6 +101,7 @@ namespace KingmakerMountedCombat.Integration
             HorseCompanionBlueprintService.MountedCombatFeatureGuid, HorseCompanionBlueprintService.MountedCombatToggleGuid,
             HorseCompanionBlueprintService.MountedCombatToggleBuffGuid, HorseCompanionBlueprintService.MountedCombatSpentBuffGuid,
             HorseCompanionBlueprintService.MountedCombatOwedBuffGuid, HorseCompanionBlueprintService.MountedCombatWindowBuffGuid,
+            HorseCompanionBlueprintService.MountedArcheryFeatureGuid,
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
             NativeMountedControlService.MountedChargeAbilityGuid, NativeMountedControlService.MountStateAbilityGuid
@@ -216,6 +217,8 @@ namespace KingmakerMountedCombat.Integration
                     references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] carries KMC Divine Mount benefits");
                 if (horseCompanion.MountedCombatFeature != null && descriptor.GetFact(horseCompanion.MountedCombatFeature) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Combat feat");
+                if (horseCompanion.MountedArcheryFeature != null && descriptor.GetFact(horseCompanion.MountedArcheryFeature) != null)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Archery feat");
             }
             return references;
         }

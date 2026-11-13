@@ -32,7 +32,7 @@ function Assert-KmcSprint6Refused($Measure,$R,[string]$Refusal,[string]$What){
  if(($R.stateBefore | ConvertTo-Json -Compress) -cne ($R.stateAfter | ConvertTo-Json -Compress) -or [double]$R.swiftAfter -ne [double]$R.swiftBefore){ throw ('Sprint 6 '+$What+': a refusal changed the rider''s state') }
 }
 function Assert-KmcSprint6Selection($Facts,[string]$Who){
- if($Facts.committed -ne $true -or $Facts.fact -ne $true -or $Facts.eligibleAfterRank -ne $true -or $Facts.offeredLast -ne $true -or [int]$Facts.after.ranks -lt 1){ throw ('Sprint 6 '+$Who+' choice did not commit through the native controller') }
+ if($Facts.committed -ne $true -or $Facts.fact -ne $true -or $Facts.eligibleAfterRank -ne $true -or ($Facts.offeredLast -ne $true -and $Facts.offeredInKmcTail -ne $true) -or [int]$Facts.after.ranks -lt 1){ throw ('Sprint 6 '+$Who+' choice did not commit through the native controller') }
 }
 function Assert-KmcSprint6FeatEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
@@ -73,7 +73,8 @@ function Assert-KmcSprint6FeatEvidence {
   if($null -ne $f.registration.failure -or [int]$f.registration.ranks -ne 1 -or 'Feat' -cnotin @($f.registration.groups) -or 'CombatFeat' -cnotin @($f.registration.groups) -or $f.registration.prerequisite -cne 'SkillMobility=1'){ throw 'Sprint 6 feat registration differs' }
   $names=@($f.selections | ForEach-Object name)
   foreach($needed in 'BasicFeatSelection','FighterFeatSelection'){ if($needed -cnotin $names){ throw ('Sprint 6 selection missing: '+$needed) } }
-  foreach($s in @($f.selections)){ if($s.lastIsFeat -ne $true -or [int]$s.occurrences -ne 1){ throw ('Sprint 6 selection order or duplicate: '+$s.name) } }
+  # Mounted Combat ends the array (evidence before Mounted Archery) or begins the exact KMC tail (Mounted Combat, Mounted Archery).
+  foreach($s in @($f.selections)){ if(($s.lastIsFeat -ne $true -and $s.kmcTailExact -ne $true) -or [int]$s.occurrences -ne 1){ throw ('Sprint 6 selection order or duplicate: '+$s.name) } }
   $ordinary=$f.ordinary
   if($ordinary.selection -cne 'BasicFeatSelection'){ throw 'Sprint 6 ordinary selection differs' }
   if([int]$ordinary.preview.ranks -ne 0 -or [int]$ordinary.preview.total -lt 1 -or $ordinary.eligibleBeforeRank -ne $false -or $ordinary.selectAcceptedBeforeRank -ne $false){ throw 'Sprint 6 zero ranks with a bonus was not refused by the native controller' }

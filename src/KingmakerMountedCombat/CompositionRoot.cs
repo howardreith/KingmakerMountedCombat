@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
+        private readonly MountedRangedMovementService mountedRangedMovement;
         private readonly MountedRiderFallService riderFalls;
         private readonly MountedExplorationObserver explorationObserver;
         private readonly CompanionNameService companionNames;
@@ -78,6 +79,7 @@ namespace KingmakerMountedCombat
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
+                mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
                 DivineMountSmiteLogic.ReportLateRefusal = actor => world.ForActor(actor)?.Combat.ReportMountedSmiteRefusal(null, true);
@@ -132,6 +134,7 @@ namespace KingmakerMountedCombat
                 try { runtimeAutomation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { mountedRangedMovement?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { riderFalls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { companionNames?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -194,6 +197,7 @@ namespace KingmakerMountedCombat
                 }
                 IsEnabled = true;
                 mountedCombatDefense.Enabled = true;
+                mountedRangedMovement.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
@@ -242,6 +246,7 @@ namespace KingmakerMountedCombat
             }
             IsEnabled = false;
             mountedCombatDefense.Enabled = false;
+            mountedRangedMovement.Enabled = false;
             persistence.Enabled = false;
             persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
@@ -407,6 +412,7 @@ namespace KingmakerMountedCombat
             runtimeAutomation?.Dispose();
             patches.Dispose();
             mountedCombatDefense.Dispose();
+            mountedRangedMovement.Dispose();
             riderFalls.Dispose();
             ridingDogTack.Dispose();
             companionNames.Dispose();

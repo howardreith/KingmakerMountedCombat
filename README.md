@@ -23,6 +23,9 @@ The folder, mod ID and DLL are still named `KingmakerMountedCombat`; only the di
 - **Mounted Charge** works whenever the mod is enabled: a mounted rider's ordinary Charge is carried by the mount along a
   clear straight line. The game's usual Charge requirements still apply.
 - **Mounted Combat** (the feat) has its own in-game toggle, **Mounted Combat Reaction**.
+- **Shooting from the saddle (turn-based only):** a mounted rider's ranged weapon attacks take -4 once the mount has
+  moved more than one move action's worth this turn, judged when each attack is made. The **Mounted Archery** feat
+  (Mobility 1 rank and Mounted Combat) reduces this to -2. Real-time combat is unaffected.
 - **Renaming a companion:** open the character sheet on your animal companion and press **Rename**, at the right end of
   its name. Type the new name and press **Rename** to keep it, or **Cancel** (or Esc) to leave the name as it was. Each
   companion's name is its own and is saved with your game. An empty name is refused; to go back to the original name,
@@ -38,6 +41,7 @@ The mod has no options page. Its UMM entry offers only UMM's own controls (enabl
 
 - a Horse or Riding Dog from this mod;
 - the Mounted Combat feat;
+- the Mounted Archery feat;
 - Divine Bond taken through this mod's Paladin level-five choice (Weapon Bond included).
 
 Never edit a save to strip mod data. Removing the mod from such a campaign is not supported.

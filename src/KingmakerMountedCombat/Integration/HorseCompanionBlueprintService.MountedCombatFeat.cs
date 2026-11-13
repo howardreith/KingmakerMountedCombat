@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Integration
         private string mountedCombatFailure;
         private readonly List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>> mountedCombatSelections =
             new List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>>();
+        private readonly List<BlueprintFeatureSelection> mountedCombatSelectionTargets = new List<BlueprintFeatureSelection>();
 
         internal BlueprintFeature MountedCombatFeature => mountedCombatFeature;
         internal BlueprintActivatableAbility MountedCombatToggle => mountedCombatToggle;
@@ -56,8 +57,25 @@ namespace KingmakerMountedCombat.Integration
                 logger.Exception("Mounted Combat feat blueprint registration", exception);
                 RemoveMountedCombatFeat(library);
             }
+            // Mounted Archery's own fault removes only Mounted Archery. Mounted Combat is its prerequisite, so it is not
+            // attempted when Mounted Combat did not register.
+            if (mountedCombatFeature != null) RegisterMountedArcheryFeatReported(library);
+            else mountedArcheryFailure = "Mounted Combat did not register.";
+            if (mountedCombatFeature != null)
+            {
+                try { LeaseKmcCombatFeatSelections(); }
+                catch (Exception exception)
+                {
+                    mountedCombatFailure = exception.GetType().Name + ": " + exception.Message;
+                    mountedArcheryFailure = mountedArcheryFailure ?? "Mounted Combat selections could not be leased.";
+                    logger.Exception("KMC combat feat selection lease", exception);
+                    RemoveMountedArcheryFeat(library);
+                    RemoveMountedCombatFeat(library);
+                }
+            }
             logger.Info("Mounted Combat feat selections: " + string.Join(",", mountedCombatSelections.Select(pair => pair.Key.name).ToArray()) +
-                "; failure=" + (mountedCombatFailure ?? "none") + ".");
+                "; failure=" + (mountedCombatFailure ?? "none") + "; Mounted Archery " +
+                (mountedArcheryFeature != null ? "offered" : "absent") + "; failure=" + (mountedArcheryFailure ?? "none") + ".");
         }
 
         private void RegisterMountedCombatFeat(LibraryScriptableObject library)
@@ -118,12 +136,23 @@ namespace KingmakerMountedCombat.Integration
             AddExactBlueprintRegistration(library, mountedCombatFeature);
 
             // The ordinary feat list and every combat-bonus list: a selection offering both stock combat feats is one.
-            foreach (var selection in blueprintList.OfType<BlueprintFeatureSelection>().Where(value =>
-                value.AllFeatures != null && value.AllFeatures.Contains(powerAttack) && value.AllFeatures.Contains(dodge) && !value.AllFeatures.Contains(null)))
-                mountedCombatSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
-                    selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, mountedCombatFeature)));
-            if (!mountedCombatSelections.Any(pair => ReferenceEquals(pair.Key, ordinary)) || !mountedCombatSelections.Any(pair => ReferenceEquals(pair.Key, fighter)))
+            mountedCombatSelectionTargets.AddRange(blueprintList.OfType<BlueprintFeatureSelection>().Where(value =>
+                value.AllFeatures != null && value.AllFeatures.Contains(powerAttack) && value.AllFeatures.Contains(dodge) && !value.AllFeatures.Contains(null)));
+            if (!mountedCombatSelectionTargets.Any(selection => ReferenceEquals(selection, ordinary)) || !mountedCombatSelectionTargets.Any(selection => ReferenceEquals(selection, fighter)))
                 throw new InvalidOperationException("The ordinary or fighter feat selection no longer offers the stock combat feats.");
+        }
+
+        // One exact lease per shared AllFeatures array for every KMC combat feat that registered, in a fixed order (Mounted
+        // Combat, then Mounted Archery). Two leases captured from the same original array would each append to and
+        // restore over the other; a single lease keeps the original order, refuses duplicates and keeps compare-before-
+        // write and compare-before-restore against foreign drift. Installed BlueprintFeatureSelection.Items enumerates
+        // AllFeatures only (see the Ranger lease); the stock Features arrays are not an offered surface and stay unchanged.
+        private void LeaseKmcCombatFeatSelections()
+        {
+            var items = KmcCombatFeatPublication.Items(mountedCombatFeature, mountedArcheryFeature);
+            foreach (var selection in mountedCombatSelectionTargets)
+                mountedCombatSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
+                    selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, items)));
         }
 
         private BlueprintBuff CreateMountedCombatBuff(string name, string guid, Kingmaker.Localization.LocalizedString displayName,
@@ -155,6 +184,7 @@ namespace KingmakerMountedCombat.Integration
             mountedCombatFeature = null; mountedCombatToggle = null; mountedCombatToggleBuff = null;
             mountedCombatSpentBuff = null; mountedCombatOwedBuff = null; mountedCombatWindowBuff = null;
             mountedCombatSelections.Clear();
+            mountedCombatSelectionTargets.Clear();
         }
 
         private void ApplyMountedCombatSelectionsReported(bool desired)

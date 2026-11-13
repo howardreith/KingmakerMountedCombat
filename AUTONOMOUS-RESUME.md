@@ -1,3 +1,22 @@
+# Mounted Archery — review checkpoint (2026-11-13)
+
+Branch `codex/mounted-archery` (draft PR); base main `6b6a3e6a` (0.2.8). Read CURRENT.md and
+docs/MOUNTED-ARCHERY-HANDOFF.md.
+
+- **State:** feat, TB mounted ranged penalty, icon. Fast PASS on genuine references. Independent review corrected.
+  Native NOT RUN.
+- **Seams:**
+  - `MountedRangedMovementService` (global `IGlobalRulebookHandler<RuleCalculateAttackBonus>`; previous event must be
+    the enclosing `RuleAttackRoll` with `ACRule` set and `AttackBonusRule` null).
+  - `MountedMovementStateAdapter.TryReadCurrentMountTravel` — the only rules reading of an allocation; `PeekMovement`
+    stays diagnostic.
+  - `MountedRangedMovementPolicy.IsAllocationCurrent` — shared paired grant, or legacy no-grant round records only.
+  - `HorseCompanionBlueprintService.LeaseKmcCombatFeatSelections` — one lease per array for both KMC combat feats.
+- **Native next step:** owner play with the branch DLL, or a qualified fixture: rows N1–N5 in the handoff. Log line
+  `Mounted ranged movement:` carries pair, allocation, travel, ownership and contribution.
+- **Open:** a pair acting on separate initiative slots gets no contribution (conservative); up to 0.25 s of
+  second-Move travel can go unpenalized; the native difficulty floor can absorb part of the penalty.
+
 # Cutscene continuity — review checkpoint (2026-11-12)
 
 Branch `codex/kmc-cutscene-mounted-continuity` (draft PR); base main `0754c44a` (0.2.7). Read CURRENT.md and
