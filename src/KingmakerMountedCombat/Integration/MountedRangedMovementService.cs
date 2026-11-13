@@ -30,19 +30,20 @@ namespace KingmakerMountedCombat.Integration
     // allocation, -2 if the rider owns Mounted Archery, in turn-based combat only.
     //
     // The seam: the native RuleAttackRoll.OnTrigger triggers RuleCalculateAC, then exactly one RuleCalculateAttackBonus for
-    // the roll, whose OnTrigger triggers RuleCalculateAttackBonusWithoutTarget; a critical confirmation reuses that
+    // the roll, whose OnTrigger triggers RuleCalculateAttackBonusWithoutTarget; a native critical confirmation reuses that
     // AttackBonus and an extra Manyshot projectile reuses the whole AttackRoll. A global about-to-trigger handler on
-    // RuleCalculateAttackBonus whose enclosing event is that roll (AC computed, attack-bonus rule not yet stored) adds one
-    // BonusSource through the native AddBonus. It is part of that rule only: no stat modifier, no aggregate
-    // AttackBonusPenalty, nothing to clean up, and UI previews (the target-free rule and Power Attack's AI estimate,
-    // which runs before the roll's AC) never see it.
+    // RuleCalculateAttackBonus whose enclosing event is the same attacker's unresolved roll (attack-bonus rule not yet
+    // stored) adds one BonusSource through the native AddBonus. That includes a confirmation a mod makes for the roll
+    // before its body runs (Gunslinger's Dead Shot, on an auto-hit delivery whose own body computes no bonus). It is part
+    // of that rule only: no stat modifier, no aggregate AttackBonusPenalty, nothing to clean up. Character-sheet and
+    // tooltip previews have no enclosing roll and never see it.
     internal sealed class MountedRangedMovementService : IGlobalRulebookHandler<RuleCalculateAttackBonus>, IDisposable
     {
         private readonly HorseCompanionBlueprintService blueprints;
         private readonly MountedWorldService world;
         private readonly IModLogger logger;
         private readonly HashSet<string> reportedFailures = new HashSet<string>(StringComparer.Ordinal);
-        private bool disposed, withdrawalReported;
+        private bool disposed;
 
         internal MountedRangedMovementService(HorseCompanionBlueprintService blueprints, MountedWorldService world, IModLogger logger)
         {
@@ -84,16 +85,18 @@ namespace KingmakerMountedCombat.Integration
         private void Apply(RuleCalculateAttackBonus evt)
         {
             var roll = Rulebook.CurrentContext?.PreviousEvent as RuleAttackRoll;
-            // Only the roll's own calculation: same attacker, target and weapon, after its AC and before its stored result.
-            if (roll == null || roll.ACRule == null || roll.AttackBonusRule != null || !ReferenceEquals(roll.Initiator, evt.Initiator) ||
-                !ReferenceEquals(roll.Target, evt.Target) || !ReferenceEquals(roll.Weapon, evt.Weapon)) return;
+            // A calculation for a committed roll: the roll's own, or a confirmation made for it before its body resolves.
+            if (!MountedRangedMovementPolicy.CommittedRollCalculation(roll != null,
+                roll != null && ReferenceEquals(roll.Initiator, evt.Initiator) && ReferenceEquals(roll.Target, evt.Target) && ReferenceEquals(roll.Weapon, evt.Weapon),
+                roll != null && roll.AttackBonusRule != null)) return;
             var rider = evt.Initiator;
             var pair = world.ForActor(rider)?.Relationship;
             var activeRider = pair != null && pair.State == RelationshipState.Mounted && ReferenceEquals(pair.Rider, rider) && pair.Mount != null;
             if (!activeRider) return;
             var weapon = evt.Weapon?.Blueprint;
             var qualifying = weapon != null && MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(
-                roll.RuleAttackWithWeapon != null, weapon.IsRanged, weapon.IsNatural, IsSpellProxyCategory(weapon.Category));
+                evt.Weapon.Wielder != null && ReferenceEquals(evt.Weapon.Wielder, rider.Descriptor), weapon.IsRanged, weapon.IsNatural,
+                IsSpellProxyCategory(weapon.Category));
             if (!qualifying) return;
 
             var mount = pair.Mount;
@@ -104,17 +107,9 @@ namespace KingmakerMountedCombat.Integration
             var owns = blueprints.MountedArcheryFeature != null && rider.Descriptor.Progression.Features.HasFact(blueprints.MountedArcheryFeature);
             var facts = new MountedRangedMovementFacts
             {
-                Available = blueprints.MountedArcheryReady, TurnBased = turnBased, ActiveRider = true, QualifyingAttack = true,
+                Available = blueprints.IsMountedArcheryAvailable(), TurnBased = turnBased, ActiveRider = true, QualifyingAttack = true,
                 CurrentAllocation = current, NormalTravelSeconds = travel, OwnsMountedArchery = owns
             };
-            if (!facts.Available && blueprints.MountedArcheryFeature != null && !withdrawalReported)
-            {
-                // Fail-safe, but never silent: a leased selection drifted outside KMC, or the label sources are missing.
-                withdrawalReported = true;
-                logger.Warning("Mounted ranged movement rule withdrawn: Mounted Archery is registered but not offered by every " +
-                    "KMC combat-feat selection (or its log sources are missing); no mounted ranged penalty or reduction applies. " +
-                    "failure=" + (blueprints.MountedArcheryFailure ?? "none") + ".");
-            }
             int contribution;
             var outcome = MountedRangedMovementPolicy.Evaluate(facts, out contribution);
             // Real time and an unavailable rule are unchanged native attacks: no record, no line.

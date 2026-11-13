@@ -1486,7 +1486,8 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600715B,'get_ACRule','Kingmaker.RuleSystem.Rules.RuleCalculateAC',''),
         @('Kingmaker.RuleSystem.RulebookEventContext',0x060070E4,'get_PreviousEvent','Kingmaker.RuleSystem.RulebookEvent',''),
         @('Kingmaker.RuleSystem.Rulebook',0x060070D1,'get_CurrentContext','Kingmaker.RuleSystem.RulebookEventContext',''),
-        @('Kingmaker.Blueprints.Facts.Fact',0x06009A4C,'.ctor','','Kingmaker.Blueprints.Facts.BlueprintFact,Kingmaker.Blueprints.Facts.Fact'))){
+        @('Kingmaker.Blueprints.Facts.Fact',0x06009A4C,'.ctor','','Kingmaker.Blueprints.Facts.BlueprintFact,Kingmaker.Blueprints.Facts.Fact'),
+        @('Kingmaker.Items.ItemEntity',0x06007B24,'get_Wielder','Kingmaker.UnitLogic.UnitDescriptor',''))){
         $found=@(Find-Token $member[0] $member[1])
         $returns=if($found.Count-eq1-and$found[0]-is[Reflection.MethodInfo]){$found[0].ReturnType.FullName}else{''}
         Assert-Contract ($found.Count-eq1-and$found[0].Name-ceq$member[2]-and$returns-ceq$member[3]-and
@@ -1506,6 +1507,8 @@ if($Target-eq'Kingmaker'){
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060071DF) 0x060071D2) 'RuleCalculateAttackBonus.AddBonus adds to the inner rule'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060071D2) 0x04004ABF) 'the inner AddBonus records a BonusSource for the combat log'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x0600719D) 0x06007120) 'RuleAttackWithWeapon.OnTrigger links its attack roll to the weapon attack'
+    # A physical weapon is one its attacker wields: Wielder is set on equip and cleared on unequip; spell proxies are never equipped.
+    Assert-Contract ((Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06007B64) 0x06007B25)-and(Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06007B65) 0x06007B25)) 'ItemEntity sets Wielder on equip and clears it on unequip'
     $tickMovement=$assembly.ManifestModule.ResolveMethod(0x06000C37)
     Assert-Contract ((Test-MethodIlContainsToken $tickMovement 0x060018BD)-and(Test-MethodIlContainsToken $tickMovement 0x06000C5A)) 'TurnController.TickMovement clamps to the remaining allowance except within NearTheEnd'
     [byte[]]$timeTick=$assembly.ManifestModule.ResolveMethod(0x060090CF).GetMethodBody().GetILAsByteArray(); $timeIl=($timeTick|ForEach-Object{$_.ToString('X2')})-join''

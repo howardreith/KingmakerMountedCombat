@@ -35,9 +35,9 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintActivatableAbility mountedCombatToggle;
         private BlueprintBuff mountedCombatToggleBuff, mountedCombatSpentBuff, mountedCombatOwedBuff, mountedCombatWindowBuff;
         private string mountedCombatFailure;
-        private readonly List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>> mountedCombatSelections =
-            new List<KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>>();
+        private KmcCombatFeatPublicationSet<BlueprintFeatureSelection, BlueprintFeature> mountedCombatPublication;
         private readonly List<BlueprintFeatureSelection> mountedCombatSelectionTargets = new List<BlueprintFeatureSelection>();
+        private readonly List<BlueprintFeatureSelection> requiredCombatFeatSelections = new List<BlueprintFeatureSelection>();
 
         internal BlueprintFeature MountedCombatFeature => mountedCombatFeature;
         internal BlueprintActivatableAbility MountedCombatToggle => mountedCombatToggle;
@@ -45,7 +45,8 @@ namespace KingmakerMountedCombat.Integration
         internal BlueprintBuff MountedCombatOwedBuff => mountedCombatOwedBuff;
         internal BlueprintBuff MountedCombatWindowBuff => mountedCombatWindowBuff;
         internal string MountedCombatFailure => mountedCombatFailure;
-        internal IEnumerable<BlueprintFeatureSelection> MountedCombatSelections => mountedCombatSelections.Select(pair => pair.Key);
+        internal IEnumerable<BlueprintFeatureSelection> MountedCombatSelections =>
+            mountedCombatPublication?.Selections ?? Enumerable.Empty<BlueprintFeatureSelection>();
 
         // A feat fault never costs the player the companions or the mounted controls, and leaves nothing selectable.
         private void RegisterMountedCombatFeatReported(LibraryScriptableObject library)
@@ -73,7 +74,7 @@ namespace KingmakerMountedCombat.Integration
                     RemoveMountedCombatFeat(library);
                 }
             }
-            logger.Info("Mounted Combat feat selections: " + string.Join(",", mountedCombatSelections.Select(pair => pair.Key.name).ToArray()) +
+            logger.Info("Mounted Combat feat selections: " + string.Join(",", MountedCombatSelections.Select(selection => selection.name).ToArray()) +
                 "; failure=" + (mountedCombatFailure ?? "none") + "; Mounted Archery " +
                 (mountedArcheryFeature != null ? "offered" : "absent") + "; failure=" + (mountedArcheryFailure ?? "none") + ".");
         }
@@ -140,6 +141,9 @@ namespace KingmakerMountedCombat.Integration
                 value.AllFeatures != null && value.AllFeatures.Contains(powerAttack) && value.AllFeatures.Contains(dodge) && !value.AllFeatures.Contains(null)));
             if (!mountedCombatSelectionTargets.Any(selection => ReferenceEquals(selection, ordinary)) || !mountedCombatSelectionTargets.Any(selection => ReferenceEquals(selection, fighter)))
                 throw new InvalidOperationException("The ordinary or fighter feat selection no longer offers the stock combat feats.");
+            // Every character takes ordinary feats; fighters take combat-bonus feats. These are Mounted Archery's required paths.
+            requiredCombatFeatSelections.Add(ordinary);
+            requiredCombatFeatSelections.Add(fighter);
         }
 
         // One exact lease per shared AllFeatures array for every KMC combat feat that registered, in a fixed order (Mounted
@@ -147,12 +151,13 @@ namespace KingmakerMountedCombat.Integration
         // restore over the other; a single lease keeps the original order, refuses duplicates and keeps compare-before-
         // write and compare-before-restore against foreign drift. Installed BlueprintFeatureSelection.Items enumerates
         // AllFeatures only (see the Ranger lease); the stock Features arrays are not an offered surface and stay unchanged.
+        // KmcCombatFeatPublicationSet adds the Mounted-Combat-only value of the same original, used when Mounted Archery is
+        // withdrawn because a required path (ordinary or fighter) stopped offering it.
         private void LeaseKmcCombatFeatSelections()
         {
-            var items = KmcCombatFeatPublication.Items(mountedCombatFeature, mountedArcheryFeature);
-            foreach (var selection in mountedCombatSelectionTargets)
-                mountedCombatSelections.Add(new KeyValuePair<BlueprintFeatureSelection, ExactAppendOnlyArrayLease<BlueprintFeature>>(
-                    selection, new ExactAppendOnlyArrayLease<BlueprintFeature>(selection.AllFeatures, items)));
+            mountedCombatPublication = new KmcCombatFeatPublicationSet<BlueprintFeatureSelection, BlueprintFeature>(
+                mountedCombatSelectionTargets, requiredCombatFeatSelections, mountedCombatFeature, mountedArcheryFeature,
+                selection => selection.AllFeatures, (selection, value) => selection.AllFeatures = value);
         }
 
         private BlueprintBuff CreateMountedCombatBuff(string name, string guid, Kingmaker.Localization.LocalizedString displayName,
@@ -183,24 +188,16 @@ namespace KingmakerMountedCombat.Integration
             RemoveExact(library, blueprintList, MountedCombatWindowBuffGuid, mountedCombatWindowBuff);
             mountedCombatFeature = null; mountedCombatToggle = null; mountedCombatToggleBuff = null;
             mountedCombatSpentBuff = null; mountedCombatOwedBuff = null; mountedCombatWindowBuff = null;
-            mountedCombatSelections.Clear();
+            mountedCombatPublication = null;
             mountedCombatSelectionTargets.Clear();
+            requiredCombatFeatSelections.Clear();
         }
 
         private void ApplyMountedCombatSelectionsReported(bool desired)
         {
-            string error = null;
-            foreach (var pair in mountedCombatSelections)
-            {
-                var current = pair.Key.AllFeatures;
-                if (desired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
-                if (desired ? !pair.Value.MatchesOriginal(current) : !pair.Value.MatchesAppended(current))
-                {
-                    error = JoinErrors(error, "Feat selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.");
-                    continue;
-                }
-                pair.Key.AllFeatures = desired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
-            }
+            if (mountedCombatPublication == null) return;
+            var error = mountedCombatPublication.Apply(desired, selection => selection.name);
+            ReportMountedArcheryWithdrawal();
             if (error == null) return;
             mountedCombatFailure = error;
             logger.Error(error);

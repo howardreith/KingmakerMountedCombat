@@ -11,7 +11,7 @@ namespace KingmakerMountedCombat.Integration
 {
     // Mounted Archery: a passive combat feat whose only rule is MountedRangedMovementService's reduced contribution. It is
     // registered after Mounted Combat (its prerequisite) and published in the same coordinated selection leases. A fault
-    // here removes only this feat; with it gone the mounted-movement penalty is not applied either (MountedArcheryReady).
+    // here removes only this feat; with it gone the mounted-movement penalty is not applied either (IsMountedArcheryAvailable).
     internal sealed partial class HorseCompanionBlueprintService
     {
         internal const string MountedArcheryFeatureGuid = "b81926bca1d24a3997cdc8471a84014b";
@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintFeature mountedRangedMovementLabel, mountedRangedMovementReducedLabel;
         private Fact mountedRangedMovementSource, mountedRangedMovementReducedSource;
         private string mountedArcheryFailure;
+        private bool mountedArcheryWithdrawalReported;
 
         internal BlueprintFeature MountedArcheryFeature => mountedArcheryFeature;
         internal string MountedArcheryFailure => mountedArcheryFailure;
@@ -28,11 +29,35 @@ namespace KingmakerMountedCombat.Integration
         internal Fact MountedRangedMovementSource => mountedRangedMovementSource;
         internal Fact MountedRangedMovementReducedSource => mountedRangedMovementReducedSource;
 
-        // The penalty and its reduction exist together: only when the feat is registered and still offered by every one
-        // of its selections. A selection that drifted outside KMC withdraws both rather than leave an unselectable fix.
-        internal bool MountedArcheryReady => mountedArcheryFeature != null && mountedArcheryFailure == null &&
-            mountedRangedMovementSource != null && mountedRangedMovementReducedSource != null &&
-            mountedCombatSelections.Count != 0 && mountedCombatSelections.All(pair => pair.Key.AllFeatures != null && pair.Key.AllFeatures.Contains(mountedArcheryFeature));
+        internal bool MountedArcheryWithdrawn => mountedCombatPublication?.MountedArcheryWithdrawn == true;
+
+        // The penalty and its reduction exist together. The mechanic is available while KMC publishes the feat and both
+        // required paths (ordinary and fighter feats) offer it. If a required path stops offering it, the publication
+        // withdraws the feat from every other KMC array too, so no list offers a feat whose mechanic is off; a drifted
+        // non-required list only stops offering it there (KmcCombatFeatPublicationSet).
+        internal bool IsMountedArcheryAvailable()
+        {
+            if (mountedArcheryFeature == null || mountedArcheryFailure != null || mountedCombatPublication == null ||
+                mountedRangedMovementSource == null || mountedRangedMovementReducedSource == null) return false;
+            var available = mountedCombatPublication.MountedArcheryAvailable();
+            ReportMountedArcheryWithdrawal();
+            return available;
+        }
+
+        // Each frame once registered: one reference comparison per required array, a full comparison only when replaced.
+        private void RefreshMountedArcheryPublicationReported()
+        {
+            if (mountedCombatPublication != null && mountedCombatPublication.Refresh(false)) ReportMountedArcheryWithdrawal();
+        }
+
+        private void ReportMountedArcheryWithdrawal()
+        {
+            if (mountedCombatPublication == null || !mountedCombatPublication.MountedArcheryWithdrawn || mountedArcheryWithdrawalReported) return;
+            mountedArcheryWithdrawalReported = true;
+            logger.Warning("Mounted Archery withdrawn for this session: a required feat selection no longer offers it (" +
+                mountedCombatPublication.WithdrawalReason + "). It was removed from every other KMC feat list that still held " +
+                "KMC's exact value; Mounted Combat and other mods' changes are untouched; no mounted ranged penalty or reduction applies.");
+        }
 
         private void RegisterMountedArcheryFeatReported(LibraryScriptableObject library)
         {

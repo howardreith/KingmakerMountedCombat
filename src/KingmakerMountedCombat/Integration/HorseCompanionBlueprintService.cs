@@ -242,6 +242,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A locale change replaces the native pack; the owned keys are registered again on the new one.
                 if (!ReferenceEquals(LocalizationManager.CurrentPack, localizedPack)) EnsureLocalization();
+                RefreshMountedArcheryPublicationReported();
                 SynchronizeLiveHorseCompanionProgression();
                 return;
             }

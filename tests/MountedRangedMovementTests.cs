@@ -21,11 +21,16 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted ranged movement: auto-stop and a second click are classified by actual travel", AutoStopAndSecondClick);
             runner.Run("mounted ranged movement: each roll reads travel already made; earlier shots are not revised", PerRollTiming);
             runner.Run("mounted ranged movement: rider ownership, active pair, mode and attack kind gate the contribution", Gates);
-            runner.Run("mounted ranged movement: only a ranged weapon attack qualifies; firearms' touch AC is not an exclusion", WeaponAttacks);
-            runner.Run("mounted ranged movement: the allocation must be current for this rider's attack", AllocationCurrency);
+            runner.Run("mounted ranged movement: only a wielded ranged weapon qualifies; firearms' touch AC is not an exclusion", WeaponAttacks);
+            runner.Run("mounted ranged movement: Dead Shot probes and its prefix confirmation are committed weapon rolls", DeadShotShapes);
+            runner.Run("mounted ranged movement: the allocation must be current for the pair's activation", AllocationCurrency);
+            runner.Run("mounted ranged movement: a mid-encounter mount (PreparePartnerThisRound) charges the mounted travel, not earlier riderless travel", MidEncounterAdoption);
             runner.Run("mounted ranged movement: retained travel survives persistence and dismount; a fresh grant resets it", Lifetime);
             runner.Run("mounted archery publication: both KMC combat feats share one exact lease per selection array", CoordinatedLease);
             runner.Run("mounted archery publication: independent leases of one array would conflict", IndependentLeasesConflict);
+            runner.Run("mounted archery publication: a drifted extra list stops offering it while the rule stays on", ExtraListDrift);
+            runner.Run("mounted archery publication: a drifted required list withdraws the feat everywhere and turns the rule off", RequiredListDrift);
+            runner.Run("mounted archery publication: disable, re-enable and a missing feat keep the lists and the rule coherent", PublicationLifecycle);
         }
 
         // One native-shaped path: full ticks of `tick` (the first may differ), the last tick near the endpoint.
@@ -228,29 +233,97 @@ namespace KingmakerMountedCombat.Tests
 
         private static void WeaponAttacks()
         {
-            TestRunner.True(MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, false, false), "A bow, crossbow, thrown weapon or firearm qualifies.");
+            TestRunner.True(MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, false, false), "A wielded bow, crossbow, thrown weapon or firearm qualifies.");
             TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, false, false, false), "A melee weapon does not.");
             TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, true, false), "A natural weapon does not.");
-            TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(false, true, false, false), "A spell's bare attack roll does not.");
-            TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, false, true), "A ray or kinetic proxy weapon does not.");
+            TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(false, true, false, false), "A spell's proxy weapon, never equipped, does not.");
+            TestRunner.True(!MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, false, true), "A ray or kinetic proxy category does not.");
+        }
+
+        private static void DeadShotShapes()
+        {
+            // Review finding 2. Dead Shot triggers its own RuleAttackRolls on the equipped firearm (no RuleAttackWithWeapon
+            // parent): the weapon qualifies because it is wielded, not because of the delivering rule.
+            TestRunner.True(MountedRangedMovementPolicy.QualifyingRangedWeaponAttack(true, true, false, false), "A Dead Shot probe on the equipped firearm qualifies.");
+            // After qualifying travel a Dead Shot probe receives the ordinary firearm attack's contribution.
+            var mount = new Mount();
+            mount.Travel(4f);
+            TestRunner.Equal(-4, Contribution(Rider(mount.Normal)), "Dead Shot without the feat.");
+            TestRunner.Equal(-2, Contribution(Rider(mount.Normal, true)), "Dead Shot with the feat.");
+            // The probe's own calculation runs inside RuleAttackRoll.OnTrigger; the delivery's one confirmation runs in an
+            // OnTrigger prefix of the auto-hit delivery roll, before its body (no AC rule yet). Both are committed.
+            TestRunner.True(MountedRangedMovementPolicy.CommittedRollCalculation(true, true, false),
+                "The roll's own calculation, or a confirmation made for the still-unresolved roll, is committed.");
+            TestRunner.True(!MountedRangedMovementPolicy.CommittedRollCalculation(false, false, false), "A character-sheet or tooltip preview has no enclosing roll.");
+            TestRunner.True(!MountedRangedMovementPolicy.CommittedRollCalculation(true, false, false), "A parry or another actor's calculation is not this roll's.");
+            TestRunner.True(!MountedRangedMovementPolicy.CommittedRollCalculation(true, true, true), "Nothing after the roll stored its result.");
         }
 
         private static void AllocationCurrency()
         {
-            const string grant = "d6727a02c73449b7ae3e7bcfb459288a:3";
-            var mountOwn = "native:" + new string('a', 32);
-            var riderOwn = "native:" + new string('b', 32);
-            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, grant, true), "The rider's own paired activation is current.");
-            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, grant, false), "One paired activation spans a Delay into a later round.");
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(false, grant, grant, true), "Another combat controller is never current.");
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, "d6727a02c73449b7ae3e7bcfb459288a:4", true), "An earlier activation is stale.");
-            // Review finding: the horse double-moves riderless on its own turn, then the rider mounts later in the same round
-            // (the mount keeps its own slot). That travel is the mount's own grant and must not penalize the rider's shot.
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, mountOwn, riderOwn, true), "Riderless travel on the mount's own turn this round is not the rider's.");
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, mountOwn, null, true), "A mount's standalone grant is never current for a rider.");
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, null, riderOwn, true), "An ungranted mount record does not match a granted rider.");
-            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, null, null, true), "Legacy round allocations of this round are current.");
-            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, null, null, false), "Legacy round allocations of an earlier round are stale.");
+            var rider = new object();
+            var horse = new object();
+            var activation = new PairedActivation<object, object>(rider, horse);
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse) == null, "No grant before the activation has a boundary.");
+            var boundary = new object();
+            TestRunner.True(activation.Begin(boundary) && activation.BeginActorPreparation(rider, boundary) && activation.BeginActorPreparation(horse, boundary), "Ordinary paired preparation.");
+            var grant = MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse);
+            TestRunner.Equal(activation.Identity, grant, "The pair's activation identity is the authority.");
+            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, grant, true, true), "The mount's record of this activation is current.");
+            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, grant, true, false), "One paired activation spans a Delay into a later round.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(false, grant, grant, true, true), "Another combat controller is never current.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, activation.EncounterId.ToString("N") + ":0", grant, true, true), "An earlier activation is stale.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, "native:" + new string('a', 32), grant, true, true),
+                "The mount's own turn this round (riderless, or under another rider) is not the pair's.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, null, true, true), "No current activation, nothing is current.");
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(activation, new object(), horse) == null, "Another rider does not own this pair's grant.");
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, new object()) == null, "Another mount does not own this pair's grant.");
+            TestRunner.True(MountedRangedMovementPolicy.IsAllocationCurrent(true, null, null, false, true), "Legacy turn modes: an ungranted record of this round is current.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, null, null, false, false), "Legacy turn modes: an earlier round is stale.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, "native:" + new string('a', 32), null, false, true), "Legacy turn modes never read a granted record.");
+        }
+
+        private static void MidEncounterAdoption()
+        {
+            // Review finding 1. The horse moved riderless on its own turn earlier this round (its own native grant).
+            var horseRecord = new Mount();
+            horseRecord.Travel(6f);
+            var riderlessGrant = "native:" + new string('c', 32);
+            var rider = new object();
+            var horse = new object();
+            var riderTurn = new object();
+            // The rider mounts with its Move on its running turn. AdoptRunningEncounter adopts that boundary without
+            // preparing the rider again, then prepares the horse alone: Prepare -> BeginActorPreparation(horse) ->
+            // BeginGrantedPreparation(partner, activation.Identity), which replaces the horse's record with a fresh one.
+            var activation = new PairedActivation<object, object>(rider, horse);
+            TestRunner.True(activation.AdoptRunningBoundary(riderTurn, Domain.MidEncounterAdoption.PreparePartnerThisRound), "The running turn is adopted.");
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse) == null, "Before the horse's preparation nothing is granted to it.");
+            TestRunner.True(activation.BeginActorPreparation(horse, riderTurn), "The horse's one native preparation.");
+            var paired = MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse);
+            TestRunner.True(paired != null, "The adopted pair has a current activation.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, riderlessGrant, paired, true, true), "The riderless record is not the pair's.");
+            var mounted = new Mount();   // the record BeginGrantedPreparation created, stamped with the activation identity
+            var mountedGrant = activation.Identity;
+            mounted.Travel(3.5f);
+            // The rider's own record is absent or still carries its earlier native grant; neither is an input any more.
+            foreach (var owns in new[] { false, true })
+            {
+                var facts = Rider(mounted.Normal, owns);
+                facts.CurrentAllocation = MountedRangedMovementPolicy.IsAllocationCurrent(true, mountedGrant, paired, true, true);
+                TestRunner.Equal(owns ? -2 : -4, Contribution(facts), "Qualifying mounted travel after a mid-encounter mount is penalized.");
+            }
+            var shortMount = new Mount();
+            shortMount.Travel(2f);
+            var shortFacts = Rider(shortMount.Normal);
+            shortFacts.CurrentAllocation = MountedRangedMovementPolicy.IsAllocationCurrent(true, mountedGrant, paired, true, true);
+            TestRunner.Equal(0, Contribution(shortFacts), "Earlier riderless travel is never added to the mounted travel.");
+
+            // RetainPartnerParticipation: the horse's slot is already behind the rider, so it is not prepared and keeps its
+            // own record; its riderless travel stays its own.
+            var retained = new PairedActivation<object, object>(rider, horse);
+            TestRunner.True(retained.AdoptRunningBoundary(new object(), Domain.MidEncounterAdoption.RetainPartnerParticipation), "Retained adoption.");
+            var retainedGrant = MountedRangedMovementPolicy.CurrentPairedGrant(retained, rider, horse);
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, riderlessGrant, retainedGrant, true, true), "A retained horse's own turn is not the pair's.");
         }
 
         private static void Lifetime()
@@ -320,6 +393,101 @@ namespace KingmakerMountedCombat.Tests
             object[] restored;
             string error;
             TestRunner.True(!second.TryRestore(afterFirst, out restored, out error), "And it could not restore over it either.");
+        }
+
+        private sealed class Lists
+        {
+            internal readonly object Power = new object(), Dodge = new object(), MountedCombat = new object(), MountedArchery = new object();
+            internal readonly System.Collections.Generic.Dictionary<string, object[]> Arrays = new System.Collections.Generic.Dictionary<string, object[]>();
+            internal KmcCombatFeatPublicationSet<string, object> Set;
+
+            internal Lists(bool archery = true)
+            {
+                Arrays["ordinary"] = new[] { Power, Dodge };
+                Arrays["fighter"] = new[] { Power, Dodge, new object() };
+                Arrays["extra"] = new[] { Power, Dodge };
+                Set = new KmcCombatFeatPublicationSet<string, object>(new[] { "ordinary", "fighter", "extra" }, new[] { "ordinary", "fighter" },
+                    MountedCombat, archery ? MountedArchery : null, key => Arrays[key], (key, value) => Arrays[key] = value);
+            }
+
+            internal bool Has(string key, object item) => Array.IndexOf(Arrays[key], item) >= 0;
+
+            // The invariant the review asked for: the rule is on exactly when no list offers a feat whose mechanic is off.
+            internal void AssertCoherent(string when)
+            {
+                var available = Set.MountedArcheryAvailable();
+                foreach (var key in Arrays.Keys)
+                    if (Has(key, MountedArchery)) TestRunner.True(available, when + ": " + key + " offers Mounted Archery only while its rule is on.");
+                if (available) TestRunner.True(Has("ordinary", MountedArchery) && Has("fighter", MountedArchery), when + ": an active rule is obtainable from both required lists.");
+            }
+        }
+
+        private static void ExtraListDrift()
+        {
+            var lists = new Lists();
+            TestRunner.True(lists.Set.Apply(true, key => key) == null, "Publication succeeds.");
+            TestRunner.True(lists.Set.MountedArcheryAvailable(), "Published and available.");
+            lists.AssertCoherent("published");
+            // Another mod replaces the extra list after publication and omits Mounted Archery.
+            var foreign = new[] { lists.Power, lists.Dodge, lists.MountedCombat, new object() };
+            lists.Arrays["extra"] = foreign;
+            TestRunner.True(lists.Set.MountedArcheryAvailable(), "Both required lists still offer it: the rule stays on.");
+            TestRunner.True(ReferenceEquals(lists.Arrays["extra"], foreign), "The foreign list is never rewritten.");
+            TestRunner.True(lists.Has("ordinary", lists.MountedArchery) && lists.Has("fighter", lists.MountedArchery), "The required lists keep offering it.");
+            lists.AssertCoherent("extra drift");
+        }
+
+        private static void RequiredListDrift()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            // Another mod replaces the fighter list after publication and omits Mounted Archery.
+            var foreign = new[] { lists.Power, lists.Dodge, lists.MountedCombat, new object() };
+            lists.Arrays["fighter"] = foreign;
+            // The per-frame refresh sees the replaced required array by reference and withdraws at once.
+            TestRunner.True(lists.Set.Refresh(false), "The per-frame refresh withdraws on a replaced required list.");
+            TestRunner.True(lists.Set.MountedArcheryWithdrawn && lists.Set.WithdrawalReason == "fighter", "Withdrawn, naming the list.");
+            TestRunner.True(!lists.Set.MountedArcheryAvailable(), "The rule is off.");
+            TestRunner.True(!lists.Has("ordinary", lists.MountedArchery) && !lists.Has("extra", lists.MountedArchery), "No list still offers Mounted Archery.");
+            TestRunner.True(lists.Has("ordinary", lists.MountedCombat) && lists.Has("extra", lists.MountedCombat), "Mounted Combat stays offered.");
+            TestRunner.True(ReferenceEquals(lists.Arrays["fighter"], foreign), "The foreign list is never rewritten.");
+            lists.AssertCoherent("required drift");
+            TestRunner.True(!lists.Set.Refresh(true), "Withdrawal happens once.");
+
+            // An in-place edit keeps the array reference; the per-frame check misses it, the attack-time check does not.
+            var inPlace = new Lists();
+            inPlace.Set.Apply(true, key => key);
+            var ordinary = inPlace.Arrays["ordinary"];
+            ordinary[Array.IndexOf(ordinary, inPlace.MountedArchery)] = new object();
+            TestRunner.True(!inPlace.Set.Refresh(false), "The cheap check sees the same reference.");
+            TestRunner.True(!inPlace.Set.MountedArcheryAvailable(), "The full comparison at attack time withdraws.");
+            inPlace.AssertCoherent("in-place drift");
+        }
+
+        private static void PublicationLifecycle()
+        {
+            var lists = new Lists();
+            var originals = new System.Collections.Generic.Dictionary<string, object[]>();
+            foreach (var key in lists.Arrays.Keys) originals[key] = (object[])lists.Arrays[key].Clone();
+            TestRunner.True(!lists.Set.MountedArcheryAvailable(), "Nothing is available before publication.");
+            lists.Set.Apply(true, key => key);
+            TestRunner.True(lists.Set.Apply(false, key => key) == null, "Disable restores every list.");
+            foreach (var key in originals.Keys)
+                TestRunner.True(lists.Arrays[key].Length == originals[key].Length && !lists.Has(key, lists.MountedCombat) && !lists.Has(key, lists.MountedArchery), "Restored " + key + ".");
+            TestRunner.True(!lists.Set.MountedArcheryAvailable() && !lists.Set.MountedArcheryWithdrawn, "Disabled is not a withdrawal.");
+            lists.Set.Apply(true, key => key);
+            lists.AssertCoherent("re-enabled");
+            lists.Arrays["ordinary"] = new[] { lists.Power, lists.Dodge, lists.MountedCombat, new object() };
+            TestRunner.True(!lists.Set.MountedArcheryAvailable(), "Withdrawn after required drift.");
+            TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the foreign ordinary list and leaves it.");
+            TestRunner.True(lists.Set.Apply(true, key => key) != null && !lists.Has("fighter", lists.MountedArchery) && lists.Has("fighter", lists.MountedCombat),
+                "Re-enabling after a withdrawal publishes Mounted Combat only.");
+            lists.AssertCoherent("re-enabled after withdrawal");
+
+            var noArchery = new Lists(false);
+            TestRunner.True(noArchery.Set.Apply(true, key => key) == null && noArchery.Has("ordinary", noArchery.MountedCombat), "Mounted Combat alone is published.");
+            TestRunner.True(!noArchery.Set.MountedArcheryAvailable(), "Without the feat there is no rule.");
+            noArchery.AssertCoherent("no Mounted Archery");
         }
     }
 }

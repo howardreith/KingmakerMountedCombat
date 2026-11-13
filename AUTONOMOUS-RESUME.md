@@ -10,8 +10,13 @@ docs/MOUNTED-ARCHERY-HANDOFF.md.
     the enclosing `RuleAttackRoll` with `ACRule` set and `AttackBonusRule` null).
   - `MountedMovementStateAdapter.TryReadCurrentMountTravel` — the only rules reading of an allocation; `PeekMovement`
     stays diagnostic.
-  - `MountedRangedMovementPolicy.IsAllocationCurrent` — shared paired grant, or legacy no-grant round records only.
-  - `HorseCompanionBlueprintService.LeaseKmcCombatFeatSelections` — one lease per array for both KMC combat feats.
+  - `MountedRangedMovementPolicy.IsAllocationCurrent` / `CurrentPairedGrant`: the authority is the pair's current
+    paired activation (`MountedPairTurnParticipant.CurrentPairedGrant`), not the rider's movement record. Legacy modes
+    use ungranted round records.
+  - `MountedRangedMovementPolicy.QualifyingRangedWeaponAttack` / `CommittedRollCalculation`: a wielded weapon in the same
+    attacker's unresolved roll. No `RuleAttackWithWeapon` requirement, so Gunslinger Dead Shot is covered.
+  - `KmcCombatFeatPublicationSet`: the required lists are ordinary and fighter; a drift there withdraws the feat from
+    every KMC list. It refreshes each frame by reference, and at apply and attack time by full comparison.
 - **Native next step:** owner play with the branch DLL, or a qualified fixture: rows N1–N5 in the handoff. Log line
   `Mounted ranged movement:` carries pair, allocation, travel, ownership and contribution.
 - **Open:** a pair acting on separate initiative slots gets no contribution (conservative); up to 0.25 s of

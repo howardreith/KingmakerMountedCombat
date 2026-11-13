@@ -312,7 +312,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool Sprint6KmcTailExact(BlueprintFeature[] features)
         {
             if (horseService.MountedCombatFeature == null || features == null) return false;
-            var tail = KmcCombatFeatPublication.Items(horseService.MountedCombatFeature, horseService.MountedArcheryFeature);
+            var tail = KmcCombatFeatPublication.Items(horseService.MountedCombatFeature,
+                horseService.MountedArcheryWithdrawn ? null : horseService.MountedArcheryFeature);
             if (features.Length < tail.Length) return false;
             for (var index = 0; index < tail.Length; index++)
                 if (!ReferenceEquals(features[features.Length - tail.Length + index], tail[index])) return false;

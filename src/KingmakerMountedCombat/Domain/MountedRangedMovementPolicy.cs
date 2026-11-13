@@ -52,27 +52,50 @@ namespace KingmakerMountedCombat.Domain
             return Math.Max(0f, timeMoved - timeForced - timeStepped);
         }
 
-        // A ranged weapon attack: a native RuleAttackWithWeapon roll (bows, crossbows, slings, thrown weapons and
-        // weapon-delivered firearms, whose touch AC is still a weapon attack) with a ranged, non-natural weapon. Spell rays,
-        // touch spells and kinetic blasts are delivered by AbilityDeliverProjectile/AbilityDeliverTouch as bare
-        // RuleAttackRolls with a proxy weapon; the proxy categories are refused as well in case another path wraps them.
-        public static bool QualifyingRangedWeaponAttack(bool weaponAttackRule, bool rangedWeapon, bool naturalWeapon, bool spellProxyCategory) =>
-            weaponAttackRule && rangedWeapon && !naturalWeapon && !spellProxyCategory;
+        // A ranged weapon attack: a ranged, non-natural weapon that the attacker actually wields (ItemEntity.Wielder is set
+        // on equip and cleared on unequip). That covers bows, crossbows, slings, thrown weapons and firearms, whichever rule
+        // delivers the roll: a native RuleAttackWithWeapon, or a mod's own attack rolls on the equipped weapon (Gunslinger's
+        // Dead Shot probes have no RuleAttackWithWeapon parent). A firearm's touch AC is still a weapon attack. Spell rays,
+        // touch spells and kinetic blasts use proxy weapons created for the delivery and never equipped; their proxy
+        // categories are refused as well.
+        public static bool QualifyingRangedWeaponAttack(bool wieldedByAttacker, bool rangedWeapon, bool naturalWeapon, bool spellProxyCategory) =>
+            wieldedByAttacker && rangedWeapon && !naturalWeapon && !spellProxyCategory;
+
+        // A calculation that decides a committed roll: it is triggered while the attacker's RuleAttackRoll against the same
+        // target with the same weapon is on the rulebook stack and has not yet stored its attack-bonus rule. That is the
+        // native calculation inside RuleAttackRoll.OnTrigger, and a confirmation a mod makes for that roll before its body
+        // runs (Gunslinger's Dead Shot confirms an auto-hit delivery in an OnTrigger prefix). Character-sheet, tooltip and
+        // other previews are triggered with no enclosing roll; a parry is the defender's, after the roll resolved.
+        public static bool CommittedRollCalculation(bool enclosedByAttackRoll, bool sameAttackerTargetAndWeapon, bool rollAlreadyResolved) =>
+            enclosedByAttackRoll && sameAttackerTargetAndWeapon && !rollAlreadyResolved;
 
         public static bool EnteredSecondMove(float normalTravelSeconds) =>
             Finite(normalTravelSeconds) && normalTravelSeconds > SecondMoveThresholdSeconds;
 
-        // The mount's allocation is current for this rider's attack only when its travel belongs to this rider's mounted
-        // activation: the mount's grant is the rider's own paired grant (one activation, including a Delay into a later
-        // round), or neither has a grant (the legacy turn modes' round allocations) and it is of the current round. A
-        // mount's standalone native grant is never current for a rider: that travel was made on the mount's own turn,
-        // possibly riderless or under another rider before a mid-round mount (MidEncounterAdoptionPolicy retains the
-        // mount's own slot), so it cannot be attributed to this rider's shot.
-        public static bool IsAllocationCurrent(bool sameController, string mountGrant, string riderGrant, bool mountRoundIsCurrent)
+        // The pair's current paired activation grant: its identity when the activation is turn-based (a boundary exists),
+        // not split, and has exactly this rider as principal and this mount as partner, with the mount granted in it. Null
+        // otherwise. This, not the rider's own movement record, is the authority: a mid-encounter mount adopts the rider's
+        // already-running turn without re-preparing it (PreparePartnerThisRound prepares the mount alone), so the rider's
+        // record is absent or carries its earlier native grant while the mount's record carries the activation's identity.
+        public static string CurrentPairedGrant<TActor, TBoundary>(PairedActivation<TActor, TBoundary> activation, TActor rider, TActor mount)
+            where TActor : class where TBoundary : class
+        {
+            if (activation == null || rider == null || mount == null || activation.Split || activation.Sequence <= 0 ||
+                !ReferenceEquals(activation.Principal, rider) || !ReferenceEquals(activation.Partner, mount) ||
+                activation.Mount == null || !activation.Mount.Granted) return null;
+            return activation.Identity;
+        }
+
+        // The mount's allocation is current for this rider's attack only when its travel belongs to the pair's current
+        // mounted activation: with paired activation in use, the mount's grant equals that activation's identity (Delay into
+        // a later round included). A mount's standalone native grant never matches: that travel was made on its own turn,
+        // riderless or under another rider (a RetainPartnerParticipation mount keeps its own slot), so it is never charged to
+        // this rider. The legacy turn modes grant nothing; there an ungranted record of the current round is current.
+        public static bool IsAllocationCurrent(bool sameController, string mountGrant, string pairedGrant, bool pairedLifecycle, bool mountRoundIsCurrent)
         {
             if (!sameController) return false;
-            if (mountGrant != null) return riderGrant != null && string.Equals(mountGrant, riderGrant, StringComparison.Ordinal);
-            return riderGrant == null && mountRoundIsCurrent;
+            if (pairedLifecycle) return pairedGrant != null && string.Equals(mountGrant, pairedGrant, StringComparison.Ordinal);
+            return mountGrant == null && mountRoundIsCurrent;
         }
 
         public static MountedRangedMovementOutcome Evaluate(MountedRangedMovementFacts facts, out int contribution)

@@ -8,6 +8,83 @@ original icon, and the missing mounted ranged-movement penalty that it reduces.
 section). Native mechanics, native UI and owner art acceptance are NOT RUN: this machine has no KMC install, no
 qualified KMC fixture and no `runtime-state\fixture-qualification.json`. No merge, release, version change or install.
 
+## Owner review of e6844536 (request changes): corrections (2026-11-13)
+
+Three P2 findings, all confirmed by tracing source and corrected. None is shown in game. Where this section differs
+from the sections below, this section is current.
+
+- **1. A mid-encounter mount lost the penalty for its first paired turn.**
+  - **Defect:** currency compared the mount's record with the *rider's* record. `AdoptRunningEncounter` adopts the
+    rider's running turn without preparing it and prepares only the horse (`PreparePartnerThisRound`). The horse's
+    record therefore carries `activation.Identity`, while the rider's record is absent or still carries its earlier
+    `native:` grant, so valid mounted travel was refused.
+  - **Correction:** the authority is now the pair's current paired activation.
+    - `MountedRangedMovementPolicy.CurrentPairedGrant` returns that activation's identity when the activation has a
+      boundary, is not split, has exactly this rider as principal and this mount as partner, and has granted the mount.
+    - `MountedPairTurnParticipant.CurrentPairedGrant` supplies it.
+    - The mount's record must carry that identity. The rider's record is no longer an input.
+  - **Riderless travel stays excluded:** the horse's preparation replaces its record, and a `RetainPartnerParticipation`
+    horse keeps its own `native:` grant, which never matches.
+  - **Legacy turn modes** grant nothing, so there an ungranted record of the current round is current.
+- **2. Gunslinger Dead Shot bypassed the penalty.** Gunslinger commit `a3912f56` was read.
+  - **Probes:** Dead Shot's probes are `RuleAttackRoll`s on the equipped firearm, with no `RuleAttackWithWeapon` parent.
+  - **Confirmation:** the delivery auto-hits or auto-misses, and its one confirmation triggers its own
+    `RuleCalculateAttackBonus` in a `RuleAttackRoll.OnTrigger` prefix, before the AC rule exists.
+  - **Weapon test:** a qualifying weapon is now a ranged, non-natural weapon the attacker *wields*. `ItemEntity.Wielder`
+    is set on equip and cleared on unequip, and the clearing is pinned. Spell proxy weapons are never equipped. Proxy
+    categories are still refused.
+  - **Calculation test:** a qualifying calculation is one whose enclosing event is the same attacker's roll, against the
+    same target with the same weapon, before that roll stores its attack-bonus rule
+    (`MountedRangedMovementPolicy.CommittedRollCalculation`). That covers the native in-body calculation and Dead
+    Shot's prefix confirmation.
+  - **Still excluded:**
+    - Previews have no enclosing roll.
+    - A parry is the defender's, after the roll resolved.
+    - The native confirmation reuses `AttackBonus`.
+    - An auto-hit roll computes no bonus.
+  - **No Gunslinger reference.**
+- **3. One drifted list could disable the rule while the feat stayed selectable.**
+  - **Correction:** `Domain/KmcCombatFeatPublication.cs` adds `KmcCombatFeatArrayPublication` and
+    `KmcCombatFeatPublicationSet`. Each shared array has three KMC-known values, all exact leases of one original:
+    original, + Mounted Combat, and + both feats.
+  - **Required paths:** ordinary and fighter feats. The rule is on while KMC publishes and both required lists offer
+    the feat.
+  - **Drifted extra list:** it only stops offering the feat there. The rule stays on, because every list that offers
+    the feat has its mechanic.
+  - **Drifted required list:** the feat is withdrawn for the session from every other array that still holds KMC's
+    exact value, leaving Mounted Combat. Foreign arrays are never written. One warning is logged.
+  - **Re-enabling after a withdrawal** publishes Mounted Combat only.
+  - **When the check runs:**
+    - At apply time, and at attack time with full comparison.
+    - Each frame in `HorseCompanionBlueprintService.Update`, by reference only (two reference comparisons). This
+      catches a replaced required array before the level-up UI shows it.
+    - An in-place element edit is caught at the next apply or attack.
+
+**Regressions:**
+- `MidEncounterAdoption` drives the real `PairedActivation.AdoptRunningBoundary(PreparePartnerThisRound)` and the
+  horse's preparation. It asserts -4/-2 for mounted travel and 0 for earlier riderless travel. The retained case is
+  refused.
+- `AllocationCurrency` checks partner, principal and stale cases.
+- `DeadShotShapes` covers the probe and prefix-confirmation shapes, and excludes previews and parries.
+- `ExtraListDrift`, `RequiredListDrift` (replaced and in-place) and `PublicationLifecycle` (disable, re-enable after
+  withdrawal, feat absent). Each asserts the review's invariant: no list offers the feat while its rule is off, and an
+  active rule is obtainable from both required lists.
+
+**Checks:**
+- Fast PASS 3/0: components 1210/0, Validate-Source 151/0. Took 0.68 min; budget 3.62 of 90 min.
+- Contracts 801/3: 2 new Wielder pins. The 3 UMM identity failures are pre-existing.
+- Mutations, all caught:
+  - the paired grant ignores the partner;
+  - paired mode accepts any record of the round;
+  - every list is required (the pre-review rule);
+  - withdrawal leaves other lists offering the feat;
+  - the wielded flag is ignored.
+- DLL SHA-256 `05cbbc2bbe397af6c8104f3a98e1f09c7da7b2c4f2dbda30aa8815de9166a37a`, MVID
+  `f5c3bebd-15cd-4da8-ba61-fba2f0b9b463`. This supersedes the identity below.
+
+**Limits:** the adoption path, attack seam and selection writes run in the game assembly, which the test host cannot
+load. The regressions drive the production Domain types those paths delegate to. Native rows N2 and C2 below cover them.
+
 ## Behaviour
 
 - **The base rule (new for every rider).** In turn-based combat, a mounted rider's ranged weapon attack takes **-4**
@@ -25,8 +102,8 @@ qualified KMC fixture and no `runtime-state\fixture-qualification.json`. No merg
   | one move at any speed, a five-foot step, a charge, standing still | 0 |
   | real-time attack | 0 (unchanged) |
 
-- **Ranged weapon attacks** only: bows, crossbows, slings, thrown weapons, and firearms delivered as weapon attacks
-  (Gunslinger's touch-AC firearms included; no Gunslinger reference). Spell rays, touch spells, kinetic blasts and
+- **Ranged weapon attacks** only: bows, crossbows, slings, thrown weapons and firearms the rider wields, whichever
+  rule delivers the roll (Gunslinger's touch-AC firearms and Dead Shot included; no Gunslinger reference). Spell rays, touch spells, kinetic blasts and
   alchemist bombs are excluded, as are melee, natural weapons, the mount's own attacks, unmounted actors and other pairs.
 - **The feat.** `MountedArcheryFeature` `b81926bca1d24a3997cdc8471a84014b`: one rank, nonclass, Feat + CombatFeat (the
   stock Power Attack contract), native `PrerequisiteStatValue` SkillMobility 1 (trained ranks, KMC's Ride adaptation)
@@ -87,31 +164,34 @@ Verified from the installed assembly (ILSpy listing) and pinned in `scripts/Test
 - `Domain/MountedRangedMovementPolicy.cs` — pure rule. Normal travel = `TimeMoved - TimeForced - TimeStepped`. Second
   Move entered when travel > 3 s + 0.25 s. Travel up to 3.25 s may be one move plus native borrowed endpoint time, so it
   counts as one move; at most 0.25 s (about 1.3 m for a 50 ft horse) of genuine second-Move travel can go unpenalized.
-  `IsAllocationCurrent`: same native controller, and either the mount's grant equals the rider's (one paired
-  activation, including Delay into a later round) or neither has a grant and the record is of the current round (the
-  legacy turn modes). A mount's standalone `native:` grant is never current for a rider (review finding, below).
+  `IsAllocationCurrent`: same native controller, and the mount's grant equals the pair's current paired activation
+  (`CurrentPairedGrant`: not split, exactly this principal and partner, mount granted; Delay into a later round
+  included). In the legacy turn modes, an ungranted record of the current round. A mount's standalone `native:` grant is
+  never current (owner review, above).
 - `Integration/MountedMovementStateAdapter.RangedMovement.cs` — `TryReadCurrentMountTravel`: the narrow authoritative
   reading. It applies `MaintainLifetimes` like every other adapter entry, then reads; it never creates, replaces or
   writes an allocation. `PeekMovement`/`PeekMountAllocation` remain diagnostic copies.
 - `Integration/MountedRangedMovementService.cs` — global `IGlobalRulebookHandler<RuleCalculateAttackBonus>`. Acts only
-  when the previous rulebook event is the enclosing `RuleAttackRoll` (same initiator, target and weapon; `ACRule` set,
-  `AttackBonusRule` not yet stored), the initiator is the active rider of a Mounted pair, and the attack qualifies. Adds
+  when the previous rulebook event is the same attacker's `RuleAttackRoll` against the same target with the same weapon,
+  not yet resolved (`AttackBonusRule` not stored; owner review, above), the initiator is the active rider of a Mounted
+  pair, and the weapon is a ranged, non-natural weapon the rider wields. Adds
   one `BonusSource`, refusing a second. Logs one line per turn-based mounted ranged attack (`Mounted ranged movement:`
   with pair, allocation, travel, ownership, outcome, contribution); real-time attacks and a withdrawn rule log nothing.
-  A withdrawn rule (feat registered but not offered everywhere) warns once. Faults are logged once and leave the roll
+  A withdrawal (a required list stopped offering the feat) warns once. Faults are logged once and leave the roll
   native.
 - `Integration/HorseCompanionBlueprintService.MountedArcheryFeat.cs` — the feat, and two unregistered, componentless,
   hidden label blueprints whose detached `Fact`s are the log sources (never attached to a unit, never saved).
-- **Coordinated publication.** Mounted Combat and Mounted Archery share one `ExactAppendOnlyArrayLease` per shared
-  selection array (`KmcCombatFeatPublication.Items`: Mounted Combat, then Mounted Archery). Selections are those offering
+- **Coordinated publication.** Mounted Combat and Mounted Archery share one publication per shared selection array
+  (`KmcCombatFeatPublicationSet`: exact leases of one original; Mounted Combat, then Mounted Archery). Selections are those offering
   both stock Power Attack and Dodge (ordinary, fighter and every combat-bonus list), unchanged. Only `AllFeatures` is
   leased: installed `BlueprintFeatureSelection.Items` enumerates `AllFeatures` (the Ranger lease records the same
   finding). `MountedFeatSelectorRefreshService` keeps its scope: every array with Mounted Archery also offers Mounted
   Combat.
 - **Failure containment.** Mounted Archery registers after Mounted Combat. Its fault removes only itself. A Mounted
-  Combat fault skips it. A lease fault removes both. `MountedArcheryReady` (feat registered, labels present, every
-  leased array still offering it) gates the penalty, so the base rule never runs without an available reduction, and
-  foreign drift or mod disable withdraws both.
+  Combat fault skips it. A lease fault removes both. `IsMountedArcheryAvailable` (feat registered, labels present,
+  published, both required lists offering it) gates the penalty; a required-list drift withdraws the feat from every
+  KMC list, and mod disable restores the originals, so the base rule never runs without an obtainable reduction and no
+  list offers the feat while its rule is off.
 - **Removal preparation** lists the new GUID in the archive scan and names a live owner, like Mounted Combat.
 - **Sprint 6 diagnostic.** Mounted Combat is no longer the last entry. The observer adds `kmcTailExact` /
   `offeredInKmcTail` (the array ends with exactly the KMC tail). The reader accepts old evidence (`lastIsFeat`) or the
@@ -184,6 +264,8 @@ that native attacks reach it.
 | N4 | allocation lifetime: save/load, next grant, dismount | NOT RUN |
 | N5 | controls: on-foot ranged, mounted melee, mount attacks, second pair, RT | NOT RUN |
 | C | crossbow, thrown weapon, Gunslinger pistol/musket (touch AC), scatter | NOT RUN |
+| C2 | Gunslinger Dead Shot after the same qualifying travel as an ordinary firearm shot, with and without the feat, including a threatened critical; other attack and confirmation modifiers intact | NOT RUN |
+| N6 | mid-encounter mount on the rider's turn (PreparePartnerThisRound), double move, shoot: -4 / -2; horse's earlier riderless travel not counted | NOT RUN |
 
 Reason: no KMC install, Working fixture or fixture qualification on this machine. Next step: owner play with the branch
 DLL, or a qualified fixture, taking N1–N5 from the packet's ACCEPTANCE.md. The log line `Mounted ranged movement:`

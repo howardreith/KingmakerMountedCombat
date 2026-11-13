@@ -16,6 +16,14 @@ Source: the owner's Mounted_Archery_Mission_Packet (checksums verified; icon and
   all corrected with a regression.
 - **Checks:** Fast PASS 3/0 (components 1205/0, Validate-Source 151/0); contracts 799/3 (the 3 UMM identity failures
   are pre-existing); Sprint 6 readers 84/0; six mutations caught.
+- **Owner review of `e6844536` (request changes), 3 P2 findings, all corrected:**
+  - Currency now follows the pair's current paired activation, not the rider's record. A mid-encounter mount
+    (`PreparePartnerThisRound`) is penalized; earlier riderless travel is not counted.
+  - A qualifying weapon is a wielded ranged weapon in the same attacker's unresolved roll. Gunslinger Dead Shot's
+    probes and its prefix confirmation are covered.
+  - Mounted Archery's availability follows the required lists (ordinary and fighter). A drifted required list
+    withdraws the feat from every KMC list.
+  - **Checks:** Fast PASS 3/0 (components 1210/0, Validate-Source 151/0); contracts 801/3; 5 mutations caught.
 - **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Owner art acceptance PENDING.
 - **Not authorized:** merge, release, tag, version bump or install.
 

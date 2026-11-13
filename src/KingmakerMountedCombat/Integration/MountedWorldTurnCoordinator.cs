@@ -204,7 +204,12 @@ namespace KingmakerMountedCombat.Integration
         {
             normalTravelSeconds = 0f;
             allocationIdentity = null;
-            return !disposed && movementState.TryReadCurrentMountTravel(mount, rider, out normalTravelSeconds, out allocationIdentity);
+            if (disposed || mount == null || rider == null) return false;
+            var participant = Find(rider);
+            if (participant == null || !ReferenceEquals(participant.Relationship.Rider, rider) || !ReferenceEquals(participant.Relationship.Mount, mount))
+                return false;
+            return movementState.TryReadCurrentMountTravel(mount, participant.CurrentPairedGrant(rider, mount), PairedLifecycleEnabled,
+                out normalTravelSeconds, out allocationIdentity);
         }
         internal void ObserveNativeMovement(TurnController turn)
         {
