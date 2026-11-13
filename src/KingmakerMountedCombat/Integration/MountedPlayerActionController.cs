@@ -81,6 +81,8 @@ namespace KingmakerMountedCombat.Integration
                 ClearMountTargetSelection();
             }
             feedbackState.ObserveAvailability(availability);
+            // The evaluator's complete reason set, carried to the final native availability diagnostic of this evaluation.
+            lastEvaluatorReasons = string.Join(" | ", System.Linq.Enumerable.ToArray(availability.UnavailableReasons));
             var transition = relationship.LastTransition;
             if (transition != null && !ReferenceEquals(transition, lastObservedTransition))
             {
@@ -182,7 +184,7 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        internal NativeMountedControlAvailability GetNativeMountAvailability(
+        private NativeMountedControlAvailability GetNativeMountAvailabilityCore(
             UnitEntityData caster,
             bool nativeMoveActionShellAdmitted = false)
         {
@@ -205,7 +207,7 @@ namespace KingmakerMountedCombat.Integration
                 true, availability.IsEnabled, availability.TransitionReady, availability.Feedback);
         }
 
-        internal NativeMountedControlAvailability GetNativeDismountAvailability(
+        private NativeMountedControlAvailability GetNativeDismountAvailabilityCore(
             UnitEntityData caster,
             bool nativeMoveActionShellAdmitted = false)
         {
@@ -785,12 +787,72 @@ namespace KingmakerMountedCombat.Integration
                  (Game.Instance?.Player?.IsInCombat ?? false));
         }
 
-        private static bool IsLoadingOrCutscene(Game game, UnitEntityData rider, UnitEntityData mount)
+        // Bald Hilltop Mount lockout repair: actor control is the live native scene control of this exact rider or mount
+        // (NativeSceneControl), not the presence of the never-cleared CutceneControlledUnit holder, which refused Mount for
+        // the rest of the session after any scene had once controlled either actor. Loading, the cutscene lock and the
+        // cutscene modes still refuse. Availability, queued delivery and Dismount all read this one predicate.
+        private bool IsLoadingOrCutscene(Game game, UnitEntityData rider, UnitEntityData mount)
         {
             var loading = LoadingProcess.Instance;
-            return (loading != null && loading.IsLoadingInProcess) || game.CutsceneLock ||
-                rider.CutceneControlledUnit != null || (mount != null && mount.CutceneControlledUnit != null) ||
-                game.CurrentMode == GameModeType.Cutscene || game.CurrentMode == GameModeType.CutsceneGlobalMap;
+            var loadingInProcess = loading != null && loading.IsLoadingInProcess;
+            var riderControlled = NativeSceneControl.IsUnderLiveSceneControl(rider);
+            var mountControlled = NativeSceneControl.IsUnderLiveSceneControl(mount);
+            var blocked = MountedSceneContinuityPolicy.BlocksPlayerTransition(loadingInProcess, game.CutsceneLock,
+                game.CurrentMode.ToString(), riderControlled, mountControlled);
+            lastSceneAdmissionFacts = "area=" + (game.CurrentlyLoadedArea?.name ?? "none") + "/" + (game.CurrentlyLoadedArea?.AssetGuidThreadSafe ?? "none") +
+                ";mode=" + game.CurrentMode + ";loading=" + loadingInProcess + ";cutsceneLock=" + game.CutsceneLock +
+                ";rider=" + NativeSceneControl.Describe(rider) + ";mount=" + NativeSceneControl.Describe(mount) +
+                ";riderControllable=" + (rider != null && rider.IsInGame && rider.IsDirectlyControllable) +
+                ";mountControllable=" + (mount != null && mount.IsInGame && mount.IsDirectlyControllable) +
+                ";blocked=" + blocked;
+            return blocked;
+        }
+
+        // Both are reset at the start of every native availability evaluation, so a line never carries an earlier
+        // evaluation's actors (PR #37 review: an early selection return left the previous rider's facts behind).
+        private string lastSceneAdmissionFacts;
+        private string lastEvaluatorReasons;
+        // Per action and caster: the native controls are polled for several casters and for both actions, so one shared
+        // key would alternate and log on every poll.
+        private readonly System.Collections.Generic.Dictionary<string, string> lastLoggedRefusalKeys =
+            new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal);
+
+        internal NativeMountedControlAvailability GetNativeMountAvailability(UnitEntityData caster, bool nativeMoveActionShellAdmitted = false)
+        {
+            lastSceneAdmissionFacts = null; lastEvaluatorReasons = null;
+            return ObserveFinalAvailability("Mount", caster, GetNativeMountAvailabilityCore(caster, nativeMoveActionShellAdmitted));
+        }
+
+        internal NativeMountedControlAvailability GetNativeDismountAvailability(UnitEntityData caster, bool nativeMoveActionShellAdmitted = false)
+        {
+            lastSceneAdmissionFacts = null; lastEvaluatorReasons = null;
+            return ObserveFinalAvailability("Dismount", caster, GetNativeDismountAvailabilityCore(caster, nativeMoveActionShellAdmitted));
+        }
+
+        // One line per change of the final native refusal (the reason the button shows, the evaluator's full reason set and
+        // the native scene facts of this evaluation), per action and caster; never one per tooltip refresh or poll.
+        private NativeMountedControlAvailability ObserveFinalAvailability(string action, UnitEntityData caster, NativeMountedControlAvailability result)
+        {
+            try
+            {
+                var slot = action + "|" + (caster?.UniqueId ?? "none");
+                if (result == null || !result.IsVisible || result.IsEnabled)
+                {
+                    lastLoggedRefusalKeys.Remove(slot);
+                    return result;
+                }
+                var facts = lastSceneAdmissionFacts ?? "no actor facts (no exact rider evaluated)";
+                var key = result.Reason + "|" + lastEvaluatorReasons + "|" + facts;
+                string previous;
+                if (lastLoggedRefusalKeys.TryGetValue(slot, out previous) && string.Equals(previous, key, StringComparison.Ordinal)) return result;
+                if (lastLoggedRefusalKeys.Count > 32) lastLoggedRefusalKeys.Clear();
+                lastLoggedRefusalKeys[slot] = key;
+                logger.Info("Mounted player action unavailable: action=" + action + "; caster=" + (caster?.UniqueId ?? "none") +
+                    "; shown=" + result.Reason + "; evaluator=" + (string.IsNullOrEmpty(lastEvaluatorReasons) ? "none" : lastEvaluatorReasons) +
+                    "; " + facts + ".");
+            }
+            catch (Exception error) { logger.Exception("Mounted availability diagnostic failed", error); }
+            return result;
         }
 
         private static bool IsSupportedRiderBodySurface(UnitEntityData rider, SupportedMountedProfile profile)

@@ -294,6 +294,9 @@ namespace KingmakerMountedCombat.Integration
             anchorLocalOffset = offset;
             localEulerRotation = eulerRotation;
             configured = true;
+            pendingScenePlacement = null;
+            correctNextWithoutSceneDetection = false;
+            lastWrittenEntityPosition = null;
             lastNativeUpdateFrame = -1;
             NativeMovementControllerUpdateCount = 0L;
             NativeMovingTickCount = 0L;
@@ -306,6 +309,9 @@ namespace KingmakerMountedCombat.Integration
         public void Deconfigure()
         {
             configured = false;
+            pendingScenePlacement = null;
+            correctNextWithoutSceneDetection = false;
+            lastWrittenEntityPosition = null;
             mount = null;
             anchor = null;
             anchorLocalOffset = Vector3.zero;
@@ -380,6 +386,12 @@ namespace KingmakerMountedCombat.Integration
             var expectedRotation = anchor.rotation * Quaternion.Euler(localEulerRotation);
             var preCorrectionPosition = Unit.transform.position;
             var preCorrectionEntityPosition = Unit.EntityData.Position;
+            // Cutscene continuity repair: a scene that placed the rider itself is not overwritten while the pair's owner
+            // decides the handoff; no write and no telemetry sample for that frame.
+            if (phase != MovementSynchronizationPhase.InitialConfiguration && HoldForScenePlacement(preCorrectionEntityPosition, expectedPosition))
+            {
+                return;
+            }
             var positionObservation = positionPhaseTracker.Observe(
                 Time.frameCount,
                 phase,
@@ -405,6 +417,7 @@ namespace KingmakerMountedCombat.Integration
             Unit.transform.position = expectedPosition;
             Unit.transform.rotation = expectedRotation;
             Unit.EntityData.Position = expectedPosition;
+            lastWrittenEntityPosition = expectedPosition;
             Unit.EntityData.Orientation = expectedRotation.eulerAngles.y;
             var postCorrectionPosition = Unit.transform.position;
             var postCorrectionEntityPosition = Unit.EntityData.Position;
@@ -422,6 +435,58 @@ namespace KingmakerMountedCombat.Integration
                 postCorrectionPositionResidual,
                 postCorrectionViewRotationResidual,
                 postCorrectionEntityRotationResidual));
+        }
+
+        // A frame budget for the owner's decision; past it, synchronization resumes (the rider returns to the saddle).
+        private const int ScenePlacementDecisionFrames = 30;
+        private Vector3? pendingScenePlacement;
+        private float pendingSceneOrientation;
+        private int pendingScenePlacementFrame;
+        private bool correctNextWithoutSceneDetection;
+        // The rider position this synchronizer last wrote. Only a write by someone else moves the rider away from it; a
+        // mount the scene moved (or teleported) moves the saddle instead, and the rider follows as always.
+        private Vector3? lastWrittenEntityPosition;
+
+        internal Vector3? PendingScenePlacement => pendingScenePlacement;
+
+        internal float PendingSceneOrientation => pendingSceneOrientation;
+
+        internal long ScenePlacementObservedCount { get; private set; }
+
+        // The owner refused the handoff (combat, an owned boundary): the next sample corrects the rider back onto the saddle.
+        internal void ReleaseScenePlacement()
+        {
+            pendingScenePlacement = null;
+            correctNextWithoutSceneDetection = true;
+        }
+
+        private bool HoldForScenePlacement(Vector3 entityPosition, Vector3 expectedPosition)
+        {
+            if (pendingScenePlacement.HasValue)
+            {
+                if (Time.frameCount - pendingScenePlacementFrame <= ScenePlacementDecisionFrames) return true;
+                ReleaseScenePlacement();
+                return false;
+            }
+            if (correctNextWithoutSceneDetection)
+            {
+                correctNextWithoutSceneDetection = false;
+                return false;
+            }
+            var deviation = new Vector2(entityPosition.x - expectedPosition.x, entityPosition.z - expectedPosition.z).magnitude;
+            if (deviation <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres || !lastWrittenEntityPosition.HasValue) return false;
+            var written = lastWrittenEntityPosition.Value;
+            var externalMove = new Vector2(entityPosition.x - written.x, entityPosition.z - written.z).magnitude;
+            if (externalMove <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres) return false;
+            var game = Kingmaker.Game.Instance;
+            var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
+                game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog), game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene));
+            if (!MountedSceneContinuityPolicy.IsScenePlacement(sceneActive, deviation)) return false;
+            pendingScenePlacement = entityPosition;
+            pendingSceneOrientation = Unit.EntityData.Orientation;
+            pendingScenePlacementFrame = Time.frameCount;
+            ScenePlacementObservedCount++;
+            return true;
         }
 
         private void ResetVelocity()

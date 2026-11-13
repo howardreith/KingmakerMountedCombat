@@ -592,7 +592,19 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private sealed class AreaPair
-        { internal string RiderId, MountId, ProfileId, OwnerId; internal long Generation; internal SavedPairedState Participation; internal bool Carried; }
+        {
+            internal string RiderId, MountId, ProfileId, OwnerId; internal long Generation; internal SavedPairedState Participation; internal bool Carried;
+            // Cutscene continuity repair, transient (never saved): this pair's own eligibility patience start, its bounded
+            // regroup move and attempts, and the boundary that handed it to scene staging (diagnostics only).
+            internal float EligibleSince = -1f;
+            internal Kingmaker.UnitLogic.Commands.UnitMoveTo RegroupMove;
+            // Native game seconds (TimeController.GameTime), double so a long campaign clock keeps sub-second precision.
+            internal double RegroupStartedAt = -1d;
+            // Native game seconds since a scene has continuously owned this pair's staging in settled ordinary play.
+            internal double StagingOwnedSince = -1d;
+            internal int RegroupAttempts;
+            internal string StagingBoundary;
+        }
         private sealed class AreaTransfer
         {
             internal WeakReference World;

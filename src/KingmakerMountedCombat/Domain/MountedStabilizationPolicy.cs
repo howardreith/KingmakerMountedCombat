@@ -6,7 +6,12 @@ namespace KingmakerMountedCombat.Domain
     {
         PreserveWorldInteraction,
         PreserveNonWorldUi,
-        CleanDismount
+        CleanDismount,
+        // Cutscene continuity repair (owner order 2026-11-12): native Dialog and the cutscene-lock Cutscene mode only
+        // announce dialogue, move the camera and remove player input (Game.SetCutsceneLock -> StartMode(Cutscene)).
+        // The attachment is kept; gameplay input stays refused (CanAdmit/CanQueue are Default/Pause only). A scene
+        // that genuinely stages a pair member is handed off at its own native operation (MountedSceneContinuityPolicy).
+        PreserveScriptedScene
     }
 
     public static class MountedGameModePolicy
@@ -23,6 +28,11 @@ namespace KingmakerMountedCombat.Domain
                 string.Equals(exactModeName, "EscMode", StringComparison.Ordinal))
             {
                 return MountedGameModeDisposition.PreserveNonWorldUi;
+            }
+
+            if (MountedSceneContinuityPolicy.IsSceneMode(exactModeName))
+            {
+                return MountedGameModeDisposition.PreserveScriptedScene;
             }
 
             return MountedGameModeDisposition.CleanDismount;
@@ -86,11 +96,14 @@ namespace KingmakerMountedCombat.Domain
             bool nativePartySelectorActive = false)
         {
             if (gameMode == MountedGameModeDisposition.PreserveNonWorldUi ||
+                gameMode == MountedGameModeDisposition.PreserveScriptedScene ||
                 (gameMode == MountedGameModeDisposition.PreserveWorldInteraction && nativePartySelectorActive))
             {
                 // Stock UI can temporarily hide a captured world view. The native
-                // party selector is also an overlay in Default mode. Exact view
-                // identity and the remaining mounted invariants still apply.
+                // party selector is also an overlay in Default mode. A scripted
+                // scene may hide a view while it holds the camera; a pair member
+                // actually removed from the game is the separate in-game invariant.
+                // Exact view identity and the remaining mounted invariants still apply.
                 return true;
             }
 
@@ -522,7 +535,7 @@ namespace KingmakerMountedCombat.Domain
                 case CleanupTrigger.GameModeBoundary:
                     return "Dismounted cleanly because the game left an active world or non-world menu mode.";
                 case CleanupTrigger.EventSuspension:
-                    return "Dismounted for a scripted event, camp or world-map travel; the pair remounts automatically when ordinary play resumes.";
+                    return "Dismounted for scene staging, camp or world-map travel; the pair remounts automatically when ordinary play resumes.";
                 case CleanupTrigger.ModDisabled:
                     return "Dismounted cleanly because Kingmaker Mounted Combat was disabled.";
                 case CleanupTrigger.Exception:

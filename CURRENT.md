@@ -1,3 +1,48 @@
+# CUTSCENE CONTINUITY REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE BLOCKED (2026-11-12)
+
+Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Read the [handoff](docs/CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md).
+
+- **Cause (source; the owner's occurrence is not reproduced):** three dismount paths.
+  - Every Dialog/Cutscene mode start suspended (physically dismounted) each pair. A refused suspension, as in combat,
+    fell back to a clean dismount.
+  - Dialog/Cutscene were also `CleanDismount` in the mode policy, which formed a second path through invariant
+    validation.
+  - Combat cancelled retained intent.
+- **Fix:**
+  - Dialog/Cutscene keep the attachment. Mounted input stays refused.
+  - Only a scripted operation on the rider (`UnitCommands.Run`), or a scene removing a pair member from the game, hands
+    that one pair to native staging.
+  - Restoration reads staging ownership from native state per pair. Scene-staging intent holds through combat.
+  - A mount left behind regroups with a bounded native move.
+- **Checks:**
+  - Fast PASS 3/0 (components 1183/0, Validate-Source 151/0).
+  - Kingmaker contracts 781/3: all 16 new pins pass; the 3 UMM identity failures are pre-existing.
+  - Mutation check: the old decisions fail 5 regressions.
+- **Self-review:** all 10 findings are corrected. The handoff's top section lists them.
+  - Regroup uses game time, stops on arrival and keeps its second attempt.
+  - Scripted commands on an attached pair run natively.
+  - Staging patience is bounded at 60 s.
+  - Staging never joins camp or world-map custody.
+  - A scene teleport of the rider is now honoured (handoff at the scene's placement).
+  - After the corrections: Fast PASS (components 1186/0, Validate-Source 151/0); contracts 781/3, failures pre-existing.
+- **Bald Hilltop Mount lockout (added by owner request):**
+  - **Cause (installed-assembly contracts plus elimination; not observed):** the refusal read the presence of native
+    `UnitEntityData.CutceneControlledUnit`. That holder is lazily created by `MarkUnit` the first time any scene
+    controls the unit, never cleared, and not saved. One earlier scene therefore disabled Mount for the rest of the
+    session.
+  - **Fix:** Mount and Dismount now refuse only for live scene control (active entry, live unfinished cutscene player),
+    loading, the lock and the cutscene modes.
+  - **Diagnostic:** a change-of-reason line with the native facts.
+  - **Checks:** Fast PASS (components 1190/0, Validate-Source 151/0); the mutation fails 4 regressions; contracts 784/3.
+- **Owner review of `00131270` (request changes):** all four findings are corrected.
+  - **P1:** the scene placement is reapplied through the rider captured before suspension, and verified. A lost
+    placement is reported.
+  - **P2:** scene staging restores and counts regroup arrival only within 2 m, so a staged rider moves at most 2 m.
+  - The diagnostic now logs the final native Mount/Dismount refusal, per action and caster, with per-evaluation facts.
+  - **Checks:** Fast PASS (components 1192/0, Validate-Source 151/0); both mutations caught.
+- **Native:** NOT RUN, Bald Hilltop included. This machine has no KMC install, fixture or fixture qualification.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.7 (OWNER ORDER, 2026-11-12)
 
 The owner accepted PR #35, the horse group pace repair, and ordered it merged and released. Merge `2e97cbd4`, tree

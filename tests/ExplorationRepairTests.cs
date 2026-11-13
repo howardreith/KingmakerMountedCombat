@@ -30,13 +30,14 @@ namespace KingmakerMountedCombat.Tests
 
         private static void EventModesSuspend()
         {
-            foreach (var mode in new[] { "Dialog", "Cutscene", "Rest" })
-            {
-                TestRunner.True(MountedRetainedIntentPolicy.SuspendsForEvent(mode), mode + " did not retain the pair's mounted intent.");
-                // The relationship itself still may not stay attached through the event: the attachment is suspended.
-                TestRunner.Equal(MountedGameModeDisposition.CleanDismount, MountedGameModePolicy.Classify(mode),
-                    mode + " must not keep the physical attachment through a native event that can move or hide units.");
-            }
+            // Rest still suspends at its mode boundary (camp translocation); the attachment cannot stay through it.
+            TestRunner.True(MountedRetainedIntentPolicy.SuspendsForEvent("Rest"), "Rest did not retain the pair's mounted intent.");
+            TestRunner.Equal(MountedGameModeDisposition.CleanDismount, MountedGameModePolicy.Classify("Rest"),
+                "Rest must not keep the physical attachment through camp translocation.");
+            // Cutscene continuity repair (owner order, supersedes the exploration-sprint decision): Dialog and Cutscene keep
+            // the attachment; only a scripted staging operation hands a pair off (CutsceneContinuityTests).
+            foreach (var mode in new[] { "Dialog", "Cutscene" })
+                TestRunner.True(!MountedRetainedIntentPolicy.SuspendsForEvent(mode), mode + " still suspended every mounted pair at its mode boundary.");
             foreach (var mode in new[] { "Default", "Pause", "FullScreenUi", "EscMode", "None", "GlobalMap", "Kingdom", "KingdomSettlement",
                 "CutsceneGlobalMap", "GameOver", "BugReport", "dialog", "" })
                 TestRunner.True(!MountedRetainedIntentPolicy.SuspendsForEvent(mode), mode + " was treated as a retained scripted event.");
@@ -53,11 +54,16 @@ namespace KingmakerMountedCombat.Tests
         private static void RestorationGate()
         {
             MountedRetainedIntentDecision Decide(bool sameWorld = true, bool combat = false, bool worldMap = false, string mode = "Default",
-                bool eventMode = false, bool loading = false, bool boundary = false, bool camp = false) =>
-                MountedRetainedIntentPolicy.Decide(sameWorld, combat, worldMap, mode, eventMode, loading, boundary, camp);
+                bool eventMode = false, bool loading = false, bool boundary = false, bool camp = false,
+                MountedRetainedIntentKind kind = MountedRetainedIntentKind.Camp) =>
+                MountedRetainedIntentPolicy.Decide(kind, sameWorld, combat, worldMap, mode, eventMode, loading, boundary, camp);
             TestRunner.Equal(MountedRetainedIntentDecision.Restore, Decide(), "Settled ordinary play did not restore.");
             TestRunner.Equal(MountedRetainedIntentDecision.Cancel, Decide(sameWorld: false), "A different world or save kept stale intent.");
-            TestRunner.Equal(MountedRetainedIntentDecision.Cancel, Decide(combat: true), "Restoration adopted a native encounter (ambush or hostile dialog).");
+            // Camp and world-map custody still never adopt an encounter; scene staging holds through it instead.
+            TestRunner.Equal(MountedRetainedIntentDecision.Cancel, Decide(combat: true), "Restoration adopted a native encounter (camp ambush).");
+            TestRunner.Equal(MountedRetainedIntentDecision.Cancel, Decide(combat: true, kind: MountedRetainedIntentKind.WorldMapTravel), "World-map intent adopted an encounter.");
+            TestRunner.Equal(MountedRetainedIntentDecision.Hold, Decide(combat: true, kind: MountedRetainedIntentKind.ScriptedEvent),
+                "A pair still staged when a scene's encounter began lost its mounted intent.");
             TestRunner.Equal(MountedRetainedIntentDecision.Hold, Decide(worldMap: true), "The world map restored a physical pair.");
             foreach (var mode in new[] { "Dialog", "Cutscene", "Rest", "Pause", "FullScreenUi", "EscMode", "None", "GlobalMap" })
                 TestRunner.Equal(MountedRetainedIntentDecision.Hold, Decide(mode: mode), mode + " restored before ordinary play resumed.");
@@ -196,7 +202,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(RiderB, decoded.Pairs[1].RiderId, "Rider B did not survive the save.");
             TestRunner.Equal(MountedRiderProfileCatalog.MediumHorseId, decoded.Pairs[1].ProfileId, "Profile did not survive the save.");
             // After a cold load on the world map the intent holds; the next local arrival restores the eligible pair.
-            TestRunner.Equal(MountedRetainedIntentDecision.Hold, MountedRetainedIntentPolicy.Decide(true, false, true, "GlobalMap", false, false, false, false),
+            TestRunner.Equal(MountedRetainedIntentDecision.Hold, MountedRetainedIntentPolicy.Decide(MountedRetainedIntentKind.WorldMapTravel, true, false, true, "GlobalMap", false, false, false, false),
                 "A loaded world-map record restored a pair on the world map.");
             TestRunner.Equal(MountedCarriedArrivalDecision.Restore, MountedRetainedIntentPolicy.DecideCarriedArrival(false, true, true, false, null),
                 "The loaded intent did not restore at the next local arrival.");
@@ -204,7 +210,7 @@ namespace KingmakerMountedCombat.Tests
             var camp = MountedRetainedIntentRecord.Decode(new MountedRetainedIntentRecord { CampaignId = Campaign, AreaId = WorldMapArea,
                 GameTimeTicks = 5L, Kind = MountedRetainedIntentKind.Camp, Pairs = new[] { PairRecord(RiderA, MountA, OwnerA, 3) } }.Encode());
             TestRunner.Equal(MountedRetainedIntentKind.Camp, camp.Kind, "The post-rest autosave lost its camp rules.");
-            TestRunner.Equal(MountedRetainedIntentDecision.Restore, MountedRetainedIntentPolicy.Decide(true, false, false, "Default", false, false, false, false),
+            TestRunner.Equal(MountedRetainedIntentDecision.Restore, MountedRetainedIntentPolicy.Decide(MountedRetainedIntentKind.Camp, true, false, false, "Default", false, false, false, false),
                 "The reloaded post-rest intent did not restore in ordinary play.");
         }
 
