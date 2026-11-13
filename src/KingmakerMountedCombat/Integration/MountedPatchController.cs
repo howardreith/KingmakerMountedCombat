@@ -725,10 +725,14 @@ namespace KingmakerMountedCombat.Integration
                 // Cutscene continuity repair: a scripted scene operation on a mounted rider hands that one pair to native
                 // staging before any pair routing, so native Run executes the scene's command on the free rider. A
                 // fault here never blocks the scene's command: the pair then keeps its attachment.
-                try { PatchBridge.Persistence?.ObserveSceneCommand(__instance, cmd, PointerController.SimulatingClick); }
+                var sceneOperation = false;
+                try { sceneOperation = PatchBridge.Persistence?.ObserveSceneCommand(__instance, cmd, PointerController.SimulatingClick) == true; }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Scene staging handoff was not evaluated", error); }
                 if (PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
+                // A scripted scene operation runs as the scene authored it: the door, stock-attack and carried-approach
+                // gates below exist for the player's own orders and would refuse or reroute it, stalling the scene.
+                if (sceneOperation) return true;
                 var combat = PatchBridge.CombatFor(__instance);
                 if (combat == null) return true;
                 // The door, stock-attack and stock-command gates in their existing order. The carried approach is

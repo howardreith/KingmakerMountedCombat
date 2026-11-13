@@ -59,6 +59,28 @@ namespace KingmakerMountedCombat.Domain
         public const float RegroupApproachRadiusMetres = 1.5f;
         public const int RegroupMaximumAttempts = 2;
 
+        // A pair a background scene keeps controlling in ordinary play waits at most this long (native game time) before
+        // its intent is released; a looping or never-ending scene never remounts the pair much later by surprise.
+        public const float StagingPatienceSeconds = 60f;
+        // A rider's position written this far from its saddle while a scene is active is the scene's own placement
+        // (TranslocateUnit, CommandTeleportParty, a move timeout), not synchronization lag (sub-metre per frame).
+        public const float ScenePlacementMinimumMetres = 3f;
+
+        public static bool IsScenePlacement(bool sceneActive, float horizontalDeviationMetres)
+        {
+            return sceneActive && !float.IsNaN(horizontalDeviationMetres) && !float.IsInfinity(horizontalDeviationMetres) &&
+                horizontalDeviationMetres > ScenePlacementMinimumMetres;
+        }
+
+        // Retained custody has one kind and one rule set. Scene staging never joins camp or world-map custody (it would
+        // inherit their separation, no regroup and cancellation in combat); the pair then stays attached.
+        public static string HandOffCustodyRefusal(MountedRetainedIntentKind? pendingCustodyKind)
+        {
+            return pendingCustodyKind.HasValue && pendingCustodyKind.Value != MountedRetainedIntentKind.ScriptedEvent
+                ? "camp or world-map restoration is still pending"
+                : null;
+        }
+
         public static bool IsSceneMode(string exactModeName)
         {
             return string.Equals(exactModeName, "Dialog", StringComparison.Ordinal) ||

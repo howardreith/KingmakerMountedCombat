@@ -414,7 +414,7 @@ namespace KingmakerMountedCombat.Integration
             // Review finding 3: an event mode that begins after the pairs were already suspended (Rest after a dialog)
             // updates the retained intent of this world even though nothing is physically mounted any more.
             if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()))
-                persistence.PromoteRetainedIntent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent);
+                persistence.PromoteRetainedIntent(MountedRetainedIntentKind.Camp);
             // Cutscene continuity repair: Dialog and Cutscene only take the camera and input, so the attachment is kept
             // (MountedGameModeDisposition.PreserveScriptedScene). Staging of a pair member is handed off at its own
             // native operation (UnitCommands.Run, IInGameHandler), never at the mode boundary.
@@ -433,7 +433,7 @@ namespace KingmakerMountedCombat.Integration
             // pair remounts once ordinary play resumes. A refused suspension (combat, an owned save, unsettled
             // participation) keeps the clean dismount below.
             if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()) &&
-                persistence.TrySuspendForEvent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent, source))
+                persistence.TrySuspendForEvent(MountedRetainedIntentKind.Camp, source))
             {
                 Observe(boundary, source + "(mounted intent retained)", service.CapturePresentationObservation(false));
                 return;

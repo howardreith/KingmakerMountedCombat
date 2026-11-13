@@ -135,14 +135,19 @@ namespace KingmakerMountedCombat.Integration
 
         // The native UnitCommands.Run(UnitCommand) prefix, before every routing gate: a scripted scene operation on a
         // mounted rider hands that one pair to native staging before native Run executes it on the rider; one on the
-        // mount runs natively with the rider seated. Returns nothing: native Run always proceeds.
-        internal void ObserveSceneCommand(UnitCommands container, UnitCommand command, bool simulatingClick)
+        // mount runs natively with the rider seated. Returns true when the command is a scripted scene operation on a pair
+        // actor: the caller then lets native Run execute it as the scene authored it, never through the pair's
+        // player-order routing (which would refuse or reroute, e.g., a scripted stock attack of the mount).
+        internal bool ObserveSceneCommand(UnitCommands container, UnitCommand command, bool simulatingClick)
         {
-            if (!Enabled || container == null || command == null || simulatingClick) return;
+            if (!Enabled || container == null || command == null || simulatingClick) return false;
+            // Every unit's Run passes here: a player, AI or mod-owned order is never scripted (IsScriptedCommand), so it
+            // leaves before the relationship scan.
+            if (command.CreatedByPlayer || command.AiAction != null) return false;
             var game = Game.Instance;
             var owner = WorldRelationships.FirstOrDefault(r => r.State == RelationshipState.Mounted &&
                 (ReferenceEquals(r.Rider?.Commands, container) || ReferenceEquals(r.Mount?.Commands, container)));
-            if (owner == null || game?.Player == null) return;
+            if (owner == null || game?.Player == null) return false;
             var rider = owner.Rider; var mount = owner.Mount;
             var sceneActive = SceneActive(game);
             var scripted = MountedSceneContinuityPolicy.IsScriptedCommand(command.Cutscene, sceneActive,
@@ -155,18 +160,40 @@ namespace KingmakerMountedCombat.Integration
             switch (disposition)
             {
                 case MountedSceneCommandDisposition.KeepAttached:
-                    logger.Info("Scripted scene command on the mount runs with its rider seated: rider=" + rider?.UniqueId +
+                    logger.Info("Scripted scene command on the mount runs natively with its rider seated: rider=" + rider?.UniqueId +
                         ";mount=" + mount?.UniqueId + ";command=" + detail + ".");
-                    return;
+                    return true;
                 case MountedSceneCommandDisposition.KeepAttachedInCombat:
                     SceneStagingRefusedCount++;
                     logger.Warning("Scripted scene command on a mounted rider during an encounter keeps the attachment (staging is not " +
-                        "supported in combat; no turn resource is touched): rider=" + rider?.UniqueId + ";mount=" + mount?.UniqueId +
+                        "supported in combat; the scene's command runs natively): rider=" + rider?.UniqueId + ";mount=" + mount?.UniqueId +
                         ";command=" + detail + ".");
-                    return;
+                    return true;
                 case MountedSceneCommandDisposition.HandOffRider:
+                    // Handed off: the rider is free and native Run executes the command. Refused: the pair stays attached and
+                    // the scene's command still runs natively rather than through the pair's player-order gates.
                     TryHandOffForStaging(owner, "UnitCommands.Run(" + detail + ")");
-                    return;
+                    return true;
+            }
+            return false;
+        }
+
+        // Polled from Update: a mounted rider's synchronizer saw a scene place the rider away from its saddle (a direct
+        // Position write, e.g. TranslocateUnit or CommandTeleportParty) and held. The pair is handed off at that placement;
+        // a refused handoff releases the synchronizer, which returns the rider to the saddle (the in-combat fallback).
+        internal void ObserveScenePlacements()
+        {
+            if (!Enabled) return;
+            foreach (var owner in WorldRelationships)
+            {
+                var agent = owner.State == RelationshipState.Mounted ? owner.Runtime?.MovementAgent : null;
+                var placement = agent?.PendingScenePlacement;
+                if (placement == null) continue;
+                var orientation = agent.PendingSceneOrientation;
+                var handedOff = false;
+                try { handedOff = TryHandOffForStaging(owner, "scene placement of the rider", placement.Value, orientation); }
+                catch (Exception error) { logger.Exception("Scene placement handoff was not evaluated", error); }
+                if (!handedOff) agent.ReleaseScenePlacement();
             }
         }
 
@@ -188,16 +215,27 @@ namespace KingmakerMountedCombat.Integration
 
         // Pair-local handoff to native scene staging: only this pair is suspended (its exact owner identity, generation and
         // world retained); every other pair keeps its attachment. A refusal leaves the pair attached and says why.
-        internal bool TryHandOffForStaging(GameMountedRelationshipService owner, string boundary)
+        // A scene placement (the rider's position written by the scene) is applied after the suspension, so the scene's
+        // final placement stands instead of the ordinary placement beside the mount.
+        internal bool TryHandOffForStaging(GameMountedRelationshipService owner, string boundary,
+            UnityEngine.Vector3? scenePlacement = null, float sceneOrientation = 0f)
         {
             var world = Game.Instance?.Player;
             if (!Enabled || world == null || owner?.Rider == null || owner.Mount == null || owner.State != RelationshipState.Mounted) return false;
-            var refusal = world.IsInCombat || owner.Rider.IsInCombat || owner.Mount.IsInCombat ? "an encounter is active" : SuspensionRefusal("scene staging");
+            var pendingKind = retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world) && retainedIntent.CampaignId == world.GameId
+                ? retainedIntentKind : (MountedRetainedIntentKind?)null;
+            var refusal = world.IsInCombat || owner.Rider.IsInCombat || owner.Mount.IsInCombat ? "an encounter is active"
+                : MountedSceneContinuityPolicy.HandOffCustodyRefusal(pendingKind) ?? SuspensionRefusal("scene staging");
             if (refusal == null)
             {
                 var captured = SuspendPairs(world, MountedRetainedIntentKind.ScriptedEvent, new[] { owner }, out var failed, boundary);
                 if (captured.Count == 1 && !failed)
                 {
+                    if (scenePlacement.HasValue)
+                    {
+                        try { owner.Rider.Translocate(scenePlacement.Value, sceneOrientation); }
+                        catch (Exception error) { logger.Exception("The scene's placement of a handed-off rider was not reapplied", error); }
+                    }
                     SceneStagingHandOffCount++;
                     Report(DescribePair(owner.Rider, owner.Mount, captured[0]) + " handed to native scene staging at " + boundary +
                         " (rider=" + captured[0].RiderId + ";mount=" + captured[0].MountId + ";owner=" + captured[0].OwnerId + "/" +
@@ -317,17 +355,30 @@ namespace KingmakerMountedCombat.Integration
                 var stagingOwned = ActorStagingOwned(rider, sceneActive) || ActorStagingOwned(mount, sceneActive);
                 var regroupLive = pair.RegroupMove != null && !pair.RegroupMove.IsFinished && mount != null && mount.Commands.Contains(pair.RegroupMove);
                 var regroup = MountedSceneContinuityPolicy.RegroupAvailability(retainedIntentKind, player.IsInCombat, pair.RegroupAttempts, regroupLive);
-                if (regroupLive && MountedSceneContinuityPolicy.StepRegroup(true, now - pair.RegroupStartedAt, separation, maximumSeparation) ==
-                    MountedRegroupStep.Abandon)
+                if (regroupLive)
                 {
-                    pair.RegroupMove.Interrupt();
-                    regroup = MountedRegroupState.Exhausted;
+                    // The deadline is measured in native game time, so a pause or a scene that holds the walk spends none of it.
+                    var step = MountedSceneContinuityPolicy.StepRegroup(true,
+                        (float)(game.TimeController.GameTime.TotalSeconds - pair.RegroupStartedAt), separation, maximumSeparation);
+                    if (step != MountedRegroupStep.Wait)
+                    {
+                        // Arrived: the walk ends here, so restoration never re-attaches a pair whose mount is still walking.
+                        // Abandoned (deadline, replaced, unmeasurable): the attempt is spent; a remaining attempt may walk again.
+                        pair.RegroupMove.Interrupt();
+                        regroupLive = false;
+                        regroup = MountedSceneContinuityPolicy.RegroupAvailability(retainedIntentKind, player.IsInCombat, pair.RegroupAttempts, false);
+                    }
                 }
                 if (!regroupLive) pair.RegroupMove = null;
                 // Patience counts only this pair's own settled, unowned, non-regrouping play.
                 if (stagingOwned || regroup == MountedRegroupState.InProgress) pair.EligibleSince = -1f;
                 else if (pair.EligibleSince < 0f) pair.EligibleSince = now;
                 var patienceExpired = pair.EligibleSince >= 0f && now - pair.EligibleSince > MountedRetainedIntentPolicy.EligibilityPatienceSeconds;
+                // A scene that keeps control in settled ordinary play is bounded too (native game time).
+                var gameSeconds = game.TimeController.GameTime.TotalSeconds;
+                if (!stagingOwned) pair.StagingOwnedSince = -1d;
+                else if (pair.StagingOwnedSince < 0d) pair.StagingOwnedSince = gameSeconds;
+                var stagingExpired = stagingOwned && gameSeconds - pair.StagingOwnedSince > MountedSceneContinuityPolicy.StagingPatienceSeconds;
                 var pairDecision = MountedRetainedIntentPolicy.DecidePair(
                     candidate != null,
                     candidate != null && SupportedMountedProfiles.Resolve(rider, mount)?.Id == pair.ProfileId,
@@ -339,18 +390,19 @@ namespace KingmakerMountedCombat.Integration
                     sameArea,
                     patienceExpired,
                     stagingOwned,
-                    regroup);
+                    regroup,
+                    stagingExpired);
                 if (pairDecision == MountedRetainedPairDecision.Retry) { remaining.Add(pair); continue; }
                 if (pairDecision == MountedRetainedPairDecision.Regroup)
                 {
-                    StartRegroup(pair, rider, mount, separation, now);
+                    StartRegroup(pair, rider, mount, separation, game.TimeController.GameTime.TotalSeconds);
                     remaining.Add(pair);
                     continue;
                 }
                 if (pairDecision == MountedRetainedPairDecision.Drop)
                 {
                     var separated = candidate != null && (separation > maximumSeparation || !sameArea);
-                    var reason = refusal ?? (separated
+                    var reason = stagingExpired ? "a scene kept control of the pair" : refusal ?? (separated
                         ? (pair.RegroupAttempts != 0 ? "the mount could not regroup with its rider" : "rider and mount were separated by the event")
                         : "the pair is no longer eligible");
                     if (pair.RegroupMove != null && !pair.RegroupMove.IsFinished) pair.RegroupMove.Interrupt();
@@ -473,10 +525,10 @@ namespace KingmakerMountedCombat.Integration
         // Cutscene continuity repair: the scene left the mount behind within reach. The mount walks to its rider with an
         // ordinary native move (native pathfinding; never a teleport, never a player order). Out of combat only, at most
         // RegroupMaximumAttempts times, each bounded by RegroupDeadlineSeconds.
-        private void StartRegroup(AreaPair pair, UnitEntityData rider, UnitEntityData mount, float separation, float now)
+        private void StartRegroup(AreaPair pair, UnitEntityData rider, UnitEntityData mount, float separation, double gameSeconds)
         {
             pair.RegroupAttempts++;
-            pair.RegroupStartedAt = now;
+            pair.RegroupStartedAt = gameSeconds;
             var move = new UnitMoveTo(rider.Position, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres);
             try { mount.Commands.Run(move); }
             catch (Exception error) { logger.Exception("Mounted regroup move was not issued", error); }
@@ -684,7 +736,8 @@ namespace KingmakerMountedCombat.Integration
         private void ResetRetainedSettle()
         {
             retainedSettledFrames = 0; retainedSettledSince = -1f;
-            foreach (var pair in retainedIntent?.Pairs ?? new AreaPair[0]) pair.EligibleSince = -1f;
+            if (retainedIntent == null) return;
+            foreach (var pair in retainedIntent.Pairs) { pair.EligibleSince = -1f; pair.StagingOwnedSince = -1d; }
         }
 
         private static string DescribePair(UnitEntityData rider, UnitEntityData mount, AreaPair pair) =>

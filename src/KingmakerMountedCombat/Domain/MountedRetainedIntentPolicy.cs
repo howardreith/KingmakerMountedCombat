@@ -127,14 +127,16 @@ namespace KingmakerMountedCombat.Domain
             bool sameNavmeshArea,
             bool patienceExpired,
             bool stagingOwned = false,
-            MountedRegroupState regroup = MountedRegroupState.Unavailable)
+            MountedRegroupState regroup = MountedRegroupState.Unavailable,
+            bool stagingPatienceExpired = false)
         {
             if (!unitsResolved || !sameReciprocalProfile || alreadyInARelationship || permanentlyIneligible)
                 return MountedRetainedPairDecision.Drop;
             // Cutscene continuity repair: a native scene still controls one of the actors (a playing command, a
             // cutscene-made order still running, or a scene that took it out of the game). Its final placement is
-            // not known yet, so nothing is judged; this pair waits and the others are decided on their own.
-            if (stagingOwned) return MountedRetainedPairDecision.Retry;
+            // not known yet, so nothing is judged; this pair waits and the others are decided on their own. A scene
+            // that keeps control in ordinary play past its bounded patience releases the intent instead.
+            if (stagingOwned) return stagingPatienceExpired ? MountedRetainedPairDecision.Drop : MountedRetainedPairDecision.Retry;
             var finite = !float.IsNaN(separationMetres) && !float.IsInfinity(separationMetres);
             if (!finite || separationMetres > maximumSeparationMetres || !sameNavmeshArea)
             {

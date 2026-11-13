@@ -20,6 +20,55 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("cutscene continuity: nested, skipped and aborted scenes read readiness from native state, never twice", NestedSkipAbort);
             runner.Run("cutscene continuity: unmounted, invalidated and unaffected pairs keep their own decisions", UnmountedInvalidatedMultiplePairs);
             runner.Run("cutscene continuity: the bounded regroup walks once or twice within its deadline and never teleports", RegroupBounds);
+            runner.Run("cutscene review: a scene that keeps control releases the intent after bounded patience, never much later", StagingPatienceIsBounded);
+            runner.Run("cutscene review: a scene's own placement of the rider is recognised only far from the saddle during a scene", ScenePlacementRecognition);
+            runner.Run("cutscene review: scene staging never joins camp or world-map custody; a timed-out regroup keeps its second walk", CustodyKindAndRegroupRetry);
+        }
+
+        private static void StagingPatienceIsBounded()
+        {
+            TestRunner.Equal(MountedRetainedPairDecision.Retry, MountedRetainedIntentPolicy.DecidePair(true, true, false, false, null, 1f,
+                MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres, true, false, true, MountedRegroupState.Unavailable, false),
+                "A pair inside its staging patience was released.");
+            TestRunner.Equal(MountedRetainedPairDecision.Drop, MountedRetainedIntentPolicy.DecidePair(true, true, false, false, null, 1f,
+                MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres, true, false, true, MountedRegroupState.Unavailable, true),
+                "A pair a looping scene kept controlling waited forever.");
+            // Expiry never overrides a pair the scene no longer owns.
+            TestRunner.Equal(MountedRetainedPairDecision.Restore, MountedRetainedIntentPolicy.DecidePair(true, true, false, false, null, 1f,
+                MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres, true, false, false, MountedRegroupState.Unavailable, true),
+                "A released pair was dropped by a stale staging clock.");
+            TestRunner.True(MountedSceneContinuityPolicy.StagingPatienceSeconds > MountedRetainedIntentPolicy.EligibilityPatienceSeconds,
+                "Staging patience is shorter than ordinary eligibility patience.");
+        }
+
+        private static void ScenePlacementRecognition()
+        {
+            TestRunner.True(MountedSceneContinuityPolicy.IsScenePlacement(true, 8f), "A scene teleport of the rider was snapped back onto the mount.");
+            TestRunner.True(!MountedSceneContinuityPolicy.IsScenePlacement(false, 8f), "A placement outside any scene was treated as staging.");
+            TestRunner.True(!MountedSceneContinuityPolicy.IsScenePlacement(true, 0.4f), "Synchronization lag during a scene was treated as a teleport.");
+            TestRunner.True(!MountedSceneContinuityPolicy.IsScenePlacement(true, MountedSceneContinuityPolicy.ScenePlacementMinimumMetres),
+                "The threshold itself was treated as a teleport.");
+            TestRunner.True(!MountedSceneContinuityPolicy.IsScenePlacement(true, float.NaN), "A non-finite deviation was treated as a teleport.");
+            // A party teleport that moves the mount beside the rider stays within the restore separation once handed off.
+            TestRunner.True(MountedSceneContinuityPolicy.ScenePlacementMinimumMetres < MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres,
+                "A scene placement just past the threshold could never restore without a regroup.");
+        }
+
+        private static void CustodyKindAndRegroupRetry()
+        {
+            TestRunner.True(MountedSceneContinuityPolicy.HandOffCustodyRefusal(null) == null, "Staging was refused with no pending custody.");
+            TestRunner.True(MountedSceneContinuityPolicy.HandOffCustodyRefusal(MountedRetainedIntentKind.ScriptedEvent) == null,
+                "A second staged pair was refused beside the first.");
+            foreach (var kind in new[] { MountedRetainedIntentKind.Camp, MountedRetainedIntentKind.WorldMapTravel })
+                TestRunner.True(MountedSceneContinuityPolicy.HandOffCustodyRefusal(kind) != null, "Scene staging joined " + kind + " custody and inherited its rules.");
+            // A first walk that timed out spends one attempt; the second is still offered, the third is not.
+            TestRunner.Equal(MountedRegroupStep.Abandon, MountedSceneContinuityPolicy.StepRegroup(true,
+                MountedSceneContinuityPolicy.RegroupDeadlineSeconds + 1f, 12f, MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres), "The timed-out walk continued.");
+            TestRunner.Equal(MountedRegroupState.Available,
+                MountedSceneContinuityPolicy.RegroupAvailability(MountedRetainedIntentKind.ScriptedEvent, false, 1, false), "A timed-out first walk lost its second attempt.");
+            TestRunner.Equal(MountedRetainedPairDecision.Regroup, Pair(separation: 12f, regroup: MountedRegroupState.Available), "The second walk was not started.");
+            TestRunner.Equal(MountedRegroupState.Exhausted,
+                MountedSceneContinuityPolicy.RegroupAvailability(MountedRetainedIntentKind.ScriptedEvent, false, 2, false), "A third walk was offered.");
         }
 
         // Counts every native attachment step the real coordinator asks for.

@@ -830,6 +830,8 @@ namespace KingmakerMountedCombat.Integration
             ReplayDeferredResetIfSettled();
             ContinueWorldRelease();
             CompleteAreaTransitionIfReady();
+            try { ObserveScenePlacements(); }
+            catch (Exception error) { logger.Exception("Scene placement observation failed", error); }
             TryRestoreRetainedIntent();
             TryRestoreCombat();
             if (CombatSemanticRestorationPending) return;

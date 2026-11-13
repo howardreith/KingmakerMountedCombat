@@ -18,6 +18,13 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Rea
   - Fast PASS 3/0 (components 1183/0, Validate-Source 151/0).
   - Kingmaker contracts 781/3: all 16 new pins pass; the 3 UMM identity failures are pre-existing.
   - Mutation check: the old decisions fail 5 regressions.
+- **Self-review:** all 10 findings are corrected. The handoff's top section lists them.
+  - Regroup uses game time, stops on arrival and keeps its second attempt.
+  - Scripted commands on an attached pair run natively.
+  - Staging patience is bounded at 60 s.
+  - Staging never joins camp or world-map custody.
+  - A scene teleport of the rider is now honoured (handoff at the scene's placement).
+  - After the corrections: Fast PASS (components 1186/0, Validate-Source 151/0); contracts 781/3, failures pre-existing.
 - **Native:** NOT RUN. This machine has no KMC install, fixture or fixture qualification.
 - **Not authorized:** merge, release, tag, version bump or install.
 

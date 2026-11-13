@@ -4,6 +4,37 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (release 0.2
 mounted characters dismount whenever a cutscene begins. The owner's requested behaviour supersedes the exploration
 sprint's decision to suspend every pair for Dialog/Cutscene.
 
+## Self-review corrections (2026-11-12, after the first PR revision)
+
+A high-effort review of PR #37 found 10 issues. All are corrected in source; none is demonstrated in game. Where this
+section differs from the sections below, this section is current.
+
+| Finding | Correction |
+| --- | --- |
+| The regroup deadline used real time, so a pause or a holding dialog abandoned the walk. | It runs on native game time (`TimeController.GameTime`), which stops in Pause. |
+| The regroup walk was not stopped when the mount arrived, so it kept walking with the rider seated. | Arrival stops the walk before restoration is decided. |
+| A timed-out first walk exhausted the regroup. | The timed-out attempt is spent; the second walk is still offered (at most 2). |
+| A scripted command on an attached pair actor went through player-order routing, so a scripted stock attack of the mount was refused and the scene stalled. | Scripted scene operations (mount commands, in-combat rider commands, refused handoffs) run natively as the scene authored them. |
+| A pair a scene kept controlling retried forever. | Staging patience: 60 s of native game time in settled ordinary play, then the intent is released with "a scene kept control of the pair". |
+| A staged pair could join pending camp or world-map custody and inherit its rules. | Scene staging is refused while camp or world-map restoration is pending; the pair stays attached. |
+| A scene's direct `Position` write of a seated rider (`TranslocateUnit`, `CommandTeleportParty`) was snapped back; 0.2.7 applied it. | The synchronizer holds (writes nothing) when, during a scene, the rider's own position moved more than 3 m from the position it last wrote and from the saddle. The pair is then handed off at the scene's placement. A refused handoff releases it back to the saddle. A mount-only teleport moves the saddle, and the rider follows as before. |
+| Every unit's `Run` scanned relationships. | Player and AI orders leave first. |
+| The Rest/ScriptedEvent ternaries were dead code. | Simplified. |
+| `ResetRetainedSettle` allocated every held frame. | It no longer allocates. |
+
+**Checks after the corrections:**
+- Fast PASS 3/0: components 1186/0 (3 new regressions), Validate-Source 151/0. Budget `cutscene-continuity`: 1.87 →
+  about 2.6 of 90 min.
+- Kingmaker contracts 781/3 (the same pre-existing UMM identity failures).
+- New DLL SHA-256 `3426baf780fab4d258233397a2c8920597dbfe48bc588f9b565bb528f976317d`, MVID
+  `021cb4ee-e9a5-4043-9f89-f638447b101c`. This supersedes the identity in the last section.
+- Native: still NOT RUN.
+
+**Remaining unsupported after the corrections:**
+- In combat there is still no staging handoff; the scene's command runs natively on the seated rider.
+- A scene teleport of the rider within 3 m of the saddle is kept on the mount.
+- A pair still staged at combat start fights unmounted, then remounts afterwards.
+
 ## Evidence classes
 
 | Class | What it establishes |
