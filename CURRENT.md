@@ -1,3 +1,16 @@
+# RELEASE 0.2.9 (OWNER ORDER, 2026-11-13)
+
+The owner approved PR #39 and ordered it merged and released. PR #39 covers the Mounted Archery feat, the turn-based
+mounted ranged-movement penalty and every review correction. It was merged as `e06337b0`, with a tree identical to the
+reviewed `d1c35129`. Notes: [docs/RELEASE-NOTES-0.2.9.md](docs/RELEASE-NOTES-0.2.9.md).
+
+- **Version:** 0.2.9, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.9-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native rows N1–N6, C and C2 in the Mounted Archery handoff remain NOT RUN,
+  and owner art acceptance is pending. This machine has no KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # MOUNTED ARCHERY — FEAT AND TB MOUNTED RANGED PENALTY; OFFLINE CHECKS PASS; NATIVE NOT RUN (2026-11-13)
 
 Branch `codex/mounted-archery` from main `6b6a3e6a` (0.2.8). Read the [handoff](docs/MOUNTED-ARCHERY-HANDOFF.md).
