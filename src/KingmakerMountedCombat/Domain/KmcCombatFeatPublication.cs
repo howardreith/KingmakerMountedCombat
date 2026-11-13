@@ -27,19 +27,30 @@ namespace KingmakerMountedCombat.Domain
 
     // One shared selection array. Both exact leases are captured from the same original value, so the array has exactly
     // three KMC-known values: the original, original + Mounted Combat, and original + Mounted Combat + Mounted Archery.
-    // Any other value is foreign drift, which is never overwritten.
+    // Whole-array writes (publish, restore) need one of those values: any other value is foreign drift and is never
+    // overwritten. Whether the array offers Mounted Archery is a separate question, answered by membership: a foreign
+    // append or reorder that keeps the entry still offers it.
     public sealed class KmcCombatFeatArrayPublication<T> where T : class
     {
         private readonly ExactAppendOnlyArrayLease<T> both;
         private readonly ExactAppendOnlyArrayLease<T> combatOnly;
+        private readonly T mountedArchery;
 
         public KmcCombatFeatArrayPublication(T[] source, T mountedCombat, T mountedArchery)
         {
             both = new ExactAppendOnlyArrayLease<T>(source, KmcCombatFeatPublication.Items(mountedCombat, mountedArchery));
             combatOnly = mountedArchery == null ? both : new ExactAppendOnlyArrayLease<T>(source, mountedCombat);
+            this.mountedArchery = mountedArchery;
         }
 
-        public bool OffersMountedArchery(T[] current) => !ReferenceEquals(both, combatOnly) && both.MatchesAppended(current);
+        // The array holds KMC's exact Mounted Archery feature, wherever it is and whatever else the array holds.
+        public bool OffersMountedArchery(T[] current) => mountedArchery != null && current != null && Array.IndexOf(current, mountedArchery) >= 0;
+
+        // The narrow withdrawal: the same entries in the same order without KMC's own Mounted Archery reference, or null
+        // when the array does not hold it. Foreign entries and Mounted Combat stay. Applied to KMC's exact published value
+        // this yields KMC's exact Mounted-Combat-only value, so disable can still restore the original exactly.
+        public T[] WithoutMountedArchery(T[] current) =>
+            OffersMountedArchery(current) ? current.Where(item => !ReferenceEquals(item, mountedArchery)).ToArray() : null;
 
         public bool IsKmcValue(T[] current) => both.MatchesOriginal(current) || both.MatchesAppended(current) || combatOnly.MatchesAppended(current);
 
@@ -61,9 +72,12 @@ namespace KingmakerMountedCombat.Domain
 
     // Every shared selection array KMC publishes its combat feats to, with the paths every character must be able to
     // take Mounted Archery from. The mechanic and the selectable feat stay coherent: Mounted Archery is available while
-    // KMC publishes and every required path offers it. If a required path stops offering it (another mod replaced that
-    // array), Mounted Archery is withdrawn for the session from every other array that still holds KMC's exact value,
-    // leaving Mounted Combat and every foreign change in place. A non-required array that drifts just stops offering it.
+    // KMC publishes and every required path still holds the feature (membership, not exact array identity, so another
+    // mod adding or reordering other entries changes nothing). If a required path loses it, Mounted Archery is withdrawn
+    // for the session: KMC's own Mounted Archery reference is removed from every array that still holds it, whether or
+    // not another mod changed that array, leaving Mounted Combat and every foreign entry in place. While withdrawn, a
+    // reference that reappears (another mod copied an older array) is removed again. A non-required array that loses
+    // the feature just stops offering it there; the rule stays on.
     public sealed class KmcCombatFeatPublicationSet<TKey, T> where TKey : class where T : class
     {
         private readonly List<KeyValuePair<TKey, KmcCombatFeatArrayPublication<T>>> arrays = new List<KeyValuePair<TKey, KmcCombatFeatArrayPublication<T>>>();
@@ -124,35 +138,56 @@ namespace KingmakerMountedCombat.Domain
             return published && HasMountedArchery && !MountedArcheryWithdrawn;
         }
 
-        // Withdraws when a required path no longer offers Mounted Archery. Without a full comparison only a replaced required
-        // array is examined (one reference comparison each), so it is cheap enough for every frame. Returns true once, when
-        // it withdraws.
+        // Withdraws when a required path no longer holds Mounted Archery; once withdrawn, keeps every array free of it.
+        // Without a full comparison only a replaced array is examined (one reference comparison each), so it is cheap enough
+        // for every frame. Returns true once, when it withdraws.
         public bool Refresh(bool fullComparison)
         {
-            if (!published || !HasMountedArchery || MountedArcheryWithdrawn) return false;
+            if (!published || !HasMountedArchery) return false;
+            if (MountedArcheryWithdrawn)
+            {
+                RemoveMountedArchery(fullComparison);
+                return false;
+            }
             List<TKey> lost = null;
             foreach (var key in required)
             {
                 var current = read(key);
-                T[] seen;
-                if (!fullComparison && lastSeen.TryGetValue(key, out seen) && ReferenceEquals(seen, current)) continue;
+                if (!fullComparison && Unchanged(key, current)) continue;
                 lastSeen[key] = current;
                 if (!Publication(key).OffersMountedArchery(current)) (lost = lost ?? new List<TKey>()).Add(key);
             }
             if (lost == null) return false;
             MountedArcheryWithdrawn = true;
             WithdrawalReason = string.Join(",", lost.Select(key => key.ToString()).ToArray());
-            foreach (var pair in arrays)
-            {
-                var current = read(pair.Key);
-                if (!pair.Value.Matches(current, KmcCombatFeatPublicationTarget.BothFeats)) continue;
-                T[] value;
-                if (pair.Value.TryMove(current, KmcCombatFeatPublicationTarget.MountedCombatOnly, out value) && value != null) write(pair.Key, value);
-            }
+            RemoveMountedArchery(true);
             return true;
         }
 
         public bool Offers(TKey key) => HasMountedArchery && Publication(key).OffersMountedArchery(read(key));
+
+        // The narrow removal of KMC's own reference from every array that holds it, exact or foreign-changed.
+        private void RemoveMountedArchery(bool fullComparison)
+        {
+            foreach (var pair in arrays)
+            {
+                var current = read(pair.Key);
+                if (!fullComparison && Unchanged(pair.Key, current)) continue;
+                var value = pair.Value.WithoutMountedArchery(current);
+                if (value != null)
+                {
+                    write(pair.Key, value);
+                    current = read(pair.Key);
+                }
+                lastSeen[pair.Key] = current;
+            }
+        }
+
+        private bool Unchanged(TKey key, T[] current)
+        {
+            T[] seen;
+            return lastSeen.TryGetValue(key, out seen) && ReferenceEquals(seen, current);
+        }
 
         private KmcCombatFeatArrayPublication<T> Publication(TKey key) => arrays.First(pair => ReferenceEquals(pair.Key, key)).Value;
     }

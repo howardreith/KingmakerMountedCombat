@@ -24,6 +24,13 @@ Source: the owner's Mounted_Archery_Mission_Packet (checksums verified; icon and
   - Mounted Archery's availability follows the required lists (ordinary and fighter). A drifted required list
     withdraws the feat from every KMC list.
   - **Checks:** Fast PASS 3/0 (components 1210/0, Validate-Source 151/0); contracts 801/3; 5 mutations caught.
+- **Owner re-review of `d1379d8f` (request changes, one P2): corrected.**
+  - Findings 1 and 2 were closed in source.
+  - Mounted Archery's availability is now membership in the required lists, so another mod's unrelated appends or
+    reorders change nothing.
+  - Withdrawal removes only KMC's own entry from every list that holds it, foreign-changed lists included, and
+    removes it again if it reappears.
+  - **Checks:** Fast PASS 3/0 (components 1212/0, Validate-Source 151/0); 3 mutations caught.
 - **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Owner art acceptance PENDING.
 - **Not authorized:** merge, release, tag, version bump or install.
 

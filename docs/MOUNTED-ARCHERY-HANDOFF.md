@@ -8,6 +8,52 @@ original icon, and the missing mounted ranged-movement penalty that it reduces.
 section). Native mechanics, native UI and owner art acceptance are NOT RUN: this machine has no KMC install, no
 qualified KMC fixture and no `runtime-state\fixture-qualification.json`. No merge, release, version change or install.
 
+## Owner re-review of d1379d8f (request changes, one P2): correction (2026-11-13)
+
+Findings 1 and 2 below were closed in source by the re-review. Finding 3's correction was incomplete; this section
+supersedes its availability and withdrawal details.
+
+- **Defect:** availability compared whole arrays (`MatchesAppended`), so another mod appending or reordering unrelated
+  entries in a required list counted as losing Mounted Archery. Withdrawal then skipped every array that was not KMC's
+  exact value. Two reachable states left the feat selectable with its rule off:
+  - a foreign append to the ordinary list, which withdrew the rule but left the feat in that list;
+  - a foreign append to an extra list that kept the feat, followed by the fighter list losing it.
+- **Correction** (`Domain/KmcCombatFeatPublication.cs`): availability and whole-array writes are now separate.
+  - **Availability is membership.** `KmcCombatFeatArrayPublication.OffersMountedArchery` asks whether the array holds
+    KMC's exact Mounted Archery feature, wherever it is and whatever else the array holds.
+  - **Whole-array writes still need an exact KMC value.** Publish and restore are unchanged and never overwrite foreign
+    drift.
+  - **Withdrawal is a narrow removal.** `WithoutMountedArchery` keeps every other entry in its order and removes only
+    KMC's own Mounted Archery reference. It applies to every array that holds the feature, including arrays another mod
+    changed. Applied to KMC's exact published value it gives KMC's exact Mounted-Combat-only value, so disable still
+    restores those originals exactly.
+  - **While withdrawn,** the refresh keeps removing the entry if it reappears, for example when another mod puts back a
+    copy of an older array. Each frame this costs one reference comparison per array; at apply and attack time every
+    array is checked in full.
+- **Unchanged:**
+  - A non-required list that loses the feat only stops offering it there.
+  - Mod disable restores exact arrays and reports changed ones. It writes nothing else, as before and as for Mounted
+    Combat.
+- **Regressions:**
+  - `ForeignChangeKeepsFeat`: a foreign append to the ordinary list and an in-place reorder of the fighter list keep
+    the rule on, write nothing, and stay coherent.
+  - `WithdrawalReachesForeignLists`: the reviewer's second scenario. The extra list is changed while keeping the feat,
+    then the fighter list loses it. The test checks that only KMC's entry is removed, with the order kept, and that a
+    reappearing copy is removed again. Disable then overwrites no changed list.
+  - Both use `AssertCoherent`.
+- **Checks:**
+  - Fast PASS 3/0: components 1212/0, Validate-Source 151/0. Took 1.71 min; budget 5.33 of 90 min.
+  - Mutations, all caught:
+    - availability by exact array (the pre-fix rule);
+    - withdrawal skips foreign-changed arrays;
+    - no removal once withdrawn.
+  - DLL SHA-256 `997170fafffc06d002eeb9e24f5d597fced98850609d1620dea0915cfb5761a9`, MVID
+    `1642a1f8-cfb1-41a8-922c-817d0a6b7186`. This supersedes the identities below.
+- **Limits:**
+  - The selection writes run in the game assembly; the tests drive the production Domain type they delegate to.
+  - Contracts were not rerun, because no game-facing seam changed.
+  - Native rows remain NOT RUN.
+
 ## Owner review of e6844536 (request changes): corrections (2026-11-13)
 
 Three P2 findings, all confirmed by tracing source and corrected. None is shown in game. Where this section differs
@@ -189,8 +235,8 @@ Verified from the installed assembly (ILSpy listing) and pinned in `scripts/Test
   Combat.
 - **Failure containment.** Mounted Archery registers after Mounted Combat. Its fault removes only itself. A Mounted
   Combat fault skips it. A lease fault removes both. `IsMountedArcheryAvailable` (feat registered, labels present,
-  published, both required lists offering it) gates the penalty; a required-list drift withdraws the feat from every
-  KMC list, and mod disable restores the originals, so the base rule never runs without an obtainable reduction and no
+  published, both required lists holding it) gates the penalty; a required list losing it removes KMC's own entry from
+  every list that holds it, foreign-changed lists included, and mod disable restores the originals, so the base rule never runs without an obtainable reduction and no
   list offers the feat while its rule is off.
 - **Removal preparation** lists the new GUID in the archive scan and names a live owner, like Mounted Combat.
 - **Sprint 6 diagnostic.** Mounted Combat is no longer the last entry. The observer adds `kmcTailExact` /

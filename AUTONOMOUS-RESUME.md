@@ -15,8 +15,10 @@ docs/MOUNTED-ARCHERY-HANDOFF.md.
     use ungranted round records.
   - `MountedRangedMovementPolicy.QualifyingRangedWeaponAttack` / `CommittedRollCalculation`: a wielded weapon in the same
     attacker's unresolved roll. No `RuleAttackWithWeapon` requirement, so Gunslinger Dead Shot is covered.
-  - `KmcCombatFeatPublicationSet`: the required lists are ordinary and fighter; a drift there withdraws the feat from
-    every KMC list. It refreshes each frame by reference, and at apply and attack time by full comparison.
+  - `KmcCombatFeatPublicationSet`: the required lists are ordinary and fighter. Availability is membership of KMC's
+    Mounted Archery feature. Losing it there withdraws: KMC's own entry is narrowly removed from every list that holds
+    it, foreign-changed lists included, and again if it reappears. Exact leases still guard whole-array publish and
+    restore. It refreshes each frame by reference, and at apply and attack time in full.
 - **Native next step:** owner play with the branch DLL, or a qualified fixture: rows N1–N5 in the handoff. Log line
   `Mounted ranged movement:` carries pair, allocation, travel, ownership and contribution.
 - **Open:** a pair acting on separate initiative slots gets no contribution (conservative); up to 0.25 s of

@@ -32,9 +32,9 @@ namespace KingmakerMountedCombat.Integration
         internal bool MountedArcheryWithdrawn => mountedCombatPublication?.MountedArcheryWithdrawn == true;
 
         // The penalty and its reduction exist together. The mechanic is available while KMC publishes the feat and both
-        // required paths (ordinary and fighter feats) offer it. If a required path stops offering it, the publication
-        // withdraws the feat from every other KMC array too, so no list offers a feat whose mechanic is off; a drifted
-        // non-required list only stops offering it there (KmcCombatFeatPublicationSet).
+        // required paths (ordinary and fighter feats) still hold it. If a required path loses it, the publication removes
+        // KMC's own entry from every array that holds it, including arrays other mods changed, so no list offers a feat
+        // whose mechanic is off; a non-required list that loses it only stops offering it there (KmcCombatFeatPublicationSet).
         internal bool IsMountedArcheryAvailable()
         {
             if (mountedArcheryFeature == null || mountedArcheryFailure != null || mountedCombatPublication == null ||
@@ -44,7 +44,8 @@ namespace KingmakerMountedCombat.Integration
             return available;
         }
 
-        // Each frame once registered: one reference comparison per required array, a full comparison only when replaced.
+        // Each frame once registered: one reference comparison per watched array (the required arrays, or every array once
+        // withdrawn), a full check only of a replaced array.
         private void RefreshMountedArcheryPublicationReported()
         {
             if (mountedCombatPublication != null && mountedCombatPublication.Refresh(false)) ReportMountedArcheryWithdrawal();
@@ -55,8 +56,8 @@ namespace KingmakerMountedCombat.Integration
             if (mountedCombatPublication == null || !mountedCombatPublication.MountedArcheryWithdrawn || mountedArcheryWithdrawalReported) return;
             mountedArcheryWithdrawalReported = true;
             logger.Warning("Mounted Archery withdrawn for this session: a required feat selection no longer offers it (" +
-                mountedCombatPublication.WithdrawalReason + "). It was removed from every other KMC feat list that still held " +
-                "KMC's exact value; Mounted Combat and other mods' changes are untouched; no mounted ranged penalty or reduction applies.");
+                mountedCombatPublication.WithdrawalReason + "). KMC's Mounted Archery entry was removed from every KMC feat list " +
+                "that still held it; Mounted Combat and other mods' entries are untouched; no mounted ranged penalty or reduction applies.");
         }
 
         private void RegisterMountedArcheryFeatReported(LibraryScriptableObject library)

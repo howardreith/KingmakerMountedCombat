@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
@@ -31,6 +32,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted archery publication: a drifted extra list stops offering it while the rule stays on", ExtraListDrift);
             runner.Run("mounted archery publication: a drifted required list withdraws the feat everywhere and turns the rule off", RequiredListDrift);
             runner.Run("mounted archery publication: disable, re-enable and a missing feat keep the lists and the rule coherent", PublicationLifecycle);
+            runner.Run("mounted archery publication: a foreign append or reorder that keeps the feat keeps the rule on", ForeignChangeKeepsFeat);
+            runner.Run("mounted archery publication: withdrawal removes the feat from a foreign-changed list and keeps it removed", WithdrawalReachesForeignLists);
         }
 
         // One native-shaped path: full ticks of `tick` (the first may differ), the last tick near the endpoint.
@@ -462,6 +465,59 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!inPlace.Set.Refresh(false), "The cheap check sees the same reference.");
             TestRunner.True(!inPlace.Set.MountedArcheryAvailable(), "The full comparison at attack time withdraws.");
             inPlace.AssertCoherent("in-place drift");
+        }
+
+        // Re-review: another mod appends to or reorders a required list without removing Mounted Archery. Membership, not
+        // exact array identity, decides availability, so nothing is withdrawn and nothing is written.
+        private static void ForeignChangeKeepsFeat()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var unrelated = new object();
+            var appended = lists.Arrays["ordinary"].Concat(new[] { unrelated }).ToArray();
+            lists.Arrays["ordinary"] = appended;
+            TestRunner.True(!lists.Set.Refresh(false), "The per-frame refresh sees the replaced ordinary list and does not withdraw.");
+            TestRunner.True(lists.Set.MountedArcheryAvailable() && !lists.Set.MountedArcheryWithdrawn, "A foreign append that keeps the feat keeps the rule on.");
+            TestRunner.True(ReferenceEquals(lists.Arrays["ordinary"], appended) && lists.Has("ordinary", unrelated), "The foreign list is not rewritten.");
+            TestRunner.True(lists.Has("fighter", lists.MountedArchery) && lists.Has("extra", lists.MountedArchery), "The untouched lists keep offering it.");
+            lists.AssertCoherent("foreign append");
+            Array.Reverse(lists.Arrays["fighter"]);
+            TestRunner.True(lists.Set.MountedArcheryAvailable() && !lists.Set.MountedArcheryWithdrawn, "An in-place reorder that keeps the feat keeps the rule on.");
+            lists.AssertCoherent("foreign reorder");
+        }
+
+        // Re-review: another mod changes the extra list while keeping Mounted Archery, then the fighter list loses it. The
+        // withdrawal must reach the changed extra list too, removing only KMC's own entry.
+        private static void WithdrawalReachesForeignLists()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var unrelated = new object();
+            var extra = new[] { unrelated }.Concat(lists.Arrays["extra"]).ToArray();
+            lists.Arrays["extra"] = extra;
+            TestRunner.True(lists.Set.MountedArcheryAvailable(), "An extra-list change alone keeps the rule on.");
+            lists.Arrays["fighter"] = new[] { lists.Power, lists.Dodge, lists.MountedCombat, new object() };
+            TestRunner.True(lists.Set.Refresh(false) && lists.Set.MountedArcheryWithdrawn && lists.Set.WithdrawalReason == "fighter", "The required loss withdraws.");
+            TestRunner.True(!lists.Has("extra", lists.MountedArchery), "The foreign-changed extra list no longer offers Mounted Archery.");
+            var expected = extra.Where(item => !ReferenceEquals(item, lists.MountedArchery)).ToArray();
+            TestRunner.True(lists.Arrays["extra"].SequenceEqual(expected) && lists.Has("extra", unrelated) && lists.Has("extra", lists.MountedCombat),
+                "Only KMC's own entry was removed: the foreign entry, Mounted Combat and the order stay.");
+            TestRunner.True(!lists.Has("ordinary", lists.MountedArchery) && lists.Has("ordinary", lists.MountedCombat), "The exact ordinary list keeps Mounted Combat only.");
+            lists.AssertCoherent("withdrawal across a foreign list");
+
+            // Another mod later puts back a copy that still holds Mounted Archery: the per-frame refresh removes it again.
+            var stale = new[] { lists.Power, lists.Dodge, lists.MountedCombat, lists.MountedArchery, unrelated };
+            lists.Arrays["ordinary"] = stale;
+            TestRunner.True(!lists.Set.Refresh(false), "Withdrawal is reported once.");
+            TestRunner.True(!lists.Has("ordinary", lists.MountedArchery) && lists.Has("ordinary", unrelated) && lists.Has("ordinary", lists.MountedCombat),
+                "A reappearing entry is removed while withdrawn; the foreign entry stays.");
+            lists.AssertCoherent("reappearing entry");
+
+            // Every list was changed by another mod, so disable reports them and overwrites none.
+            var changedExtra = lists.Arrays["extra"];
+            TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the changed lists.");
+            TestRunner.True(ReferenceEquals(lists.Arrays["extra"], changedExtra) && !lists.Arrays.Keys.Any(key => lists.Has(key, lists.MountedArchery)),
+                "Changed lists are left as they are, and none offers Mounted Archery.");
         }
 
         private static void PublicationLifecycle()
