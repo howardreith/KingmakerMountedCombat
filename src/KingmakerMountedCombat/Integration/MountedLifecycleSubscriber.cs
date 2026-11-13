@@ -273,6 +273,14 @@ namespace KingmakerMountedCombat.Integration
             if (owner != null)
             {
                 var before = owner.State;
+                // Cutscene continuity repair: a scene that takes a living, still reciprocal pair member out of the game
+                // stages it; the pair is handed off with its intent retained instead of being invalidated.
+                if (persistence.ObserveSceneInGameChange(owner, entityData as UnitEntityData))
+                {
+                    ledger.Record(NativeLifecycleBoundary.InGameStateChanged, "IInGameHandler.HandleObjectInGameChaged(scene staging handoff)",
+                        before, owner.State, CleanupTrigger.EventSuspension, true, owner.State == RelationshipState.Unmounted);
+                    return;
+                }
                 owner.ValidateActivePair();
                 var after = owner.State;
                 var attempted = before == RelationshipState.Mounted && after != RelationshipState.Mounted;
@@ -407,6 +415,11 @@ namespace KingmakerMountedCombat.Integration
             // updates the retained intent of this world even though nothing is physically mounted any more.
             if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()))
                 persistence.PromoteRetainedIntent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent);
+            // Cutscene continuity repair: Dialog and Cutscene only take the camera and input, so the attachment is kept
+            // (MountedGameModeDisposition.PreserveScriptedScene). Staging of a pair member is handed off at its own
+            // native operation (UnitCommands.Run, IInGameHandler), never at the mode boundary.
+            if (MountedSceneContinuityPolicy.IsSceneMode(gameMode.ToString()))
+                persistence.ObserveScenePreserved(gameMode.ToString(), boundary == NativeLifecycleBoundary.GameModeStarted);
             if (persistence.SaveSuspended ||
                 (gameMode == GameModeType.None && persistence.AreaTransitionPending) ||
                 MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) ||
@@ -416,9 +429,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            // Exploration repair (issues 3 and 4): a native scripted event (Dialog, a locked Cutscene) or Rest suspends
-            // the attachment with the pair's mounted intent retained, and the pair remounts once ordinary play resumes.
-            // A refused suspension (combat, an owned save, unsettled participation) keeps the clean dismount below.
+            // Exploration repair (issue 4): Rest suspends the attachment with the pair's mounted intent retained, and the
+            // pair remounts once ordinary play resumes. A refused suspension (combat, an owned save, unsettled
+            // participation) keeps the clean dismount below.
             if (MountedRetainedIntentPolicy.SuspendsForEvent(gameMode.ToString()) &&
                 persistence.TrySuspendForEvent(gameMode == GameModeType.Rest ? MountedRetainedIntentKind.Camp : MountedRetainedIntentKind.ScriptedEvent, source))
             {

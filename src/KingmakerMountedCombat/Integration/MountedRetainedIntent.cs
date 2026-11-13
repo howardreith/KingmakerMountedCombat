@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.AreaLogic.Cutscenes;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
@@ -25,7 +27,6 @@ namespace KingmakerMountedCombat.Integration
         private long pendingLoadedRetainedSequence = -1;
         private int retainedSettledFrames;
         private float retainedSettledSince = -1f;
-        private float retainedEligibleSince = -1f;
         // The native settle bound: restoration needs ordinary play to hold for several frames, never a single
         // intermediate Default notification between two queued native mode switches.
         private const int RetainedSettleFrames = 5;
@@ -54,22 +55,44 @@ namespace KingmakerMountedCombat.Integration
             var mounted = WorldRelationships.Where(r => r.State == RelationshipState.Mounted && r.Rider != null && r.Mount != null).ToArray();
             if (mounted.Length == 0) return retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world);
             if (world.IsInCombat || mounted.Any(r => r.Rider.IsInCombat || r.Mount.IsInCombat)) return false;
-            // An area arrival that already restored (an arrival cutscene follows OnAreaLoaded) no longer owns the pairs.
-            if ((areaTransfer != null && !areaTransfer.Lifecycle.ResumeAttempted) || SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope ||
-                presentationPending || CombatSemanticRestorationPending || HasAreaParticipationObligations() ||
-                !DrainWorldCharge("scripted event suspension"))
-                return false;
+            if (SuspensionRefusal("event suspension") != null) return false;
+            var captured = SuspendPairs(world, kind, mounted, out var failed);
+            if (captured.Count != 0)
+                Report(captured.Count + " mounted relationship" + (captured.Count == 1 ? "" : "s") + " suspended for " + Describe(retainedIntentKind) +
+                    " (" + source + "); the pair remounts automatically when ordinary play resumes.", true);
+            return !failed;
+        }
+
+        // The world-wide owned boundaries no suspension may cross. An area arrival that already restored (an arrival
+        // cutscene follows OnAreaLoaded) no longer owns the pairs.
+        private string SuspensionRefusal(string purpose)
+        {
+            if (areaTransfer != null && !areaTransfer.Lifecycle.ResumeAttempted) return "an area transfer owns the pairs";
+            if (SaveDraining || SaveSuspended || HasSaveAdmissionFence || HasActiveSaveScope) return "a save owns mounted state";
+            if (presentationPending || CombatSemanticRestorationPending) return "a load restoration is pending";
+            if (HasAreaParticipationObligations()) return "paired participation is unsettled";
+            if (!DrainWorldCharge(purpose)) return "mounted charge cleanup is incomplete";
+            return null;
+        }
+
+        // Suspends exactly the given mounted relationships into this world's retained custody. The exact owner identity
+        // and the settled participation are captured as the area transfer captures them; a pair already in custody is
+        // replaced only by its own newer capture (a pair is captured only while physically mounted, so a nested callback
+        // for an already suspended pair captures nothing and never replaces its provenance).
+        private List<AreaPair> SuspendPairs(Player world, MountedRetainedIntentKind kind, IEnumerable<GameMountedRelationshipService> owners,
+            out bool failed, string stagingBoundary = null)
+        {
             if (retainedIntent != null && (!ReferenceEquals(retainedIntent.World.Target, world) || retainedIntent.CampaignId != world.GameId))
                 DropRetainedIntent("a different world");
             var slots = controls.CapturePersistentSlots();
             var captured = new List<AreaPair>();
-            var failed = false;
-            foreach (var owner in mounted)
+            failed = false;
+            foreach (var owner in owners)
             {
-                // The exact owner identity and the settled participation are captured as the area transfer captures them.
                 var pair = new AreaPair { RiderId = owner.Rider.UniqueId, MountId = owner.Mount.UniqueId, ProfileId = owner.Runtime.MountProfileId,
                     OwnerId = owner.PairOwner?.Id.ToString("N"), Generation = owner.PairOwner?.Generation ?? 0, Carried = true,
-                    Participation = unifiedTurn.SnapshotParticipants.SingleOrDefault(p => ReferenceEquals(p.Relationship, owner))?.CaptureParticipation() };
+                    Participation = unifiedTurn.SnapshotParticipants.SingleOrDefault(p => ReferenceEquals(p.Relationship, owner))?.CaptureParticipation(),
+                    StagingBoundary = stagingBoundary };
                 try
                 {
                     if (owner.GuardBoundary(CleanupTrigger.EventSuspension)) captured.Add(pair);
@@ -77,24 +100,131 @@ namespace KingmakerMountedCombat.Integration
                 }
                 catch (Exception error) { failed = true; logger.Exception("Mounted event suspension retained a pair", error); }
             }
-            if (captured.Count != 0)
+            if (captured.Count == 0) return captured;
+            if (retainedIntent == null)
             {
-                if (retainedIntent == null)
-                {
-                    retainedIntent = new AreaTransfer { World = new WeakReference(world), CampaignId = world.GameId,
-                        AreaId = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe, Pairs = new AreaPair[0], Slots = new SavedMountedSlot[0] };
-                    retainedIntentKind = kind;
-                }
-                var ids = new HashSet<string>(captured.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
-                retainedIntent.Pairs = retainedIntent.Pairs.Where(p => !ids.Contains(p.RiderId) && !ids.Contains(p.MountId)).Concat(captured).ToArray();
-                retainedIntent.Slots = retainedIntent.Slots.Where(s => !ids.Contains(s.ActorId))
-                    .Concat(slots.Where(s => ids.Contains(s.ActorId))).ToArray();
-                ResetRetainedSettle();
-                RetainedSuspensionCount++;
-                Report(captured.Count + " mounted relationship" + (captured.Count == 1 ? "" : "s") + " suspended for " + Describe(retainedIntentKind) +
-                    " (" + source + "); the pair remounts automatically when ordinary play resumes.", true);
+                retainedIntent = new AreaTransfer { World = new WeakReference(world), CampaignId = world.GameId,
+                    AreaId = Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe, Pairs = new AreaPair[0], Slots = new SavedMountedSlot[0] };
+                retainedIntentKind = kind;
             }
-            return !failed;
+            var ids = new HashSet<string>(captured.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+            retainedIntent.Pairs = retainedIntent.Pairs.Where(p => !ids.Contains(p.RiderId) && !ids.Contains(p.MountId)).Concat(captured).ToArray();
+            retainedIntent.Slots = retainedIntent.Slots.Where(s => !ids.Contains(s.ActorId))
+                .Concat(slots.Where(s => ids.Contains(s.ActorId))).ToArray();
+            ResetRetainedSettle();
+            RetainedSuspensionCount++;
+            return captured;
+        }
+
+        internal int SceneStagingHandOffCount { get; private set; }
+        internal int SceneStagingRefusedCount { get; private set; }
+        internal int ScenePreservedObservationCount { get; private set; }
+        internal int SceneRegroupCount { get; private set; }
+
+        // Cutscene continuity repair. Native Dialog or Cutscene mode began or ended with pairs attached: they stay
+        // attached (one bounded line per mode transition, never per frame).
+        internal void ObserveScenePreserved(string mode, bool started)
+        {
+            var mounted = WorldRelationships.Where(r => r.State == RelationshipState.Mounted && r.Rider != null && r.Mount != null).ToArray();
+            if (mounted.Length == 0) return;
+            ScenePreservedObservationCount++;
+            logger.Info("Mounted attachment preserved through native " + mode + (started ? " start" : " end") + ": " +
+                string.Join(", ", mounted.Select(r => "rider=" + r.Rider.UniqueId + ";mount=" + r.Mount.UniqueId).ToArray()) +
+                "; gameplay input stays refused until Default.");
+        }
+
+        // The native UnitCommands.Run(UnitCommand) prefix, before every routing gate: a scripted scene operation on a
+        // mounted rider hands that one pair to native staging before native Run executes it on the rider; one on the
+        // mount runs natively with the rider seated. Returns nothing: native Run always proceeds.
+        internal void ObserveSceneCommand(UnitCommands container, UnitCommand command, bool simulatingClick)
+        {
+            if (!Enabled || container == null || command == null || simulatingClick) return;
+            var game = Game.Instance;
+            var owner = WorldRelationships.FirstOrDefault(r => r.State == RelationshipState.Mounted &&
+                (ReferenceEquals(r.Rider?.Commands, container) || ReferenceEquals(r.Mount?.Commands, container)));
+            if (owner == null || game?.Player == null) return;
+            var rider = owner.Rider; var mount = owner.Mount;
+            var sceneActive = SceneActive(game);
+            var scripted = MountedSceneContinuityPolicy.IsScriptedCommand(command.Cutscene, sceneActive,
+                rider != null && CutsceneControlledUnit.GetControllingPlayer(rider) != null,
+                command.CreatedByPlayer, command.AiAction != null, command.GetType().Assembly == typeof(MountedSceneContinuityPolicy).Assembly);
+            var encounter = game.Player.IsInCombat || (rider?.IsInCombat ?? false) || (mount?.IsInCombat ?? false);
+            var disposition = MountedSceneContinuityPolicy.DecideCommand(true, ReferenceEquals(rider?.Commands, container),
+                ReferenceEquals(mount?.Commands, container), scripted, encounter, false);
+            var detail = command.GetType().Name + (command.Cutscene ? " (cutscene)" : "") + " in " + game.CurrentMode;
+            switch (disposition)
+            {
+                case MountedSceneCommandDisposition.KeepAttached:
+                    logger.Info("Scripted scene command on the mount runs with its rider seated: rider=" + rider?.UniqueId +
+                        ";mount=" + mount?.UniqueId + ";command=" + detail + ".");
+                    return;
+                case MountedSceneCommandDisposition.KeepAttachedInCombat:
+                    SceneStagingRefusedCount++;
+                    logger.Warning("Scripted scene command on a mounted rider during an encounter keeps the attachment (staging is not " +
+                        "supported in combat; no turn resource is touched): rider=" + rider?.UniqueId + ";mount=" + mount?.UniqueId +
+                        ";command=" + detail + ".");
+                    return;
+                case MountedSceneCommandDisposition.HandOffRider:
+                    TryHandOffForStaging(owner, "UnitCommands.Run(" + detail + ")");
+                    return;
+            }
+        }
+
+        // IInGameHandler.HandleObjectInGameChaged for a mounted pair actor, before invariant validation. True when the
+        // scene's removal was taken as temporary staging (the caller then skips the invalidation path).
+        internal bool ObserveSceneInGameChange(GameMountedRelationshipService owner, UnitEntityData unit)
+        {
+            var game = Game.Instance;
+            if (!Enabled || owner == null || unit == null || game?.Player == null || owner.State != RelationshipState.Mounted) return false;
+            var rider = owner.Rider; var mount = owner.Mount;
+            if (rider == null || mount == null) return false;
+            var candidate = KingmakerMountedPairRuntime.CreateCandidate(rider, mount);
+            var disposition = MountedSceneContinuityPolicy.DecideInGameChange(true, !unit.IsInGame, SceneActive(game),
+                candidate.RiderIsAliveAndConscious && candidate.MountIsAliveAndConscious, candidate.ExactReciprocalCompanionRelationship,
+                game.Player.IsInCombat || rider.IsInCombat || mount.IsInCombat);
+            return disposition == MountedSceneInGameDisposition.HandOff &&
+                TryHandOffForStaging(owner, "IInGameHandler.HandleObjectInGameChaged(" + unit.UniqueId + " left the game during a scene)");
+        }
+
+        // Pair-local handoff to native scene staging: only this pair is suspended (its exact owner identity, generation and
+        // world retained); every other pair keeps its attachment. A refusal leaves the pair attached and says why.
+        internal bool TryHandOffForStaging(GameMountedRelationshipService owner, string boundary)
+        {
+            var world = Game.Instance?.Player;
+            if (!Enabled || world == null || owner?.Rider == null || owner.Mount == null || owner.State != RelationshipState.Mounted) return false;
+            var refusal = world.IsInCombat || owner.Rider.IsInCombat || owner.Mount.IsInCombat ? "an encounter is active" : SuspensionRefusal("scene staging");
+            if (refusal == null)
+            {
+                var captured = SuspendPairs(world, MountedRetainedIntentKind.ScriptedEvent, new[] { owner }, out var failed, boundary);
+                if (captured.Count == 1 && !failed)
+                {
+                    SceneStagingHandOffCount++;
+                    Report(DescribePair(owner.Rider, owner.Mount, captured[0]) + " handed to native scene staging at " + boundary +
+                        " (rider=" + captured[0].RiderId + ";mount=" + captured[0].MountId + ";owner=" + captured[0].OwnerId + "/" +
+                        captured[0].Generation + "); the pair remounts automatically when the scene releases them.", true);
+                    return true;
+                }
+                refusal = "the attachment could not be suspended cleanly";
+            }
+            SceneStagingRefusedCount++;
+            logger.Warning("Scene staging handoff refused for rider=" + owner.Rider.UniqueId + ";mount=" + owner.Mount.UniqueId +
+                " at " + boundary + ": " + refusal + ".");
+            return false;
+        }
+
+        private static bool SceneActive(Game game) =>
+            game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock, game.IsModeActive(GameModeType.Dialog),
+                game.IsModeActive(GameModeType.Cutscene));
+
+        // Read from native state on every evaluation: a cutscene still playing a command that controls the unit, or a
+        // cutscene-made order still in one of its slots, or a scene that took it out of the game.
+        private static bool ActorStagingOwned(UnitEntityData unit, bool sceneActive)
+        {
+            if (unit == null) return false;
+            var controller = CutsceneControlledUnit.GetControllingPlayer(unit);
+            var controlled = controller != null && controller.PlayerData != null && !controller.PlayerData.IsFinished;
+            var cutsceneCommand = unit.Commands != null && unit.Commands.Contains(c => c.Cutscene && !c.IsFinished);
+            return MountedSceneContinuityPolicy.ActorStagingOwned(controlled, cutsceneCommand, unit.IsInGame, sceneActive);
         }
 
         // Review finding 3: an event mode that begins while the pairs are already physically dismounted (a Rest after a
@@ -130,6 +260,7 @@ namespace KingmakerMountedCombat.Integration
             var sameWorld = Enabled && player != null && ReferenceEquals(custody.World.Target, player) && player.GameId == custody.CampaignId;
             var area = game?.CurrentlyLoadedArea;
             var decision = MountedRetainedIntentPolicy.Decide(
+                retainedIntentKind,
                 sameWorld,
                 player?.IsInCombat ?? false,
                 IsWorldMapArea(area),
@@ -144,12 +275,30 @@ namespace KingmakerMountedCombat.Integration
                 DropRetainedIntent(!sameWorld ? "the world changed" : "combat began");
                 return;
             }
-            if (decision == MountedRetainedIntentDecision.Hold) { ResetRetainedSettle(); return; }
+            if (decision == MountedRetainedIntentDecision.Hold)
+            {
+                // A fight that began while a pair was still staged: the intent is kept through it (never adopted into
+                // the encounter), and a regroup walk in progress stops so it spends nothing of the mount's turn.
+                if (player?.IsInCombat == true)
+                {
+                    InterruptRegroups(custody, game, "an encounter began");
+                    if (!retainedCombatHoldLogged)
+                    {
+                        retainedCombatHoldLogged = true;
+                        logger.Info("Retained mounted intent held through the encounter for " + custody.Pairs.Length + " staged pair" +
+                            (custody.Pairs.Length == 1 ? "" : "s") + "; the pair" + (custody.Pairs.Length == 1 ? " remounts" : "s remount") +
+                            " after combat without Mount, preparation or refund.");
+                    }
+                }
+                ResetRetainedSettle();
+                return;
+            }
+            retainedCombatHoldLogged = false;
             var now = UnityEngine.Time.unscaledTime;
             if (retainedSettledSince < 0f) retainedSettledSince = now;
             if (++retainedSettledFrames < RetainedSettleFrames || now - retainedSettledSince < RetainedSettleSeconds) return;
-            if (retainedEligibleSince < 0f) retainedEligibleSince = now;
-            var patienceExpired = now - retainedEligibleSince > MountedRetainedIntentPolicy.EligibilityPatienceSeconds;
+            var sceneActive = SceneActive(game);
+            var maximumSeparation = MountedRetainedIntentPolicy.MaximumSeparationMetres(retainedIntentKind);
 
             var remaining = new List<AreaPair>();
             var restored = new List<AreaPair>();
@@ -164,6 +313,21 @@ namespace KingmakerMountedCombat.Integration
                     ? new UnityEngine.Vector2(rider.Position.x - mount.Position.x, rider.Position.z - mount.Position.z).magnitude
                     : float.PositiveInfinity;
                 var sameArea = rider != null && mount != null && SameNavmeshArea(rider, mount);
+                // Cutscene continuity repair: staging ownership and the regroup walk are per pair, read from native state.
+                var stagingOwned = ActorStagingOwned(rider, sceneActive) || ActorStagingOwned(mount, sceneActive);
+                var regroupLive = pair.RegroupMove != null && !pair.RegroupMove.IsFinished && mount != null && mount.Commands.Contains(pair.RegroupMove);
+                var regroup = MountedSceneContinuityPolicy.RegroupAvailability(retainedIntentKind, player.IsInCombat, pair.RegroupAttempts, regroupLive);
+                if (regroupLive && MountedSceneContinuityPolicy.StepRegroup(true, now - pair.RegroupStartedAt, separation, maximumSeparation) ==
+                    MountedRegroupStep.Abandon)
+                {
+                    pair.RegroupMove.Interrupt();
+                    regroup = MountedRegroupState.Exhausted;
+                }
+                if (!regroupLive) pair.RegroupMove = null;
+                // Patience counts only this pair's own settled, unowned, non-regrouping play.
+                if (stagingOwned || regroup == MountedRegroupState.InProgress) pair.EligibleSince = -1f;
+                else if (pair.EligibleSince < 0f) pair.EligibleSince = now;
+                var patienceExpired = pair.EligibleSince >= 0f && now - pair.EligibleSince > MountedRetainedIntentPolicy.EligibilityPatienceSeconds;
                 var pairDecision = MountedRetainedIntentPolicy.DecidePair(
                     candidate != null,
                     candidate != null && SupportedMountedProfiles.Resolve(rider, mount)?.Id == pair.ProfileId,
@@ -171,21 +335,42 @@ namespace KingmakerMountedCombat.Integration
                     PermanentlyIneligible(candidate),
                     refusal,
                     separation,
-                    MountedRetainedIntentPolicy.MaximumSeparationMetres(retainedIntentKind),
+                    maximumSeparation,
                     sameArea,
-                    patienceExpired);
+                    patienceExpired,
+                    stagingOwned,
+                    regroup);
                 if (pairDecision == MountedRetainedPairDecision.Retry) { remaining.Add(pair); continue; }
+                if (pairDecision == MountedRetainedPairDecision.Regroup)
+                {
+                    StartRegroup(pair, rider, mount, separation, now);
+                    remaining.Add(pair);
+                    continue;
+                }
                 if (pairDecision == MountedRetainedPairDecision.Drop)
                 {
-                    dropped.Add(DescribePair(rider, mount, pair) + " (" + (refusal ?? (candidate != null &&
-                        (separation > MountedRetainedIntentPolicy.MaximumSeparationMetres(retainedIntentKind) || !sameArea)
-                        ? "rider and mount were separated by the event" : "the pair is no longer eligible")) + ")");
+                    var separated = candidate != null && (separation > maximumSeparation || !sameArea);
+                    var reason = refusal ?? (separated
+                        ? (pair.RegroupAttempts != 0 ? "the mount could not regroup with its rider" : "rider and mount were separated by the event")
+                        : "the pair is no longer eligible");
+                    if (pair.RegroupMove != null && !pair.RegroupMove.IsFinished) pair.RegroupMove.Interrupt();
+                    logger.Info("Retained mounted restoration refused: rider=" + pair.RiderId + ";mount=" + pair.MountId +
+                        ";boundary=" + (pair.StagingBoundary ?? Describe(retainedIntentKind)) + ";separation=" + separation.ToString("0.0") +
+                        ";reason=" + reason + ".");
+                    dropped.Add(DescribePair(rider, mount, pair) + " (" + reason + ")");
                     continue;
                 }
                 var resolved = new Dictionary<string, UnitEntityData>(StringComparer.Ordinal) { { pair.RiderId, rider }, { pair.MountId, mount } };
                 string detail;
                 var outcome = RestoreRetainedPair(pair, rider, mount, resolved, false, out detail);
-                if (outcome == MountedRetainedRestoreOutcome.Restored) { restored.Add(pair); continue; }
+                if (outcome == MountedRetainedRestoreOutcome.Restored)
+                {
+                    restored.Add(pair);
+                    logger.Info("Retained mounted pair restored: rider=" + pair.RiderId + ";mount=" + pair.MountId + ";owner=" + pair.OwnerId +
+                        "/" + pair.Generation + ";boundary=" + (pair.StagingBoundary ?? Describe(retainedIntentKind)) +
+                        ";regroups=" + pair.RegroupAttempts + ".");
+                    continue;
+                }
                 if (outcome == MountedRetainedRestoreOutcome.RetainedResidue)
                 {
                     // Review finding 1: never reported as a clean dismount. The faulted relationship keeps its exact
@@ -283,6 +468,37 @@ namespace KingmakerMountedCombat.Integration
                 runtime != null && !runtime.HasPresentationAttachmentResidue);
         }
 
+        private bool retainedCombatHoldLogged;
+
+        // Cutscene continuity repair: the scene left the mount behind within reach. The mount walks to its rider with an
+        // ordinary native move (native pathfinding; never a teleport, never a player order). Out of combat only, at most
+        // RegroupMaximumAttempts times, each bounded by RegroupDeadlineSeconds.
+        private void StartRegroup(AreaPair pair, UnitEntityData rider, UnitEntityData mount, float separation, float now)
+        {
+            pair.RegroupAttempts++;
+            pair.RegroupStartedAt = now;
+            var move = new UnitMoveTo(rider.Position, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres);
+            try { mount.Commands.Run(move); }
+            catch (Exception error) { logger.Exception("Mounted regroup move was not issued", error); }
+            pair.RegroupMove = mount.Commands.Contains(move) ? move : null;
+            SceneRegroupCount++;
+            logger.Info("Retained mounted pair regroups natively: rider=" + pair.RiderId + ";mount=" + pair.MountId +
+                ";separation=" + separation.ToString("0.0") + ";attempt=" + pair.RegroupAttempts + ";issued=" + (pair.RegroupMove != null) + ".");
+        }
+
+        private void InterruptRegroups(AreaTransfer custody, Game game, string reason)
+        {
+            foreach (var pair in custody.Pairs)
+            {
+                var move = pair.RegroupMove;
+                pair.RegroupMove = null;
+                if (move == null || move.IsFinished) continue;
+                var mount = ResolveUnique(game, pair.MountId);
+                if (mount != null && mount.Commands.Contains(move)) move.Interrupt();
+                logger.Info("Retained mounted regroup stopped because " + reason + ": rider=" + pair.RiderId + ";mount=" + pair.MountId + ".");
+            }
+        }
+
         private void LatchRetainedResidue(AreaTransfer custody, string pair, string detail)
         {
             failedAreaTransfer = custody;
@@ -294,11 +510,14 @@ namespace KingmakerMountedCombat.Integration
             candidate != null && (!candidate.ExactReciprocalCompanionRelationship ||
                 !candidate.RiderIsAliveAndConscious || !candidate.MountIsAliveAndConscious);
 
-        // Cancels the retained intent; the affected pairs simply stay dismounted. Never touches native state.
+        // Cancels the retained intent; the affected pairs simply stay dismounted. Touches no native state except stopping
+        // this custody's own regroup walk, if one is still running.
         internal void DropRetainedIntent(string reason)
         {
             var custody = retainedIntent;
             if (custody == null) return;
+            try { InterruptRegroups(custody, Game.Instance, "the retained intent was cancelled"); }
+            catch (Exception error) { logger.Exception("Mounted regroup was not stopped", error); }
             retainedIntent = null;
             ResetRetainedSettle();
             RetainedDropCount += custody.Pairs.Length;
@@ -462,7 +681,11 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Review finding 4 (first review): patience counts only continuous settled ordinary play of the current custody.
-        private void ResetRetainedSettle() { retainedSettledFrames = 0; retainedSettledSince = -1f; retainedEligibleSince = -1f; }
+        private void ResetRetainedSettle()
+        {
+            retainedSettledFrames = 0; retainedSettledSince = -1f;
+            foreach (var pair in retainedIntent?.Pairs ?? new AreaPair[0]) pair.EligibleSince = -1f;
+        }
 
         private static string DescribePair(UnitEntityData rider, UnitEntityData mount, AreaPair pair) =>
             (rider?.CharacterName ?? pair.RiderId) + " and " + (mount?.CharacterName ?? pair.MountId);
@@ -473,7 +696,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 case MountedRetainedIntentKind.Camp: return "camping";
                 case MountedRetainedIntentKind.WorldMapTravel: return "world-map travel";
-                default: return "a scripted event";
+                default: return "scene staging";
             }
         }
     }

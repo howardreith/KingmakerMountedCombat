@@ -722,6 +722,11 @@ namespace KingmakerMountedCombat.Integration
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
+                // Cutscene continuity repair: a scripted scene operation on a mounted rider hands that one pair to native
+                // staging before any pair routing, so native Run executes the scene's command on the free rider. A
+                // fault here never blocks the scene's command: the pair then keeps its attachment.
+                try { PatchBridge.Persistence?.ObserveSceneCommand(__instance, cmd, PointerController.SimulatingClick); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Scene staging handoff was not evaluated", error); }
                 if (PatchBridge.CombatFor(__instance)?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 var combat = PatchBridge.CombatFor(__instance);

@@ -177,6 +177,7 @@
     <Compile Include="Integration\MountedFamiliarFollowAdapter.cs" />
     <Compile Include="Domain\MountedFamiliarFollowPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentPolicy.cs" />
+    <Compile Include="Domain\MountedSceneContinuityPolicy.cs" />
     <Compile Include="Domain\MountedAreaTransferLifecycle.cs" />
     <Compile Include="Domain\MountedWorldBoundaryAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentRecord.cs" />

@@ -3,11 +3,15 @@ using System;
 namespace KingmakerMountedCombat.Domain
 {
     // Exploration repair (issues 3, 4 and 7): one bounded custody for "the pair is still meant to be mounted while
-    // its physical attachment is suspended". Sources: a native scripted event (Dialog, a locked Cutscene), the camp
-    // workflow (assembly and Rest) and world-map travel. Restoration re-attaches the same eligible pair without a
-    // Mount action, preparation, refund or turn; anything that invalidates the pair cancels its restoration.
+    // its physical attachment is suspended". Sources: native scene staging of a pair member (cutscene continuity
+    // repair; ordinary Dialog/Cutscene modes keep the attachment), the camp workflow (assembly and Rest) and world-map
+    // travel. Restoration re-attaches the same eligible pair without a Mount action, preparation, refund or turn;
+    // anything that invalidates the pair cancels its restoration.
     public enum MountedRetainedIntentKind
     {
+        // Cutscene continuity repair: a pair handed to native scene staging (a scripted operation on its rider, or a
+        // pair member taken out of the game by a scene). Ordinary Dialog/Cutscene modes no longer suspend. The value
+        // and its saved encoding are unchanged, so an older save's dialog suspension restores under these rules.
         ScriptedEvent,
         Camp,
         WorldMapTravel
@@ -24,7 +28,9 @@ namespace KingmakerMountedCombat.Domain
     {
         Restore,
         Retry,
-        Drop
+        Drop,
+        // Cutscene continuity repair: the scene left the mount behind; it walks to its rider natively, once, bounded.
+        Regroup
     }
 
     // Review finding 1: what one restoration attempt left behind.
@@ -64,14 +70,13 @@ namespace KingmakerMountedCombat.Domain
         // settled) is retried for this long in ordinary play before its intent is dropped.
         public const float EligibilityPatienceSeconds = 10f;
 
-        // Native modes that run a scripted event over the current area. Each one interrupts commands and may move,
-        // translocate or hide units (cutscene party moves, camp translocation, dialog actions), so the attachment
-        // is suspended rather than kept. Every other non-retained mode keeps the existing clean dismount.
+        // The native mode whose start itself suspends the attachment: Rest (camp translocates every unit to its own
+        // campsite slot). Cutscene continuity repair: Dialog and Cutscene no longer suspend at mode start; they keep
+        // the attachment (MountedGameModeDisposition.PreserveScriptedScene) and only a scripted operation that stages
+        // a pair member hands that one pair off. Every other non-retained mode keeps the existing clean dismount.
         public static bool SuspendsForEvent(string exactModeName)
         {
-            return string.Equals(exactModeName, "Dialog", StringComparison.Ordinal) ||
-                string.Equals(exactModeName, "Cutscene", StringComparison.Ordinal) ||
-                string.Equals(exactModeName, "Rest", StringComparison.Ordinal);
+            return string.Equals(exactModeName, "Rest", StringComparison.Ordinal);
         }
 
         // The world map is the native area whose custom UI scene is the global map.
@@ -83,6 +88,7 @@ namespace KingmakerMountedCombat.Domain
 
         // Whether the retained intent may be restored inside the current area now.
         public static MountedRetainedIntentDecision Decide(
+            MountedRetainedIntentKind kind,
             bool sameWorld,
             bool partyInCombat,
             bool onWorldMap,
@@ -93,9 +99,13 @@ namespace KingmakerMountedCombat.Domain
             bool campAssemblyPending)
         {
             if (!sameWorld) return MountedRetainedIntentDecision.Cancel;
-            // A fight that follows the event (an ambush, a hostile dialog) is a native encounter: restoration never
-            // adopts it. The pair stays dismounted; voluntary combat mounting stays the player's choice.
-            if (partyInCombat) return MountedRetainedIntentDecision.Cancel;
+            // Restoration never adopts a native encounter: re-pairing inside one would need a native participation
+            // decision (preparation or a turn), which restoration must never manufacture. Cutscene continuity repair:
+            // a pair still staged when the fight began keeps its intent through the encounter and remounts once it is
+            // over (no Mount action, preparation, refund or replay). Camp and world-map custody keep the cancellation.
+            // An ordinary hostile dialog never reaches here: its pair stayed attached and entered the fight mounted.
+            if (partyInCombat)
+                return kind == MountedRetainedIntentKind.ScriptedEvent ? MountedRetainedIntentDecision.Hold : MountedRetainedIntentDecision.Cancel;
             // World-map travel restores only through the next local area's arrival.
             if (onWorldMap) return MountedRetainedIntentDecision.Hold;
             if (!string.Equals(currentModeName, "Default", StringComparison.Ordinal) || eventModeStillActive || loading ||
@@ -115,13 +125,27 @@ namespace KingmakerMountedCombat.Domain
             float separationMetres,
             float maximumSeparationMetres,
             bool sameNavmeshArea,
-            bool patienceExpired)
+            bool patienceExpired,
+            bool stagingOwned = false,
+            MountedRegroupState regroup = MountedRegroupState.Unavailable)
         {
             if (!unitsResolved || !sameReciprocalProfile || alreadyInARelationship || permanentlyIneligible)
                 return MountedRetainedPairDecision.Drop;
-            if (float.IsNaN(separationMetres) || float.IsInfinity(separationMetres) || separationMetres > maximumSeparationMetres ||
-                !sameNavmeshArea)
+            // Cutscene continuity repair: a native scene still controls one of the actors (a playing command, a
+            // cutscene-made order still running, or a scene that took it out of the game). Its final placement is
+            // not known yet, so nothing is judged; this pair waits and the others are decided on their own.
+            if (stagingOwned) return MountedRetainedPairDecision.Retry;
+            var finite = !float.IsNaN(separationMetres) && !float.IsInfinity(separationMetres);
+            if (!finite || separationMetres > maximumSeparationMetres || !sameNavmeshArea)
+            {
+                // The scene's final placement is respected: the rider is never snapped back to the mount. A mount left
+                // behind within reach on the same navigation area walks to its rider; anything else stays dismounted.
+                if (regroup == MountedRegroupState.InProgress) return MountedRetainedPairDecision.Retry;
+                if (regroup == MountedRegroupState.Available && finite && sameNavmeshArea &&
+                    separationMetres <= MountedSceneContinuityPolicy.RegroupMaximumMetres)
+                    return MountedRetainedPairDecision.Regroup;
                 return MountedRetainedPairDecision.Drop;
+            }
             if (eligibilityRefusal == null) return MountedRetainedPairDecision.Restore;
             return patienceExpired ? MountedRetainedPairDecision.Drop : MountedRetainedPairDecision.Retry;
         }

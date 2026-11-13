@@ -36,7 +36,9 @@ namespace KingmakerMountedCombat.Tests
 
         private static void WorldChangingModesDismount()
         {
-            foreach (var mode in new[] { "None", "GlobalMap", "Dialog", "Cutscene", "Rest", "Kingdom", "GameOver", "BugReport", "KingdomSettlement", "CutsceneGlobalMap" })
+            // Cutscene continuity repair: Dialog and Cutscene keep the attachment (see CutsceneContinuityTests); every other
+            // world-changing mode keeps the clean-dismount boundary, including the world-map cutscene mode.
+            foreach (var mode in new[] { "None", "GlobalMap", "Rest", "Kingdom", "GameOver", "BugReport", "KingdomSettlement", "CutsceneGlobalMap" })
             {
                 TestRunner.Equal(MountedGameModeDisposition.CleanDismount, MountedGameModePolicy.Classify(mode), mode + " escaped the clean-dismount boundary.");
             }
