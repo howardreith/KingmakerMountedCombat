@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted archery publication: disable, re-enable and a missing feat keep the lists and the rule coherent", PublicationLifecycle);
             runner.Run("mounted archery publication: a foreign append or reorder that keeps the feat keeps the rule on", ForeignChangeKeepsFeat);
             runner.Run("mounted archery publication: withdrawal removes the feat from a foreign-changed list and keeps it removed", WithdrawalReachesForeignLists);
+            runner.Run("mounted archery publication: while withdrawn, the per-frame refresh removes an in-place reintroduction", InPlaceReintroductionWhileWithdrawn);
         }
 
         // One native-shaped path: full ticks of `tick` (the first may differ), the last tick near the endpoint.
@@ -518,6 +519,25 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the changed lists.");
             TestRunner.True(ReferenceEquals(lists.Arrays["extra"], changedExtra) && !lists.Arrays.Keys.Any(key => lists.Has(key, lists.MountedArchery)),
                 "Changed lists are left as they are, and none offers Mounted Archery.");
+        }
+
+        // Owner re-review of 713dd621: once withdrawn, another mod writes Mounted Archery into an existing slot of an array
+        // without replacing the array. Only the per-frame Refresh(false) runs before the assertion: MountedArcheryAvailable
+        // and AssertCoherent do a full cleanup themselves and would hide the defect.
+        private static void InPlaceReintroductionWhileWithdrawn()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            lists.Arrays["fighter"] = lists.Arrays["fighter"].Where(item => !ReferenceEquals(item, lists.MountedArchery)).ToArray();
+            TestRunner.True(lists.Set.Refresh(false) && lists.Set.MountedArcheryWithdrawn, "The fighter loss withdraws.");
+            var extra = lists.Arrays["extra"];
+            var expected = extra.Skip(1).ToArray();
+            extra[0] = lists.MountedArchery;
+            TestRunner.True(ReferenceEquals(lists.Arrays["extra"], extra), "The array reference is unchanged: the edit is in place.");
+            TestRunner.True(!lists.Set.Refresh(false), "Withdrawal is reported once.");
+            TestRunner.True(!lists.Has("extra", lists.MountedArchery), "The per-frame refresh removes the in-place reintroduction.");
+            TestRunner.True(lists.Arrays["extra"].SequenceEqual(expected), "The other entries keep their order.");
+            lists.AssertCoherent("in-place reintroduction");
         }
 
         private static void PublicationLifecycle()

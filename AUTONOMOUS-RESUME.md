@@ -18,7 +18,9 @@ docs/MOUNTED-ARCHERY-HANDOFF.md.
   - `KmcCombatFeatPublicationSet`: the required lists are ordinary and fighter. Availability is membership of KMC's
     Mounted Archery feature. Losing it there withdraws: KMC's own entry is narrowly removed from every list that holds
     it, foreign-changed lists included, and again if it reappears. Exact leases still guard whole-array publish and
-    restore. It refreshes each frame by reference, and at apply and attack time in full.
+    restore. Before withdrawal it refreshes each frame by reference to the required arrays. Once withdrawn it scans
+    every array's contents each frame, which catches in-place reintroduction. At apply and attack time it checks in
+    full.
 - **Native next step:** owner play with the branch DLL, or a qualified fixture: rows N1–N5 in the handoff. Log line
   `Mounted ranged movement:` carries pair, allocation, travel, ownership and contribution.
 - **Open:** a pair acting on separate initiative slots gets no contribution (conservative); up to 0.25 s of

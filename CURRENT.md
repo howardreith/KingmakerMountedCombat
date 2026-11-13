@@ -31,6 +31,9 @@ Source: the owner's Mounted_Archery_Mission_Packet (checksums verified; icon and
   - Withdrawal removes only KMC's own entry from every list that holds it, foreign-changed lists included, and
     removes it again if it reappears.
   - **Checks:** Fast PASS 3/0 (components 1212/0, Validate-Source 151/0); 3 mutations caught.
+- **Owner re-review of `713dd621` (one remaining finding): corrected.** While withdrawn, the per-frame refresh now
+  scans every array's contents, so an in-place reintroduction of Mounted Archery is removed. Regression
+  `InPlaceReintroductionWhileWithdrawn` fails against `713dd621`'s rule.
 - **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Owner art acceptance PENDING.
 - **Not authorized:** merge, release, tag, version bump or install.
 

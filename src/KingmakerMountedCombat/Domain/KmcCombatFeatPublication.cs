@@ -139,14 +139,16 @@ namespace KingmakerMountedCombat.Domain
         }
 
         // Withdraws when a required path no longer holds Mounted Archery; once withdrawn, keeps every array free of it.
-        // Without a full comparison only a replaced array is examined (one reference comparison each), so it is cheap enough
-        // for every frame. Returns true once, when it withdraws.
+        // Before withdrawal, without a full comparison only a replaced required array is examined (one reference comparison
+        // each), so it is cheap enough for every frame. Once withdrawn, every array's contents are inspected on every call:
+        // another mod can put Mounted Archery back into an array in place, without replacing it, and a reference check would
+        // miss that (owner re-review of 713dd621). Returns true once, when it withdraws.
         public bool Refresh(bool fullComparison)
         {
             if (!published || !HasMountedArchery) return false;
             if (MountedArcheryWithdrawn)
             {
-                RemoveMountedArchery(fullComparison);
+                RemoveMountedArchery(true);
                 return false;
             }
             List<TKey> lost = null;

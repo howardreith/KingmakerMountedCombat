@@ -44,8 +44,8 @@ namespace KingmakerMountedCombat.Integration
             return available;
         }
 
-        // Each frame once registered: one reference comparison per watched array (the required arrays, or every array once
-        // withdrawn), a full check only of a replaced array.
+        // Each frame once registered: before withdrawal, one reference comparison per required array and a full check only
+        // of a replaced one; once withdrawn, a membership scan of every KMC array, so an in-place reintroduction is removed.
         private void RefreshMountedArcheryPublicationReported()
         {
             if (mountedCombatPublication != null && mountedCombatPublication.Refresh(false)) ReportMountedArcheryWithdrawal();

@@ -8,6 +8,25 @@ original icon, and the missing mounted ranged-movement penalty that it reduces.
 section). Native mechanics, native UI and owner art acceptance are NOT RUN: this machine has no KMC install, no
 qualified KMC fixture and no `runtime-state\fixture-qualification.json`. No merge, release, version change or install.
 
+## Owner re-review of 713dd621 (one remaining finding): correction (2026-11-13)
+
+The re-review accepted, at source level, the mid-combat mounting fix, the Dead Shot fix, the membership check and the
+removal from foreign-changed lists.
+
+- **Defect:** while withdrawn, the per-frame `Refresh(false)` skipped an array whose reference had not changed.
+  Another mod writing Mounted Archery into an existing slot in place therefore left it selectable with its rule off,
+  until the next apply or attack-time check.
+- **Correction:** the withdrawn branch of `KmcCombatFeatPublicationSet.Refresh` always inspects contents
+  (`RemoveMountedArchery(true)`).
+  - Each frame that is a membership scan of every KMC array.
+  - Before withdrawal the per-frame check is unchanged.
+  - The narrow removal and the exact guards on whole-array publish and restore are unchanged.
+- **Regression:** `InPlaceReintroductionWhileWithdrawn`, as the reviewer specified.
+  - The fighter list loses the feat and the test withdraws through `Refresh(false)`.
+  - It then sets `extra[0]` to Mounted Archery in place and calls only `Refresh(false)`.
+  - It asserts that the feat is absent and the other entries keep their order. Only then does it call `AssertCoherent`.
+  - It fails when the `RemoveMountedArchery(fullComparison)` call of `713dd621` is restored.
+
 ## Owner re-review of d1379d8f (request changes, one P2): correction (2026-11-13)
 
 Findings 1 and 2 below were closed in source by the re-review. Finding 3's correction was incomplete; this section
@@ -28,8 +47,8 @@ supersedes its availability and withdrawal details.
     changed. Applied to KMC's exact published value it gives KMC's exact Mounted-Combat-only value, so disable still
     restores those originals exactly.
   - **While withdrawn,** the refresh keeps removing the entry if it reappears, for example when another mod puts back a
-    copy of an older array. Each frame this costs one reference comparison per array; at apply and attack time every
-    array is checked in full.
+    copy of an older array. Since the `713dd621` re-review, every array's contents are scanned each frame, so an
+    in-place reintroduction is caught too (above).
 - **Unchanged:**
   - A non-required list that loses the feat only stops offering it there.
   - Mod disable restores exact arrays and reports changed ones. It writes nothing else, as before and as for Mounted
