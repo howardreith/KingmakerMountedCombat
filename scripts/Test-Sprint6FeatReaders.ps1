@@ -175,5 +175,13 @@ $v=Copy-S6 $good; $v.featCold.state.spent=$false; Check (-not (Persist $v $true)
 $v=Copy-S6 $good; $v.featRenewal.chargesAtPreparation=2; Check (-not (Persist $v $true)) 'a restored debt charged twice refuses'
 $v=Copy-S6 $good; $v.featRenewal.afterPreparation.hasSwift=$true; Check (-not (Persist $v $true)) 'a restored debt left unpaid refuses'
 $v=Copy-S6 $good; $v.featRenewal.attempted=$false; Check (-not (Persist $v $true)) 'no renewal after the load refuses'
+# Mounted Archery: Mounted Combat is followed by Mounted Archery in the one KMC tail; the exact tail is accepted, neither fact refuses.
+$r=Copy-S6 $real; foreach($s in @((RowOf $r 'S6-selection').selections)){ $s.lastIsFeat=$false; $s | Add-Member kmcTailExact $true }
+$c=(RowOf $r 'S6-selection').ordinary; $c.offeredLast=$false; $c | Add-Member offeredInKmcTail $true
+$c=(RowOf $r 'S6-selection').riderCombatChoice; $c.offeredLast=$false; $c | Add-Member offeredInKmcTail $true
+Check ((Accept $r 'sprint6-feat-rt')[-1] -eq $true) 'Mounted Combat at the head of the exact KMC tail is accepted'
+$r=Copy-S6 $real; (RowOf $r 'S6-selection').selections[0].lastIsFeat=$false; Reject $r 'sprint6-feat-rt' 'a selection where Mounted Combat is neither last nor in the exact KMC tail refuses'
+$r=Copy-S6 $real; $s=(RowOf $r 'S6-selection').selections[0]; $s.lastIsFeat=$false; $s | Add-Member kmcTailExact $false; Reject $r 'sprint6-feat-rt' 'an inexact KMC tail refuses'
+$r=Copy-S6 $real; (RowOf $r 'S6-selection').ordinary.offeredLast=$false; Reject $r 'sprint6-feat-rt' 'a choice offered outside the KMC tail refuses'
 Write-Output ('Sprint 6 reader checks: '+$script:pass+' passed, '+$script:fail+' failed')
 if($script:fail -ne 0){ throw 'Sprint 6 reader checks failed.' }

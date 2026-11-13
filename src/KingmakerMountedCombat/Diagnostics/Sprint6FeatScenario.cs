@@ -304,7 +304,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["groups"] = new JArray(horseService.MountedCombatFeature?.Groups.Select(group => group.ToString()) ?? new string[0]), ["ranks"] = horseService.MountedCombatFeature?.Ranks,
                 ["prerequisite"] = horseService.MountedCombatFeature?.ComponentsArray.OfType<Kingmaker.Blueprints.Classes.Prerequisites.PrerequisiteStatValue>().Select(p => p.Stat + "=" + p.Value).FirstOrDefault() };
             s6Facts["selections"] = new JArray(horseService.MountedCombatSelections.Select(selection => new JObject { ["name"] = selection.name, ["guid"] = selection.AssetGuid, ["count"] = selection.AllFeatures.Length,
-                ["lastIsFeat"] = ReferenceEquals(selection.AllFeatures.Last(), horseService.MountedCombatFeature), ["occurrences"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedCombatFeature)) }));
+                ["lastIsFeat"] = ReferenceEquals(selection.AllFeatures.Last(), horseService.MountedCombatFeature), ["kmcTailExact"] = Sprint6KmcTailExact(selection.AllFeatures), ["occurrences"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedCombatFeature)) }));
+        }
+
+        // Mounted Archery follows Mounted Combat in the one coordinated KMC lease, so Mounted Combat is last only when Mounted
+        // Archery did not register. The exact appended tail is the publication contract in both cases.
+        private bool Sprint6KmcTailExact(BlueprintFeature[] features)
+        {
+            if (horseService.MountedCombatFeature == null || features == null) return false;
+            var tail = KmcCombatFeatPublication.Items(horseService.MountedCombatFeature,
+                horseService.MountedArcheryWithdrawn ? null : horseService.MountedArcheryFeature);
+            if (features.Length < tail.Length) return false;
+            for (var index = 0; index < tail.Length; index++)
+                if (!ReferenceEquals(features[features.Length - tail.Length + index], tail[index])) return false;
+            return true;
         }
 
         private void Sprint6EnsureLevels(UnitEntityData owner, int levels)
@@ -338,6 +351,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     var selection = (BlueprintFeatureSelection)selectionState.Selection;
                     var item = selection.Items.Single(candidate => ReferenceEquals(candidate.Feature, horseService.MountedCombatFeature));
                     record["offeredLast"] = ReferenceEquals(selection.AllFeatures.Last(), horseService.MountedCombatFeature);
+                    record["offeredInKmcTail"] = Sprint6KmcTailExact(selection.AllFeatures);
                     record["preview"] = Sprint6Mobility(controller.Preview);
                     record["eligibleBeforeRank"] = selection.CanSelect(controller.Preview, controller.State, selectionState, item);
                     if (controller.Preview.Stats.SkillMobility.BaseValue == 0)

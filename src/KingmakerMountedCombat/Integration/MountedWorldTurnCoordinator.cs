@@ -199,6 +199,18 @@ namespace KingmakerMountedCombat.Integration
         }
         internal void HandleNativeRoundState(UnitCombatState state)
         { if (!disposed && !Enabled) movementState.BeforeNativeRoundState(state); }
+        // The mounted ranged-movement rule's narrow reading of the mount's current allocation (never a write).
+        internal bool TryReadCurrentMountTravel(UnitEntityData mount, UnitEntityData rider, out float normalTravelSeconds, out string allocationIdentity)
+        {
+            normalTravelSeconds = 0f;
+            allocationIdentity = null;
+            if (disposed || mount == null || rider == null) return false;
+            var participant = Find(rider);
+            if (participant == null || !ReferenceEquals(participant.Relationship.Rider, rider) || !ReferenceEquals(participant.Relationship.Mount, mount))
+                return false;
+            return movementState.TryReadCurrentMountTravel(mount, participant.CurrentPairedGrant(rider, mount), PairedLifecycleEnabled,
+                out normalTravelSeconds, out allocationIdentity);
+        }
         internal void ObserveNativeMovement(TurnController turn)
         {
             if (disposed || turn == null) return;

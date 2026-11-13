@@ -1,3 +1,42 @@
+# MOUNTED ARCHERY — FEAT AND TB MOUNTED RANGED PENALTY; OFFLINE CHECKS PASS; NATIVE NOT RUN (2026-11-13)
+
+Branch `codex/mounted-archery` from main `6b6a3e6a` (0.2.8). Read the [handoff](docs/MOUNTED-ARCHERY-HANDOFF.md).
+Source: the owner's Mounted_Archery_Mission_Packet (checksums verified; icon and provenance in
+`assets-source/mounted-archery/`).
+
+- **Behaviour:** new base rule for every mounted rider, turn-based only: a ranged weapon attack takes -4 once the
+  mount's normal travel in the rider's own paired activation exceeds one Move (3 s + 0.25 s native borrowed-tick
+  tolerance); Mounted Archery reduces it to -2. Read at each roll; earlier shots are never revised. Real time unchanged;
+  no Run. This is a balance change for mounted shooters without the feat.
+- **Feat:** `MountedArcheryFeature` `b81926bca1d24a3997cdc8471a84014b`, Mobility 1 trained rank + KMC Mounted Combat,
+  combat feat, original icon. Mounted Combat and Mounted Archery now share one coordinated lease per selection array.
+- **Seam:** global about-to-trigger on the roll's own `RuleCalculateAttackBonus` (inside `RuleAttackRoll.OnTrigger`),
+  one native `BonusSource`; `AttackBonusPenalty` untouched. 15 new native contract pins.
+- **Review:** independent; one medium finding (riderless mount travel counted for a later rider) and three low ones,
+  all corrected with a regression.
+- **Checks:** Fast PASS 3/0 (components 1205/0, Validate-Source 151/0); contracts 799/3 (the 3 UMM identity failures
+  are pre-existing); Sprint 6 readers 84/0; six mutations caught.
+- **Owner review of `e6844536` (request changes), 3 P2 findings, all corrected:**
+  - Currency now follows the pair's current paired activation, not the rider's record. A mid-encounter mount
+    (`PreparePartnerThisRound`) is penalized; earlier riderless travel is not counted.
+  - A qualifying weapon is a wielded ranged weapon in the same attacker's unresolved roll. Gunslinger Dead Shot's
+    probes and its prefix confirmation are covered.
+  - Mounted Archery's availability follows the required lists (ordinary and fighter). A drifted required list
+    withdraws the feat from every KMC list.
+  - **Checks:** Fast PASS 3/0 (components 1210/0, Validate-Source 151/0); contracts 801/3; 5 mutations caught.
+- **Owner re-review of `d1379d8f` (request changes, one P2): corrected.**
+  - Findings 1 and 2 were closed in source.
+  - Mounted Archery's availability is now membership in the required lists, so another mod's unrelated appends or
+    reorders change nothing.
+  - Withdrawal removes only KMC's own entry from every list that holds it, foreign-changed lists included, and
+    removes it again if it reappears.
+  - **Checks:** Fast PASS 3/0 (components 1212/0, Validate-Source 151/0); 3 mutations caught.
+- **Owner re-review of `713dd621` (one remaining finding): corrected.** While withdrawn, the per-frame refresh now
+  scans every array's contents, so an in-place reintroduction of Mounted Archery is removed. Regression
+  `InPlaceReintroductionWhileWithdrawn` fails against `713dd621`'s rule.
+- **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Owner art acceptance PENDING.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.8 (OWNER ORDER, 2026-11-12)
 
 The owner approved PR #37 and ordered it merged and released. PR #37 covers the cutscene continuity repair, the Bald

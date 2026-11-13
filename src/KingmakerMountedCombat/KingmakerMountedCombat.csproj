@@ -147,6 +147,9 @@
     <EmbeddedResource Include="Assets\MountedCombatFeat.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedCombatFeat.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedArcheryFeat.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedArcheryFeat.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Assets\MountedCombatReaction.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedCombatReaction.png</LogicalName>
     </EmbeddedResource>
@@ -446,6 +449,8 @@
     <Compile Include="Domain\CommandRouting.cs" />
     <Compile Include="Domain\ExactAppendOnlyArrayLease.cs" />
     <Compile Include="Domain\MountedCombatDefensePolicy.cs" />
+    <Compile Include="Domain\MountedRangedMovementPolicy.cs" />
+    <Compile Include="Domain\KmcCombatFeatPublication.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
@@ -476,6 +481,7 @@
     <Compile Include="Domain\MountedMovementState.cs" />
     <Compile Include="Domain\PairedMovementInputPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
+    <Compile Include="Integration\MountedMovementStateAdapter.RangedMovement.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />
     <Compile Include="Diagnostics\Chunk4GroundArrivalScenario.cs" />
@@ -567,11 +573,13 @@
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
+    <Compile Include="Integration\MountedRangedMovementService.cs" />
     <Compile Include="Integration\MountedRiderFallService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />

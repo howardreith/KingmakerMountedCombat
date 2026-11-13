@@ -1476,6 +1476,43 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($holderWriters.Count-eq1-and$holderWriters[0]-ceq'Kingmaker.AreaLogic.Cutscenes.CutsceneControlledUnit.MarkUnit'-and$unreadMethods-le159-and$readMethods-ge51000) ('only CutsceneControlledUnit.MarkUnit ever stores UnitEntityData.CutceneControlledUnit (never cleared): '+($holderWriters-join',')+'; read='+$readMethods+'; unread='+$unreadMethods)
     $hideActivate=$assembly.ManifestModule.ResolveMethod(0x06009013)
     Assert-Contract ($hideActivate.DeclaringType.FullName-ceq'Kingmaker.Controllers.CutsceneUIHideController'-and(Test-MethodIlContainsToken $hideActivate 0x06000CB0)-and(Test-MethodIlContainsToken $hideActivate 0x06000CBE)) 'CutsceneUIHideController stops the Cutscene mode only while the cutscene lock is clear'
+    # Mounted Archery: the attack-roll seam of MountedRangedMovementService and the movement-time facts of
+    # MountedRangedMovementPolicy (one roll, one attack-bonus rule; TB ticks capped at 3/12 s; NearTheEnd borrowed time).
+    foreach($member in @(
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttackBonus',0x060071DF,'AddBonus','System.Void','System.Int32,Kingmaker.Blueprints.Facts.Fact'),
+        @('Kingmaker.RuleSystem.Rules.RuleCalculateAttackBonusWithoutTarget',0x060071D2,'AddBonus','System.Void','System.Int32,Kingmaker.Blueprints.Facts.Fact'),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600711F,'get_RuleAttackWithWeapon','Kingmaker.RuleSystem.Rules.RuleAttackWithWeapon',''),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x06007159,'get_AttackBonusRule','Kingmaker.RuleSystem.Rules.RuleCalculateAttackBonus',''),
+        @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600715B,'get_ACRule','Kingmaker.RuleSystem.Rules.RuleCalculateAC',''),
+        @('Kingmaker.RuleSystem.RulebookEventContext',0x060070E4,'get_PreviousEvent','Kingmaker.RuleSystem.RulebookEvent',''),
+        @('Kingmaker.RuleSystem.Rulebook',0x060070D1,'get_CurrentContext','Kingmaker.RuleSystem.RulebookEventContext',''),
+        @('Kingmaker.Blueprints.Facts.Fact',0x06009A4C,'.ctor','','Kingmaker.Blueprints.Facts.BlueprintFact,Kingmaker.Blueprints.Facts.Fact'),
+        @('Kingmaker.Items.ItemEntity',0x06007B24,'get_Wielder','Kingmaker.UnitLogic.UnitDescriptor',''))){
+        $found=@(Find-Token $member[0] $member[1])
+        $returns=if($found.Count-eq1-and$found[0]-is[Reflection.MethodInfo]){$found[0].ReturnType.FullName}else{''}
+        Assert-Contract ($found.Count-eq1-and$found[0].Name-ceq$member[2]-and$returns-ceq$member[3]-and
+            ((@($found[0].GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$member[4]) ('native mounted ranged member '+$member[0]+'.'+$member[2])
+    }
+    function Get-IlTokenOffset([Reflection.MethodBase]$Method,[int]$Token){
+        [byte[]]$il=$Method.GetMethodBody().GetILAsByteArray();[byte[]]$needle=[BitConverter]::GetBytes($Token)
+        for($index=0;$index-le$il.Length-4;$index++){if($il[$index]-eq$needle[0]-and$il[$index+1]-eq$needle[1]-and$il[$index+2]-eq$needle[2]-and$il[$index+3]-eq$needle[3]){return $index}}
+        return -1
+    }
+    $attackRollTrigger=$assembly.ManifestModule.ResolveMethod(0x06007173)
+    $setAc=Get-IlTokenOffset $attackRollTrigger 0x0600715C; $newBonus=Get-IlTokenOffset $attackRollTrigger 0x060071DD; $setBonus=Get-IlTokenOffset $attackRollTrigger 0x0600715A
+    Assert-Contract ($setAc-ge0-and$newBonus-gt$setAc-and$setBonus-gt$newBonus) 'RuleAttackRoll.OnTrigger stores its AC rule, then triggers one new RuleCalculateAttackBonus, then stores it'
+    # RuleCalculateAttackBonus.OnTrigger's body cannot be read reflection-only (security-transparency load error); its
+    # inner trigger is in the ILSpy listing. The constructor that builds the inner rule is readable.
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060071DD) 0x04004AC0) 'RuleCalculateAttackBonus builds its inner target-free rule at construction'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060071DF) 0x060071D2) 'RuleCalculateAttackBonus.AddBonus adds to the inner rule'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060071D2) 0x04004ABF) 'the inner AddBonus records a BonusSource for the combat log'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x0600719D) 0x06007120) 'RuleAttackWithWeapon.OnTrigger links its attack roll to the weapon attack'
+    # A physical weapon is one its attacker wields: Wielder is set on equip and cleared on unequip; spell proxies are never equipped.
+    Assert-Contract ((Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06007B64) 0x06007B25)-and(Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06007B65) 0x06007B25)) 'ItemEntity sets Wielder on equip and clears it on unequip'
+    $tickMovement=$assembly.ManifestModule.ResolveMethod(0x06000C37)
+    Assert-Contract ((Test-MethodIlContainsToken $tickMovement 0x060018BD)-and(Test-MethodIlContainsToken $tickMovement 0x06000C5A)) 'TurnController.TickMovement clamps to the remaining allowance except within NearTheEnd'
+    [byte[]]$timeTick=$assembly.ManifestModule.ResolveMethod(0x060090CF).GetMethodBody().GetILAsByteArray(); $timeIl=($timeTick|ForEach-Object{$_.ToString('X2')})-join''
+    Assert-Contract ($timeIl.Contains('2200004040')-and$timeIl.Contains('2200004041')) 'TimeController.Tick clamps the TB time scale to 3 and the tick to scale/12'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

@@ -1,0 +1,169 @@
+{
+  "schema": "kmc-mounted-archery-icon-packet-v1",
+  "prepared_local_date": "2026-11-12",
+  "timezone": "America/New_York",
+  "generation_tool": "OpenAI ImageGen built-in",
+  "authoring": "Original text-generated emblem followed by an ImageGen edit of that original; original returned files preserved. Production derivatives are resize-only.",
+  "external_reference_pixels_incorporated": false,
+  "selected_master": "assets/MountedArcheryFeat.generated.png",
+  "revision_input": "assets/revisions/MountedArcheryFeat.initial.png",
+  "prompts": [
+    "assets/prompts/01-generation.txt",
+    "assets/prompts/02-cleanup.txt"
+  ],
+  "export_toolchain": "ImageMagick 7.1.1-43 Q16 x86_64 Linux; Lanczos resize; PNG32",
+  "runtime_export": "assets/MountedArcheryFeat.png",
+  "proposed_runtime_destination": "src/KingmakerMountedCombat/Assets/MountedArcheryFeat.png",
+  "proposed_source_directory": "assets-source/mounted-archery",
+  "proposed_consumer": {
+    "symbol": "MountedArcheryFeature",
+    "guid": "b81926bca1d24a3997cdc8471a84014b",
+    "localized_name_key": "KMC.MountedArchery.Name",
+    "resource": "KingmakerMountedCombat.Assets.MountedArcheryFeat.png",
+    "sprite_name": "KMC_MountedArchery_Feat_Icon",
+    "binding_status": "PROPOSED_NOT_IMPLEMENTED"
+  },
+  "research": {
+    "mounted_sha": "6b6a3e6a7afc24239b2c77be99ba118bdee864ba",
+    "gunslinger_sha": "a3912f569ac53558529dfe3f97d137125c0715a7"
+  },
+  "review_status": {
+    "file_checks": "CHECKED",
+    "desktop_thumbnail_inspection": "CHECKED_CANDIDATE_READABLE",
+    "native_blueprint_binding": "NOT_RUN",
+    "native_ui": "NOT_RUN",
+    "owner_aesthetic_acceptance": "PENDING"
+  },
+  "files": [
+    {
+      "path": "assets/MountedArcheryFeat-review.png",
+      "size_bytes": 111992,
+      "sha256": "89b977fc559a11678e641760149d2712d731d6673ab0aa3a51010b76568152a1",
+      "width": 1024,
+      "height": 620,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "alpha_nonzero_bounds": [
+        0,
+        0,
+        1024,
+        620
+      ],
+      "corner_alpha": [
+        255,
+        255,
+        255,
+        255
+      ]
+    },
+    {
+      "path": "assets/MountedArcheryFeat.512.png",
+      "size_bytes": 202785,
+      "sha256": "d3dab7274f5a9a8a77d2730dc04e16d5a54f7f2deacb69c973e6cd40350b4de3",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bounds": [
+        0,
+        16,
+        501,
+        502
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": "assets/MountedArcheryFeat.generated.png",
+      "size_bytes": 729576,
+      "sha256": "eb1590a659542032c453ff4588dd657f87a9cb4a4d9206cd200535735638d362",
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bounds": [
+        0,
+        23,
+        1238,
+        1254
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": "assets/MountedArcheryFeat.png",
+      "size_bytes": 8156,
+      "sha256": "161aa0604f6967f2d550d0dc4e056f68d15c8a651a8a1380551ec92f11c6aeab",
+      "width": 64,
+      "height": 64,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bounds": [
+        0,
+        1,
+        63,
+        64
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": "assets/prompts/01-generation.txt",
+      "size_bytes": 2304,
+      "sha256": "ced914c5e77128b220b3e7b9434dc1be42bfdae325f9fc6c87c0c24352c9915d"
+    },
+    {
+      "path": "assets/prompts/02-cleanup.txt",
+      "size_bytes": 1152,
+      "sha256": "1b5e62d0aac059d139da5df53ff27bdbb0de0358c8659249796689ea974f1fe7"
+    },
+    {
+      "path": "assets/revisions/MountedArcheryFeat.initial.png",
+      "size_bytes": 844940,
+      "sha256": "25709321fc0347d0143b7edbcf8abc20c122dc483a915b6337ec361b87f4fec5",
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bounds": [
+        0,
+        19,
+        1252,
+        1254
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+    "contract":  "kmc-mounted-archery-icon-v1",
+    "authoring":  "Original OpenAI ImageGen text generation followed by an ImageGen edit of that original; production derivatives are resize-only (ImageMagick 7.1.1-43 Lanczos, PNG32). No game, Wrath or third-party pixels.",
+    "packetProvenance":  "Mounted_Archery_Mission_Packet (2026-11-12). icon-manifest.json, ART.md and prompts/ are byte copies from the packet; their paths are packet-relative (assets/X is this directory, assets/MountedArcheryFeat.png is the runtime file below).",
+    "textHashFormat":  "SHA-256 of LF-normalized UTF-8 (the Git text source); PNG hashes are of the exact bytes",
+    "files":  [
+                  { "path":  "assets-source/mounted-archery/MountedArcheryFeat.generated.png", "role": "selected master, 1254x1254 RGBA", "sha256":  "eb1590a659542032c453ff4588dd657f87a9cb4a4d9206cd200535735638d362" },
+                  { "path":  "assets-source/mounted-archery/revisions/MountedArcheryFeat.initial.png", "role": "first generated image, input to the cleanup edit", "sha256":  "25709321fc0347d0143b7edbcf8abc20c122dc483a915b6337ec361b87f4fec5" },
+                  { "path":  "assets-source/mounted-archery/MountedArcheryFeat.512.png", "role": "512x512 review derivative", "sha256":  "d3dab7274f5a9a8a77d2730dc04e16d5a54f7f2deacb69c973e6cd40350b4de3" },
+                  { "path":  "assets-source/mounted-archery/MountedArcheryFeat-review.png", "role": "32/48/64 px parchment, dark and grayscale inspection sheet", "sha256":  "89b977fc559a11678e641760149d2712d731d6673ab0aa3a51010b76568152a1" },
+                  { "path":  "assets-source/mounted-archery/prompts/01-generation.txt", "sha256":  "ced914c5e77128b220b3e7b9434dc1be42bfdae325f9fc6c87c0c24352c9915d" },
+                  { "path":  "assets-source/mounted-archery/prompts/02-cleanup.txt", "sha256":  "1b5e62d0aac059d139da5df53ff27bdbb0de0358c8659249796689ea974f1fe7" },
+                  { "path":  "src/KingmakerMountedCombat/Assets/MountedArcheryFeat.png", "role": "64x64 RGBA runtime icon (embedded)", "sha256":  "161aa0604f6967f2d550d0dc4e056f68d15c8a651a8a1380551ec92f11c6aeab" }
+              ],
+    "consumers":  {
+                      "MountedArcheryFeat":  "MountedArcheryFeature b81926bca1d24a3997cdc8471a84014b; resource KingmakerMountedCombat.Assets.MountedArcheryFeat.png; sprite KMC_MountedArchery_Feat_Icon; also the icon of the two unregistered combat-log label blueprints"
+                  },
+    "runtimeBinding":  "Implemented through CreateEmbeddedSprite and SetFeaturePresentation; native load NOT RUN",
+    "ownerArtApproval":  "PENDING",
+    "nativeVisualAcceptance":  "NOT RUN"
+}

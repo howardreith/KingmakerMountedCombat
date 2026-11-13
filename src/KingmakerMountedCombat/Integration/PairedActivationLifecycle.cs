@@ -60,6 +60,9 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
         internal string ActivationIdentity => activation?.Identity;
+        // The mounted ranged-movement rule's authority for "this pair's current activation" (read only).
+        internal string CurrentPairedGrant(UnitEntityData rider, UnitEntityData mount) => PairedLifecycleEnabled ?
+            MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, mount) : null;
         internal bool ActivationSplit => activation?.Split == true;
         internal bool ActivationFinalized => activation?.Finalized == true;
         internal long ActivationSequence => activation?.Sequence ?? 0;
