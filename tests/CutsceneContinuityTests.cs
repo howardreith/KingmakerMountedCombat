@@ -23,6 +23,112 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("cutscene review: a scene that keeps control releases the intent after bounded patience, never much later", StagingPatienceIsBounded);
             runner.Run("cutscene review: a scene's own placement of the rider is recognised only far from the saddle during a scene", ScenePlacementRecognition);
             runner.Run("cutscene review: scene staging never joins camp or world-map custody; a timed-out regroup keeps its second walk", CustodyKindAndRegroupRetry);
+            runner.Run("PR #37 review P1: a scene placement survives suspension that clears the pair's references and places the rider beside the mount", PlacementSurvivesSuspension);
+            runner.Run("PR #37 review P2: regroup and reattachment keep the staged rider within the scene arrival distance", RegroupKeepsStagedPlacement);
+        }
+
+        // The relationship as the integration sees it: the real coordinator, whose completed cleanup runs the runtime's
+        // release. Like KingmakerMountedPairRuntime (TryReleasePreparedReferences, ShouldPlaceRiderAfterCleanup), this
+        // runtime places the rider beside the mount for EventSuspension and then clears its rider and mount references.
+        private sealed class Body { internal float X, Z; }
+
+        private sealed class ReleasingRuntime : IMountedPairRuntime
+        {
+            internal Body Rider, Mount;
+            public void AcquireMovementAuthority(MountedPair pair) { }
+            public void AttachPresentation(MountedPair pair) { }
+            public void RestorePresentation(MountedPair pair) { }
+            public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
+            {
+                if (trigger == CleanupTrigger.EventSuspension) { Rider.X = Mount.X + 1.2f; Rider.Z = Mount.Z; }
+                Rider = null;
+                Mount = null;
+            }
+        }
+
+        private static void PlacementSurvivesSuspension()
+        {
+            var horse = new Body { X = 0f, Z = 0f };
+            var runtime = new ReleasingRuntime { Rider = new Body { X = 0f, Z = 0f }, Mount = horse };
+            var coordinator = new MountedRelationshipCoordinator(runtime);
+            TestRunner.True(coordinator.Mount(Candidate("Default")).Succeeded, "The fixture pair did not mount.");
+            // The scene teleported the rider across the clearing; the synchronizer held and recorded the target.
+            const float targetX = 9f, targetZ = 4f;
+            var captured = runtime.Rider;
+            var outcome = MountedSceneHandOffSequence.Run(captured,
+                () => coordinator.Dismount(CleanupTrigger.EventSuspension).Succeeded && coordinator.State == RelationshipState.Unmounted,
+                true, r => { r.X = targetX; r.Z = targetZ; },
+                r => Math.Abs(r.X - targetX) < 0.1f && Math.Abs(r.Z - targetZ) < 0.1f, out var error);
+            TestRunner.True(runtime.Rider == null && runtime.Mount == null, "The fixture did not clear the relationship's references like the real cleanup.");
+            TestRunner.Equal(MountedSceneHandOffOutcome.HandedOffPlacementPreserved, outcome, "The scene placement was not reapplied after suspension.");
+            TestRunner.True(error == null && Math.Abs(captured.X - targetX) < 0.1f && Math.Abs(captured.Z - targetZ) < 0.1f,
+                "The rider was left beside the mount instead of at the scene's placement.");
+            // A reapplication that fails or does not hold is reported as a lost placement, never as success.
+            var second = new MountedRelationshipCoordinator(new ReleasingRuntime { Rider = new Body(), Mount = new Body() });
+            second.Mount(Candidate("Default"));
+            var throwing = MountedSceneHandOffSequence.Run(new Body(), () => second.Dismount(CleanupTrigger.EventSuspension).Succeeded, true,
+                r => { throw new InvalidOperationException("translocate refused"); }, r => true, out var thrown);
+            TestRunner.True(throwing == MountedSceneHandOffOutcome.HandedOffPlacementLost && thrown != null, "A failed reapplication was reported as preserved.");
+            var drifting = MountedSceneHandOffSequence.Run(new Body(), () => true, true, r => { }, r => false, out _);
+            TestRunner.Equal(MountedSceneHandOffOutcome.HandedOffPlacementLost, drifting, "A placement that did not hold was reported as preserved.");
+            TestRunner.Equal(MountedSceneHandOffOutcome.Refused, MountedSceneHandOffSequence.Run(new Body(), () => false, true, r => { }, r => true, out _),
+                "A refused suspension reported a handoff.");
+            TestRunner.Equal(MountedSceneHandOffOutcome.HandedOff, MountedSceneHandOffSequence.Run(new Body(), () => true, false, r => { throw new Exception(); }, r => false, out _),
+                "A handoff without a scene placement attempted one.");
+        }
+
+        // The integration's restore loop over positions: the mount's native approach (radius RegroupApproachRadiusMetres)
+        // advances toward the staged rider; each settled pass asks StepRegroup and DecidePair; on Restore the rider is
+        // seated where the mount stands (RestoreSavedPair configures the rider at the saddle). Returns the rider's final
+        // displacement from the scene's placement, or NaN when the pair stayed dismounted.
+        private static float RestoredDisplacement(float riderX, float horseX, float maximumSeparation, float horseStopsShortAt = 0f)
+        {
+            var attempts = 0;
+            bool live = false;
+            for (var pass = 0; pass < 200; pass++)
+            {
+                var separation = Math.Abs(riderX - horseX);
+                var regroup = MountedSceneContinuityPolicy.RegroupAvailability(MountedRetainedIntentKind.ScriptedEvent, false, attempts, live);
+                if (live && MountedSceneContinuityPolicy.StepRegroup(true, pass * 0.1f, separation, maximumSeparation) != MountedRegroupStep.Wait)
+                {
+                    live = false;
+                    regroup = MountedSceneContinuityPolicy.RegroupAvailability(MountedRetainedIntentKind.ScriptedEvent, false, attempts, false);
+                }
+                var decision = MountedRetainedIntentPolicy.DecidePair(true, true, false, false, null, separation, maximumSeparation, true, false, false, regroup);
+                if (decision == MountedRetainedPairDecision.Restore) return Math.Abs(riderX - horseX);
+                if (decision == MountedRetainedPairDecision.Drop) return float.NaN;
+                if (decision == MountedRetainedPairDecision.Regroup) { attempts++; live = true; }
+                if (live)
+                {
+                    var stop = Math.Max(MountedSceneContinuityPolicy.RegroupApproachRadiusMetres, horseStopsShortAt);
+                    var remaining = Math.Abs(riderX - horseX) - stop;
+                    if (remaining > 0f) horseX += Math.Sign(riderX - horseX) * Math.Min(0.5f, remaining);
+                    else live = false; // the native move completed at its approach radius
+                }
+            }
+            return float.NaN;
+        }
+
+        private static void RegroupKeepsStagedPlacement()
+        {
+            var scene = MountedRetainedIntentPolicy.MaximumSeparationMetres(MountedRetainedIntentKind.ScriptedEvent);
+            TestRunner.Equal(MountedSceneContinuityPolicy.SceneRestoreSeparationMetres, scene, "Scene staging did not use its own arrival distance.");
+            // The reviewer's case: the scene walked the rider 20 m away. The rider ends within the scene arrival distance.
+            var walked = RestoredDisplacement(20f, 0f, scene);
+            TestRunner.True(!float.IsNaN(walked) && walked <= MountedSceneContinuityPolicy.SceneRestoreSeparationMetres,
+                "Regroup and reattachment moved the rider " + walked + " m from the scene's placement.");
+            // The defect being repaired: the general 6 m tolerance as arrival stops the horse 6 m short and seats the rider there.
+            TestRunner.True(RestoredDisplacement(20f, 0f, MountedRetainedIntentPolicy.MaximumRestoreSeparationMetres) > 5f,
+                "Control: the general restore separation no longer reproduces the reported pull-back.");
+            // A scene that leaves the pair 4 m apart regroups instead of restoring at once.
+            TestRunner.Equal(MountedRetainedPairDecision.Regroup, MountedRetainedIntentPolicy.DecidePair(true, true, false, false, null, 4f, scene, true, false,
+                false, MountedRegroupState.Available), "A 4 m scene separation pulled the rider back without regrouping.");
+            var close = RestoredDisplacement(4f, 0f, scene);
+            TestRunner.True(!float.IsNaN(close) && close <= MountedSceneContinuityPolicy.SceneRestoreSeparationMetres, "The 4 m case moved the rider " + close + " m.");
+            // A mount that cannot get close enough leaves the pair dismounted rather than pulling the rider over.
+            TestRunner.True(float.IsNaN(RestoredDisplacement(20f, 0f, scene, horseStopsShortAt: 3f)), "A blocked regroup pulled the rider 3 m back.");
+            TestRunner.True(MountedSceneContinuityPolicy.RegroupApproachRadiusMetres < MountedSceneContinuityPolicy.SceneRestoreSeparationMetres,
+                "The native approach cannot reach the arrival distance.");
         }
 
         private static void StagingPatienceIsBounded()

@@ -81,8 +81,8 @@ namespace KingmakerMountedCombat.Integration
                 ClearMountTargetSelection();
             }
             feedbackState.ObserveAvailability(availability);
-            try { ObserveAvailabilityRefusal(availability); }
-            catch (Exception error) { logger.Exception("Mounted availability diagnostic failed", error); }
+            // The evaluator's complete reason set, carried to the final native availability diagnostic of this evaluation.
+            lastEvaluatorReasons = string.Join(" | ", System.Linq.Enumerable.ToArray(availability.UnavailableReasons));
             var transition = relationship.LastTransition;
             if (transition != null && !ReferenceEquals(transition, lastObservedTransition))
             {
@@ -184,7 +184,7 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        internal NativeMountedControlAvailability GetNativeMountAvailability(
+        private NativeMountedControlAvailability GetNativeMountAvailabilityCore(
             UnitEntityData caster,
             bool nativeMoveActionShellAdmitted = false)
         {
@@ -207,7 +207,7 @@ namespace KingmakerMountedCombat.Integration
                 true, availability.IsEnabled, availability.TransitionReady, availability.Feedback);
         }
 
-        internal NativeMountedControlAvailability GetNativeDismountAvailability(
+        private NativeMountedControlAvailability GetNativeDismountAvailabilityCore(
             UnitEntityData caster,
             bool nativeMoveActionShellAdmitted = false)
         {
@@ -808,24 +808,51 @@ namespace KingmakerMountedCombat.Integration
             return blocked;
         }
 
+        // Both are reset at the start of every native availability evaluation, so a line never carries an earlier
+        // evaluation's actors (PR #37 review: an early selection return left the previous rider's facts behind).
         private string lastSceneAdmissionFacts;
-        private string lastLoggedRefusalKey;
+        private string lastEvaluatorReasons;
+        // Per action and caster: the native controls are polled for several casters and for both actions, so one shared
+        // key would alternate and log on every poll.
+        private readonly System.Collections.Generic.Dictionary<string, string> lastLoggedRefusalKeys =
+            new System.Collections.Generic.Dictionary<string, string>(StringComparer.Ordinal);
 
-        // One line per change of the refused Mount/Dismount reason set, with the native facts that produced it; never one
-        // per tooltip refresh or availability poll. Enabled availability clears the key so a later refusal logs again.
-        private void ObserveAvailabilityRefusal(MountedPlayerActionAvailability availability)
+        internal NativeMountedControlAvailability GetNativeMountAvailability(UnitEntityData caster, bool nativeMoveActionShellAdmitted = false)
         {
-            if (availability == null || availability.IsEnabled || !availability.IsVisible)
+            lastSceneAdmissionFacts = null; lastEvaluatorReasons = null;
+            return ObserveFinalAvailability("Mount", caster, GetNativeMountAvailabilityCore(caster, nativeMoveActionShellAdmitted));
+        }
+
+        internal NativeMountedControlAvailability GetNativeDismountAvailability(UnitEntityData caster, bool nativeMoveActionShellAdmitted = false)
+        {
+            lastSceneAdmissionFacts = null; lastEvaluatorReasons = null;
+            return ObserveFinalAvailability("Dismount", caster, GetNativeDismountAvailabilityCore(caster, nativeMoveActionShellAdmitted));
+        }
+
+        // One line per change of the final native refusal (the reason the button shows, the evaluator's full reason set and
+        // the native scene facts of this evaluation), per action and caster; never one per tooltip refresh or poll.
+        private NativeMountedControlAvailability ObserveFinalAvailability(string action, UnitEntityData caster, NativeMountedControlAvailability result)
+        {
+            try
             {
-                lastLoggedRefusalKey = null;
-                return;
+                var slot = action + "|" + (caster?.UniqueId ?? "none");
+                if (result == null || !result.IsVisible || result.IsEnabled)
+                {
+                    lastLoggedRefusalKeys.Remove(slot);
+                    return result;
+                }
+                var facts = lastSceneAdmissionFacts ?? "no actor facts (no exact rider evaluated)";
+                var key = result.Reason + "|" + lastEvaluatorReasons + "|" + facts;
+                string previous;
+                if (lastLoggedRefusalKeys.TryGetValue(slot, out previous) && string.Equals(previous, key, StringComparison.Ordinal)) return result;
+                if (lastLoggedRefusalKeys.Count > 32) lastLoggedRefusalKeys.Clear();
+                lastLoggedRefusalKeys[slot] = key;
+                logger.Info("Mounted player action unavailable: action=" + action + "; caster=" + (caster?.UniqueId ?? "none") +
+                    "; shown=" + result.Reason + "; evaluator=" + (string.IsNullOrEmpty(lastEvaluatorReasons) ? "none" : lastEvaluatorReasons) +
+                    "; " + facts + ".");
             }
-            var reasons = string.Join(" | ", System.Linq.Enumerable.ToArray(availability.UnavailableReasons));
-            var key = availability.Action + "|" + reasons + "|" + lastSceneAdmissionFacts;
-            if (string.Equals(key, lastLoggedRefusalKey, StringComparison.Ordinal)) return;
-            lastLoggedRefusalKey = key;
-            logger.Info("Mounted player action unavailable: action=" + availability.Action + "; reasons=" + reasons +
-                "; " + (lastSceneAdmissionFacts ?? "scene facts not captured") + ".");
+            catch (Exception error) { logger.Exception("Mounted availability diagnostic failed", error); }
+            return result;
         }
 
         private static bool IsSupportedRiderBodySurface(UnitEntityData rider, SupportedMountedProfile profile)

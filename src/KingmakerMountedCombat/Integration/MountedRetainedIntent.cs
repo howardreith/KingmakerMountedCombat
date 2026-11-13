@@ -222,33 +222,60 @@ namespace KingmakerMountedCombat.Integration
         {
             var world = Game.Instance?.Player;
             if (!Enabled || world == null || owner?.Rider == null || owner.Mount == null || owner.State != RelationshipState.Mounted) return false;
+            // Review P1: a completed suspension clears the relationship's rider and mount, so every later use reads these.
+            var rider = owner.Rider;
+            var mount = owner.Mount;
             var pendingKind = retainedIntent != null && ReferenceEquals(retainedIntent.World.Target, world) && retainedIntent.CampaignId == world.GameId
                 ? retainedIntentKind : (MountedRetainedIntentKind?)null;
-            var refusal = world.IsInCombat || owner.Rider.IsInCombat || owner.Mount.IsInCombat ? "an encounter is active"
+            var refusal = world.IsInCombat || rider.IsInCombat || mount.IsInCombat ? "an encounter is active"
                 : MountedSceneContinuityPolicy.HandOffCustodyRefusal(pendingKind) ?? SuspensionRefusal("scene staging");
             if (refusal == null)
             {
-                var captured = SuspendPairs(world, MountedRetainedIntentKind.ScriptedEvent, new[] { owner }, out var failed, boundary);
-                if (captured.Count == 1 && !failed)
-                {
-                    if (scenePlacement.HasValue)
+                List<AreaPair> captured = null;
+                var failed = false;
+                var target = scenePlacement ?? UnityEngine.Vector3.zero;
+                var outcome = MountedSceneHandOffSequence.Run(rider,
+                    () =>
                     {
-                        try { owner.Rider.Translocate(scenePlacement.Value, sceneOrientation); }
-                        catch (Exception error) { logger.Exception("The scene's placement of a handed-off rider was not reapplied", error); }
-                    }
+                        captured = SuspendPairs(world, MountedRetainedIntentKind.ScriptedEvent, new[] { owner }, out var suspendFailed, boundary);
+                        failed = suspendFailed;
+                        return captured.Count == 1 && !failed;
+                    },
+                    scenePlacement.HasValue,
+                    r => r.Translocate(target, sceneOrientation),
+                    r => new UnityEngine.Vector2(r.Position.x - target.x, r.Position.z - target.z).magnitude <= ScenePlacementToleranceMetres,
+                    out var placementError);
+                if (MountedSceneHandOffSequence.IsHandedOff(outcome))
+                {
                     SceneStagingHandOffCount++;
-                    Report(DescribePair(owner.Rider, owner.Mount, captured[0]) + " handed to native scene staging at " + boundary +
-                        " (rider=" + captured[0].RiderId + ";mount=" + captured[0].MountId + ";owner=" + captured[0].OwnerId + "/" +
-                        captured[0].Generation + "); the pair remounts automatically when the scene releases them.", true);
+                    var pair = captured[0];
+                    var identity = " (rider=" + pair.RiderId + ";mount=" + pair.MountId + ";owner=" + pair.OwnerId + "/" + pair.Generation + ")";
+                    if (outcome == MountedSceneHandOffOutcome.HandedOffPlacementLost)
+                    {
+                        ScenePlacementLostCount++;
+                        if (placementError != null) logger.Exception("The scene's placement of a handed-off rider was not reapplied", placementError);
+                        logger.Warning("Scene placement not preserved for rider=" + pair.RiderId + ";mount=" + pair.MountId + ": target=" + target +
+                            ";actual=" + rider.Position + ".");
+                        Report(DescribePair(rider, mount, pair) + " handed to native scene staging at " + boundary + identity +
+                            ", but the scene's placement of the rider could not be kept; the pair remounts automatically when the scene releases them.");
+                        return true;
+                    }
+                    Report(DescribePair(rider, mount, pair) + " handed to native scene staging at " + boundary + identity +
+                        (outcome == MountedSceneHandOffOutcome.HandedOffPlacementPreserved ? " at the scene's placement" : "") +
+                        "; the pair remounts automatically when the scene releases them.", true);
                     return true;
                 }
                 refusal = "the attachment could not be suspended cleanly";
             }
             SceneStagingRefusedCount++;
-            logger.Warning("Scene staging handoff refused for rider=" + owner.Rider.UniqueId + ";mount=" + owner.Mount.UniqueId +
+            logger.Warning("Scene staging handoff refused for rider=" + rider.UniqueId + ";mount=" + mount.UniqueId +
                 " at " + boundary + ": " + refusal + ".");
             return false;
         }
+
+        // A reapplied scene placement holds when the rider stands where the scene put it (native Translocate is exact).
+        private const float ScenePlacementToleranceMetres = 0.1f;
+        internal int ScenePlacementLostCount { get; private set; }
 
         private static bool SceneActive(Game game) =>
             game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock, game.IsModeActive(GameModeType.Dialog),

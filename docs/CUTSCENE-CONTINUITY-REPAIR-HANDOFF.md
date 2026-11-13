@@ -4,6 +4,57 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (release 0.2
 mounted characters dismount whenever a cutscene begins. The owner's requested behaviour supersedes the exploration
 sprint's decision to suspend every pair for Dialog/Cutscene.
 
+## Review of 00131270: placement and diagnostic corrections (2026-11-12)
+
+The owner's review requested changes for two placement defects and two diagnostic gaps. All four are corrected in
+source. None is demonstrated in game. Where this section differs from the sections below, this section is current.
+
+- **P1. Scene placement lost after handoff (a caught null reference).**
+  - **Defect:** `TryHandOffForStaging` reapplied the scene's placement through `owner.Rider` after `SuspendPairs`. A
+    completed `GuardBoundary(EventSuspension)` dismount places the rider beside the mount, and the runtime's
+    `TryReleasePreparedReferences` clears the rider and mount. The reapplication therefore threw (caught), yet the
+    handoff was still reported as successful. The refusal warning had the same post-suspension dereference.
+  - **Correction:** the exact rider and mount are captured before suspension. `MountedSceneHandOffSequence.Run` (Domain,
+    shared with the test) suspends, reapplies the placement through the captured rider with `Translocate`, and verifies
+    the result within 0.1 m.
+  - **Outcomes:** `HandedOff`, `HandedOffPlacementPreserved` or `HandedOffPlacementLost`. A lost placement gets a
+    warning with the target and actual positions, a non-routine report and the `ScenePlacementLostCount` counter.
+- **P2. Regroup pulled the rider back.**
+  - **Defect:** the regroup counted arrival at the general 6 m restore separation and interrupted the mount there.
+    Restoration seats the rider on the mount where the mount stands, so the rider was moved up to 6 m. Without any
+    regroup, a pair the scene left 4 m apart was restored at once.
+  - **Correction:** scene staging (`ScriptedEvent`) uses `SceneRestoreSeparationMetres` = 2 m both as its restore
+    separation and as the regroup arrival condition. The native approach radius is 1 m. A scene separation over 2 m
+    regroups first (up to 30 m, 2 walks of 20 s each). A mount that cannot reach 2 m leaves the pair dismounted with
+    the reason "the mount could not regroup with its rider". Restoration therefore moves a staged rider at most 2 m.
+  - **Unchanged:** camp (25 m) and world-map (6 m) separations.
+- **Dismount refusals were not logged.** The diagnostic now observes the final native availability that
+  `GetNativeMountAvailability` and `GetNativeDismountAvailability` return. That includes Dismount's later scene refusal.
+  The line logs the reason shown, the evaluator's full reason set and the scene facts. It is keyed per action and
+  caster, because the controls are polled for several casters and for both actions.
+- **Stale actor facts.** The facts and evaluator reasons are reset at the start of every native availability
+  evaluation. A selection refusal now logs "no actor facts (no exact rider evaluated)".
+
+**Checks:**
+- Fast PASS 3/0: components 1192/0, Validate-Source 151/0.
+- New regressions:
+  - **P1:** the real `MountedRelationshipCoordinator` with a runtime that, like the real one, places the rider beside the
+    mount for `EventSuspension` and clears its references. The test runs suspension, reference clearing and placement
+    reapplication together, and asserts the rider's final position.
+  - **P2:** the restore loop over positions, driving the production `StepRegroup` and `DecidePair` with the native
+    approach radius, and asserting the rider's final displacement through regroup and reattachment. Covered: 20 m (at
+    most 2 m), 4 m (regroups first), and a blocked mount (stays dismounted). A control run shows the general 6 m
+    tolerance pulls the rider back more than 5 m.
+- **Mutations:**
+  - P1: reapplying the placement before suspension fails the P1 regression.
+  - P2: restoring the 6 m tolerance for scene staging fails the P2 regression.
+  - The restored source passes 1192/0.
+- **Limits:** the integration's `Translocate` and `RestoreSavedPair` seating are not executed offline. The tests run
+  the production sequence and decisions against stand-ins for those native calls.
+- **DLL:** SHA-256 `b7c6f8fcba4326fd84068819d8550c95b0e2b1f23a0120383e61851225de1f5d`, MVID
+  `5ec1bd82-f8da-471c-a300-3c076ca061eb`. This supersedes the identities below.
+- **Native:** NOT RUN.
+
 ## Bald Hilltop Mount lockout (added to this PR by owner request, 2026-11-12)
 
 **Status:** an offline repair candidate awaiting native confirmation. The cause is established from installed-assembly

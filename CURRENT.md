@@ -34,6 +34,12 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Rea
     loading, the lock and the cutscene modes.
   - **Diagnostic:** a change-of-reason line with the native facts.
   - **Checks:** Fast PASS (components 1190/0, Validate-Source 151/0); the mutation fails 4 regressions; contracts 784/3.
+- **Owner review of `00131270` (request changes):** all four findings are corrected.
+  - **P1:** the scene placement is reapplied through the rider captured before suspension, and verified. A lost
+    placement is reported.
+  - **P2:** scene staging restores and counts regroup arrival only within 2 m, so a staged rider moves at most 2 m.
+  - The diagnostic now logs the final native Mount/Dismount refusal, per action and caster, with per-evaluation facts.
+  - **Checks:** Fast PASS (components 1192/0, Validate-Source 151/0); both mutations caught.
 - **Native:** NOT RUN, Bald Hilltop included. This machine has no KMC install, fixture or fixture qualification.
 - **Not authorized:** merge, release, tag, version bump or install.
 

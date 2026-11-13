@@ -50,13 +50,54 @@ namespace KingmakerMountedCombat.Domain
         Abandon
     }
 
+    public enum MountedSceneHandOffOutcome
+    {
+        Refused,
+        HandedOff,
+        HandedOffPlacementPreserved,
+        // Suspended, but the scene's own placement of the rider could not be reapplied or did not hold.
+        HandedOffPlacementLost
+    }
+
+    // PR #37 review P1: one handoff, in order. The exact rider is captured BEFORE the suspension, because a completed
+    // suspension releases the relationship's prepared references (the runtime clears its rider and mount) and its ordinary
+    // cleanup places the rider beside the mount. The scene's placement is then reapplied through the captured rider and
+    // verified; a failure is part of the outcome, never reported as a preserved placement.
+    public static class MountedSceneHandOffSequence
+    {
+        public static MountedSceneHandOffOutcome Run<TActor>(TActor capturedRider, Func<bool> suspend, bool placementRequested,
+            Action<TActor> reapplyPlacement, Func<TActor, bool> placementHolds, out Exception placementError) where TActor : class
+        {
+            placementError = null;
+            if (capturedRider == null || suspend == null || !suspend()) return MountedSceneHandOffOutcome.Refused;
+            if (!placementRequested) return MountedSceneHandOffOutcome.HandedOff;
+            try
+            {
+                reapplyPlacement(capturedRider);
+                return placementHolds(capturedRider) ? MountedSceneHandOffOutcome.HandedOffPlacementPreserved : MountedSceneHandOffOutcome.HandedOffPlacementLost;
+            }
+            catch (Exception error)
+            {
+                placementError = error;
+                return MountedSceneHandOffOutcome.HandedOffPlacementLost;
+            }
+        }
+
+        public static bool IsHandedOff(MountedSceneHandOffOutcome outcome) => outcome != MountedSceneHandOffOutcome.Refused;
+    }
+
     public static class MountedSceneContinuityPolicy
     {
         // A mount left behind by a scene may walk to its rider along the native navigation graph for this far, once,
         // for this long. A larger or cross-area separation stays dismounted (never a teleport across the scene).
         public const float RegroupMaximumMetres = 30f;
         public const float RegroupDeadlineSeconds = 20f;
-        public const float RegroupApproachRadiusMetres = 1.5f;
+        // The mount's native move aims within this radius of the staged rider.
+        public const float RegroupApproachRadiusMetres = 1f;
+        // PR #37 review P2: the most a scene-staged rider may be moved by its own restoration (the rider is seated where
+        // the mount stands). It is the regroup arrival condition too, so a mount that merely came within the general
+        // restore separation never pulls the rider back across the scene. Roughly a horse's own footprint.
+        public const float SceneRestoreSeparationMetres = 2f;
         public const int RegroupMaximumAttempts = 2;
 
         // A pair a background scene keeps controlling in ordinary play waits at most this long (native game time) before

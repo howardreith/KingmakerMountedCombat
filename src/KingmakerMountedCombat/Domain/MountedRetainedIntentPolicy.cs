@@ -64,8 +64,13 @@ namespace KingmakerMountedCombat.Domain
         public const float MaximumRestoreSeparationMetres = 6f;
         public const float MaximumCampRestoreSeparationMetres = 25f;
 
+        // PR #37 review P2: restoration seats the rider on the mount where the mount stands, so the separation it accepts is
+        // exactly how far it may move the rider. Scene staging promises the scene's final placement: it accepts only the
+        // scene arrival distance, and a mount farther away walks to the rider first (MountedSceneContinuityPolicy).
         public static float MaximumSeparationMetres(MountedRetainedIntentKind kind) =>
-            kind == MountedRetainedIntentKind.Camp ? MaximumCampRestoreSeparationMetres : MaximumRestoreSeparationMetres;
+            kind == MountedRetainedIntentKind.Camp ? MaximumCampRestoreSeparationMetres
+            : kind == MountedRetainedIntentKind.ScriptedEvent ? MountedSceneContinuityPolicy.SceneRestoreSeparationMetres
+            : MaximumRestoreSeparationMetres;
         // A pair whose units are not yet attachable (an event still holds a stock agent disabled, a view not yet
         // settled) is retried for this long in ordinary play before its intent is dropped.
         public const float EligibilityPatienceSeconds = 10f;
