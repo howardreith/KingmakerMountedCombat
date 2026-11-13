@@ -25,7 +25,16 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Rea
   - Staging never joins camp or world-map custody.
   - A scene teleport of the rider is now honoured (handoff at the scene's placement).
   - After the corrections: Fast PASS (components 1186/0, Validate-Source 151/0); contracts 781/3, failures pre-existing.
-- **Native:** NOT RUN. This machine has no KMC install, fixture or fixture qualification.
+- **Bald Hilltop Mount lockout (added by owner request):**
+  - **Cause (installed-assembly contracts plus elimination; not observed):** the refusal read the presence of native
+    `UnitEntityData.CutceneControlledUnit`. That holder is lazily created by `MarkUnit` the first time any scene
+    controls the unit, never cleared, and not saved. One earlier scene therefore disabled Mount for the rest of the
+    session.
+  - **Fix:** Mount and Dismount now refuse only for live scene control (active entry, live unfinished cutscene player),
+    loading, the lock and the cutscene modes.
+  - **Diagnostic:** a change-of-reason line with the native facts.
+  - **Checks:** Fast PASS (components 1190/0, Validate-Source 151/0); the mutation fails 4 regressions; contracts 784/3.
+- **Native:** NOT RUN, Bald Hilltop included. This machine has no KMC install, fixture or fixture qualification.
 - **Not authorized:** merge, release, tag, version bump or install.
 
 # RELEASE 0.2.7 (OWNER ORDER, 2026-11-12)

@@ -12,6 +12,10 @@ docs/CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md.
   - The restore loop reads `CutsceneControlledUnit.GetControllingPlayer` and `UnitCommand.Cutscene`.
 - **Native next step:** owner play with the branch DLL, or a qualified KMC fixture. The essential rows are hostile
   dialogue into combat and a scene during an encounter, both TB and RT. Take the rest from the handoff table.
+- **Also on this branch (owner request):** the Bald Hilltop Mount lockout.
+  - `NativeSceneControl.IsUnderLiveSceneControl` is the only reading of actor scene control.
+  - Never test `CutceneControlledUnit != null`: it is never cleared.
+  - The change-of-reason line "Mounted player action unavailable" names the refusing input in an owner log.
 - **Open:**
   - A scripted command on a seated rider during combat is not handed off.
   - A rider-only teleport is kept on the mount.

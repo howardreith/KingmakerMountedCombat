@@ -1451,6 +1451,31 @@ if($Target-eq'Kingmaker'){
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06009E4D) 0x060026B2) 'CommandMoveUnit stages its unit through UnitCommands.Run'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06009E46) 0x060026B2) 'CommandMoveParty stages each party member through UnitCommands.Run'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06009D6E) 0x04006C29) 'GetControllingPlayer reads the unit''s active cutscene entry'
+    # Bald Hilltop Mount lockout repair: the actor-control holder is lazily created, never cleared and never saved, so its
+    # presence is not current control.
+    $holder=@(Find-Token 'Kingmaker.EntitySystem.Entities.UnitEntityData' 0x040054D7)
+    Assert-Contract ($holder.Count-eq1-and$holder[0].Name-ceq'CutceneControlledUnit'-and$holder[0].FieldType.FullName-ceq'Kingmaker.AreaLogic.Cutscenes.CutsceneControlledUnit'-and
+        @($holder[0].GetCustomAttributesData()|Where-Object{$_.AttributeType.Name-like'JsonProperty*'}).Count-eq0) 'UnitEntityData.CutceneControlledUnit is a transient, unsaved holder'
+    # Every method definition token is scanned for `stfld 0x040054D7`. Reflection-only loading cannot read the bodies of a
+    # few methods (types with security-transparency load errors); their number is frozen for this MVID-pinned assembly so
+    # a changed assembly fails here. The full ILSpy IL listing of this assembly (recorded in the cutscene handoff) has the
+    # same single store, which covers those bodies.
+    $holderWriters=New-Object 'System.Collections.Generic.List[string]'; $unreadMethods=0; $readMethods=0; $methodToken=0x06000001
+    for(;;$methodToken++){
+        $method=$null
+        try{$method=$assembly.ManifestModule.ResolveMethod($methodToken)}catch{
+            $inner=$_.Exception; while($null-ne$inner.InnerException){$inner=$inner.InnerException}
+            if($inner-is[ArgumentOutOfRangeException]){break}; $unreadMethods++; continue}
+        $body=$null; try{$body=$method.GetMethodBody()}catch{$unreadMethods++; continue}
+        $readMethods++; if($null-eq$body){continue}
+        [byte[]]$il=$body.GetILAsByteArray()
+        for($index=0;$index-le$il.Length-5;$index++){
+            if($il[$index]-eq0x7D-and$il[$index+1]-eq0xD7-and$il[$index+2]-eq0x54-and$il[$index+3]-eq0x00-and$il[$index+4]-eq0x04){$holderWriters.Add($method.DeclaringType.FullName+'.'+$method.Name);break}
+        }
+    }
+    Assert-Contract ($holderWriters.Count-eq1-and$holderWriters[0]-ceq'Kingmaker.AreaLogic.Cutscenes.CutsceneControlledUnit.MarkUnit'-and$unreadMethods-le159-and$readMethods-ge51000) ('only CutsceneControlledUnit.MarkUnit ever stores UnitEntityData.CutceneControlledUnit (never cleared): '+($holderWriters-join',')+'; read='+$readMethods+'; unread='+$unreadMethods)
+    $hideActivate=$assembly.ManifestModule.ResolveMethod(0x06009013)
+    Assert-Contract ($hideActivate.DeclaringType.FullName-ceq'Kingmaker.Controllers.CutsceneUIHideController'-and(Test-MethodIlContainsToken $hideActivate 0x06000CB0)-and(Test-MethodIlContainsToken $hideActivate 0x06000CBE)) 'CutsceneUIHideController stops the Cutscene mode only while the cutscene lock is clear'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

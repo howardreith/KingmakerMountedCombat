@@ -132,6 +132,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedIntentPolicy.cs"><Link>Shared\Domain\MountedRetainedIntentPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedSceneContinuityPolicy.cs"><Link>Shared\Domain\MountedSceneContinuityPolicy.cs</Link></Compile>
     <Compile Include="CutsceneContinuityTests.cs" />
+    <Compile Include="BaldHilltopMountAdmissionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedIntentRecord.cs"><Link>Shared\Domain\MountedRetainedIntentRecord.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFamiliarFollowPolicy.cs"><Link>Shared\Domain\MountedFamiliarFollowPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAreaTransferLifecycle.cs"><Link>Shared\Domain\MountedAreaTransferLifecycle.cs</Link></Compile>

@@ -683,6 +683,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             ExplorationRepairTests.Register(runner);
             MountedGroupPacePolicyTests.Register(runner);
             CutsceneContinuityTests.Register(runner);
+            BaldHilltopMountAdmissionTests.Register(runner);
             RatnookDoorRepairTests.Register(runner);
             SaveLoadEntranceRepairTests.Register(runner);
             MountedDoorApproachPolicyTests.Register(runner);

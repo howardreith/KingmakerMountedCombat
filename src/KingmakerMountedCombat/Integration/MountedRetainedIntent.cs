@@ -151,7 +151,7 @@ namespace KingmakerMountedCombat.Integration
             var rider = owner.Rider; var mount = owner.Mount;
             var sceneActive = SceneActive(game);
             var scripted = MountedSceneContinuityPolicy.IsScriptedCommand(command.Cutscene, sceneActive,
-                rider != null && CutsceneControlledUnit.GetControllingPlayer(rider) != null,
+                NativeSceneControl.IsUnderLiveSceneControl(rider),
                 command.CreatedByPlayer, command.AiAction != null, command.GetType().Assembly == typeof(MountedSceneContinuityPolicy).Assembly);
             var encounter = game.Player.IsInCombat || (rider?.IsInCombat ?? false) || (mount?.IsInCombat ?? false);
             var disposition = MountedSceneContinuityPolicy.DecideCommand(true, ReferenceEquals(rider?.Commands, container),
@@ -259,8 +259,7 @@ namespace KingmakerMountedCombat.Integration
         private static bool ActorStagingOwned(UnitEntityData unit, bool sceneActive)
         {
             if (unit == null) return false;
-            var controller = CutsceneControlledUnit.GetControllingPlayer(unit);
-            var controlled = controller != null && controller.PlayerData != null && !controller.PlayerData.IsFinished;
+            var controlled = NativeSceneControl.IsUnderLiveSceneControl(unit);
             var cutsceneCommand = unit.Commands != null && unit.Commands.Contains(c => c.Cutscene && !c.IsFinished);
             return MountedSceneContinuityPolicy.ActorStagingOwned(controlled, cutsceneCommand, unit.IsInGame, sceneActive);
         }

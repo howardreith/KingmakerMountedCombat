@@ -81,6 +81,29 @@ namespace KingmakerMountedCombat.Domain
                 : null;
         }
 
+        // Bald Hilltop Mount lockout repair. UnitEntityData.CutceneControlledUnit is created lazily by native
+        // CutsceneControlledUnit.MarkUnit the first time any cutscene command controls the unit, and nothing in the game
+        // ever sets it back to null (Release only removes entries; the field is not serialized). Its presence therefore
+        // means "some scene controlled this unit earlier in this session", not "a scene controls it now". The native
+        // meaning of current control is the active entry (GetCurrentlyActive / GetControllingPlayer, as the native movement
+        // agent and animation state use it) whose cutscene player is still alive and not finished.
+        public static bool ActorUnderLiveSceneControl(bool holderPresent, bool activeEntryPresent, bool controllingPlayerAlive,
+            bool controllingPlayerFinished)
+        {
+            return holderPresent && activeEntryPresent && controllingPlayerAlive && !controllingPlayerFinished;
+        }
+
+        // The fresh Mount/Dismount admission refusal for loading and scene control: native loading or world replacement,
+        // the cutscene input lock, a cutscene mode, or live scene control of this exact rider or mount.
+        public static bool BlocksPlayerTransition(bool loadingInProcess, bool cutsceneLock, string currentModeName,
+            bool riderUnderLiveSceneControl, bool mountUnderLiveSceneControl)
+        {
+            return loadingInProcess || cutsceneLock ||
+                string.Equals(currentModeName, "Cutscene", StringComparison.Ordinal) ||
+                string.Equals(currentModeName, "CutsceneGlobalMap", StringComparison.Ordinal) ||
+                riderUnderLiveSceneControl || mountUnderLiveSceneControl;
+        }
+
         public static bool IsSceneMode(string exactModeName)
         {
             return string.Equals(exactModeName, "Dialog", StringComparison.Ordinal) ||

@@ -81,6 +81,8 @@ namespace KingmakerMountedCombat.Integration
                 ClearMountTargetSelection();
             }
             feedbackState.ObserveAvailability(availability);
+            try { ObserveAvailabilityRefusal(availability); }
+            catch (Exception error) { logger.Exception("Mounted availability diagnostic failed", error); }
             var transition = relationship.LastTransition;
             if (transition != null && !ReferenceEquals(transition, lastObservedTransition))
             {
@@ -785,12 +787,45 @@ namespace KingmakerMountedCombat.Integration
                  (Game.Instance?.Player?.IsInCombat ?? false));
         }
 
-        private static bool IsLoadingOrCutscene(Game game, UnitEntityData rider, UnitEntityData mount)
+        // Bald Hilltop Mount lockout repair: actor control is the live native scene control of this exact rider or mount
+        // (NativeSceneControl), not the presence of the never-cleared CutceneControlledUnit holder, which refused Mount for
+        // the rest of the session after any scene had once controlled either actor. Loading, the cutscene lock and the
+        // cutscene modes still refuse. Availability, queued delivery and Dismount all read this one predicate.
+        private bool IsLoadingOrCutscene(Game game, UnitEntityData rider, UnitEntityData mount)
         {
             var loading = LoadingProcess.Instance;
-            return (loading != null && loading.IsLoadingInProcess) || game.CutsceneLock ||
-                rider.CutceneControlledUnit != null || (mount != null && mount.CutceneControlledUnit != null) ||
-                game.CurrentMode == GameModeType.Cutscene || game.CurrentMode == GameModeType.CutsceneGlobalMap;
+            var loadingInProcess = loading != null && loading.IsLoadingInProcess;
+            var riderControlled = NativeSceneControl.IsUnderLiveSceneControl(rider);
+            var mountControlled = NativeSceneControl.IsUnderLiveSceneControl(mount);
+            var blocked = MountedSceneContinuityPolicy.BlocksPlayerTransition(loadingInProcess, game.CutsceneLock,
+                game.CurrentMode.ToString(), riderControlled, mountControlled);
+            lastSceneAdmissionFacts = "area=" + (game.CurrentlyLoadedArea?.name ?? "none") + "/" + (game.CurrentlyLoadedArea?.AssetGuidThreadSafe ?? "none") +
+                ";mode=" + game.CurrentMode + ";loading=" + loadingInProcess + ";cutsceneLock=" + game.CutsceneLock +
+                ";rider=" + NativeSceneControl.Describe(rider) + ";mount=" + NativeSceneControl.Describe(mount) +
+                ";riderControllable=" + (rider != null && rider.IsInGame && rider.IsDirectlyControllable) +
+                ";mountControllable=" + (mount != null && mount.IsInGame && mount.IsDirectlyControllable) +
+                ";blocked=" + blocked;
+            return blocked;
+        }
+
+        private string lastSceneAdmissionFacts;
+        private string lastLoggedRefusalKey;
+
+        // One line per change of the refused Mount/Dismount reason set, with the native facts that produced it; never one
+        // per tooltip refresh or availability poll. Enabled availability clears the key so a later refusal logs again.
+        private void ObserveAvailabilityRefusal(MountedPlayerActionAvailability availability)
+        {
+            if (availability == null || availability.IsEnabled || !availability.IsVisible)
+            {
+                lastLoggedRefusalKey = null;
+                return;
+            }
+            var reasons = string.Join(" | ", System.Linq.Enumerable.ToArray(availability.UnavailableReasons));
+            var key = availability.Action + "|" + reasons + "|" + lastSceneAdmissionFacts;
+            if (string.Equals(key, lastLoggedRefusalKey, StringComparison.Ordinal)) return;
+            lastLoggedRefusalKey = key;
+            logger.Info("Mounted player action unavailable: action=" + availability.Action + "; reasons=" + reasons +
+                "; " + (lastSceneAdmissionFacts ?? "scene facts not captured") + ".");
         }
 
         private static bool IsSupportedRiderBodySurface(UnitEntityData rider, SupportedMountedProfile profile)

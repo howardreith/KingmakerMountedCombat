@@ -4,6 +4,80 @@ Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (release 0.2
 mounted characters dismount whenever a cutscene begins. The owner's requested behaviour supersedes the exploration
 sprint's decision to suspend every pair for Dialog/Cutscene.
 
+## Bald Hilltop Mount lockout (added to this PR by owner request, 2026-11-12)
+
+**Status:** an offline repair candidate awaiting native confirmation. The cause is established from installed-assembly
+contracts plus elimination. No runtime log came with the report, and Bald Hilltop was not tested in game: this
+machine has no KMC install or fixture.
+
+**Reported state:** at Bald Hilltop, during apparently ordinary exploration, Mount/Dismount is disabled and the only
+refusal is "Mounting is blocked during loading, area transitions, and cutscenes."
+
+**Refusing condition.** The 0.2.7 `MountedPlayerActionController.IsLoadingOrCutscene` refused when any of these held:
+- loading;
+- `game.CutsceneLock`;
+- `rider.CutceneControlledUnit != null` or `mount.CutceneControlledUnit != null`;
+- mode `Cutscene` or `CutsceneGlobalMap`.
+
+**Native contracts (installed 2.1.7b, MVID `07fa1e4d…`):**
+- `UnitEntityData.CutceneControlledUnit` (field 0x040054D7) is not serialized (no `JsonProperty`).
+- The only store to it in the whole assembly is the lazy creation in `CutsceneControlledUnit.MarkUnit` (0x06009D6B).
+  - The ILSpy full IL listing has exactly one `stfld` of the field.
+  - The new contract pin scans 51,280 method bodies by token and finds the same single store.
+- Nothing ever sets it back to null. `Release` only removes entries.
+- After any cutscene command has once controlled the rider or horse (an arrival, story or bark scene), the holder
+  therefore stays for the rest of the session, and the old predicate refused Mount until the game was reloaded.
+- The game's own notion of current control is the active entry: `GetCurrentlyActive` and `GetControllingPlayer`
+  (0x06009D6E reads `m_Active`). The movement agent and animation state use exactly that. A finished
+  (`CutscenePlayerData.IsFinished`) or destroyed player is not control.
+
+**Other inputs eliminated:**
+- A held `CutsceneLock` keeps a non-Default mode. `CutsceneUIHideController.Activate` stops the Cutscene mode only while
+  the lock is clear (pinned). That would add the separate "active world view" refusal and remove player control, and
+  the screenshot shows neither.
+- The Cutscene modes would add the same world-view refusal.
+- Loading is implausible during ordinary exploration.
+
+The holder is the only input consistent with the screenshot. It falls under category 3/4 of the mission: an idle,
+never-released association that the mod interpreted as active control.
+
+**Change:**
+- `NativeSceneControl.IsUnderLiveSceneControl` is one shared reading, used by both this repair and the continuity
+  work: the holder, plus an active entry, plus a live, unfinished cutscene player. The decision itself is
+  `MountedSceneContinuityPolicy.ActorUnderLiveSceneControl` and `BlocksPlayerTransition`.
+- `IsLoadingOrCutscene` uses this reading. It feeds Mount availability, queued and executing delivery (the same
+  `GetAvailability` context) and Dismount availability, so the tooltip and execution cannot disagree.
+- Loading, the lock and the cutscene modes still refuse. Live scene control of this exact rider or horse still refuses.
+- No native field is cleared or written. There is no area whitelist and no timer. Queue (Pause) and execution (Default)
+  admission, combat eligibility and the Move cost, `NativeAdmissionRefusal` and retained ownership are unchanged.
+- **Diagnostic:** one line per change of the refused reason set (not per poll). It logs:
+  - the action and every reason;
+  - the area name and GUID, mode, loading flag and lock;
+  - for rider and horse: id, holder, active entry, cutscene name, finished, paused, live;
+  - controllability.
+
+**Checks:**
+- Fast PASS 3/0: components 1190/0 (4 new `BaldHilltopMountAdmissionTests` through the real
+  `MountedPlayerActionEvaluator`), Validate-Source 151/0.
+- Mutation check: restoring the old holder-presence reading fails all 4.
+- Kingmaker contracts 784/3, with 3 new pins (transient holder, single writer, lock-coupled mode stop). The 3
+  failures are the pre-existing UMM identity pins.
+- **DLL:** SHA-256 `47053c0c5ba848a236582ad28e6a933707b8b9f1e49ae5a4caf01d52429fe6be`, MVID
+  `7797eda3-46f5-440b-ace1-b165cc9901e9`. This supersedes the identities below.
+
+**Native: NOT RUN.** In order, check:
+1. At Bald Hilltop, Mount is available and completes.
+2. Mount is refused while a cutscene controls the rider or horse, and recovers after the cutscene completes or is
+   skipped.
+3. Paused queueing, then execution after resume.
+4. Combat Mount still costs a Move action.
+
+If the owner's next log still shows the refusal, the new diagnostic line names the refusing input.
+
+**Uncertainty and remaining limits:**
+- The specific Bald Hilltop scene that first marked the rider or horse is not identified.
+- A *paused* cutscene that still has an active entry keeps refusing (conservative native meaning).
+
 ## Self-review corrections (2026-11-12, after the first PR revision)
 
 A high-effort review of PR #37 found 10 issues. All are corrected in source; none is demonstrated in game. Where this
