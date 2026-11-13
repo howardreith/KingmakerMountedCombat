@@ -1,3 +1,16 @@
+# RELEASE 0.2.8 (OWNER ORDER, 2026-11-12)
+
+The owner approved PR #37 and ordered it merged and released. PR #37 covers the cutscene continuity repair, the Bald
+Hilltop Mount lockout fix and every review correction. It was merged as `2dbf62c5`, with a tree identical to the
+reviewed `e397167a`. Notes: [docs/RELEASE-NOTES-0.2.8.md](docs/RELEASE-NOTES-0.2.8.md).
+
+- **Version:** 0.2.8, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+- **Package:** `KingmakerMountedCombat-0.2.8-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Not run in the game before release.** Native acceptance rows in the handoff remain NOT RUN, Bald Hilltop included.
+  This machine has no KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # CUTSCENE CONTINUITY REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE BLOCKED (2026-11-12)
 
 Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Read the [handoff](docs/CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md).
