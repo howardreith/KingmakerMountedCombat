@@ -1,3 +1,26 @@
+# CUTSCENE CONTINUITY REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE BLOCKED (2026-11-12)
+
+Branch `codex/kmc-cutscene-mounted-continuity` from main `0754c44a` (0.2.7). Read the [handoff](docs/CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md).
+
+- **Cause (source; the owner's occurrence is not reproduced):** three dismount paths.
+  - Every Dialog/Cutscene mode start suspended (physically dismounted) each pair. A refused suspension, as in combat,
+    fell back to a clean dismount.
+  - Dialog/Cutscene were also `CleanDismount` in the mode policy, which formed a second path through invariant
+    validation.
+  - Combat cancelled retained intent.
+- **Fix:**
+  - Dialog/Cutscene keep the attachment. Mounted input stays refused.
+  - Only a scripted operation on the rider (`UnitCommands.Run`), or a scene removing a pair member from the game, hands
+    that one pair to native staging.
+  - Restoration reads staging ownership from native state per pair. Scene-staging intent holds through combat.
+  - A mount left behind regroups with a bounded native move.
+- **Checks:**
+  - Fast PASS 3/0 (components 1183/0, Validate-Source 151/0).
+  - Kingmaker contracts 781/3: all 16 new pins pass; the 3 UMM identity failures are pre-existing.
+  - Mutation check: the old decisions fail 5 regressions.
+- **Native:** NOT RUN. This machine has no KMC install, fixture or fixture qualification.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.7 (OWNER ORDER, 2026-11-12)
 
 The owner accepted PR #35, the horse group pace repair, and ordered it merged and released. Merge `2e97cbd4`, tree
