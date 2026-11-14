@@ -1,3 +1,18 @@
+# RELEASE 0.2.10 (OWNER ORDER, 2026-11-13)
+
+The owner approved PR #41, the Mounted Archery registration repair, and ordered it merged and released. Merge
+`81b3a30a`, tree identical to the reviewed `821b8f2d`. Notes: [docs/RELEASE-NOTES-0.2.10.md](docs/RELEASE-NOTES-0.2.10.md).
+
+- **Version:** 0.2.10, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+  UMM's `ParseVersion` splits on `.` and parses each part as an integer, so 0.2.10 reads newer than 0.2.9.
+- **Package:** `KingmakerMountedCombat-0.2.10-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Behaviour note:** the turn-based mounted ranged-movement penalty is gated on Mounted Archery's availability, so it
+  first takes effect in 0.2.10.
+- **Not run in the game before release.** Rows R1–R5 of the registration repair handoff and N1–N6, C and C2 of the
+  Mounted Archery handoff remain NOT RUN. This machine has no KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # MOUNTED ARCHERY REGISTRATION REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE NOT RUN (2026-11-13)
 
 Branch `codex/mounted-archery-registration-repair` from main `fef7b71e` (0.2.9). Read the
