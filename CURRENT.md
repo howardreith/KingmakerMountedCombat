@@ -1,3 +1,30 @@
+# MOUNTED ARCHERY REGISTRATION REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE NOT RUN (2026-11-13)
+
+Branch `codex/mounted-archery-registration-repair` from main `fef7b71e` (0.2.9). Read the
+[handoff](docs/MOUNTED-ARCHERY-REGISTRATION-REPAIR-HANDOFF.md).
+
+- **Report:** in 0.2.9, Mounted Archery is absent from every feat list. The log reads "Mounted Archery did not retain
+  the single-rank combat-feat contract".
+- **Cause (installed game data plus product code on genuine blueprints; not read from the player's process):** the
+  validator required `IsClassFeature == false`.
+  - Mounted Archery copies the flag from stock Power Attack, which holds `true`, as every stock 2.1.7b feat does. The
+    values were decoded from the pinned `sharedassets1.assets` with exact object framing.
+  - The flag's only native readers are in `Player.RespecCompanion`, where `true` means "rebuilt, not carried over".
+  - Every installation therefore threw, and the feat was removed. No other mod is needed.
+- **Fix:** the validator now requires the donor's value, which Mounted Combat already holds.
+  - The new Domain `MountedArcheryFeatContract` reports each failed invariant with observed values and both fact sets.
+  - Registration logs one `Mounted Archery feat contract:` line.
+  - Construction, identity, prerequisites, publication, withdrawal and the penalty are unchanged.
+  - `CopyFeatureContract` is untouched.
+- **Checks:**
+  - Fast PASS 4/0: components 1217/0, Validate-Source 151/0.
+  - New focused `Test-MountedArcheryFeatContract.ps1` 54/0: stock donors decoded from the install, then the product's
+    construction, validation and publication on genuine `BlueprintFeature`/`BlueprintFeatureSelection` objects.
+  - Mutation check: restoring the 0.2.9 rule fails 4 component regressions and the focused script.
+- **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Rows R1–R5 in the handoff cover registration,
+  the summary line, ranger and fighter selection, and prerequisites. The feat screen is not shown repaired in the game.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.9 (OWNER ORDER, 2026-11-13)
 
 The owner approved PR #39 and ordered it merged and released. PR #39 covers the Mounted Archery feat, the turn-based
