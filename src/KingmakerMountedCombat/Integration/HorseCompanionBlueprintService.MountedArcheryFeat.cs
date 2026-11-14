@@ -88,9 +88,8 @@ namespace KingmakerMountedCombat.Integration
             var icon = CreateEmbeddedSprite("KingmakerMountedCombat.Assets.MountedArcheryFeat.png", "KMC_MountedArchery_Feat_Icon");
             mountedArcheryFeature = CreateOwned<BlueprintFeature>("MountedArcheryFeature");
             mountedArcheryFeature.AssetGuid = MountedArcheryFeatureGuid;
-            // One visible rank, nonclass, Feat + CombatFeat, exactly as the stock Power Attack.
-            CopyFeatureContract(powerAttack, mountedArcheryFeature);
-            SetFeaturePresentation(mountedArcheryFeature, NewLocalizedString("KMC.MountedArchery.Name"), NewLocalizedString("KMC.MountedArchery.Description"), icon);
+            BuildMountedArcheryContract(powerAttack, mountedArcheryFeature, NewLocalizedString("KMC.MountedArchery.Name"),
+                NewLocalizedString("KMC.MountedArchery.Description"), icon);
             // Mobility trained ranks are the established Ride adaptation (BaseValue is ranks alone). Both prerequisites are
             // in the native ALL group and read the level-up preview unit, so a same-level Mounted Combat pick or newly
             // allocated rank counts, and Back/cancel removes it.
@@ -111,9 +110,42 @@ namespace KingmakerMountedCombat.Integration
             mountedRangedMovementReducedSource = new Fact(mountedRangedMovementReducedLabel);
 
             AddExactBlueprintRegistration(library, mountedArcheryFeature);
-            if (!mountedArcheryFeature.Groups.Contains(FeatureGroup.Feat) || !mountedArcheryFeature.Groups.Contains(FeatureGroup.CombatFeat) ||
-                mountedArcheryFeature.Ranks != 1 || mountedArcheryFeature.IsClassFeature || !ReferenceEquals(mountedArcheryFeature.Icon, icon))
-                throw new InvalidOperationException("Mounted Archery did not retain the single-rank combat-feat contract.");
+            var violation = MountedArcheryContractViolation(mountedArcheryFeature, powerAttack, icon);
+            if (violation != null) throw new InvalidOperationException(violation);
+            // One line per registration: the facts a feat-screen report needs, without per-frame logging.
+            logger.Info("Mounted Archery feat contract: " + ReadFeatContractFacts(mountedArcheryFeature, icon).Describe() +
+                "; donor PowerAttackFeature " + ReadFeatContractFacts(powerAttack, icon).Describe() + ".");
+        }
+
+        // A single visible rank with the Feat and CombatFeat groups and the stock combat feat's own flags, including
+        // IsClassFeature, which every stock 2.1.7b feat holds true (MountedArcheryFeatContract). Kept separate from the
+        // library so scripts/Test-MountedArcheryFeatContract.ps1 can run it on genuine blueprints outside the game.
+        internal static void BuildMountedArcheryContract(BlueprintFeature donor, BlueprintFeature feature,
+            Kingmaker.Localization.LocalizedString name, Kingmaker.Localization.LocalizedString description, UnityEngine.Sprite icon)
+        {
+            CopyFeatureContract(donor, feature);
+            SetFeaturePresentation(feature, name, description, icon);
+        }
+
+        // Null when the registered feature holds the contract; otherwise each failed invariant with observed values.
+        internal static string MountedArcheryContractViolation(BlueprintFeature feature, BlueprintFeature donor, UnityEngine.Sprite icon) =>
+            MountedArcheryFeatContract.Violation(ReadFeatContractFacts(feature, icon), ReadFeatContractFacts(donor, icon));
+
+        // Reference comparisons only: Unity's overloaded null test is not needed for a sprite KMC holds.
+        private static KmcFeatContractFacts ReadFeatContractFacts(BlueprintFeature feature, UnityEngine.Sprite icon)
+        {
+            var current = feature.Icon;
+            return new KmcFeatContractFacts
+            {
+                Groups = feature.Groups == null ? new string[0] : feature.Groups.Select(group => group.ToString()).ToArray(),
+                Ranks = feature.Ranks,
+                IsClassFeature = feature.IsClassFeature,
+                HasIcon = !ReferenceEquals(current, null),
+                IconIsKmc = !ReferenceEquals(current, null) && ReferenceEquals(current, icon),
+                HideInUI = feature.HideInUI,
+                HideInCharacterSheetAndLevelUp = feature.HideInCharacterSheetAndLevelUp,
+                HideNotAvailibleInUI = feature.HideNotAvailibleInUI
+            };
         }
 
         private BlueprintFeature CreateMountedRangedMovementLabel(string name, string nameKey, string descriptionKey, UnityEngine.Sprite icon)

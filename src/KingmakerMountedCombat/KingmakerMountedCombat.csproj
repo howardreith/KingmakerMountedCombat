@@ -451,6 +451,7 @@
     <Compile Include="Domain\MountedCombatDefensePolicy.cs" />
     <Compile Include="Domain\MountedRangedMovementPolicy.cs" />
     <Compile Include="Domain\KmcCombatFeatPublication.cs" />
+    <Compile Include="Domain\MountedArcheryFeatContract.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />

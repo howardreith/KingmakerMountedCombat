@@ -1,3 +1,25 @@
+# Mounted Archery registration repair — review checkpoint (2026-11-13)
+
+Branch `codex/mounted-archery-registration-repair` (draft PR); base main `fef7b71e` (0.2.9). Read CURRENT.md and
+docs/MOUNTED-ARCHERY-REGISTRATION-REPAIR-HANDOFF.md.
+
+- **State:** validator corrected and per-invariant diagnostics added. Fast PASS on genuine references. Focused script
+  54/0. Native NOT RUN.
+- **Seams:**
+  - `MountedArcheryFeatContract.Violation` is the only rule.
+  - `HorseCompanionBlueprintService.BuildMountedArcheryContract` and `MountedArcheryContractViolation` are the code the
+    registration and the focused script share.
+- **Facts for a successor:**
+  - In 2.1.7b, `BlueprintFeature.IsClassFeature` is true on every stock feat. It is read only by
+    `Player.RespecCompanion`. Never require false for a feat.
+  - Unity aligns each serialized C# bool to 4 bytes (no typetree in these files).
+  - Kingmaker blueprints carry both `name` and `Name`, so PowerShell's property adapter refuses them. Use `FieldInfo`.
+  - In this UnityEngine.CoreModule, `Object.Equals` for two non-null objects is `ReferenceEquals`. Uninitialized
+    blueprints therefore compare as live ones.
+- **Native next step:** owner play with the branch DLL. Search the log for `Mounted Archery feat contract:` and
+  `Mounted Archery offered`, then take rows R1–R5 of the handoff. After that, the older Mounted Archery rows N1–N6, C
+  and C2 become reachable.
+
 # Mounted Archery — review checkpoint (2026-11-13)
 
 Branch `codex/mounted-archery` (draft PR); base main `6b6a3e6a` (0.2.8). Read CURRENT.md and
