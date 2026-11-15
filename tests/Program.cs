@@ -737,6 +737,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             MountedChargeTransactionSequenceTests.Register(runner);
             MountedChargeCleanupLedgerTests.Register(runner);
             MountedRangedRoutineCompletionTests.Register(runner);
+            MountedAttackExecutionTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);
             StopEarlyCaptureBoundaryTests.Register(runner);

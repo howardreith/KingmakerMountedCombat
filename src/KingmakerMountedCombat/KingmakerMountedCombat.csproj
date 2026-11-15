@@ -600,6 +600,7 @@
     <Compile Include="Integration\NativeSingleAttackWeaponResolver.cs" />
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
+    <Compile Include="Integration\NativeActorCapability.cs" />
     <Compile Include="Integration\MountedPatchController.cs" />
     <Compile Include="Integration\MountedFeatSelectorRefreshService.cs" />
     <Compile Include="Integration\NativeMountedDismissInventorySafety.cs" />
@@ -657,6 +658,7 @@
     <Compile Include="Diagnostics\Chunk4InspectionScenario.cs" />
     <Compile Include="Diagnostics\Chunk4SessionScenario.cs" />
     <Compile Include="Domain\MountedRangedRoutineCompletionPolicy.cs" />
+    <Compile Include="Domain\MountedAttackExecutionPolicy.cs" />
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="Diagnostics\Chunk6aCausalEvidence.cs" />

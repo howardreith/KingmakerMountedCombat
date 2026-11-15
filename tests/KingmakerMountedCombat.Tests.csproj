@@ -187,6 +187,8 @@
     </Compile>
     <Compile Include="MountedRangedRoutineCompletionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRangedRoutineCompletionPolicy.cs" />
+    <Compile Include="MountedAttackExecutionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAttackExecutionPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargePolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRequestPolicy.cs" />

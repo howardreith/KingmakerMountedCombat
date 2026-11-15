@@ -1,3 +1,30 @@
+# Mounted attack stall repair — review checkpoint (2026-11-15)
+
+Branch `codex/mounted-attack-stall-repair` (draft PR); base main `474b8667` (0.2.10). Read CURRENT.md and
+docs/MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md.
+
+- **State:** terminal classification, turn-based admission check, execution-boundary check and diagnostics. Fast PASS
+  on genuine references. Focused probe 59/0; it fails on a build of `474b8667`. One independent review, corrected.
+  Native NOT RUN.
+- **Seams:**
+  - `MountedAttackTerminalPolicy.Classify` / `RetainsIntent` is the only rule for whether a finished command keeps its
+    retained order. `HandleCommandTerminal` is its only caller.
+  - `MountedActorCapabilityPolicy` is the only capability rule. `NativeActorCapability.Read` is the only reading.
+    Callers: `CaptureContext` (admission), `StartChildAttack` (release) and `ReportTerminalOnce` (diagnostic).
+- **Facts for a successor:**
+  - In 2.1.7b a raw native `Success` does not mean an executed command: `UnitCommand.ForceFinish` stamps it, and
+    `IsActed`, on a command that never started. Its only callers are the two turn-based checks in
+    `UnitActionController.TickCommandTurnBased`.
+  - `HasStandardAction()` already covers Nauseated, and nothing else about conditions.
+  - `UnitState.CanAct` also reads prone and animation state. Never use it as an admission gate: read the conditions.
+  - Detached: `CombatController.IsInTurnBasedCombat()` and `UnitState.CanAct` throw (they need `Game`). A `UnitState`
+    built by its constructor answers `HasCondition` and `IsHelpless`. `EventBus` works, but keys subscribers by
+    concrete type, so a recording subscriber must be a real (emitted) type, not a proxy.
+- **Native next step:** owner play with the branch DLL in the reported encounter, or a qualified fixture: rows S1–S9
+  in the handoff. Search the log for `retired without execution` and `Mounted stock attack dispatch rejected`.
+- **Open:** the Serenity/Fascinate trigger is unidentified. In real time a blocked rider's order still waits in its
+  slot and the mount does not attack in its place (unchanged).
+
 # Mounted Archery registration repair — review checkpoint (2026-11-13)
 
 Branch `codex/mounted-archery-registration-repair` (draft PR); base main `fef7b71e` (0.2.9). Read CURRENT.md and

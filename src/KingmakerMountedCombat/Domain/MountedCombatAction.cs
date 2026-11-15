@@ -40,7 +40,9 @@ namespace KingmakerMountedCombat.Domain
         NoPath,
         OutsideSupportedRange,
         RangeOriginMismatch,
-        CommandAdmissionFailure
+        CommandAdmissionFailure,
+        // The action actor's own native conditions forbid the attack (MountedActorCapabilityPolicy).
+        ActorCannotAct
     }
 
     public enum NativeSingleAttackSlotKind
@@ -201,6 +203,12 @@ namespace KingmakerMountedCombat.Domain
         public bool ActionActorOwnsCurrentTurnOrRealTime { get; set; }
 
         public bool ActionActorHasStandardAction { get; set; }
+
+        // Separate from the action budget above: the action actor's own native conditions, never its partner's.
+        // None admits; the default therefore refuses nothing.
+        public MountedActorCapabilityBlock ActionActorCapabilityBlock { get; set; }
+
+        public string ActionActorDisplayName { get; set; }
 
         public bool RiderWeaponIsSupportedMelee { get; set; }
 
@@ -399,6 +407,12 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("The action actor has no Standard action available.");
                 codes.Add(MountedCombatRejectionCode.WrongActionState);
+            }
+            if (context.ActionActorCapabilityBlock != MountedActorCapabilityBlock.None)
+            {
+                reasons.Add(MountedActorCapabilityPolicy.Feedback(
+                    context.ActionActorDisplayName, context.ActionActorCapabilityBlock));
+                codes.Add(MountedCombatRejectionCode.ActorCannotAct);
             }
             if (!context.TransactionIdle)
             {
