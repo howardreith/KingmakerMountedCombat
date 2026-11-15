@@ -1494,6 +1494,8 @@ namespace KingmakerMountedCombat.Integration
                 logger.Info("Mounted stock attack dispatch rejected: action=" + action +
                     "; origin=" + (automaticOrigin ? "automatic" : "player") +
                     "; generation=" + generation +
+                    "; actorId=" + ((action == MountedCombatActionKind.MountPrimaryNatural ? mount : rider)?.UniqueId ?? "<none>") +
+                    "; targetId=" + target.UniqueId +
                     "; codes=" + string.Join(",", codes.Select(code => code.ToString()).ToArray()) +
                     "; presented=" + (feedback != null) +
                     "; feedback=" + LastFeedback);
@@ -2144,6 +2146,10 @@ namespace KingmakerMountedCombat.Integration
                     actionActor.IsEnemy(target) && actionActor.CanAttack(target),
                 ActionActorOwnsCurrentTurnOrRealTime = actionActorTurn,
                 ActionActorHasStandardAction = actionActor != null && actionActor.HasStandardAction(),
+                // A remaining Standard is not permission to act: the acting actor's own conditions are read separately.
+                ActionActorCapabilityBlock = MountedActorCapabilityPolicy.AdmissionBlock(
+                    NativeActorCapability.Read(actionActor), turnBasedCombat),
+                ActionActorDisplayName = actionActor?.CharacterName,
                 RiderHasEligibleWeapon = riderWeapon?.Blueprint != null,
                 RiderWeaponIsRanged = riderWeapon?.Blueprint != null && riderWeapon.Blueprint.IsRanged,
                 RiderWeaponCategorySupported = riderWeapon?.Blueprint != null,
@@ -2207,9 +2213,23 @@ namespace KingmakerMountedCombat.Integration
             {
                 activeCommand = null;
             }
-            LastFeedback = outcome.Result == UnitCommand.ResultType.Success.ToString()
+            // The native result is one fact among the command's own: a command native force-finished before it started
+            // also reports Success, and must neither read as a completed attack nor keep its order alive.
+            var terminal = MountedAttackTerminalPolicy.Classify(new MountedAttackTerminalFacts
+            {
+                NativeSuccess = string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal),
+                TransactionCompleted = outcome.TransactionCompleted,
+                NativeRangedTailTermination = outcome.NativeRangedTailTermination,
+                NativeAttackRuleObserved = outcome.NativeAttackRuleObserved,
+                CompletedAttackCount = outcome.NativeCompletedAttackCount
+            });
+            LastFeedback = terminal == MountedAttackTerminalKind.Completed ||
+                    terminal == MountedAttackTerminalKind.DeliveredWithoutCompletion
                 ? "Mounted pair attack completed."
-                : outcome.NativeRangedTailTermination ? "Ranged attacks completed; remaining melee attacks are out of reach."
+                : terminal == MountedAttackTerminalKind.RangedTailDelivered
+                    ? "Ranged attacks completed; remaining melee attacks are out of reach."
+                : terminal == MountedAttackTerminalKind.EndedWithoutExecution
+                    ? DescribeUnexecutedTerminal(outcome)
                 : DescribeTerminalFailure(outcome);
             // Native Run writes a successor's manual target right after this interruption, so the charge's own is released now.
             if (command.ChargeMode && ReferenceEquals(chargeOwner?.Command, command))
@@ -2224,15 +2244,46 @@ namespace KingmakerMountedCombat.Integration
                 "; repaths=" + outcome.RepathCount +
                 "; repathObservations=" + (string.IsNullOrEmpty(outcome.RepathObservations) ? "<none>" : outcome.RepathObservations) +
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
+                "; transaction=" + (outcome.TransactionState ?? "<none>") +
+                "; terminal=" + terminal +
                 "; feedback=" + LastFeedback);
-            if (stockIntentOwned && !outcome.NativeRangedTailTermination &&
-                !string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal))
+            if (!stockIntentOwned || MountedAttackTerminalPolicy.RetainsIntent(terminal))
+            {
+                return;
+            }
+            if (terminal != MountedAttackTerminalKind.EndedWithoutExecution)
             {
                 ClearStockAttackIntent("stock command terminal " + outcome.Result, true);
                 LastStockAttackObservation = "intent-cancel-terminal;action=" + command.Action +
                     ";result=" + outcome.Result;
+                return;
             }
+            // Only this intent generation and its own finished command end here: no action, cooldown, condition or turn
+            // is written, the partner keeps its own orders, and nothing is remembered against a later click.
+            var playerOrigin = !stockIntent.Automatic;
+            StockAttackUnexecutedRetirementCount++;
+            logger.Info("Mounted attack intent retired without execution: origin=" + (playerOrigin ? "player" : "automatic") +
+                "; generation=" + stockIntent.Generation +
+                "; action=" + command.Action +
+                "; actorId=" + (outcome.ActorId ?? "<none>") +
+                "; targetId=" + (outcome.TargetId ?? "<none>") +
+                "; nativeResult=" + outcome.Result +
+                "; transaction=" + (outcome.TransactionState ?? "<none>") +
+                "; reason=" + (outcome.TerminalReason ?? "<none>") +
+                "; started=" + outcome.NativeCommandStarted +
+                "; sequenceStarted=" + (outcome.ChildAttackStartCount != 0) +
+                "; attackRule=" + outcome.NativeAttackRuleObserved +
+                "; attacks=" + outcome.NativeCompletedAttackCount + "/" + outcome.NativePlannedAttackCount +
+                "; capability={" + (outcome.ActorCapabilityAtTerminal ?? "<none>") + "}.");
+            ClearStockAttackIntent("stock command ended without execution", true);
+            LastStockAttackObservation = "intent-retired-unexecuted;action=" + command.Action +
+                ";result=" + outcome.Result + ";block=" + outcome.ActorCapabilityBlockAtTerminal;
+            // A player's order that was dropped is answered once, whatever made native drop it: the retired order cannot
+            // repeat the answer, and a silent drop would leave the click with no visible result at all.
+            if (playerOrigin) ShowStockFeedback();
         }
+
+        internal long StockAttackUnexecutedRetirementCount { get; private set; }
 
         internal long DoorInteractionReplacedMountMoveCount { get; private set; }
 
@@ -2663,8 +2714,28 @@ namespace KingmakerMountedCombat.Integration
                 return "Mounted rider melee ended: the target exceeded the bounded approach window.";
             }
 
+            // A started routine native interrupted because its own actor can no longer act or attack.
+            if (outcome != null && outcome.ActorCapabilityBlockAtTerminal != MountedActorCapabilityBlock.None)
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.ActorCannotAct };
+                return MountedActorCapabilityPolicy.Feedback(outcome.ActionActorName, outcome.ActorCapabilityBlockAtTerminal) +
+                    (outcome.NativeCompletedAttackCount > 0 ? " The remaining attacks were not performed." : " The attack was not performed.");
+            }
+
             LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
             return "Mounted pair attack ended: " + (outcome == null ? "unknown" : outcome.Result) + ".";
+        }
+
+        // Native reported Success for a command that executed nothing.
+        private string DescribeUnexecutedTerminal(MountedPairAttackOutcome outcome)
+        {
+            LastRejectionCodes = new[]
+            {
+                outcome.ActorCapabilityBlockAtTerminal != MountedActorCapabilityBlock.None
+                    ? MountedCombatRejectionCode.ActorCannotAct
+                    : MountedCombatRejectionCode.WrongActionState
+            };
+            return MountedAttackTerminalPolicy.UnexecutedFeedback(outcome.ActionActorName, outcome.ActorCapabilityBlockAtTerminal);
         }
 
         private bool TrySuppressPropagatedOverlayWorldClick()

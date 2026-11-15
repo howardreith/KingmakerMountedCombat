@@ -74,6 +74,16 @@ namespace KingmakerMountedCombat.Integration
 
         public string TerminalReason { get; set; }
 
+        // The mounted transaction's own terminal state, reported beside the raw native Result: native stamps Success
+        // on a command it force-finished before start, which is a cancelled transaction, not a completed attack.
+        public string TransactionState { get; set; }
+        public bool TransactionCompleted { get; set; }
+        public bool NativeCommandStarted { get; set; }
+        public string ActionActorName { get; set; }
+        // The action actor's native conditions when the command ended: the cause of an unexecuted terminal.
+        public MountedActorCapabilityBlock ActorCapabilityBlockAtTerminal { get; set; }
+        public string ActorCapabilityAtTerminal { get; set; }
+
         public bool PairRangeSatisfiedAtStart { get; set; }
 
         public float PairDistanceAtStart { get; set; }
@@ -1384,9 +1394,23 @@ namespace KingmakerMountedCombat.Integration
             delegatedMove = null;
         }
 
+        // A restriction can reach the action actor after its order was queued or while the mount approaches. Native
+        // interrupts a running command of such an actor on its next tick in either combat mode; ending the transaction
+        // at this boundary releases no attack first and names the cause. Returns true when it terminated here.
+        private bool TerminateIfActionActorBlocked()
+        {
+            if (IsFinished || transaction.IsTerminal) return false;
+            var block = MountedActorCapabilityPolicy.ExecutionBlock(NativeActorCapability.Read(actionActor));
+            if (block == MountedActorCapabilityBlock.None) return false;
+            transaction.Cancel("Action actor cannot attack: " + block);
+            Interrupt();
+            return true;
+        }
+
         private void StartChildAttack()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            if (TerminateIfActionActorBlocked()) return;
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");
@@ -1570,9 +1594,26 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             terminalReported = true;
+            var capabilityBlock = MountedActorCapabilityBlock.None;
+            string actorName = null;
+            try
+            {
+                capabilityBlock = MountedActorCapabilityPolicy.ExecutionBlock(NativeActorCapability.Read(actionActor));
+                actorName = actionActor.CharacterName;
+            }
+            catch (Exception exception) { logger.Exception("Mounted pair terminal capability reading", exception); }
             terminal(this, new MountedPairAttackOutcome
             {
                 Action = action,
+                TransactionState = transaction.State.ToString(),
+                TransactionCompleted = transaction.State == MountedCombatTransactionState.Completed,
+                NativeCommandStarted = IsStarted,
+                ActionActorName = actorName,
+                ActorCapabilityBlockAtTerminal = capabilityBlock,
+                // A completed attack needs no explanation; every other terminal records what native saw of its actor.
+                ActorCapabilityAtTerminal = transaction.State == MountedCombatTransactionState.Completed
+                    ? null
+                    : NativeActorCapability.Describe(actionActor, this),
                 ActorId = actionActor.UniqueId,
                 CommandOwnerId = Executor?.UniqueId,
                 ResourceOwnerId = actionActor.UniqueId,

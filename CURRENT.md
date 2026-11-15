@@ -1,3 +1,38 @@
+# MOUNTED ATTACK STALL REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE NOT RUN (2026-11-15)
+
+Branch `codex/mounted-attack-stall-repair` from main `474b8667` (0.2.10). Read the
+[handoff](docs/MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md).
+
+- **Report:** in 0.2.10, turn-based, mounted Royon has Serenity and Fascinate and cannot act. Ordering him to attack
+  hangs the combat. The reported log repeats `command accepted` / `command terminal: result=Success; reason=Success;
+  childAttacks=0` 4,922 times. That log (`output_log(8).txt`) is not on this machine and no other log was substituted.
+- **Cause (source plus the installed 2.1.7b assembly; not observed in game):**
+  - Native `UnitActionController.TickCommandTurnBased` ends an unstarted command with `ForceFinishForTurnBased(Success)`
+    when its executor cannot act, waits for initiative or has no action for it. Nothing is executed or spent.
+  - The pair command's transaction is then cancelled with the reason `Success`, which is the logged signature.
+  - The terminal handler kept the retained order for any native Success, and `Update()` dispatched it again.
+  - Which Serenity or Fascinate condition stopped Royon is not verified.
+- **Fix:**
+  - **Terminal:** a command is classified by its own facts (transaction state, observed native attack rule, delivered
+    attacks). Native Success without a delivered attack retires that order only, and is no longer reported as
+    "Mounted pair attack completed."
+  - **Admission:** in turn-based combat a new order is refused when the acting actor's own native conditions forbid it
+    (`IsHelpless`, Dazed, Stunned, `CantAct`, `CanNotAttack`). Real time keeps the native pending behaviour. The
+    partner is never judged.
+  - **Execution boundary:** the same facts are re-read before the attack is released.
+  - **Diagnostics:** one `Mounted attack intent retired without execution:` line per retired order, with identity,
+    progress and the native capability readings.
+  - Nothing is granted, spent, refunded or cleared, and no suppression is kept against a later click.
+- **Checks:**
+  - Fast PASS 4/0: components 1229/0, Validate-Source 151/0.
+  - New focused `Test-MountedAttackStallRepair.ps1` 59/0, detached: native contract pins, the compiled controller's
+    own terminal handler, and the capability reader on genuine `UnitState` objects.
+  - The same probe fails at its central check on a build of `474b8667`. Two mutations of the new rules each fail
+    2 component regressions and the probe.
+  - One independent review: no blocking defect; its corrections are applied.
+- **Native:** NOT RUN (no KMC install, fixture or fixture qualification). Rows S1–S9 in the handoff.
+- **Not authorized:** merge, release, tag, version bump or install.
+
 # RELEASE 0.2.10 (OWNER ORDER, 2026-11-13)
 
 The owner approved PR #41, the Mounted Archery registration repair, and ordered it merged and released. Merge
