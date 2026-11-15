@@ -1,3 +1,18 @@
+# RELEASE 0.2.11 (OWNER ORDER, 2026-11-15)
+
+The owner ordered PR #43, the mounted attack stall repair, merged and released. Merge `22945394`, tree identical to the
+reviewed `3cf24379`. Notes: [docs/RELEASE-NOTES-0.2.11.md](docs/RELEASE-NOTES-0.2.11.md).
+
+- **Version:** 0.2.11, changed in `version.json`, `Info.json` and `BuildIdentity.cs`. The assembly version stays 0.1.0.0.
+  UMM's `ParseVersion` compares integer parts, so 0.2.11 reads newer than 0.2.10.
+- **Package:** `KingmakerMountedCombat-0.2.11-release-diagnostic.zip`, built from the release branch. Its identity is
+  recorded on the GitHub release.
+- **Behaviour note:** a turn-based attack order that the game ends before it starts is now dropped once with a message.
+  0.2.10 happened to retry it until it went through.
+- **Not run in the game before release.** Rows S1–S9 of the stall repair handoff remain NOT RUN, and the Serenity or
+  Fascinate trigger is unidentified. This machine has no KMC fixture or fixture qualification.
+- **Not done:** no install.
+
 # MOUNTED ATTACK STALL REPAIR — SOURCE FIX WITH OFFLINE CHECKS; NATIVE NOT RUN (2026-11-15)
 
 Branch `codex/mounted-attack-stall-repair` from main `474b8667` (0.2.10). Read the
