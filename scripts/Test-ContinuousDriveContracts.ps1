@@ -437,6 +437,20 @@ public static class KmcContinuousDriveProbe
                 return current>=0 && Count(body,"UnitEntityData","get_View")>=1 && Count(body,"Game","get_IsControllerGamepad")>=2;
             });
 
+        Check("NATIVE-IL the stick layer returns before it reads the driven unit while the party is in combat, and in turn-based combat a command is ticked only for the unit whose turn it is (so a continuous command the stick no longer feeds would keep its slot)",
+            ()=>{
+                var body=Body(stick);
+                var combat=One(body,"Player","get_IsInCombat");
+                var store=-1;
+                for(var i=0;i<body.Count;i++) if(body[i].Op==OpCodes.Stfld && body[i].Field!=null && body[i].Field.Name=="unit" && body[i].Field.FieldType==unit) store=i;
+                var actions=native.GetType("Kingmaker.Controllers.Units.UnitActionController",true);
+                var turnBased=Body(Token(actions,"TickCommandTurnBased",0x0600911D));
+                var tick=Body(Required(actions,"TickCommand",2));
+                return combat<store && Count(turnBased,null,"IsCurrentUnit")>=1 && Count(turnBased,"UnitCommand","get_Executor")>=1 &&
+                    First(tick,"UnitActionController","TickCommandTurnBased")<First(tick,"UnitCommand","TickApproaching") &&
+                    First(tick,"UnitActionController","TickCommandTurnBased")<First(tick,"UnitCommand","Tick");
+            });
+
         // ---- NATIVE-EXECUTED ----
         object riderUnit=null, mountUnit=null, riderCommands=null, mountCommands=null, stickCommand=null;
         Check("NATIVE-EXECUTED genuine UnitCommands containers and a genuine UnitMoveContiniously are built without the game, and the command's executor is set to the mount by native UnitCommand.Init",
