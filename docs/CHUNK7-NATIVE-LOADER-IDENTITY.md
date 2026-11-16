@@ -27,3 +27,16 @@ The reader now pins these exact identities. Nothing was turned into a pattern or
 KMC binds only UMM members whose signatures are unchanged: ModEntry Info/Logger/OnGUI/OnSessionStop/OnUpdate/OnUnload/OnToggle, ModInfo.Id, the ModLogger Log/Warning/Error/LogException(string,Exception) methods, and the UI capture host (get_Instance 06000151, get_Opened 06000152, ToggleWindow(bool) 0600016A). Test-AssemblyContracts checks the ModEntry, ModInfo and ModLogger surface by name and exact signature, so a later reinstall that keeps the API but moves tokens still passes, and a genuine API break still fails.
 
 Evidence produced on UMM 0.28.2.0, including the 93-case reader receipt and every native run above, stays bound to its original environment. It is not transferred to 0.33.2.0. No native run has yet been made on 0.33.2.0.
+
+## 2026-11-15: reviewed loader profiles
+
+The sections above stay as written. The loader identities they record are now also kept as reviewed profiles in
+`planning/UMM-LOADER-PROFILES.json`, each with its provenance: 0.28.2 and 0.33.2 from the records above, and 0.33.0,
+hashed on 2026-11-15 from the loader installed on the development machine (UnityModManager, Version=0.33.0.0, MVID
+54059519-2754-445a-b5ee-fdb9326336e2, 204800 bytes, SHA256
+63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691).
+
+`scripts/Test-AssemblyContracts.ps1` no longer pins one loader in line. It checks the installed loader's identity
+against one selected profile and its API against the binary itself, and reports the two separately
+(`scripts/UmmLoaderContracts.ps1`). The native loader reader and the runner's dependency pin described above are
+unchanged and still name 0.33.2.0. No native run has been made on 0.33.0.0 by this work.
