@@ -3,12 +3,13 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-15, Sprint 1 (T01–T03), branch `codex/kmc-known-issues-sprint1`, draft PR #45.
-- **Sprint 1 record:** [KNOWN-ISSUES-SPRINT1-HANDOFF.md](KNOWN-ISSUES-SPRINT1-HANDOFF.md).
-- **Reconciled so far:** only T01–T06. Every row of Sprints 2–8 is a *carried-forward planning finding*: it is
-  copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since. A sprint
+- **Last updated:** 2026-11-15, Sprint 2 (S01, S02), branch `codex/kmc-known-issues-sprint2`, draft PR #46,
+  stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
+- **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
+- **Reconciled so far:** T01–T08, S01 and S02. Every row of Sprints 3–8 is a *carried-forward planning finding*:
+  it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since. A sprint
   reconciles its own rows when it starts.
-- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprint 1.
+- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprint 1 or Sprint 2.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Dispositions
@@ -39,7 +40,8 @@ or feedback work is actually done.
 
 T04–T06 are not among the epic's 25 work packages. They were found while running Sprint 1's own checks and
 are recorded here so they are not lost. No other script was audited: the offline scripts outside the Fast tier
-were not surveyed, and more of them may be stale.
+were not surveyed, and more of them may be stale. Sprint 2 found two more of the same kind (T07, T08) and left
+T04–T06 as they were: none of them blocks an S01 or S02 check.
 
 ### T01 — what the probe now establishes
 
@@ -125,14 +127,85 @@ were not surveyed, and more of them may be stale.
 - The checks after that line did not run. They include two source pins on the repeated-world producer; the lines
   they pin were left intact by T02.
 
-## Sprints 2–8 — carried forward, pending reconciliation
+## Sprint 2 — saving report and post-load dismount (reconciled 2026-11-15)
+
+Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
+
+| ID | Symptom | Classification | Status | Source | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|---|
+| S01 | Saving reported broken after the Ratnook door. | Reported defect. One occurrence explained and already superseded; the other has no established cause. | **Investigation complete, issue unresolved** | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md); epic S01 | Diagnostics only (see "S01" below). No save decision, guard, latch or retry changed. Persistence contracts 223 pass (214 before). | **Not run.** No log exists from a build with the save diagnostics. |
+| S02 | After an area arrival the view check finds inactive views and the pair dismounts. | Established occurrence (one, a world-map arrival) | **Implemented and verified offline** | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (arrival view check); epic S02 | A pair whose exact views are not active is not attached at arrival and restores through the retained-intent retry. 14 component tests (11 fail with the prior decision behaviour); contract script 20 pass on this build and 11 pass, 9 fail on the base build; one independent review, corrected. | **Not run.** Not native-verified. |
+| T07 | `scripts/chunk7/Test-Chunk7AreaRestorePreflightAdapter.ps1` does not compile its source list. | Stale test harness | **Open correction** | Found as an S02 neighbour on 2026-11-15 | See "T07 and T08" below. Fails identically on the Sprint 2 base `b62c59a8`. | Not applicable |
+| T08 | `scripts/chunk7/Test-Chunk7SixPairArchiveAdapter.ps1` does not compile. | Stale test harness | **Open correction** | Found as an S02 neighbour on 2026-11-15 | See "T07 and T08" below. Fails identically on the Sprint 2 base `b62c59a8`. | Not applicable |
+
+### S01 — what is established, and what is not
+
+- **0.2.3 occurrence: explained, and superseded by an identified fix.** In the owner's 0.2.3 log the Ratnook door
+  set the area-restore failure latch ("Native area placement did not complete before the mounted restore
+  boundary"). That latch makes the mod's term of the native save gate refuse, so `IsSaveAllowed` was false until a
+  load. 0.2.4 (the Ratnook door repair) stopped this door from setting the latch. The latch itself
+  is protective and unchanged.
+- **0.2.4 report: cause not established.** That session's log holds no save line of any kind. Its last lines are
+  four refused *loads* around the native save/load window opening, which is the load defect 0.2.5 repaired.
+  - Earliest failure boundary consistent with the log: the action never reached `Game.SaveGame`. A refusal at
+    admission cannot be told apart from it, because 0.2.4 logged neither.
+  - Ruled out: a save that waited for effects, reached the native header or was reported failed; a stranded save
+    scope or fence; the 0.2.3 latch; a refused load leaving native save state behind.
+  - Not excluded: a save queued behind another loading process, or one stuck in the native wait before the
+    header. Both were silent at that version.
+- **The missing observation:** whether a save was attempted in that session, by which action (Esc-menu Save,
+  quicksave or an expected autosave), and the state of the native gate and of the one-save setting at that moment.
+- **For the owner:** the Last Azlanti preserver mod is active in both sessions. If the campaign runs in the native
+  one-save mode, native refuses every manual and quick save with or without this mod. Whether it does is not
+  known; no save or settings file was opened.
+- **Diagnostics added, observation only:** a line when this mod's restoration state starts and stops refusing
+  saving; the native outcome of each request (including the silent one-save refusals and the disabled-autosave
+  skip) and what a queued save waits behind; a line when a save operation begins. They are not a fix.
+- **To close:** the owner's answer on the save action and the one-save mode, or a log of a recurrence on a build
+  with these lines.
+
+### S02 — what changed and what it rests on
+
+- **Order established:** the arrival restoration runs inside the native load; a party arriving from the world
+  map still has inactive views there, because world-map mode puts every unit to sleep and no game mode ticks during
+  a load; the first invariant check after the loader goes idle found them inactive. The native side is read from
+  the installed assembly's IL.
+- **Inference, not observation:** that sleeping was the reason in the recorded session. The correction acts on
+  view activity itself and does not depend on it.
+- **Correction:** restoration reads the exact current views before attaching, and attaches if and only if the
+  mounted invariant would keep the pair. A pair whose views are not active waits, unattached, in the existing
+  retained-intent custody and attaches once after ordinary play has settled. The mounted invariant is unchanged;
+  no allowance exists for a mounted pair.
+- **Bounded:** the existing ten seconds of settled play, then the pair is released with a message and stays
+  dismounted. Nothing is latched and nothing is owned while waiting.
+- **Also changed:** an explicit player dismount now releases that pair's retained intent at once.
+- **Persistence effect:** the after-entry autosave of a world-map arrival records the pair as retained intent
+  rather than as mounted; loading it restores the pair in ordinary play. No format change.
+- **Limits:**
+  - A fight that starts before the remount cancels it (existing rule for world-map custody); the pair fights
+    dismounted.
+  - A deferred pair keeps the arrival formation's spacing only while neither unit has moved, and not after loading
+    the after-entry autosave; otherwise the retry's 6 m rule applies.
+  - The integration sequence is checked from IL, not executed. Nothing ran in the game.
+
+### T07 and T08 — two more harnesses that do not compile
+
+- `Test-Chunk7AreaRestorePreflightAdapter.ps1` compiles the real area persistence partial against a facade. It
+  fails with `CS0103` (`MountedAreaControlRule` is not in its source list) and with facade members the transfer
+  no longer matches (`Lifecycle`, `WorldMap`).
+- `Test-Chunk7SixPairArchiveAdapter.ps1` fails with `CS0234` (`Domain.MountedControlSlotPolicy`, as T05) and a
+  stale `Report` call.
+- Both were failing before Sprint 2 and were not needed for an S01 or S02 check, so they were left as found.
+  Which commits broke them was not traced.
+- Not a harness defect, for the record: `Test-Chunk7CapitalArrivalEvidence.ps1` reports 162 pass, 3 fail; the
+  three require native evidence for batches 196–198 that is not on this machine.
+
+## Sprints 3–8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 2 | S01 | Saving reported broken after the Ratnook door. The failing stage and any KMC cause are not established; 0.2.5 added diagnostics only. | Reported defect, cause unknown | Open investigation | Repair if a cause is established, else investigation complete, issue unresolved | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md) |
-| 2 | S02 | After arrival restoration the view check finds inactive views and the pair dismounts. | Established occurrence | Open correction | Implemented and verified offline | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (arrival view check) |
 | 3 | M01 | Entrance and exit orders do not receive the native acceleration offer. | Source-established omission | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |
 | 3 | M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |
 | 3 | M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |

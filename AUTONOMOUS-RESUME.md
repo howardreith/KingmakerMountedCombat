@@ -1,3 +1,38 @@
+# Known issues remediation, Sprint 2 — review checkpoint (2026-11-15)
+
+Branch `codex/kmc-known-issues-sprint2` (draft PR #46); base `b62c59a8`, the reviewed head of
+`codex/kmc-known-issues-sprint1` (draft PR #45), which the PR targets. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** S02 implemented and verified offline. S01 investigation complete, issue unresolved; diagnostics only.
+  Fast PASS 6/0. One independent review, corrected. Native NOT RUN.
+- **Seams:**
+  - `KingmakerMountedPairRuntime.RestoreViewReadinessRefusal` is the only place restoration reads view activity.
+    `RestoreAreaPair` and `RestoreRetainedIntentCore` call it before their decision and before any attachment;
+    `scripts/Test-PostLoadViewReadinessContracts.ps1` holds them to that from the compiled IL. A new restoration
+    path that attaches a pair must do the same.
+  - `MountedRestoreViewReadinessPolicy.Refusal` is what `MountedViewActivityPolicy.IsAdmissible` accepts in
+    `Default`, party-selector overlay included. The mounted invariant itself has no readiness allowance.
+  - A pair deferred at arrival carries its arrival placement (`AreaPair.ArrivalDeferred`, transient). While neither
+    unit has moved it is exempt from the retry's separation rule (`ArrivalPlacementHeld`).
+  - `MountedPersistenceService` subscribes `MountedWorldService.PairDismounting`; only `CleanupTrigger.Manual`
+    releases a retained row.
+  - `NativeSaveRequestPolicy` mirrors the order of the installed `Game.SaveGame` (06000CE4);
+    `Test-PersistenceContracts.ps1` checks that order from IL.
+- **Facts for a successor:**
+  - World-map, kingdom and settlement modes set `IsSleeping` on every unit; a sleeping unit's view is inactive;
+    `Game.Tick` ticks no mode while a loading process is active.
+  - `OnlyOneSave` and `AutosaveEnabled` are fields of the native settings root, not properties: an IL order check
+    must read field operands, not only calls.
+  - `LoadingProcess.StartLoadingProcess` only stores an operation; its first step runs from the loader's update.
+  - Mounting is admitted in `Default` only (`MountedGameModePolicy.CanAdmitMountedAction`), not under a pause.
+  - The native party selector (`GroupManager`) is a field of the UI canvas, not a property.
+  - In PowerShell, `[IO.File]` resolves a relative path against the process directory, not the shell location.
+    Use absolute paths in a worktree.
+- **Open from this sprint:** S01 (needs the owner's answer or a log from this build or later); native acceptance
+  of S02 on a world-map arrival; T07, T08.
+- **Next:** owner review of the draft PR. Sprint 3 (M01–M04) is not started.
+
 # Known issues remediation, Sprint 1 — review checkpoint (2026-11-15)
 
 Branch `codex/kmc-known-issues-sprint1` (draft PR #45); base main `7a5cd2c3` (0.2.11). Read CURRENT.md,

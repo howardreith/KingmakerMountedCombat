@@ -1,3 +1,44 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 2 — POST-LOAD DISMOUNT REPAIRED OFFLINE; SAVING REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-15)
+
+Branch `codex/kmc-known-issues-sprint2` (draft PR #46), created from the reviewed Sprint 1 head `b62c59a8` and
+targeting `codex/kmc-known-issues-sprint1` (draft PR #45, still open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md) and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Scope:** S01 and S02 of the owner's Known Issues Remediation Epic. Gameplay code changed for S02 (area arrival
+  restoration); S01 adds log lines only. A build of this branch is a new binary. No save format changed.
+- **S02, premature dismount after a load: implemented and verified offline.**
+  - Recorded once, on a world-map arrival: the pair was attached inside the native load while its views were
+    still inactive, and the first invariant check after the loader went idle dismounted it.
+  - World-map mode puts every unit to sleep, a sleeping unit's view is inactive, and no game mode ticks during a
+    load (read from the installed assembly's IL). That sleeping was the reason in the recorded session is an
+    inference.
+  - Now restoration reads the exact current views first and attaches only if the mounted invariant would keep the
+    pair. Otherwise the pair waits in the existing retained-intent custody and attaches once after ordinary play
+    has settled, bounded by the existing ten-second patience.
+  - A fight that starts before that remount cancels it (existing world-map rule); the pair fights dismounted.
+  - The mounted invariant is unchanged. Inactive views in settled play still dismount a mounted pair.
+  - An explicit player dismount now ends that pair's retained intent at once.
+- **S01, saving report: investigation complete, issue unresolved.**
+  - 0.2.3 session: saving was refused by the area-restore failure latch the door set. 0.2.4 already stopped that
+    door from setting it.
+  - 0.2.4 session: the log records no save attempt at all, only refused loads. No cause is established.
+  - Needed from the owner: which save action was used, and whether the campaign runs in the native one-save mode
+    (the Last Azlanti preserver mod is active in both sessions; native refuses manual and quick saves in that
+    mode).
+  - Added, observation only: a line when the mod's restoration state starts or stops refusing saving, the native
+    outcome of each save request, and a line when a save operation begins. Not a fix.
+- **Checks:** Fast PASS 6/0 (components 1250/0, Validate-Source 151/0, persistence contracts 223, world boundary 8,
+  post-load view readiness 20). With the prior decision behaviour 11 of the 14 new S02 tests fail; the base build
+  fails 9 of the 20 contract checks.
+- **Review:** one independent read. No crash or latch defect; six points corrected with a check each (the handoff
+  lists them), among them the retry's separation rule now reaching every world-map arrival.
+- **Persistence effect:** the after-entry autosave of a world-map arrival now records the pair as retained intent,
+  and loading it restores the pair in ordinary play.
+- **New open items:** T07 and T08, two more chunk7 harnesses that do not compile (failing before this sprint).
+  T04–T06 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. S02 is not native-verified.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 3.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 1 — VALIDATION TOOLS REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-15)
 
 Branch `codex/kmc-known-issues-sprint1` (draft PR #45) from main `7a5cd2c3` (0.2.11). Read the
