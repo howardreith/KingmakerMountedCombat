@@ -144,6 +144,8 @@
     <Compile Include="PostLoadViewReadinessTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldBoundaryAdmissionPolicy.cs"><Link>Shared\Domain\MountedWorldBoundaryAdmissionPolicy.cs</Link></Compile>
     <Compile Include="SaveLoadEntranceRepairTests.cs" />
+    <Compile Include="SaveRequestObservationTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeSaveRequestPolicy.cs"><Link>Shared\Domain\NativeSaveRequestPolicy.cs</Link></Compile>
     <Compile Include="MountedDoorApproachPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
     <Compile Include="NativeShellBindingPolicyTests.cs" />

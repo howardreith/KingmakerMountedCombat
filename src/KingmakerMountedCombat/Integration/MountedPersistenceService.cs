@@ -155,6 +155,7 @@ namespace KingmakerMountedCombat.Integration
                 scope.PreviousExisted = !string.IsNullOrEmpty(scope.RequestedPath) &&
                     System.IO.File.Exists(scope.RequestedPath);
                 activeSave = scope;
+                ReportBegunSave(scope);
             }, () =>
             {
                 scope.EnumerationRetired = true;
@@ -461,6 +462,25 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal int CompletedSaveReportFailureCount { get; private set; }
+
+        // Known issues S01 diagnostic: the first native step of one save operation, after this scope owns the save.
+        // A request line with no begin line is an operation the native queue never started (or one this mod's deferral
+        // is still holding, which reports itself); a begin line with no serialization or completion line is an
+        // operation that started and did not reach the native header. Isolated like the completion report: a logger
+        // that throws changes nothing about the operation.
+        private void ReportBegunSave(SaveScope scope)
+        {
+            BegunSaveCount++;
+            try
+            {
+                logger.Info("Mounted save began: count=" + BegunSaveCount + "; requested=" + (scope.Requested?.Name ?? "none") +
+                    "; type=" + (scope.Requested?.Type.ToString() ?? "none") + "; slotExisted=" + scope.PreviousExisted + ".");
+            }
+            catch (Exception) { BegunSaveReportFailureCount++; }
+        }
+
+        internal int BegunSaveCount { get; private set; }
+        internal int BegunSaveReportFailureCount { get; private set; }
 
         private void ReleaseSaveScope(SaveScope scope)
         {
