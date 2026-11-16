@@ -48,6 +48,28 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        // UnitMoveContiniously.OnEnded (0x060026F2):
+        //     if (base.Executor?.View?.AgentOverride != null) base.Executor.View.AgentOverride = null;
+        // The method's one AgentOverride write is made through the guard, which also receives the ending command.
+        // Everything else in the method, base.OnEnded and its end event included, is native and always runs.
+        internal static IEnumerable<CodeInstruction> EndedCommandOverrideClear(IEnumerable<CodeInstruction> source, MethodInfo guardedClear)
+        {
+            var code = source.ToList();
+            var sites = Enumerable.Range(0, code.Count).Where(i => IsAgentOverrideWrite(code[i])).ToArray();
+            Require(sites.Length == 1 && sites[0] > 0 && code[sites[0] - 1].opcode == OpCodes.Ldnull && code[sites[0]].labels.Count == 0,
+                "native removal of the ended command's override (one UnitEntityView.AgentOverride = null)");
+            code[sites[0]].opcode = OpCodes.Call;
+            code[sites[0]].operand = guardedClear;
+            code.Insert(sites[0], new CodeInstruction(OpCodes.Ldarg_0));
+            return code;
+        }
+
+        private static bool IsAgentOverrideWrite(CodeInstruction instruction)
+        {
+            var method = instruction.operand as MethodInfo;
+            return method != null && method.Name == "set_AgentOverride" && method.DeclaringType == typeof(UnitEntityView);
+        }
+
         private static bool IsDrivenUnitField(object operand)
         {
             var field = operand as FieldInfo;

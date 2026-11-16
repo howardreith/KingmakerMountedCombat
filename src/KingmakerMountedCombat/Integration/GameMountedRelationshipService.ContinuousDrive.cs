@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
@@ -21,6 +22,10 @@ namespace KingmakerMountedCombat.Integration
         internal long ContinuousDriveRetiredCount => continuousDrive.RetiredCount;
 
         internal long ContinuousDriveOrphanCount => continuousDrive.OrphanCount;
+
+        internal int ContinuousDriveResidueCount => continuousDrive.ResidueCount;
+
+        internal string LastContinuousDriveRetirementFailure => continuousDrive.LastRetirementFailure;
 
         internal string LastContinuousDriveSettlement => continuousDrive.LastSettlement;
 
@@ -49,13 +54,34 @@ namespace KingmakerMountedCombat.Integration
             runtime.Rider?.Commands?.InterruptMove();
         }
 
+        // The commands a pair bound, each with the owner that bound it, until that owner established the command's
+        // retirement. The guard inside native OnEnded finds a command's owner here even after its pair was dismounted.
+        private static readonly ConditionalWeakTable<UnitCommand, MountedContinuousDriveOwner> continuousDriveCommands =
+            new ConditionalWeakTable<UnitCommand, MountedContinuousDriveOwner>();
+
         // After native UnitMoveContiniously.Init.
-        internal void BindContinuousDrive(UnitMoveContiniously command) => continuousDrive.Bind(command);
+        internal void BindContinuousDrive(UnitMoveContiniously command)
+        {
+            continuousDrive.Bind(command);
+            MountedContinuousDriveOwner known;
+            if (command != null && ReferenceEquals(continuousDrive.Command, command) && !continuousDriveCommands.TryGetValue(command, out known))
+                continuousDriveCommands.Add(command, continuousDrive);
+        }
+
+        // Inside native UnitMoveContiniously.OnEnded, which is about to clear the override of the executor's current
+        // view: a pair-bound command may clear only the agent it was bound with, on the view it was bound on.
+        internal static bool ContinuousDriveEndMayClearOverride(UnitMoveContiniously command, UnitEntityView view)
+        {
+            MountedContinuousDriveOwner drive;
+            if (command == null || ReferenceEquals(view, null) || !continuousDriveCommands.TryGetValue(command, out drive)) return true;
+            return drive.NativeEndMayClearOverride(command, view, view.AgentOverride);
+        }
 
         // After native UnitCommands.Run was called with a continuous command, on whichever container.
         internal void ObserveContinuousDriveRun(UnitCommand command) => continuousDrive.ObserveRun(command);
 
-        // After native UnitCommands.Run was called with any other command on one of this pair's containers.
+        // After the native Run that admits commands (the internal overload both the public Run and queue promotion
+        // reach) ran with any other command on one of this pair's containers.
         internal void ObserveOrderDuringContinuousDrive(UnitCommands container, UnitCommand command)
         {
             if (!continuousDrive.IsBound || container == null || command == null) return;
@@ -86,7 +112,7 @@ namespace KingmakerMountedCombat.Integration
 
             public object Mount => owner.runtime.Mount;
 
-            public object MountView => owner.runtime.Mount?.View;
+            public object ViewOf(object unit) => (unit as UnitEntityData)?.View;
 
             public object ExecutorOf(object command) => (command as UnitCommand)?.Executor;
 
@@ -96,6 +122,14 @@ namespace KingmakerMountedCombat.Integration
             {
                 var commands = owner.runtime.Mount?.Commands;
                 return command != null && commands != null && ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), command);
+            }
+
+            public bool IsHeld(object command)
+            {
+                var unitCommand = command as UnitCommand;
+                var commands = unitCommand?.Executor?.Commands;
+                return commands != null && (commands.Contains(unitCommand) || commands.Queue.Contains(unitCommand) ||
+                    ReferenceEquals(commands.PreviousCommand, unitCommand));
             }
 
             public object OverrideOf(object view)
@@ -114,6 +148,12 @@ namespace KingmakerMountedCombat.Integration
                 if (!ReferenceEquals(unitView, null)) unitView.AgentOverride = null;
             }
 
+            public void Forget(object command)
+            {
+                var unitCommand = command as UnitCommand;
+                if (unitCommand != null) continuousDriveCommands.Remove(unitCommand);
+            }
+
             public void ReleaseRiderHold()
             {
                 var rider = owner.runtime.Rider;
@@ -124,7 +164,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var text = "Mounted stick movement was retired: settlement=" + settlement + "; reason=" + (reason ?? "<observed>") +
                     "; mountId=" + owner.runtime.Mount?.UniqueId + ".";
-                if (warning) owner.logger.Warning(text + " Its command was not in the mount's Move slot; further such retirements are counted, not logged.");
+                if (warning) owner.logger.Warning(text + " Further retirements of this kind are counted, not logged.");
                 else owner.logger.Info(text);
             }
         }

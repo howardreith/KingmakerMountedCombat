@@ -8,7 +8,9 @@ namespace KingmakerMountedCombat.Domain
     //     before reading the unit while the party is in combat.
     //   - UnitMoveContiniously.Init (060026F0) installs a UnitMovementAgentContinious as its executor's
     //     UnitEntityView.AgentOverride; OnTick ends the command when the stick direction is zero; OnEnded (060026F2)
-    //     removes whatever override that executor's view holds.
+    //     removes whatever override that executor's CURRENT view holds, not the one Init installed.
+    //   - UnitCommand.Interrupt (060027AC) stamps the command's result before it calls OnEnded and does nothing on a
+    //     command already stamped, so a failed OnEnded is never repeated.
     //   - UnitCommands.Run (060026B3) refuses a command whose executor is not the container's owner.
     //   - UnitMoveController.Tick moves a unit through UnitEntityView.MovementAgent: the override when one is installed.
     //   - In turn-based combat a command is ticked only for the unit whose turn it is, so a continuous command the
@@ -38,33 +40,44 @@ namespace KingmakerMountedCombat.Domain
         public static bool RiderOrderReplacesDrive(bool driveBound, bool admittedOnRiderContainer, bool moveOrStandardOrder) =>
             driveBound && admittedOnRiderContainer && moveOrStandardOrder;
 
-        // What may be retired when a bound drive is settled. Nothing is touched unless the exact bound agent is still
-        // the override of the exact bound view. A command that is still unfinished is ended natively (its own OnEnded
-        // removes the override); one that never ran, or was displaced from its slot, raises no end event.
+        // The two separate parts of retiring a bound drive. The command: an unfinished one is ended natively whether
+        // or not its agent is still installed; one that never ran, or was displaced from its slot, raises no end
+        // event. The captured agent: cleared only while the exact bound view still holds that exact agent.
         public static MountedContinuousDriveRetirement PlanRetirement(MountedContinuousDriveSettlement settlement,
-            bool boundAgentStillInstalled, bool commandFinished)
+            bool commandFinished, bool capturedAgentInstalledOnCapturedView)
         {
-            var retires = boundAgentStillInstalled && settlement != MountedContinuousDriveSettlement.None &&
-                settlement != MountedContinuousDriveSettlement.Keep;
+            var retires = settlement != MountedContinuousDriveSettlement.None && settlement != MountedContinuousDriveSettlement.Keep;
             var interrupts = retires && !commandFinished && settlement != MountedContinuousDriveSettlement.Ended;
-            return new MountedContinuousDriveRetirement(interrupts, interrupts && settlement != MountedContinuousDriveSettlement.Orphaned, retires);
+            return new MountedContinuousDriveRetirement(interrupts, interrupts && settlement != MountedContinuousDriveSettlement.Orphaned,
+                retires && capturedAgentInstalledOnCapturedView);
         }
+
+        // Native UnitMoveContiniously.OnEnded clears the override of the executor's current view. For a command a pair
+        // bound, that is allowed only when the view is the bound view and its override is the bound agent.
+        public static bool NativeEndMayClearOverride(bool commandBoundByPair, bool viewIsBoundView, bool overrideIsBoundAgent) =>
+            !commandBoundByPair || (viewIsBoundView && overrideIsBoundAgent);
+
+        // When a retirement may be forgotten: the command can no longer be ended natively (it is terminal, or its
+        // executor no longer holds it anywhere), and the captured view no longer holds the captured agent. A terminal
+        // command alone is not enough.
+        public static bool RetirementEstablished(bool commandFinished, bool commandHeldByItsExecutor, bool capturedAgentInstalledOnCapturedView) =>
+            (commandFinished || !commandHeldByItsExecutor) && !capturedAgentInstalledOnCapturedView;
     }
 
     public struct MountedContinuousDriveRetirement
     {
-        public MountedContinuousDriveRetirement(bool interruptCommand, bool raiseEndEvent, bool clearOverride)
+        public MountedContinuousDriveRetirement(bool interruptCommand, bool raiseEndEvent, bool clearCapturedAgent)
         {
             InterruptCommand = interruptCommand;
             RaiseEndEvent = raiseEndEvent;
-            ClearOverride = clearOverride;
+            ClearCapturedAgent = clearCapturedAgent;
         }
 
         public bool InterruptCommand { get; }
 
         public bool RaiseEndEvent { get; }
 
-        public bool ClearOverride { get; }
+        public bool ClearCapturedAgent { get; }
     }
 
     public enum MountedContinuousDriveSettlement
@@ -146,7 +159,8 @@ namespace KingmakerMountedCombat.Domain
     }
 
     // The live facts and the few native effects one pair's stick movement needs. The game adapter answers from the
-    // pair's exact units; the tests answer from a model.
+    // pair's exact units; the tests answer from a model. A unit and its current view are separate identities: a view
+    // captured when a command was bound can be retained after the unit received another view.
     public interface IMountedContinuousDriveHost
     {
         bool PairMounted { get; }
@@ -160,7 +174,8 @@ namespace KingmakerMountedCombat.Domain
 
         object Mount { get; }
 
-        object MountView { get; }
+        // The unit's current view.
+        object ViewOf(object unit);
 
         object ExecutorOf(object command);
 
@@ -168,7 +183,11 @@ namespace KingmakerMountedCombat.Domain
 
         bool InMountMoveSlot(object command);
 
-        // Whatever override the view holds, by reference.
+        // Whether the command's executor still holds it in a slot or in its queue. A command nobody holds is never
+        // ticked or ended by native code again.
+        bool IsHeld(object command);
+
+        // Whatever override that exact view holds, by reference.
         object OverrideOf(object view);
 
         // A live native continuous agent (not another agent type, not a destroyed component).
@@ -177,21 +196,49 @@ namespace KingmakerMountedCombat.Domain
         // Native UnitCommand.Interrupt.
         void Interrupt(object command, bool raiseEndEvent);
 
-        // Native UnitEntityView.AgentOverride = null.
+        // Native UnitEntityView.AgentOverride = null, on that exact view.
         void ClearOverride(object view);
 
         // The native effect of a new order on the unit it was given to, which the rider no longer receives.
         void ReleaseRiderHold();
 
+        // The retirement of this command is established: the owner no longer tracks it.
+        void Forget(object command);
+
         void Report(MountedContinuousDriveSettlement settlement, string reason, bool warning);
     }
 
     // One pair's stick movement: bound after native Init, settled after native Run and before the mounted invariant
-    // is read, released with the pair. It retires only the exact agent its bound command installed.
+    // is read, released with the pair.
+    //
+    // Retirement has two separate parts, and neither is assumed from the other:
+    //   - the command: native Interrupt, at most once per attempt. Native Interrupt stamps the command terminal before
+    //     its OnEnded callback runs and never repeats that callback, so a terminal command proves nothing about its
+    //     override.
+    //   - the captured agent: cleared only on the exact view it was bound on, and only while that view still holds it.
+    // Native UnitMoveContiniously.OnEnded clears the override of the executor's CURRENT view, whatever it is. For a
+    // command of this owner that clearing is allowed only when that view and override are the bound ones
+    // (NativeEndMayClearOverride, asked from inside that native method), so a foreign override on a replaced view, or
+    // one that replaced the bound agent, is never cleared by retiring or ending the owned command.
+    // A retirement that is not established stays as residue, with its exact command, view and agent, and is retried.
     public sealed class MountedContinuousDriveOwner
     {
+        // Automatic retries (each settlement) of one failing retirement; explicit recovery (release, a new binding)
+        // always retries.
+        public const int AutomaticRetryLimit = 3;
+
+        private sealed class Residue
+        {
+            public object Command, Agent, View;
+            public MountedContinuousDriveSettlement Settlement;
+            public string Reason;
+            public bool EffectApplied, FailureReported, InProgress;
+            public int Failures;
+        }
+
         private readonly IMountedContinuousDriveHost host;
         private readonly MountedContinuousDriveWatch watch = new MountedContinuousDriveWatch();
+        private readonly System.Collections.Generic.List<Residue> residues = new System.Collections.Generic.List<Residue>();
         private bool orphanReported;
 
         public MountedContinuousDriveOwner(IMountedContinuousDriveHost host)
@@ -205,24 +252,45 @@ namespace KingmakerMountedCombat.Domain
 
         public object Agent => watch.Agent;
 
+        public object View => watch.View;
+
         public long BindCount { get; private set; }
 
+        // Retirements in which a native effect was applied (a command interrupted, a captured agent cleared).
         public long RetiredCount { get; private set; }
 
         public long OrphanCount { get; private set; }
 
+        // Retirements not yet established: retained, never discarded.
+        public int ResidueCount => residues.Count;
+
+        public long RetirementFailureCount { get; private set; }
+
+        public string LastRetirementFailure { get; private set; }
+
         public string LastSettlement { get; private set; } = "not-observed";
 
+        public long ReportFailureCount { get; private set; }
+
         // After native Init: a command whose executor is this pair's mount, with the continuous agent Init installed
-        // on the mount's view. A new command adopts the component an earlier one left; that record is replaced.
+        // on the mount's current view.
         public void Bind(object command)
         {
             if (command == null || !host.PairMounted) return;
             var mount = host.Mount;
             if (mount == null || !ReferenceEquals(host.ExecutorOf(command), mount) || ReferenceEquals(watch.Command, command)) return;
-            var view = host.MountView;
+            var view = host.ViewOf(mount);
             var agent = view == null ? null : host.OverrideOf(view);
             if (agent == null || !host.IsContinuousAgent(agent)) return;
+            // Native Init adopts the component an earlier command left on this view. That agent is this command's now:
+            // an earlier record no longer clears it, and an earlier command's native end may no longer clear it.
+            foreach (var residue in residues)
+                if (ReferenceEquals(residue.View, view) && ReferenceEquals(residue.Agent, agent)) residue.Agent = null;
+            RecoverResidue(explicitRecovery: false);
+            // A record that is still bound to an earlier command is retired, never overwritten.
+            if (watch.IsBound)
+                Retire(host.IsFinished(watch.Command) ? MountedContinuousDriveSettlement.Ended : MountedContinuousDriveSettlement.Replaced,
+                    "superseded by a new command", ReferenceEquals(watch.View, view) && ReferenceEquals(watch.Agent, agent));
             watch.Bind(command, agent, view, host.PairGeneration, host.Frame);
             BindCount++;
         }
@@ -236,7 +304,7 @@ namespace KingmakerMountedCombat.Domain
             host.ReleaseRiderHold();
         }
 
-        // After native Run was called with any other command.
+        // After native Run admitted (or did not admit) any other command.
         public void ObserveRiderOrder(bool admittedOnRiderContainer, bool moveOrStandardOrder)
         {
             if (MountedContinuousDrivePolicy.RiderOrderReplacesDrive(watch.IsBound, admittedOnRiderContainer, moveOrStandardOrder))
@@ -245,6 +313,7 @@ namespace KingmakerMountedCombat.Domain
 
         public MountedContinuousDriveSettlement Settle(bool admissionAttempted)
         {
+            RecoverResidue(false);
             var command = watch.Command;
             if (command == null) return MountedContinuousDriveSettlement.None;
             var settlement = watch.Settle(host.PairGeneration, host.PairMounted, host.IsFinished(command),
@@ -253,13 +322,16 @@ namespace KingmakerMountedCombat.Domain
             return settlement;
         }
 
-        // Dismount and disposal: the pair stops owning its stick movement before it stops being a pair.
+        // Dismount and disposal: explicit recovery of anything an earlier retirement left, then the pair stops owning
+        // its stick movement before it stops being a pair.
         public void Release(string reason)
         {
+            RecoverResidue(true);
             if (watch.IsBound) Retire(MountedContinuousDriveSettlement.Unowned, reason);
         }
 
-        // The mounted invariant's question: is this override of the mount the bound live drive of this pair?
+        // The mounted invariant's question: is this override of the mount the bound live drive of this pair? Residue
+        // is never owned.
         public bool OwnsMountOverride(object agent)
         {
             var command = watch.Command;
@@ -267,29 +339,132 @@ namespace KingmakerMountedCombat.Domain
                 watch.Owns(agent, host.PairGeneration, host.PairMounted, host.IsFinished(command), host.InMountMoveSlot(command), host.Frame);
         }
 
-        private void Retire(MountedContinuousDriveSettlement settlement, string reason)
+        // Asked from inside native UnitMoveContiniously.OnEnded, which is about to clear the override of the
+        // executor's current view. A command this owner never bound, or whose retirement is established, keeps the
+        // native rule.
+        public bool NativeEndMayClearOverride(object command, object view, object currentOverride)
         {
-            var command = watch.Command;
-            var agent = watch.Agent;
-            var view = watch.View;
+            if (command == null) return true;
+            if (ReferenceEquals(watch.Command, command))
+                return MountedContinuousDrivePolicy.NativeEndMayClearOverride(true, ReferenceEquals(view, watch.View), ReferenceEquals(currentOverride, watch.Agent));
+            foreach (var residue in residues)
+                if (ReferenceEquals(residue.Command, command))
+                    return MountedContinuousDrivePolicy.NativeEndMayClearOverride(true, ReferenceEquals(view, residue.View),
+                        residue.Agent != null && ReferenceEquals(currentOverride, residue.Agent));
+            return true;
+        }
+
+        // The record is transferred, never dropped: it becomes residue and stays until its retirement is established.
+        // An agent a new command has adopted is no longer this record's to clear.
+        private void Retire(MountedContinuousDriveSettlement settlement, string reason, bool agentAdoptedByNewCommand = false)
+        {
+            var residue = new Residue { Command = watch.Command, Agent = agentAdoptedByNewCommand ? null : watch.Agent, View = watch.View, Settlement = settlement, Reason = reason };
             watch.Clear();
-            var installed = view != null && agent != null && ReferenceEquals(host.OverrideOf(view), agent);
-            var plan = MountedContinuousDrivePolicy.PlanRetirement(settlement, installed, command == null || host.IsFinished(command));
-            LastSettlement = settlement + ";overrideInstalled=" + installed + (reason == null ? string.Empty : ";reason=" + reason);
-            if (!plan.ClearOverride) return;
-            if (plan.InterruptCommand) host.Interrupt(command, plan.RaiseEndEvent);
-            if (ReferenceEquals(host.OverrideOf(view), agent)) host.ClearOverride(view);
-            RetiredCount++;
+            residues.Add(residue);
+            var established = Complete(residue);
+            if (established) Drop(residue);
+            LastSettlement = settlement + ";established=" + established + ";effect=" + residue.EffectApplied +
+                (reason == null ? string.Empty : ";reason=" + reason);
+            if (settlement == MountedContinuousDriveSettlement.Orphaned && residue.EffectApplied) OrphanCount++;
+            // An attempt in which a step failed was reported by that attempt.
+            if (!residue.EffectApplied || !established) return;
             if (settlement != MountedContinuousDriveSettlement.Orphaned)
             {
-                host.Report(settlement, reason, false);
+                Report(settlement, reason, false);
                 return;
             }
             // A held stick whose command is refused every frame is reported once, not every frame.
-            OrphanCount++;
             if (orphanReported) return;
             orphanReported = true;
-            host.Report(settlement, reason, true);
+            Report(settlement, reason, true);
+        }
+
+        // A native end raises its end event inside the attempt; a handler of that event may come back here. A record
+        // whose attempt is running is left to that attempt.
+        private void RecoverResidue(bool explicitRecovery)
+        {
+            if (residues.Count == 0) return;
+            foreach (var residue in residues.ToArray())
+            {
+                if (residue.InProgress) continue;
+                if (!explicitRecovery && residue.Failures >= AutomaticRetryLimit) continue;
+                if (Complete(residue)) Drop(residue);
+            }
+        }
+
+        private void Drop(Residue residue)
+        {
+            residues.Remove(residue);
+            try { host.Forget(residue.Command); }
+            catch (System.Exception) { ReportFailureCount++; }
+        }
+
+        private bool CapturedAgentInstalled(Residue residue) =>
+            residue.View != null && residue.Agent != null && ReferenceEquals(host.OverrideOf(residue.View), residue.Agent);
+
+        // One attempt. The two native effects are attempted independently, each failure is contained, and whether the
+        // retirement is established is then read from the facts, never assumed from either effect having been called.
+        private bool Complete(Residue residue)
+        {
+            residue.InProgress = true;
+            try { return Attempt(residue); }
+            finally { residue.InProgress = false; }
+        }
+
+        private bool Attempt(Residue residue)
+        {
+            System.Exception failure = null;
+            try
+            {
+                var plan = MountedContinuousDrivePolicy.PlanRetirement(residue.Settlement, host.IsFinished(residue.Command), CapturedAgentInstalled(residue));
+                if (plan.InterruptCommand)
+                {
+                    MarkEffect(residue);
+                    host.Interrupt(residue.Command, plan.RaiseEndEvent);
+                }
+            }
+            catch (System.Exception error) { failure = error; }
+            try
+            {
+                // The command's native end may have removed the agent, or not (a replaced view, a failed callback, a
+                // command that was already terminal): the captured view is read again and cleaned on its own.
+                if (MountedContinuousDrivePolicy.PlanRetirement(residue.Settlement, host.IsFinished(residue.Command), CapturedAgentInstalled(residue)).ClearCapturedAgent)
+                {
+                    MarkEffect(residue);
+                    host.ClearOverride(residue.View);
+                }
+            }
+            catch (System.Exception error) { failure = failure ?? error; }
+            var established = false;
+            try
+            {
+                established = MountedContinuousDrivePolicy.RetirementEstablished(host.IsFinished(residue.Command), host.IsHeld(residue.Command), CapturedAgentInstalled(residue));
+            }
+            catch (System.Exception error) { failure = failure ?? error; }
+            if (failure == null) return established;
+            residue.Failures++;
+            RetirementFailureCount++;
+            LastRetirementFailure = failure.GetType().Name + ": " + failure.Message;
+            if (!residue.FailureReported)
+            {
+                residue.FailureReported = true;
+                Report(residue.Settlement, "a retirement step failed: " + LastRetirementFailure, true);
+            }
+            return established;
+        }
+
+        private void MarkEffect(Residue residue)
+        {
+            if (residue.EffectApplied) return;
+            residue.EffectApplied = true;
+            RetiredCount++;
+        }
+
+        // A report that fails must not undo a retirement or its retention.
+        private void Report(MountedContinuousDriveSettlement settlement, string reason, bool warning)
+        {
+            try { host.Report(settlement, reason, warning); }
+            catch (System.Exception) { ReportFailureCount++; }
         }
     }
 }

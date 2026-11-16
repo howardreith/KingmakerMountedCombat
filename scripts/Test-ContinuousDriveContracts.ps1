@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$ProductDll)
-# Known issues sprint 3 continuation: M05 (gamepad stick movement of a mounted pair) and the group-pace fault report.
+# Known issues sprint 3 continuation: M05 (gamepad stick movement of a mounted pair) and the group-pace fault report,
+# with the corrections of the review of 5e27c9bd (R1: retiring the owned command without clearing a foreign
+# override; R2: rider-order admission through queue promotion).
 #
 # Four kinds of evidence, none of which launches anything. Each check's label names its kind:
 #   NATIVE-IL         the installed Assembly-CSharp is READ: which method creates the continuous command, which unit it
@@ -47,43 +49,80 @@ public sealed class KmcThrowingLogger : RealProxy
 }
 
 // A scripted stand-in for the game adapter of the product's stick-movement owner: a transparent proxy for the
-// product's own host interface, answering from the fields below and recording the native effects it is asked for.
+// product's own host interface. The mount unit and its current view are separate identities, each view keeps its
+// own override, and Interrupt behaves as the native call does: the command becomes terminal first, and then its
+// end removes the override of the mount's CURRENT view, unless the compiled owner's own guard forbids it (a build
+// without that guard gets the plain native rule). It answers both shapes of the interface (the reviewed head's
+// MountView, and ViewOf/IsHeld).
 public sealed class KmcScriptedDriveHost : RealProxy
 {
-    public bool PairMounted=true, Gated, AgentIsContinuous=true, InterruptRemovesOverride=true;
+    public bool PairMounted=true, Gated, AgentIsContinuous=true, EndCallbackFails;
     public long Generation=1;
-    public int Frame=1;
-    public object Mount=new object(), MountView=new object(), Override, SlotCommand, Executor;
+    public int Frame=1, FailInterrupts, FailClears, Forgotten;
+    public object Mount=new object(), CurrentView=new object(), SlotCommand, Executor, Owner;
+    public readonly Dictionary<object,object> Overrides=new Dictionary<object,object>();
     public readonly List<object> Finished=new List<object>();
     public readonly List<string> Calls=new List<string>();
     public KmcScriptedDriveHost(Type type) : base(type) { Executor=Mount; }
+
+    public object OverrideOn(object view) { object found; return view!=null && Overrides.TryGetValue(view,out found)?found:null; }
+
+    // The native end of a continuous command, as the installed OnEnded with the product's guard inside it.
+    public void NativeEnd(object command)
+    {
+        if(Finished.Contains(command)) return;
+        Finished.Add(command);
+        if(ReferenceEquals(SlotCommand,command)) SlotCommand=null;
+        if(EndCallbackFails){ EndCallbackFails=false; throw new InvalidOperationException("the end callback failed after the command became terminal"); }
+        var current=OverrideOn(CurrentView);
+        if(current==null) return;
+        var guard=Owner==null?null:Owner.GetType().GetMethod("NativeEndMayClearOverride");
+        if(guard==null || (bool)guard.Invoke(Owner,new object[]{command,CurrentView,current})) Overrides[CurrentView]=null;
+    }
+
     public override IMessage Invoke(IMessage message)
     {
         var call=(IMethodCallMessage)message;
         object result=null;
-        switch(call.MethodName)
+        try
         {
-            case "GetType": result=GetProxiedType(); break;
-            case "get_PairMounted": result=PairMounted; break;
-            case "get_PairGeneration": result=Generation; break;
-            case "get_Frame": result=Frame; break;
-            case "get_StickInputGated": result=Gated; break;
-            case "get_Mount": result=Mount; break;
-            case "get_MountView": result=MountView; break;
-            case "ExecutorOf": result=Executor; break;
-            case "IsFinished": result=Finished.Contains(call.GetArg(0)); break;
-            case "InMountMoveSlot": result=SlotCommand!=null && ReferenceEquals(SlotCommand,call.GetArg(0)); break;
-            case "OverrideOf": result=ReferenceEquals(call.GetArg(0),MountView)?Override:null; break;
-            case "IsContinuousAgent": result=AgentIsContinuous && call.GetArg(0)!=null; break;
-            case "Interrupt":
-                Calls.Add("Interrupt("+call.GetArg(1)+")"); Finished.Add(call.GetArg(0));
-                if(ReferenceEquals(SlotCommand,call.GetArg(0))) SlotCommand=null;
-                if(InterruptRemovesOverride) Override=null;
-                break;
-            case "ClearOverride": Calls.Add("ClearOverride"); if(ReferenceEquals(call.GetArg(0),MountView)) Override=null; break;
-            case "ReleaseRiderHold": Calls.Add("ReleaseRiderHold"); break;
-            case "Report": Calls.Add("Report("+call.GetArg(0)+","+call.GetArg(2)+")"); break;
-            default: return new ReturnMessage(new InvalidOperationException("unexpected host call "+call.MethodName),call);
+            switch(call.MethodName)
+            {
+                case "GetType": result=GetProxiedType(); break;
+                case "get_PairMounted": result=PairMounted; break;
+                case "get_PairGeneration": result=Generation; break;
+                case "get_Frame": result=Frame; break;
+                case "get_StickInputGated": result=Gated; break;
+                case "get_Mount": result=Mount; break;
+                case "get_MountView": result=CurrentView; break;
+                case "ViewOf": result=ReferenceEquals(call.GetArg(0),Mount)?CurrentView:null; break;
+                case "ExecutorOf": result=Executor; break;
+                case "IsFinished": result=Finished.Contains(call.GetArg(0)); break;
+                case "InMountMoveSlot": result=SlotCommand!=null && ReferenceEquals(SlotCommand,call.GetArg(0)); break;
+                case "IsHeld": result=SlotCommand!=null && ReferenceEquals(SlotCommand,call.GetArg(0)); break;
+                case "OverrideOf": result=OverrideOn(call.GetArg(0)); break;
+                case "IsContinuousAgent": result=AgentIsContinuous && call.GetArg(0)!=null; break;
+                case "Interrupt":
+                    Calls.Add("Interrupt("+call.GetArg(1)+")");
+                    if(FailInterrupts>0){ FailInterrupts--; throw new InvalidOperationException("the interrupt failed before the native call"); }
+                    NativeEnd(call.GetArg(0));
+                    break;
+                case "ClearOverride":
+                    Calls.Add("ClearOverride");
+                    if(FailClears>0){ FailClears--; throw new InvalidOperationException("the override could not be removed"); }
+                    Overrides[call.GetArg(0)]=null;
+                    break;
+                case "ReleaseRiderHold": Calls.Add("ReleaseRiderHold"); break;
+                case "Forget": Forgotten++; break;
+                case "Report": Calls.Add("Report("+call.GetArg(0)+","+call.GetArg(2)+")"); break;
+                default: throw new InvalidOperationException("unexpected host call "+call.MethodName);
+            }
+        }
+        catch(Exception error)
+        {
+            var inner=error;
+            while(inner is TargetInvocationException && inner.InnerException!=null) inner=inner.InnerException;
+            return new ReturnMessage(inner,call);
         }
         return new ReturnMessage(result,null,0,call.LogicalCallContext,call);
     }
@@ -319,6 +358,19 @@ public static class KmcContinuousDriveProbe
 
     public static float SpeedOne<T>(T unit) { return 4.5f; }
 
+    // The compiled owner on a scripted host; the host can ask that owner's guard, as the native end does.
+    private static KmcScriptedDriveHost NewScriptedHost(Assembly product)
+    {
+        var hostType=product.GetType("KingmakerMountedCombat.Domain.IMountedContinuousDriveHost",true);
+        var ownerType=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true);
+        var scripted=new KmcScriptedDriveHost(hostType);
+        scripted.Owner=ownerType.GetConstructors()[0].Invoke(new object[]{scripted.GetTransparentProxy()});
+        return scripted;
+    }
+
+    // UnitCommand.Init called non-virtually: UnitMoveContiniously.Init itself needs Unity components.
+    private static DynamicMethod baseInitCall;
+
     public static int Run(string managed, string productPath)
     {
         ResolveEventHandler resolver=(sender,args)=>{
@@ -451,6 +503,57 @@ public static class KmcContinuousDriveProbe
                     First(tick,"UnitActionController","TickCommandTurnBased")<First(tick,"UnitCommand","Tick");
             });
 
+        Check("NATIVE-IL UnitCommand.Interrupt (060027AC) stamps the command's result before it calls OnEnded and does nothing on a command already stamped or finished; UnitMoveContiniously keeps no view or agent of its own, so its OnEnded reads the executor's view at that moment",
+            ()=>{
+                var body=Body(Token(command,"Interrupt",0x060027AC));
+                var stamp=-1; var readResult=-1;
+                for(var i=0;i<body.Count;i++)
+                {
+                    var writes=Is(body[i],"UnitCommand","set_Result") || (body[i].Op==OpCodes.Stfld && body[i].Field!=null && body[i].Field.Name.Contains("Result"));
+                    var reads=Is(body[i],"UnitCommand","get_Result") || (body[i].Op==OpCodes.Ldfld && body[i].Field!=null && body[i].Field.Name.Contains("Result"));
+                    if(writes && stamp<0) stamp=i;
+                    if(reads && readResult<0) readResult=i;
+                }
+                var ended=One(body,null,"OnEnded");
+                var endedBody=Body(Token(continuous,"OnEnded",0x060026F2));
+                return readResult>=0 && readResult<stamp && One(body,"UnitCommand","get_IsFinished")<stamp && stamp<ended &&
+                    continuous.GetFields(All).Length==0 && Count(endedBody,"UnitCommand","get_Executor")>=2 && Count(endedBody,"UnitEntityData","get_View")>=2;
+            });
+        Check("NATIVE-IL only the internal Run (060026B3) puts a command into a slot: the public Run (060026B2) calls it, and queue promotion (RemoveFinishedAndUpdateQueue, 060026BD) calls it directly, never the public Run; enqueueing (AddToQueueInternal, 060026B8) calls neither",
+            ()=>{
+                var internalRun=Token(commands,"Run",0x060026B3);
+                var publicRun=Token(commands,"Run",0x060026B2);
+                var callersOfInternal=Callers(native,internalRun);
+                var callersOfPublic=Callers(native,publicRun);
+                Console.WriteLine("INFO callers of the internal Run 060026B3: "+Hex(callersOfInternal));
+                var promote=Body(Token(commands,"RemoveFinishedAndUpdateQueue",0x060026BD));
+                var promoted=0;
+                foreach(var ins in promote) if(Is(ins,"UnitCommands","Run")){ if(ins.Call.MetadataToken!=0x060026B3) throw new InvalidOperationException("queue promotion calls another Run overload"); promoted++; }
+                var enqueue=Body(Token(commands,"AddToQueueInternal",0x060026B8));
+                var slotWrites=0;
+                foreach(var ins in Body(internalRun)) if(ins.Op==OpCodes.Stelem_Ref) slotWrites++;
+                var publicSlotWrites=0;
+                foreach(var ins in Body(publicRun)) if(ins.Op==OpCodes.Stelem_Ref) publicSlotWrites++;
+                // The public Run, the custom-handler path inside the internal Run's own special handling (060026B7), and queue promotion.
+                return promoted==1 && Hex(callersOfInternal)=="060026B2,060026B7,060026BD" && !callersOfPublic.Contains(0x060026BD) &&
+                    Count(enqueue,"UnitCommands","Run")==0 && slotWrites>=2 && publicSlotWrites==0;
+            });
+        Check("NATIVE-IL the native slot rules: InterruptMove (060026C2) ends only commands that have approached (IsMoveUnit, set only by TickApproaching 060027A6); a new Move or Standard order ends the commands of both slots (InterruptAndRemoveCommand 060026BF calls itself for the paired type); with an uninterruptible command present the new order is queued instead",
+            ()=>{
+                var interruptMove=Body(Token(commands,"InterruptMove",0x060026C2));
+                var setters=Callers(native,Required(command,"set_IsMoveUnit",1));
+                var paired=Body(Token(commands,"InterruptAndRemoveCommand",0x060026BF));
+                var recursive=0;
+                foreach(var ins in paired) if(ins.Call!=null && ins.Call.MetadataToken==0x060026BF) recursive++;
+                var queue=Body(Required(commands,"TryAddToQueueInsteadOfRunImmediately",1));
+                var interruptible=Body(Required(command,"get_IsInterruptible",0));
+                Console.WriteLine("INFO setters of IsMoveUnit: "+Hex(setters));
+                return One(interruptMove,"UnitCommand","get_IsMoveUnit")<One(interruptMove,"UnitCommand","Interrupt") && Hex(setters)=="060027A6" &&
+                    recursive==2 && Count(paired,"UnitCommand","Interrupt")==1 &&
+                    One(queue,"UnitCommands","HasUniterrapitble")<First(queue,"UnitCommands","AddToQueueInternal") &&
+                    Count(interruptible,"UnitCommand","get_IsStarted")==1 && Count(interruptible,"UnitCommand","get_IsActed")==1;
+            });
+
         // ---- NATIVE-EXECUTED ----
         object riderUnit=null, mountUnit=null, riderCommands=null, mountCommands=null, stickCommand=null;
         Check("NATIVE-EXECUTED genuine UnitCommands containers and a genuine UnitMoveContiniously are built without the game, and the command's executor is set to the mount by native UnitCommand.Init",
@@ -469,9 +572,9 @@ public static class KmcContinuousDriveProbe
                 stickCommand=Activator.CreateInstance(continuous);
                 // The base method, called non-virtually: UnitMoveContiniously.Init itself needs Unity components.
                 var baseInit=(MethodInfo)Required(command,"Init",1);
-                var call=new DynamicMethod("KmcBaseInit",typeof(void),new[]{command,unit},command,true);
-                var il=call.GetILGenerator(); il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ldarg_1); il.Emit(OpCodes.Call,baseInit); il.Emit(OpCodes.Ret);
-                call.Invoke(null,new object[]{stickCommand,mountUnit});
+                baseInitCall=new DynamicMethod("KmcBaseInit",typeof(void),new[]{command,unit},command,true);
+                var il=baseInitCall.GetILGenerator(); il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ldarg_1); il.Emit(OpCodes.Call,baseInit); il.Emit(OpCodes.Ret);
+                baseInitCall.Invoke(null,new object[]{stickCommand,mountUnit});
                 return ReferenceEquals(command.GetProperty("Executor",Any).GetValue(stickCommand,null),mountUnit) &&
                     command.GetProperty("Type",Any).GetValue(stickCommand,null).ToString()=="Move" &&
                     (bool)commands.GetProperty("Empty").GetValue(riderCommands,null) && (bool)commands.GetProperty("Empty").GetValue(mountCommands,null);
@@ -497,6 +600,29 @@ public static class KmcContinuousDriveProbe
                 var trace=thrown==null?"<returned>":thrown.ToString();
                 Console.WriteLine("INFO mount container: "+(thrown==null?"Run returned":"stopped in "+(thrown is TypeInitializationException?"the type initializer of "+((TypeInitializationException)thrown).TypeName:thrown.GetType().Name)));
                 return thrown==null || (!trace.Contains("UberDebug.LogError") && trace.Contains("UnitCommands.Run"));
+            });
+
+        Check("NATIVE-EXECUTED on a genuine UnitCommands container: enqueueing a command behind an occupied slot admits nothing; when the occupant is finished, native RemoveFinishedAndUpdateQueue takes the queued command and enters the internal Run directly (no public Run frame), where execution stops for lack of the running game",
+            ()=>{
+                var container=Activator.CreateInstance(commands,new object[]{riderUnit});
+                var occupant=Activator.CreateInstance(continuous);
+                var queued=Activator.CreateInstance(continuous);
+                baseInitCall.Invoke(null,new object[]{occupant,riderUnit});
+                baseInitCall.Invoke(null,new object[]{queued,riderUnit});
+                ((Array)commands.GetField("m_Commands",Any).GetValue(container)).SetValue(occupant,3);
+                commands.GetMethod("AddToQueue",new[]{command}).Invoke(container,new object[]{queued});
+                var queue=(ICollection)commands.GetProperty("Queue").GetValue(container,null);
+                var enqueuedOnly=queue.Count==1 && !(bool)commands.GetMethod("Contains",new[]{command}).Invoke(container,new object[]{queued}) &&
+                    ReferenceEquals(commands.GetProperty("MoveContiniously").GetValue(container,null),occupant);
+                command.GetField("<IsFinished>k__BackingField",Any).SetValue(occupant,true);
+                Exception thrown=null;
+                try { commands.GetMethod("RemoveFinishedAndUpdateQueue").Invoke(container,null); }
+                catch(TargetInvocationException error) { thrown=error.InnerException; }
+                var trace=thrown==null?"":thrown.ToString();
+                Console.WriteLine("INFO queue promotion: "+(thrown==null?"returned":"stopped in "+(thrown is TypeInitializationException?"the type initializer of "+((TypeInitializationException)thrown).TypeName:thrown.GetType().Name))+
+                    "; internal Run frame="+trace.Contains("Run(UnitCommand cmd, Boolean fromQueue, Boolean doNotClearQueue)")+"; public Run frame="+trace.Contains("Run(UnitCommand cmd)"));
+                return enqueuedOnly && queue.Count==0 && commands.GetProperty("MoveContiniously").GetValue(container,null)!=occupant &&
+                    (thrown==null || (trace.Contains("RemoveFinishedAndUpdateQueue") && trace.Contains("Run(UnitCommand cmd, Boolean fromQueue, Boolean doNotClearQueue)") && !trace.Contains("Run(UnitCommand cmd)")));
             });
 
         // ---- PRODUCT-EXECUTED ----
@@ -619,88 +745,191 @@ public static class KmcContinuousDriveProbe
                 return awaiting && orphanNextFrame && refused && admitted && strict && settlements && !owns(boundAgent,7L,true,false,true,500) &&
                     settle(7L,true,false,true,false,false,500)=="None";
             });
-        Check("PRODUCT-EXECUTED the compiled retirement plan: nothing is ended or cleared unless the exact bound agent is still installed; a command outside the slot is ended without an end event, a running drive that lost its pair, its input or its place is ended natively, an ended command is not interrupted again",
+        Check("PRODUCT-EXECUTED the compiled retirement decisions: an unfinished command is ended whether or not its agent is installed (without an end event when it never held its slot); the captured agent is cleared only while installed; a pair-bound command's native end may clear only the bound agent on the bound view; a terminal command with its agent still installed is not an established retirement",
             ()=>{
                 var policy=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDrivePolicy",true);
                 var settlement=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveSettlement",true);
                 var plan=policy.GetMethod("PlanRetirement");
-                Func<string,bool,bool,string> of=(name,installed,finished)=>{
-                    var result=plan.Invoke(null,new object[]{Enum.Parse(settlement,name),installed,finished});
+                Func<string,bool,bool,string> of=(name,finished,installed)=>{
+                    var result=plan.Invoke(null,new object[]{Enum.Parse(settlement,name),finished,installed});
                     return ((bool)result.GetType().GetProperty("InterruptCommand").GetValue(result,null)?"I":"-")+
                         ((bool)result.GetType().GetProperty("RaiseEndEvent").GetValue(result,null)?"E":"-")+
-                        ((bool)result.GetType().GetProperty("ClearOverride").GetValue(result,null)?"C":"-");
+                        ((bool)result.GetType().GetProperty("ClearCapturedAgent").GetValue(result,null)?"C":"-");
                 };
-                foreach(var name in Enum.GetNames(settlement)) if(of(name,false,false)!="---" || of(name,false,true)!="---") return false;
-                var replaces=policy.GetMethod("RiderOrderReplacesDrive");
-                return of("Keep",true,false)=="---" && of("None",true,false)=="---" && of("Orphaned",true,false)=="I-C" && of("Unowned",true,false)=="IEC" &&
-                    of("InputGated",true,false)=="IEC" && of("Replaced",true,false)=="IEC" &&
-                    of("Ended",true,true)=="--C" && of("Unowned",true,true)=="--C" && of("Orphaned",true,true)=="--C" &&
-                    (bool)replaces.Invoke(null,new object[]{true,true,true}) && !(bool)replaces.Invoke(null,new object[]{false,true,true}) &&
-                    !(bool)replaces.Invoke(null,new object[]{true,false,true}) && !(bool)replaces.Invoke(null,new object[]{true,true,false});
+                Func<string,bool[],bool> decide=(name,flags)=>{ var args=new object[flags.Length]; for(var i=0;i<flags.Length;i++) args[i]=flags[i]; return (bool)policy.GetMethod(name).Invoke(null,args); };
+                return of("Keep",false,true)=="---" && of("None",false,true)=="---" &&
+                    of("Orphaned",false,true)=="I-C" && of("Orphaned",false,false)=="I--" &&
+                    of("Unowned",false,true)=="IEC" && of("Unowned",false,false)=="IE-" && of("InputGated",false,true)=="IEC" && of("Replaced",false,false)=="IE-" &&
+                    of("Ended",true,true)=="--C" && of("Ended",true,false)=="---" && of("Unowned",true,true)=="--C" && of("Orphaned",true,false)=="---" &&
+                    decide("NativeEndMayClearOverride",new[]{false,false,false}) && decide("NativeEndMayClearOverride",new[]{true,true,true}) &&
+                    !decide("NativeEndMayClearOverride",new[]{true,false,true}) && !decide("NativeEndMayClearOverride",new[]{true,true,false}) &&
+                    decide("RetirementEstablished",new[]{true,true,false}) && decide("RetirementEstablished",new[]{false,false,false}) &&
+                    !decide("RetirementEstablished",new[]{true,true,true}) && !decide("RetirementEstablished",new[]{false,true,false}) &&
+                    decide("RiderOrderReplacesDrive",new[]{true,true,true}) && !decide("RiderOrderReplacesDrive",new[]{false,true,true}) &&
+                    !decide("RiderOrderReplacesDrive",new[]{true,false,true}) && !decide("RiderOrderReplacesDrive",new[]{true,true,false});
             });
         Check("PRODUCT-EXECUTED the compiled owner, on a scripted host: a command on the mount with its continuous agent is bound, admitted (the rider's Hold released), owned by the invariant's question, and ended natively when the party enters combat",
             ()=>{
-                var hostType=product.GetType("KingmakerMountedCombat.Domain.IMountedContinuousDriveHost",true);
-                var ownerType=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true);
-                var scripted=new KmcScriptedDriveHost(hostType);
-                var driveOwner=ownerType.GetConstructors()[0].Invoke(new object[]{scripted.GetTransparentProxy()});
+                var scripted=NewScriptedHost(product);
+                var ownerType=scripted.Owner.GetType();
                 object pushed=new object(), installedAgent=new object();
-                scripted.Override=installedAgent;
-                ownerType.GetMethod("Bind").Invoke(driveOwner,new object[]{pushed});
-                var boundNow=(bool)ownerType.GetProperty("IsBound").GetValue(driveOwner,null);
-                var ownedBeforeRun=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(driveOwner,new object[]{installedAgent});
+                scripted.Overrides[scripted.CurrentView]=installedAgent;
+                ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{pushed});
+                var boundNow=(bool)ownerType.GetProperty("IsBound").GetValue(scripted.Owner,null);
+                var ownedBeforeRun=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{installedAgent});
                 scripted.SlotCommand=pushed;
-                ownerType.GetMethod("ObserveRun").Invoke(driveOwner,new object[]{pushed});
+                ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
                 scripted.Frame=50;
-                var ownedLater=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(driveOwner,new object[]{installedAgent});
-                var foreignOwned=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(driveOwner,new object[]{new object()});
-                var settledKept=ownerType.GetMethod("Settle").Invoke(driveOwner,new object[]{false}).ToString();
+                var ownedLater=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{installedAgent});
+                var foreignOwned=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{new object()});
+                var settledKept=ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false}).ToString();
                 var logBeforeCombat=scripted.Log;
                 scripted.Gated=true;
-                var settledInCombat=ownerType.GetMethod("Settle").Invoke(driveOwner,new object[]{false}).ToString();
+                var settledInCombat=ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false}).ToString();
                 Console.WriteLine("INFO scripted host, admitted drive: ["+logBeforeCombat+"] then in combat ["+scripted.Log+"]");
                 return boundNow && ownedBeforeRun && ownedLater && !foreignOwned && settledKept=="Keep" && logBeforeCombat=="ReleaseRiderHold" && settledInCombat=="InputGated" &&
-                    scripted.Log=="ReleaseRiderHold Interrupt(True) Report(InputGated,False)" && !(bool)ownerType.GetProperty("IsBound").GetValue(driveOwner,null) &&
-                    scripted.Override==null;
+                    scripted.Log=="ReleaseRiderHold Interrupt(True) Report(InputGated,False)" && !(bool)ownerType.GetProperty("IsBound").GetValue(scripted.Owner,null) &&
+                    scripted.OverrideOn(scripted.CurrentView)==null;
             });
-        Check("PRODUCT-EXECUTED the compiled owner, on a scripted host: a command native Run did not admit is ended without an end event and its agent cleared, reported once across repeated refusals; another unit's command, a non-continuous agent and a foreign override bind or retire nothing",
+        Check("PRODUCT-EXECUTED the compiled owner, on a scripted host: a command native Run did not admit is ended without an end event, its own native end removes its agent, and repeated refusals are reported once; another unit's command and a non-continuous agent bind nothing",
             ()=>{
-                var hostType=product.GetType("KingmakerMountedCombat.Domain.IMountedContinuousDriveHost",true);
-                var ownerType=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true);
-                var scripted=new KmcScriptedDriveHost(hostType);
-                scripted.InterruptRemovesOverride=false;
-                var driveOwner=ownerType.GetConstructors()[0].Invoke(new object[]{scripted.GetTransparentProxy()});
+                var scripted=NewScriptedHost(product);
+                var ownerType=scripted.Owner.GetType();
                 for(var push=0;push<3;push++)
                 {
                     object pushed=new object();
-                    scripted.Frame++; scripted.Override=new object();
-                    ownerType.GetMethod("Bind").Invoke(driveOwner,new object[]{pushed});
-                    ownerType.GetMethod("ObserveRun").Invoke(driveOwner,new object[]{pushed});
+                    scripted.Frame++; scripted.Overrides[scripted.CurrentView]=new object();
+                    ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{pushed});
+                    ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
+                    if(scripted.OverrideOn(scripted.CurrentView)!=null) throw new InvalidOperationException("a refused command left its agent installed");
                 }
                 var refusals=scripted.Log;
                 Console.WriteLine("INFO scripted host, three refused admissions: ["+refusals+"]");
-                var orphanCount=(long)ownerType.GetProperty("OrphanCount").GetValue(driveOwner,null);
-                // Nothing binds for another executor or for an installedAgent that is not a liveCommand continuous installedAgent.
+                var orphanCount=(long)ownerType.GetProperty("OrphanCount").GetValue(scripted.Owner,null);
                 scripted.Calls.Clear();
-                scripted.Executor=new object(); scripted.Override=new object();
-                ownerType.GetMethod("Bind").Invoke(driveOwner,new object[]{new object()});
+                scripted.Executor=new object(); scripted.Overrides[scripted.CurrentView]=new object();
+                ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{new object()});
                 scripted.Executor=scripted.Mount; scripted.AgentIsContinuous=false;
-                ownerType.GetMethod("Bind").Invoke(driveOwner,new object[]{new object()});
-                var boundWrongly=(bool)ownerType.GetProperty("IsBound").GetValue(driveOwner,null);
-                // A bound, admitted drive whose override was replaced by a foreignOwned one: released, and nothing touched.
-                scripted.AgentIsContinuous=true;
-                object liveCommand=new object(), ownAgent=new object(), foreignOverride=new object();
-                scripted.Override=ownAgent; scripted.Frame++;
-                ownerType.GetMethod("Bind").Invoke(driveOwner,new object[]{liveCommand});
-                scripted.SlotCommand=liveCommand;
-                ownerType.GetMethod("ObserveRun").Invoke(driveOwner,new object[]{liveCommand});
+                ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{new object()});
+                return refusals=="Interrupt(False) Report(Orphaned,True) Interrupt(False) Interrupt(False)" && orphanCount==3 &&
+                    !(bool)ownerType.GetProperty("IsBound").GetValue(scripted.Owner,null) && scripted.Log=="";
+            });
+        Check("PRODUCT-EXECUTED R1 reproduction A on the compiled owner: the command is bound to view V1 with agent A, the mount then receives view V2 carrying an unrelated override B, and V1 and A stay alive; the dismount release and the rider-order release each retire the command and A, and B survives the release and every later cleanup and termination",
+            ()=>{
+                foreach(var byDismount in new[]{true,false})
+                {
+                    var scripted=NewScriptedHost(product);
+                    var ownerType=scripted.Owner.GetType();
+                    object pushed=new object(), agentA=new object(), viewOne=scripted.CurrentView, viewTwo=new object(), overrideB=new object();
+                    scripted.Overrides[viewOne]=agentA;
+                    ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{pushed});
+                    scripted.SlotCommand=pushed;
+                    ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
+                    scripted.Calls.Clear();
+                    scripted.CurrentView=viewTwo; scripted.Overrides[viewTwo]=overrideB;
+                    if(byDismount) ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                    else ownerType.GetMethod("ObserveRiderOrder").Invoke(scripted.Owner,new object[]{true,true});
+                    var how=byDismount?"dismount":"rider order";
+                    Console.WriteLine("INFO reproduction A ("+how+"): ["+scripted.Log+"]; B survives="+ReferenceEquals(scripted.OverrideOn(viewTwo),overrideB)+"; A removed="+(scripted.OverrideOn(viewOne)==null)+"; command terminal="+scripted.Finished.Contains(pushed));
+                    if(!ReferenceEquals(scripted.OverrideOn(viewTwo),overrideB)) throw new InvalidOperationException("the unrelated override B on the mount's current view was cleared by the "+how+" release");
+                    if(scripted.OverrideOn(viewOne)!=null || !scripted.Finished.Contains(pushed)) throw new InvalidOperationException("the owned command or its agent was not retired by the "+how+" release");
+                    // Later cleanup, settlement and a repeated native termination.
+                    ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false});
+                    ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"again"});
+                    scripted.NativeEnd(pushed);
+                    if(!ReferenceEquals(scripted.OverrideOn(viewTwo),overrideB)) throw new InvalidOperationException("a later cleanup or termination cleared the unrelated override B");
+                    if((int)ownerType.GetProperty("ResidueCount").GetValue(scripted.Owner,null)!=0) return false;
+                    if(scripted.Log!=(byDismount?"Interrupt(True) ClearOverride Report(Unowned,False)":"Interrupt(True) ClearOverride Report(Replaced,False)")) return false;
+                }
+                return true;
+            });
+        Check("PRODUCT-EXECUTED R1 reproduction B on the compiled owner: an admitted drive's agent is replaced by a foreign override on the same view; relationship cleanup retires the owned command and leaves the foreign override, and the original command's later native termination cannot remove it either",
+            ()=>{
+                var scripted=NewScriptedHost(product);
+                var ownerType=scripted.Owner.GetType();
+                object pushed=new object(), agentA=new object(), foreignOverride=new object();
+                scripted.Overrides[scripted.CurrentView]=agentA;
+                ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{pushed});
+                scripted.SlotCommand=pushed;
+                ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
                 scripted.Calls.Clear();
-                scripted.Override=foreignOverride;
-                var ownsForeign=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(driveOwner,new object[]{foreignOverride});
-                ownerType.GetMethod("Release").Invoke(driveOwner,new object[]{"dismount"});
-                return refusals=="Interrupt(False) ClearOverride Report(Orphaned,True) Interrupt(False) ClearOverride Interrupt(False) ClearOverride" &&
-                    orphanCount==3 && !boundWrongly && !ownsForeign && scripted.Log=="" && ReferenceEquals(scripted.Override,foreignOverride) &&
-                    !(bool)ownerType.GetProperty("IsBound").GetValue(driveOwner,null);
+                scripted.Overrides[scripted.CurrentView]=foreignOverride;
+                var ownsForeign=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{foreignOverride});
+                ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                var afterCleanup=ReferenceEquals(scripted.OverrideOn(scripted.CurrentView),foreignOverride);
+                var retiredByCleanup=scripted.Finished.Contains(pushed);
+                // The original command's later life: native ticking ends a continuous command whose own agent is gone.
+                scripted.NativeEnd(pushed);
+                ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false});
+                var afterTermination=ReferenceEquals(scripted.OverrideOn(scripted.CurrentView),foreignOverride);
+                Console.WriteLine("INFO reproduction B: ["+scripted.Log+"]; foreign override after cleanup="+afterCleanup+", after the command's later termination="+afterTermination+"; command retired by cleanup="+retiredByCleanup);
+                if(!afterCleanup) throw new InvalidOperationException("relationship cleanup cleared the foreign override");
+                if(!afterTermination) throw new InvalidOperationException("the abandoned owned command later ended natively and cleared the foreign override");
+                return !ownsForeign && retiredByCleanup && scripted.Log=="Interrupt(True) Report(Unowned,False)" &&
+                    !(bool)ownerType.GetProperty("IsBound").GetValue(scripted.Owner,null);
+            });
+        Check("PRODUCT-EXECUTED R1 retries on the compiled owner: the command and the captured agent are retired independently; a failed interrupt, a native end that fails after the command became terminal, and a failed override removal are each contained; a record is kept exactly while its command is unfinished and held or its agent is still installed, and the next settlement completes it without a second interrupt of a terminal command",
+            ()=>{
+                // failure, residue after the failing release, agent still installed then, native calls in order
+                var cases=new[]{
+                    new object[]{"interrupt",1,false,"Interrupt(True) ClearOverride Report(Unowned,True) Interrupt(True)"},
+                    new object[]{"end-callback",0,false,"Interrupt(True) ClearOverride Report(Unowned,True) Report(Unowned,False)"},
+                    new object[]{"clear",1,true,"Interrupt(True) ClearOverride Report(Unowned,True) ClearOverride"},
+                    new object[]{"end-callback+clear",1,true,"Interrupt(True) ClearOverride Report(Unowned,True) ClearOverride"}};
+                foreach(var row in cases)
+                {
+                    var failure=(string)row[0];
+                    var scripted=NewScriptedHost(product);
+                    var ownerType=scripted.Owner.GetType();
+                    object pushed=new object(), agentA=new object(), viewOne=scripted.CurrentView;
+                    scripted.Overrides[viewOne]=agentA;
+                    ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{pushed});
+                    scripted.SlotCommand=pushed;
+                    ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
+                    scripted.Calls.Clear();
+                    if(failure=="interrupt") scripted.FailInterrupts=1;
+                    if(failure.StartsWith("end-callback")) scripted.EndCallbackFails=true;
+                    if(failure.EndsWith("clear")) scripted.FailClears=1;
+                    // A replaced view: the command's native end cannot remove the agent, so only the owner's own removal can.
+                    if(failure=="clear") scripted.CurrentView=new object();
+                    ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                    var residueAfterFailure=(int)ownerType.GetProperty("ResidueCount").GetValue(scripted.Owner,null);
+                    var agentStillInstalled=ReferenceEquals(scripted.OverrideOn(viewOne),agentA);
+                    var ownedWhileResidue=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{agentA});
+                    var terminalAfterFailure=scripted.Finished.Contains(pushed);
+                    var failedSteps=(long)ownerType.GetProperty("RetirementFailureCount").GetValue(scripted.Owner,null);
+                    ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false});
+                    var residueAfterRetry=(int)ownerType.GetProperty("ResidueCount").GetValue(scripted.Owner,null);
+                    Console.WriteLine("INFO retry after a failed "+failure+": ["+scripted.Log+"]; after the failure: residue="+residueAfterFailure+", command terminal="+terminalAfterFailure+", agent installed="+agentStillInstalled);
+                    if(residueAfterFailure!=(int)row[1] || agentStillInstalled!=(bool)row[2] || ownedWhileResidue || failedSteps!=1)
+                        throw new InvalidOperationException(failure+": the record was not kept exactly while something of it remained");
+                    if(residueAfterRetry!=0 || scripted.OverrideOn(viewOne)!=null || !scripted.Finished.Contains(pushed)) throw new InvalidOperationException(failure+": the retry did not establish the retirement");
+                    if(scripted.Log!=(string)row[3]) throw new InvalidOperationException(failure+": unexpected native calls ["+scripted.Log+"]");
+                }
+                return true;
+            });
+        Check("PRODUCT-EXECUTED the native-end transpiler, run on the installed UnitMoveContiniously.OnEnded, routes its one AgentOverride write through the product guard with the ending command, keeps every branch target and changes nothing else; the guard gives a command no pair bound the native rule",
+            ()=>{
+                var before=Body(Token(continuous,"OnEnded",0x060026F2));
+                var transpiler=(MethodInfo)Required(patchMethods,"ContinuousMoveEndTranspiler",1);
+                var after=FromHarmony12(transpiler.Invoke(null,new object[]{ToHarmony12(instruction12,before)}));
+                var hook=(MethodInfo)Required(patchMethods,"EndedContinuousCommandOverride",3);
+                var site=One(before,"UnitEntityView","set_AgentOverride");
+                if(after.Count!=before.Count+1) throw new InvalidOperationException("instruction count "+before.Count+" -> "+after.Count);
+                for(var i=0;i<before.Count;i++)
+                {
+                    if(i==site) continue;
+                    if(!Same(after[i<site?i:i+1],before[i])) throw new InvalidOperationException("unexpected change at native instruction "+i);
+                }
+                var parameters=hook.GetParameters();
+                var guard=relationship.GetMethod("ContinuousDriveEndMayClearOverride",Any);
+                var unbound=Activator.CreateInstance(continuous);
+                var someView=FormatterServices.GetUninitializedObject(view);
+                return after[site].Op==OpCodes.Ldarg_0 && after[site].Labels.Count==0 && before[site-1].Op==OpCodes.Ldnull &&
+                    after[site+1].Op==OpCodes.Call && ReferenceEquals(after[site+1].Call,hook) && SameLabels(after[site+1],before[site]) &&
+                    hook.ReturnType==typeof(void) && parameters[0].ParameterType==view && parameters[1].ParameterType==agentBase && parameters[2].ParameterType==continuous &&
+                    Count(Body(Token(continuous,"OnEnded",0x060026F2)),"UnitCommand","OnEnded")==1 && Count(after,"UnitCommand","OnEnded")==1 &&
+                    (bool)guard.Invoke(null,new object[]{unbound,someView}) && (bool)guard.Invoke(null,new object[]{null,someView}) && (bool)guard.Invoke(null,new object[]{unbound,null});
             });
         Check("PRODUCT-EXECUTED an operational failure inside a hook, with a logger that throws: the gamepad follower hook still returns the selection itself, the speed hook still yields the native selector's values, and the logger is called once",
             ()=>{
@@ -753,7 +982,7 @@ public static class KmcContinuousDriveProbe
                 return asked.Count>=1 && asked[0]<admissible && answered.Count>=1 && answered[answered.Count-1]<admissible &&
                     HasString(validate,"The authoritative mount movement agent changed.") && Count(validate,"UnitEntityView","get_AgentASP")>=2;
             });
-        Check("PRODUCT-IL the game adapter answers from the pair's exact units: the pair generation field, the mount's Move slot, a UnitMovementAgentContinious test, the party's combat state; its fact answers write nothing",
+        Check("PRODUCT-IL the game adapter answers from the pair's exact units: the pair generation field, the mount's Move slot, a unit's own current view, the command's executor's slots and queue, a UnitMovementAgentContinious test, the party's combat state; its fact answers write nothing",
             ()=>{
                 var host=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService+ContinuousDriveHost",true);
                 var generation=false;
@@ -761,13 +990,17 @@ public static class KmcContinuousDriveProbe
                 var isContinuous=false;
                 foreach(var ins in Body(Required(host,"IsContinuousAgent",1))) if(ins.Op==OpCodes.Isinst && (Type)ins.Operand==continuousAgent) isContinuous=true;
                 var slot=Body(Required(host,"InMountMoveSlot",1));
-                foreach(var name in new[]{"get_PairMounted","get_PairGeneration","get_Frame","get_StickInputGated","get_Mount","get_MountView","ExecutorOf","IsFinished","InMountMoveSlot","OverrideOf","IsContinuousAgent"})
+                foreach(var name in new[]{"get_PairMounted","get_PairGeneration","get_Frame","get_StickInputGated","get_Mount","ViewOf","ExecutorOf","IsFinished","InMountMoveSlot","IsHeld","OverrideOf","IsContinuousAgent"})
                     foreach(var ins in Body(Required(host,name,-1)))
                         if(Is(ins,null,"set_AgentOverride") || Is(ins,null,"Interrupt") || Is(ins,null,"Run") || Is(ins,null,"InterruptMove") || Is(ins,null,"set_HoldState") || ins.Op==OpCodes.Stfld)
                             throw new InvalidOperationException(name+" writes or calls "+(ins.Call!=null?ins.Call.Name:ins.Field.Name));
                 return generation && isContinuous && Count(slot,"UnitCommands","GetCommand")==1 && Count(slot,null,"get_Mount")==1 &&
                     Count(Body(Required(host,"get_StickInputGated",0)),"Player","get_IsInCombat")==1 &&
-                    Count(Body(Required(host,"get_MountView",0)),null,"get_Mount")==1 && Count(Body(Required(host,"get_Mount",0)),null,"get_Mount")==1 &&
+                    Count(Body(Required(host,"ViewOf",1)),"UnitEntityData","get_View")==1 && Count(Body(Required(host,"ViewOf",1)),null,"get_Mount")==0 &&
+                    Count(Body(Required(host,"get_Mount",0)),null,"get_Mount")==1 &&
+                    Count(Body(Required(host,"IsHeld",1)),"UnitCommands","Contains")==1 && Count(Body(Required(host,"IsHeld",1)),"UnitCommands","get_Queue")==1 &&
+                    Count(Body(Required(host,"IsHeld",1)),"UnitCommands","get_PreviousCommand")==1 &&
+                    Count(Body(Required(host,"IsHeld",1)),"UnitCommand","get_Executor")==1 &&
                     Count(Body(Required(host,"ExecutorOf",1)),"UnitCommand","get_Executor")==1 && Count(Body(Required(host,"IsFinished",1)),"UnitCommand","get_IsFinished")==1 &&
                     Count(Body(Required(host,"OverrideOf",1)),"UnitEntityView","get_AgentOverride")==1;
             });
@@ -788,15 +1021,72 @@ public static class KmcContinuousDriveProbe
                     Count(bind,"MountedContinuousDriveOwner","Bind")==1 &&
                     One(postfix,"GameMountedRelationshipService","BindContinuousDrive")>One(postfix,"UnitCommand","get_Executor");
             });
-        Check("PRODUCT-IL retirement clears the record first, follows the policy's plan, and clears an override only after comparing it again with the bound agent; the adapter's ClearOverride is the only product code outside the rider's own agent lease that writes UnitEntityView.AgentOverride",
+        Check("PRODUCT-IL retirement transfers the record to residue before the active record is cleared and keeps it in the list for the attempt; one attempt plans and interrupts, then re-reads the captured view, plans again and clears the captured agent on its own, then asks whether the retirement is established; release and settlement recover residue",
             ()=>{
                 var ownerType=product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true);
-                var retire=Body(Required(ownerType,"Retire",2));
+                var residueType=ownerType.GetNestedType("Residue",Any);
+                if(residueType==null) throw new InvalidOperationException("the owner has no residue record in this build");
+                var retire=Body(Required(ownerType,"Retire",3));
+                var complete=Body(Required(ownerType,"Attempt",1));
+                var installed=Body(Required(ownerType,"CapturedAgentInstalled",1));
+                var release=Body(Required(ownerType,"Release",1));
+                var settle=Body(Required(ownerType,"Settle",1));
+                var made=-1; var added=-1;
+                for(var i=0;i<retire.Count;i++)
+                {
+                    if(made<0 && retire[i].Op==OpCodes.Newobj && retire[i].Call!=null && retire[i].Call.DeclaringType==residueType) made=i;
+                    if(added<0 && Is(retire[i],null,"Add")) added=i;
+                }
                 var clear=One(retire,"MountedContinuousDriveWatch","Clear");
-                var plan=One(retire,"MountedContinuousDrivePolicy","PlanRetirement");
-                var interrupt=One(retire,"IMountedContinuousDriveHost","Interrupt");
-                var write=One(retire,"IMountedContinuousDriveHost","ClearOverride");
-                var reads=Find(retire,"IMountedContinuousDriveHost","OverrideOf");
+                var attempt=One(retire,"MountedContinuousDriveOwner","Complete");
+                var plans=Find(complete,"MountedContinuousDrivePolicy","PlanRetirement");
+                if(plans.Count!=2) throw new InvalidOperationException("the attempt plans "+plans.Count+" times, expected once before each native effect");
+                var plan=plans[0];
+                var interrupt=One(complete,"IMountedContinuousDriveHost","Interrupt");
+                var write=One(complete,"IMountedContinuousDriveHost","ClearOverride");
+                var established=One(complete,"MountedContinuousDrivePolicy","RetirementEstablished");
+                var reads=Find(complete,"MountedContinuousDriveOwner","CapturedAgentInstalled");
+                return made>=0 && made<clear && clear<attempt && added>=0 && added<attempt &&
+                    plan<interrupt && interrupt<plans[1] && plans[1]<write && write<established && reads.Count==3 && reads[0]<plan && reads[1]>interrupt && reads[1]<plans[1] && reads[2]>write &&
+                    One(complete,"IMountedContinuousDriveHost","IsHeld")<established && Count(installed,"IMountedContinuousDriveHost","OverrideOf")==1 &&
+                    Count(complete,"MountedContinuousDriveWatch","Clear")==0 &&
+                    First(release,"MountedContinuousDriveOwner","RecoverResidue")<One(release,"MountedContinuousDriveOwner","Retire") &&
+                    Count(settle,"MountedContinuousDriveOwner","RecoverResidue")==1;
+            });
+        Check("PRODUCT-EXECUTED the compiled native-end guard with its bound-command table: for a command the compiled owner bound, it allows the clearing only of the bound agent on the bound view, refuses a foreign override on that view and any override of another view, and returns to the native rule once the command is no longer in the table",
+            ()=>{
+                var guard=relationship.GetMethod("ContinuousDriveEndMayClearOverride",Any);
+                var table=relationship.GetField("continuousDriveCommands",Any).GetValue(null);
+                var overrideField=view.GetField("m_AgentOverride",Any);
+                var scripted=NewScriptedHost(product);
+                var ownerType=scripted.Owner.GetType();
+                object boundView=FormatterServices.GetUninitializedObject(view), otherView=FormatterServices.GetUninitializedObject(view);
+                object boundAgent=FormatterServices.GetUninitializedObject(continuousAgent), foreignAgent=FormatterServices.GetUninitializedObject(continuousAgent);
+                var boundCommand=Activator.CreateInstance(continuous);
+                overrideField.SetValue(boundView,boundAgent);
+                scripted.CurrentView=boundView; scripted.Overrides[boundView]=boundAgent;
+                ownerType.GetMethod("Bind").Invoke(scripted.Owner,new object[]{boundCommand});
+                if(!(bool)ownerType.GetProperty("IsBound").GetValue(scripted.Owner,null)) throw new InvalidOperationException("the owner did not bind the command");
+                table.GetType().GetMethod("Add").Invoke(table,new object[]{boundCommand,scripted.Owner});
+                try
+                {
+                    var own=(bool)guard.Invoke(null,new object[]{boundCommand,boundView});
+                    overrideField.SetValue(boundView,foreignAgent);
+                    var foreignOnBoundView=(bool)guard.Invoke(null,new object[]{boundCommand,boundView});
+                    overrideField.SetValue(otherView,boundAgent);
+                    var anotherView=(bool)guard.Invoke(null,new object[]{boundCommand,otherView});
+                    table.GetType().GetMethod("Remove").Invoke(table,new object[]{boundCommand});
+                    var afterForgetting=(bool)guard.Invoke(null,new object[]{boundCommand,boundView});
+                    Console.WriteLine("INFO compiled guard for a bound command: own agent on bound view="+own+", foreign override on bound view="+foreignOnBoundView+", another view="+anotherView+", after forgetting="+afterForgetting);
+                    return own && !foreignOnBoundView && !anotherView && afterForgetting;
+                }
+                finally { table.GetType().GetMethod("Remove").Invoke(table,new object[]{boundCommand}); }
+            });
+        Check("PRODUCT-IL the native end's guard finds a command's owner in the bound-command table and asks it with the view's current override; the hook writes only after the guard; the adapter's ClearOverride and that guarded native write are the only product code outside the rider's own agent lease that write UnitEntityView.AgentOverride",
+            ()=>{
+                var guard=Body(Required(relationship,"ContinuousDriveEndMayClearOverride",2));
+                var hook=Body(Required(patchMethods,"EndedContinuousCommandOverride",3));
+                var bind=Body(Required(relationship,"BindContinuousDrive",1));
                 var writers=new List<string>();
                 foreach(var type in product.GetTypes())
                 {
@@ -813,18 +1103,22 @@ public static class KmcContinuousDriveProbe
                 writers.Sort();
                 Console.WriteLine("INFO product writers of AgentOverride: "+string.Join(", ",writers.ToArray()));
                 foreach(var writer in writers)
-                    if(!writer.StartsWith("KingmakerMountedPairRuntime.") && writer!="ContinuousDriveHost.ClearOverride")
+                    if(!writer.StartsWith("KingmakerMountedPairRuntime.") && writer!="ContinuousDriveHost.ClearOverride" && writer!="PatchMethods.EndedContinuousCommandOverride")
                         throw new InvalidOperationException("an unexpected writer of AgentOverride: "+writer);
-                return clear<plan && plan<interrupt && interrupt<write && reads.Count==2 && reads[0]<plan && reads[1]>interrupt && reads[1]<write &&
-                    writers.Contains("ContinuousDriveHost.ClearOverride");
+                return One(guard,null,"TryGetValue")<One(guard,"MountedContinuousDriveOwner","NativeEndMayClearOverride") &&
+                    One(guard,"UnitEntityView","get_AgentOverride")<One(guard,"MountedContinuousDriveOwner","NativeEndMayClearOverride") &&
+                    One(hook,"GameMountedRelationshipService","ContinuousDriveEndMayClearOverride")<One(hook,"UnitEntityView","set_AgentOverride") &&
+                    One(bind,"MountedContinuousDriveOwner","Bind")<One(bind,null,"Add") &&
+                    writers.Contains("ContinuousDriveHost.ClearOverride") && writers.Contains("PatchMethods.EndedContinuousCommandOverride");
             });
-        Check("PRODUCT-IL the drive is settled before the invariant is read and when native Run was called with it, a rider order admitted on the rider's own container is reported to it, and it is released before the pair's dismount",
+        Check("PRODUCT-IL the drive is settled before the invariant is read and when native Run was called with it; an order is observed after the internal Run that admits commands (the route queue promotion takes), not after the public Run, and counts only when it is in a slot of the rider's own container; the drive is released before the pair's dismount",
             ()=>{
                 var validate=Body(Required(relationship,"ValidateActivePair",0));
                 var dismount=Body(Required(relationship,"Dismount",1));
                 var observe=Body(Required(relationship,"ObserveContinuousDriveRun",1));
                 var order=Body(Required(relationship,"ObserveOrderDuringContinuousDrive",2));
                 var runPostfix=Body(Required(patchMethods,"UnitCommandRunPostfix",3));
+                var internalPostfix=Body(Required(patchMethods,"InternalRunPostfix",2));
                 return One(validate,"GameMountedRelationshipService","SettleContinuousDrive")<One(validate,"KingmakerMountedPairRuntime","ValidateMountedInvariants") &&
                     Count(Body(Required(relationship,"SettleContinuousDrive",0)),"MountedContinuousDriveOwner","Settle")==1 &&
                     One(dismount,"GameMountedRelationshipService","ReleaseContinuousDrive")<One(dismount,"MountedRelationshipCoordinator","Dismount") &&
@@ -833,7 +1127,9 @@ public static class KmcContinuousDriveProbe
                     One(order,null,"get_Rider")<One(order,"MountedContinuousDriveOwner","ObserveRiderOrder") && Count(order,"UnitCommands","Contains")==1 &&
                     Count(order,"UnitCommand","get_Type")==2 && Count(order,null,"get_Mount")==0 &&
                     Count(runPostfix,"GameMountedRelationshipService","ObserveContinuousDriveRun")==1 &&
-                    Count(runPostfix,"GameMountedRelationshipService","ObserveOrderDuringContinuousDrive")==1;
+                    Count(runPostfix,"GameMountedRelationshipService","ObserveOrderDuringContinuousDrive")==0 &&
+                    Count(internalPostfix,"GameMountedRelationshipService","ObserveOrderDuringContinuousDrive")==1 &&
+                    Count(internalPostfix,"GameMountedRelationshipService","ObserveContinuousDriveRun")==0;
             });
         Check("PRODUCT-IL the Init prefix ends the rider's own moving orders and the pair's intent before routing, and the driven-unit decisions only decide",
             ()=>{
@@ -871,10 +1167,17 @@ public static class KmcContinuousDriveProbe
                 return One(report,"MountedBoundedFaultReport","Report")>=0 && calls==1 &&
                     (bool)bounded.GetProperty("Reported").GetValue(instance,null) && (bool)bounded.GetProperty("SinkFailed").GetValue(instance,null);
             });
-        Check("PRODUCT-IL patch installation names the sites by exact token: UnitMoveContiniously.Init (060026F0) with prefix and postfix, UpdateMovement (06005D0C) and MoveSelectedUnitsToPoint (060093DB) with the composed transpilers",
+        Check("PRODUCT-IL patch installation names the sites by exact token: UnitMoveContiniously.Init (060026F0) with prefix and postfix, its OnEnded (060026F2) with the guard transpiler, the internal UnitCommands.Run (060026B3) with its prefix, the admission postfix and its transpiler, UpdateMovement (06005D0C) and MoveSelectedUnitsToPoint (060093DB) with the composed transpilers",
             ()=>{
                 var controller=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
-                var found=0;
+                var wantedByToken=new Dictionary<int,string[]>();
+                wantedByToken[0x06005D0C]=new[]{"GamepadMovementTranspiler"};
+                wantedByToken[0x060093DB]=new[]{"GroundOrderTranspiler"};
+                wantedByToken[0x060026F0]=new[]{"ContinuousMovePrefix","ContinuousMovePostfix"};
+                wantedByToken[0x060026F2]=new[]{"ContinuousMoveEndTranspiler"};
+                wantedByToken[0x060026B3]=new[]{"InternalRunPrefix","InternalRunPostfix","NativeRunHoldTranspiler"};
+                var names=new List<string>{"UpdateMovement","MoveSelectedUnitsToPoint","Init","OnEnded","Run"};
+                var found=new List<int>();
                 foreach(var member in controller.GetMembers(All))
                 {
                     var method=member as MethodBase;
@@ -882,22 +1185,21 @@ public static class KmcContinuousDriveProbe
                     var body=Body(method);
                     for(var i=0;i<body.Count;i++)
                     {
-                        if(body[i].Op!=OpCodes.Ldstr) continue;
-                        var name=(string)body[i].Operand;
-                        var token=name=="UpdateMovement"?0x06005D0C:(name=="MoveSelectedUnitsToPoint"?0x060093DB:(name=="Init"?0x060026F0:0));
-                        if(token==0) continue;
-                        var wanted=name=="UpdateMovement"?new[]{"GamepadMovementTranspiler"}:(name=="MoveSelectedUnitsToPoint"?new[]{"GroundOrderTranspiler"}:new[]{"ContinuousMovePrefix","ContinuousMovePostfix"});
-                        var pinned=false; var wired=0;
-                        for(var j=i+1;j<body.Count && j<i+26;j++)
+                        if(body[i].Op!=OpCodes.Ldstr || !names.Contains((string)body[i].Operand)) continue;
+                        var token=0; var strings=new List<string>();
+                        for(var j=i+1;j<body.Count && j<i+30;j++)
                         {
                             if(Is(body[j],"MountedPatchController","PatchExact")) break;
-                            if(LoadsInt(body[j],token)) pinned=true;
-                            if(body[j].Op==OpCodes.Ldstr && Array.IndexOf(wanted,(string)body[j].Operand)>=0) wired++;
+                            if(token==0) foreach(var candidate in wantedByToken.Keys) if(LoadsInt(body[j],candidate)) token=candidate;
+                            if(body[j].Op==OpCodes.Ldstr) strings.Add((string)body[j].Operand);
                         }
-                        if(pinned && wired==wanted.Length) found++;
+                        if(token==0 || found.Contains(token)) continue;
+                        var wired=0;
+                        foreach(var wanted in wantedByToken[token]) if(strings.Contains(wanted)) wired++;
+                        if(wired==wantedByToken[token].Length) found.Add(token);
                     }
                 }
-                return found==3;
+                return found.Count==5;
             });
         Console.WriteLine("CONTINUOUS DRIVE CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;

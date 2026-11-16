@@ -25,8 +25,15 @@ namespace KingmakerMountedCombat.Tests
     //       AgentOverride is not null ("it is being stick-driven").
     //   UnitEntityView.AgentOverride = null destroys the old component at the end of the frame; until then
     //       GetComponent still finds it, and afterwards a reference to it compares equal to null.
-    // The model is a reading of the native code, not native evidence. Corrected = false keeps what the reviewed
-    // implementation (1223eb2f) did: the executor rewrite in the Init prefix alone, and the strict mount invariant.
+    //   UnitCommand.Interrupt stamps the command before it calls OnEnded and does nothing on a stamped command.
+    //       UnitMoveContiniously.OnEnded removes the override of the executor's current view.
+    //   UnitCommands.Run(cmd) calls the internal Run(cmd, fromQueue, doNotClearQueue), which alone puts a command
+    //       into a slot; queue promotion (RemoveFinishedAndUpdateQueue) calls that internal Run directly. A new Move
+    //       or Standard order ends the commands in both of those slots; with an uninterruptible command present it is
+    //       queued instead. InterruptMove ends only commands that have approached (IsMoveUnit).
+    // The model is a reading of the native code, not native evidence. A unit and its view are separate objects here,
+    // so a retained earlier view keeps its own override. Corrected = false keeps what the first reviewed implementation
+    // (1223eb2f) did: the executor rewrite in the Init prefix alone, and the strict mount invariant.
     internal static class MountedContinuousDriveTests
     {
         public static void Register(TestRunner runner)
@@ -39,7 +46,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues M05: a command native Run does not admit leaves no override: it is retired at once and the pair stays mounted (native still faults on the missing command, as it does for any unit); the next push works", AdmissionFailureLeavesNothing);
             runner.Run("known issues M05: a stick held through refused admissions is retired every time and reported once", RepeatedRefusalIsReportedOnce);
             runner.Run("known issues M05: when the party enters combat the stick can no longer feed the pair's movement, and the owned command is ended instead of holding the mount's Move slot", CombatEndsTheOwnedDrive);
-            runner.Run("known issues M05: an order given to the rider during stick movement ends that movement, as native Run ends a unit's own; a stick still held then cancels the order", RiderOrderReplacesTheDrive);
+            runner.Run("known issues M05: an in-range Standard order admitted on the rider ends the stick movement; a held stick takes the pair again, ends an approaching order and leaves a stationary one", StationaryRiderOrderAndTheStick);
             runner.Run("known issues M05: stick movement clears the rider's Hold, as a new order does", StickMovementClearsRiderHold);
             runner.Run("known issues M05: a push in the frame its predecessor ended adopts the dying agent; once that is destroyed nothing is owned or admitted through it, and the next push works", DyingAgentAdoptedInTheSameFrame);
             runner.Run("known issues M05: when the driven-unit hook faults, the rider's rewritten command is refused by native Run and its override is still retired", ProjectionFaultStillRetires);
@@ -52,7 +59,20 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues M05: a foreign override, a stale command, a stale agent and another pair generation are never owned and never retired", ForeignAndStaleOwnershipRejected);
             runner.Run("known issues M05: the ownership record decides admission within the binding frame only", AdmissionWindowIsOneFrame);
             runner.Run("known issues M05: binding needs this pair's mount as the executor and a live continuous agent on the mount's view", BindingRequiresTheMountAndItsAgent);
-            runner.Run("known issues M05: the retirement plan touches nothing unless the exact bound agent is still installed", RetirementPlan);
+            runner.Run("known issues M05: the retirement plan ends an unfinished command whether or not its agent is installed, and clears the captured agent only while it is installed", RetirementPlan);
+            runner.Run("known issues M05 R1: a mount view replaced during stick movement keeps its unrelated override through the dismount and the rider-order release, while the owned command and agent are retired", ReplacedViewKeepsItsForeignOverride);
+            runner.Run("known issues M05 R1: a foreign override that replaced the bound agent survives relationship cleanup and the owned command's later ticking and termination", ForeignOverrideSurvivesTheOwnedCommandsWholeLife);
+            runner.Run("known issues M05 R1: an interrupt that fails leaves the exact command, view and agent as residue, and the next settlement retries it", InterruptFailureIsRetainedAndRetried);
+            runner.Run("known issues M05 R1: a terminal command is not proof of a removed override: the agent is cleared on its own, and the native end callback is not repeated", TerminalCommandIsNotProofOfARemovedOverride);
+            runner.Run("known issues M05 R1: an override removal that fails is retained and retried without touching the foreign override", OverrideRemovalFailureIsRetainedAndRetried);
+            runner.Run("known issues M05 R1: a persistent retirement failure is retried a bounded number of times, reported once, never discarded, and recovered explicitly", PersistentFailureIsBoundedAndNeverDiscarded);
+            runner.Run("known issues M05 R1: a new command that adopts the agent of unfinished residue owns it; the earlier retirement neither clears it nor lets its command's end clear it", ANewBindingTakesOverTheAgentOfUnfinishedResidue);
+            runner.Run("known issues M05 R1: an end-event handler that comes back into the owner during the native end does not unblock the clearing of a foreign override, and nothing is retired twice", ReentrantEndEventHandler);
+            runner.Run("known issues M05 R1: a new command bound while the earlier record is still bound retires that record instead of overwriting it, and keeps the agent it adopted", NewBindingSupersedesABoundRecord);
+            runner.Run("known issues M05 R2: enqueueing a rider order leaves the stick movement; its later admission by queue promotion ends it exactly once", QueuedRiderOrderEndsTheDriveWhenItIsAdmitted);
+            runner.Run("known issues M05 R2: a refused promotion, a Free order, an unrelated unit, another pair and a stale order leave the stick movement", RefusedPromotionAndOtherAdmissionsLeaveTheDrive);
+            runner.Run("known issues M05 R2: direct admission still ends the stick movement, and nested public and internal Run calls end it once", NestedRunsEndTheDriveOnce);
+            runner.Run("known issues M05 (model only): the model follows the pinned native slot rules for InterruptMove, the Move/Standard pairing and an uninterruptible action", TheModelFollowsThePinnedNativeSlotRules);
         }
 
         private static void ReviewedImplementationFails()
@@ -120,6 +140,8 @@ namespace KingmakerMountedCombat.Tests
             world.Frame();
             TestRunner.True(command.Finished && world.Mount.Override == null, "Release did not end the command and remove its override natively.");
             TestRunner.True(!world.Pair.Drive.IsBound, "The ownership record outlived its command.");
+            TestRunner.Equal(0, world.Pair.Cleared, "The owner removed an override native's own end had been allowed to remove.");
+            TestRunner.Equal(0, world.TrackedCommands, "An ended command is still tracked for the native-end guard.");
             TestRunner.Equal(0L, world.Pair.Drive.RetiredCount + world.Pair.Interrupted, "The mod retired or interrupted what native had already ended.");
             TestRunner.True(world.Pair.Mounted, "The pair was dismounted on release: " + world.Pair.Fault);
         }
@@ -245,44 +267,6 @@ namespace KingmakerMountedCombat.Tests
             world.Frame();
             world.Frame();
             TestRunner.True(world.Mount.Slot != null && world.Mount.Slot.Continuous && world.Pair.Drive.IsBound && world.Pair.Mounted, "The pair is not driven again after combat.");
-        }
-
-        private static void RiderOrderReplacesTheDrive()
-        {
-            var world = new World();
-            world.Current = world.Rider;
-            world.Stick = 1f;
-            world.Frame();
-            var command = world.Mount.Slot;
-            // The rider is given an order of its own (an interaction it carries itself, not a routed ground move).
-            var order = world.RiderOrder(standard: true);
-            TestRunner.True(command.Finished && command.EndEventRaised && world.Mount.Override == null, "The rider's new order did not end the pair's stick movement.");
-            TestRunner.True(!world.Pair.Drive.IsBound, "The record outlived the replaced movement.");
-            // The stick is still held: native creates a new command and, taking the unit over, ends the rider's order.
-            world.Frame();
-            TestRunner.True(order.Finished, "A held stick did not cancel the rider's order.");
-            TestRunner.True(world.Mount.Slot != null && world.Mount.Slot.Continuous && !ReferenceEquals(world.Mount.Slot, command), "The held stick did not take the pair again.");
-            TestRunner.True(world.Pair.Mounted, "The pair was dismounted: " + world.Pair.Fault);
-            // Released before the order: the order stays.
-            world = new World();
-            world.Current = world.Rider;
-            world.Stick = 1f;
-            world.Frame();
-            world.Stick = 0f;
-            order = world.RiderOrder(standard: true);
-            world.Frame(); world.Frame();
-            TestRunner.True(!order.Finished && world.Mount.Slot == null && world.Mount.Override == null, "A released stick cancelled the rider's order, or the drive lingered.");
-            // A Free order replaces nothing, natively or here.
-            world = new World();
-            world.Current = world.Rider;
-            world.Stick = 1f;
-            world.Frame();
-            command = world.Mount.Slot;
-            world.RiderOrder(standard: false);
-            TestRunner.True(!command.Finished && world.Pair.Drive.IsBound, "An order that is neither Move nor Standard ended the stick movement.");
-            TestRunner.True(MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, true, true) && !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(false, true, true) &&
-                !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, false, true) && !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, true, false),
-                "The replacement decision is not a bound drive and a Move or Standard order admitted on the rider's container.");
         }
 
         private static void StickMovementClearsRiderHold()
@@ -500,10 +484,19 @@ namespace KingmakerMountedCombat.Tests
             world.Frame();
             var foreign = new Agent { Continuous = false };
             world.Mount.Override = foreign;
+            var ownedCommand = world.Mount.Slot;
+            world.Stick = 0f;
             world.Validate(world.Pair);
             TestRunner.True(!world.Pair.Mounted, "A foreign override was accepted because a drive was bound.");
-            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && world.Pair.Drive.RetiredCount == 0 && world.Pair.Interrupted == 0,
-                "The mod retired or ended something although the installed override is not the bound agent.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy && world.Pair.Cleared == 0,
+                "The mod cleared an override although the installed override is not the bound agent.");
+            TestRunner.True(ownedCommand.Finished && world.Pair.Interrupted == 1 && world.Pair.Drive.ResidueCount == 0,
+                "The owned command was not retired with its pair.");
+            // Through the command's later life: nothing that follows removes the foreign override.
+            for (var i = 0; i < 4; i++) world.Frame();
+            world.Interrupt(ownedCommand, true);
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy && !foreign.Destroyed && ownedCommand.EndCallbacks == 1,
+                "The foreign override did not survive the owned command's later life.");
 
             // The record itself.
             var watch = new MountedContinuousDriveWatch();
@@ -591,25 +584,575 @@ namespace KingmakerMountedCombat.Tests
             foreach (MountedContinuousDriveSettlement settlement in Enum.GetValues(typeof(MountedContinuousDriveSettlement)))
                 foreach (var finished in new[] { false, true })
                 {
-                    var untouched = MountedContinuousDrivePolicy.PlanRetirement(settlement, false, finished);
-                    TestRunner.True(!untouched.ClearOverride && !untouched.InterruptCommand && !untouched.RaiseEndEvent,
-                        "Something is retired although the bound agent is no longer installed (" + settlement + ").");
+                    var notInstalled = MountedContinuousDrivePolicy.PlanRetirement(settlement, finished, false);
+                    TestRunner.True(!notInstalled.ClearCapturedAgent, "An agent that is not installed on its captured view is cleared (" + settlement + ").");
                 }
-            var kept = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Keep, true, false);
-            TestRunner.True(!kept.ClearOverride && !kept.InterruptCommand, "A kept drive is retired.");
-            foreach (var settlement in new[] { MountedContinuousDriveSettlement.InputGated, MountedContinuousDriveSettlement.Replaced })
+            foreach (var settlement in new[] { MountedContinuousDriveSettlement.None, MountedContinuousDriveSettlement.Keep })
             {
-                var ends = MountedContinuousDrivePolicy.PlanRetirement(settlement, true, false);
-                TestRunner.True(ends.ClearOverride && ends.InterruptCommand && ends.RaiseEndEvent, "A running drive is not ended natively and cleared (" + settlement + ").");
+                var kept = MountedContinuousDrivePolicy.PlanRetirement(settlement, false, true);
+                TestRunner.True(!kept.ClearCapturedAgent && !kept.InterruptCommand && !kept.RaiseEndEvent, "A kept drive is retired (" + settlement + ").");
             }
-            var orphan = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Orphaned, true, false);
-            TestRunner.True(orphan.ClearOverride && orphan.InterruptCommand && !orphan.RaiseEndEvent, "An orphan is not ended quietly and cleared.");
-            var unowned = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Unowned, true, false);
-            TestRunner.True(unowned.ClearOverride && unowned.InterruptCommand && unowned.RaiseEndEvent, "A drive that lost its pair is not ended natively and cleared.");
-            var ended = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Ended, true, true);
-            TestRunner.True(ended.ClearOverride && !ended.InterruptCommand, "An ended command is interrupted again, or its leftover agent kept.");
-            var finishedUnowned = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Unowned, true, true);
-            TestRunner.True(finishedUnowned.ClearOverride && !finishedUnowned.InterruptCommand, "A finished command is interrupted.");
+            foreach (var settlement in new[] { MountedContinuousDriveSettlement.Unowned, MountedContinuousDriveSettlement.InputGated, MountedContinuousDriveSettlement.Replaced })
+                foreach (var installed in new[] { false, true })
+                {
+                    var ends = MountedContinuousDrivePolicy.PlanRetirement(settlement, false, installed);
+                    TestRunner.True(ends.InterruptCommand && ends.RaiseEndEvent && ends.ClearCapturedAgent == installed,
+                        "A running drive is not ended natively whether or not its agent is installed (" + settlement + ").");
+                    var finished = MountedContinuousDrivePolicy.PlanRetirement(settlement, true, installed);
+                    TestRunner.True(!finished.InterruptCommand && !finished.RaiseEndEvent && finished.ClearCapturedAgent == installed, "A finished command is interrupted (" + settlement + ").");
+                }
+            var orphan = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Orphaned, false, true);
+            TestRunner.True(orphan.ClearCapturedAgent && orphan.InterruptCommand && !orphan.RaiseEndEvent, "An orphan is not ended quietly and cleared.");
+            var ended = MountedContinuousDrivePolicy.PlanRetirement(MountedContinuousDriveSettlement.Ended, false, true);
+            TestRunner.True(ended.ClearCapturedAgent && !ended.InterruptCommand, "An ended command is interrupted again, or its leftover agent kept.");
+        }
+
+        // ---- review of 5e27c9bd, R1: the owned command is retired without clearing a foreign override ----
+
+        private static void ReplacedViewKeepsItsForeignOverride()
+        {
+            // Reproduction A, once for each release that exists: the pair's dismount and a rider order.
+            foreach (var byDismount in new[] { true, false })
+            {
+                var world = new World();
+                world.Current = world.Rider;
+                world.Stick = 1f;
+                world.Frame();
+                var command = world.Mount.Slot;
+                var boundView = world.Mount.View;
+                var agent = boundView.Override;
+                TestRunner.True(ReferenceEquals(world.Pair.Drive.View, boundView) && ReferenceEquals(world.Pair.Drive.Agent, agent), "Setup: the drive is bound to the mount's first view and its agent.");
+                // The mount receives another view carrying an unrelated override. The first view and its agent stay alive.
+                var foreign = new Agent { Continuous = true };
+                var replacement = world.ReplaceView(world.Mount);
+                replacement.Override = replacement.Component = foreign;
+                world.Stick = 0f;
+                if (byDismount) world.Dismount(world.Pair);
+                else world.RiderOrder(standard: true);
+                var how = byDismount ? " (dismount)" : " (rider order)";
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy && !foreign.Destroyed,
+                    "Retiring the owned command cleared the unrelated override of the mount's current view" + how + ".");
+                TestRunner.True(command.Finished && command.EndCallbacks == 1 && command.EndEventRaised, "The owned command was not ended natively, once" + how + ".");
+                TestRunner.True(boundView.Override == null && agent.PendingDestroy, "The owned agent was left on the view it was bound on" + how + ".");
+                TestRunner.Equal(1, world.Pair.Cleared, "The captured agent was not cleared exactly once, on its own view" + how + ".");
+                TestRunner.True(!world.Pair.Drive.IsBound && world.Pair.Drive.ResidueCount == 0, "The retirement is not established" + how + ".");
+                TestRunner.Equal(0, world.TrackedCommands, "A retired command is still tracked for the native-end guard" + how + ".");
+                // Every later cleanup and tick leaves the foreign override alone.
+                for (var i = 0; i < 4; i++) world.Frame();
+                world.Pair.Drive.Release("again");
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy && !foreign.Destroyed,
+                    "A later cleanup or tick cleared the unrelated override" + how + ".");
+                TestRunner.Equal(1, world.Pair.Interrupted, "The owned command was interrupted again" + how + ".");
+            }
+        }
+
+        private static void ForeignOverrideSurvivesTheOwnedCommandsWholeLife()
+        {
+            // Reproduction B: the mod's cleanup first, then the command's later native life.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var agent = world.Mount.Override;
+            var foreign = new Agent { Continuous = false };
+            world.Mount.Override = foreign;
+            world.Stick = 0f;
+            world.Validate(world.Pair);
+            TestRunner.True(!world.Pair.Mounted && world.Pair.Fault != null, "A foreign override on the mount was accepted.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy, "Relationship cleanup cleared the foreign override.");
+            TestRunner.True(command.Finished && world.Pair.Interrupted == 1, "The owned command was abandoned unfinished: it could later end natively and clear whatever override the mount then holds.");
+            TestRunner.Equal(0, world.Pair.Cleared, "The owner cleared an override although the bound agent is not installed.");
+            TestRunner.Equal(0, world.Pair.Drive.ResidueCount, "The retirement is not established.");
+            TestRunner.True(!world.Pair.Drive.OwnsMountOverride(foreign) && !world.Pair.Drive.OwnsMountOverride(agent), "A foreign or retired agent is owned.");
+            for (var i = 0; i < 4; i++) world.Frame();
+            world.Interrupt(command, true);
+            world.OnEnded(command, true);
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy && !foreign.Destroyed,
+                "The original command's later ticking or termination cleared the foreign override.");
+            TestRunner.Equal(1, command.EndCallbacks, "The command's end callback ran more than once.");
+
+            // The other order: native ends the command (its own agent is gone) before the mod's cleanup runs.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            foreign = new Agent { Continuous = false };
+            world.Mount.Override = foreign;
+            world.Tick();
+            TestRunner.True(command.Finished, "Setup: native ends a continuous command whose agent is gone.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy, "The owned command's own native end cleared the foreign override.");
+            world.Validate(world.Pair);
+            for (var i = 0; i < 3; i++) world.Frame();
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy, "Cleanup after the native end cleared the foreign override.");
+            TestRunner.Equal(0, world.Pair.Cleared + world.Pair.Interrupted, "The owner acted although the command had ended and its agent was not installed.");
+
+            // A foreign continuous agent keeps the command alive natively; the dismount still retires the command only.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            foreign = new Agent { Continuous = true, Direction = 1f };
+            world.Mount.Override = foreign;
+            world.Dismount(world.Pair);
+            TestRunner.True(command.Finished && ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy, "The dismount cleared a foreign continuous agent, or left the owned command running.");
+
+            TestRunner.True(MountedContinuousDrivePolicy.NativeEndMayClearOverride(false, false, false) && MountedContinuousDrivePolicy.NativeEndMayClearOverride(true, true, true) &&
+                !MountedContinuousDrivePolicy.NativeEndMayClearOverride(true, false, true) && !MountedContinuousDrivePolicy.NativeEndMayClearOverride(true, true, false),
+                "A pair-bound command may clear anything but its bound agent on its bound view, or an unbound command lost the native rule.");
+        }
+
+        private static void InterruptFailureIsRetainedAndRetried()
+        {
+            // The interrupt fails before the native call: the command is still running and still owns its agent's place.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var agent = world.Mount.Override;
+            world.Stick = 0f;
+            world.Pair.FailInterrupts = 1;
+            world.Dismount(world.Pair);
+            TestRunner.True(!command.Finished && ReferenceEquals(world.Mount.Slot, command), "Setup: the failed interrupt left the command running in the mount's slot.");
+            TestRunner.True(world.Mount.Override == null && agent.PendingDestroy, "The captured agent was not cleaned on its own when the command's interrupt failed.");
+            TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "The only cleanup record was discarded although its command is unfinished and still held.");
+            TestRunner.True(!world.Pair.Drive.IsBound && !world.Pair.Drive.OwnsMountOverride(agent), "A retirement that failed is still an owned live drive.");
+            TestRunner.Equal(1L, world.Pair.Drive.RetirementFailureCount, "The failure was not counted.");
+            TestRunner.Equal(1, world.Pair.Warnings, "The failure was not reported.");
+            // The next settlement retries with the same command.
+            world.Validate(world.Pair);
+            TestRunner.True(command.Finished && world.Mount.Override == null, "The retry did not retire the command.");
+            TestRunner.Equal(0, world.Pair.Drive.ResidueCount, "The retirement is not established after the retry.");
+            TestRunner.Equal(2, world.Pair.Interrupted, "The interrupt was not attempted exactly twice.");
+            TestRunner.True(world.CanMount(world.Pair), "The pair cannot mount again after the retry.");
+
+            // The same failure after a foreign override replaced the bound agent: nothing owned is installed, but the
+            // unfinished command is still held by the mount, so its record stays. When native ends that command in the
+            // meantime, the record is what keeps its end from clearing the foreign override.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            var foreign = new Agent { Continuous = false };
+            world.Mount.Override = foreign;
+            world.Stick = 0f;
+            world.Pair.FailInterrupts = 1;
+            world.Dismount(world.Pair);
+            TestRunner.True(!command.Finished && world.Pair.Drive.ResidueCount == 1 && world.Pair.Cleared == 0, "An unfinished, still held command lost its record, or something was cleared.");
+            world.Tick();
+            TestRunner.True(command.Finished, "Setup: native ended the command whose own agent is gone.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, foreign) && !foreign.PendingDestroy, "The retained command's native end cleared the foreign override.");
+            world.Validate(world.Pair);
+            TestRunner.True(world.Pair.Drive.ResidueCount == 0 && world.Pair.Interrupted == 1 && world.Pair.Cleared == 0 && ReferenceEquals(world.Mount.Override, foreign),
+                "The retirement was not established from the facts, or the retry touched the foreign override.");
+        }
+
+        private static void TerminalCommandIsNotProofOfARemovedOverride()
+        {
+            // Native Interrupt stamps the command, OnEnded marks it finished and then fails before removing the override.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var agent = world.Mount.Override;
+            world.Stick = 0f;
+            world.FailNextEndCallback = true;
+            world.Dismount(world.Pair);
+            TestRunner.True(command.Finished && command.InterruptStamped && command.EndCallbacks == 1, "Setup: the command is terminal and its end callback failed.");
+            // The agent is not assumed gone because the command is terminal: the captured view is read and cleaned.
+            TestRunner.Equal(1, world.Pair.Cleared, "The captured agent was not cleared on its own after the failed end callback.");
+            TestRunner.True(world.Mount.Override == null && agent.PendingDestroy && world.Pair.Drive.ResidueCount == 0, "The owned override survived a terminal command.");
+            TestRunner.Equal(1L, world.Pair.Drive.RetirementFailureCount, "The failed end callback was not counted.");
+            TestRunner.True(world.CanMount(world.Pair), "The pair cannot mount again.");
+
+            // The same, and the removal fails too: the command is terminal, its override is still installed, and the
+            // record stays. Native Interrupt would do nothing on the stamped command, so the retry clears the agent.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            agent = world.Mount.Override;
+            world.Stick = 0f;
+            world.FailNextEndCallback = true;
+            world.Pair.FailClears = 1;
+            world.Dismount(world.Pair);
+            TestRunner.True(command.Finished && ReferenceEquals(world.Mount.Override, agent) && !agent.PendingDestroy, "Setup: a terminal command whose override was not removed.");
+            TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "A terminal command was taken as proof that its override is gone.");
+            TestRunner.True(!world.CanMount(world.Pair), "Setup: the leftover override refuses a mount attempt.");
+            world.Validate(world.Pair);
+            TestRunner.Equal(1, world.Pair.Interrupted, "A terminal command was interrupted again.");
+            TestRunner.Equal(1, command.EndCallbacks, "The native end callback was repeated.");
+            TestRunner.Equal(2, world.Pair.Cleared, "The removal was not retried exactly once.");
+            TestRunner.True(world.Mount.Override == null && agent.PendingDestroy && world.Pair.Drive.ResidueCount == 0, "The owned override survived the retry.");
+            TestRunner.True(world.CanMount(world.Pair), "The pair cannot mount again.");
+        }
+
+        private static void OverrideRemovalFailureIsRetainedAndRetried()
+        {
+            // The view was replaced, so the command's native end cannot remove the agent; the removal itself then fails.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var boundView = world.Mount.View;
+            var agent = boundView.Override;
+            var foreign = new Agent { Continuous = true };
+            var replacement = world.ReplaceView(world.Mount);
+            replacement.Override = replacement.Component = foreign;
+            world.Stick = 0f;
+            world.Pair.FailClears = 1;
+            world.Dismount(world.Pair);
+            TestRunner.True(command.Finished, "Setup: the command was retired.");
+            TestRunner.True(ReferenceEquals(boundView.Override, agent) && world.Pair.Drive.ResidueCount == 1, "The record of an agent that could not be removed was discarded.");
+            TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The failed removal touched the foreign override.");
+            world.Validate(world.Pair);
+            TestRunner.True(boundView.Override == null && agent.PendingDestroy && world.Pair.Drive.ResidueCount == 0, "The retry did not remove the captured agent.");
+            TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The retry touched the foreign override.");
+            TestRunner.Equal(1, world.Pair.Interrupted, "A finished command was interrupted again on retry.");
+            TestRunner.Equal(2, world.Pair.Cleared, "The removal was not attempted exactly twice.");
+        }
+
+        private static void PersistentFailureIsBoundedAndNeverDiscarded()
+        {
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var agent = world.Mount.Override;
+            world.Stick = 0f;
+            world.Pair.FailInterrupts = 100;
+            world.Pair.FailReports = true;
+            world.Dismount(world.Pair);
+            TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "A failing report undid the retention of the record.");
+            TestRunner.True(world.Pair.Drive.ReportFailureCount >= 1, "The failing report was not contained and counted.");
+            // Automatic retries stop at the limit; the record stays.
+            for (var i = 0; i < 10; i++) world.Pair.Drive.Settle(false);
+            TestRunner.Equal(MountedContinuousDriveOwner.AutomaticRetryLimit, world.Pair.Interrupted, "Automatic retries of a failing retirement are not bounded.");
+            TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "The record was discarded after its automatic retries.");
+            TestRunner.Equal(1, world.Pair.Warnings, "A persistent failure was reported more than once.");
+            TestRunner.True(!command.Finished && world.Mount.Override == null && agent.PendingDestroy, "Setup: the command is still unfinished; its agent was cleaned on its own.");
+            // Explicit recovery always retries, and succeeds once the failure is gone.
+            world.Pair.FailInterrupts = 1;
+            world.Pair.Drive.Release("explicit recovery");
+            TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "Explicit recovery did not retry and keep the record.");
+            world.Pair.Drive.Release("explicit recovery");
+            TestRunner.True(command.Finished && world.Mount.Override == null && world.Pair.Drive.ResidueCount == 0, "Explicit recovery did not establish the retirement.");
+
+            TestRunner.True(MountedContinuousDrivePolicy.RetirementEstablished(true, true, false) && MountedContinuousDrivePolicy.RetirementEstablished(false, false, false) &&
+                !MountedContinuousDrivePolicy.RetirementEstablished(true, true, true) && !MountedContinuousDrivePolicy.RetirementEstablished(true, false, true) &&
+                !MountedContinuousDrivePolicy.RetirementEstablished(false, true, false),
+                "A retirement is established although its agent is installed, or although its unfinished command is still held.");
+        }
+
+        private static void ANewBindingTakesOverTheAgentOfUnfinishedResidue()
+        {
+            // A refused command whose interrupt and agent removal both fail stays as residue with its agent installed.
+            // The next push adopts that same component: it is the new command's agent now, and the residue no longer
+            // clears it.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.RunRefused = true;
+            world.Pair.FailInterrupts = 1;
+            world.Pair.FailClears = 1;
+            world.Frame();
+            var agent = world.Mount.Override;
+            TestRunner.True(agent != null && world.Pair.Drive.ResidueCount == 1, "Setup: the refused command's retirement failed and is retained.");
+            world.RunRefused = false;
+            world.Pair.FailInterrupts = 0;
+            world.Frame(validate: false);
+            var second = world.Mount.Slot;
+            TestRunner.True(second != null && second.Continuous && ReferenceEquals(world.Pair.Drive.Command, second) && ReferenceEquals(world.Pair.Drive.Agent, agent),
+                "Setup: the next push adopted the same agent.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, agent) && !agent.PendingDestroy, "Recovering the earlier retirement cleared the agent the new command adopted.");
+            TestRunner.Equal(0, world.Pair.Drive.ResidueCount, "The earlier retirement is not established (its command is held by nobody and its agent has a new owner).");
+            world.Frame();
+            world.Frame();
+            TestRunner.True(world.Pair.Mounted && world.Mount.Position > 0f && ReferenceEquals(world.Mount.Override, agent), "The pair is not driven by the adopted agent: " + world.Pair.Fault);
+        }
+
+        private static void ReentrantEndEventHandler()
+        {
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var boundView = world.Mount.View;
+            var foreign = new Agent { Continuous = true };
+            var replacement = world.ReplaceView(world.Mount);
+            replacement.Override = replacement.Component = foreign;
+            world.Stick = 0f;
+            // Native raises the end event inside OnEnded, before it removes the override.
+            var reentered = 0;
+            world.EndEventHandler = ended =>
+            {
+                reentered++;
+                world.Pair.Drive.Settle(false);
+                world.Pair.Drive.Release("re-entered from the end event");
+            };
+            world.Dismount(world.Pair);
+            TestRunner.Equal(1, reentered, "Setup: the end event handler ran once.");
+            TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "A re-entrant settlement let the native end clear the foreign override.");
+            TestRunner.True(command.Finished && command.EndCallbacks == 1 && world.Pair.Interrupted == 1, "The command was not retired exactly once.");
+            TestRunner.True(boundView.Override == null && world.Pair.Cleared == 1, "The captured agent was not cleared exactly once.");
+            TestRunner.True(world.Pair.Drive.ResidueCount == 0 && world.TrackedCommands == 0, "The retirement is not established, or the command is still tracked.");
+        }
+
+        private static void NewBindingSupersedesABoundRecord()
+        {
+            // The first command is replaced on the mount and, before the mod's next settlement, the held stick pushes
+            // again: the record is still bound to the first command when the second is bound.
+            var world = new World { Gamepad = false };
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var first = world.Mount.Slot;
+            var agent = world.Mount.Override;
+            world.GroundOrder(30f, world.Rider);
+            TestRunner.True(first.Finished && ReferenceEquals(world.Pair.Drive.Command, first), "Setup: the first command ended and its record is not yet settled.");
+            world.Frame(validate: false);
+            var second = world.Mount.Slot;
+            TestRunner.True(second != null && second.Continuous && ReferenceEquals(world.Pair.Drive.Command, second) && ReferenceEquals(world.Pair.Drive.Agent, agent),
+                "The second command was not bound with the agent it adopted.");
+            TestRunner.Equal(0, world.Pair.Cleared + world.Pair.Interrupted, "Superseding a finished record cleared the adopted agent or interrupted something.");
+            TestRunner.Equal(0, world.Pair.Drive.ResidueCount, "The superseded record was not established.");
+            TestRunner.Equal(1, world.TrackedCommands, "The superseded command is still tracked, or the new one is not.");
+
+            // The same when the earlier command is, against the native order of things, still running: it is ended, and
+            // its native end may not clear the agent the new command adopted.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var running = world.Mount.Slot;
+            var liveAgent = world.Mount.Override;
+            var pair = world.Pair;
+            var third = new Command { Continuous = true, Executor = world.Mount };
+            pair.Drive.Bind(third);
+            TestRunner.True(running.Finished && running.EndEventRaised && pair.Interrupted == 1, "A still running earlier command was overwritten, not retired.");
+            TestRunner.True(ReferenceEquals(pair.Drive.Command, third) && ReferenceEquals(pair.Drive.Agent, liveAgent), "The new command was not bound with the agent it adopted.");
+            TestRunner.True(ReferenceEquals(world.Mount.Override, liveAgent) && !liveAgent.PendingDestroy && pair.Cleared == 0, "Retiring the earlier command cleared the agent the new command adopted.");
+            TestRunner.Equal(0, pair.Drive.ResidueCount, "The superseded record was not established.");
+        }
+
+        // ---- review of 5e27c9bd, R2: rider-order admission through queue promotion ----
+
+        private static void QueuedRiderOrderEndsTheDriveWhenItIsAdmitted()
+        {
+            var world = new World();
+            // The rider is busy with an action that cannot be interrupted, so native Run queues a new order.
+            var busy = world.Order(world.Rider, standard: true, uninterruptible: true);
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            TestRunner.True(command != null && command.Continuous && !busy.Finished, "Setup: the pair is driven while the rider's own action runs.");
+            // Merely enqueueing leaves the drive intact.
+            var queued = world.RiderOrder(standard: true);
+            TestRunner.True(world.Rider.Queue.Contains(queued) && !world.Rider.Holds(queued), "Setup: the order was queued, not admitted.");
+            world.Frame();
+            TestRunner.True(!command.Finished && world.Pair.Drive.IsBound && world.Pair.Interrupted == 0, "Enqueueing a rider order ended the stick movement.");
+            // The busy action finishes; native promotes the queued order through the internal Run.
+            busy.Finished = true;
+            world.Stick = 0f;
+            world.Tick();
+            TestRunner.True(world.Rider.Holds(queued), "Setup: the queued order was promoted and admitted.");
+            TestRunner.True(command.Finished && !world.Pair.Drive.IsBound, "An order admitted by queue promotion did not end the stick movement.");
+            TestRunner.Equal(1, world.Pair.Interrupted, "The drive was not ended exactly once.");
+            TestRunner.Equal(1, command.EndCallbacks, "The native end callback did not run exactly once.");
+            TestRunner.Equal(1, world.Pair.EndEvents, "The native end event was not raised exactly once.");
+            TestRunner.True(!queued.Finished, "The admitted order was ended.");
+            for (var i = 0; i < 3; i++) world.Frame();
+            TestRunner.Equal(1, world.Pair.Interrupted, "A later frame ended the drive again.");
+
+            // The wiring of the reviewed head observed admission after the public Run only: promotion bypasses it.
+            var reviewed = new World { ObserveAdmissionOnPublicRunOnly = true };
+            busy = reviewed.Order(reviewed.Rider, standard: true, uninterruptible: true);
+            reviewed.Current = reviewed.Rider;
+            reviewed.Stick = 1f;
+            reviewed.Frame();
+            command = reviewed.Mount.Slot;
+            queued = reviewed.RiderOrder(standard: true);
+            busy.Finished = true;
+            reviewed.Tick();
+            TestRunner.True(reviewed.Rider.Holds(queued) && !command.Finished && reviewed.Pair.Drive.IsBound,
+                "Setup (model of the reviewed wiring): a promoted order should not have been observed there.");
+        }
+
+        private static void RefusedPromotionAndOtherAdmissionsLeaveTheDrive()
+        {
+            // A promotion the mod's own prefix refuses, and one native refuses for an unconscious unit.
+            foreach (var unconscious in new[] { false, true })
+            {
+                var world = new World();
+                var busy = world.Order(world.Rider, standard: true, uninterruptible: true);
+                world.Current = world.Rider;
+                world.Stick = 1f;
+                world.Frame();
+                var command = world.Mount.Slot;
+                var queued = world.RiderOrder(standard: true);
+                busy.Finished = true;
+                if (unconscious) world.Rider.Conscious = false;
+                else world.PromotionRefused = true;
+                world.Tick();
+                TestRunner.True(!world.Rider.Holds(queued), "Setup: the promotion was refused.");
+                TestRunner.True(!command.Finished && world.Pair.Drive.IsBound && world.Pair.Interrupted == 0, "A refused promotion ended the stick movement (unconscious=" + unconscious + ").");
+            }
+
+            // A queued Free order, another unit's promoted order and another pair's rider order change nothing.
+            var other = new World();
+            var second = other.AddPair("rider2", "mount2");
+            var riderBusy = other.Order(other.Rider, standard: false, uninterruptible: true);
+            var companionBusy = other.Order(other.Companion, standard: true, uninterruptible: true);
+            var secondBusy = other.Order(second.Rider, standard: true, uninterruptible: true);
+            other.Current = other.Rider;
+            other.Stick = 1f;
+            other.Frame();
+            var drive = other.Mount.Slot;
+            var free = other.Order(other.Rider, standard: false);
+            var companionOrder = other.Order(other.Companion, standard: true);
+            var secondOrder = other.Order(second.Rider, standard: true);
+            riderBusy.Finished = companionBusy.Finished = secondBusy.Finished = true;
+            other.Tick();
+            TestRunner.True(other.Rider.Holds(free) && other.Companion.Holds(companionOrder) && second.Rider.Holds(secondOrder), "Setup: the three queued orders were promoted.");
+            TestRunner.True(!drive.Finished && other.Pair.Drive.IsBound && other.Pair.Interrupted == 0 && second.Interrupted == 0,
+                "A Free order, an unrelated unit's order or another pair's order ended the stick movement.");
+
+            // A stale order: admitted when no drive is bound, nothing happens, then or later.
+            var stale = new World();
+            stale.RiderOrder(standard: true);
+            stale.Tick();
+            TestRunner.Equal(0, stale.Pair.Interrupted + stale.Pair.Cleared, "An order admitted without a bound drive retired something.");
+        }
+
+        private static void NestedRunsEndTheDriveOnce()
+        {
+            // Direct admission through the public Run reaches the internal Run once.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            world.Stick = 0f;
+            var direct = world.RiderOrder(standard: true);
+            TestRunner.True(world.Rider.Holds(direct) && command.Finished, "Direct admission no longer ends the stick movement.");
+            TestRunner.True(world.Pair.Interrupted == 1 && command.EndCallbacks == 1 && world.Pair.EndEvents == 1, "Direct admission ended the drive more than once.");
+
+            // A custom handler: the public Run of one order runs another first, nested, and queues the first. Both
+            // internal Runs are observed; the drive ends once, when the nested order is admitted.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            world.Stick = 0f;
+            var first = new Command { Executor = world.Rider, Standard = true };
+            var outer = world.Order(world.Rider, standard: true, executeBefore: first);
+            TestRunner.True(world.Rider.Holds(first) && world.Rider.Queue.Contains(outer), "Setup: the nested order was admitted and the outer one queued.");
+            TestRunner.True(command.Finished && world.Pair.Interrupted == 1 && command.EndCallbacks == 1 && world.Pair.EndEvents == 1,
+                "Nested Run calls ended the drive more than once, or not at all.");
+            first.Finished = true;
+            world.Tick();
+            TestRunner.True(world.Rider.Holds(outer), "Setup: the outer order was promoted afterwards.");
+            TestRunner.True(world.Pair.Interrupted == 1 && command.EndCallbacks == 1, "The later promotion ended an already ended drive again.");
+        }
+
+        private static void StationaryRiderOrderAndTheStick()
+        {
+            // An in-range Standard order admitted on the rider ends the drive. It needs no approach, so nothing but its
+            // own admission can be what ended it.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            var order = world.RiderOrder(standard: true);
+            TestRunner.True(!order.Approaching && world.Rider.Holds(order), "Setup: a stationary, admitted Standard order.");
+            TestRunner.True(command.Finished && command.EndEventRaised && world.Mount.Override == null && !world.Pair.Drive.IsBound, "The rider's in-range order did not end the pair's stick movement.");
+            // The stick is still held: it takes the mount again. Native InterruptMove ends approaching orders only, and
+            // the Move/Standard pairing of native Run lives in the mount's container, so the rider's stationary order
+            // runs on, as it does beside a routed ground order.
+            world.Frame();
+            TestRunner.True(world.Mount.Slot != null && world.Mount.Slot.Continuous && !ReferenceEquals(world.Mount.Slot, command), "The held stick did not take the pair again.");
+            TestRunner.True(!order.Finished && world.Rider.Holds(order), "The stick ended the rider's stationary order.");
+            TestRunner.True(world.Pair.Mounted, "The pair was dismounted: " + world.Pair.Fault);
+
+            // An approaching order is different: a held stick ends it when it takes the pair over.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var approaching = world.RiderOrder(standard: true, approaching: true);
+            world.Frame();
+            TestRunner.True(approaching.Finished, "A held stick did not end the rider's approaching order.");
+            TestRunner.True(world.Mount.Slot != null && world.Mount.Slot.Continuous && world.Pair.Mounted, "The held stick did not take the pair again.");
+
+            // Released before the order: the order stays and the drive is gone.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            world.Stick = 0f;
+            approaching = world.RiderOrder(standard: true, approaching: true);
+            world.Frame(); world.Frame();
+            TestRunner.True(!approaching.Finished && world.Mount.Slot == null && world.Mount.Override == null, "A released stick cancelled the rider's order, or the drive lingered.");
+
+            // A Free order replaces nothing, natively or here.
+            world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            command = world.Mount.Slot;
+            world.RiderOrder(standard: false);
+            TestRunner.True(!command.Finished && world.Pair.Drive.IsBound, "An order that is neither Move nor Standard ended the stick movement.");
+
+            // The stick starts while the rider already holds a stationary Standard order: the pair is driven and the
+            // order runs on. (For one native unit the same push would end an interruptible Standard order through the
+            // Move/Standard pairing; the pair keeps its established rule that the mount's movement does not.)
+            world = new World();
+            order = world.RiderOrder(standard: true);
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            world.Frame();
+            TestRunner.True(world.Mount.Slot != null && world.Mount.Slot.Continuous && world.Mount.Position > 0f && !order.Finished && world.Rider.Holds(order),
+                "Starting stick movement ended the rider's stationary order, or did not drive the pair.");
+
+            TestRunner.True(MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, true, true) && !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(false, true, true) &&
+                !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, false, true) && !MountedContinuousDrivePolicy.RiderOrderReplacesDrive(true, true, false),
+                "The replacement decision is not a bound drive and a Move or Standard order admitted on the rider's container.");
+        }
+
+        private static void TheModelFollowsThePinnedNativeSlotRules()
+        {
+            // These assert the model, not production: the native rules are pinned by the contract script, and the tests
+            // above rely on the model following them.
+            var world = new World();
+            var stationary = world.Order(world.Companion, standard: true);
+            var approaching = world.Order(world.Companion, standard: false, approaching: true);
+            world.Current = world.Companion;
+            world.Stick = 1f;
+            world.Frame();
+            TestRunner.True(approaching.Finished, "Model: InterruptMove did not end an approaching order.");
+            TestRunner.True(stationary.Finished && world.Companion.Slot != null && world.Companion.Slot.Continuous,
+                "Model: a Move order run on the same unit did not end its interruptible Standard order (the Move/Standard pairing).");
+            // An uninterruptible action: native queues the continuous command and faults on the missing command.
+            world = new World();
+            var busy = world.Order(world.Companion, standard: true, uninterruptible: true);
+            world.Current = world.Companion;
+            world.Stick = 1f;
+            world.Frame();
+            TestRunner.True(!busy.Finished && world.Companion.Slot == null && world.Companion.Queue.Count == 1 && world.NativeFaults == 1,
+                "Model: an uninterruptible action did not queue the continuous command.");
         }
 
         // ---- the model ----
@@ -622,41 +1165,67 @@ namespace KingmakerMountedCombat.Tests
             public float Direction;
         }
 
+        // A unit's view. A unit can receive another view while an earlier one, and what it carries, stays alive.
+        private sealed class ViewModel
+        {
+            // UnitEntityView.AgentOverride (a reference that may point at a destroyed component) and the continuous
+            // component GetComponent finds on the view.
+            public Agent Override;
+            public Agent Component;
+        }
+
         private sealed class Command
         {
             public Unit Executor;
             public bool Continuous;
             public bool Standard;
             public bool Free;
+            // Native IsMoveUnit: the command has approached its target. Only such commands end on InterruptMove.
+            public bool Approaching;
+            // Native IsInterruptible is false: Run queues a new Move or Standard order instead of running it.
+            public bool Uninterruptible;
+            // Native Interrupt stamps the result before OnEnded and does nothing on a stamped command.
+            public bool InterruptStamped;
             public bool Finished;
             public bool Accelerated;
             public bool EndEventRaised;
+            public int EndCallbacks;
+            // A custom handler's order that native runs first, queueing this one.
+            public Command ExecuteBefore;
             public float Destination;
         }
 
         private sealed class Unit
         {
             public string Name;
+            // The Move slot, the Standard slot (paired with it in native Run) and the Free slot.
             public Command Slot;
-            public Command OtherSlot;
-            // UnitEntityView.AgentOverride (a reference that may point at a destroyed component) and the continuous
-            // component GetComponent finds on the view.
-            public Agent Override;
-            public Agent Component;
+            public Command StandardSlot;
+            public Command FreeSlot;
+            public readonly List<Command> Queue = new List<Command>();
+            public ViewModel View = new ViewModel();
             public float Position;
             public bool Conscious = true;
             public bool HasView = true;
             public bool Hold;
+
+            public Agent Override { get { return View.Override; } set { View.Override = value; } }
+
+            public Agent Component { get { return View.Component; } set { View.Component = value; } }
+
+            public IEnumerable<Command> Held => new[] { Slot, StandardSlot, FreeSlot }.Where(command => command != null);
+
+            public bool Holds(Command command) => ReferenceEquals(Slot, command) || ReferenceEquals(StandardSlot, command) || ReferenceEquals(FreeSlot, command);
         }
 
         // A live component: Unity's == null is true for a destroyed one.
         private static Agent Live(Agent agent) => agent != null && !agent.Destroyed ? agent : null;
 
         // Native UnitEntityView.AgentOverride = null: the old component is destroyed at the end of the frame.
-        private static void SetOverrideNull(Unit unit)
+        private static void SetOverrideNull(ViewModel view)
         {
-            if (unit.Override != null) unit.Override.PendingDestroy = true;
-            unit.Override = null;
+            if (view.Override != null) view.Override.PendingDestroy = true;
+            view.Override = null;
         }
 
         // The model's stand-in for GameMountedRelationshipService.ContinuousDriveHost.
@@ -667,7 +1236,10 @@ namespace KingmakerMountedCombat.Tests
             public bool Mounted = true;
             public long Generation = 1;
             public string Fault;
-            public int Interrupted, EndEvents, Warnings, Reports;
+            public int Interrupted, EndEvents, Cleared, Warnings, Reports;
+            // Failure injection: the adapter's native calls fail this many times, and its report always fails.
+            public int FailInterrupts, FailClears;
+            public bool FailReports;
             public readonly Agent RiderAgent = new Agent();
             public readonly MountedContinuousDriveOwner Drive;
 
@@ -678,24 +1250,37 @@ namespace KingmakerMountedCombat.Tests
             int IMountedContinuousDriveHost.Frame => World.FrameNumber;
             bool IMountedContinuousDriveHost.StickInputGated => World.InCombat;
             object IMountedContinuousDriveHost.Mount => Mount;
-            object IMountedContinuousDriveHost.MountView => Mount.HasView ? Mount : null;
+            object IMountedContinuousDriveHost.ViewOf(object unit) => ((Unit)unit).HasView ? ((Unit)unit).View : null;
             object IMountedContinuousDriveHost.ExecutorOf(object command) => ((Command)command).Executor;
             bool IMountedContinuousDriveHost.IsFinished(object command) => ((Command)command).Finished;
             bool IMountedContinuousDriveHost.InMountMoveSlot(object command) => ReferenceEquals(Mount.Slot, command);
-            object IMountedContinuousDriveHost.OverrideOf(object view) => ((Unit)view).Override;
+            bool IMountedContinuousDriveHost.IsHeld(object command)
+            {
+                var executor = ((Command)command).Executor;
+                return executor != null && (executor.Holds((Command)command) || executor.Queue.Contains((Command)command));
+            }
+            object IMountedContinuousDriveHost.OverrideOf(object view) => ((ViewModel)view).Override;
             bool IMountedContinuousDriveHost.IsContinuousAgent(object agent) => Live(agent as Agent) != null && ((Agent)agent).Continuous;
             void IMountedContinuousDriveHost.Interrupt(object command, bool raiseEndEvent)
             {
                 Interrupted++;
+                if (FailInterrupts > 0) { FailInterrupts--; throw new InvalidOperationException("the interrupt failed before the native call"); }
                 if (raiseEndEvent) EndEvents++;
-                World.End((Command)command, raiseEndEvent);
+                World.Interrupt((Command)command, raiseEndEvent);
             }
-            void IMountedContinuousDriveHost.ClearOverride(object view) => SetOverrideNull((Unit)view);
+            void IMountedContinuousDriveHost.ClearOverride(object view)
+            {
+                Cleared++;
+                if (FailClears > 0) { FailClears--; throw new InvalidOperationException("the override could not be removed"); }
+                SetOverrideNull((ViewModel)view);
+            }
             void IMountedContinuousDriveHost.ReleaseRiderHold() => Rider.Hold = false;
+            void IMountedContinuousDriveHost.Forget(object command) => World.Forget((Command)command);
             void IMountedContinuousDriveHost.Report(MountedContinuousDriveSettlement settlement, string reason, bool warning)
             {
                 Reports++;
                 if (warning) Warnings++;
+                if (FailReports) throw new InvalidOperationException("the logger failed");
             }
         }
 
@@ -704,7 +1289,16 @@ namespace KingmakerMountedCombat.Tests
             public bool Corrected = true;
             public bool Gamepad = true;
             public bool ProjectionFaults;
+            // The mod's prefix of the public Run refuses the command (a save in progress, a restoration).
             public bool RunRefused;
+            // The mod's prefix of the internal Run refuses a queue promotion.
+            public bool PromotionRefused;
+            // The wiring of the reviewed head 5e27c9bd: admitted orders are observed after the public Run only.
+            public bool ObserveAdmissionOnPublicRunOnly;
+            // The next native OnEnded fails after it marked the command finished and before it removes the override.
+            public bool FailNextEndCallback;
+            // A handler of the native end event, which native raises inside OnEnded before it removes the override.
+            public Action<Command> EndEventHandler;
             public bool InCombat;
             // Turn-based combat outside the unit's own turn: its commands are not ticked.
             public bool TurnBasedHold;
@@ -715,21 +1309,47 @@ namespace KingmakerMountedCombat.Tests
             public readonly List<Unit> Selected = new List<Unit>();
             public readonly List<Unit> FormationAnchors = new List<Unit>();
             public readonly List<Pair> Pairs = new List<Pair>();
-            public readonly Unit Companion = new Unit { Name = "companion" };
+            public readonly List<ViewModel> Views = new List<ViewModel>();
+            private readonly Dictionary<Command, Pair> boundCommands = new Dictionary<Command, Pair>();
+
+            // The model's stand-in for the adapter's table of pair-bound commands.
+            public int TrackedCommands => boundCommands.Count;
+
+            public void Forget(Command command) => boundCommands.Remove(command);
+            public readonly Unit Companion;
             public readonly Pair Pair;
 
-            public World() { Pair = AddPair("rider", "mount"); }
+            public World()
+            {
+                Companion = NewUnit("companion");
+                Pair = AddPair("rider", "mount");
+            }
 
             public Unit Rider => Pair.Rider;
 
             public Unit Mount => Pair.Mount;
 
+            private Unit NewUnit(string name)
+            {
+                var unit = new Unit { Name = name };
+                Views.Add(unit.View);
+                return unit;
+            }
+
             public Pair AddPair(string rider, string mount)
             {
-                var pair = new Pair { World = this, Rider = new Unit { Name = rider }, Mount = new Unit { Name = mount } };
+                var pair = new Pair { World = this, Rider = NewUnit(rider), Mount = NewUnit(mount) };
                 pair.Rider.Override = pair.RiderAgent;
                 Pairs.Add(pair);
                 return pair;
+            }
+
+            // The unit receives another view. The earlier view and whatever it carries stay alive.
+            public ViewModel ReplaceView(Unit unit)
+            {
+                unit.View = new ViewModel();
+                Views.Add(unit.View);
+                return unit.View;
             }
 
             private IEnumerable<Unit> Units => Pairs.SelectMany(pair => new[] { pair.Rider, pair.Mount }).Concat(new[] { Companion });
@@ -780,22 +1400,27 @@ namespace KingmakerMountedCombat.Tests
                 Tick();
                 if (validate) foreach (var pair in Pairs.ToList()) Validate(pair);
                 UpdateMovement(repath);
-                foreach (var unit in Units)
-                    if (unit.Component != null && unit.Component.PendingDestroy) { unit.Component.Destroyed = true; unit.Component = null; }
+                EndOfFrame();
             }
 
-            private void Tick()
+            public void EndOfFrame()
             {
-                foreach (var unit in Units)
+                foreach (var view in Views)
+                    if (view.Component != null && view.Component.PendingDestroy) { view.Component.Destroyed = true; view.Component = null; }
+            }
+
+            public void Tick()
+            {
+                foreach (var unit in Units.ToList())
                 {
-                    if (unit.OtherSlot != null && unit.OtherSlot.Finished) unit.OtherSlot = null;
                     var command = unit.Slot;
-                    if (command == null) continue;
-                    if (command.Finished) { unit.Slot = null; continue; }
-                    if (!command.Continuous || TurnBasedHold) continue;
-                    // UnitMoveContiniously.OnTick, executed for the command's executor.
-                    var agent = ContinuousAgent(command.Executor);
-                    if (agent == null || agent.Direction <= 0.01f) End(command, true);
+                    if (command != null && !command.Finished && command.Continuous && !TurnBasedHold)
+                    {
+                        // UnitMoveContiniously.OnTick, executed for the command's executor.
+                        var agent = ContinuousAgent(command.Executor);
+                        if (agent == null || agent.Direction <= 0.01f) OnEnded(command, true);
+                    }
+                    PromoteQueue(unit);
                 }
                 foreach (var unit in Units)
                 {
@@ -806,6 +1431,21 @@ namespace KingmakerMountedCombat.Tests
                     agent.Direction *= 0.1f;
                 }
                 foreach (var pair in Pairs) if (pair.Mounted) pair.Rider.Position = pair.Mount.Position;
+            }
+
+            // Native UnitCommands.RemoveFinishedAndUpdateQueue: finished commands leave their slots, and the first
+            // queued command is promoted through the internal Run, not the public one, once its slots are free.
+            private void PromoteQueue(Unit unit)
+            {
+                if (unit.Slot != null && unit.Slot.Finished) unit.Slot = null;
+                if (unit.StandardSlot != null && unit.StandardSlot.Finished) unit.StandardSlot = null;
+                if (unit.FreeSlot != null && unit.FreeSlot.Finished) unit.FreeSlot = null;
+                if (unit.Queue.Count == 0) return;
+                var next = unit.Queue[0];
+                var free = next.Free ? unit.FreeSlot == null : unit.Slot == null && unit.StandardSlot == null;
+                if (!free) return;
+                unit.Queue.RemoveAt(0);
+                InternalRun(unit, next, true);
             }
 
             private void UpdateMovement(bool repath)
@@ -827,7 +1467,7 @@ namespace KingmakerMountedCombat.Tests
                     var command = new Command { Continuous = true };
                     Created++;
                     Init(command, unit);
-                    Run(unit, command);
+                    PublicRun(unit, command);
                     if (ContinuousAgent(unit) != null) unit.Override.Direction = Stick;
                 }
                 var live = LiveContinuous(unit);
@@ -836,68 +1476,129 @@ namespace KingmakerMountedCombat.Tests
                 if (repath) MakeCompanionsFollow(FormationUnit(unit));
             }
 
-            // Only orders that are approaching (IsMoveUnit); a continuous command is not one of them.
+            // Native UnitCommands.InterruptMove: only commands that have approached (IsMoveUnit), whatever their slot.
+            // A stationary order and a continuous command are not among them.
             private void InterruptMove(Unit unit)
             {
-                if (unit.Slot != null && !unit.Slot.Finished && !unit.Slot.Continuous) { End(unit.Slot, true); unit.Slot = null; }
-                if (unit.OtherSlot != null && !unit.OtherSlot.Finished && !unit.OtherSlot.Free) { End(unit.OtherSlot, true); unit.OtherSlot = null; }
+                foreach (var command in unit.Held.ToList())
+                    if (!command.Finished && command.Approaching) Interrupt(command, true);
+                if (unit.Slot != null && unit.Slot.Finished) unit.Slot = null;
+                if (unit.StandardSlot != null && unit.StandardSlot.Finished) unit.StandardSlot = null;
+                if (unit.FreeSlot != null && unit.FreeSlot.Finished) unit.FreeSlot = null;
             }
 
             private void Init(Command command, Unit executor)
             {
                 // The mod's prefix of native Init. Both implementations rewrite a mounted rider to its mount; the
-                // correction also ends the rider's own moving orders, which native no longer reaches.
+                // correction also ends the rider's own approaching orders, which the native InterruptMove of the
+                // taken-over unit no longer reaches.
                 var pair = PairOf(executor);
                 if (pair != null && pair.Mounted)
                 {
                     if (Corrected) InterruptMove(pair.Rider);
                     if (ReferenceEquals(executor, pair.Rider)) executor = pair.Mount;
                 }
-                // Native Init: GetComponent, else AddComponent.
+                // Native Init: GetComponent, else AddComponent, on the executor's current view.
                 command.Executor = executor;
                 if (executor.HasView)
                 {
-                    if (executor.Component == null) executor.Component = new Agent { Continuous = true };
-                    executor.Override = executor.Component;
+                    if (executor.View.Component == null) executor.View.Component = new Agent { Continuous = true };
+                    executor.View.Override = executor.View.Component;
                 }
                 // The correction's postfix.
-                if (Corrected) PairOf(command.Executor)?.Drive.Bind(command);
+                if (!Corrected) return;
+                pair = PairOf(command.Executor);
+                if (pair == null) return;
+                pair.Drive.Bind(command);
+                if (ReferenceEquals(pair.Drive.Command, command)) boundCommands[command] = pair;
             }
 
-            private void Run(Unit container, Command command)
+            // Native UnitCommands.Run(UnitCommand), with the mod's prefix and postfix of that overload.
+            public void PublicRun(Unit container, Command command)
             {
-                var admitted = false;
-                if (!RunRefused && container.Conscious)
+                if (!RunRefused) InternalRun(container, command, false);
+                if (!Corrected) return;
+                // This postfix runs even when the prefix refused the command.
+                if (command.Continuous) { PairOf(command.Executor)?.Drive.ObserveRun(command); return; }
+                if (ObserveAdmissionOnPublicRunOnly) ObserveOrder(container, command);
+            }
+
+            // Native UnitCommands.Run(UnitCommand, bool fromQueue, bool doNotClearQueue): the one overload that puts a
+            // command into a slot. The public Run and queue promotion both reach it.
+            private void InternalRun(Unit container, Command command, bool fromQueue)
+            {
+                if (!(fromQueue && PromotionRefused) && container.Conscious)
                 {
-                    if (!ReferenceEquals(command.Executor, container)) RefusedRuns++;
+                    if (!fromQueue && command.Executor != null && !ReferenceEquals(command.Executor, container)) RefusedRuns++;
                     else
                     {
-                        admitted = true;
-                        container.Hold = false;
-                        if (command.Free) container.OtherSlot = command;
-                        else
+                        if (command.Executor == null) command.Executor = container;
+                        if (!fromQueue && command.ExecuteBefore != null)
                         {
-                            // A Move or Standard order ends the unit's own Move-slot command (they are paired).
-                            if (container.Slot != null && !container.Slot.Finished) End(container.Slot, true);
-                            if (command.Standard) { container.Slot = null; container.OtherSlot = command; }
-                            else container.Slot = command;
+                            // A custom handler: this order waits first in the queue and the other runs, nested.
+                            container.Queue.Insert(0, command);
+                            InternalRun(container, command.ExecuteBefore, false);
                         }
+                        else if (!fromQueue && container.Held.Any(held => !held.Finished && held.Uninterruptible)) container.Queue.Add(command);
+                        else Place(container, command);
                     }
                 }
-                // The correction's Run postfix.
-                if (!Corrected) return;
-                if (command.Continuous) { PairOf(command.Executor)?.Drive.ObserveRun(command); return; }
-                var pair = PairOf(container);
-                if (pair != null && pair.Drive.IsBound) pair.Drive.ObserveRiderOrder(admitted && ReferenceEquals(container, pair.Rider), !command.Free);
+                // The correction's postfix of this overload.
+                if (Corrected && !command.Continuous && !ObserveAdmissionOnPublicRunOnly) ObserveOrder(container, command);
             }
 
-            // Native OnEnded: the command is finished and whatever live override its executor's view holds is removed.
-            public void End(Command command, bool raiseEvent)
+            private void Place(Unit container, Command command)
+            {
+                container.Hold = false;
+                if (command.Free)
+                {
+                    if (container.FreeSlot != null && !container.FreeSlot.Finished) Interrupt(container.FreeSlot, true);
+                    container.FreeSlot = command;
+                    return;
+                }
+                // Move and Standard are paired: a new order of either type ends the command in both slots.
+                foreach (var existing in new[] { container.Slot, container.StandardSlot })
+                    if (existing != null && !existing.Finished) Interrupt(existing, true);
+                container.Slot = null;
+                container.StandardSlot = null;
+                if (command.Standard) container.StandardSlot = command;
+                else container.Slot = command;
+            }
+
+            // The mod's observation of an order after the native Run that admits commands: it counts only if the order
+            // is now in a slot of the rider's own container.
+            private void ObserveOrder(Unit container, Command command)
+            {
+                var pair = PairOf(container);
+                if (pair == null || !pair.Drive.IsBound) return;
+                pair.Drive.ObserveRiderOrder(ReferenceEquals(container, pair.Rider) && container.Holds(command), !command.Free);
+            }
+
+            // Native UnitCommand.Interrupt: the result is stamped first; a stamped or finished command is left alone.
+            public void Interrupt(Command command, bool raiseEvent)
+            {
+                if (command.InterruptStamped || command.Finished) return;
+                command.InterruptStamped = true;
+                OnEnded(command, raiseEvent);
+            }
+
+            // Native OnEnded: the command is finished, then (UnitMoveContiniously) whatever live override the
+            // executor's CURRENT view holds is removed. The correction's guard inside that method lets a pair-bound
+            // command remove only the agent it was bound with, on the view it was bound on.
+            public void OnEnded(Command command, bool raiseEvent)
             {
                 if (command.Finished) return;
                 command.Finished = true;
+                command.EndCallbacks++;
                 command.EndEventRaised = raiseEvent;
-                if (command.Continuous && command.Executor != null && Live(command.Executor.Override) != null) SetOverrideNull(command.Executor);
+                if (raiseEvent && EndEventHandler != null) EndEventHandler(command);
+                if (FailNextEndCallback) { FailNextEndCallback = false; throw new InvalidOperationException("the end callback failed after the command became terminal"); }
+                if (!command.Continuous || command.Executor == null) return;
+                var view = command.Executor.View;
+                if (Live(view.Override) == null) return;
+                Pair bound;
+                var mayClear = !Corrected || !boundCommands.TryGetValue(command, out bound) || bound.Drive.NativeEndMayClearOverride(command, view, view.Override);
+                if (mayClear) SetOverrideNull(view);
             }
 
             // The mod's per-frame validation of one pair: settle the drive, then the mounted invariant.
@@ -927,7 +1628,7 @@ namespace KingmakerMountedCombat.Tests
             public void MountUp(Pair pair)
             {
                 if (!CanMount(pair)) throw new InvalidOperationException("The pair cannot mount.");
-                if (pair.Rider.Slot != null) { End(pair.Rider.Slot, true); pair.Rider.Slot = null; }
+                if (pair.Rider.Slot != null) { Interrupt(pair.Rider.Slot, true); pair.Rider.Slot = null; }
                 pair.Mounted = true;
                 pair.Generation++;
                 pair.Fault = null;
@@ -940,13 +1641,16 @@ namespace KingmakerMountedCombat.Tests
                 GroundOrder(anchor.Position);
             }
 
-            // An order the rider is given directly and holds itself (an interaction, an ability).
-            public Command RiderOrder(bool standard)
+            // An order the unit is given directly and holds itself (an interaction, an ability). In range it is
+            // stationary; out of range it approaches.
+            public Command Order(Unit unit, bool standard, bool approaching = false, bool uninterruptible = false, Command executeBefore = null)
             {
-                var order = new Command { Executor = Rider, Standard = standard, Free = !standard };
-                Run(Rider, order);
+                var order = new Command { Executor = unit, Standard = standard, Free = !standard, Approaching = approaching, Uninterruptible = uninterruptible, ExecuteBefore = executeBefore };
+                PublicRun(unit, order);
                 return order;
             }
+
+            public Command RiderOrder(bool standard, bool approaching = false) => Order(Rider, standard, approaching);
 
             // ClickGroundHandler.MoveSelectedUnitsToPoint with the mod's routing of each unit's order.
             public void GroundOrder(float destination, params Unit[] only)
@@ -964,8 +1668,7 @@ namespace KingmakerMountedCombat.Tests
                         if (route.Action == CommandRoutingAction.SuppressDuplicateMount) continue;
                         if (route.Action == CommandRoutingAction.RewriteRiderToMount) target = pair.Mount;
                     }
-                    var move = new Command { Executor = target, Destination = destination };
-                    Run(target, move);
+                    PublicRun(target, new Command { Executor = target, Destination = destination, Approaching = true });
                 }
             }
         }

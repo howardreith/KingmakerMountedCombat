@@ -93,9 +93,11 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(string), typeof(Kingmaker.Blueprints.Area.BlueprintAreaPreset) },
                     nameof(PatchMethods.ResetToMainMenuPrefix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix), nameof(PatchMethods.UnitCommandRunPostfix));
+                // Known issues sprint 3 continuation (M05): this overload is the one native admission both the public
+                // Run and queue promotion (RemoveFinishedAndUpdateQueue) reach; its postfix observes what was admitted.
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
-                    new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix), null,
-                    nameof(PatchMethods.NativeRunHoldTranspiler));
+                    new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix),
+                    nameof(PatchMethods.InternalRunPostfix), nameof(PatchMethods.NativeRunHoldTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix));
                 PatchExact(typeof(UnitCommands), "AddToQueueOrRun", 0x060026B9,
@@ -151,6 +153,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) },
                     nameof(PatchMethods.ContinuousMovePrefix), nameof(PatchMethods.ContinuousMovePostfix));
+                // The native end of a continuous command clears the override of its executor's current view; a command
+                // a pair bound clears only the agent it was bound with.
+                PatchExact(typeof(UnitMoveContiniously), "OnEnded", 0x060026F2, new[] { typeof(bool) }, null, null,
+                    nameof(PatchMethods.ContinuousMoveEndTranspiler));
                 PatchExact(typeof(LoadingProcess), "StartLoadingProcessInternal", 0x06007FC5, null,
                     null, null, nameof(PatchMethods.DeferredSaveStartTranspiler));
                 PatchExact(typeof(LoadingProcess), "TickLoading", 0x06007FC2, Type.EmptyTypes,
@@ -624,6 +630,16 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            // Known issues sprint 3 continuation (M05). After the native overload that admits commands, reached by the
+            // public Run and by queue promotion alike: an order that is now in a slot of the rider's own container ends
+            // the pair's stick movement, as native Run ends a unit's own. An enqueued or refused command is in no slot.
+            internal static void InternalRunPostfix(UnitCommands __instance, UnitCommand cmd)
+            {
+                if (PointerController.SimulatingClick || cmd == null || cmd is UnitMoveContiniously) return;
+                try { PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd); }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
+            }
+
             internal static IEnumerable<CodeInstruction> NativeRunHoldTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 NativeRunHoldBoundary.Rewrite(instructions,
                     typeof(PatchMethods).GetMethod(nameof(NativeRunHoldWrite), BindingFlags.Static | BindingFlags.NonPublic));
@@ -766,6 +782,19 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the stick-driven test was left native", error); return view.AgentOverride; }
             }
 
+            // The one write native OnEnded makes to the override of the ending command's executor view. A fault leaves
+            // the native write.
+            internal static void EndedContinuousCommandOverride(UnitEntityView view, UnitMovementAgentBase value, UnitMoveContiniously command)
+            {
+                var mayClear = true;
+                try { mayClear = GameMountedRelationshipService.ContinuousDriveEndMayClearOverride(command, view); }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the command's native end was left native", error); }
+                if (mayClear) view.AgentOverride = value;
+            }
+
+            internal static IEnumerable<CodeInstruction> ContinuousMoveEndTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                ContinuousDriveTranspilers.EndedCommandOverrideClear(instructions, Hook(nameof(EndedContinuousCommandOverride)));
+
             internal static IEnumerable<CodeInstruction> GamepadMovementTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 GamepadFollowerOfferTranspiler(ContinuousDriveTranspilers.DrivenUnit(instructions,
                     Hook(nameof(GamepadDrivenUnit)), Hook(nameof(GamepadFormationUnit))));
@@ -844,13 +873,8 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception error) { PatchBridge.Logger?.Exception("Mounted entrance approach was not carried", error); }
                 // Known issues sprint 3 continuation (M05): native Run was called with a pair's bound stick movement; a
                 // command it did not admit to the mount's Move slot leaves no override behind.
-                // Any other order admitted on the rider's own container ends that stick movement, as native Run ends a
-                // unit's own.
-                try
-                {
-                    if (cmd is UnitMoveContiniously) PatchBridge.Owner(cmd.Executor)?.ObserveContinuousDriveRun(cmd);
-                    else if (cmd != null) PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd);
-                }
+                // This postfix also runs when the prefix above refused the command, which is an admission failure too.
+                try { if (cmd is UnitMoveContiniously) PatchBridge.Owner(cmd.Executor)?.ObserveContinuousDriveRun(cmd); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: a command run was not settled", error); }
             }
 
