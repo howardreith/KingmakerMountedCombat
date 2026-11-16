@@ -42,7 +42,8 @@ docs/CURRENT-KNOWN-ISSUES.md.
     report.
 - **Open from this sprint:** M04 (needs the owner's description or a pointer-table log), M05 (needs the owner's
   decision on gamepad scope and a native observation), native acceptance of M01–M03.
-- **Next:** owner review of the draft PR. Sprint 4 (C01–C03) is not started.
+- **Next:** owner review of the draft PR. Sprint 4 is not started; its order is C04, C01, C02, C03 (C04, the
+  Candlemere crossing while mounted, was added by the owner on 2026-11-16 and is recorded in the ledger).
 
 # Known issues remediation, Sprint 2 — review checkpoint (2026-11-16, after owner review R1 and R2)
 

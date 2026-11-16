@@ -291,8 +291,12 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
+**Sprint 4's order is C04, C01, C02, C03** (owner amendment of 2026-11-16, which added C04; see "C04" below the
+table). Sprint 4 is not started.
+
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
+| 4 | C04 | Preserve the Candlemere crossing while mounted: at Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Reported mounted traversal defect | Open investigation | The native action, its actors, checks, destination and completion boundary identified before any correction is selected | Owner report and `output_log(9).txt` (owner amendment of 2026-11-16) |
 | 4 | C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Open correction | Implemented offline, or explicitly unsupported with its blocker | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
 | 4 | C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Open correction | Implemented and verified offline | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
 | 4 | C03 | Restoration fallbacks (combat starts while staged; 30 m, same navigation, bounded regroup) need truthful feedback and clean retirement. | Intentional boundaries | Open correction | Intentional limit documented | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
@@ -309,6 +313,26 @@ Each row is the epic's finding as planned. "Planned closure" is what the epic ex
 | 8 | D01 | Current status is fragmented across dated handoffs and stale entry points. | Documentation | Open correction | This ledger reconciled for every ID | `CURRENT.md`, `AUTONOMOUS-RESUME.md`, `README.md` |
 | 8 | D02 | Support, removal and rollback limits need one current description. | Documentation | Open correction | Documented | `README.md`, [0.2.0 notes](RELEASE-NOTES-0.2.0.md), [deferred items](FINALIZATION-DEFERRED-ITEMS.md), [UI polish handoff](UI-POLISH-REVIEW-HANDOFF.md) |
 | 8 | D03 | Final sprint handoff and completion accounting. | Documentation | Open correction | Delivered | Sprint PRs and this ledger |
+
+### C04 — the Candlemere crossing while mounted (recorded 2026-11-16, first in Sprint 4, not yet investigated)
+
+Recorded from the owner's amendment. Nothing below was investigated or reproduced by Sprint 3.
+
+- **Report:** at Candlemere Tower, choosing "wade through" fades the screen but the party does not cross while a
+  pair is mounted. After dismounting by hand, the crossing works.
+- **Log evidence, as the owner states it:** `output_log(9).txt` reports Mounted Combat 0.2.11 and records a
+  successful manual dismount. It does not identify the crossing action and does not establish a cause.
+- **Where that log is:** it is not on the development machine (searched 2026-11-16); the two statements above are
+  the owner's and were not re-read from the file here. Sprint 4 needs the file itself.
+- **Status:** open investigation; a reported mounted traversal defect. No cause is established and no correction
+  is selected.
+- **To establish first:** the native action behind "wade through", its actors, the checks it makes, its
+  destination and its completion boundary.
+- **Keep apart:** the native crossing distance, the mod's recognition of a placement, and the later regrouping
+  limits are three different things and are not to be merged into one explanation.
+- **Not an explanation of C04:** the same log also holds a separate dismount on arrival. That is additional
+  evidence for S02 (the post-load and arrival dismount), recorded here so it is not mistaken for the crossing's
+  cause.
 
 This table is a scaffold. D01–D03 are not done because their rows exist: the full reconciliation of current
 documentation is Sprint 8's work.
