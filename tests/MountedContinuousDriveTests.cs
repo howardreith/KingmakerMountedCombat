@@ -556,11 +556,13 @@ namespace KingmakerMountedCombat.Tests
         {
             var world = new World();
             var pair = world.Pair;
-            // Another unit's command.
+            // Another unit's command, even while the mount carries a live continuous agent.
+            world.Mount.Override = new Agent { Continuous = true };
             pair.Drive.Bind(new Command { Continuous = true, Executor = world.Companion });
             pair.Drive.Bind(new Command { Continuous = true, Executor = world.Rider });
             TestRunner.True(!pair.Drive.IsBound, "A command executing on another unit was bound.");
             // The mount's command, but no continuous agent on the mount's view.
+            world.Mount.Override = null;
             var command = new Command { Continuous = true, Executor = world.Mount };
             pair.Drive.Bind(command);
             world.Mount.Override = new Agent { Continuous = false };
