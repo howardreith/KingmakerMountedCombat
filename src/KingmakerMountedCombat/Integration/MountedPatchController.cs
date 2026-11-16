@@ -722,14 +722,11 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception error) { ReportGroupPaceFault("Mounted entrance approach: the rider's pointer placement was left native", error); return true; }
             }
 
-            // These hooks run many times a second; one fault is reported once.
-            private static bool groupPaceFaultReported;
-            private static void ReportGroupPaceFault(string message, Exception error)
-            {
-                if (groupPaceFaultReported) return;
-                groupPaceFaultReported = true;
-                PatchBridge.Logger?.Exception(message, error);
-            }
+            // These hooks run many times a second; one fault is reported once. A logger that itself fails is contained
+            // (MountedBoundedFaultReport), so the caller's fallback to native behaviour always completes.
+            private static readonly MountedBoundedFaultReport groupPaceFault = new MountedBoundedFaultReport();
+            private static void ReportGroupPaceFault(string message, Exception error) =>
+                groupPaceFault.Report((text, fault) => PatchBridge.Logger?.Exception(text, fault), message, error);
 
             internal static IEnumerable<CodeInstruction> GroundGroupMoveTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 GroupPaceTranspilers.SpeedInputs(PairedControllerInputTranspiler(instructions), Hook(nameof(GroupPaceSpeedInputs)));

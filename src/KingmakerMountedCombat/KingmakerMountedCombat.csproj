@@ -552,6 +552,7 @@
     <Compile Include="Domain\MountedStabilizationPolicy.cs" />
     <Compile Include="Domain\MountedGroupPacePolicy.cs" />
     <Compile Include="Domain\MountedDestinationMarkerPolicy.cs" />
+    <Compile Include="Domain\MountedBoundedFaultReport.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
     <Compile Include="Domain\CompanionNamePolicy.cs" />
     <Compile Include="Domain\RidingDogTackGeometry.cs" />
