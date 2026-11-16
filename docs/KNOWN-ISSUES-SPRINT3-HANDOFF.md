@@ -4,10 +4,12 @@ Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (e
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
-**Read the continuation first.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted pair
-in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
+**Read the last two sections first.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
+pair in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
 records that work (M05 repaired offline, the fault report corrected, C04 recorded) and supersedes what the sections
-below say about M05 being unrepaired. Those sections are kept as the Sprint 3 record of head `1223eb2f`.
+below say about M05 being unrepaired. The owner then reviewed that head, `5e27c9bd`; the
+[review section](#review-of-5e27c9bd-2026-11-16--r1-and-r2) records the two corrections to M05's ownership code and
+holds the current results. The earlier sections are kept as the record of their own heads.
 
 ## Identity
 
@@ -438,12 +440,12 @@ One idea: **the stick drives the pair's physical mover, and the pair owns exactl
 | Full or eased stick | Native `Accelerate()` / `Deaccelerate()` on the mount's command. | Nothing. |
 | Release | Native `OnTick` ends the command; native `OnEnded` removes the override. | Forgets the record. |
 | Another command run on the mount (a routed ground order, a carrier, a regroup walk) | Native `Run` interrupts the continuous command; `OnEnded` removes the override. | Forgets the record. |
-| An order of Move or Standard type admitted on the **rider's** container | — (native `Run` would have ended a unit's own stick movement; the pair's runs on the mount) | Ends the bound command natively. A stick still held then creates a new command, and taking the pair over ends that order, as native does for the unit it drives. |
+| An order of Move or Standard type admitted on the **rider's** container, directly or by queue promotion (review R2) | — (native `Run` would have ended a unit's own stick movement; the pair's runs on the mount) | Ends the bound command natively. A stick still held then creates a new command; taking the pair over ends an approaching rider order and leaves a stationary one (review section). |
 | Selection change | Nobody feeds the mount's agent; native ends the command within a few ticks. | Forgets the record. |
 | The party enters combat | Native stops reading the stick; in turn-based mode it would not tick the command either, leaving it in the mount's Move slot. | Ends the bound command natively at the next validation. |
 | `Init` succeeded, `Run` did not admit (refused, queued, an unconscious mount, a save in progress) | Nothing would. | Ends the command without an end event and clears the bound agent, in the `Run` postfix. One warning per streak of refusals. |
 | Dismount, world change, disposal | — | Ends the bound command natively before the pair's cleanup. Every world change of a pair goes through its dismount. |
-| The bound agent is no longer the mount's override | — | Forgets the record and touches nothing. A foreign override stays a fault. |
+| The bound agent is no longer the mount's override | — | At head `5e27c9bd`: forgot the record and touched nothing, which abandoned the command. Since review R1: ends the owned command and clears no override; the foreign override stays installed and stays a fault. |
 
 **Also at the start of a drive.** The `Init` prefix ends the rider's own moving orders
 (`InterruptRiderApproachingOrders` and the rider's native `InterruptMove`) before the existing pair cancellation,
@@ -596,5 +598,227 @@ ownership sequences sound. Its findings and what was done:
 | M05, dismount | Dismount while holding the stick, then mount again and drive. |
 | M05, ground order | Gamepad cursor: a ground click moves a mounted current unit that is not being driven. |
 | Fault report | Not observable in play. |
+
+## Review of `5e27c9bd` (2026-11-16) — R1 and R2
+
+The owner reviewed head `5e27c9bd` and returned two findings about M05's ownership code. Both are corrected. The M05
+routing repair, follower acceleration, M01, M03, the marker corrections, the bounded fault report and the C04 record
+are unchanged. Nothing here was run in the game.
+
+### Identity
+
+- **Base:** the reviewed head `5e27c9bd88b40ff3c857327c3655247a9f782323`, still on the Sprint 2 head `1dffc3e0`. PR #47
+  still targets `codex/kmc-known-issues-sprint2`.
+- **Commits:** `e98eac31` (R1 and R2: code, tests, contract script), `eb838c9d` (one more executed check in the contract script, after the mutation run; no product source), then the records commit.
+- **Artifact:** `bin/Release/KingmakerMountedCombat.dll` built from `e98eac31`: SHA-256 `7B9BACE5E96254CE719527B4F3B481DA5A0BED82B792794E4226E09870BD970C`, MVID
+  `8d84952a-eecb-4432-9415-468d06b30729`. The reviewed head's build, used for the before results, was rebuilt from `5e27c9bd` in a
+  separate worktree: SHA-256 `F5D35878…2ED7`, MVID `02033cfa-…`, identical to the artifact reported for that head.
+- **Save format, settings:** unchanged.
+
+### R1 — the owned command is retired without clearing a foreign override
+
+**The defect.** Native `UnitMoveContiniously.OnEnded` clears the override of the executor's **current** view,
+whatever it holds; the command keeps no view or agent of its own. The reviewed `Retire` compared the **captured** view
+and agent, discarded its record, and then called native `Interrupt`:
+
+- **A, a replaced view.** If the mount had received another view carrying an unrelated override, the interrupt's
+  native end cleared that override.
+- **B, a replaced agent.** If a foreign override had replaced the bound agent, the record was dropped and the
+  owned command left running. When native later ended it, its end cleared the foreign override.
+- **The record.** It was cleared before any cleanup ran, so a failed interrupt or removal left nothing to retry.
+
+**The correction.**
+
+- **A guard inside the native end.** A transpiler on `UnitMoveContiniously.OnEnded` (`060026F2`) routes its one
+  `AgentOverride = null` write through `EndedContinuousCommandOverride`, with the ending command. For a command a
+  pair bound, that write is made only when the view is the bound view and its override is the bound agent
+  (`NativeEndMayClearOverride`). A command no pair bound keeps the native rule. `base.OnEnded`, its end event and
+  everything else in the method always run: nothing of `OnEnded` is bypassed but the clearing of an override the
+  command does not own. The guard finds the command's owner in a table keyed by the command object, so it still
+  answers after the pair was dismounted.
+- **Two separate retirements.** The command is ended natively whether or not its agent is still installed. The
+  captured agent is cleared only on the exact view it was bound on, and only while that view still holds it. Each
+  is attempted on its own; a failure of one does not stop the other.
+- **The record is transferred, not dropped.** Retiring moves the exact command, view and agent into a residue
+  record. It is forgotten only when the retirement is established: the command is terminal, or no longer held by
+  its executor, **and** the captured view no longer holds the captured agent. A terminal command alone is not
+  proof: native `Interrupt` (`060027AC`) stamps the result before it calls `OnEnded` and never repeats that
+  callback.
+- **Retry.** Residue is retried at each settlement (three automatic attempts per record), and always at release
+  and at a new binding. A failure is contained, counted and reported once. Residue is never an owned live drive:
+  the invariant does not admit its agent.
+- **A new command that adopts a residual agent** (native `Init` reuses the component) owns it from then on; the
+  earlier record neither clears it nor lets its own command's end clear it.
+
+**Behaviour after the correction.**
+
+| Situation | The owned command | The captured agent (on the captured view) | A foreign override |
+|---|---|---|---|
+| The mount's view was replaced and the new view carries an unrelated override; dismount or a rider order releases the drive | Ended natively, once | Cleared on the captured view | Survives the release and every later cleanup, tick and termination |
+| A foreign override replaced the bound agent on the same view; relationship cleanup runs | Ended natively, once | Not installed, so nothing is cleared | Survives cleanup and the command's later life |
+| The same, and native ends the command before cleanup runs | Already ended | Nothing is cleared | Survives: the guard refuses the native clearing while the record exists |
+| The interrupt fails once | Still running and held: record kept, retried at the next settlement | Cleared on its own in the first attempt | — |
+| The native end fails after the command became terminal | Terminal; not interrupted again | Cleared on its own | — |
+| The override removal fails once | Ended | Still installed: record kept, removal retried | Untouched by either attempt |
+| The failure persists | Three automatic attempts, one report, record kept; release retries again | | |
+
+### R2 — a rider order admitted through queue promotion
+
+**The defect.** The observer of rider orders ran after the public `UnitCommands.Run(UnitCommand)` only. Native queue
+promotion (`RemoveFinishedAndUpdateQueue`, `060026BD`) calls the internal
+`Run(UnitCommand, bool fromQueue, bool doNotClearQueue)` (`060026B3`) directly, so an order that was queued and
+admitted later never ended the pair's stick movement.
+
+**The correction.** The observation moved to a postfix of the internal `Run`, the one overload that puts a command
+into a slot and that both routes reach. An order counts only if it is then in a slot of the rider's own container.
+
+| Case | Result |
+|---|---|
+| Direct admission of a Move or Standard order on the rider | Ends the drive, once (unchanged) |
+| The order is only enqueued (the rider is busy with an uninterruptible action) | The drive continues |
+| That order is later promoted and admitted | Ends the drive exactly once: one interrupt, one native end callback, one end event |
+| The promotion is refused (by the mod's own prefix, or natively for an unconscious unit) | The drive continues |
+| Nested public and internal `Run` calls (a custom handler runs another order first) | The drive ends once |
+| A Free order, another unit's order, another pair's rider order, an order with no drive bound | Nothing changes |
+
+**The native slot rules, established before touching the stationary-order case.** Read from the installed assembly
+and pinned in the contract script:
+
+- `InterruptMove` (`060026C2`) ends only commands that have approached (`IsMoveUnit`, set only by `TickApproaching`).
+  A stationary order is not among them.
+- A new Move or Standard order ends the commands in **both** of those slots of the same container
+  (`InterruptAndRemoveCommand`, `060026BF`). If any command of the unit is uninterruptible, the new order is queued
+  instead.
+- So for one native unit, starting stick movement ends that unit's interruptible Standard order, through the
+  pairing, and is itself queued behind an uninterruptible one.
+
+**What that means for a pair, and what was not changed.** The pair's stick movement runs in the mount's container,
+so the pairing never reaches the rider's slots. The integration forwards the approaching-order interruption only
+(`InterruptRiderApproachingOrders` and the rider's native `InterruptMove`). A **stationary** rider Standard order
+therefore runs on while the stick drives the mount, exactly as it runs on beside a routed ground order, which has
+been the pair's rule since the mount became the mover. That is kept: ending it would be a new behaviour for mouse
+and stick alike, and the uninterruptible case has no pair equivalent short of refusing the mount's movement.
+
+The **model** was wrong here, not the integration: its `InterruptMove` ended every non-Free order, which supplied
+the old test's "a held stick cancels the rider's order". The model now follows the pinned rules, and the test states
+what production does: an in-range Standard order ends the drive when admitted; a held stick takes the pair again,
+ends an **approaching** rider order and leaves a **stationary** one.
+
+### Evidence
+
+All offline, Release, Windows PowerShell 5.1, from the Sprint 3 worktree. Logs `30-…` onward and `mutant-r1-*.log`
+in `C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint3\`.
+
+| Check | Reviewed head `5e27c9bd` | After the corrections |
+|---|---|---|
+| Component test exe | 1313 / 0 | 1326 / 0 (13 more: 9 regressions for R1, 3 new for R2 beside the rewritten rider-order test, 1 of the model itself) |
+| `Test-ContinuousDriveContracts.ps1` | 32 / 0 as it was; **31 pass, 12 fail** against the script as extended for R1 and R2 (run with `-ProductDll`) | 43 / 0 |
+| `Test-PhysicalMoverPaceContracts.ps1` | 27 / 0 | 27 / 0 |
+| `Validate-Source.ps1` | 151 / 0 | 151 / 0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 814 / 0 | 815 / 0 (the newly patched `OnEnded` is pinned) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3 -Focused` (continuous drive, physical mover pace, post-load view readiness, persistence, world boundary, paired activation) | PASS 9/0 | **PASS 9/0** at `eb838c9d` |
+
+Workflow budget `known-issues-sprint3`: 2.52 of 90 minutes, six entries, none failed.
+
+**The reviewed implementation failing the two regressions.** The extended script runs the **compiled** owner of
+each build on a scripted host whose `Interrupt` behaves as the native call does (the command becomes terminal, then
+its end clears the override of the mount's current view unless that build's own guard forbids it):
+
+- **Reproduction A on `5e27c9bd`:** fails with "the unrelated override B on the mount's current view was cleared
+  by the dismount release".
+- **Reproduction B on `5e27c9bd`:** the cleanup does nothing at all (no native call), and the check fails with "the
+  abandoned owned command later ended natively and cleared the foreign override".
+- **R2 on `5e27c9bd`:** the build has no postfix on the internal `Run`; the registration and wiring checks fail.
+  The native route itself is executed (below), so the bypass does not rest on a reading alone.
+
+After the corrections both reproductions pass for the dismount release and the rider-order release, as do the retry
+cases.
+
+**What was executed, read, or modelled.**
+
+| Kind | What |
+|---|---|
+| Production ownership code executed | The compiled owner on the scripted host: reproductions A and B, four failure-and-retry cases, admitted drive, combat, refused admissions. The same owner, record and decisions in the component tests, driven by the model: nine regressions for R1 and four for R2 beside the earlier ones. The production transpiler for `OnEnded` on the installed method's real instructions, branch targets included. The compiled guard with its command table, for a bound and an unbound command. |
+| Installed native code executed | `UnitCommands.Run`'s refusal (as before). New: on a genuine `UnitCommands` container, enqueueing behind an occupied slot admits nothing; when the occupant is finished, `RemoveFinishedAndUpdateQueue` takes the queued command and enters the **internal** `Run` with no public `Run` frame on the stack (execution then stops for lack of the running game). |
+| Installed native code read (IL) | `Interrupt` stamps before `OnEnded`; `UnitMoveContiniously` has no fields and reads its executor's view at the end; the callers of the internal `Run` across the whole assembly (the public `Run`, its own custom-handler path, queue promotion); `InterruptMove`, the only setter of `IsMoveUnit`, the Move/Standard pairing, the uninterruptible queueing rule. |
+| Modelled native behaviour | The stick chain, slots, queue, promotion and the end callback in the component tests' `World`. A unit and its view are separate objects there, and each view keeps its own override. One test asserts the model itself against the pinned slot rules and is labelled so. |
+| Not executed | The game adapter's answers that need a live pair (the mount, its Move slot, combat state) and the three postfixes with live units; the guarded native write itself (it needs a live Unity view); the Harmony installation; any gameplay. The adapter's `IsHeld`, `ExecutorOf`, `IsFinished` and `OverrideOf` are executed on genuine engine objects. |
+
+**Mutation checks**, in the separate scratch worktree, never in the worktree whose artifact is reported:
+
+| Mutant | Change (one line of production source) | Component tests failing | Contract checks failing |
+|---|---|---|---|
+| A | The native end may always clear (the guard always allows) | 8 | 4 |
+| B | The guard ignores which agent is installed | 5 | 3 |
+| J | The guard ignores residue records | 8 | 2 |
+| Y | The guard never allows a bound command's own clearing | 3 | 4 |
+| E | The command is ended only while its agent is installed (the reviewed behaviour) | 6 | 3 |
+| G | The captured agent is cleared without reading its view again | 6 | 5 |
+| C | A terminal command counts as proof that its override is gone | 3 | 2 |
+| D | An unfinished, still held command is forgotten | 2 | 2 |
+| F | The record is dropped before the retirement is established | 5 | 1 |
+| M | Settlement recovers no residue | 4 | 2 |
+| H | Automatic retries are unbounded | 1 | 0 |
+| L | An interrupt failure escapes the attempt | 4 | 1 |
+| K | A failing report escapes | 1 | 0 |
+| I | An adopted agent is not handed to the new command | 1 | 0 |
+| a | A superseded record keeps the agent the new command adopted | 1 | 0 |
+| Z | A re-entrant attempt is not skipped | 1 | 0 |
+| b | A retired command is never forgotten | 4 | 0 |
+| T | The guard does not ask the owner | 0 | 2 |
+| U | A bound command is not registered for the guard | 0 | 1 |
+| R | The native-end guard is not registered | 0 | 1 |
+| S | The ending command is not passed to the guard | 0 | 1 |
+| V | The adapter answers every view with the mount's | 0 | 1 |
+| W | The adapter never reports a held command | 0 | 1 |
+| c | The adapter ignores a command parked as the previous command | 0 | 1 |
+| P | The admission postfix is not registered on the internal `Run` | 0 | 1 |
+| Q | The admission postfix observes nothing | 0 | 1 |
+| X | An enqueued order counts as admitted | 0 | 1 |
+
+All 27 are detected. A zero in the first column is a mutation of game-facing glue, which only the contract script
+can see. The unmutated tree in that worktree builds to the reported artifact's exact SHA-256, and the reported
+worktree's binary was never built from mutated source. W was first undetected: the script only counted the calls
+`IsHeld` makes. It now runs the compiled adapter's own answers on genuine engine objects (`eb838c9d`), and W was run
+again.
+
+**Independent review.** One independent read of the uncommitted R1 and R2 corrections against the decompiled native
+code. It found no blocker and no major defect: the `OnEnded` rewrite is correct for the method's shape and branch
+targets, a foreign override is never cleared, residue is dropped only through the established test, a healthy drive
+still ends normally, and both admission routes are observed once. Its points and what was done:
+
+| Finding | Disposition |
+|---|---|
+| An end-event handler that comes back into the owner during the native end could establish and drop the record before the guard is asked. No subscriber in the repository does that. | Hardened: nested recovery leaves the running attempt alone, and records are removed by reference. Test, mutant Z. |
+| Binding overwrote a record still bound to another command. Not reachable natively. | Corrected: that record is retired, and the agent the new command adopted is handed over. Test, mutant a. |
+| The command table might never release its entries on the game's runtime. | Corrected: a command is forgotten when its retirement is established. Tests assert it; mutant b. |
+| A held stick bypassed the automatic retry limit, because each new binding recovered explicitly. | Corrected: a new binding recovers automatically, within the limit. |
+| `IsHeld` ignored a command parked as the container's `PreviousCommand`. | Corrected in the adapter and pinned; mutant c. |
+| The production command table was executed by no check. | Corrected: the compiled guard is run with its table for a bound command. |
+| A guard that always refuses would have passed the unit tests. | Corrected: a normal release asserts the owner clears nothing; mutant Y. |
+| Some "later termination" lines run on a command that is already terminal and prove nothing more. | Kept as a plain re-check. The real proof is the retained-command case: native ends the command while its record exists, and the foreign override survives. |
+| The merge path of native `Run` and commands parked while paused are neither observed nor modelled. | Not changed. Limit, below. |
+| The owner's fact reads in `Bind` and `Settle` are outside the contained attempt. | Not changed: the adapter's reads are null-safe and every call site is contained. |
+
+### Remaining uncertainty
+
+- **Native: NOT RUN.** No gamepad session has ever been run in this project. View replacement during stick movement
+  and a foreign override on a mount are constructed cases; nothing in the game is known to produce them.
+- **The guarded native write is not executed.** The transpiler that installs it is run on the real method and the
+  decision behind it is executed, but the hook's own two lines need a live Unity view.
+- **Pause.** While the game is paused, native `Run` parks the running command of a slot as the container's
+  `PreviousCommand` instead of ending it. A drive displaced that way is retired as an orphan, as before; the paired
+  parking of a rider order was not modelled.
+- **A stationary rider order and the stick** follow the pair's rule, not the single-unit rule (above). If the owner
+  wants the native pairing mirrored onto the rider, that is a behaviour decision for both mouse and stick.
+- **A detached owned component.** When a foreign override replaces the bound agent without native's own setter
+  destroying it, the continuous-agent component stays on the view, not installed as an override. Nothing clears it;
+  native's next `Init` adopts it.
+- **Unchanged limits of the continuation:** the followers' native speed cap and slow-down exemption still read the
+  selected rider; the repath timer includes the rider's unused stock-agent estimate; a refused admission still
+  faults natively.
+- **M04** stays unresolved. **T04–T08** are unchanged and open; none blocked a check.
+
+Sprint 4's order stays C04, C01, C02, C03 and is not started.
 
 Not run: no merge, release, tag, installation, loader replacement or reviewer request, and Sprint 4 is not started.

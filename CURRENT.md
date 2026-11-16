@@ -1,3 +1,44 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 5e27c9bd: R1 AND R2 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `5e27c9bd`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its review section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R1, corrected (`e98eac31`):** retiring the pair's owned stick movement no longer clears a foreign override.
+  - Native ends a continuous command by clearing the override of its executor's *current* view. The reviewed
+    release could clear an unrelated override on a replaced mount view, and a command abandoned after its agent
+    was replaced later cleared the foreign override.
+  - Now a guard inside that native method lets a pair-bound command clear only the agent it was bound with, on the
+    view it was bound on. The command and its captured agent are retired separately.
+  - The record is kept, with its exact command, view and agent, until the retirement is established, and
+    retried. A terminal command alone is not taken as proof that its override is gone.
+- **R2, corrected (`e98eac31`):** a rider order admitted through native queue promotion now ends the stick
+  movement, exactly once. Admission is observed after the internal `Run` that the public `Run` and promotion both
+  reach. Enqueueing alone, a refused promotion, a Free order and another unit's order change nothing.
+- **Kept on purpose:** a stationary rider Standard order runs on while the stick drives the mount, as beside a
+  routed ground order. The native slot rules were read and pinned first; the test model, not the product, had
+  been wrong.
+- **Unchanged:** the M05 routing repair, follower acceleration, M01, M03, the two marker corrections, the bounded
+  fault report, and C04 (first in Sprint 4; order C04, C01, C02, C03). M04's original report stays unresolved.
+- **Checks:** Fast PASS 9/0 (components 1326/0, Validate-Source 151/0, continuous drive 43, physical mover pace 27,
+  post-load view readiness 26, persistence contracts 223, world boundary 8, paired activation). Kingmaker assembly
+  contracts 815/0.
+  - The reviewed head `5e27c9bd` fails 12 of the 43 continuous-drive checks. Its compiled owner fails both required
+    reproductions: the release clears the unrelated override, and the abandoned command later clears the foreign
+    one.
+  - 27 mutations of the corrections, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** the compiled owner ran both reproductions and the retry cases on a scripted host;
+  the compiled guard ran with its command table; native queue promotion ran on a genuine `UnitCommands` container;
+  the native interrupt and slot rules were read from IL. The guarded native write and the adapter's answers that
+  need a live pair were not executed.
+- **Review:** one independent read of the corrections. No blocker; its hardening points (re-entrancy, a record
+  superseded while bound, forgetting finished commands) were applied.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 CONTINUATION — DIRECT GAMEPAD CONTROL OF A MOUNTED PAIR REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `1223eb2f`, still on the

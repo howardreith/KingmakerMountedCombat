@@ -5,15 +5,22 @@ Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the rev
 first) and docs/CURRENT-KNOWN-ISSUES.md.
 
 - **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
-  with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. Fast PASS
-  9/0. Two independent reviews (Sprint 3, continuation), corrected. Native NOT RUN; gamepad never run.
+  with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. The owner's
+  review of `5e27c9bd` (R1, R2) is corrected. Fast PASS 9/0. Three independent reviews (Sprint 3, continuation,
+  R1/R2), corrected. Native NOT RUN; gamepad never run.
 - **Seams of the continuation (M05):**
   - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
     It talks to the game only through `IMountedContinuousDriveHost`; the adapter is
     `GameMountedRelationshipService.ContinuousDriveHost`. Put new decisions in the owner, where tests run them.
-  - It is called from four places only: the `UnitMoveContiniously.Init` postfix (bind), the `UnitCommands.Run`
-    postfix (admission, and a rider order), `ValidateActivePair` before the invariant (settle), and `Dismount`
-    (release).
+  - It is called from five places only: the `UnitMoveContiniously.Init` postfix (bind), the public
+    `UnitCommands.Run` postfix (admission of the bound command, which must also see a refused Run), the internal
+    `Run` postfix (an admitted rider order, by either route), `ValidateActivePair` before the invariant (settle),
+    and `Dismount` (release).
+  - Retirement is two separate steps on a residue record: end the command, clean the captured agent on its captured
+    view. A record leaves only through `RetirementEstablished`. Never clear the watch without transferring it.
+  - The guard inside native `UnitMoveContiniously.OnEnded` (`EndedContinuousCommandOverride`) is the only thing that
+    keeps a pair-bound command's end from clearing a foreign override. It finds the owner through
+    `continuousDriveCommands`, filled at binding and emptied when a retirement is established.
   - `KingmakerMountedPairRuntime.MountOverrideOwner` is the invariant's only opening: a mount override is
     admissible only if the owner says it is the bound live drive. Never widen that test.
   - `ContinuousDriveTranspilers` holds the two transpilers; each requires its recorded site. `UpdateMovement` and
@@ -28,6 +35,13 @@ first) and docs/CURRENT-KNOWN-ISSUES.md.
     made with `FormatterServices.GetUninitializedObject`.
   - A continuous command is not `IsMoveUnit`: `InterruptMove` and `CancelMountMovement` do not end it. Only its own
     tick (stick at zero), an `Interrupt`, or a `Run` that replaces it does.
+  - Native `UnitMoveContiniously.OnEnded` clears the override of the executor's *current* view; the command stores
+    neither view nor agent. `Interrupt` stamps its result before `OnEnded` and never repeats it.
+  - Only the internal `Run(cmd, fromQueue, doNotClearQueue)` puts a command into a slot. Queue promotion calls it
+    directly. A postfix on the public `Run` does not see promoted commands.
+  - A new Move or Standard order ends the commands of both of those slots of the *same* container, or is queued
+    behind an uninterruptible one. The pair's mount and rider are two containers, so that pairing never crosses
+    between them: a stationary rider order survives the mount's movement by design.
   - `UnitEntityView.AgentOverride = null` destroys the component at the end of the frame; a new `Init` in the same
     frame adopts the dying one. Compare agents by reference and test liveness separately.
   - Native code treats a non-null override on the current unit as "stick-driven" (`UpdateMovement`,
