@@ -1,11 +1,20 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 2 — POST-LOAD DISMOUNT REPAIRED OFFLINE; SAVING REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-15)
+# KNOWN ISSUES REMEDIATION, SPRINT 2 — POST-LOAD DISMOUNT REPAIRED OFFLINE; SAVING REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46), created from the reviewed Sprint 1 head `b62c59a8` and
 targeting `codex/kmc-known-issues-sprint1` (draft PR #45, still open). Read the
 [handoff](docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md) and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
 
+- **Owner review of head `f71fabe7` (2026-11-16), both findings corrected:**
+  - **R1:** a pair deferred at its arrival placement lost that placement in the after-entry autosave, so a valid
+    pair more than 6 m apart restored if the player continued and was dropped if the player loaded. The placement
+    now travels with the row through the save and its load. Ordinary retained intent, a relocated pair and every
+    existing record keep the 6 m rule.
+  - **R1 format:** the `kmc-retained-intent` text has a version 2, written only for such a pair. Every other save
+    writes the same bytes as before. A build from 0.2.3 to 0.2.11 refuses a version 2 text and loads its pairs
+    dismounted.
+  - **R2:** the S01 record no longer says that no save ran or that stranded save ownership was ruled out.
 - **Scope:** S01 and S02 of the owner's Known Issues Remediation Epic. Gameplay code changed for S02 (area arrival
-  restoration); S01 adds log lines only. A build of this branch is a new binary. No save format changed.
+  restoration); S01 adds log lines only. A build of this branch is a new binary.
 - **S02, premature dismount after a load: implemented and verified offline.**
   - Recorded once, on a world-map arrival: the pair was attached inside the native load while its views were
     still inactive, and the first invariant check after the loader went idle dismounted it.
@@ -21,19 +30,27 @@ targeting `codex/kmc-known-issues-sprint1` (draft PR #45, still open). Read the
 - **S01, saving report: investigation complete, issue unresolved.**
   - 0.2.3 session: saving was refused by the area-restore failure latch the door set. 0.2.4 already stopped that
     door from setting it.
-  - 0.2.4 session: the log records no save attempt at all, only refused loads. No cause is established.
-  - Needed from the owner: which save action was used, and whether the campaign runs in the native one-save mode
-    (the Last Azlanti preserver mod is active in both sessions; native refuses manual and quick saves in that
-    mode).
+  - 0.2.4 session: the log holds no save line, only refused loads. That does not show that no save was attempted
+    or ran (requests, refusals, queued and waiting saves were silent at that version). No cause is established.
+  - Not established and not ruled out: stranded save ownership, a queued save that never began, a save stuck
+    before the native header. A later logged save attempt would distinguish them; none is on record.
+  - Needed from the owner: which save action was used, and whether the campaign runs in the native one-save mode.
+    The Last Azlanti preserver mod is active in both sessions; it matters only if the campaign is in that mode
+    and the action was a manual save or a quicksave (native then refuses those, not an autosave).
   - Added, observation only: a line when the mod's restoration state starts or stops refusing saving, the native
     outcome of each save request, and a line when a save operation begins. Not a fix.
-- **Checks:** Fast PASS 6/0 (components 1250/0, Validate-Source 151/0, persistence contracts 223, world boundary 8,
-  post-load view readiness 20). With the prior decision behaviour 11 of the 14 new S02 tests fail; the base build
-  fails 9 of the 20 contract checks.
-- **Review:** one independent read. No crash or latch defect; six points corrected with a check each (the handoff
-  lists them), among them the retry's separation rule now reaching every world-map arrival.
+- **Checks:** Fast PASS 6/0 (components 1257/0, Validate-Source 151/0, persistence contracts 223, world boundary 8,
+  post-load view readiness 26).
+  - At the reviewed head `f71fabe7`: components 1250/0, post-load view readiness 20/0.
+  - Before and after for R1: the `f71fabe7` build fails 6 of the 26 contract checks; with the reviewed row
+    conversion put back, 4 of the 7 new tests fail.
+  - Before and after for S02 itself: with the prior decision behaviour 11 of the 14 original S02 tests fail; the
+    base build failed 9 of the then 20 contract checks.
+- **Review:** two independent reads, one per iteration. Neither found a crash or latch defect. The first led to six
+  corrections; the second to the placement naming its area and to one copy method for carried rows (the handoff
+  lists every point).
 - **Persistence effect:** the after-entry autosave of a world-map arrival now records the pair as retained intent,
-  and loading it restores the pair in ordinary play.
+  with its arrival placement (record version 2), and loading it restores the pair in ordinary play.
 - **New open items:** T07 and T08, two more chunk7 harnesses that do not compile (failing before this sprint).
   T04–T06 unchanged.
 - **Native:** NOT RUN. Nothing was launched, staged or installed. S02 is not native-verified.

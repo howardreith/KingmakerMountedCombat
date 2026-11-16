@@ -1,11 +1,12 @@
-# Known issues remediation, Sprint 2 — review checkpoint (2026-11-15)
+# Known issues remediation, Sprint 2 — review checkpoint (2026-11-16, after owner review R1 and R2)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46); base `b62c59a8`, the reviewed head of
 `codex/kmc-known-issues-sprint1` (draft PR #45), which the PR targets. Read CURRENT.md,
 docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
 
 - **State:** S02 implemented and verified offline. S01 investigation complete, issue unresolved; diagnostics only.
-  Fast PASS 6/0. One independent review, corrected. Native NOT RUN.
+  Owner review of `f71fabe7` corrected (R1 arrival placement through saving and loading, R2 S01 wording).
+  Fast PASS 6/0. Two independent reviews, corrected. Native NOT RUN.
 - **Seams:**
   - `KingmakerMountedPairRuntime.RestoreViewReadinessRefusal` is the only place restoration reads view activity.
     `RestoreAreaPair` and `RestoreRetainedIntentCore` call it before their decision and before any attachment;
@@ -13,8 +14,15 @@ docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
     path that attaches a pair must do the same.
   - `MountedRestoreViewReadinessPolicy.Refusal` is what `MountedViewActivityPolicy.IsAdmissible` accepts in
     `Default`, party-selector overlay included. The mounted invariant itself has no readiness allowance.
-  - A pair deferred at arrival carries its arrival placement (`AreaPair.ArrivalDeferred`, transient). While neither
-    unit has moved it is exempt from the retry's separation rule (`ArrivalPlacementHeld`).
+  - A pair deferred at arrival carries its arrival placement (`AreaPair.Arrival`, a Domain
+    `MountedRetainedArrivalPlacement`). While neither unit has moved it is exempt from the retry's separation rule
+    (`StandsAtArrivalPlacement`).
+  - Owner review R1: that placement is saved and loaded with the row. `MountedRetainedIntentCapture.Row` and
+    `SaveText` produce the member text; `MountedRetainedIntentAdoption` decides what a load adopts. The integration
+    only projects fields (`ToRecords`, `ToAdoptedPairs`). The record text has version 2 for a save that holds such
+    a pair; version 1 bytes are otherwise unchanged. A new copy of a custody row must go through
+    `AreaPair.CarriedCopy`, which leaves `Arrival` out: the contract script allows exactly two writers of that
+    field and three callers of that method. The placement names its area and is honoured and saved only there.
   - `MountedPersistenceService` subscribes `MountedWorldService.PairDismounting`; only `CleanupTrigger.Manual`
     releases a retained row.
   - `NativeSaveRequestPolicy` mirrors the order of the installed `Game.SaveGame` (06000CE4);
@@ -29,6 +37,8 @@ docs/KNOWN-ISSUES-SPRINT2-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
   - The native party selector (`GroupManager`) is a field of the UI canvas, not a property.
   - In PowerShell, `[IO.File]` resolves a relative path against the process directory, not the shell location.
     Use absolute paths in a worktree.
+  - A source file restored with `Copy-Item` keeps its old timestamp, so the incremental build can skip and leave a
+    stale binary. Touch restored files, or rebuild, before trusting a tier result after a mutation run.
 - **Open from this sprint:** S01 (needs the owner's answer or a log from this build or later); native acceptance
   of S02 on a world-map arrival; T07, T08.
 - **Next:** owner review of the draft PR. Sprint 3 (M01–M04) is not started.

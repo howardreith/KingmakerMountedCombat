@@ -3,8 +3,9 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-15, Sprint 2 (S01, S02), branch `codex/kmc-known-issues-sprint2`, draft PR #46,
-  stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
+- **Last updated:** 2026-11-16, Sprint 2 (S01, S02) after the owner's review of head `f71fabe7` (R1: the arrival
+  placement through saving and loading; R2: the S01 wording). Branch `codex/kmc-known-issues-sprint2`, draft PR
+  #46, stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
 - **Reconciled so far:** T01–T08, S01 and S02. Every row of Sprints 3–8 is a *carried-forward planning finding*:
   it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since. A sprint
@@ -134,7 +135,7 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
 | ID | Symptom | Classification | Status | Source | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|---|
 | S01 | Saving reported broken after the Ratnook door. | Reported defect. One occurrence explained and already superseded; the other has no established cause. | **Investigation complete, issue unresolved** | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md); epic S01 | Diagnostics only (see "S01" below). No save decision, guard, latch or retry changed. Persistence contracts 223 pass (214 before). | **Not run.** No log exists from a build with the save diagnostics. |
-| S02 | After an area arrival the view check finds inactive views and the pair dismounts. | Established occurrence (one, a world-map arrival) | **Implemented and verified offline** | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (arrival view check); epic S02 | A pair whose exact views are not active is not attached at arrival and restores through the retained-intent retry. 14 component tests (11 fail with the prior decision behaviour); contract script 20 pass on this build and 11 pass, 9 fail on the base build; one independent review, corrected. | **Not run.** Not native-verified. |
+| S02 | After an area arrival the view check finds inactive views and the pair dismounts. | Established occurrence (one, a world-map arrival) | **Implemented and verified offline** | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (arrival view check); epic S02 | A pair whose exact views are not active is not attached at arrival and restores through the retained-intent retry. 14 component tests (11 fail with the prior decision behaviour); contract script 20 pass on the reviewed build and 11 pass, 9 fail on the base build; one independent review, corrected. Owner review R1 (2026-11-16): a deferred pair's arrival placement now survives a save and its load (retained-intent record version 2); 7 more component tests (4 fail with the reviewed row conversion); contract script 26 pass on this build and 20 pass, 6 fail on the reviewed build; one independent review, corrected. | **Not run.** Not native-verified. |
 | T07 | `scripts/chunk7/Test-Chunk7AreaRestorePreflightAdapter.ps1` does not compile its source list. | Stale test harness | **Open correction** | Found as an S02 neighbour on 2026-11-15 | See "T07 and T08" below. Fails identically on the Sprint 2 base `b62c59a8`. | Not applicable |
 | T08 | `scripts/chunk7/Test-Chunk7SixPairArchiveAdapter.ps1` does not compile. | Stale test harness | **Open correction** | Found as an S02 neighbour on 2026-11-15 | See "T07 and T08" below. Fails identically on the Sprint 2 base `b62c59a8`. | Not applicable |
 
@@ -147,22 +148,29 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
   is protective and unchanged.
 - **0.2.4 report: cause not established.** That session's log holds no save line of any kind. Its last lines are
   four refused *loads* around the native save/load window opening, which is the load defect 0.2.5 repaired.
+  - "No save line" is not "no save ran": at 0.2.4 a request, an admission refusal, a queued operation and an
+    operation waiting before the native header each wrote nothing.
   - Earliest failure boundary consistent with the log: the action never reached `Game.SaveGame`. A refusal at
     admission cannot be told apart from it, because 0.2.4 logged neither.
-  - Ruled out: a save that waited for effects, reached the native header or was reported failed; a stranded save
-    scope or fence; the 0.2.3 latch; a refused load leaving native save state behind.
-  - Not excluded: a save queued behind another loading process, or one stuck in the native wait before the
-    header. Both were silent at that version.
+  - Ruled out: a save that waited for effects, reached the native header or was reported failed (each wrote a line
+    at that version); the 0.2.3 latch; a refused load leaving native save state behind.
+  - Not established, and not ruled out: stranded save ownership (an active save scope or an admission fence left
+    set); a save queued behind another loading process; a save that began and stuck in the native wait before the
+    header. A read of the current source found no path that strands a scope or fence, which is not proof for that
+    session. (Corrected 2026-11-16: the first version of this entry listed a stranded scope or fence as ruled out.)
+  - What would distinguish them: a later save attempt on a build that logs it. No later attempt is established in
+    the 0.2.4 log, so the absence of a failure report there is not evidence.
 - **The missing observation:** whether a save was attempted in that session, by which action (Esc-menu Save,
   quicksave or an expected autosave), and the state of the native gate and of the one-save setting at that moment.
-- **For the owner:** the Last Azlanti preserver mod is active in both sessions. If the campaign runs in the native
-  one-save mode, native refuses every manual and quick save with or without this mod. Whether it does is not
-  known; no save or settings file was opened.
+- **For the owner:** the Last Azlanti preserver mod is active in both sessions. It bears on the report only if
+  both of these hold, and neither is known: the campaign runs in the native one-save mode, and the action that
+  failed was a manual save or a quicksave. In that mode native refuses those two with or without this mod; it
+  does not refuse an autosave to the campaign's own slot. No save or settings file was opened.
 - **Diagnostics added, observation only:** a line when this mod's restoration state starts and stops refusing
   saving; the native outcome of each request (including the silent one-save refusals and the disabled-autosave
   skip) and what a queued save waits behind; a line when a save operation begins. They are not a fix.
 - **To close:** the owner's answer on the save action and the one-save mode, or a log of a recurrence on a build
-  with these lines.
+  with these lines, ideally with a second save attempt after the first one fails.
 
 ### S02 — what changed and what it rests on
 
@@ -180,12 +188,22 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
   dismounted. Nothing is latched and nothing is owned while waiting.
 - **Also changed:** an explicit player dismount now releases that pair's retained intent at once.
 - **Persistence effect:** the after-entry autosave of a world-map arrival records the pair as retained intent
-  rather than as mounted; loading it restores the pair in ordinary play. No format change.
+  rather than as mounted; loading it restores the pair in ordinary play.
+- **Format (owner review R1, 2026-11-16):** the `kmc-retained-intent` member has a version 2 text: version 1 plus
+  one arrival row for each pair deferred at its arrival placement. It is written only when the save holds such a
+  pair; every other save writes the version 1 bytes as before, and every existing save reads as before.
+  - A deferred pair still standing where arrival placed it restores the same way whether the player continues
+    or loads a save written before the remount. A relocated pair, ordinary retained intent and every version 1
+    record keep the 6 m rule.
+  - A malformed or unsupported version 2 text is refused whole; its pairs load dismounted.
+  - A build older than this change (0.2.3 to 0.2.11) refuses a version 2 text by its header, and every pair in
+    it loads dismounted there. That matters only if the mod is downgraded on such a save.
 - **Limits:**
   - A fight that starts before the remount cancels it (existing rule for world-map custody); the pair fights
     dismounted.
-  - A deferred pair keeps the arrival formation's spacing only while neither unit has moved, and not after loading
-    the after-entry autosave; otherwise the retry's 6 m rule applies.
+  - A deferred pair keeps the arrival formation's spacing only while neither unit has moved more than 0.1 m;
+    otherwise the retry's 6 m rule applies.
+  - That a native load puts each unit back where the save holds it, within that tolerance, is assumed.
   - The integration sequence is checked from IL, not executed. Nothing ran in the game.
 
 ### T07 and T08 — two more harnesses that do not compile
@@ -197,6 +215,8 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
   stale `Report` call.
 - Both were failing before Sprint 2 and were not needed for an S01 or S02 check, so they were left as found.
   Which commits broke them was not traced.
+- Since the owner-review correction of 2026-11-16 the first one's facade also lacks `AreaPair.CarriedCopy`, the
+  method the three carried-row copies now go through. That is one more member to add when T07 is repaired.
 - Not a harness defect, for the record: `Test-Chunk7CapitalArrivalEvidence.ps1` reports 162 pass, 3 fail; the
   three require native evidence for batches 196–198 that is not on this machine.
 
