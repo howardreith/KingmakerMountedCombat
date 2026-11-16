@@ -137,7 +137,9 @@ public static class TierFixture {
     & $selector -Tier Full -SkipBuild -Configuration Debug -AssemblyTarget Both -QualificationTask 'selection test'
     $calls = Read-Calls $trace
     $assembly = @($calls | Where-Object script -eq 'Test-AssemblyContracts.ps1')
-    if ($assembly.Count -ne 1 -or $assembly[0].target -cne 'Both' -or
+    # The umbrella must hand its configuration to the assembly checker, whose loader binding sweep reads the
+    # product build of exactly that configuration. A missing argument silently becomes the checker's default.
+    if ($assembly.Count -ne 1 -or $assembly[0].target -cne 'Both' -or $assembly[0].configuration -cne 'Debug' -or
         @($calls | Where-Object script -eq 'Build-Local.ps1').Count -ne 0 -or
         @($calls | Where-Object script -eq 'components').Count -ne 1) { throw 'Full did not forward target/configuration/SkipBuild through the actual umbrella.' }
     $budget = Read-Budget $budgetRoot 'development'

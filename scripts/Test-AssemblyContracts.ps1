@@ -351,7 +351,8 @@ if($Target-eq'Kingmaker'){
     Invoke-KmcUmmLoaderApiChecks $ummAssembly ${function:Assert-Contract}
     # Every loader member the compiled product references, when a build exists. No build: reported, never passed.
     $ummProduct=Get-KmcUmmProductAssembly $repoRoot $Configuration;$ummReader=Get-KmcUmmMetadataReaderPath $managed;$ummSweepRan=$null-ne$ummProduct-and[bool]$ummReader
-    if($ummSweepRan){[void](Invoke-KmcUmmProductBindingChecks $ummProduct $ummReader ${function:Assert-Contract})}else{Write-Host "UNASSESSED $Target UMM API product binding sweep: no $Configuration build of the product, or no metadata reader"}
+    # The build that was read is named, so a run can be seen to have inspected the configuration it was given.
+    if($ummSweepRan){[void](Invoke-KmcUmmProductBindingChecks $ummProduct $ummReader ${function:Assert-Contract});Write-Host ("INFO $Target UMM API product binding sweep read the $Configuration build "+$ummProduct.Location+' MVID '+$ummProduct.ManifestModule.ModuleVersionId)}else{Write-Host "UNASSESSED $Target UMM API product binding sweep: no $Configuration build of the product, or no metadata reader"}
     $ummApiOk=$failures.Count-eq$ummFailuresBeforeApi
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)

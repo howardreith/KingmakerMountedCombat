@@ -142,7 +142,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-PairedMammothProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-& (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1') -Target $AssemblyTarget
+& (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1') -Target $AssemblyTarget -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Native injections are constructed in a separate process and always unpatched.

@@ -22,7 +22,8 @@ $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.js
 $managed=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker_Data\Managed'
 . (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
 $checker=Join-Path $PSScriptRoot 'Test-UmmLoaderContracts.ps1'
-$passed=0;$unassessed=New-Object 'System.Collections.Generic.List[string]'
+$passed=0;$unassessed=New-Object 'System.Collections.Generic.List[string]';$errors=New-Object 'System.Collections.Generic.List[string]'
+$work=Join-Path $labRoot ('analysis-cache\umm-loader-contract-checks\'+[Guid]::NewGuid().ToString('N'))
 function Check([string]$Name,[scriptblock]$Body){& $Body;$script:passed++;Write-Host ('PASS '+$Name)}
 function Unassessed([string]$Name){$script:unassessed.Add($Name);Write-Host ('UNASSESSED '+$Name)}
 function Need([bool]$Condition,[string]$Message){if(-not$Condition){throw $Message}}
@@ -35,7 +36,36 @@ function Invoke-Checker([string[]]$Arguments){
     $line={param([string]$Prefix)$found=@($output|Where-Object{$_.StartsWith($Prefix,[StringComparison]::Ordinal)});if($found.Count){$found[$found.Count-1]}else{''}}
     [pscustomobject]@{exit=$code;lines=$output;identity=(& $line 'UMM IDENTITY ');api=(& $line 'UMM API ');failures=@($output|Where-Object{$_.StartsWith('FAIL ',[StringComparison]::Ordinal)})}
 }
-function Format-Result($Result){'exit '+$Result.exit+'; '+$Result.identity+'; '+$Result.api+$(if($Result.failures.Count){'; '+($Result.failures-join' | ')}else{''})}
+# What the checker said, for a failure message. When a result line is missing, the checker's own output is kept.
+function Get-ChildDetail($Result){@($Result.lines|Where-Object{$_.Trim()-and-not$_.StartsWith('PASS ',[StringComparison]::Ordinal)-and-not$_.StartsWith('UMM DECLARED MINIMUM ',[StringComparison]::Ordinal)})}
+function Format-Result($Result){'exit '+$Result.exit+'; '+$Result.identity+'; '+$Result.api+$(if($Result.failures.Count){'; '+($Result.failures-join' | ')}else{''})+$(if(-not$Result.identity-or-not$Result.api){'; checker output: '+((Get-ChildDetail $Result)-join' / ')}else{''})}
+# One -ApiOnly inspection of a loader that has no reviewed profile ends in exactly one of four ways:
+#   api-pass     the inspection completed and the API passed;
+#   api-fail     the inspection completed and the API failed. That is valid data about that loader, not a failed
+#                check of this script: an unprofiled or below-minimum loader is not required to be compatible;
+#   unavailable  the reference is not there;
+#   error        the inspection produced no usable result.
+# The exit code and the result lines must agree. Anything else is an error, never a blank cell.
+function Get-UnprofiledInspection($Result){
+    $ordinal=[StringComparison]::Ordinal
+    $notAsserted=$Result.identity.StartsWith('UMM IDENTITY NOT ASSERTED ',$ordinal)
+    if($Result.exit-eq3-and@($Result.lines|Where-Object{$_.StartsWith('UMM REFERENCE UNAVAILABLE ',$ordinal)}).Count-eq1){return 'unavailable'}
+    if($Result.exit-eq0-and$notAsserted-and$Result.api.StartsWith('UMM API PASS ',$ordinal)-and$Result.failures.Count-eq0){return 'api-pass'}
+    if($Result.exit-eq1-and$notAsserted-and$Result.api.StartsWith('UMM API FAIL ',$ordinal)-and$Result.failures.Count-ge1){return 'api-fail'}
+    'error'
+}
+function Get-UnprofiledMatrixRow([string]$Path,$Result){
+    $outcome=Get-UnprofiledInspection $Result
+    $referenceLine=[string](@($Result.lines|Where-Object{$_.StartsWith('UMM REFERENCE ',[StringComparison]::Ordinal)-and$_-match' version [0-9.]+ '})|Select-Object -First 1)
+    $version=if($referenceLine){$referenceLine-replace'^.* version ([0-9.]+) .*$','$1'}else{'<version not read>'}
+    $row=switch($outcome){
+        'api-pass' {'UMM MATRIX unprofiled '+$version+' | reference '+$Path+' | '+$Result.identity+' | '+$Result.api}
+        'api-fail' {'UMM MATRIX unprofiled '+$version+' | reference '+$Path+' | '+$Result.identity+' | '+$Result.api+' | incompatible members: '+(($Result.failures|ForEach-Object{$_-replace'^FAIL UMM API ',''})-join'; ')}
+        'unavailable' {'UMM MATRIX unprofiled | reference UNAVAILABLE '+$Path+' | identity UNASSESSED | API UNASSESSED'}
+        default {'UMM MATRIX unprofiled '+$version+' | reference '+$Path+' | INSPECTION ERROR (checker exit '+$Result.exit+', no usable result) | identity UNASSESSED | API UNASSESSED'}
+    }
+    [pscustomobject]@{outcome=$outcome;row=$row;detail=@(if($outcome-ceq'error'){Get-ChildDetail $Result})}
+}
 
 $document=Get-KmcUmmLoaderProfiles $repoRoot
 $installed=Join-Path $managed 'UnityModManager\UnityModManager.dll'
@@ -117,7 +147,6 @@ Check 'a product named explicitly that does not exist is refused, not reported a
 if([string]::IsNullOrWhiteSpace($compiler)-or-not(Test-Path -LiteralPath $unityCore -PathType Leaf)){
     Unassessed 'synthetic loader cases: the C# compiler or UnityEngine.CoreModule is not available'
 }else{
-    $work=Join-Path $labRoot ('analysis-cache\umm-loader-contract-checks\'+[Guid]::NewGuid().ToString('N'))
     function New-SyntheticLoader([string]$Name,[string]$Source){
         $directory=Join-Path $work $Name;[void][IO.Directory]::CreateDirectory($directory)
         $file=Join-Path $directory 'SyntheticLoader.cs';[IO.File]::WriteAllText($file,$Source)
@@ -143,11 +172,12 @@ if([string]::IsNullOrWhiteSpace($compiler)-or-not(Test-Path -LiteralPath $unityC
         @('a missing capture member (no UI.ToggleWindow)',{param($s)[regex]::Replace($s,'/\*TOGGLEWINDOW\*/.*?/\*END\*/','')},'FAIL UMM API UI.ToggleWindow(System.Boolean) void',$true),
         # Only the compiled product's own references show this one: no explicit check names these members.
         @('members the product calls made non-public (internal ModEntry.Active, private UI.tabId)',{param($s)$s.Replace('public bool Active','internal bool Active').Replace('public int tabId','private int tabId')},'FAIL UMM API every loader member the compiled product references binds by name and signature*',$true))
-    $index=0
+    $index=0;$incompatible=$null
     foreach($break in $breaks){
         $index++;$changed=& $break[1] $stub
         if($changed-ceq$stub){throw ('Synthetic loader change did not apply: '+$break[0])}
         $loader=New-SyntheticLoader ('break-'+$index) $changed
+        if($index-eq1){$incompatible=$loader}
         if($null-eq$product-and$break[2]-clike'*compiled product references*'){Unassessed ('SYNTHETIC loader with '+$break[0]+': no '+$Configuration+' build of the product');continue}
         Check ('SYNTHETIC loader with '+$break[0]+' fails the API') {
             $r=Invoke-Checker @('-Reference',$loader,'-ApiOnly')
@@ -159,6 +189,49 @@ if([string]::IsNullOrWhiteSpace($compiler)-or-not(Test-Path -LiteralPath $unityC
         }
     }
     if($null-eq$product){Unassessed 'synthetic loader cases: the compiled product binding sweep (no build)'}
+    Check 'matrix row for a completed SYNTHETIC inspection: API PASS and API FAIL are both data, and neither is an error' {
+        $pass=Get-UnprofiledMatrixRow $complete (Invoke-Checker @('-Reference',$complete,'-ApiOnly'))
+        $fail=Get-UnprofiledMatrixRow $incompatible (Invoke-Checker @('-Reference',$incompatible,'-ApiOnly'))
+        Need ($pass.outcome-ceq'api-pass'-and$pass.row-clike'* | UMM IDENTITY NOT ASSERTED * | UMM API PASS *'-and$pass.detail.Count-eq0) $pass.row
+        Need ($fail.outcome-ceq'api-fail'-and$fail.row-clike'* | UMM API FAIL * | incompatible members: ModEntry.OnToggle *'-and$fail.detail.Count-eq0) $fail.row
+    }
+}
+
+# ---- The matrix never shows an incomplete inspection as a finished row ---------------------------
+Check 'matrix outcomes: a pass, an incompatibility, an unavailable reference and a result-less inspection are four different things' {
+    $make={param([int]$Exit,[string[]]$Lines)$found={param($prefix)$hit=@($Lines|Where-Object{$_.StartsWith($prefix,[StringComparison]::Ordinal)});if($hit.Count){$hit[$hit.Count-1]}else{''}}
+        [pscustomobject]@{exit=$Exit;lines=@($Lines);identity=(& $found 'UMM IDENTITY ');api=(& $found 'UMM API ');failures=@($Lines|Where-Object{$_.StartsWith('FAIL ',[StringComparison]::Ordinal)})}}
+    $notAsserted='UMM IDENTITY NOT ASSERTED no reviewed profile was applied (-ApiOnly); this is not an identity pass'
+    foreach($case in @(
+        @('api-pass',0,@($notAsserted,'UMM API PASS reference 0.31.1.0')),
+        @('api-fail',1,@('FAIL UMM API ModEntry.OnToggle x',$notAsserted,'UMM API FAIL reference 0.1.0.0')),
+        @('unavailable',3,@('UMM REFERENCE UNAVAILABLE X:\none\UnityModManager.dll','UMM IDENTITY UNASSESSED no reference binary','UMM API UNASSESSED no reference binary')),
+        @('error',1,@('Exception calling "ReflectionOnlyLoadFrom"')),
+        @('error',0,@($notAsserted)),
+        @('error',0,@($notAsserted,'UMM API FAIL reference 0.1.0.0')),
+        @('error',1,@($notAsserted,'UMM API PASS reference 0.1.0.0')),
+        @('error',1,@($notAsserted,'UMM API FAIL reference 0.1.0.0')),
+        @('error',2,@('UMM PRODUCT REFUSED The named product does not exist')),
+        @('error',3,@('UMM IDENTITY UNASSESSED no reference binary','UMM API UNASSESSED no reference binary')),
+        @('error',-1,@()))){
+        $actual=Get-UnprofiledInspection (& $make $case[1] $case[2])
+        Need ($actual-ceq$case[0]) ('exit '+$case[1]+' with ['+($case[2]-join' | ')+'] was read as '+$actual+', not '+$case[0])
+    }
+}
+[void][IO.Directory]::CreateDirectory((Join-Path $work 'unreadable'))
+$unreadable=Join-Path $work 'unreadable\UnityModManager.dll';[IO.File]::WriteAllText($unreadable,'This file is not an assembly. It stands for a reference the checker cannot inspect.')
+Check 'matrix row for an inspection that produced no result: an explicit error that keeps the checker''s own failure, never blank cells' {
+    $result=Invoke-Checker @('-Reference',$unreadable,'-ApiOnly')
+    Need ($result.exit-ne0-and$result.identity-ceq''-and$result.api-ceq'') ('The unreadable reference did not reproduce a result-less inspection: '+(Format-Result $result))
+    $row=Get-UnprofiledMatrixRow $unreadable $result
+    Need ($row.outcome-ceq'error'-and$row.row-clike'* | INSPECTION ERROR (checker exit *, no usable result) | identity UNASSESSED | API UNASSESSED') $row.row
+    Need ($row.row-notmatch'\|\s*\|'-and$row.row-notmatch'\|\s*$') ('The row has a blank cell: '+$row.row)
+    Need (@($row.detail|Where-Object{$_-match'ReflectionOnlyLoadFrom|assembly manifest|BadImageFormat'}).Count-ge1) ('The checker''s own failure was not kept: '+($row.detail-join' / '))
+}
+Check 'matrix row for a reference that is not there: unavailable, not an error and not a result' {
+    $gone=Join-Path $work 'absent\UnityModManager.dll'
+    $row=Get-UnprofiledMatrixRow $gone (Invoke-Checker @('-Reference',$gone,'-ApiOnly'))
+    Need ($row.outcome-ceq'unavailable'-and$row.row-ceq('UMM MATRIX unprofiled | reference UNAVAILABLE '+$gone+' | identity UNASSESSED | API UNASSESSED')) $row.row
 }
 
 # ---- Loader matrix -------------------------------------------------------------------------------
@@ -177,10 +250,18 @@ foreach($profile in $document.profiles){
     Check ('profile '+$profile.id+': its genuine binary passes identity and API') {Need ($r.exit-eq0-and$r.identity-clike'UMM IDENTITY PASS*'-and$r.api-clike'UMM API PASS*') (Format-Result $r)}
     Write-Host ('UMM MATRIX '+$profile.id+' | reference '+$holder.path+' | '+$r.identity+' | '+$r.api)
 }
+# Unprofiled loaders are inspected for their API only. An incompatible one is a row of data. An inspection that
+# gave no result is an error with the checker's own output, and the matrix is then reported as incomplete.
 foreach($reference in @($references|Where-Object{-not$known.ContainsKey($_.sha256)})){
-    $r=Invoke-Checker @('-Reference',$reference.path,'-ApiOnly')
-    $version=[string](@($r.lines|Where-Object{$_-clike'UMM REFERENCE *'})|Select-Object -First 1)-replace'^.* version ([0-9.]+) .*$','$1'
-    Write-Host ('UMM MATRIX unprofiled '+$version+' | reference '+$reference.path+' | '+$r.identity+' | '+$r.api)
+    $row=Get-UnprofiledMatrixRow $reference.path (Invoke-Checker @('-Reference',$reference.path,'-ApiOnly'))
+    Write-Host $row.row
+    if($row.outcome-ceq'unavailable'){$unassessed.Add('unprofiled reference became unavailable: '+$reference.path)}
+    if($row.outcome-ceq'error'){
+        $errors.Add($reference.path)
+        foreach($line in $row.detail){Write-Host ('UMM MATRIX ERROR DETAIL '+$line)}
+        if($row.detail.Count-eq0){Write-Host 'UMM MATRIX ERROR DETAIL the checker wrote nothing'}
+    }
 }
 foreach($path in $absent){Write-Host ('UMM MATRIX configured reference missing | '+$path+' | identity UNASSESSED | API UNASSESSED');$unassessed.Add('configured reference missing: '+$path)}
-Write-Host ('UMM LOADER CONTRACT CHECKS PASS='+$passed+' FAIL=0 UNASSESSED='+$unassessed.Count+'; offline inspection of loader binaries, not native execution.')
+Write-Host ('UMM LOADER CONTRACT CHECKS PASS='+$passed+' FAIL=0 UNASSESSED='+$unassessed.Count+' ERRORS='+$errors.Count+$(if($errors.Count){'; THE MATRIX IS INCOMPLETE: '+$errors.Count+' inspection(s) produced no result'}else{''})+'; offline inspection of loader binaries, not native execution.')
+if($errors.Count-ne0){exit 1}

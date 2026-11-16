@@ -144,7 +144,8 @@ function Get-KmcUmmProductLoaderReferences([string]$ProductPath,[string]$DnlibPa
 
 function Get-KmcUmmProductBindings($Product,$References) {
     $resolved=@();$missing=@()
-    foreach($reference in @($References)){
+    # A product that references no loader member arrives here as nothing at all, not as an empty list.
+    foreach($reference in @($References|Where-Object{$null-ne$_})){
         $bound=$false
         try{
             $member=$Product.ManifestModule.ResolveMember($reference.token)
@@ -159,7 +160,7 @@ function Get-KmcUmmProductBindings($Product,$References) {
 # The production binding (Main.cs, Logging/UmmLogger.cs) must be among the references read, so an empty or
 # misread metadata scan cannot pass.
 function Invoke-KmcUmmProductBindingChecks($Product,[string]$DnlibPath,[scriptblock]$Assert) {
-    $references=Get-KmcUmmProductLoaderReferences $Product.Location $DnlibPath
+    $references=@(Get-KmcUmmProductLoaderReferences $Product.Location $DnlibPath)
     $names=@($references|ForEach-Object{$_.name})
     $seen=@($names|Where-Object{$_-cmatch'ModEntry::Info$|ModEntry::Logger$|ModLogger::Log\(System\.String\)$|ModLogger::LogException\(System\.String,System\.Exception\)$'}).Count-eq4
     & $Assert $seen ('UMM API the compiled product''s loader references were read from its metadata ('+$names.Count+' members, the production entry and logger among them)')
