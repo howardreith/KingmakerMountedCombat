@@ -254,11 +254,23 @@ namespace KingmakerMountedCombat.Domain
         // capital rule retires, anything else fails the all-pair restoration); only an eligible pair whose exact views
         // are not active yet is deferred to the retained custody instead of being attached to inactive views.
         // Known issues sprint 3 (review of fe22563a): a departing pair still held by its earlier owner, which owes only
-        // its stick-movement cleanup, is deferred whatever else the arrival found. It joins the retained custody with its
-        // exact owner identity and restores through the in-area retry once that owner has retired; every refusal is
-        // judged there. It never fails the all-pair restoration.
-        public static MountedDepartingArrivalDecision DeferHeldArrival(bool heldByDetachedCleanup, MountedDepartingArrivalDecision decision) =>
-            heldByDetachedCleanup ? MountedDepartingArrivalDecision.Defer : decision;
+        // its stick-movement cleanup, is deferred when the arrival would restore or defer it, or when its only refusal is
+        // the mount's installed movement-agent override (the one refusal that pair's own retained agent causes). It joins
+        // the retained custody with its exact owner identity and restores through the in-area retry once that owner has
+        // retired. Any other refusal keeps its established outcome: the capital rule retires it, anything else fails
+        // the all-pair restoration.
+        public static MountedDepartingArrivalDecision DeferHeldArrival(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedDepartingArrivalDecision decision) =>
+            heldByDetachedCleanup && (decision == MountedDepartingArrivalDecision.Restore || decision == MountedDepartingArrivalDecision.Defer ||
+                refusedOnlyForHeldAgent) ? MountedDepartingArrivalDecision.Defer : decision;
+
+        // The same for carried intent (world-map travel, an earlier event): a held pair that would restore, or that is
+        // retained only for its own installed agent, is retained with its arrival placement. Drop and the capital
+        // retirement keep their outcome.
+        public static MountedCarriedArrivalDecision DeferHeldCarriedArrival(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedCarriedArrivalDecision decision) =>
+            heldByDetachedCleanup && (decision == MountedCarriedArrivalDecision.Restore ||
+                decision == MountedCarriedArrivalDecision.Retain && refusedOnlyForHeldAgent) ? MountedCarriedArrivalDecision.Retain : decision;
 
         public static MountedDepartingArrivalDecision DecideDepartingArrival(string eligibilityRefusal, bool capitalControlRetirement,
             string viewReadinessRefusal)

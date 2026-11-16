@@ -1937,7 +1937,45 @@ public static class KmcContinuousDriveProbe
                 }
                 finally { w.Close(); }
             });
-        Check("PRODUCT-IL the world boundaries around the guard: area suspension asks the world-boundary guard, then the admission discard; load housekeeping asks it, then the world-replacement discard (never the plain one); the admission discard decides through the registry, and the world replacement sets detached cleanup aside after it; the arrival asks whether the pair is held before its departing decision and before any import or attachment; the import refuses a held pair before the registry import, and both ownership sites declare the world predicate without the stick-movement cleanup",
+        Check("PRODUCT-EXECUTED the compiled arrival decisions for a held pair: departing Restore or Defer, or a refusal caused only by its own installed agent, become Defer, while the capital retirement and any other refusal keep their outcome; carried Restore, or Retain only for its own agent, become Retain, while Drop and the capital retirement keep theirs; the candidate counts only the mount's installed override as the pair's own agent and is left unchanged",
+            ()=>{
+                var intent=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPolicy",true);
+                var departingType=product.GetType("KingmakerMountedCombat.Domain.MountedDepartingArrivalDecision",true);
+                var carriedType=product.GetType("KingmakerMountedCombat.Domain.MountedCarriedArrivalDecision",true);
+                var departing=intent.GetMethod("DeferHeldArrival"); var carried=intent.GetMethod("DeferHeldCarriedArrival");
+                foreach(var decision in Enum.GetValues(departingType))
+                    foreach(var agentOnly in new[]{false,true})
+                    {
+                        var name=decision.ToString();
+                        var expected=name=="Restore"||name=="Defer"||agentOnly?"Defer":name;
+                        if(departing.Invoke(null,new object[]{true,agentOnly,decision}).ToString()!=expected || departing.Invoke(null,new object[]{false,agentOnly,decision}).ToString()!=name)
+                            throw new InvalidOperationException("departing "+name+(agentOnly?" (own agent only)":""));
+                    }
+                foreach(var decision in Enum.GetValues(carriedType))
+                    foreach(var agentOnly in new[]{false,true})
+                    {
+                        var name=decision.ToString();
+                        var expected=name=="Restore"||name=="Retain"&&agentOnly?"Retain":name;
+                        if(carried.Invoke(null,new object[]{true,agentOnly,decision}).ToString()!=expected || carried.Invoke(null,new object[]{false,agentOnly,decision}).ToString()!=name)
+                            throw new InvalidOperationException("carried "+name+(agentOnly?" (own agent only)":""));
+                    }
+                var candidateType=product.GetType("KingmakerMountedCombat.Domain.MountedPairCandidate",true);
+                Func<object> saved=()=>{
+                    var value=Activator.CreateInstance(candidateType,new object[]{"rider","mount"});
+                    foreach(var flag in new[]{"RiderIsDirectlyControllable","MountIsDirectlyControllable","RiderIsAliveAndConscious","MountIsAliveAndConscious",
+                        "ExactReciprocalCompanionRelationship","RiderViewAndStockAgentAvailable","MountViewAndStockAgentAvailable","RiderStockAgentEnabled",
+                        "MountStockAgentEnabled","RiderAgentOverrideAvailable","MountAgentOverrideAvailable","RiderIsExactlyMedium","SafeMovementMode"})
+                        candidateType.GetProperty(flag).SetValue(value,true,null);
+                    candidateType.GetProperty("RiderSizeOrdinal").SetValue(value,4,null); candidateType.GetProperty("MountSizeOrdinal").SetValue(value,5,null);
+                    return value;
+                };
+                var only=candidateType.GetMethod("RefusedOnlyForMountAgentOverride",Any);
+                var agent=saved(); candidateType.GetProperty("MountAgentOverrideAvailable").SetValue(agent,false,null);
+                var dead=saved(); candidateType.GetProperty("MountAgentOverrideAvailable").SetValue(dead,false,null); candidateType.GetProperty("MountIsAliveAndConscious").SetValue(dead,false,null);
+                return !(bool)only.Invoke(saved(),null) && (bool)only.Invoke(agent,null) && !(bool)candidateType.GetProperty("MountAgentOverrideAvailable").GetValue(agent,null) &&
+                    !(bool)only.Invoke(dead,null);
+            });
+        Check("PRODUCT-IL the world boundaries around the guard: area suspension asks the world-boundary guard, then the admission discard; load housekeeping asks it, then the world-replacement discard (never the plain one); the admission discard decides through the registry, and the world replacement sets detached cleanup aside after it; the arrival asks, for carried and departing pairs alike, whether the pair is held and whether only its own agent refuses it, before any import or attachment, and decides through the held-pair decisions; the in-area retry refuses a held pair before it acquires a boundary; the import refuses a held pair before the registry import; a boundary that still owes cleanup takes no new owner; both ownership sites declare the world predicate without the stick-movement cleanup",
             ()=>{
                 var persistence=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
                 var world=product.GetType("KingmakerMountedCombat.Integration.MountedWorldService",true);
@@ -1948,10 +1986,21 @@ public static class KmcContinuousDriveProbe
                 var replacement=Body(Required(world,"DiscardAdmissionBindingsForWorldReplacement",0));
                 var import=Body(Required(relationship,"ImportSavedOwnershipForSession",7));
                 var reserve=Body(Required(relationship,"TryReserveOwnership",3));
-                var held=One(arrival,"GameMountedRelationshipService","PairHeldByDetachedCleanup");
+                var helds=Find(arrival,"GameMountedRelationshipService","PairHeldByDetachedCleanup");
+                var ownAgent=Find(arrival,"MountedPairCandidate","RefusedOnlyForMountAgentOverride");
+                if(helds.Count!=2 || ownAgent.Count!=2) throw new InvalidOperationException("the arrival asks "+helds.Count+" held-pair and "+ownAgent.Count+" own-agent questions, expected one each for carried and departing pairs");
+                var held=helds[1];
                 foreach(var name in new[]{"ImportSavedOwnership","RestoreSavedPair","RestoreRetainedPair","RestoreParticipation"})
                     foreach(var index in Find(arrival,null,name))
                         if(index<held) throw new InvalidOperationException(name+" precedes the held-pair question");
+                if(!(helds[0]<One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival") && One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival")<One(arrival,"MountedRetainedIntentPolicy","DeferHeldCarriedArrival") &&
+                    ownAgent[0]<One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival") && held<ownAgent[1] && ownAgent[1]<One(arrival,"MountedRetainedIntentPolicy","DeferHeldArrival")))
+                    throw new InvalidOperationException("the held-pair decisions are not made from the held-pair questions");
+                var retained=Body(Required(persistence,"RestoreRetainedPair",6));
+                var reserveSite=Body(Required(relationship,"TryReserveOwnership",3));
+                if(One(retained,"GameMountedRelationshipService","PairHeldByDetachedCleanup")>First(retained,"MountedWorldService","CreateRestoredBoundary") ||
+                    One(reserveSite,"GameMountedRelationshipService","get_ContinuousDriveCleanupPending")>One(reserveSite,null,"TryReserve"))
+                    throw new InvalidOperationException("the retry or the reservation does not refuse a held pair or a boundary that owes cleanup first");
                 var worldLambdas=0;
                 foreach(var name in new[]{"TryReserveOwnership","ImportSavedOwnershipForSession"})
                     foreach(var lambda in Lambdas(relationship,name))

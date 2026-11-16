@@ -1363,7 +1363,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!registry.IsDetachedCleanupOnly(owner) && !registry.SettledForAdmissionDiscard(), "An active owner counts as settled.");
             registry.Detach(owner);
             registry.RetireSettled();
-            TestRunner.True(registry.IsDetachedCleanupOnly(owner) && registry.SettledForAdmissionDiscard(), "Detached stick cleanup alone holds the world.");
+            TestRunner.True(registry.IsDetachedCleanupOnly(owner) && registry.SettledForAdmissionDiscard(), "Detached stick cleanup alone was taken to hold the world.");
             TestRunner.True(registry.HeldForDetachedCleanup(rider, null, null) && registry.HeldForDetachedCleanup(null, mount, null) &&
                 registry.HeldForDetachedCleanup(new Actor { Id = "x" }, new Actor { Id = "y" }, owner.Id) && !registry.HeldForDetachedCleanup(other, otherMount, Guid.NewGuid()),
                 "The held pair is not recognised by its actors and identity, or an unrelated pair is.");
@@ -1427,10 +1427,43 @@ namespace KingmakerMountedCombat.Tests
             crowded.RetireSettled();
             TestRunner.True(crowded.EarlierWorldCleanupOwners.Length == 0 && crowded.AdmissionRefusal(newWorld, "c", new Actor { Id = "x1" }, new Actor { Id = "x2" }) == null,
                 "The capacity was not released when the earlier owners retired.");
-            // The arrival decision for a held pair: deferred, whatever else the arrival found; otherwise unchanged.
+            // The arrival decisions for a held pair. Restore and Defer become Defer, and so does a refusal its own installed
+            // agent causes; the capital retirement and any other refusal keep their outcome; a pair not held is unchanged.
             foreach (MountedDepartingArrivalDecision decision in Enum.GetValues(typeof(MountedDepartingArrivalDecision)))
-                TestRunner.True(MountedRetainedIntentPolicy.DeferHeldArrival(true, decision) == MountedDepartingArrivalDecision.Defer &&
-                    MountedRetainedIntentPolicy.DeferHeldArrival(false, decision) == decision, "A held pair's arrival is not deferred, or another pair's arrival changed: " + decision);
+                foreach (var agentOnly in new[] { false, true })
+                {
+                    var expected = decision == MountedDepartingArrivalDecision.Restore || decision == MountedDepartingArrivalDecision.Defer || agentOnly
+                        ? MountedDepartingArrivalDecision.Defer : decision;
+                    TestRunner.True(MountedRetainedIntentPolicy.DeferHeldArrival(true, agentOnly, decision) == expected &&
+                        MountedRetainedIntentPolicy.DeferHeldArrival(false, agentOnly, decision) == decision,
+                        "The departing arrival of a held pair is wrong, or a pair not held changed: " + decision + (agentOnly ? " (own agent only)" : ""));
+                }
+            foreach (MountedCarriedArrivalDecision decision in Enum.GetValues(typeof(MountedCarriedArrivalDecision)))
+                foreach (var agentOnly in new[] { false, true })
+                {
+                    var expected = decision == MountedCarriedArrivalDecision.Restore || decision == MountedCarriedArrivalDecision.Retain && agentOnly
+                        ? MountedCarriedArrivalDecision.Retain : decision;
+                    TestRunner.True(MountedRetainedIntentPolicy.DeferHeldCarriedArrival(true, agentOnly, decision) == expected &&
+                        MountedRetainedIntentPolicy.DeferHeldCarriedArrival(false, agentOnly, decision) == decision,
+                        "The carried arrival of a held pair is wrong, or a pair not held changed: " + decision + (agentOnly ? " (own agent only)" : ""));
+                }
+            // Only the mount's installed override counts as the pair's own agent; any other refusal beside it does not.
+            Func<MountedPairCandidate> saved = () => new MountedPairCandidate("rider", "mount")
+            {
+                RiderIsDirectlyControllable = true, MountIsDirectlyControllable = true, RiderIsAliveAndConscious = true, MountIsAliveAndConscious = true,
+                ExactReciprocalCompanionRelationship = true, RiderSizeOrdinal = 4, MountSizeOrdinal = 5, RiderViewAndStockAgentAvailable = true,
+                MountViewAndStockAgentAvailable = true, RiderStockAgentEnabled = true, MountStockAgentEnabled = true, RiderAgentOverrideAvailable = true,
+                MountAgentOverrideAvailable = true, RiderIsExactlyMedium = true, SafeMovementMode = true
+            };
+            var clean = saved();
+            var agentHeld = saved(); agentHeld.MountAgentOverrideAvailable = false;
+            var dead = saved(); dead.MountAgentOverrideAvailable = false; dead.MountIsAliveAndConscious = false;
+            var riderOverride = saved(); riderOverride.RiderAgentOverrideAvailable = false;
+            TestRunner.True(clean.ValidateSavedRelationship() == null && !clean.RefusedOnlyForMountAgentOverride(), "Setup: an eligible candidate is not refused.");
+            TestRunner.True(agentHeld.RefusedOnlyForMountAgentOverride() && !agentHeld.MountAgentOverrideAvailable && agentHeld.ValidateSavedRelationship() != null,
+                "The mount's installed override alone was not recognised, or the candidate was changed.");
+            TestRunner.True(!dead.RefusedOnlyForMountAgentOverride() && !riderOverride.RefusedOnlyForMountAgentOverride(),
+                "A refusal other than the mount's installed override was taken for the pair's own agent.");
             // An owner that never declared the split is never detached cleanup only.
             var legacy = new MountedPairRegistry<Actor, object>(actor => actor.Id);
             MountedPairOwner<Actor, object> plain;
@@ -1612,6 +1645,31 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(!world.LoadWorld() && world.LoadFailed && world.Registry.EarlierWorldCleanupOwners.Length == 0,
                     "An owner that holds the world let the load through, or was set aside.");
             }
+            // A held pair keeps the all-pair rule for any refusal but its own installed agent: a dead mount fails the
+            // restoration and attaches no other pair; the capital rule retires it; its own agent defers it.
+            foreach (var outcome in new[] { MountedDepartingArrivalDecision.Fail, MountedDepartingArrivalDecision.Retire })
+                foreach (var agentOnly in new[] { false, true })
+                {
+                    world = StickWorld(false);
+                    var neighbour = world.AddPair("rider5", "mount5");
+                    row = world.Capture(world.Pair);
+                    otherRow = world.Capture(neighbour);
+                    world.ReplaceView(world.Mount);
+                    world.Pair.FailClears = 1000;
+                    TestRunner.True(world.SuspendArea(world.Pair, neighbour), "Setup: the suspension passed.");
+                    row.ArrivalDecision = agentOnly ? MountedDepartingArrivalDecision.Fail : outcome;
+                    row.RefusedOnlyForOwnAgent = agentOnly;
+                    world.Arrive(row, otherRow);
+                    if (agentOnly)
+                        TestRunner.True(!world.FailedAreaTransfer && world.RetainedRows.Contains(row) && otherRow.Restored,
+                            "A held pair refused only for its own installed agent was not deferred.");
+                    else if (outcome == MountedDepartingArrivalDecision.Fail)
+                        TestRunner.True(world.FailedAreaTransfer && !otherRow.Restored && !world.RetainedRows.Contains(row),
+                            "A held pair with an unrelated refusal bypassed the all-pair failure.");
+                    else
+                        TestRunner.True(!world.FailedAreaTransfer && row.Retired && !world.RetainedRows.Contains(row) && otherRow.Restored,
+                            "A held pair under the capital rule was not retired.");
+                }
             // The earlier strict gates are unchanged on a held boundary.
             world = StickWorld(false);
             world.Capture(world.Pair);
@@ -2183,6 +2241,11 @@ namespace KingmakerMountedCombat.Tests
                 public long Generation;
                 public bool Restored;
                 public string Refusal;
+                // What the arrival's own eligibility decision says, and whether its only refusal is the mount's installed
+                // override (the pair's own retained agent). Modelled inputs; the decisions on them are production.
+                public MountedDepartingArrivalDecision ArrivalDecision = MountedDepartingArrivalDecision.Restore;
+                public bool RefusedOnlyForOwnAgent;
+                public bool Retired;
             }
 
             public MountedPairOwner<Unit, Pair> OwnerOf(Pair pair) { MountedPairOwner<Unit, Pair> owner; return owners.TryGetValue(pair, out owner) ? owner : null; }
@@ -2226,11 +2289,19 @@ namespace KingmakerMountedCombat.Tests
             // retained custody; any other import refusal is the established all-pair failure.
             public void Arrive(params Row[] rows)
             {
+                // Every pair is decided before the first is attached; a Fail attaches none (the all-pair rule).
+                var decisions = new Dictionary<Row, MountedDepartingArrivalDecision>();
                 foreach (var row in rows)
                 {
                     var held = !ReviewedWorldBoundaries && Registry.HeldForDetachedCleanup(row.Rider, row.Mount, row.OwnerId);
-                    if (MountedRetainedIntentPolicy.DeferHeldArrival(held, MountedDepartingArrivalDecision.Restore) == MountedDepartingArrivalDecision.Defer)
-                    { RetainedRows.Add(row); continue; }
+                    decisions[row] = ReviewedWorldBoundaries ? row.ArrivalDecision
+                        : MountedRetainedIntentPolicy.DeferHeldArrival(held, held && row.RefusedOnlyForOwnAgent, row.ArrivalDecision);
+                }
+                if (decisions.Values.Contains(MountedDepartingArrivalDecision.Fail)) { FailedAreaTransfer = true; return; }
+                foreach (var row in rows)
+                {
+                    if (decisions[row] == MountedDepartingArrivalDecision.Defer) { RetainedRows.Add(row); continue; }
+                    if (decisions[row] == MountedDepartingArrivalDecision.Retire) { row.Retired = true; continue; }
                     var refusal = Import(row);
                     if (refusal != null) { FailedAreaTransfer = true; return; }
                 }

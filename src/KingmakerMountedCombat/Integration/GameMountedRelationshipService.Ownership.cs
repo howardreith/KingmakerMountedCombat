@@ -40,6 +40,9 @@ namespace KingmakerMountedCombat.Integration
         private bool TryReserveOwnership(UnitEntityData rider, UnitEntityData mount, out string refusal)
         {
             RefreshOwnership();
+            // A boundary that still owes stick-movement cleanup takes no new owner (the single-boundary legacy mode reaches
+            // here directly; the archive world never hands such a boundary out).
+            if (ContinuousDriveCleanupPending) { refusal = MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal; return false; }
             MountedPairOwner<UnitEntityData, GameMountedRelationshipService> owner;
             if (!Ownership.TryReserve(Game.Instance?.Player, Game.Instance?.Player?.GameId,
                 rider, mount, checked(mountedPairGeneration + 1), this,
@@ -123,7 +126,7 @@ namespace KingmakerMountedCombat.Integration
             if (rider == null && mount == null) return;
             // Called only for the schema-1/2 UNMOUNTED native adapter, after one
             // shared restore. Mounted archives reserve at RestoreSavedPair instead.
-            if (Ownership.Owners.Length != 0 || !Ownership.TryRetainDetached(Game.Instance?.Player,
+            if (Ownership.Owners.Length != 0 || ContinuousDriveCleanupPending || !Ownership.TryRetainDetached(Game.Instance?.Player,
                 Game.Instance?.Player?.GameId, rider, mount, checked(mountedPairGeneration + 1), this,
                 () => retainedParticipation(rider, mount), () => pairSaveReady(), () => pairTeardownReady(), out var owner))
                 throw new InvalidOperationException("Restored participation conflicts with native pair capacity.");

@@ -504,6 +504,13 @@ namespace KingmakerMountedCombat.Integration
             var imported = false;
             try
             {
+                // Known issues sprint 3 (review of fe22563a): a pair still held by its earlier owner's stick-movement
+                // cleanup is refused cleanly before any boundary is acquired for it.
+                if (relationship.PairHeldByDetachedCleanup(rider, mount, pair.OwnerId))
+                {
+                    detail = MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal;
+                    return MountedRetainedRestoreOutcome.CleanRefusal;
+                }
                 if (ArchiveNativeEnabled)
                 {
                     // Settled detached owners (this pair's own previous owner included) retire first, so the exact

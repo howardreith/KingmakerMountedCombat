@@ -328,10 +328,13 @@ namespace KingmakerMountedCombat.Integration
                         var capitalRetirement = false;
                         // Known issues S02: the exact views of an otherwise eligible pair, read only when nothing else refuses.
                         string carriedViewRefusal = null, carriedViews = null;
+                        // Known issues sprint 3 (review of fe22563a): still held by its earlier owner's stick-movement cleanup.
+                        var carriedHeld = false; var carriedHeldAgentOnly = false;
                         try
                         {
                             if (present)
                             {
+                                carriedHeld = relationship.PairHeldByDetachedCleanup(carriedRider, carriedMount, pair.OwnerId);
                                 sameProfile = SupportedMountedProfiles.Resolve(carriedRider, carriedMount)?.Id == pair.ProfileId;
                                 var carriedCandidate = KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount);
                                 permanent = PermanentlyIneligible(carriedCandidate);
@@ -340,19 +343,24 @@ namespace KingmakerMountedCombat.Integration
                                     IsCapitalControlRetirement(area, carriedRider, carriedMount, carriedCandidate, carriedRefusal);
                                 if (carriedRefusal == null)
                                     carriedViewRefusal = KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(carriedRider, carriedMount, out carriedViews);
+                                carriedHeldAgentOnly = carriedHeld && carriedRefusal != null && carriedCandidate != null &&
+                                    carriedCandidate.RefusedOnlyForMountAgentOverride();
                             }
                         }
                         catch (Exception classification) { carriedRefusal = classification.Message; }
-                        var arrival = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
+                        var decided = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
                             carriedRefusal, capitalRetirement, carriedViewRefusal);
+                        var arrival = MountedRetainedIntentPolicy.DeferHeldCarriedArrival(carriedHeld, carriedHeldAgentOnly, decided);
+                        var heldDeferral = arrival == MountedCarriedArrivalDecision.Retain && carriedHeld &&
+                            (decided == MountedCarriedArrivalDecision.Restore || carriedHeldAgentOnly);
                         if (arrival == MountedCarriedArrivalDecision.Restore) restore.Add(pair);
                         // The established capital retirement, with its clean-separation checks below; never pending intent.
                         else if (arrival == MountedCarriedArrivalDecision.Retire) retire.Add(pair);
                         else if (arrival == MountedCarriedArrivalDecision.Retain)
                         {
                             carriedRetained.Add(pair);
-                            if (carriedRefusal == null && carriedViewRefusal != null)
-                                MarkArrivalDeferred(transfer, pair, carriedRider, carriedMount, carriedViews, false);
+                            if (heldDeferral || carriedRefusal == null && carriedViewRefusal != null)
+                                MarkArrivalDeferred(transfer, pair, carriedRider, carriedMount, carriedViews, heldDeferral);
                         }
                         else
                         {
@@ -376,9 +384,10 @@ namespace KingmakerMountedCombat.Integration
                     // Known issues sprint 3 (review of fe22563a): a pair still held by its earlier owner, which owes only
                     // its stick-movement cleanup, is deferred like a pair whose views are not active: it joins the
                     // retained custody with its exact owner identity and restores through the in-area retry once that
-                    // owner has retired. Its eligibility is judged there.
+                    // owner has retired. Only Restore, Defer or a refusal its own installed agent causes are deferred.
                     var held = relationship.PairHeldByDetachedCleanup(rider, mount, pair.OwnerId);
-                    var departing = MountedRetainedIntentPolicy.DeferHeldArrival(held, MountedRetainedIntentPolicy.DecideDepartingArrival(refusal,
+                    var heldAgentOnly = held && refusal != null && candidate != null && candidate.RefusedOnlyForMountAgentOverride();
+                    var departing = MountedRetainedIntentPolicy.DeferHeldArrival(held, heldAgentOnly, MountedRetainedIntentPolicy.DecideDepartingArrival(refusal,
                         refusal != null && IsCapitalControlRetirement(area, rider, mount, candidate, refusal),
                         refusal == null ? KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(rider, mount, out views) : null));
                     if (departing == MountedDepartingArrivalDecision.Restore) { restore.Add(pair); continue; }
