@@ -4,12 +4,14 @@ Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (e
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
-**Read the last two sections first.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
+**Read the last three sections first, the last one above all.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
 pair in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
 records that work (M05 repaired offline, the fault report corrected, C04 recorded) and supersedes what the sections
 below say about M05 being unrepaired. The owner then reviewed that head, `5e27c9bd`; the
-[review section](#review-of-5e27c9bd-2026-11-16--r1-and-r2) records the two corrections to M05's ownership code and
-holds the current results. The earlier sections are kept as the record of their own heads.
+[review section](#review-of-5e27c9bd-2026-11-16--r1-and-r2) records the two corrections to M05's ownership code.
+The owner then reviewed that head, `25cbdbe2`, accepted R2 and returned one finding about the lifecycle around R1;
+the [last section](#review-of-25cbdbe2-2026-11-16--r1-the-lifecycle-around-retained-cleanup) records that
+correction and holds the current results. The earlier sections are kept as the record of their own heads.
 
 ## Identity
 
@@ -644,9 +646,10 @@ and agent, discarded its record, and then called native `Interrupt`:
   its executor, **and** the captured view no longer holds the captured agent. A terminal command alone is not
   proof: native `Interrupt` (`060027AC`) stamps the result before it calls `OnEnded` and never repeats that
   callback.
-- **Retry.** Residue is retried at each settlement (three automatic attempts per record), and always at release
-  and at a new binding. A failure is contained, counted and reported once. Residue is never an owned live drive:
-  the invariant does not admit its agent.
+- **Retry.** One failing retirement gets three automatic attempts in all, counting its first. Settlements and a
+  new binding recover within that limit; explicit releases retry deliberately. (Wording corrected by the review of
+  `25cbdbe2`; the full rule is in the last section.) A failure is contained, counted and reported once. Residue
+  is never an owned live drive: the invariant does not admit its agent.
 - **A new command that adopts a residual agent** (native `Init` reuses the component) owns it from then on; the
   earlier record neither clears it nor lets its own command's end clear it.
 
@@ -809,8 +812,9 @@ still ends normally, and both admission routes are observed once. Its points and
 - **Pause.** While the game is paused, native `Run` parks the running command of a slot as the container's
   `PreviousCommand` instead of ending it. A drive displaced that way is retired as an orphan, as before; the paired
   parking of a rider order was not modelled.
-- **A stationary rider order and the stick** follow the pair's rule, not the single-unit rule (above). If the owner
-  wants the native pairing mirrored onto the rider, that is a behaviour decision for both mouse and stick.
+- **A stationary rider order and the stick** follow the pair's rule, not the single-unit rule (above). The owner
+  has since decided to keep this: it is deliberately preserved behaviour, recorded in the last section, and no
+  longer an open question.
 - **A detached owned component.** When a foreign override replaces the bound agent without native's own setter
   destroying it, the continuous-agent component stays on the view, not installed as an override. Nothing clears it;
   native's next `Init` adopts it.
@@ -822,3 +826,268 @@ still ends normally, and both admission routes are observed once. Its points and
 Sprint 4's order stays C04, C01, C02, C03 and is not started.
 
 Not run: no merge, release, tag, installation, loader replacement or reviewer request, and Sprint 4 is not started.
+
+## Review of `25cbdbe2` (2026-11-16) — R1, the lifecycle around retained cleanup
+
+The owner reviewed head `25cbdbe2`, accepted R2, and returned one remaining R1 finding: the stick-movement owner
+kept a failed cleanup correctly, but the lifecycle around it could declare the cleanup complete and stop the only
+path that retried it. That is corrected. The owner's own behaviour (exact command, view and agent, the guard inside
+the native end, the two separate retirements) is unchanged, as are R2, the M05 routing repair, follower
+acceleration, M01, M03, the marker corrections, the bounded fault report and the C04 record. Nothing here was run
+in the game.
+
+### Identity
+
+- **Base:** the reviewed head `25cbdbe2349ed63ffcc93d432414d4fdbb133a37`, still on the Sprint 2 head
+  `1dffc3e09ffeddc70ba09e3a1f46c1613a997bd7`. PR #47 still targets `codex/kmc-known-issues-sprint2`. PRs #46 and
+  #45 and `main` are untouched.
+- **Commits:** `f4369506` (the correction: code, tests, contract script), `899fe393` (one site restored to a
+  direct call, see "A failed run" below), then the records commit.
+- **Artifact:** `bin/Release/KingmakerMountedCombat.dll` built from `899fe393`: SHA-256
+  `0CCDC0F5080B3971DA62858A6B51EDB55E70E9AA2265322D33614454B8185928`, MVID
+  `5df81ce7-c309-42f0-8870-18fe1e9e9567`.
+- **The reviewed head's build**, used for the before results, was rebuilt from `25cbdbe2` in a separate worktree:
+  SHA-256 `7B9BACE5…970C`, MVID `8d84952a-…`, identical to the artifact reported for that head. It is kept at
+  `artifacts\known-issues-sprint3\reviewed-25cbdbe2\`.
+- **Save format, settings:** unchanged.
+
+### The defect
+
+`MountedContinuousDriveOwner.Release` contains its own failures and keeps what it could not retire. Nothing above
+it read that:
+
+- `GameMountedRelationshipService.Dismount` treated only a *thrown* release error as a failed cleanup. With an
+  obligation retained it returned the coordinator's clean result.
+- `MountedLifecycleSubscriber.CleanupOwner` accepted that result, so `CompositionRoot.SetEnabled(false)` completed
+  and cleared `IsEnabled`.
+- `CompositionRoot.UpdateCore` returns before `world.UpdatePairs` when disabled, and `UpdatePairs` is the only
+  caller of `ValidateActivePair`, which settles the drive. Nothing retried the obligation again.
+- `CompositionRoot.PerformFailureCleanup` read the same clean result and stopped ordinary updates the same way.
+- The pair's detached owner had nothing to retain, so it was settled and its actors and boundary could be reused.
+
+Run on the reviewed build, the real `Dismount` shows it: with the captured agent still installed it returns
+`complete=True, errors=[]` while the owner reports `retained=1`; with the owned command still held after a failed
+interrupt it returns a result that reads as without residue.
+
+### The correction
+
+It uses the result and ownership contracts that already existed. One small policy class
+(`MountedCleanupCompletionPolicy`) holds the decisions; no lifecycle state machine was added.
+
+- **The cleanup result.** `Dismount` adds retained stick-movement cleanup to the result it returns: not succeeded,
+  movement-authority residual, and an error that gives the number of retained obligations and the last failure.
+  The coordinator's state, trigger and earlier errors are kept.
+- **One reading of that result.** Every gate that decided on a cleanup result already carried the same expression
+  inline. They now call `IsComplete` or `IsWithoutResidue`: the disable's per-pair cleanup (`CleanupOwner`),
+  `GuardBoundary`, `Shutdown`, the per-frame retry of a failed cleanup, and the root's failure cleanup.
+- **Disable.** `SetEnabled(false)` is refused through the existing "mounted cleanup retained residue" path, so
+  `IsEnabled` stays set and ordinary updates continue. A repeated disable request retries deliberately.
+- **Runtime-error cleanup.** `PerformFailureCleanup` throws its existing "retained mounted runtime residue" error
+  before it clears `IsEnabled`. When stick-movement cleanup is the only thing holding the stop back, the stop is
+  latched (the existing `failureCleanupPending`) and `UpdateCore` takes it again once no pair owes any. It is not
+  abandoned, and it is not retried every frame while the obligation remains.
+- **Recovery that does not depend on the ordinary update.** `UpdateCore` retries retained stick-movement cleanup
+  for every pair before its enabled gate, beside the charge-cleanup retry that was already there for the same
+  reason. It also runs while a save, an area change or a combat restoration holds the ordinary update back.
+- **Ownership.** The pair's retained-obligation predicate (reservation and saved import) includes the stick
+  obligation, so `RetireSettled` leaves the detached owner in place and its actors cannot be reserved again.
+  `AdvanceIdleBoundaryGeneration` refuses, and the world's two boundary-reuse tests read the obligation.
+- **Guard removal.** `MountedPatchController.Dispose` already asked the boundary guard before `UnpatchAll`. That
+  guard now reads the result above, so the guard inside native `OnEnded` is not removed while a pair-bound command
+  can still end natively. `DetachIntegrationForAutomation` and the root's `Dispose` reach the same refusals.
+- **Shutdown.** `Shutdown` returns the incomplete result and does not dispose the coordinator.
+- **A readiness refusal does not block recovery.** When the charge barrier refuses a dismount, the dismount still
+  retries retained stick-movement cleanup before it returns. The disable's teardown-readiness pre-gate was
+  deliberately **not** extended to read the obligation: it runs before the cleanup that would clear it.
+- **No permanent latch.** A record past the automatic limit gets no further automatic attempt, but it is still
+  read: once the facts establish its retirement (native ended the command itself, and the captured view lost the
+  agent) it leaves, and every refusal above clears with it.
+
+**The retry rule, corrected in the comments and here.** One failing retirement gets `AutomaticRetryLimit` (three)
+automatic attempts in all. These count against it: its first attempt, each settlement, the retry before the root's
+enabled gate, a new binding, a cleanup after an update failure (`CleanupTrigger.Exception`), and every dismount
+the pair's per-frame update makes (an invalidated invariant, the retry of a failed cleanup). New bindings recover
+within the automatic limit. Explicit releases retry deliberately: a disable request, shutdown, guard removal, an
+area, load or event boundary, a voluntary dismount. `ReleaseRecoversExplicitly` makes that distinction from the
+trigger and from a flag set only around the per-frame dismounts. A retained stick obligation does not set
+`cleanupRetryRequired`; that flag makes `ValidateActivePair` dismount again every frame, which would have turned
+per-frame recovery into repeated releases.
+
+**World boundaries: a choice for the owner to confirm.** Area suspension, load housekeeping and event suspension
+ask a separate guard, `GuardWorldBoundary`, which decides on what the attachment itself left behind. A stick-only
+obligation does not fail those three boundaries. It stays retained through them, keeps the owner unsettled, and
+each boundary still makes its deliberate attempt. The reason: failing them latches a failed area transfer (which
+blocks pair updates, later area changes and saving until a load) or throws from the load routine after the old
+world is unloaded, and neither helps the recovery. The reviewed head let these boundaries pass too, so this keeps
+their behaviour; the owner's list of gates (disable, runtime-error cleanup, shutdown, owner reuse, guard removal)
+all read the strict guard. If the owner wants these three boundaries strict as well, it is three call sites.
+
+### Before and after
+
+| Situation | Reviewed head `25cbdbe2` | Corrected |
+|---|---|---|
+| **Disable**, command C bound to V1/A, the mount now on V2 with a foreign override B, removal of A fails once | Cleanup reported complete; disable completed; ordinary updates stopped; A stayed installed and was never retried | Cleanup reported incomplete (`1 retained obligation(s)`, with the failure); disable refused; the next update's retry removes A and leaves B; the next disable request completes; C is ended once |
+| **Runtime-error cleanup**, the interrupt of C fails while C stays held | A removed on its own; result read as without residue; ordinary updates stopped; C was never retried | A removed on its own; result not without residue; the failure cleanup throws before it stops updates; C stays owned and is retired by the next retry (before the gate, or by the ordinary update); the stop then completes by itself |
+| **The failure persists** | — | Three automatic attempts in all, one report; the owner is not settled, its actors and boundary are not reused, the guards are not removed, shutdown does not complete. When the failure ends, a deliberate cleanup retires C and every refusal clears |
+| **A healthy release, an unmounted pair, another pair** | Complete | Complete, unchanged; another pair's retained cleanup does not touch them |
+
+### Deliberately preserved: stationary rider orders
+
+By the owner's decision the current behaviour is kept. The mount's native Move/Standard pairing is **not** mirrored
+onto the rider. A stationary rider order runs on while the stick (or a routed ground order) moves the mount, and an
+approaching rider order is ended as before. This is the pair's rule, recorded as deliberately preserved behaviour,
+not as an open question. R2 remains accepted and its direct-admission, enqueue-only, promotion, refusal and
+nested-call behaviour is unchanged; its tests and contract checks pass as they did.
+
+### Evidence
+
+All offline, Release, Windows PowerShell 5.1, from the Sprint 3 worktree. Logs `34-…` to `40-…` and
+`mutant-r3-*.log` in `C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint3\`.
+
+| Check | Reviewed head `25cbdbe2` | Corrected (`899fe393`) |
+|---|---|---|
+| Component test exe | 1326 / 0 | 1332 / 0 (6 more: the decisions, lifecycle A, B, C and D, the over-limit record) |
+| `Test-ContinuousDriveContracts.ps1` | 43 / 0 as it was; **44 pass, 8 fail** against the script as extended (run with `-ProductDll`) | 52 / 0 (9 more) |
+| `Test-PhysicalMoverPaceContracts.ps1` | 27 / 0 | 27 / 0 |
+| `Validate-Source.ps1` | 151 / 0 | 151 / 0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815 / 0 | 815 / 0 |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3 -Focused` (continuous drive, physical mover pace, post-load view readiness, persistence, world boundary, paired activation, world ownership, command slot) | PASS 9/0 with the earlier six scripts | **PASS 11/0** |
+
+Workflow budget `known-issues-sprint3`: 3.65 of 90 minutes, nine entries; the two failed entries are the runs
+described next.
+
+**A failed run, kept.** The first Fast run of this correction (log `35-fast-tier-f4369506.log`) failed one existing
+check in `Test-PostLoadViewReadinessContracts.ps1`. That check pins `ValidateActivePair` calling `Dismount`
+directly after the invariant. Commit `f4369506` had moved that call into a helper. The pin was left as it is and
+the call restored to a direct one, marked automatic in place (`899fe393`); the script passes 26 / 0 again.
+
+**T04, unchanged.** `Test-ChargeOwnershipContracts.ps1` reads the ownership code this correction touches, so it was
+selected once (log `36-fast-tier-899fe393.log`, a failed run, and `37-…-T04.log`). It passes its 71 checks and then
+stops at the ledgered T04 (`Parameter count mismatch` at its first `AdmitChargeCommand` call), exactly as before
+this correction. T04 stays open; the passing Fast run leaves that script out and adds `Test-WorldOwnershipContracts.ps1`
+and `Test-Chunk6aCommandSlot.ps1`, the other two scripts that read the changed methods.
+
+**Source pins elsewhere.** Every quoted literal in `scripts\*.ps1` and `tests\*.cs` was compared against the twelve
+changed product files, before and after: no literal that a check depends on was lost (the one script literal that
+no longer appears in two of the files is a field name read by reflection, and the field still exists). `Test-Harness.ps1` itself belongs to the Candidate tier and was not run.
+
+**The reviewed head failing the lifecycle regressions.** The extended script builds the product's **real**
+`GameMountedRelationshipService` without the game and calls its real `Dismount`, `ValidateActivePair`,
+`GuardBoundary`, `Shutdown` and `AdvanceIdleBoundaryGeneration`. On the reviewed build (log `34-…`):
+
+- **A, disable:** fails with "the disable cleanup reported complete while the captured agent A is still installed
+  on V1 and its removal is retained". The run prints `retained=1; A installed=True; result complete=True;
+  errors=[]`.
+- **B, runtime-error cleanup:** fails with "the runtime-error cleanup read as without residue while the owned
+  command is still held". The run prints `retained=1; command terminal=False; result without residue=True`.
+- **C, persistent failure:** fails at its first step, the disable cleanup reported complete.
+- The readiness-refusal check, the world-boundary check and the three IL checks of the new wiring fail. The
+  healthy control D passes on both builds, as do the 43 earlier checks.
+
+The component regressions run the same scenarios through a model of the root and the subscriber, once with the
+corrected wiring and once with the reviewed wiring (a flag of the model): under the reviewed wiring the disable and
+the runtime-error cleanup complete over the obligation, and six further updates recover nothing.
+
+**What was executed, read, or modelled.**
+
+| Kind | What |
+|---|---|
+| Production code executed | The real `GameMountedRelationshipService`, constructed offline and unmounted: `Dismount` for the disable, runtime-error and boundary triggers, with and without a refusing charge barrier; `ValidateActivePair` (settlement, and the per-frame retry of a failed cleanup); `RecoverContinuousDriveCleanup`; `GuardBoundary` through the real `PatchMethods.GuardNativeBoundary`, the gate before guard removal; `GuardWorldBoundary`; `Shutdown`; `AdvanceIdleBoundaryGeneration`; the owner-retention reading. The compiled owner and `MountedCleanupCompletionPolicy`. In the component tests: the same owner and policy, and the real `MountedPairRegistry` (reservation, detach, `RetireSettled`, reuse). |
+| Substituted in that execution | The service's stick-movement owner is replaced by the same compiled owner on the scripted host, because binding through the real adapter needs a live pair. The host stands in for the native interrupt, the native end and the override write. The service is unmounted throughout, so the coordinator's own dismount of a mounted pair, and the invariant dismount inside `ValidateActivePair`, are not part of these runs. In the component tests the registry's retained predicate is written in the test from the production policy; the service's own two predicates are read from IL. |
+| Production code read (IL) | `Dismount` adds the retained cleanup after the coordinator and before ownership completion; `CleanupOwner`, `GuardBoundary`, `Shutdown`, the failed-cleanup retry and the root's failure cleanup decide through the policy; both dismounts of the per-frame update are bracketed by the automatic mark; the failure cleanup latches the deferred stop and `UpdateCore` reads the pending cleanup before it takes it; `UpdateCore` takes the recovery before it reads `IsEnabled`, and that recovery is the automatic one; both ownership predicates, `AdvanceIdleBoundaryGeneration` and the world's two reuse tests read the obligation; `MountedPatchController.Dispose` asks the guard before `UnpatchAll`; the three callers of the world-boundary guard and the one product caller of the strict guard. |
+| Modelled | `CompositionRoot.SetEnabled`, `PerformFailureCleanup` and `UpdateCore`, and `MountedLifecycleSubscriber.CleanupOwner`: none of them can be constructed offline. The component tests model their sequence (the test names say so) and take every decision from the production policy; the contract script pins their IL. The native stick chain, slots and end callback are the same model as before. |
+| Installed native code executed | Nothing new. The earlier native runs (the `Run` refusal, queue promotion on a genuine container) pass unchanged. |
+| Not executed | The composition root and the lifecycle subscriber themselves; the Harmony removal; a mounted pair's real coordinator dismount with a retained obligation; the native override setter on a destroyed view; any gameplay. |
+
+**Mutation checks**, in the separate scratch worktree, never in the worktree whose artifact is reported. The
+unmutated tree built there has the reported identity.
+
+35 one-line mutations of the correction, each built and run through the component tests and the contract script. Every one fails at least one check.
+
+| Mutant | The change | Component tests failed | Contract checks failed |
+|---|---|---|---|
+| A | the dismount does not add retained cleanup to its result | 0 | 6 |
+| B | retained cleanup leaves the result succeeded | 6 | 5 |
+| C | retained cleanup is not reported as movement-authority residue | 2 | 0 |
+| D | every release is deliberate | 2 | 2 |
+| E | the per-frame retry of a failed cleanup is deliberate | 1 | 1 |
+| F | the failed-cleanup retry clears its automatic mark before the dismount | 0 | 2 |
+| G | the root does not retry before its gate | 0 | 1 |
+| H | the root retries only while enabled | 0 | 1 |
+| I | the retry before the gate is deliberate | 0 | 4 |
+| J | the owner does not retain stick cleanup | 5 | 3 |
+| K | the reservation predicate ignores stick cleanup | 0 | 1 |
+| L | the boundary is recycled over stick cleanup | 0 | 2 |
+| M | the failure cleanup ignores the result | 0 | 1 |
+| N | the disable cleanup ignores the result | 0 | 1 |
+| O | shutdown ignores retained cleanup | 0 | 2 |
+| P | the boundary guard ignores the result | 0 | 3 |
+| Q | a readiness refusal skips recovery | 0 | 2 |
+| R | "without residue" ignores movement residue | 1 | 0 |
+| S | the world reuses a boundary over stick cleanup | 0 | 1 |
+| T | a release ignores the automatic limit | 1 | 1 |
+| U | automatic recovery is unbounded | 2 | 3 |
+| V | the dismount always releases deliberately | 0 | 1 |
+| W | the import predicate ignores stick cleanup | 0 | 1 |
+| X | "complete" ignores the relationship state | 1 | 0 |
+| Y | a settled admission is released over stick cleanup | 0 | 1 |
+| Z | the invariant dismount clears its automatic mark | 0 | 1 |
+| a | a record past the limit is never released by the facts | 1 | 0 |
+| b | a record past the limit is discarded | 3 | 3 |
+| c | a world boundary fails over stick cleanup alone | 0 | 1 |
+| d | a world boundary ignores the attachment | 0 | 2 |
+| e | area suspension reads the strict guard | 0 | 1 |
+| f | guard removal reads the world-boundary guard | 0 | 3 |
+| g | the runtime-error stop is abandoned | 0 | 1 |
+| h | the runtime-error stop is taken again while cleanup is owed | 0 | 1 |
+| i | "held only by stick movement" ignores the attachment | 0 | 3 |
+
+An earlier round of 25 of these, on the tree before the independent review, was also detected in full (`mutants-r3a-prereview-summary.txt`). The 57 mutants of the earlier M05 and R1/R2 rounds were not run again.
+
+**Independent review.** One independent, read-only review of the uncommitted correction against the lifecycle
+code. No blocker. Its findings and what was done:
+
+- **Major, corrected:** the invariant dismount inside `ValidateActivePair` carried a deliberate trigger. With a
+  retained record and a charge barrier that kept refusing, it would have retried natively every frame. Every
+  dismount the per-frame update makes is now marked automatic.
+- **Major, decided as above:** the incomplete result reached the area and load boundaries, which latch a failed
+  transfer or throw after the old world is unloaded. Those three boundaries now read the world-boundary guard.
+- **Minor, corrected:** the runtime-error stop was abandoned once the cleanup failed (now deferred and taken
+  again); a record past the limit was never read again (now released by the facts).
+- **Minor, recorded:** a voluntary dismount that leaves a retained obligation reports not accepted (below).
+- **Tests:** the component test names now say that the root and subscriber sequence is modelled; lifecycle A holds
+  the ordinary update back so that only the retry before the gate can recover; the readiness-refusal check now
+  tells a deliberate cleanup from a per-frame one past the limit.
+- **Found sound:** the disable, shutdown, guard-removal, owner-retirement and reuse refusals; no gate ahead of the
+  cleanup reads the obligation; healthy pairs take the same paths as before; the owner's identity handling and the
+  foreign-override protection are untouched.
+
+### Remaining uncertainty
+
+- **Native: NOT RUN.** No gamepad session has ever been run in this project. A failed native interrupt or a failed
+  override removal is a constructed case; nothing in the game is known to produce one.
+- **The root and the subscriber are pinned and modelled, not run.** Their decisions are production code that is
+  executed elsewhere, and their call order is read from IL, but `SetEnabled(false)`, `PerformFailureCleanup` and
+  `UpdateCore` have not run as whole methods offline. The invariant dismount's automatic mark is read from IL only.
+- **A voluntary dismount reports not accepted** while it leaves a retained obligation, although the pair is
+  dismounted and its cost stands. That follows from reporting the cleanup as incomplete through the existing
+  contract.
+- **World boundaries pass over a stick-only obligation** (the choice above). After an area change the pair cannot
+  be mounted again until the record leaves; whether native keeps or drops an unfinished continuous command across
+  an area change is not established.
+- **The native override setter on a destroyed view** was read (it destroys the component and clears the field) but
+  not run. If it threw, the obligation would stay until a deliberate cleanup succeeded.
+- **Up to two automatic attempts can fall in one frame** while the services are enabled (the retry before the
+  gate, then the ordinary settlement). The limit bounds attempts, not frames.
+- **A failure that never ends** keeps the disable, shutdown and guard removal refused, by design. The log carries
+  one warning for the retirement and the existing refusal messages. The result's "last failure" text is the
+  owner's last recorded failure and can be older than the record it accompanies.
+- **Unchanged limits:** the guarded native write is not executed; the paused-game parking of a rider order is not
+  modelled; a detached owned component is left for native's next `Init`; the followers' native speed cap and
+  slow-down exemption still read the selected rider; a refused admission still faults natively.
+- **M04** stays unresolved. **T04–T08** are unchanged and open. T04 was met once in this continuation (above) and
+  is exactly as ledgered.
+
+Sprint 4's order stays C04, C01, C02, C03 and is not started.
+
+Not run: no merge, release, tag, installation, loader replacement or reviewer request.

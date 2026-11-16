@@ -1,23 +1,39 @@
 # Known issues remediation, Sprint 3 and its continuation — review checkpoint (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
-(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md (continuation section
-first) and docs/CURRENT-KNOWN-ISSUES.md.
+(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md (last section first)
+and docs/CURRENT-KNOWN-ISSUES.md.
 
 - **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
   with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. The owner's
-  review of `5e27c9bd` (R1, R2) is corrected. Fast PASS 9/0. Three independent reviews (Sprint 3, continuation,
-  R1/R2), corrected. Native NOT RUN; gamepad never run.
+  review of `5e27c9bd` (R1, R2) is corrected. The review of `25cbdbe2` accepted R2; its one R1 lifecycle finding
+  is corrected. Fast PASS 11/0. Four independent reviews (Sprint 3, continuation, R1/R2, lifecycle), corrected.
+  Native NOT RUN; gamepad never run.
 - **Seams of the continuation (M05):**
   - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
     It talks to the game only through `IMountedContinuousDriveHost`; the adapter is
     `GameMountedRelationshipService.ContinuousDriveHost`. Put new decisions in the owner, where tests run them.
-  - It is called from five places only: the `UnitMoveContiniously.Init` postfix (bind), the public
+  - It is called from six places only: the `UnitMoveContiniously.Init` postfix (bind), the public
     `UnitCommands.Run` postfix (admission of the bound command, which must also see a refused Run), the internal
     `Run` postfix (an admitted rider order, by either route), `ValidateActivePair` before the invariant (settle),
-    and `Dismount` (release).
+    `Dismount` (release), and `CompositionRoot.UpdateCore` before its enabled gate (retry of retained cleanup).
   - Retirement is two separate steps on a residue record: end the command, clean the captured agent on its captured
     view. A record leaves only through `RetirementEstablished`. Never clear the watch without transferring it.
+  - Lifecycle (review of `25cbdbe2`): `Dismount` reports retained stick cleanup in its result
+    (`MountedCleanupCompletionPolicy.WithRetainedStickMovement`); every gate reads `IsComplete` or
+    `IsWithoutResidue`. Do not set `cleanupRetryRequired` for it, and do not add it to a readiness pre-gate that
+    runs before the cleanup.
+  - Deliberate or automatic recovery is decided in one place, `ReleaseRecoversExplicitly`. A dismount that can
+    repeat every frame must be automatic: `CleanupTrigger.Exception`, or bracketed by `automaticCleanupRetry`.
+  - `ValidateActivePair` must keep calling `Dismount` directly after the invariant;
+    `Test-PostLoadViewReadinessContracts.ps1` pins that.
+  - `GuardBoundary` is strict. `GuardWorldBoundary` (area suspension, load, event suspension only) passes over a
+    stick-only obligation; the owner may ask for those three to be strict.
+  - `Test-ChargeOwnershipContracts.ps1` still stops at T04 after 71 checks. Keep it out of a Fast selection that
+    has to pass.
+  - The real `GameMountedRelationshipService` can be constructed offline (a logger proxy and `DiagnosticSettings`)
+    and its `Dismount`, `ValidateActivePair` and `Shutdown` run unmounted. The contract script swaps its private
+    `continuousDrive` field for an owner on the scripted host.
   - The guard inside native `UnitMoveContiniously.OnEnded` (`EndedContinuousCommandOverride`) is the only thing that
     keeps a pair-bound command's end from clearing a foreign override. It finds the owner through
     `continuousDriveCommands`, filled at binding and emptied when a retirement is established.

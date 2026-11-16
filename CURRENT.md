@@ -1,3 +1,50 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 25cbdbe2: R1 LIFECYCLE CORRECTED OFFLINE, R2 ACCEPTED; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `25cbdbe2`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R2: accepted** by the owner at `25cbdbe2`. Unchanged.
+- **R1, the remaining finding, corrected (`f4369506`, `899fe393`):** the stick-movement owner kept a failed
+  cleanup, but the lifecycle around it could report the cleanup complete and stop the only path that retried it.
+  - `Dismount` now reports retained stick-movement cleanup in its result. The disable, the runtime-error cleanup,
+    shutdown, Harmony guard removal, owner settlement and boundary reuse all read it and wait.
+  - The root retries retained cleanup before its enabled gate, so recovery does not depend on the ordinary pair
+    update. A runtime-error stop held back by this cleanup alone is taken again once it is established.
+  - A readiness refusal (the charge barrier) still retries retained cleanup. No pre-gate that runs before the
+    cleanup reads the obligation.
+  - A record past the automatic limit still leaves once the facts establish its retirement. Nothing latches.
+- **Retry rule (wording corrected):** three automatic attempts per failing retirement, counting the first.
+  Settlements, the root's retry, new bindings and every dismount that can repeat per frame stay within that limit.
+  Explicit releases (disable, shutdown, guard removal, a boundary, a voluntary dismount) retry deliberately.
+- **For the owner to confirm:** area suspension, load and event suspension are **not** failed by a stick-only
+  obligation (`GuardWorldBoundary`). Failing them would latch a failed area transfer or throw after the old world
+  is unloaded. The reviewed head passed them too. Making them strict is three call sites.
+- **Deliberately preserved (owner decision):** a stationary rider order runs on while the stick moves the mount.
+  The native Move/Standard pairing is not mirrored onto the rider. Not an open question.
+- **Unchanged:** the earlier R1 and R2 corrections (`e98eac31`), the M05 routing repair, follower acceleration, M01,
+  M03, the two marker corrections, the bounded fault report, and C04 (first in Sprint 4; order C04, C01, C02, C03).
+  M04's original report stays unresolved.
+- **Checks:** Fast PASS 11/0 (components 1332/0, Validate-Source 151/0, continuous drive 52, physical mover pace 27,
+  post-load view readiness 26, persistence contracts 223, world boundary, paired activation, world ownership,
+  command slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head `25cbdbe2` fails 8 of the 52 continuous-drive checks. Its real `Dismount` returns a complete
+    result with one obligation retained, for the disable and for the runtime-error cleanup.
+  - Two failed Fast runs are kept. One caught a real conflict with an existing post-load contract (fixed in
+    `899fe393` without touching that contract). The other is the ledgered T04, unchanged.
+  - 35 mutations of the correction, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** the real `GameMountedRelationshipService` ran offline, unmounted, with its
+  stick-movement owner on a scripted host: `Dismount`, `ValidateActivePair`, both guards, `Shutdown`, boundary
+  recycling. The real ownership registry ran in the component tests. The composition root and the lifecycle
+  subscriber cannot be constructed offline: their sequence is modelled and their IL is pinned.
+- **Review:** one independent read. No blocker; two major points corrected (a per-frame dismount that would have
+  retried deliberately; world boundaries latching a session failure), two minor ones applied.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 5e27c9bd: R1 AND R2 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `5e27c9bd`, still on the
