@@ -636,6 +636,19 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        // Known issues sprint 3 (M03): the unit whose speed stands for this selected unit in the native group speed
+        // limit. A mounted pair's rider never walks a ground order (RouteGroundCommand runs it on the mount), so the
+        // mount answers for it; null keeps the unit itself.
+        internal UnitEntityData GroupPaceSpeedMover(UnitEntityData unit)
+        {
+            if (disposed || unit == null) return null;
+            return MountedGroupPacePolicy.SpeedInputIsMount(
+                coordinator.State == RelationshipState.Mounted && coordinator.ActivePair != null,
+                CombatController.IsInTurnBasedCombat(),
+                ReferenceEquals(unit, runtime.Rider),
+                runtime.Mount != null) ? runtime.Mount : null;
+        }
+
         public bool GuardBoundary(CleanupTrigger trigger)
         {
             var result = Dismount(trigger);

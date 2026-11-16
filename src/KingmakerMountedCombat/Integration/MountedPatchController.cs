@@ -105,6 +105,9 @@ namespace KingmakerMountedCombat.Integration
                 // Horse speed repair: the native accelerated group move is offered to selected units only.
                 PatchExact(typeof(UnitCommand), "AccelerateIfPathIsLong", 0x060027B4, null,
                     nameof(PatchMethods.NativeGroupAccelerationPrefix), nameof(PatchMethods.NativeGroupAccelerationPostfix));
+                // Known issues sprint 3 (M02): the gamepad's follower acceleration pass walks selected units only.
+                PatchExact(typeof(Kingmaker.UI._ConsoleUI.InputLayers.InGameLayer.InGameInputLayer), "UpdateMovement", 0x06005D0C,
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.GamepadFollowerOfferTranspiler));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ChargeClickPrefix));
@@ -294,7 +297,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(fullRoundSlot, "UpdateDistance", 0x06004E08, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundDistanceTranspiler));
                 PatchExact(fullRoundSlot, "GetActivityText", 0x06004E07, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundTextTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
-                PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
+                // Known issues sprint 3 (M03): the same method also reads the group speed limit from the physical movers.
+                PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.GroundGroupMoveTranspiler));
                 PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "Update", 0x06002D64, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPrimaryMarkerTranspiler));
                 PatchExact(typeof(TurnController), "ContinueWaiting", 0x06000C3E, Type.EmptyTypes, null, nameof(PatchMethods.PairedWaitingPostfix));
                 PatchExact(typeof(TurnController), "CanDelay", 0x06000C49, Type.EmptyTypes, null, nameof(PatchMethods.PairedCanDelayPostfix));
@@ -683,6 +687,39 @@ namespace KingmakerMountedCombat.Integration
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Mounted group pace was not carried to a mount", error); }
             }
+
+            // Known issues sprint 3 (M03). Same shape as the Enumerable.Select it replaces in the native group speed
+            // limit: each selected unit is answered by its physical mover, each mover once, and the native selector
+            // still reads the speed. A fault leaves the native inputs exactly as they were.
+            internal static IEnumerable<float> GroupPaceSpeedInputs(IEnumerable<UnitEntityData> selected, Func<UnitEntityData, float> nativeSpeed)
+            {
+                var actors = selected;
+                try { actors = MountedPaceActors.Project(selected, unit => PatchBridge.Owner(unit)?.GroupPaceSpeedMover(unit)); }
+                catch (Exception error) { ReportGroupPaceFault("Mounted group pace: the speed inputs were left native", error); actors = selected; }
+                return actors.Select(nativeSpeed);
+            }
+
+            // Known issues sprint 3 (M02). The list the native gamepad follower pass walks: a selected rider whose
+            // routed ground order runs on its unselected mount is answered by that mount. A fault leaves the selection.
+            internal static List<UnitEntityData> GamepadFollowerOfferUnits(List<UnitEntityData> selected)
+            {
+                try { return MountedPaceActors.Project(selected, unit => PatchBridge.CombatFor(unit)?.GamepadFollowerOfferMover(unit, selected)); }
+                catch (Exception error) { ReportGroupPaceFault("Mounted group pace: the gamepad follower pass was left native", error); return selected; }
+            }
+
+            // These hooks run many times a second; one fault is reported once.
+            private static bool groupPaceFaultReported;
+            private static void ReportGroupPaceFault(string message, Exception error)
+            {
+                if (groupPaceFaultReported) return;
+                groupPaceFaultReported = true;
+                PatchBridge.Logger?.Exception(message, error);
+            }
+
+            internal static IEnumerable<CodeInstruction> GroundGroupMoveTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                GroupPaceTranspilers.SpeedInputs(PairedControllerInputTranspiler(instructions), Hook(nameof(GroupPaceSpeedInputs)));
+            internal static IEnumerable<CodeInstruction> GamepadFollowerOfferTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                GroupPaceTranspilers.GamepadFollowerOffer(instructions, Hook(nameof(GamepadFollowerOfferUnits)));
 
             internal static bool GroundCommandPrefix(ref UnitEntityData unit)
             {

@@ -939,6 +939,7 @@ namespace KingmakerMountedCombat.Integration
             automaticGate.Tick(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
                 IsPairInCombat(), CombatController.IsInTurnBasedCombat(), relationship.Rider?.IsAIEnabled == true);
             ObservePlayerMoveOutcome();
+            ReleaseEntranceCarrier();
             SweepOrphanedAutomaticCommand();
             ObserveAutomaticApproachFailure();
             pairedCommandScheduler.Update();
@@ -2073,6 +2074,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             Cancel("controller disposal");
+            entranceCarrier.Clear();
             if (ChargeAdmissionFenced) throw new InvalidOperationException("Controller teardown retained a native boundary or serialization fence.");
             relationship.Dismounting -= HandleDismounting;
             relationship.ChargeCleanupBarrier = null;

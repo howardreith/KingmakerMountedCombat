@@ -279,6 +279,13 @@ namespace KingmakerMountedCombat.Domain
             Move = null;
         }
 
+        // Known issues sprint 3: the watched order answers only for the pair generation it was bound for, so a pair
+        // that mounted again cannot inherit an order from before its next update settles the watch.
+        public bool IsCurrent(object move, long pairGeneration)
+        {
+            return move != null && ReferenceEquals(move, Move) && generation == pairGeneration;
+        }
+
         public MountedPlayerMoveOutcome Observe(long pairGeneration, bool exactMountedPair, bool finished, bool completedByAction,
             bool moverHeld, bool inSlotOrQueue)
         {

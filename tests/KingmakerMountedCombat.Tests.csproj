@@ -140,6 +140,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAreaTransferLifecycle.cs"><Link>Shared\Domain\MountedAreaTransferLifecycle.cs</Link></Compile>
     <Compile Include="ExplorationRepairTests.cs" />
     <Compile Include="MountedGroupPacePolicyTests.cs" />
+    <Compile Include="MountedPhysicalMoverPaceTests.cs" />
     <Compile Include="RatnookDoorRepairTests.cs" />
     <Compile Include="PostLoadViewReadinessTests.cs" />
     <Compile Include="DeferredArrivalSaveLoadTests.cs" />

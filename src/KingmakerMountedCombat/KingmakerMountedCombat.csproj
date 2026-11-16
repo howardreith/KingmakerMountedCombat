@@ -618,6 +618,7 @@
     <Compile Include="Integration\MountedCombatController.Charge.cs" />
     <Compile Include="Integration\MountedCombatController.Entrance.cs" />
     <Compile Include="Integration\MountedCombatController.GroupPace.cs" />
+    <Compile Include="Integration\GroupPaceTranspilers.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\NativeMountedControlService.Ownership.cs" />

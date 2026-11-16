@@ -19,6 +19,10 @@ namespace KingmakerMountedCombat.Integration
         internal int EntranceCarryCount { get; private set; }
         internal MountedEntranceCarryDecision LastEntranceCarryDecision { get; private set; }
 
+        // Known issues sprint 3 (M01): the exact member command issued below, for the native group acceleration offer
+        // (MountedCombatController.GroupPace.cs). Identity only; the command stays native in every other respect.
+        private readonly MountedEntranceCarrierWatch entranceCarrier = new MountedEntranceCarrierWatch();
+
         internal void CarryRiderEntranceTransition(UnitCommands container, UnitCommand command)
         {
             if (disposed || command == null || container == null) return;
@@ -52,9 +56,21 @@ namespace KingmakerMountedCombat.Integration
             var carried = new UnitAreaTransition(group, target) { SpeedLimit = command.SpeedLimit, CreatedByPlayer = command.CreatedByPlayer };
             mountCommands.Run(carried);
             var admitted = !carried.IsFinished && (mountCommands.Contains(carried) || mountCommands.Queue.Contains(carried));
-            if (admitted) EntranceCarryCount++;
+            if (admitted)
+            {
+                EntranceCarryCount++;
+                entranceCarrier.Bind(carried, group, relationship.MountedPairGeneration);
+            }
             logger.Info("Mounted entrance approach: " + (admitted ? "the mount carries the rider as its native group member" :
                 "the mount's member command was not admitted; the rider stays with the native group") + "; " + detail + ".");
+        }
+
+        // From the controller's update: a carrier that ended, or that belonged to an earlier mounted pair, is let go.
+        private void ReleaseEntranceCarrier()
+        {
+            var carrier = entranceCarrier.Carrier as UnitCommand;
+            if (carrier == null) return;
+            entranceCarrier.ReleaseIfEnded(carrier.IsFinished, relationship.State == RelationshipState.Mounted, relationship.MountedPairGeneration);
         }
 
         private static string EntranceFormat(Vector3 v) => "(" + v.x.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "," +
