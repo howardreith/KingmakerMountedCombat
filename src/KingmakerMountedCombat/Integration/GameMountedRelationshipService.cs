@@ -35,6 +35,8 @@ namespace KingmakerMountedCombat.Integration
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             runtime = new KingmakerMountedPairRuntime(logger, settings);
+            continuousDrive = CreateContinuousDrive();
+            runtime.MountOverrideOwner = continuousDrive.OwnsMountOverride;
             coordinator = new MountedRelationshipCoordinator(runtime);
         }
 
@@ -459,6 +461,14 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // Known issues sprint 3 continuation (M05): the pair's own stick movement ends with the pair.
+            try { ReleaseContinuousDrive("dismount:" + trigger); }
+            catch (Exception exception)
+            {
+                subscriberErrors.Add(exception.GetType().Name + ": " + exception.Message);
+                logger.Exception("Mounted stick movement release before relationship cleanup", exception);
+            }
+
             var result = coordinator.Dismount(trigger);
             ObserveCleanupState(result);
             if (subscriberErrors.Count != 0)
@@ -667,6 +677,9 @@ namespace KingmakerMountedCombat.Integration
         {
             if (SaveSerializationSuspended) return;
             RefreshOwnership();
+            // Known issues sprint 3 continuation (M05): an ended or never-admitted stick movement is settled before the
+            // invariant reads the mount's override.
+            SettleContinuousDrive();
             if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
             {
                 RetryFailedCleanupOrThrow();

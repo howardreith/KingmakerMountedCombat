@@ -553,6 +553,7 @@
     <Compile Include="Domain\MountedGroupPacePolicy.cs" />
     <Compile Include="Domain\MountedDestinationMarkerPolicy.cs" />
     <Compile Include="Domain\MountedBoundedFaultReport.cs" />
+    <Compile Include="Domain\MountedContinuousDrivePolicy.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
     <Compile Include="Domain\CompanionNamePolicy.cs" />
     <Compile Include="Domain\RidingDogTackGeometry.cs" />
@@ -622,6 +623,8 @@
     <Compile Include="Integration\MountedCombatController.GroupPace.cs" />
     <Compile Include="Integration\GroupPaceTranspilers.cs" />
     <Compile Include="Integration\MountedDestinationMarkers.cs" />
+    <Compile Include="Integration\ContinuousDriveTranspilers.cs" />
+    <Compile Include="Integration\GameMountedRelationshipService.ContinuousDrive.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\NativeMountedControlService.Ownership.cs" />

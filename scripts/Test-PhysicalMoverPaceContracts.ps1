@@ -7,9 +7,9 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$
 #   NATIVE   the installed Assembly-CSharp contracts the changes rest on: how an entrance order is made and offered
 #            acceleration, how the group speed limit is computed, what the gamepad stick layer does to selected units,
 #            and how destination pointers are placed and shown (including that a unit's stock agent plans its
-#            commands whether or not it is enabled). Also the two facts that keep the stick-DRIVEN mounted pair out of
-#            this sprint: native Run refuses a command whose executor is another unit, and the continuous command
-#            installs the executor's AgentOverride.
+#            commands whether or not it is enabled). Also the two native facts behind M05, the stick-DRIVEN mounted
+#            pair: native Run refuses a command whose executor is another unit, and the continuous command installs
+#            the executor's AgentOverride. M05's own contracts are scripts/Test-ContinuousDriveContracts.ps1.
 #   PRODUCT  the compiled KingmakerMountedCombat.dll: the production transpilers are run on the installed methods'
 #            real instruction streams and must change exactly their one site; the compiled hooks and decisions are
 #            executed; the compiled carry, entrance and marker code is read for what it calls and in which order.
@@ -256,7 +256,7 @@ public static class KmcPhysicalMoverPaceProbe
                 return HasFloat(body,0.95f) && Is(body[selected+1],null,"GetEnumerator") && accelerate==1 && deaccelerate==1 && driver==1 &&
                     Count(body,"InGameInputLayer","MakeCompanionsFollow")==2;
             });
-        Check("NATIVE M02 (not repaired) the stick-driven unit is the console selection's current unit: its continuous command is initialised for it, run on its own command slots, and dereferenced at once",
+        Check("NATIVE M05 the stick-driven unit is the console selection's current unit: its continuous command is initialised for it, run on its own command slots, and dereferenced at once",
             ()=>{
                 var body=Body(stick);
                 var current=-1;
@@ -265,7 +265,7 @@ public static class KmcPhysicalMoverPaceProbe
                 var run=One(body,"UnitCommands","Run");
                 return current>=0 && current<init && init<run && Count(body,"UnitCommands","get_MoveContiniously")==4;
             });
-        Check("NATIVE M02 (not repaired) UnitCommands.Run refuses a command whose executor is another unit, and UnitMoveContiniously.Init installs the executor's AgentOverride",
+        Check("NATIVE M05 UnitCommands.Run refuses a command whose executor is another unit, and UnitMoveContiniously.Init installs the executor's AgentOverride",
             ()=>{
                 var run=Body(Method(commands,"Run",3));
                 var init=Body(Token(continuous,"Init",0x060026F0));
@@ -553,7 +553,7 @@ public static class KmcPhysicalMoverPaceProbe
                 foreach(var ins in regroup) if(ins.Op==OpCodes.Newobj && ins.Call!=null && ins.Call.DeclaringType==moveTo) direct++;
                 return LoadsInt(body[marker-1],0) && direct==0 && Count(regroup,"MountedPersistenceService","NewRegroupMove")==1;
             });
-        Check("PRODUCT patch installation names its sites by exact token: MoveSelectedUnitsToPoint (060093DB), InGameInputLayer.UpdateMovement (06005D0C) and UnitEntityView.OnMovementStarted (0600184E)",
+        Check("PRODUCT patch installation names its sites by exact token: MoveSelectedUnitsToPoint (060093DB) and InGameInputLayer.UpdateMovement (06005D0C), each through the transpiler that composes this sprint's with the continuation's, and UnitEntityView.OnMovementStarted (0600184E)",
             ()=>{
                 var controller=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
                 var found=0;
@@ -567,7 +567,7 @@ public static class KmcPhysicalMoverPaceProbe
                         if(body[i].Op!=OpCodes.Ldstr) continue;
                         var name=(string)body[i].Operand;
                         var token=name=="UpdateMovement"?0x06005D0C:(name=="MoveSelectedUnitsToPoint"?0x060093DB:(name=="OnMovementStarted"?0x0600184E:0));
-                        var transpiler=name=="UpdateMovement"?"GamepadFollowerOfferTranspiler":(name=="OnMovementStarted"?"CarriedRiderPointerPrefix":"GroundGroupMoveTranspiler");
+                        var transpiler=name=="UpdateMovement"?"GamepadMovementTranspiler":(name=="OnMovementStarted"?"CarriedRiderPointerPrefix":"GroundOrderTranspiler");
                         if(token==0) continue;
                         var pinned=false; var wired=false;
                         // Up to the next patch registration: the parameter-type array of a registration lies between.
@@ -580,7 +580,10 @@ public static class KmcPhysicalMoverPaceProbe
                         if(pinned && wired) found++;
                     }
                 }
-                return found==3;
+                // The composed transpilers contain this sprint's: the follower hook and the speed hook.
+                var composedStick=Body(Method(patchMethods,"GamepadMovementTranspiler",1));
+                var composedGround=Body(Method(patchMethods,"GroundOrderTranspiler",1));
+                return found==3 && Count(composedStick,null,"GamepadFollowerOfferTranspiler")==1 && Count(composedGround,null,"GroundGroupMoveTranspiler")==1;
             });
         Console.WriteLine("PHYSICAL MOVER PACE CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;

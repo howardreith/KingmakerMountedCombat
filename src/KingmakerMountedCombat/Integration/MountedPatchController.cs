@@ -109,8 +109,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitEntityView), "OnMovementStarted", 0x0600184E, new[] { typeof(UnityEngine.Vector3), typeof(bool) },
                     nameof(PatchMethods.CarriedRiderPointerPrefix));
                 // Known issues sprint 3 (M02): the gamepad's follower acceleration pass walks selected units only.
+                // Continuation (M05): the same method's one driven-unit read is answered with the pair's physical mover.
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.InputLayers.InGameLayer.InGameInputLayer), "UpdateMovement", 0x06005D0C,
-                    Type.EmptyTypes, null, null, nameof(PatchMethods.GamepadFollowerOfferTranspiler));
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.GamepadMovementTranspiler));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ChargeClickPrefix));
@@ -148,7 +149,8 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.PartyReinitPrefix), nameof(PatchMethods.PartyReinitPostfix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
-                PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
+                PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) },
+                    nameof(PatchMethods.ContinuousMovePrefix), nameof(PatchMethods.ContinuousMovePostfix));
                 PatchExact(typeof(LoadingProcess), "StartLoadingProcessInternal", 0x06007FC5, null,
                     null, null, nameof(PatchMethods.DeferredSaveStartTranspiler));
                 PatchExact(typeof(LoadingProcess), "TickLoading", 0x06007FC2, Type.EmptyTypes,
@@ -301,7 +303,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(fullRoundSlot, "GetActivityText", 0x06004E07, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullRoundTextTranspiler));
                 PatchExact(typeof(ClickGroundHandler), "OnClick", 0x060093D5, null, null, null, nameof(PatchMethods.PairedPathUnitTranspiler));
                 // Known issues sprint 3 (M03): the same method also reads the group speed limit from the physical movers.
-                PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.GroundGroupMoveTranspiler));
+                // Continuation (M05): and its one stick-driven test of the current unit reads the pair's physical mover.
+                PatchExact(typeof(ClickGroundHandler), "MoveSelectedUnitsToPoint", 0x060093DB, null, null, null, nameof(PatchMethods.GroundOrderTranspiler));
                 PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "Update", 0x06002D64, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedPrimaryMarkerTranspiler));
                 PatchExact(typeof(TurnController), "ContinueWaiting", 0x06000C3E, Type.EmptyTypes, null, nameof(PatchMethods.PairedWaitingPostfix));
                 PatchExact(typeof(TurnController), "CanDelay", 0x06000C49, Type.EmptyTypes, null, nameof(PatchMethods.PairedCanDelayPostfix));
@@ -728,6 +731,47 @@ namespace KingmakerMountedCombat.Integration
             private static void ReportGroupPaceFault(string message, Exception error) =>
                 groupPaceFault.Report((text, fault) => PatchBridge.Logger?.Exception(text, fault), message, error);
 
+            // Known issues sprint 3 continuation (M05). The unit native stick movement drives for the selected unit: a
+            // mounted pair's rider is answered by its mount. A fault leaves the selected unit.
+            internal static UnitEntityData GamepadDrivenUnit(UnitEntityData selected)
+            {
+                try { return PatchBridge.Owner(selected)?.ContinuousDriveMover(selected) ?? selected; }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the driven unit was left native", error); return selected; }
+            }
+
+            // The unit the native companion formation is anchored on: the selected rider of a stick-driven mount.
+            internal static UnitEntityData GamepadFormationUnit(UnitEntityData unit)
+            {
+                try
+                {
+                    var owner = PatchBridge.Owner(unit);
+                    if (owner == null) return unit;
+                    return owner.ContinuousDriveFormationUnit(unit, Kingmaker.UI._ConsoleUI.Models.UnitSelectionManager.Instance?.CurrentSelectUnitValue) ?? unit;
+                }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the formation anchor was left native", error); return unit; }
+            }
+
+            // The override native reads to learn whether the current unit is being stick-driven: for a mounted pair's
+            // rider, its mount's. A fault leaves the native read.
+            internal static UnitMovementAgentBase GamepadDrivenOverride(UnitEntityView view)
+            {
+                if (ReferenceEquals(view, null)) return null;
+                try
+                {
+                    var unit = view.EntityData;
+                    var mover = PatchBridge.Owner(unit)?.ContinuousDriveMover(unit);
+                    var moverView = mover != null ? mover.View : null;
+                    return (!ReferenceEquals(moverView, null) ? moverView : view).AgentOverride;
+                }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the stick-driven test was left native", error); return view.AgentOverride; }
+            }
+
+            internal static IEnumerable<CodeInstruction> GamepadMovementTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                GamepadFollowerOfferTranspiler(ContinuousDriveTranspilers.DrivenUnit(instructions,
+                    Hook(nameof(GamepadDrivenUnit)), Hook(nameof(GamepadFormationUnit))));
+            internal static IEnumerable<CodeInstruction> GroundOrderTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                ContinuousDriveTranspilers.DrivenOverrideRead(GroundGroupMoveTranspiler(instructions), Hook(nameof(GamepadDrivenOverride)));
+
             internal static IEnumerable<CodeInstruction> GroundGroupMoveTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 GroupPaceTranspilers.SpeedInputs(PairedControllerInputTranspiler(instructions), Hook(nameof(GroupPaceSpeedInputs)));
             internal static IEnumerable<CodeInstruction> GamepadFollowerOfferTranspiler(IEnumerable<CodeInstruction> instructions) =>
@@ -798,6 +842,16 @@ namespace KingmakerMountedCombat.Integration
                 // receives its member command.
                 try { PatchBridge.CombatFor(__instance)?.CarryRiderEntranceTransition(__instance, cmd); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Mounted entrance approach was not carried", error); }
+                // Known issues sprint 3 continuation (M05): native Run was called with a pair's bound stick movement; a
+                // command it did not admit to the mount's Move slot leaves no override behind.
+                // Any other order admitted on the rider's own container ends that stick movement, as native Run ends a
+                // unit's own.
+                try
+                {
+                    if (cmd is UnitMoveContiniously) PatchBridge.Owner(cmd.Executor)?.ObserveContinuousDriveRun(cmd);
+                    else if (cmd != null) PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd);
+                }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: a command run was not settled", error); }
             }
 
             internal static void NativeAbilityInitPostfix(UnitUseAbility __instance)
@@ -1278,8 +1332,21 @@ namespace KingmakerMountedCombat.Integration
                 if (PointerController.SimulatingClick) { return true; }
                 var owner = PatchBridge.Owner(executor);
                 if (owner?.IsExactActivePairUnit(executor) == true)
+                {
+                    try { owner.EndRiderOrdersForContinuousDrive(); }
+                    catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the rider's orders were not ended", error); }
                     owner.CombatOwner.Cancel("continuous movement replaced the active mounted combat intent");
+                }
                 return owner == null || owner.RouteContinuousMove(ref executor);
+            }
+
+            // Known issues sprint 3 continuation (M05): native Init installed its continuous agent on the executor's
+            // view. For a pair's mount that agent is bound to this exact command and pair generation.
+            internal static void ContinuousMovePostfix(UnitMoveContiniously __instance)
+            {
+                if (PointerController.SimulatingClick || __instance == null) { return; }
+                try { PatchBridge.Owner(__instance.Executor)?.BindContinuousDrive(__instance); }
+                catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: the continuous agent was not bound", error); }
             }
 
             internal static void NativeCombatEndPrefix(out Dictionary<GameMountedRelationshipService, UnitEntityData> __state)
