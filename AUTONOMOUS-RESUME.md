@@ -1,13 +1,41 @@
-# Known issues remediation, Sprint 3 — review checkpoint (2026-11-16)
+# Known issues remediation, Sprint 3 and its continuation — review checkpoint (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
-(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md and
-docs/CURRENT-KNOWN-ISSUES.md.
+(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md (continuation section
+first) and docs/CURRENT-KNOWN-ISSUES.md.
 
-- **State:** M01 and M03 implemented and verified offline; M02 the same for a following pair; M04 investigation
-  complete, issue unresolved, with two adjacent marker repairs; M05 new and open. Fast PASS 7/0. One independent
-  review, corrected. Native NOT RUN.
-- **Seams:**
+- **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
+  with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. Fast PASS
+  9/0. Two independent reviews (Sprint 3, continuation), corrected. Native NOT RUN; gamepad never run.
+- **Seams of the continuation (M05):**
+  - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
+    It talks to the game only through `IMountedContinuousDriveHost`; the adapter is
+    `GameMountedRelationshipService.ContinuousDriveHost`. Put new decisions in the owner, where tests run them.
+  - It is called from four places only: the `UnitMoveContiniously.Init` postfix (bind), the `UnitCommands.Run`
+    postfix (admission, and a rider order), `ValidateActivePair` before the invariant (settle), and `Dismount`
+    (release).
+  - `KingmakerMountedPairRuntime.MountOverrideOwner` is the invariant's only opening: a mount override is
+    admissible only if the owner says it is the bound live drive. Never widen that test.
+  - `ContinuousDriveTranspilers` holds the two transpilers; each requires its recorded site. `UpdateMovement` and
+    `MoveSelectedUnitsToPoint` are registered through `GamepadMovementTranspiler` and `GroundOrderTranspiler`,
+    which compose them with the Sprint 3 stages.
+  - `ReportGroupPaceFault` goes through `MountedBoundedFaultReport`; every hook of these two sprints uses it.
+  - `scripts/Test-ContinuousDriveContracts.ps1` runs only as a focused selection, like the other two.
+- **Facts for a successor (gamepad):**
+  - `InGameInputLayer.UpdateMovement` is the only creator of `UnitMoveContiniously`. It reads the driven unit once,
+    and returns before that while the party is in combat.
+  - `UnitMoveContiniously.Init` cannot run offline (Unity components); `UnitCommands.Run`'s refusal can, on objects
+    made with `FormatterServices.GetUninitializedObject`.
+  - A continuous command is not `IsMoveUnit`: `InterruptMove` and `CancelMountMovement` do not end it. Only its own
+    tick (stick at zero), an `Interrupt`, or a `Run` that replaces it does.
+  - `UnitEntityView.AgentOverride = null` destroys the component at the end of the frame; a new `Init` in the same
+    frame adopts the dying one. Compare agents by reference and test liveness separately.
+  - Native code treats a non-null override on the current unit as "stick-driven" (`UpdateMovement`,
+    `MoveSelectedUnitsToPoint`, `UnitEntityData.CurrentSpeedMps`, `UnitMovementAgent.SlowDown`). The last two still
+    read the selected rider.
+  - An internal interface of the product can be implemented from a contract script with a `RealProxy` (a throwing
+    logger, a scripted host).
+- **Seams of Sprint 3:**
   - `MountedCombatController.ClassifyMountGroupOrder` is the one place that says what the mount's Move-slot
     command is to the pair (`MountedGroupPacePolicy.ClassifyOrder`: routed ground order, carried entrance order,
     or none). The acceleration carry, the gamepad follower answer and the marker prefix all go through it. A new
@@ -40,8 +68,8 @@ docs/CURRENT-KNOWN-ISSUES.md.
     them from the same instruction list you compare against, or local-variable operands will not compare equal.
   - Run mutation checks in a separate worktree. Then no mutant binary can be left in the tree whose results you
     report.
-- **Open from this sprint:** M04 (needs the owner's description or a pointer-table log), M05 (needs the owner's
-  decision on gamepad scope and a native observation), native acceptance of M01–M03.
+- **Open from this sprint:** M04 (needs the owner's description or a pointer-table log), native acceptance of
+  M01–M03 and M05 (the M05 rows need a gamepad).
 - **Next:** owner review of the draft PR. Sprint 4 is not started; its order is C04, C01, C02, C03 (C04, the
   Candlemere crossing while mounted, was added by the owner on 2026-11-16 and is recorded in the ledger).
 

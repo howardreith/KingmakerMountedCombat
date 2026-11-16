@@ -1,3 +1,43 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 CONTINUATION — DIRECT GAMEPAD CONTROL OF A MOUNTED PAIR REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `1223eb2f`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), continuation section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Owner decision:** direct gamepad control of a mounted pair is in scope. M05 stays its own item.
+- **M05: implemented and verified offline (`99b632f2`).**
+  - The defect, by source: stick input for a mounted rider was refused by native `Run`, left the mount an
+    override nothing owned, dismounted the pair and blocked remounting.
+  - The correction: the stick drives the pair's mount, on which native initialises, runs, looks up, accelerates
+    and ends its command. The mount's continuous agent is admitted by the mounted invariant only as the override
+    of that exact command, for that pair generation, while it runs in the mount's Move slot.
+  - Anything else is retired or still rejected: a command `Run` did not admit, combat, a new rider order,
+    dismount and disposal each end the owned movement; a foreign or stale override is still a fault.
+  - Also corrected, same root: gamepad ground orders now reach a mounted current unit that is not being driven.
+- **M02: implemented and verified offline, in two parts** (a following pair, Sprint 3; a directly driven pair,
+  through M05). M01, M03 and M04 are unchanged; M04's original report stays unresolved.
+- **Fault report (`b65977d8`):** a logger that throws can no longer stop a hook from returning its native
+  fallback.
+- **C04 recorded (`8e4e3a69`):** the Candlemere crossing while mounted, open investigation, first in Sprint 4.
+  Sprint 4's order is C04, C01, C02, C03. The owner's `output_log(9).txt` is not on this machine.
+- **Checks:** Fast PASS 9/0 (components 1313/0, Validate-Source 151/0, continuous drive 32, physical mover
+  pace 27, post-load view readiness 26, persistence contracts 223, world boundary 8, paired activation).
+  Kingmaker assembly contracts 814/0.
+  - At the reviewed head `1223eb2f`: components 1290/0; that build fails 20 of the new script's product
+    checks, the throwing-logger one with the logger's own exception.
+  - 30 mutations of the new production code, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** native `UnitCommands.Run`'s refusal was executed offline on genuine engine
+  objects. The production transpilers, hooks, ownership code and fault report were executed. The rest of the native
+  chain and the game adapter were read from IL. The component tests drive production code through a model of the
+  native chain.
+- **Review:** one independent read. It found a drive that would have lingered into turn-based combat and four
+  smaller gaps; all were corrected, and the tests now execute the production ownership code instead of a copy.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — MOUNTED PACE REPAIRED OFFLINE; MARKER REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), created from the reviewed Sprint 2 head `1dffc3e0` and targeting
@@ -11,9 +51,9 @@ Branch `codex/kmc-known-issues-sprint3` (draft PR #47), created from the reviewe
   gets the same native `Accelerate()` offer its selected rider's order gets. The carrier is issued as before.
 - **M02, gamepad: implemented and verified offline for a following pair.** The native follower pass now reaches
   the mount that executes a following rider's order.
-- **M05 (new, open): the stick-driven mounted pair.** By source, stick input for a mounted rider moves nothing
-  and dismounts the pair: native `Run` refuses the continuous command the mod redirected. Never observed; not
-  repaired. Whether gamepad play of a mounted pair is in scope is the owner's decision.
+- **M05 (new at this head): the stick-driven mounted pair.** By source, stick input for a mounted rider moves
+  nothing and dismounts the pair: native `Run` refuses the continuous command the mod redirected. Never observed;
+  not repaired at this head. Repaired offline by the continuation above.
 - **M03, group pace: implemented and verified offline.** The native group speed limit reads each pair's mount
   instead of its rider. The native minimum, the 30 ft floor and the selection are untouched, so a mover slower than
   30 ft is still bounded by its own speed while the party walks at the floor.

@@ -4,6 +4,11 @@ Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (e
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
+**Read the continuation first.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted pair
+in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
+records that work (M05 repaired offline, the fault report corrected, C04 recorded) and supersedes what the sections
+below say about M05 being unrepaired. Those sections are kept as the Sprint 3 record of head `1223eb2f`.
+
 ## Identity
 
 - **Branch:** `codex/kmc-known-issues-sprint3`, draft PR #47, no reviewers requested.
@@ -33,9 +38,10 @@ of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 | M02 | **Implemented and verified offline for a following pair.** The stick-driven pair is a separate, larger defect: **M05, open correction.** | The gamepad's follower pass now reaches the mount that executes a following rider's order. A mounted rider as the stick-driven unit gets no movement at all; that is not an acceleration gap and is not repaired here. |
 | M03 | **Implemented and verified offline** | The native group speed limit is computed from each pair's mount instead of its rider. The native algorithm, floor and selection are untouched. |
 | M04 | **Investigation complete, issue unresolved.** Two adjacent marker defects found by the investigation are implemented and verified offline. | No cause of the owner's report is established; its original log is not available. |
-| M05 (new) | **Open correction** | Found while reconciling M02: stick input for a mounted rider is refused by native `Run`, and the source says the pair is then dismounted. Source-established, never observed. |
+| M05 (new) | **Open correction** at head `1223eb2f`; **implemented and verified offline** by the continuation. | Found while reconciling M02: stick input for a mounted rider is refused by native `Run`, and the source says the pair is then dismounted. Source-established, never observed. |
 
-Nothing here is native-verified.
+Nothing here is native-verified. This table is the state at head `1223eb2f`; the continuation section has the current
+one.
 
 ## Reconciliation against the current source
 
@@ -124,7 +130,8 @@ times a second.
 
 ## M05 (new) — the stick-driven mounted pair gets no movement
 
-Found while reading the gamepad contract. Not repaired; recorded so M02 is not read as gamepad support.
+Found while reading the gamepad contract. Not repaired at head `1223eb2f`; recorded so M02 is not read as gamepad
+support. **Repaired offline by the continuation** (below), after the owner put direct gamepad control in scope.
 
 - **What the source says.** With a mounted rider as the driven unit:
   1. The mod's prefix on `UnitMoveContiniously.Init` rewrites the executor to the mount
@@ -350,5 +357,244 @@ redone on the contract recorded above before anything was committed.
 | M03 | A Small rider (20 ft) on a horse with 40 ft companions: the party's pace on a long walk. A slowed horse: the party at the 30 ft floor. |
 | M04 | Click an exit while mounted, after the rider walked on foot earlier in that area: one marker for the pair. A scene that leaves the mount behind: no marker under the rider during the regroup walk. |
 | M05 | Gamepad, the mounted rider driven: what the stick does, and whether the pair stays mounted. |
+
+## Continuation (2026-11-16) — direct gamepad control (M05), the fault report, C04
+
+The owner reviewed head `1223eb2f` and set this continuation: direct gamepad control of a mounted pair **is** in
+scope; M05 stays separately traceable; repair it within the existing architecture or disposition it precisely;
+correct the new fault-reporting fallback; record C04. Nothing here was run in the game.
+
+### Identity of the continuation
+
+- **Base of the continuation:** `1223eb2f5c6eaa0bcede524fdb56ee27f3c69704` (the reviewed head), still on Sprint 2 head
+  `1dffc3e0`. PR #47 still targets `codex/kmc-known-issues-sprint2`; PR #46 and PR #45 were not touched.
+- **Commits:** `8e4e3a69` (C04 in the ledger), `b65977d8` (the fault report), `99b632f2` (M05), `ca6ecf42` (one more
+  native check in the contract script), `e6cc84e2` (one test strengthened after the mutation run), then the records
+  commit. The last three change no product source.
+- **Artifact:** `bin/Release/KingmakerMountedCombat.dll` built from `99b632f2`: SHA-256
+  `F5D35878DA03E8AB2B8E05D3BA6BF120FE2FBFCC194AD43CDD0CE302C99F2ED7`, MVID `02033cfa-df2c-4ce7-86d4-907a8d4a4f77`.
+  The reviewed head's build, used for the before results, is the Sprint 3 artifact above (MVID `6bacf01f-…`),
+  rebuilt from `1223eb2f` in a separate worktree with the same SHA-256.
+- **Save format, settings:** unchanged.
+
+### Dispositions after the continuation
+
+| ID | Disposition |
+|---|---|
+| M02 | **Implemented and verified offline, in two parts.** Following-pair acceleration (Sprint 3, unchanged). Directly driven pair: native makes its own `Accelerate()` and `Deaccelerate()` calls on the mount's continuous command once M05 lets that command run. **Native: not run.** |
+| M05 | **Implemented and verified offline.** The stick drives the pair's mount; the mount's continuous agent is owned by the exact command that installed it. **Native: not run; no gamepad session has ever been run in this project.** |
+| Fault report | **Corrected and verified offline.** |
+| M01, M03, follower acceleration | Unchanged from Sprint 3. |
+| M04 | Unchanged: original report unresolved; the two adjacent marker corrections keep their own evidence. |
+| C04 | Recorded, first in Sprint 4. Not investigated. |
+
+### M05 — the mechanism, step by step, and how each step is known
+
+| Step of the call chain | What happens | How it is known |
+|---|---|---|
+| Console selection and the driven unit | `InGameInputLayer.UpdateMovement` (`06005D0C`) stores `UnitSelectionManager.Instance.CurrentSelectUnit.Value` once and uses that one unit for everything after. It returns before that read while the party is in combat. | Installed IL, read. |
+| Construction and `Init` | That method is the only native creator of `UnitMoveContiniously`. `Init` (`060026F0`) installs a `UnitMovementAgentContinious` as the **executor's** `UnitEntityView.AgentOverride` (`GetComponent`, else `AddComponent`). | Installed IL, read (the creator by a scan of every method body). |
+| The executor rewrite | The mod's prefix on `Init` (`RouteContinuousMove`) changed a mounted rider executor to the mount. So the override went onto the **mount**. | Product source. |
+| The container `Run` is called on | Native then calls `unit.Commands.Run(command)` on the **rider's** container. `UnitCommands.Run` (`060026B3`) refuses a command whose executor is not the container's owner, before it touches a slot. | **Executed:** installed `UnitCommands.Run` on genuine `UnitCommands` and `UnitMoveContiniously` objects takes the refusal branch and admits nothing (execution stops inside the refusal's own log call, which needs the Unity player). The same command on the mount's own container goes past the refusal. |
+| The next native statement | `unit.Commands.MoveContiniously.Accelerate()` dereferences the missing command. | Installed IL, read. |
+| Installation and retirement of the override | Only `Init` installs it and only the command's own `OnEnded` (`060026F2`) removes it. A command that never ran never ends, so the mount kept the override. | Installed IL, read (the writers by a scan of every method body). |
+| Invariant validation | `ValidateMountedInvariants` faulted on any non-null mount override: "The authoritative mount movement agent changed" and a dismount. `MountAgentOverrideAvailable` then refused every later mount attempt. | Product source. |
+| Movement synchronisation | The rider is placed from an anchor on the mount's view, so it follows the mount whichever agent moves it. `UnitMoveController.Tick` (`06009183`) moves a unit through `UnitEntityView.MovementAgent`, the override when one is installed. | Product source; installed IL, read. |
+
+**A second reader with the same root.** `ClickGroundHandler.MoveSelectedUnitsToPoint` (`060093DB`) takes a non-null
+override on the current unit to mean "this unit is being stick-driven" and gives it no ground order in gamepad
+mode. A mounted rider always carries the pair's own rider agent as its override, so by source a mounted current
+unit never received a ground order in gamepad mode (cursor clicks included). This too was never observed.
+
+### M05 — the correction
+
+One idea: **the stick drives the pair's physical mover, and the pair owns exactly what that installs.**
+
+- **One unit for initialisation, execution, lookup and cleanup.** A transpiler on `UpdateMovement` passes the one
+  store of the driven unit through `GamepadDrivenUnit`: a mounted pair's rider is answered by its mount. Every
+  native step then uses the mount: the override reads, `Commands.MoveContiniously`, `InterruptMove`, `Init`,
+  `Commands.Run`, `Accelerate`, `Deaccelerate`, and the command's own end on release. The earlier `Init` rewrite
+  stays as the fallback when that hook faults.
+- **The formation stays anchored on the selected rider.** The two `MakeCompanionsFollow(unit)` calls receive the
+  rider (`GamepadFormationUnit`): native reads that unit's party index, and a pet mount has none.
+- **The stick-driven test reads the mover.** The one `AgentOverride` read in `MoveSelectedUnitsToPoint` is answered
+  with the mount's override for a mounted rider (`GamepadDrivenOverride`). While the pair is driven it gets no
+  formation order (it would replace the stick movement); otherwise a ground order reaches it and is routed as in
+  mouse play.
+- **Ownership.** `MountedContinuousDriveOwner` (pure code) binds, after native `Init`, the exact command whose
+  executor is the pair's mount, the exact agent instance on the mount's exact view, and the pair generation.
+- **The invariant.** A mount override is admissible only if the owner says it is that agent, of that command,
+  unfinished, in the mount's Move slot, for the current generation (or, in the binding frame only, between native
+  `Init` and native `Run`). Any other override, a stale command, another generation or a destroyed component is
+  rejected exactly as before.
+- **The rider's mounted agent** reads `mount.View.MovementAgent` for its moving state and velocity. That is the
+  stock agent whenever no stick movement is installed, so mouse play reads what it read before.
+
+**Lifetime.** Native does the ordinary work; the mod acts only on its own record.
+
+| Event | What ends the movement | What the mod does |
+|---|---|---|
+| Held input | — | Nothing. The record is kept while the command is in the mount's Move slot. |
+| Full or eased stick | Native `Accelerate()` / `Deaccelerate()` on the mount's command. | Nothing. |
+| Release | Native `OnTick` ends the command; native `OnEnded` removes the override. | Forgets the record. |
+| Another command run on the mount (a routed ground order, a carrier, a regroup walk) | Native `Run` interrupts the continuous command; `OnEnded` removes the override. | Forgets the record. |
+| An order of Move or Standard type admitted on the **rider's** container | — (native `Run` would have ended a unit's own stick movement; the pair's runs on the mount) | Ends the bound command natively. A stick still held then creates a new command, and taking the pair over ends that order, as native does for the unit it drives. |
+| Selection change | Nobody feeds the mount's agent; native ends the command within a few ticks. | Forgets the record. |
+| The party enters combat | Native stops reading the stick; in turn-based mode it would not tick the command either, leaving it in the mount's Move slot. | Ends the bound command natively at the next validation. |
+| `Init` succeeded, `Run` did not admit (refused, queued, an unconscious mount, a save in progress) | Nothing would. | Ends the command without an end event and clears the bound agent, in the `Run` postfix. One warning per streak of refusals. |
+| Dismount, world change, disposal | — | Ends the bound command natively before the pair's cleanup. Every world change of a pair goes through its dismount. |
+| The bound agent is no longer the mount's override | — | Forgets the record and touches nothing. A foreign override stays a fault. |
+
+**Also at the start of a drive.** The `Init` prefix ends the rider's own moving orders
+(`InterruptRiderApproachingOrders` and the rider's native `InterruptMove`) before the existing pair cancellation,
+because the native `InterruptMove` of the taken-over unit now reaches the mount. Admission clears the rider's Hold,
+as a routed ground order already does.
+
+**Consumers of the mount's movement agent that were inspected, and why they are not changed.**
+
+| Consumer | Reads | Why it stays |
+|---|---|---|
+| `MountedAnimationAdapter` | `View.MovementAgent` | Already the agent that moves the unit. |
+| `MountedFamiliarFollowAdapter` | the stock agent's path, else the mount's position | No path during stick movement, so it follows the position. |
+| `MountedExplorationObserver` | the stock agent, for a routed `UnitMoveTo` only | A continuous command is not one. |
+| `ClassifyMountGroupOrder` (M01, M02, M04) | an exact `UnitMoveTo` or `UnitAreaTransition` in the mount's Move slot | A continuous command classifies as none. |
+| Carried approach, door interaction, entrance carry, regroup | run their own command on the mount | Native `Run` ends the stick movement first; the carried approach waits while the slot is busy. |
+| Charge, pair attack, turn-based movement adapters | the stock agent, in combat | The drive is ended when the party enters combat. |
+| `NativeSaveEffectBoundary` | commands that need settlement | It already excludes `UnitMoveContiniously`. |
+| Mount attempts (`MountAgentOverrideAvailable`), restore checks | the override must be null | Kept strict: nothing owned is left once a drive ends. |
+
+**Not done, on purpose:** no general acceptance of a mount override, no change to the invariant's other terms, no
+second movement controller, no replacement of the product's other stock-agent reads, no forced admission, no synthesized
+action, no change to native acceleration, speed, settings or combat restrictions.
+
+### The fault report
+
+`ReportGroupPaceFault` called the logger directly inside each hook's `catch`. A logger that threw there escaped the
+hook, so the hook never returned its native fallback. It now goes through `MountedBoundedFaultReport`: reported once
+as before, and a sink that fails is contained. Nothing else about logging changed.
+
+### Evidence of the continuation
+
+All offline, Release, Windows PowerShell 5.1, from the Sprint 3 worktree. Logs `20-…` to `23-…` and
+`mutant-m05-*.log` in `C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint3\`.
+
+| Check | Reviewed head `1223eb2f` | Continuation, `99b632f2` |
+|---|---|---|
+| Component test exe | 1290 / 0 | 1313 / 0 (23 new: 22 for M05, 1 for the fault report) |
+| `Validate-Source.ps1` | 151 / 0 | 151 / 0 |
+| `Test-ContinuousDriveContracts.ps1` (new) | 12 pass, **20 fail** (run with `-ProductDll`) | 32 / 0 |
+| `Test-PhysicalMoverPaceContracts.ps1` | 27 / 0 | 27 / 0 |
+| `Test-PostLoadViewReadinessContracts.ps1`, `Test-PersistenceContracts.ps1`, `Test-WorldBoundaryChargeContracts.ps1` | 26, 223, 8 | 26, 223, 8 |
+| `Test-PairedActivationContracts.ps1` (patch construction) | not selected | pass |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 814 / 0 | 814 / 0 |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3 -Focused` (the six contract scripts above) | — | **PASS 9/0** at `e6cc84e2` |
+
+Workflow budget `known-issues-sprint3`: 1.78 of 90 minutes, four entries, none failed.
+
+**What was executed, read, or modelled.**
+
+| Kind | What |
+|---|---|
+| Native code executed | `UnitCommands.Run` with a command whose executor is another unit, on genuine engine objects built without the game: the refusal branch is taken and nothing is admitted. Only this; `UnitMoveContiniously.Init` itself needs Unity components and cannot run offline. |
+| Native code read (IL) | The single creator and its one driven-unit store; `Init`, `OnTick`, `OnEnded`; the override's readers and writers across the whole assembly; `UnitMoveController.Tick`; the ground handler's stick-driven test; the combat gate and turn-based ticking. |
+| Production code executed | Both transpilers on the installed methods' real instructions, with their branch targets, requiring exactly the recorded insertions and replacement; the compiled hooks with no pair; the compiled record, decisions and retirement plan; the compiled owner on a scripted host (admitted drive, combat, three refused admissions, foreign override); the hooks with a real operational failure and a throwing logger; and, in the component tests, the same owner, record and decisions driven by a model of the native chain. |
+| Production code read (IL) | The game adapter (`ContinuousDriveHost`): which unit, slot, field and native call each answer uses. The invariant's call to the policy. Where the drive is settled, observed and released. The rider agent's reads. The patch registrations. |
+| Model only | The native stick chain in the component tests (`World`), including the end-of-frame destruction of a component. The `Corrected = false` assertions show the reviewed behaviour in that model; they are illustration, not the before evidence. |
+
+**Failing before, passing after.** The reviewed head fails every product check of the new script, including the
+executed one: with an operational failure inside a hook and a throwing logger, the reviewed hook throws
+`InvalidOperationException: the logger failed` instead of returning the selection. To show the checks fail for
+the behaviour and not for a missing name, 30 one-line mutations of the new production code were each
+built and run in the separate scratch worktree:
+
+| Mutant | Change (one line of production source) | Component tests failing | Contract checks failing |
+|---|---|---|---|
+| A | The driven unit stays the rider | 15 | 1 |
+| I | The formation is anchored on the mount | 1 | 1 |
+| N | The driven-unit hook is not inserted | 0 | 1 |
+| W | The formation hook is not inserted | 0 | 1 |
+| O | The stick-driven test is not composed into the ground-order patch | 0 | 1 |
+| B | The invariant is strict again (no override admitted) | 12 | 1 |
+| C | The invariant admits any override | 2 | 1 |
+| M | The invariant never asks the owner | 0 | 1 |
+| D | The record owns any agent instance | 1 | 3 |
+| E | The record owns across pair generations | 1 | 1 |
+| J | Settlement ignores the pair generation | 1 | 1 |
+| V | The owner's answer does not test the agent type | 1 | 0 |
+| a | The game adapter accepts any agent type | 0 | 1 |
+| S | Binding does not test the executor | 1 | 1 |
+| F | A refused `Run` keeps its same-frame grace | 4 | 2 |
+| R | The admission is not observed after `Run` | 0 | 1 |
+| L | The drive is not settled before the invariant | 0 | 1 |
+| G | Retirement proceeds without the bound agent installed | 3 | 2 |
+| P | Retirement clears the override without comparing it again | 0 | 2 |
+| K | The drive is not released at dismount | 0 | 1 |
+| X | Combat never ends the drive | 2 | 2 |
+| b | The game adapter never reports combat | 0 | 1 |
+| Y | A rider order never replaces the drive | 1 | 1 |
+| d | The rider order is tested on the mount's container | 0 | 1 |
+| U | The rider's orders are not ended at the start of a drive | 0 | 1 |
+| c | The rider's Hold is not released | 1 | 1 |
+| Z | Every refusal is reported | 1 | 1 |
+| Q | The rider's agent reads the stock agent | 0 | 1 |
+| H | The bounded report lets a sink failure escape | 1 | 3 |
+| T | The fault report calls the logger directly | 0 | 3 |
+
+All 30 are detected. A zero in the first column is a mutation of game-facing glue, which only the contract script
+can see. The unmutated tree in that worktree builds to the sprint artifact's exact identity (MVID
+`02033cfa-df2c-4ce7-86d4-907a8d4a4f77`, the same SHA-256), and the sprint worktree's binary was never built from
+mutated source. Two reruns are included: F did not compile as first written and was rewritten, and S was first
+caught by the contract script only, so its component test was strengthened (`e6cc84e2`) and it was run again.
+
+**Independent review.** One independent read of the uncommitted M05 change against the decompiled native code and
+the installed IL. It found the transpilers correct (stack shape, branch targets, site conditions) and the
+ownership sequences sound. Its findings and what was done:
+
+| Finding | Disposition |
+|---|---|
+| A bound drive is never ended when the party enters turn-based combat: native neither feeds nor ticks it, and it holds the mount's Move slot. | Confirmed against the native tick code. Corrected: the `InputGated` settlement ends the bound command natively. Test, scripted-host check, mutants X and b. |
+| An order given to the rider during a drive neither ended the drive nor was cancelled by it. | Corrected: a Move or Standard order admitted on the rider's container ends the bound command, as native `Run` ends a unit's own. Test, mutants Y and d. |
+| The rider's Hold was not cleared by stick movement. | Corrected at admission. Test, mutant c. |
+| A refused admission warned every frame while the stick was held. | Corrected: one warning per streak; every retirement is still counted. Test, mutant Z. |
+| Counters and messages mislabelled two retirements. | Corrected: one retirement count, an orphan count, and the settlement named in the message. |
+| The repath timer's closure now sees the mount, so the rider's stale stock-agent estimate takes part. | Not changed. Limit, below. |
+| The transpiler checks could not see branch targets. | Corrected: the probe carries labels through the production transpilers and compares them. |
+| The scenario tests ran a copy of the bind, settle and retire logic, not the production code. | Corrected: that sequence is now pure production code behind a host interface (`MountedContinuousDriveOwner`), executed by the tests and, compiled, by the script. The game adapter is still only read. |
+| A test hid the native fault that follows a refused admission; two script labels claimed more than they checked; the model had no destroyed-component behaviour. | Corrected: the fault is asserted and named in the label; the labels were reworded; the model destroys components at the end of the frame and a test covers the same-frame adoption. |
+| The `Init` prefix's new call was not guarded. | Corrected: a fault in it is reported and the existing cancellation still runs. |
+
+### Limits and uncertainty of the continuation
+
+- **Native: NOT RUN.** No gamepad session has ever been run in this project, mounted or not. Every statement about
+  what the stick does is a reading of the installed assembly, except the executed `Run` refusal.
+- **Not executed:** the game adapter that answers from live units, the three hooks with a live pair, and the Harmony
+  installation of the changed patches.
+- **A refused admission still faults natively.** Native dereferences the command its `Run` did not admit, for a
+  mounted pair as for any unit, every frame the stick is held. The pair now survives it; the native fault is not
+  repaired.
+- **Combat.** The drive is ended at the first validation after the party enters combat, a few ticks earlier than a
+  native unit would coast to a stop in real time.
+- **Followers of a stick-driven pair.** Two native reads still look at the selected rider, not the mount: the
+  followers' speed cap to the leader's stick speed (`UnitEntityData.CurrentSpeedMps`) and the stock agent's
+  slow-down exemption. Followers of a driven pair are paced by the group speed limit (M03) only. Not changed.
+- **Repath cadence.** The native repath timer now includes the rider's unused stock-agent estimate, which biases it
+  to its 0.1 s floor: the follower pass can run more often. Not changed.
+- **Formation.** It is anchored on the rider's position and facing, which is the saddle, not the mount's feet.
+- **Gamepad ground orders.** By source they now reach a mounted current unit that is not being driven. That is a
+  change of behaviour nobody has observed in either state.
+- **Not examined:** other gamepad-only paths (turn-based play with the cursor, the console selection containing the
+  mount itself beyond what the tests cover), and other mods that patch the same two methods.
+- **T04–T08:** unchanged and open; none blocked a check.
+
+### Native acceptance rows added by the continuation
+
+| Row | What to observe |
+|---|---|
+| M05, drive | Gamepad, a mounted rider selected: the pair moves with the stick, stays mounted, runs at full stick, slows when eased, stops on release. The log shows no "authoritative mount movement agent changed". |
+| M05, replace | While driving: interact with an object, change the selected character, press an exit. Then drive again. |
+| M05, combat | Drive into an encounter in turn-based mode: the pair's first ground order is accepted. |
+| M05, dismount | Dismount while holding the stick, then mount again and drive. |
+| M05, ground order | Gamepad cursor: a ground click moves a mounted current unit that is not being driven. |
+| Fault report | Not observable in play. |
 
 Not run: no merge, release, tag, installation, loader replacement or reviewer request, and Sprint 4 is not started.

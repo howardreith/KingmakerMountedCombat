@@ -3,12 +3,14 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-16, Sprint 3 (M01–M04, and the new M05). Branch `codex/kmc-known-issues-sprint3`, draft PR #47,
+- **Last updated:** 2026-11-16, Sprint 3 continuation (M05 repaired offline, the fault report, C04 recorded) after
+  Sprint 3 (M01–M04). Branch `codex/kmc-known-issues-sprint3`, draft PR #47,
   stacked on Sprint 2 (branch `codex/kmc-known-issues-sprint2`, draft PR #46, reviewed head `1dffc3e0`), which is
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
   [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
-- **Reconciled so far:** T01–T08, S01, S02 and M01–M05. Every row of Sprints 4–8 is a *carried-forward planning
+- **Reconciled so far:** T01–T08, S01, S02 and M01–M05. C04 was added by the owner on 2026-11-16 and is recorded,
+  not reconciled. Every row of Sprints 4–8 is a *carried-forward planning
   finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
   A sprint reconciles its own rows when it starts.
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 3.
@@ -232,10 +234,10 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 | ID | Symptom | Classification | Status | Source | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|---|
 | M01 | Entrance and exit orders do not receive the native acceleration offer. | Source-established omission | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M01 | Commit `c5b52387`. The mount's carried member command is classified beside the routed ground order and gets the same native `Accelerate()` call. 8 component tests; contract script 27 pass (the base build fails its 16 product checks); mutants A, H and N fail. | **Not run.** |
-| M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission, for a following pair | **Implemented and verified offline** for a pair that follows a stick-driven character. The stick-driven pair is M05. | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M02 | Commit `c5b52387`. The native follower pass is answered with the mount that executes the selected rider's routed order. 6 component tests; the production transpiler run on the installed `UpdateMovement`; mutants B, G and L fail. | **Not run.** No gamepad session has ever been run in this project. |
+| M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission | **Implemented and verified offline, in two parts.** A following pair: the native follower pass reaches its mount (`c5b52387`). A directly driven pair: native accelerates and decelerates the mount's own continuous command once M05 lets it run (`99b632f2`). | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M02 | Commit `c5b52387`. The native follower pass is answered with the mount that executes the selected rider's routed order. 6 component tests; the production transpiler run on the installed `UpdateMovement`; mutants B, G and L fail. | **Not run.** No gamepad session has ever been run in this project. |
 | M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M03 | Commit `c5b52387`. The native speed selection reads each pair's mount, each actor once; the native selector, `Min`, 30 ft floor and selection are untouched. 8 component tests; the production transpiler run on the installed `MoveSelectedUnitsToPoint`; mutants C, F and M fail. | **Not run.** |
 | M04 | An extra or stale green movement marker. | Reported defect, cause unknown | **Investigation complete, issue unresolved.** Two adjacent marker defects are implemented and verified offline. | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md); epic M04 | Commit `26b4169e`. See "M04" below. 11 component tests; 7 contract checks; mutants D, E, I, J and K fail. | **Not run.** |
-| M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair. | Source-established defect, never observed | **Open correction** | Found while reconciling M02 on 2026-11-16 | Not repaired. See "M05" below. Two native contract checks record the facts behind it. | **Not run.** |
+| M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair and blocks remounting. | Source-established defect, never observed | **Implemented and verified offline** | Found while reconciling M02 on 2026-11-16; owner put direct gamepad control in scope the same day | Commit `99b632f2`. The stick drives the pair's mount; the mount's continuous agent is owned by the exact command that installed it. See "M05" below. 22 component tests; contract script 32 / 0 (the reviewed head fails its 20 product checks); 30 mutants fail. | **Not run.** No gamepad session has ever been run in this project. |
 
 ### M01–M03 — what changed and what it rests on
 
@@ -275,17 +277,32 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 - **To close:** the owner's description of when the marker appears (after an exit click, after a scene, during an
   ordinary walk), or a log from a build that records the pointer table.
 
-### M05 — the stick-driven mounted pair (new, open)
+### M05 — the stick-driven mounted pair (repaired offline by the continuation, 2026-11-16)
 
-- With a mounted rider as the gamepad's driven unit, the mod rewrites the continuous command's executor to the
-  mount, native `Run` then refuses that command on the rider's slots, and the native layer dereferences the
-  missing command. The mount is left with the continuous agent as its override, which the mounted invariant
-  treats as a changed movement agent.
-- The console selection (`UnitSelectionManager`) is not projected by the mod; only the mouse selection is.
-- This is a reading of the installed assembly and the product. It has never been observed.
-- Repairing it means letting the mount move through the native continuous agent, which the pair's movement
-  synchronisation and invariant do not allow. That is a design decision for the owner, with native evidence
-  first.
+- **The defect, by source:** with a mounted rider as the gamepad's driven unit, the mod rewrote the continuous
+  command's executor to the mount, native `Run` then refused that command on the rider's own container, and the
+  native layer dereferenced the missing command. The mount kept the continuous agent as an override nothing
+  owned, the mounted invariant dismounted the pair, and that leftover override refused every later mount attempt.
+- **How it is known:** the `Run` refusal was executed offline on genuine engine objects; the rest is read from
+  the installed assembly and the product. It has never been observed in play.
+- **The correction:** the stick drives the pair's mount. Native initialises, runs, looks up, accelerates and ends
+  the command on that one unit. The pair owns exactly the agent that command installed, for its pair generation
+  and only while the command runs in the mount's Move slot; the invariant admits that and nothing else.
+- **Nothing is left behind:** a command native `Run` did not admit is ended and its agent retired at once. The
+  drive also ends when the party enters combat, when the rider is given a Move or Standard order of its own, and
+  with the pair at dismount and disposal.
+- **Same root, also corrected:** native takes a non-null override on the current unit to mean "stick-driven". A
+  mounted rider always has one, so by source a mounted current unit received no ground order in gamepad mode.
+  That read now looks at the mount.
+- **Not repaired:** native still faults on the command its `Run` did not admit, for a pair as for any unit; the
+  followers' native speed cap and slow-down exemption still read the selected rider.
+- **Open:** native acceptance. Nothing about gamepad play has ever been run in this project.
+
+### The group-pace fault report (corrected by the continuation)
+
+- A logger that threw inside a Sprint 3 hook's fault report escaped the hook, so the hook did not return its
+  native fallback. The report now contains a failing logger (`b65977d8`). Executed check: an operational failure
+  with a throwing logger; the reviewed head fails it with the logger's exception.
 
 ## Sprints 4–8 — carried forward, pending reconciliation
 
