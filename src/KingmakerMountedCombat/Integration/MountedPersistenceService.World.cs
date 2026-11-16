@@ -61,7 +61,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedPersistenceService(MountedWorldService world, DiagnosticSettings settings, IModLogger logger)
             : this(world.Primary.Relationship, world.NativeControls, world.UnifiedTurn, settings, logger, world.Primary.Combat)
-        { mountedWorld = world ?? throw new ArgumentNullException(nameof(world)); }
+        {
+            mountedWorld = world ?? throw new ArgumentNullException(nameof(world));
+            // Known issues S02: an explicit dismount releases that pair's retained intent (ObservePairDismounting).
+            world.PairDismounting += ObservePairDismounting;
+        }
 
         private bool AnyChargeFence => WorldCombats.Any(c => c.ChargeAdmissionFenced);
         private bool DrainWorldCharge(string reason)

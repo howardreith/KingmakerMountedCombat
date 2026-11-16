@@ -141,6 +141,7 @@
     <Compile Include="ExplorationRepairTests.cs" />
     <Compile Include="MountedGroupPacePolicyTests.cs" />
     <Compile Include="RatnookDoorRepairTests.cs" />
+    <Compile Include="PostLoadViewReadinessTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldBoundaryAdmissionPolicy.cs"><Link>Shared\Domain\MountedWorldBoundaryAdmissionPolicy.cs</Link></Compile>
     <Compile Include="SaveLoadEntranceRepairTests.cs" />
     <Compile Include="MountedDoorApproachPolicyTests.cs" />

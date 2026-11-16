@@ -113,6 +113,36 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    // Known issues S02: a saved or retained pair is re-attached only to views that are already active. Native
+    // UnitEntityData.IsViewActive is false while a unit is "sleeping"; AllUnitsSleepingController (GlobalMap, Kingdom
+    // and KingdomSettlement modes) sets every unit sleeping, and Game.Tick runs no game mode while a loading process
+    // is active. A pair arriving from the world map therefore still has inactive views at OnAreaLoaded and until the
+    // first Default tick, and an attachment made there is invalidated by the very next invariant check.
+    public static class MountedRestoreViewReadinessPolicy
+    {
+        public const string NotReady = "Both exact unit views must be active before the pair is re-attached.";
+
+        // Ready exactly when the mounted invariant would accept the same observation in ordinary Default play, the only
+        // mode restoration attaches in: the pair is attached if and only if the next invariant check would keep it.
+        // That includes the invariant's one Default-mode allowance, the native party selector overlay, under which
+        // restoration attached before this repair and still does. Null means ready.
+        public static string Refusal(
+            bool riderActiveSelf,
+            bool mountActiveSelf,
+            bool riderActiveInHierarchy,
+            bool mountActiveInHierarchy,
+            bool nativePartySelectorActive)
+        {
+            return MountedViewActivityPolicy.IsAdmissible(
+                MountedGameModeDisposition.PreserveWorldInteraction,
+                riderActiveSelf,
+                mountActiveSelf,
+                riderActiveInHierarchy,
+                mountActiveInHierarchy,
+                nativePartySelectorActive) ? null : NotReady;
+        }
+    }
+
     public enum NativeTurnBasedExitAiLeaseDisposition
     {
         NotPending,

@@ -55,6 +55,17 @@ namespace KingmakerMountedCombat.Domain
         Retire
     }
 
+    // Known issues S02: a pair that was mounted at departure (not carried intent) at its arrival placement.
+    public enum MountedDepartingArrivalDecision
+    {
+        Restore,
+        // Eligible, but its exact views are not active yet: it joins the retained custody and restores in ordinary play.
+        Defer,
+        Retire,
+        // The established all-pair failure (any refusal other than the native capital rule).
+        Fail
+    }
+
     public static class MountedRetainedIntentPolicy
     {
         // Rider and mount must finish the event close together. RestoreSavedPair seats the rider on the mount where
@@ -74,6 +85,51 @@ namespace KingmakerMountedCombat.Domain
         // A pair whose units are not yet attachable (an event still holds a stock agent disabled, a view not yet
         // settled) is retried for this long in ordinary play before its intent is dropped.
         public const float EligibilityPatienceSeconds = 10f;
+
+        // The native settle bound: restoration needs ordinary play to hold for several frames, never a single
+        // intermediate Default notification between two queued native mode switches.
+        public const int SettleFrames = 5;
+        public const float SettleSeconds = 0.3f;
+
+        public static bool Settled(int settledFrames, float settledSeconds)
+        {
+            return settledFrames >= SettleFrames && settledSeconds >= SettleSeconds;
+        }
+
+        // Patience counts from the first settled evaluation in which the pair was neither staged nor regrouping
+        // (a negative start means it is not counting).
+        public static bool PatienceExpired(float eligibleSince, float now)
+        {
+            return eligibleSince >= 0f && now - eligibleSince > EligibilityPatienceSeconds;
+        }
+
+        // Known issues S02: a unit counts as still standing where native arrival placed it within this distance.
+        public const float ArrivalPlacementToleranceMetres = 0.1f;
+
+        public static bool ArrivalPlacementHeld(bool deferredAtArrival, float riderDisplacementMetres, float mountDisplacementMetres)
+        {
+            return deferredAtArrival && riderDisplacementMetres <= ArrivalPlacementToleranceMetres &&
+                mountDisplacementMetres <= ArrivalPlacementToleranceMetres;
+        }
+
+        // Known issues S02: an explicit player dismount ends that pair's retained intent at once, so a restoration that
+        // is still pending for it (not yet settled, or held through an encounter) can never re-attach a pair the
+        // player dismounted.
+        public static bool ReleasedByDismount(CleanupTrigger trigger)
+        {
+            return trigger == CleanupTrigger.Manual;
+        }
+
+        public static bool SharesActor(string retainedRiderId, string retainedMountId, string riderId, string mountId)
+        {
+            return Same(retainedRiderId, riderId) || Same(retainedRiderId, mountId) ||
+                Same(retainedMountId, riderId) || Same(retainedMountId, mountId);
+        }
+
+        private static bool Same(string left, string right)
+        {
+            return !string.IsNullOrEmpty(left) && string.Equals(left, right, StringComparison.Ordinal);
+        }
 
         // The native mode whose start itself suspends the attachment: Rest (camp translocates every unit to its own
         // campsite slot). Cutscene continuity repair: Dialog and Cutscene no longer suspend at mode start; they keep
@@ -133,7 +189,9 @@ namespace KingmakerMountedCombat.Domain
             bool patienceExpired,
             bool stagingOwned = false,
             MountedRegroupState regroup = MountedRegroupState.Unavailable,
-            bool stagingPatienceExpired = false)
+            bool stagingPatienceExpired = false,
+            string viewReadinessRefusal = null,
+            bool arrivalPlacementHeld = false)
         {
             if (!unitsResolved || !sameReciprocalProfile || alreadyInARelationship || permanentlyIneligible)
                 return MountedRetainedPairDecision.Drop;
@@ -143,7 +201,11 @@ namespace KingmakerMountedCombat.Domain
             // that keeps control in ordinary play past its bounded patience releases the intent instead.
             if (stagingOwned) return stagingPatienceExpired ? MountedRetainedPairDecision.Drop : MountedRetainedPairDecision.Retry;
             var finite = !float.IsNaN(separationMetres) && !float.IsInfinity(separationMetres);
-            if (!finite || separationMetres > maximumSeparationMetres || !sameNavmeshArea)
+            // Known issues S02: a pair deferred at its arrival placement whose rider and mount still stand exactly where
+            // native arrival placed them is the arrival restoration, only later. The arrival restoration never had a
+            // separation rule (the native formation gives every unit its own slot, not tied to its pet), and nothing
+            // relocated the pair. Once either unit has moved, the rule below applies as for any other retained pair.
+            if (!finite || !arrivalPlacementHeld && (separationMetres > maximumSeparationMetres || !sameNavmeshArea))
             {
                 // The scene's final placement is respected: the rider is never snapped back to the mount. A mount left
                 // behind within reach on the same navigation area walks to its rider; anything else stays dismounted.
@@ -153,7 +215,9 @@ namespace KingmakerMountedCombat.Domain
                     return MountedRetainedPairDecision.Regroup;
                 return MountedRetainedPairDecision.Drop;
             }
-            if (eligibilityRefusal == null) return MountedRetainedPairDecision.Restore;
+            // Known issues S02: views that are not active yet are a transient refusal like any other, under the same
+            // bounded patience; nothing is attached to them.
+            if (eligibilityRefusal == null && viewReadinessRefusal == null) return MountedRetainedPairDecision.Restore;
             return patienceExpired ? MountedRetainedPairDecision.Drop : MountedRetainedPairDecision.Retry;
         }
 
@@ -162,12 +226,27 @@ namespace KingmakerMountedCombat.Domain
         // refusal (a mode or agent not yet settled at OnAreaLoaded) is retained for the in-area retry, which applies
         // the bounded patience. Neither blocks the other pairs, saving or later area changes.
         public static MountedCarriedArrivalDecision DecideCarriedArrival(bool partyInCombat, bool unitsResolved,
-            bool sameReciprocalProfile, bool permanentlyIneligible, string eligibilityRefusal, bool capitalControlRetirement = false)
+            bool sameReciprocalProfile, bool permanentlyIneligible, string eligibilityRefusal, bool capitalControlRetirement = false,
+            string viewReadinessRefusal = null)
         {
             if (!unitsResolved || !sameReciprocalProfile || permanentlyIneligible || partyInCombat) return MountedCarriedArrivalDecision.Drop;
-            if (eligibilityRefusal == null) return MountedCarriedArrivalDecision.Restore;
+            // Known issues S02: an otherwise eligible pair whose exact views are not active yet (the party is still
+            // "sleeping" from world-map mode until the first Default tick) is retained for the in-area retry too.
+            if (eligibilityRefusal == null)
+                return viewReadinessRefusal == null ? MountedCarriedArrivalDecision.Restore : MountedCarriedArrivalDecision.Retain;
             // The exact capital predicate (MountedAreaControlRule) is terminal and is decided before any retry.
             return capitalControlRetirement ? MountedCarriedArrivalDecision.Retire : MountedCarriedArrivalDecision.Retain;
+        }
+
+        // A pair mounted at departure, at its arrival placement. Every refusal keeps its established outcome (the native
+        // capital rule retires, anything else fails the all-pair restoration); only an eligible pair whose exact views
+        // are not active yet is deferred to the retained custody instead of being attached to inactive views.
+        public static MountedDepartingArrivalDecision DecideDepartingArrival(string eligibilityRefusal, bool capitalControlRetirement,
+            string viewReadinessRefusal)
+        {
+            if (eligibilityRefusal != null)
+                return capitalControlRetirement ? MountedDepartingArrivalDecision.Retire : MountedDepartingArrivalDecision.Fail;
+            return viewReadinessRefusal == null ? MountedDepartingArrivalDecision.Restore : MountedDepartingArrivalDecision.Defer;
         }
 
         // Review finding 3: a camp that begins while a pair is already suspended for a scripted event adopts the camp

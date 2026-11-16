@@ -27,10 +27,8 @@ namespace KingmakerMountedCombat.Integration
         private long pendingLoadedRetainedSequence = -1;
         private int retainedSettledFrames;
         private float retainedSettledSince = -1f;
-        // The native settle bound: restoration needs ordinary play to hold for several frames, never a single
-        // intermediate Default notification between two queued native mode switches.
-        private const int RetainedSettleFrames = 5;
-        private const float RetainedSettleSeconds = 0.3f;
+        // The native settle bound (MountedRetainedIntentPolicy.Settled): restoration needs ordinary play to hold for
+        // several frames, never a single intermediate Default notification between two queued native mode switches.
 
         internal bool RetainedIntentPending => retainedIntent != null;
         internal int RetainedIntentPairCount => retainedIntent?.Pairs?.Length ?? 0;
@@ -360,7 +358,7 @@ namespace KingmakerMountedCombat.Integration
             retainedCombatHoldLogged = false;
             var now = UnityEngine.Time.unscaledTime;
             if (retainedSettledSince < 0f) retainedSettledSince = now;
-            if (++retainedSettledFrames < RetainedSettleFrames || now - retainedSettledSince < RetainedSettleSeconds) return;
+            if (!MountedRetainedIntentPolicy.Settled(++retainedSettledFrames, now - retainedSettledSince)) return;
             var sceneActive = SceneActive(game);
             var maximumSeparation = MountedRetainedIntentPolicy.MaximumSeparationMetres(retainedIntentKind);
 
@@ -373,6 +371,11 @@ namespace KingmakerMountedCombat.Integration
                 var mount = ResolveUnique(game, pair.MountId);
                 var candidate = rider != null && mount != null ? KingmakerMountedPairRuntime.CreateCandidate(rider, mount) : null;
                 var refusal = candidate?.ValidateSavedRelationship();
+                // Known issues S02: the exact current views are read at every evaluation and never remembered, so a
+                // replaced view is judged as itself. Nothing is attached to views that are not active.
+                string views = null;
+                var viewRefusal = candidate != null && refusal == null
+                    ? KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(rider, mount, out views) : null;
                 var separation = rider != null && mount != null
                     ? new UnityEngine.Vector2(rider.Position.x - mount.Position.x, rider.Position.z - mount.Position.z).magnitude
                     : float.PositiveInfinity;
@@ -399,7 +402,7 @@ namespace KingmakerMountedCombat.Integration
                 // Patience counts only this pair's own settled, unowned, non-regrouping play.
                 if (stagingOwned || regroup == MountedRegroupState.InProgress) pair.EligibleSince = -1f;
                 else if (pair.EligibleSince < 0f) pair.EligibleSince = now;
-                var patienceExpired = pair.EligibleSince >= 0f && now - pair.EligibleSince > MountedRetainedIntentPolicy.EligibilityPatienceSeconds;
+                var patienceExpired = MountedRetainedIntentPolicy.PatienceExpired(pair.EligibleSince, now);
                 // A scene that keeps control in settled ordinary play is bounded too (native game time).
                 var gameSeconds = game.TimeController.GameTime.TotalSeconds;
                 if (!stagingOwned) pair.StagingOwnedSince = -1d;
@@ -417,7 +420,12 @@ namespace KingmakerMountedCombat.Integration
                     patienceExpired,
                     stagingOwned,
                     regroup,
-                    stagingExpired);
+                    stagingExpired,
+                    viewRefusal,
+                    // A pair deferred at arrival that has not moved since keeps the arrival placement's own geometry.
+                    MountedRetainedIntentPolicy.ArrivalPlacementHeld(pair.ArrivalDeferred && rider != null && mount != null,
+                        rider != null ? (rider.Position - pair.ArrivalRiderPosition).magnitude : float.NaN,
+                        mount != null ? (mount.Position - pair.ArrivalMountPosition).magnitude : float.NaN));
                 if (pairDecision == MountedRetainedPairDecision.Retry) { remaining.Add(pair); continue; }
                 if (pairDecision == MountedRetainedPairDecision.Regroup)
                 {
@@ -430,7 +438,7 @@ namespace KingmakerMountedCombat.Integration
                     var separated = candidate != null && (separation > maximumSeparation || !sameArea);
                     var reason = stagingExpired ? "a scene kept control of the pair" : refusal ?? (separated
                         ? (pair.RegroupAttempts != 0 ? "the mount could not regroup with its rider" : "rider and mount were separated by the event")
-                        : "the pair is no longer eligible");
+                        : viewRefusal != null ? viewRefusal + " (" + views + ")" : "the pair is no longer eligible");
                     if (pair.RegroupMove != null && !pair.RegroupMove.IsFinished) pair.RegroupMove.Interrupt();
                     logger.Info("Retained mounted restoration refused: rider=" + pair.RiderId + ";mount=" + pair.MountId +
                         ";boundary=" + (pair.StagingBoundary ?? Describe(retainedIntentKind)) + ";separation=" + separation.ToString("0.0") +
@@ -604,6 +612,51 @@ namespace KingmakerMountedCombat.Integration
                     (custody.Pairs.Length == 1 ? " stays" : "s stay") + " dismounted. Mount again when ready.");
         }
 
+        internal int RetainedExplicitReleaseCount { get; private set; }
+
+        // Known issues S02: the pair-dismount notification of this world (raised before the dismount runs). An explicit
+        // player dismount ends the retained intent of exactly that pair, so a restoration still pending for it (not yet
+        // settled, or held through an encounter, after the player mounted it again) can never re-attach it. Every other trigger is the
+        // mod's own suspension or cleanup and changes nothing here. A notification handler never throws.
+        private void ObservePairDismounting(GameMountedRelationshipService owner, CleanupTrigger trigger)
+        {
+            try
+            {
+                if (retainedIntent == null || !MountedRetainedIntentPolicy.ReleasedByDismount(trigger)) return;
+                ReleaseRetainedPair(owner?.Rider?.UniqueId, owner?.Mount?.UniqueId, "the player dismounted the pair");
+            }
+            catch (Exception error)
+            {
+                try { logger.Exception("Retained mounted intent was not released at an explicit dismount", error); } catch { }
+            }
+        }
+
+        // Releases only the rows that share an actor with the given pair; every other retained pair keeps its custody,
+        // its settle state and its patience.
+        private void ReleaseRetainedPair(string riderId, string mountId, string reason)
+        {
+            var custody = retainedIntent;
+            if (custody == null) return;
+            var released = custody.Pairs.Where(p => MountedRetainedIntentPolicy.SharesActor(p.RiderId, p.MountId, riderId, mountId)).ToArray();
+            if (released.Length == 0) return;
+            var actors = new HashSet<string>(released.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
+            foreach (var pair in released)
+            {
+                var move = pair.RegroupMove;
+                pair.RegroupMove = null;
+                try { if (move != null && !move.IsFinished) move.Interrupt(); }
+                catch (Exception error) { logger.Exception("Mounted regroup was not stopped", error); }
+            }
+            custody.Pairs = custody.Pairs.Where(p => !released.Contains(p)).ToArray();
+            custody.Slots = custody.Slots.Where(s => !actors.Contains(s.ActorId)).ToArray();
+            RetainedDropCount += released.Length;
+            RetainedExplicitReleaseCount += released.Length;
+            if (custody.Pairs.Length == 0) { retainedIntent = null; ResetRetainedSettle(); }
+            logger.Info("Retained mounted intent released because " + reason + ": " +
+                string.Join(", ", released.Select(p => "rider=" + p.RiderId + ";mount=" + p.MountId).ToArray()) +
+                "; nothing is re-attached automatically.");
+        }
+
         // Review finding 2: the retained (physically suspended) pairs of this world for the save header barrier, as
         // their own record. Pairs physically mounted at the barrier belong to the kmc-mounted-state member alone.
         // A record that cannot be encoded is left out (the pair then reloads dismounted) rather than failing the save.
@@ -710,7 +763,9 @@ namespace KingmakerMountedCombat.Integration
                 ResetRetainedSettle();
                 RetainedAdoptedCount++;
                 Report(pairs.Length + " mounted relationship" + (pairs.Length == 1 ? "" : "s") + " saved during " + Describe(record.Kind) +
-                    " will remount " + (record.Kind == MountedRetainedIntentKind.WorldMapTravel || IsWorldMapArea(game.CurrentlyLoadedArea)
+                    // Only a world-map save waits for the next arrival; intent saved in a local area (an arrival whose
+                    // restoration was deferred) restores in ordinary play whatever its kind (MountedRetainedIntentPolicy.Decide).
+                    " will remount " + (IsWorldMapArea(game.CurrentlyLoadedArea)
                         ? "on arrival in the next area." : "when ordinary play resumes."), true);
             }
             catch (Exception error) { logger.Exception("Saved retained mounted intent was not adopted; the pairs stay dismounted", error); }
