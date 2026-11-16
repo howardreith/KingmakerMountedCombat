@@ -2,19 +2,34 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Test-Chunk7PersistenceEvidence.ps1')
 $loadRequest=Copy-Test $coldRequest;$loadRequest.persistenceCase='multi-exploration-three-loads-manual'
-function ReplayWorld([int]$Load,[int]$AreaOrdinal,[bool]$Mounted=$true){
+# SYNTHETIC subscriber fixtures, selected by ReplayWorld's -Subscribers. Each names its own rows literally and none
+# is read from the reader's reviewed contracts, so a fixture and the reader can only agree by both being right.
+# They are not native evidence.
+#   historical  what chunk7b previews up to .99 held (the rows this file has always built; the default).
+#   current     what a chunk7-repeated-worlds-v3 producer holds.
+function ReplayWorld([int]$Load,[int]$AreaOrdinal,[bool]$Mounted=$true,[string]$Subscribers='historical'){
     $actors=@();for($i=0;$i-lt4;$i++){$actor=$native[$i];$idBase=$Load*100+$i*10;$rider=$i-cin@(0,2);$component=if($Mounted-and$rider){$idBase+6+$AreaOrdinal*1000}else{0}
         $actors+=[pscustomobject]@{id=$actor.Id;object=$idBase+1;descriptor=$idBase+2;view=$idBase+3;viewObject=$idBase+4;inState=$true;commandsEmpty=$true;overrides=@(if($Mounted-and$rider){$component});agentOverride=$component;native=(Copy-Test $actor)}}
     $nativeOwners=@();if($Mounted){$nativeOwners=@($owners|ForEach-Object{$v=Copy-Test $_;$v.riderId=([Guid]$v.riderId).ToString('N');$v.mountId=([Guid]$v.mountId).ToString('N');$v|Add-Member NoteProperty retainsObligations $true;$v})}
-    $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs
+    # The synthetic archive's Horse owners, counted from its own profile ids rather than by the reader.
+    $horseFacts=@($archive.Pairs|Where-Object{$_.ProfileId-clike'*-horse-v1'}).Count
     if($horseFacts-lt1-or$horseFacts-gt2){throw 'Synthetic replay archive needs one or two exact Horse feature facts.'}
-    $subscriberEntries=@()
-    foreach($interface in @('IAreaLoadingStagesHandler','IPartyLeaveAreaHandler','IPartyHandler','IGameModeHandler','IPartyCombatHandler','IUnitHandler','IUnitViewAttachedUIHandler','IUnitLifeStateChanged','IUnitCombatHandler','IUnitFinallyDeadHandler','IInGameHandler','ITurnBasedModeEnabledHandler','ISceneHandler')){
-        $subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.'+$interface;type='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber';identity=-999}
+    # Row order is the one this file has always built: lifecycle, Horse facts, then the other process-owned subscribers.
+    # Other test files import this function alone, so its fixtures live inside it.
+    $historicalLifecycle=@('IAreaLoadingStagesHandler','IPartyLeaveAreaHandler','IPartyHandler','IGameModeHandler','IPartyCombatHandler','IUnitHandler','IUnitViewAttachedUIHandler','IUnitLifeStateChanged','IUnitCombatHandler','IUnitFinallyDeadHandler','IInGameHandler','ITurnBasedModeEnabledHandler','ISceneHandler')
+    $controlInterfaces=@('IAbilityTargetSelectionUIHandler','IClickActionHandler')
+    $groups=switch -CaseSensitive ($Subscribers){
+        'historical' {@(@('MountedLifecycleSubscriber',-999,$historicalLifecycle),@('NativeMountedControlService',-998,$controlInterfaces))}
+        'current' {@(@('MountedLifecycleSubscriber',-999,@($historicalLifecycle+@('IUnitFallProneHandler','ITeleportHandler'))),@('NativeMountedControlService',-998,$controlInterfaces),
+            @('MountedCombatDefenseService',-997,@('IUnitNewCombatRoundHandler','IUnitCombatHandler')),@('RidingDogTackService',-996,@('IUnitViewAttachedUIHandler','ISceneHandler')))}
+        default {throw ('Unknown synthetic subscriber fixture: '+$Subscribers)}
     }
-    for($i=0;$i-lt$horseFacts;$i++){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.ISceneHandler';type='KingmakerMountedCombat.Integration.HorseCompanionAddPet';identity=$Load*1000+11+$i}}
-    foreach($interface in @('IAbilityTargetSelectionUIHandler','IClickActionHandler')){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.'+$interface;type='KingmakerMountedCombat.Integration.NativeMountedControlService';identity=-998}}
-    $subscriptions=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=2+$horseFacts;ownedInterfaceEntries=15+$horseFacts;entries=$subscriberEntries}
+    $subscriberEntries=@()
+    for($group=0;$group-lt$groups.Count;$group++){
+        if($group-eq1){for($i=0;$i-lt$horseFacts;$i++){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.ISceneHandler';type='KingmakerMountedCombat.Integration.HorseCompanionAddPet';identity=$Load*1000+11+$i}}}
+        foreach($interface in $groups[$group][2]){$subscriberEntries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.'+$interface;type='KingmakerMountedCombat.Integration.'+$groups[$group][0];identity=$groups[$group][1]}}
+    }
+    $subscriptions=[pscustomobject]@{assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';executing=$false;uniqueOwnedSubscribers=$groups.Count+$horseFacts;ownedInterfaceEntries=$subscriberEntries.Count;entries=$subscriberEntries}
     [pscustomobject]@{frame=100*$Load+50*$AreaOrdinal;gameTicks=10000000L;gameObject=-1;playerObject=$Load*1000+1;stateObject=1002;areaStateObject=$Load*1000+3+$AreaOrdinal*100;mainStateObject=$Load*1000+4+$AreaOrdinal*100;
       area=$(if($AreaOrdinal){@('b','c','d')[$AreaOrdinal-1]*32}else{'a'*32});playerInCombat=$false;boundaries=2;participants=2;failedConstructions=0;allocationActors=0;active=$(if($Mounted){2}else{0});owners=$nativeOwners;
       preparedOrViewResidue=$(if($Mounted){2}else{0});liveControlBoundaries=0;commandOwners=0;unsettledPreparation=$false;relationshipTransition=$false;serializationBusy=$false;pendingWrites=$false;saveScope=$false;saveFence=$false;
@@ -29,21 +44,21 @@ function ReplayRestoration([int]$Loads){
     }
     [pscustomobject]@{complete=$true;installedBeforeWorldLoad=$true;contract='chunk7-native-restoration-entry-observer-v1';maximumEvents=2048;dropped=0;errors=0;prepareMetric='native-method-entries-including-production-refused-attempts';hooks=$h;events=$es}
 }
-function New-ReplayArtifact($Req,[bool]$Areas){
-    $loads=if($Areas){1}else{3};$worlds=@(ReplayWorld 1 0);$qs=@();$retentionEvents=@()
+function New-ReplayArtifact($Req,[bool]$Areas,[string]$Subscribers='historical'){
+    $loads=if($Areas){1}else{3};$worlds=@(ReplayWorld 1 0 $true $Subscribers);$qs=@();$retentionEvents=@()
     if($Areas){for($i=1;$i-le3;$i++){
         $before=Copy-Test $worlds[$worlds.Count-1];$qs+=[pscustomobject]@{kind='area-transfer';ordinal=$i;enterPoint=$Req.persistenceReplayTargets[$i-1].enterPoint;area=$Req.persistenceReplayTargets[$i-1].area;autoSaveMode='None';before=$before}
-        $suspended=ReplayWorld 1 ($i-1) $false;$suspended.areaSuspensions=$i;$suspended.subscriptions.executing=$true
+        $suspended=ReplayWorld 1 ($i-1) $false $Subscribers;$suspended.areaSuspensions=$i;$suspended.subscriptions.executing=$true
         $retentionEvents+=[pscustomobject]@{kind='area-suspended';before=$i-1;after=$i;state=$suspended}
-        $worlds+=ReplayWorld 1 $i
+        $worlds+=ReplayWorld 1 $i $true $Subscribers
         $retentionEvents+=[pscustomobject]@{kind='area-restored';before=($i-1)*2;after=$i*2;state=(Copy-Test $worlds[$worlds.Count-1])}
     }}else{for($i=2;$i-le3;$i++){
         $before=Copy-Test $worlds[$worlds.Count-1];$qs+=[pscustomobject]@{kind='native-load';ordinal=$i;before=$before;fileName=$Req.persistenceLoad.fileName;sha256=$Req.persistenceLoad.sha256;callbackObserved=$true;callbackNativeLoads=$i;callbackFrame=$i*100-1}
-        $disposal=ReplayWorld ($i-1) 0 $false;$disposal.nativeDisposals=$i-1;$disposal.nativePostLoads=0
-        $retentionEvents+=[pscustomobject]@{kind='native-world-cleanup-before-disposal';before=$i-2;after=$i-1;state=$disposal};$worlds+=ReplayWorld $i 0
+        $disposal=ReplayWorld ($i-1) 0 $false $Subscribers;$disposal.nativeDisposals=$i-1;$disposal.nativePostLoads=0
+        $retentionEvents+=[pscustomobject]@{kind='native-world-cleanup-before-disposal';before=$i-2;after=$i-1;state=$disposal};$worlds+=ReplayWorld $i 0 $true $Subscribers
     }}
     $probe=[pscustomobject]@{contract='chunk7-repeated-world-retention-v1';complete=$true;installedBeforeWorldLoad=$true;maximumEvents=24;errors=0;dropped=0;hooks=@(foreach($m in @('PrepareForNativeWorldDisposal','SuspendAreaPair','RestoreAreaPair')){[pscustomobject]@{method=$m;declaringType='KingmakerMountedCombat.Integration.MountedPersistenceService';token='06003000';moduleMvid=$Req.dllMvid}});events=$retentionEvents}
-    $settled=ReplayWorld $loads $(if($Areas){3}else{0}) $false
+    $settled=ReplayWorld $loads $(if($Areas){3}else{0}) $false $Subscribers
     $allStates=@($worlds)+@($qs|ForEach-Object{$_.before})+@($retentionEvents|ForEach-Object{$_.state})+@($settled)
     $labels=@(foreach($s in $allStates){foreach($f in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){$s.$f};foreach($a in $s.actors){foreach($f in @('object','descriptor','viewObject')){$a.$f}}});$labels=@($labels|Sort-Object -Unique)
     $r=[pscustomobject]@{contract='chunk7-repeated-worlds-v1';kind=$(if($Areas){'area-transfer'}else{'native-load'});requiredNativeLoads=$loads;requiredAreaTransfers=$(if($Areas){3}else{0});worlds=$worlds;requests=$qs;performanceProof=$false;diagnosticsOffProof=$false;allocationRateProof=$false;inputSha256=$Req.persistenceLoad.sha256;
@@ -228,20 +243,92 @@ function HorseSubscriptions([int]$Count){
  for($i=0;$i-lt$Count;$i++){$entries+=[pscustomobject]@{interface='Kingmaker.PubSubSystem.ISceneHandler';type=$horse;identity=7000+$i}}
  $s.entries=$entries;$s.uniqueOwnedSubscribers=2+$Count;$s.ownedInterfaceEntries=15+$Count;$s
 }
-Check 'KMC Horse owners: Small Halfling Horse plus Medium Horse is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne2){throw 'Small plus Medium Horse owners differ from two.'}}
-Check 'KMC Horse owners: two Medium Horses is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne2){throw 'Two Medium Horse owners differ from two.'}}
-Check 'KMC Horse owners: Mammoth plus Horse is one' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1')))-ne1){throw 'Mammoth plus Horse owners differ from one.'}}
-Check 'KMC Horse owners: unknown or malformed profiles do not count' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-other-horse-v9'),(HorsePair 'MEDIUM-HUMANOID-HORSE-V1'),[pscustomobject]@{ProfileId=1},$null))-ne0){throw 'Unknown profiles counted as KMC Horse owners.'}}
-Check 'two Horse subscribers pass for a Small plus Medium archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1'));Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count}
-Check 'one Horse subscriber passes for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1'));Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 1) $false $count}
-Check 'two Horse subscribers refused for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1'));if($count-ne1){throw 'Mammoth plus Horse count differs from one.'};$refused=$false;try{Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count}catch{if($_.Exception.Message-notmatch'subscriber'){throw};$refused=$true};if(-not$refused){throw 'Two Horse subscribers were admitted for one KMC Horse owner.'}}
-Check 'reader Horse profile set matches the product declarations' {
- $catalog=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Domain/MountedRiderProfileCatalog.cs'))
- $small=@([regex]::Matches($catalog,'const string id = "([a-z0-9-]+)"')|ForEach-Object{$_.Groups[1].Value})
- if(($small-join',')-cne'small-default-halfling-horse-v1'){throw 'Declared Small profiles changed; update the reader Horse profile set.'}
- if($catalog-notmatch'MediumHorseId = "medium-humanoid-horse-v1"'){throw 'Medium Horse profile id changed.'}
- $profiles=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Integration/SupportedMountedProfile.cs'))
- if($profiles-notmatch'new SupportedMountedProfile\(declared\.Body\.ProfileId, SupportedMountedProfiles\.HorseBlueprintGuid'){throw 'Declared Small profiles no longer mount the KMC Horse blueprint.'}
- if(((Get-KmcChunk7KmcHorseProfileIds)-join',')-cne'medium-humanoid-horse-v1,small-default-halfling-horse-v1'){throw 'Reader Horse profile set differs.'}
+# Horse owners are counted under a reviewed subscriber contract. These historical cases keep their original
+# expectations under the historical contract.
+$r1=Get-KmcChunk7ReplaySubscriberContract 'kmc-global-subscribers-r1';$r2=Get-KmcChunk7ReplaySubscriberContract 'kmc-global-subscribers-r2'
+Check 'KMC Horse owners: Small Halfling Horse plus Medium Horse is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1)-ne2){throw 'Small plus Medium Horse owners differ from two.'}}
+Check 'KMC Horse owners: two Medium Horses is two' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1)-ne2){throw 'Two Medium Horse owners differ from two.'}}
+Check 'KMC Horse owners: Mammoth plus Horse is one' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1)-ne1){throw 'Mammoth plus Horse owners differ from one.'}}
+Check 'KMC Horse owners: unknown or malformed profiles do not count' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-other-horse-v9'),(HorsePair 'MEDIUM-HUMANOID-HORSE-V1'),[pscustomobject]@{ProfileId=1},$null) $r1)-ne0){throw 'Unknown profiles counted as KMC Horse owners.'}}
+Check 'two Horse subscribers pass for a Small plus Medium archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-default-halfling-horse-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1;Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count $r1}
+Check 'one Horse subscriber passes for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1;Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 1) $false $count $r1}
+Check 'two Horse subscribers refused for a Mammoth plus Horse archive' {$count=Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-mammoth-v1'),(HorsePair 'medium-humanoid-horse-v1')) $r1;if($count-ne1){throw 'Mammoth plus Horse count differs from one.'};$refused=$false;try{Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 2) $false $count $r1}catch{if($_.Exception.Message-notmatch'subscriber'){throw};$refused=$true};if(-not$refused){throw 'Two Horse subscribers were admitted for one KMC Horse owner.'}}
+# The historical Horse owner set stays the two reviewed ids. A source-text pin on the profile catalog stood here; it
+# stopped matching in November 2026 when the catalog gained the Gnome, female and build-variant Small profiles
+# (23de1eb1, be906d8f), and it had told
+# the reader to follow them. The current set now belongs to r2 and is compared with the compiled product's own
+# profiles by Test-Chunk7ReplaySubscriberContract.ps1.
+Check 'historical Horse owner profiles stay the two reviewed ids and the current revision only adds to them' {
+ if(($r1.horseProfileIds-join',')-cne'medium-humanoid-horse-v1,small-default-halfling-horse-v1'){throw 'Historical reader Horse profile set differs.'}
+ if(@($r1.horseProfileIds|Where-Object{$_-cnotin$r2.horseProfileIds}).Count-ne0){throw 'The current revision dropped a historical Horse profile.'}
 }
+
+# ---- Reviewed subscriber contracts (known-issues T02) ---------------------------------------------------------
+# Every artifact below is SYNTHETIC. "historical" rows are the fixtures above; "current" rows are built from the
+# literal current fixture at the top of this file. Nothing here is native execution evidence.
+function RejectAs([string]$Name,[string]$Pattern,[scriptblock]$Body){$message=$null;try{& $Body}catch{$message=$_.Exception.Message};if($null-eq$message){throw ('Unexpected acceptance: '+$Name)};if($message-notmatch$Pattern){throw ('Refused for another reason: '+$Name+' :: '+$message)};$script:passed++;Write-Host ('PASS refuses '+$Name)}
+$kmcType='KingmakerMountedCombat.Integration.';$eventName='Kingmaker.PubSubSystem.'
+function ConvertTo-CurrentReplay($Artifact){$a=ConvertTo-SerialReplay $Artifact;$r=$a.observations.repeatedWorlds;$r.contract='chunk7-repeated-worlds-v3';$r|Add-Member NoteProperty subscriberContract 'kmc-global-subscribers-r2';$a}
+function With-Producer($Request,$Artifact,[string]$Version){$q=Copy-Test $Request;$q.productVersion=$Version;$a=Copy-Test $Artifact;$a.productVersion=$Version;@($q,$a)}
+# Applies one change to every inventory of the artifact, so a refusal cannot come from two worlds merely disagreeing.
+function Edit-Inventories($Artifact,[scriptblock]$Change){$a=Copy-Test $Artifact;$r=$a.observations.repeatedWorlds;foreach($inventory in Get-SerialInventories $r){& $Change $inventory};$r.finalRetention=Copy-Test $r.retention;$a}
+function Rows($Inventory,[string]$Type){@($Inventory.entries|Where-Object type -CEQ ($kmcType+$Type))}
+function Remove-Rows($Inventory,[string]$Type,[string]$Interface=''){$Inventory.entries=@($Inventory.entries|Where-Object{-not($_.type-ceq($kmcType+$Type)-and($Interface-eq''-or$_.interface-ceq($eventName+$Interface)))});$Inventory.ownedInterfaceEntries=$Inventory.entries.Count}
+function Add-Row($Inventory,[string]$Type,[string]$Interface,$Instance){$row=Copy-Test $Instance;$row.type=$kmcType+$Type;$row.interface=$eventName+$Interface;$Inventory.entries=@($Inventory.entries)+@($row);$Inventory.ownedInterfaceEntries=$Inventory.entries.Count}
+function Set-Instance($Row,[long]$Serial,[int]$Identity){$Row.serial=$Serial;$Row.identity=$Identity}
+$currentLoads=ConvertTo-CurrentReplay (New-ReplayArtifact $loadRequest $false 'current');$currentAreas=ConvertTo-CurrentReplay (New-ReplayArtifact $areaRequest $true 'current')
+Check 'reviewed revisions: r1 is implicit, r2 is declarable from 0.2.11 and adds exactly the fall and teleport lifecycle handlers' {
+ $l1=@(@($r1.processOwned|Where-Object type -CEQ ($kmcType+'MountedLifecycleSubscriber'))[0].interfaces);$l2=@(@($r2.processOwned|Where-Object type -CEQ ($kmcType+'MountedLifecycleSubscriber'))[0].interfaces)
+ $added=@($l2|Where-Object{$_-cnotin$l1}|Sort-Object -CaseSensitive)-join','
+ if($null-ne$r1.firstRelease-or$r2.firstRelease-ne11-or$l1.Count-ne13-or@($l1|Where-Object{$_-cnotin$l2}).Count-ne0-or$added-cne($eventName+'ITeleportHandler,'+$eventName+'IUnitFallProneHandler')){throw 'Reviewed revision table differs.'}
+}
+Check 'SYNTHETIC current contract (v3 declaring r2): three native loads' {Assert-KmcChunk7PersistenceObservation $loadRequest $currentLoads 'PASS'}
+Check 'SYNTHETIC current contract (v3 declaring r2): three area transfers' {Assert-KmcChunk7PersistenceObservation $areaRequest $currentAreas 'PASS'}
+foreach($version in @('0.2.11','0.2.12')){Check ("SYNTHETIC current contract accepted for producer $version") {$p=With-Producer $loadRequest $currentLoads $version;Assert-KmcChunk7PersistenceObservation $p[0] $p[1] 'PASS'}}
+foreach($version in @('0.2.10','0.2.0','0.1.0-chunk7b-preview.96','0.1.0-chunk7b-preview.103')){RejectAs ("the current contract claimed by producer $version, which cannot carry it") 'Unsupported repeated-world evidence: producer' {$p=With-Producer $loadRequest $currentLoads $version;Assert-KmcChunk7PersistenceObservation $p[0] $p[1] 'PASS'}}
+# Selection is by declared identity only. Each refusal below must be the explicit unsupported one.
+RejectAs 'v3 without a declared subscriber contract' 'v3 must declare its subscriber contract revision' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.PSObject.Properties.Remove('subscriberContract');Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'v3 declaring a revision that is not a string' 'v3 must declare its subscriber contract revision' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.subscriberContract=2;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'v3 declaring an unknown revision' 'no reviewed subscriber contract revision kmc-global-subscribers-r9' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.subscriberContract='kmc-global-subscribers-r9';Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'v3 declaring the implicit historical revision' 'implicit historical contract and cannot be declared' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.subscriberContract='kmc-global-subscribers-r1';Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'an unknown evidence contract' 'Unsupported repeated-world evidence contract: chunk7-repeated-worlds-v4' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.contract='chunk7-repeated-worlds-v4';Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'an evidence contract that is not a string' 'Unsupported repeated-world evidence contract' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.contract=3;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'v2 evidence declaring a subscriber contract' 'cannot declare a subscriber contract revision' {$a=Copy-Test $serialLoads;$a.observations.repeatedWorlds|Add-Member NoteProperty subscriberContract 'kmc-global-subscribers-r2';Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# A valid inventory of one contract is never accepted under the other because some count happens to fit.
+RejectAs 'current rows relabelled as the historical v2 contract' 'reviewed contract kmc-global-subscribers-r1' {$a=Copy-Test $currentLoads;$r=$a.observations.repeatedWorlds;$r.contract='chunk7-repeated-worlds-v2';$r.PSObject.Properties.Remove('subscriberContract');Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'historical rows relabelled as the current contract' 'reviewed contract kmc-global-subscribers-r2' {$a=Copy-Test $serialLoads;$r=$a.observations.repeatedWorlds;$r.contract='chunk7-repeated-worlds-v3';$r|Add-Member NoteProperty subscriberContract 'kmc-global-subscribers-r2';Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# The historical contract describes chunk7b previews up to .99 and nothing later.
+Check 'historical contract accepted for chunk7b preview.99, the last build it describes' {$p=With-Producer $loadRequest $serialLoads '0.1.0-chunk7b-preview.99';Assert-KmcChunk7PersistenceObservation $p[0] $p[1] 'PASS'}
+foreach($version in @('0.1.0-chunk7b-preview.100','0.1.0-chunk7b-preview.103')){RejectAs ("historical-looking rows from $version, whose subscriber set no contract describes") 'no reviewed contract describes' {$p=With-Producer $loadRequest $serialLoads $version;Assert-KmcChunk7PersistenceObservation $p[0] $p[1] 'PASS'}}
+RejectAs 'historical evidence from a release-scheme producer' 'Unrecognised checkpoint producer revision' {$p=With-Producer $loadRequest $serialLoads '0.2.11';Assert-KmcChunk7PersistenceObservation $p[0] $p[1] 'PASS'}
+# Exact membership: missing, duplicate and foreign handlers.
+RejectAs 'r2 missing handler' 'does not list exactly its reviewed interfaces' {$a=Edit-Inventories $currentLoads {param($i)Remove-Rows $i 'MountedLifecycleSubscriber' 'ITeleportHandler'};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 with the historical 13-interface lifecycle' 'MountedLifecycleSubscriber does not list exactly' {$a=Edit-Inventories $currentLoads {param($i)Remove-Rows $i 'MountedLifecycleSubscriber' 'ITeleportHandler';Remove-Rows $i 'MountedLifecycleSubscriber' 'IUnitFallProneHandler'};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 foreign handler beside the reviewed ones' 'does not list exactly its reviewed interfaces' {$a=Edit-Inventories $currentLoads {param($i)Add-Row $i 'MountedLifecycleSubscriber' 'IAttackHandler' @(Rows $i 'MountedLifecycleSubscriber')[0]};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 foreign handler replacing a reviewed one at the same count' 'NativeMountedControlService does not list exactly' {$a=Edit-Inventories $currentLoads {param($i)@(Rows $i 'NativeMountedControlService'|Where-Object interface -CEQ ($eventName+'IClickActionHandler'))[0].interface=$eventName+'IAttackHandler'};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 duplicate handler held by a second instance' 'does not list exactly its reviewed interfaces' {$a=Edit-Inventories $currentLoads {param($i)$row=Copy-Test @(Rows $i 'MountedLifecycleSubscriber')[0];Set-Instance $row 200 -900;$i.entries=@($i.entries)+@($row);$i.ownedInterfaceEntries=$i.entries.Count;$i.uniqueOwnedSubscribers++};$a.observations.repeatedWorlds.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+Reject 'r2 exact duplicate handler row' {$a=Edit-Inventories $currentLoads {param($i)$i.entries=@($i.entries)+@(Copy-Test @(Rows $i 'MountedLifecycleSubscriber')[0]);$i.ownedInterfaceEntries=$i.entries.Count};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 subscriber type outside the reviewed set' 'a subscriber type outside the reviewed set' {$a=Edit-Inventories $currentLoads {param($i)$row=Copy-Test @(Rows $i 'MountedLifecycleSubscriber')[0];Set-Instance $row 200 -900;$row.type=$kmcType+'DivineMountSpellResistance';$row.interface=$eventName+'IUnitGainLevelHandler';$i.entries=@($i.entries)+@($row);$i.ownedInterfaceEntries=$i.entries.Count;$i.uniqueOwnedSubscribers++};$a.observations.repeatedWorlds.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 missing process-owned subscriber' 'RidingDogTackService does not list exactly' {$a=Edit-Inventories $currentLoads {param($i)Remove-Rows $i 'RidingDogTackService';$i.uniqueOwnedSubscribers--};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'historical: a foreign handler replacing a reviewed one at the same count' 'kmc-global-subscribers-r1: .*MountedLifecycleSubscriber does not list exactly' {$a=Edit-Inventories $threeLoad {param($i)@(Rows $i 'MountedLifecycleSubscriber'|Where-Object interface -CEQ ($eventName+'ISceneHandler'))[0].interface=$eventName+'IAttackHandler'};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# Process ownership: one distinct instance per process-owned subscriber, unchanged across worlds.
+RejectAs 'r2 lifecycle rows split across two instances' 'MountedLifecycleSubscriber is not one process-owned instance' {$a=Edit-Inventories $currentLoads {param($i)Set-Instance @(Rows $i 'MountedLifecycleSubscriber')[3] 200 -900;$i.uniqueOwnedSubscribers++};$a.observations.repeatedWorlds.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 two process-owned subscribers under one instance' 'shares its instance with another process-owned subscriber' {$a=Edit-Inventories $currentLoads {param($i)$owner=@(Rows $i 'MountedLifecycleSubscriber')[0];foreach($row in Rows $i 'MountedCombatDefenseService'){Set-Instance $row $owner.serial $owner.identity};$i.uniqueOwnedSubscribers--};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 Horse fact labelled as a process-owned instance' 'Horse fact subscribers are not exactly one ISceneHandler instance per Horse owner' {$a=Edit-Inventories $currentLoads {param($i)$owner=@(Rows $i 'RidingDogTackService')[0];foreach($row in Rows $i 'HorseCompanionAddPet'){Set-Instance $row $owner.serial $owner.identity};$i.uniqueOwnedSubscribers--};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 process-owned subscriber replaced after a native load' 'retained stale fact subscribers or changed process-owned subscribers' {$a=Copy-Test $currentLoads;$r=$a.observations.repeatedWorlds;foreach($row in Rows $r.worlds[1].subscriptions 'MountedCombatDefenseService'){Set-Instance $row 200 -900};$r.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# Per-world identity: a Horse fact belongs to one native world; an area transfer keeps it.
+RejectAs 'r2 stale Horse fact kept across a native load' 'retained stale fact subscribers or changed process-owned subscribers' {$a=Copy-Test $currentLoads;$r=$a.observations.repeatedWorlds;$old=@(Rows $r.worlds[0].subscriptions 'HorseCompanionAddPet')[0];foreach($inventory in @($r.worlds[1].subscriptions)+@($r.requests[1].before.subscriptions)){Set-Instance @(Rows $inventory 'HorseCompanionAddPet')[0] $old.serial $old.identity};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 Horse fact replaced across an area transfer' 'retained stale fact subscribers or changed process-owned subscribers' {$a=Copy-Test $currentAreas;$r=$a.observations.repeatedWorlds;@(Rows $r.worlds[1].subscriptions 'HorseCompanionAddPet')[0].serial=200;$r.subscriberSerials.assigned=200;Assert-KmcChunk7PersistenceObservation $areaRequest $a 'PASS'}
+# Serial and hash consistency under the current contract.
+RejectAs 'r2 one inventory mixing serial and hash-only rows' 'mixes serial and hash-only rows' {$a=Copy-Test $currentLoads;$a.observations.repeatedWorlds.worlds[1].subscriptions.entries[0].PSObject.Properties.Remove('serial');Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 hash-only rows under the serial contract' 'shape differs from its repeated-world contract' {$a=Copy-Test $currentLoads;$r=$a.observations.repeatedWorlds;foreach($inventory in Get-SerialInventories $r){foreach($row in $inventory.entries){$row.PSObject.Properties.Remove('serial')}};$r.finalRetention=Copy-Test $r.retention;Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+RejectAs 'r2 one serial naming two identities across worlds' 'One subscriber serial carries two native identities' {$a=Copy-Test $currentLoads;$r=$a.observations.repeatedWorlds;foreach($row in Rows $r.settled.subscriptions 'RidingDogTackService'){$row.identity=-901};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# Aggregates come from the reviewed set: totals that only describe themselves are refused.
+Reject 'r2 rows reported under the historical entry total' {$a=Edit-Inventories $currentLoads {param($i)$i.ownedInterfaceEntries=16};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+Reject 'r2 rows reported under the historical subscriber total' {$a=Edit-Inventories $currentLoads {param($i)$i.uniqueOwnedSubscribers=3};Assert-KmcChunk7PersistenceObservation $loadRequest $a 'PASS'}
+# Horse owners under each contract.
+Check 'Horse owners follow the selected contract: a Gnome build variant on a Horse counts under r2 only' {$pairs=@((HorsePair 'small-gnome-female-thin-horse-v1'),(HorsePair 'medium-humanoid-mammoth-v1'));if((Get-KmcChunk7KmcHorseOwnerCount $pairs $r2)-ne1-or(Get-KmcChunk7KmcHorseOwnerCount $pairs $r1)-ne0){throw 'Horse owners do not follow the selected contract.'}}
+Check 'Riding Dog profiles are never Horse owners' {if((Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'small-halfling-male-ridingdog-v1'),(HorsePair 'small-gnome-female-fat-ridingdog-v1')) $r2)-ne0){throw 'A Riding Dog pair counted as a Horse owner.'}}
+RejectAs 'Horse owners counted without a reviewed contract' 'counted under a reviewed subscriber contract' {Get-KmcChunk7KmcHorseOwnerCount @((HorsePair 'medium-humanoid-horse-v1')) $null}
+RejectAs 'a subscriber boundary read without a reviewed contract' 'requires its reviewed subscriber contract' {Assert-KmcChunk7RepeatedSubscriptionBoundary $null (HorseSubscriptions 1) $false 1 $null}
 Write-Host ('CHUNK7 REPEATED WORLD READER PASS='+$passed+' FAIL=0; synthetic contract fixtures only, native route unqualified.')

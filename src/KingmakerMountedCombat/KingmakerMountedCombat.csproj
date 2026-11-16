@@ -255,6 +255,7 @@
     <Compile Include="Diagnostics\Chunk7WorldRetentionProbe.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.Replay.cs" />
     <Compile Include="Diagnostics\Chunk7ReplayHorseOwners.cs" />
+    <Compile Include="Diagnostics\Chunk7ReplaySubscriberContract.cs" />
     <Compile Include="Domain\MountedAreaControlRule.cs" />
     <Compile Include="Diagnostics\Chunk7NativeWorldScope.cs" />
     <Compile Include="Diagnostics\Chunk7ArchiveNativeSnapshot.cs" />

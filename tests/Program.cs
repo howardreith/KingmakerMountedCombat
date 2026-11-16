@@ -755,6 +755,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             DiagnosticTurnTraversalPolicyTests.Register(runner);
             MountedAreaControlRuleTests.Register(runner);
             WeakObjectSerialsTests.Register(runner);
+            Chunk7ReplaySubscriberContractTests.Register(runner);
             return runner.Complete();
         }
 

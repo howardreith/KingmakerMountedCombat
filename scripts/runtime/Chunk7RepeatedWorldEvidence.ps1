@@ -82,32 +82,113 @@ function Assert-KmcChunk7ReplaySubscriberSerials($Repeated,[bool]$V2){
     if($reg.contract-cne'weak-reference-serial-v1'-or$reg.capacity-ne256-or$reg.faults-ne0-or$reg.assigned-lt1-or$reg.assigned-gt256-or$reg.assigned-lt$map.Count-or
        @($map.Keys|Where-Object{$_-gt$reg.assigned}).Count-ne0){throw 'Subscriber serial registry is unbounded, faulted or differs from the recorded serials.'}
 }
-# One native HorseCompanionAddPet subscriber per KMC Horse owner, matching the product's
-# Chunk7ReplayHorseOwners: every profile that mounts the KMC Horse blueprint (Medium Horse and the
-# declared Small Halfling Horse) counts; Mammoth and unknown profiles do not.
-function Get-KmcChunk7KmcHorseProfileIds { @('medium-humanoid-horse-v1','small-default-halfling-horse-v1') }
-function Get-KmcChunk7KmcHorseOwnerCount($Pairs) {
-    $ids=Get-KmcChunk7KmcHorseProfileIds
+# Reviewed owned-subscriber contracts. A revision is the exact set of KMC-owned EventBus global subscribers a
+# settled repeated world holds: each process-owned subscriber (one instance for the life of the process) with its
+# exact interfaces, beside one native HorseCompanionAddPet ISceneHandler fact per KMC Horse owner, and the
+# profiles that make a saved pair a Horse owner. The reader selects a revision from the evidence contract and the
+# producer identity the runner binds to the delivered DLL (Resolve-KmcChunk7ReplaySubscriberContract). It never
+# derives a revision from the inventory under test, and an identity it cannot place is refused as unsupported
+# instead of being matched to whichever revision happens to fit.
+#   r1  Implicit, historical: chunk7-repeated-worlds-v1/v2 evidence of chunk7b previews up to .99 (the chunk7
+#       qualification tag is preview.96). 13 lifecycle interfaces and the two control interfaces; Horse
+#       owners are the Medium Horse and the first Small Halfling Horse profile. It cannot be declared.
+#   --  chunk7b preview.100 to .103 and releases 0.2.0 to 0.2.11 changed the set without a revision: the defence
+#       service (d13cdd8b), the tack service (bb1460c1), IUnitFallProneHandler (ff034603), ITeleportHandler
+#       (3c6ba2f1) and the Gnome, female and build-variant Small Horse profiles (23de1eb1, be906d8f). Their producer still
+#       required r1, so they could not emit passing evidence, and preview.100 and .103 each cover two different
+#       sets. No revision describes them.
+#   r2  Declared by chunk7-repeated-worlds-v3 producers (Chunk7ReplaySubscriberContract.Revision): 15 lifecycle
+#       interfaces, controls, defence and tack; every profile that mounts the KMC Horse blueprint.
+# scripts/chunk7/Test-Chunk7ReplaySubscriberContract.ps1 compares r2 with the compiled product as the installed
+# EventBus registers it, and r1 with the qualified chunk7 source. Neither comparison is native execution.
+function Get-KmcChunk7ReplaySubscriberContracts {
+    $events='Kingmaker.PubSubSystem.';$integration='KingmakerMountedCombat.Integration.'
+    $owned={param([string]$Type,[string[]]$Interfaces)[pscustomobject]@{type=$integration+$Type;interfaces=@($Interfaces|ForEach-Object{$events+$_}|Sort-Object -CaseSensitive)}}
+    $controls=@('IAbilityTargetSelectionUIHandler','IClickActionHandler')
+    $historicalLifecycle=@('IAreaLoadingStagesHandler','IGameModeHandler','IInGameHandler','IPartyCombatHandler','IPartyHandler','IPartyLeaveAreaHandler','ISceneHandler',
+        'ITurnBasedModeEnabledHandler','IUnitCombatHandler','IUnitFinallyDeadHandler','IUnitHandler','IUnitLifeStateChanged','IUnitViewAttachedUIHandler')
+    $historicalHorse=@('medium-humanoid-horse-v1','small-default-halfling-horse-v1')
+    @(
+        [pscustomobject]@{revision='kmc-global-subscribers-r1';firstRelease=$null
+            processOwned=@((& $owned 'MountedLifecycleSubscriber' $historicalLifecycle),(& $owned 'NativeMountedControlService' $controls))
+            horseProfileIds=$historicalHorse},
+        # firstRelease: the lowest 0.2.x product version whose builds can carry the revision.
+        [pscustomobject]@{revision='kmc-global-subscribers-r2';firstRelease=11
+            processOwned=@((& $owned 'MountedLifecycleSubscriber' ($historicalLifecycle+@('IUnitFallProneHandler','ITeleportHandler'))),
+                (& $owned 'NativeMountedControlService' $controls),
+                (& $owned 'MountedCombatDefenseService' @('IUnitCombatHandler','IUnitNewCombatRoundHandler')),
+                (& $owned 'RidingDogTackService' @('ISceneHandler','IUnitViewAttachedUIHandler')))
+            # small-default-halfling-horse-v1 is the default-build male Halfling; every other Small rig has its own id.
+            horseProfileIds=@($historicalHorse+@('small-halfling-female-horse-v1','small-gnome-male-horse-v1','small-gnome-female-horse-v1',
+                'small-halfling-male-fat-horse-v1','small-halfling-male-thin-horse-v1','small-halfling-female-fat-horse-v1','small-halfling-female-thin-horse-v1',
+                'small-gnome-male-fat-horse-v1','small-gnome-male-thin-horse-v1','small-gnome-female-fat-horse-v1','small-gnome-female-thin-horse-v1'))}
+    )
+}
+function Get-KmcChunk7ReplaySubscriberContract([string]$Revision) {
+    $found=@(Get-KmcChunk7ReplaySubscriberContracts|Where-Object revision -CEQ $Revision)
+    if($found.Count-ne1){throw ('Unsupported repeated-world evidence: no reviewed subscriber contract revision '+$Revision+'.')}
+    $found[0]
+}
+# One reviewed contract for this evidence, or an explicit refusal. serials: whether its rows carry weak-reference serials.
+function Resolve-KmcChunk7ReplaySubscriberContract($Request,$Repeated) {
+    $declares=@($Repeated.PSObject.Properties.Name)-ccontains'subscriberContract'
+    $evidence=if($Repeated.contract-is[string]){$Repeated.contract}else{'<not a string>'}
+    if($evidence-cin@('chunk7-repeated-worlds-v1','chunk7-repeated-worlds-v2')){
+        if($declares){throw 'Unsupported repeated-world evidence: a v1 or v2 contract cannot declare a subscriber contract revision.'}
+        $serials=$evidence-ceq'chunk7-repeated-worlds-v2'
+        # Any other version scheme is refused by the revision reader itself.
+        $preview=Get-KmcChunk7CheckpointProducerPreview $Request
+        # The runner binds productVersion to the delivered DLL. Preview.95 and later cannot opt out of
+        # collision-free subscriber observations by relabelling their evidence as the historical v1 contract.
+        if($preview-ge95-and-not$serials){throw 'This producer revision requires repeated-world v2 subscriber serial evidence.'}
+        if($preview-ge100){throw ('Unsupported repeated-world evidence: chunk7b preview.'+$preview+' holds an owned subscriber set that no reviewed contract describes; the implicit historical contract ends at preview.99.')}
+        return [pscustomobject]@{contract=(Get-KmcChunk7ReplaySubscriberContract 'kmc-global-subscribers-r1');serials=$serials}
+    }
+    if($evidence-cne'chunk7-repeated-worlds-v3'){throw ('Unsupported repeated-world evidence contract: '+$evidence+'.')}
+    if(-not$declares-or$Repeated.subscriberContract-isnot[string]){throw 'Unsupported repeated-world evidence: v3 must declare its subscriber contract revision.'}
+    $contract=Get-KmcChunk7ReplaySubscriberContract $Repeated.subscriberContract
+    if($null-eq$contract.firstRelease){throw ('Unsupported repeated-world evidence: '+$contract.revision+' is the implicit historical contract and cannot be declared.')}
+    $version=[string]$Request.productVersion
+    if($version-cne'synthetic'-and($version-cnotmatch'^0[.]2[.]([0-9]{1,4})$'-or[int]$Matches[1]-lt$contract.firstRelease)){
+        throw ('Unsupported repeated-world evidence: producer '+$version+' cannot carry '+$contract.revision+' (first release 0.2.'+$contract.firstRelease+').')
+    }
+    [pscustomobject]@{contract=$contract;serials=$true}
+}
+# One native HorseCompanionAddPet subscriber per KMC Horse owner, matching the product's Chunk7ReplayHorseOwners:
+# every saved pair whose profile mounts the KMC Horse blueprint under the selected contract counts; Mammoth,
+# Riding Dog and unknown profiles do not.
+function Get-KmcChunk7KmcHorseOwnerCount($Pairs,$Contract) {
+    if($null-eq$Contract-or@($Contract.horseProfileIds).Count-eq0){throw 'Horse owners are counted under a reviewed subscriber contract.'}
+    $ids=@($Contract.horseProfileIds)
     @(@($Pairs)|Where-Object{$null-ne$_-and$_.ProfileId-is[string]-and$_.ProfileId-cin$ids}).Count
 }
-function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$NativeLoad,[int]$HorseFacts) {
+function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$NativeLoad,[int]$HorseFacts,$Contract) {
+    if($null-eq$Contract-or@($Contract.processOwned).Count-eq0){throw 'Repeated subscriber boundary requires its reviewed subscriber contract.'}
     $horse='KingmakerMountedCombat.Integration.HorseCompanionAddPet'
-    $lifecycle='KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
-    $controls='KingmakerMountedCombat.Integration.NativeMountedControlService'
     $entries=@($Current.entries)
     $h=@($entries|Where-Object type -CEQ $horse)
-    $l=@($entries|Where-Object type -CEQ $lifecycle)
-    $c=@($entries|Where-Object type -CEQ $controls)
     $label=if(Test-KmcChunk7ReplaySerialInventory $Current){'serial'}else{'identity'}
-    if($HorseFacts-lt1-or$HorseFacts-gt2-or$Current.uniqueOwnedSubscribers-ne(2+$HorseFacts)-or
-       $Current.ownedInterfaceEntries-ne(15+$HorseFacts)-or$entries.Count-ne(15+$HorseFacts)-or
-       $h.Count-ne$HorseFacts-or$l.Count-ne13-or$c.Count-ne2-or
-       @($h|Where-Object interface -CNE 'Kingmaker.PubSubSystem.ISceneHandler').Count-ne0-or
-       @($h.$label|Select-Object -Unique).Count-ne$HorseFacts-or
-       @($l.$label|Select-Object -Unique).Count-ne1-or
-       @($c.$label|Select-Object -Unique).Count-ne1-or
-       $l[0].$label-eq$c[0].$label-or$h.$label-ccontains$l[0].$label-or$h.$label-ccontains$c[0].$label){
-        throw 'Repeated world subscriber roles/cardinality are not the exact two fact and two process-owned instances.'
+    $failure='Repeated world subscribers differ from reviewed contract '+$Contract.revision+': '
+    if($HorseFacts-lt1-or$HorseFacts-gt2){throw ($failure+'Horse owners must be one or two.')}
+    # Membership, instances and every aggregate come from the reviewed set, never from the inventory.
+    $expectedEntries=$HorseFacts;$processLabels=@()
+    foreach($owner in $Contract.processOwned){
+        $rows=@($entries|Where-Object type -CEQ $owner.type)
+        $listed=@($rows|ForEach-Object{$_.interface}|Sort-Object -CaseSensitive)
+        if(($listed-join'|')-cne(@($owner.interfaces)-join'|')){throw ($failure+$owner.type+' does not list exactly its reviewed interfaces (missing, duplicate or foreign handler).')}
+        $labels=@($rows|ForEach-Object{$_.$label}|Select-Object -Unique)
+        if($labels.Count-ne1){throw ($failure+$owner.type+' is not one process-owned instance.')}
+        if($processLabels-contains$labels[0]){throw ($failure+$owner.type+' shares its instance with another process-owned subscriber.')}
+        $processLabels+=$labels[0];$expectedEntries+=@($owner.interfaces).Count
+    }
+    if($h.Count-ne$HorseFacts-or@($h|Where-Object interface -CNE 'Kingmaker.PubSubSystem.ISceneHandler').Count-ne0-or
+       @($h|ForEach-Object{$_.$label}|Select-Object -Unique).Count-ne$HorseFacts-or@($h|Where-Object{$processLabels-contains$_.$label}).Count-ne0){
+        throw ($failure+'Horse fact subscribers are not exactly one ISceneHandler instance per Horse owner.')
+    }
+    $reviewed=@($Contract.processOwned|ForEach-Object{$_.type})+@($horse)
+    if(@($entries|Where-Object{$_.type-cnotin$reviewed}).Count-ne0){throw ($failure+'a subscriber type outside the reviewed set is present.')}
+    if($Current.uniqueOwnedSubscribers-ne(@($Contract.processOwned).Count+$HorseFacts)-or$Current.ownedInterfaceEntries-ne$expectedEntries-or$entries.Count-ne$expectedEntries){
+        throw ($failure+'aggregate subscriber counts differ from the reviewed set.')
     }
     if($null-eq$Previous){return}
     $prior=@($Previous.entries)
@@ -242,11 +323,11 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     foreach($f in @('requiredNativeLoads','requiredAreaTransfers','nativeLoadRequests','nativeWriteRequests')){Assert-KmcChunk7NativeCounters $r @($f)}
     foreach($f in @('performanceProof','diagnosticsOffProof','allocationRateProof')){Assert-KmcChunk7Boolean $r.$f $false}
     Assert-KmcChunk7Boolean $r.inputUnchanged $true;Assert-KmcChunk7Boolean $r.observersReleased $true
-    $serialContract=$r.contract-ceq'chunk7-repeated-worlds-v2'
-    # The runner binds productVersion to the delivered DLL. Preview.95 and later cannot opt out of
-    # collision-free subscriber observations by relabelling their evidence as the historical v1 contract.
-    if((Get-KmcChunk7CheckpointProducerPreview $Request)-ge95-and-not$serialContract){throw 'This producer revision requires repeated-world v2 subscriber serial evidence.'}
-    if($r.contract-cnotin@('chunk7-repeated-worlds-v1','chunk7-repeated-worlds-v2')-or$r.kind-cne$(if($areas){'area-transfer'}else{'native-load'})-or$r.requiredNativeLoads-ne$loads-or$r.requiredAreaTransfers-ne$transfers-or
+    # The evidence contract and the producer identity select one reviewed subscriber contract, or the evidence
+    # is refused as unsupported before any inventory is read.
+    $selected=Resolve-KmcChunk7ReplaySubscriberContract $Request $r
+    $serialContract=$selected.serials;$subscriberContract=$selected.contract
+    if($r.kind-cne$(if($areas){'area-transfer'}else{'native-load'})-or$r.requiredNativeLoads-ne$loads-or$r.requiredAreaTransfers-ne$transfers-or
        $r.nativeLoadRequests-ne$loads-or$r.nativeWriteRequests-ne0-or$r.inputSha256-cne$Request.persistenceLoad.sha256-or$r.worlds-isnot[Array]-or$r.worlds.Count-ne($loads+$transfers)-or
        $r.requests-isnot[Array]-or$r.requests.Count-ne$(if($areas){3}else{2})){throw 'Repeated native admissions/counts differ from the finite selected campaign.'}
     $identity=$r.identityRetention
@@ -259,7 +340,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         foreach($actor in $state.actors){foreach($field in @('object','descriptor','viewObject')){if(-not$nativeIds.Contains($actor.$field)){throw 'Native actor label lacks retained exact-reference registration.'}}}
     }
     Assert-KmcChunk7ReplaySubscriberSerials $r $serialContract
-    $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs
+    $horseFacts=Get-KmcChunk7KmcHorseOwnerCount $archive.Pairs $subscriberContract
     $initial=$r.worlds[0];$previous=$null
     for($index=0;$index-lt$r.worlds.Count;$index++){
         $w=$r.worlds[$index];$nativeLoads=if($areas){1}else{$index+1};$area=if($areas-and$index-gt0){$Request.persistenceReplayTargets[$index-1].area}else{$Request.persistenceLoad.area}
@@ -268,7 +349,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         if($w.label-cne$label-or$w.nativeDisposals-ne($nativeLoads-1)-or$w.semanticRestores-ne(4*$nativeLoads)-or$w.presentationRestores-ne(2*$nativeLoads)-or$w.nativePostLoads-ne4-or
            $w.areaSuspensions-ne$(if($areas){$index}else{0})-or$w.areaResumes-ne$(if($areas){2*$index}else{0})){throw 'Repeated world counters differ or accumulate.'}
         $priorSubscriptions=if($null-eq$previous){$null}else{$previous.subscriptions}
-        Assert-KmcChunk7RepeatedSubscriptionBoundary $priorSubscriptions $w.subscriptions (-not$areas) $horseFacts
+        Assert-KmcChunk7RepeatedSubscriptionBoundary $priorSubscriptions $w.subscriptions (-not$areas) $horseFacts $subscriberContract
         if($w.selectionRebinding-isnot[Array]){throw 'Repeated world omitted selection migration intent.'}
         foreach($selected in $w.selectionRebinding){Assert-KmcChunk7ReplayObject $selected.object;if($selected.id-isnot[string]-or$selected.id-cnotmatch'^[0-9a-f-]{36}$'){throw 'Selection migration has an invalid actor identity.'}}
         if($previous){
@@ -321,7 +402,7 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
     Assert-KmcChunk7ReplayWorld $r.settled $archive $previous.area $false
     foreach($f in @('gameObject','playerObject','stateObject','areaStateObject','mainStateObject')){if($r.settled.$f-ne$previous.$f){throw 'Cleanup touched an unadmitted final world.'}}
     foreach($actor in $r.settled.actors){$old=@($previous.actors|Where-Object id -CEQ $actor.id)[0];foreach($f in @('object','descriptor','view','viewObject')){if($actor.$f-ne$old.$f){throw 'Cleanup touched a substituted final native actor.'}}}
-    Assert-KmcChunk7RepeatedSubscriptionBoundary $previous.subscriptions $r.settled.subscriptions $false $horseFacts
+    Assert-KmcChunk7RepeatedSubscriptionBoundary $previous.subscriptions $r.settled.subscriptions $false $horseFacts $subscriberContract
     foreach($f in @('pairsClear','controlsSettled','saveCustodyClear','selectionRestored')){Assert-KmcChunk7Boolean $o.cleanup.$f $true}
     foreach($f in @('sourceHorseRemoved','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.cleanup.$f (-not$owned)}
     if($owned){Assert-KmcChunk7OwnedReplayCustody $Request $o $nativeIds}
