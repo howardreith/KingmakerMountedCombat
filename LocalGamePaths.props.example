@@ -3,5 +3,13 @@
     <KingmakerInstallDir>C:\Path\To\Pathfinder Kingmaker</KingmakerInstallDir>
     <KingmakerManagedDir>$(KingmakerInstallDir)\Kingmaker_Data\Managed</KingmakerManagedDir>
     <UnityModManagerDir>$(KingmakerManagedDir)\UnityModManager</UnityModManagerDir>
+    <!-- Optional, read only by the loader checks (scripts/UmmLoaderContracts.ps1), never by the build.
+         UnityModManagerProfile: the reviewed profile of planning/UMM-LOADER-PROFILES.json that the loader in
+         UnityModManagerDir must be, for example umm-0.33.0. Leave it out and the checks require the installed
+         loader to be one of the reviewed profiles and report which.
+         UnityModManagerReferencePaths: further genuine UnityModManager.dll files held outside this repository,
+         separated by semicolons, for scripts/Test-UmmLoaderContractChecks.ps1. They are only read. -->
+    <!-- <UnityModManagerProfile>umm-0.33.0</UnityModManagerProfile> -->
+    <!-- <UnityModManagerReferencePaths>D:\References\umm-0.33.2\UnityModManager.dll</UnityModManagerReferencePaths> -->
   </PropertyGroup>
 </Project>

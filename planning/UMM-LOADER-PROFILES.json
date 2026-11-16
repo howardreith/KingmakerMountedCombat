@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Reviewed Unity Mod Manager loader identities for scripts/UmmLoaderContracts.ps1. A profile is an exact identity (version, SHA-256, MVID) of one genuine UnityModManager.dll with the record it came from. Identity is checked against one selected profile; API compatibility is checked separately against the reference binary itself. A profile is added only from a genuine binary or an existing repository record, never to make a check pass. No loader binary is stored in this repository.",
+  "declaredMinimum": {
+    "source": "Info.json ManagerVersion",
+    "value": "0.28.2",
+    "note": "The minimum the mod declares to the loader. It is a support declaration, not an identity pin, and is not raised to match the installed loader."
+  },
+  "profiles": [
+    {
+      "id": "umm-0.28.2",
+      "version": "0.28.2.0",
+      "sha256": "75b96e25a3a9fbadb47dd14a4ab490cb8c98143a6242aff3bba6145cd3047f39",
+      "mvid": "edf4be29-0c88-4482-876d-e946a0f9e363",
+      "length": null,
+      "uiTokens": { "get_Instance": "060000CA", "get_Opened": "060000CB", "ToggleWindow": "060000E3" },
+      "provenance": "Historical record only. Installed on the development machine from the first intake (planning/ENVIRONMENT-FINGERPRINT.json, 2026-08-13: 'Installed UMM is 0.28.2.0') until the owner's reinstall of 2026-10-16. SHA-256 and MVID are the values docs/CHUNK7-NATIVE-LOADER-IDENTITY.md records for run 20261012-chunk7b-world03. The UI tokens are the ones scripts/Test-AssemblyContracts.ps1 noted when it was re-pinned on 2026-10-17. The file length was not recorded.",
+      "lastInspected": null
+    },
+    {
+      "id": "umm-0.33.0",
+      "version": "0.33.0.0",
+      "sha256": "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691",
+      "mvid": "54059519-2754-445a-b5ee-fdb9326336e2",
+      "length": 204800,
+      "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
+      "provenance": "Hashed on 2026-11-15 from the loader installed in the development machine's Kingmaker (Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll, written 2026-09-05), the reference every 0.2.x build on that machine compiled against. It is the version the owner reported in play (docs/MOUNTED-ARCHERY-REGISTRATION-REPAIR-HANDOFF.md; docs/RATNOOK-DOOR-REPAIR-HANDOFF.md records the same SHA-256 prefix).",
+      "lastInspected": "2026-11-15"
+    },
+    {
+      "id": "umm-0.33.2",
+      "version": "0.33.2.0",
+      "sha256": "f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9",
+      "mvid": "914c93ba-b0bd-409f-9d38-84e575289dc2",
+      "length": 204800,
+      "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
+      "provenance": "Recorded on 2026-10-17 from the owner's reinstall of 2026-10-16 (docs/CHUNK7-NATIVE-LOADER-IDENTITY.md, planning/ENVIRONMENT-FINGERPRINT.json umm role); the loader of the chunk7 and finalization native evidence. Re-inspected on 2026-11-15 from a NuGet distribution copy held outside this repository, which is byte-identical to the recorded identity.",
+      "lastInspected": "2026-11-15"
+    }
+  ]
+}
