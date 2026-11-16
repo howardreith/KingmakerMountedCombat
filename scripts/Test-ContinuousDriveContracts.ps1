@@ -1082,6 +1082,44 @@ public static class KmcContinuousDriveProbe
                 }
                 finally { table.GetType().GetMethod("Remove").Invoke(table,new object[]{boundCommand}); }
             });
+        Check("PRODUCT-EXECUTED the compiled game adapter's own answers that need no live pair, on genuine engine objects: a command is held while its executor has it in a slot, in its queue or parked as the previous command, and not otherwise; the executor, the finished flag and a view's override are read from the exact objects handed in",
+            ()=>{
+                var hostType=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService+ContinuousDriveHost",true);
+                var adapter=FormatterServices.GetUninitializedObject(hostType);
+                var executor=FormatterServices.GetUninitializedObject(unit);
+                var container=Activator.CreateInstance(commands,new object[]{executor});
+                var set=false;
+                foreach(var field in unit.GetFields(Any)) if(field.FieldType==commands){ field.SetValue(executor,container); set=true; }
+                if(!set) throw new InvalidOperationException("the unit's command container field was not found");
+                var held=Activator.CreateInstance(continuous);
+                baseInitCall.Invoke(null,new object[]{held,executor});
+                Func<bool> isHeld=()=>(bool)hostType.GetMethod("IsHeld").Invoke(adapter,new object[]{held});
+                var slots=(Array)commands.GetField("m_Commands",Any).GetValue(container);
+                var nowhere=isHeld();
+                slots.SetValue(held,3);
+                var inSlot=isHeld();
+                slots.SetValue(null,3);
+                var queue=commands.GetProperty("Queue").GetValue(container,null);
+                queue.GetType().GetMethod("AddLast",new[]{command}).Invoke(queue,new object[]{held});
+                var inQueue=isHeld();
+                queue.GetType().GetMethod("Clear").Invoke(queue,null);
+                commands.GetProperty("PreviousCommand").SetValue(container,held,null);
+                var parked=isHeld();
+                commands.GetProperty("PreviousCommand").SetValue(container,null,null);
+                var afterwards=isHeld();
+                var unheldExecutorless=(bool)hostType.GetMethod("IsHeld").Invoke(adapter,new object[]{Activator.CreateInstance(continuous)});
+                var someView=FormatterServices.GetUninitializedObject(view);
+                var someAgent=FormatterServices.GetUninitializedObject(continuousAgent);
+                view.GetField("m_AgentOverride",Any).SetValue(someView,someAgent);
+                var finishedBefore=(bool)hostType.GetMethod("IsFinished").Invoke(adapter,new object[]{held});
+                command.GetField("<IsFinished>k__BackingField",Any).SetValue(held,true);
+                Console.WriteLine("INFO compiled adapter IsHeld: nowhere="+nowhere+", in a slot="+inSlot+", queued="+inQueue+", parked as previous="+parked+", afterwards="+afterwards);
+                return !nowhere && inSlot && inQueue && parked && !afterwards && !unheldExecutorless &&
+                    ReferenceEquals(hostType.GetMethod("ExecutorOf").Invoke(adapter,new object[]{held}),executor) &&
+                    !finishedBefore && (bool)hostType.GetMethod("IsFinished").Invoke(adapter,new object[]{held}) &&
+                    ReferenceEquals(hostType.GetMethod("OverrideOf").Invoke(adapter,new object[]{someView}),someAgent) &&
+                    hostType.GetMethod("OverrideOf").Invoke(adapter,new object[]{null})==null && hostType.GetMethod("OverrideOf").Invoke(adapter,new object[]{new object()})==null;
+            });
         Check("PRODUCT-IL the native end's guard finds a command's owner in the bound-command table and asks it with the view's current override; the hook writes only after the guard; the adapter's ClearOverride and that guarded native write are the only product code outside the rider's own agent lease that write UnitEntityView.AgentOverride",
             ()=>{
                 var guard=Body(Required(relationship,"ContinuousDriveEndMayClearOverride",2));
