@@ -11,6 +11,8 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$
 #   PRODUCT  the compiled KingmakerMountedCombat.dll: the arrival and in-area restoration read the exact views through
 #            one read-only adapter BEFORE their decision and before any attachment, the compiled decisions defer rather
 #            than attach, an explicit dismount releases the retained row, and the mounted invariant itself is unchanged.
+#            Review R1: the arrival placement of a deferred pair survives the compiled save conversion, codec and load
+#            adoption (the build of the reviewed commit f71fabe7 must FAIL these), and nothing else gains one.
 # -ProductDll reads another build (for example the build of the commit before this repair, which must FAIL the
 # PRODUCT group). Every check runs; the script exits 1 if any failed. This is not native gameplay evidence.
 $ErrorActionPreference='Stop'
@@ -300,7 +302,8 @@ public static class KmcPostLoadViewReadinessProbe
                 var patience=One(body,"MountedRetainedIntentPolicy","PatienceExpired");
                 var pair=One(body,"MountedRetainedIntentPolicy","DecidePair");
                 var attach=One(body,"MountedPersistenceService","RestoreRetainedPair");
-                var placement=One(body,"MountedRetainedIntentPolicy","ArrivalPlacementHeld");
+                // Review R1: the placement is judged from the row's recorded arrival placement.
+                var placement=One(body,"MountedRetainedIntentPolicy","StandsAtArrivalPlacement");
                 return decide<settled && settled<views && views<pair && patience<pair && placement<pair && pair<attach;
             });
         Check("PRODUCT an explicit dismount is delivered to the retained custody: the world constructor subscribes the pair-dismount notification",
@@ -429,6 +432,186 @@ public static class KmcPostLoadViewReadinessProbe
                 var settled=intent.GetMethod("Settled"); var patience=intent.GetMethod("PatienceExpired");
                 return (bool)settled.Invoke(null,new object[]{5,0.3f}) && !(bool)settled.Invoke(null,new object[]{4,9f}) && !(bool)settled.Invoke(null,new object[]{9,0.29f}) &&
                     (bool)patience.Invoke(null,new object[]{0f,10.01f}) && !(bool)patience.Invoke(null,new object[]{0f,10f}) && !(bool)patience.Invoke(null,new object[]{-1f,999f});
+            });
+
+        // ---- PRODUCT, review R1: a deferred pair's arrival placement through a save and its load ----
+        // The compiled conversions themselves, driven detached: custody row -> save row (ToRecords) -> member text
+        // (the capture conversion and codec) -> decoded record -> adopted rows -> custody row (ToAdoptedPairs).
+        var pairRecord=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPairRecord",true);
+        var intentRecord=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentRecord",true);
+        var capture=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentCapture",true);
+        var kindType=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentKind",true);
+        var adoption=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentAdoption",false);
+        var placementType=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedArrivalPlacement",false);
+        const string SavedCampaign="f7e1c1a8-2b7d-4a55-9c3e-5d1b0a6e4f21", SavedArea="0123456789abcdef0123456789abcdef";
+        const string SavedRider="11111111-2222-3333-4444-555555555555", SavedMount="66666666-7777-8888-9999-aaaaaaaaaaaa";
+        const string SavedOwner="aaaaaaaabbbbccccddddeeeeeeeeeeee", SavedProfile="medium-humanoid-horse-v1";
+        const string VersionOne="KMC-RETAINED-INTENT 1\ncampaign "+SavedCampaign+"\narea "+SavedArea+"\ntime 42\nkind WorldMapTravel\npair "+
+            SavedRider+" "+SavedMount+" "+SavedProfile+" "+SavedOwner+" 3\n";
+        // A custody row of a retained pair. With an area: deferred at a nine-metre arrival placement observed there.
+        Func<string,object> custodyRow=observedIn=>{
+            var row=Row(pairType,SavedRider,SavedMount);
+            pairType.GetField("ProfileId",All).SetValue(row,SavedProfile);
+            pairType.GetField("OwnerId",All).SetValue(row,SavedOwner);
+            pairType.GetField("Generation",All).SetValue(row,3L);
+            if(observedIn==null) return row;
+            var arrivalField=pairType.GetField("Arrival",All);
+            if(arrivalField!=null){ arrivalField.SetValue(row,Activator.CreateInstance(placementType,new object[]{observedIn,0f,0f,0f,9f,0f,0f})); return row; }
+            // The reviewed build held the same fact as a flag and two positions that no save carried.
+            pairType.GetField("ArrivalDeferred",All).SetValue(row,true);
+            var vector=pairType.GetField("ArrivalMountPosition",All).FieldType;
+            pairType.GetField("ArrivalRiderPosition",All).SetValue(row,Activator.CreateInstance(vector,new object[]{0f,0f,0f}));
+            pairType.GetField("ArrivalMountPosition",All).SetValue(row,Activator.CreateInstance(vector,new object[]{9f,0f,0f}));
+            return row;
+        };
+        Func<object,bool,string> saveText=(row,retainedCustody)=>{
+            var rows=Array.CreateInstance(pairType,1); rows.SetValue(row,0);
+            var toRecords=Method(persistence,"ToRecords",-1);
+            var records=toRecords.GetParameters().Length==2 ? toRecords.Invoke(null,new object[]{rows,retainedCustody}) : toRecords.Invoke(null,new object[]{rows});
+            var mounted=new HashSet<string>();
+            var kind=Enum.Parse(kindType,"WorldMapTravel");
+            var save=capture.GetMethod("SaveText");
+            if(save!=null) return (string)save.Invoke(null,new object[]{SavedCampaign,SavedArea,42L,kind,records,mounted,null});
+            // The reviewed build composed the record inside CaptureRetainedIntentRecord: the same steps, by hand.
+            var record=Activator.CreateInstance(intentRecord);
+            intentRecord.GetProperty("CampaignId").SetValue(record,SavedCampaign,null);
+            intentRecord.GetProperty("AreaId").SetValue(record,SavedArea,null);
+            intentRecord.GetProperty("GameTimeTicks").SetValue(record,42L,null);
+            intentRecord.GetProperty("Kind").SetValue(record,kind,null);
+            intentRecord.GetProperty("Pairs").SetValue(record,intentRecord.GetMethod("Recordable").Invoke(null,new object[]{records,mounted}),null);
+            return (string)intentRecord.GetMethod("Encode").Invoke(record,null);
+        };
+        Func<string,string,Array> adoptedRows=(text,campaign)=>{
+            var decoded=intentRecord.GetMethod("Decode").Invoke(null,new object[]{text});
+            if(adoption==null) throw new InvalidOperationException("this build has no adoption conversion: the load rebuilds a custody row from its identity fields only");
+            var adopted=adoption.GetMethod("Pairs").Invoke(null,new object[]{decoded,campaign,SavedArea,42L,null});
+            return (Array)Method(persistence,"ToAdoptedPairs",1).Invoke(null,new object[]{adopted});
+        };
+        Func<float,bool,string> retry=(separation,placementHeld)=>{
+            var pair=intent.GetMethod("DecidePair");
+            return pair.Invoke(null,new object[]{true,true,false,false,null,separation,6f,true,false,false,
+                Enum.Parse(pair.GetParameters()[10].ParameterType,"Unavailable"),false,null,placementHeld}).ToString();
+        };
+        Check("PRODUCT R1 a deferred pair's arrival placement survives the compiled save conversion, codec and adoption conversion, and the compiled retry then restores the nine-metre pair",
+            ()=>{
+                var text=saveText(custodyRow(SavedArea),true);
+                if(pairRecord.GetProperty("Arrival")==null)
+                    throw new InvalidOperationException("the saved pair row has nowhere to hold the arrival placement; the save text is "+text.Replace("\n","/"));
+                var rows=adoptedRows(text,SavedCampaign);
+                if(rows.Length!=1) throw new InvalidOperationException(rows.Length+" rows were adopted");
+                var row=rows.GetValue(0);
+                var arrival=pairType.GetField("Arrival",All).GetValue(row);
+                if(arrival==null) throw new InvalidOperationException("the adopted custody row has no arrival placement");
+                if((string)pairType.GetField("RiderId",All).GetValue(row)!=SavedRider || (string)pairType.GetField("MountId",All).GetValue(row)!=SavedMount ||
+                    (string)pairType.GetField("ProfileId",All).GetValue(row)!=SavedProfile || (string)pairType.GetField("OwnerId",All).GetValue(row)!=SavedOwner ||
+                    (long)pairType.GetField("Generation",All).GetValue(row)!=3L || !(bool)pairType.GetField("Carried",All).GetValue(row))
+                    throw new InvalidOperationException("the adopted custody row lost its identity");
+                var stands=intent.GetMethod("StandsAtArrivalPlacement");
+                var held=(bool)stands.Invoke(null,new object[]{arrival,SavedArea,true,0f,0f,0f,9f,0f,0f});
+                var moved=(bool)stands.Invoke(null,new object[]{arrival,SavedArea,true,0f,0f,0f,12f,0f,0f});
+                var unresolved=(bool)stands.Invoke(null,new object[]{arrival,SavedArea,false,0f,0f,0f,9f,0f,0f});
+                var elsewhere=(bool)stands.Invoke(null,new object[]{arrival,"fedcba9876543210fedcba9876543210",true,0f,0f,0f,9f,0f,0f});
+                if(elsewhere) throw new InvalidOperationException("the placement was honoured in another area than the one it was observed in");
+                return text==VersionOne.Replace("KMC-RETAINED-INTENT 1","KMC-RETAINED-INTENT 2")+"arrival "+SavedRider+" "+SavedMount+" 0 0 0 9 0 0\n" &&
+                    held && !moved && !unresolved && retry(9f,held)=="Restore" && retry(12f,moved)=="Drop";
+            });
+        Check("PRODUCT R1 compiled: a row without a placement, a placement of another area, a transfer row, a version 1 text and another world stay ordinary retained intent or adopt nothing",
+            ()=>{
+                if(saveText(custodyRow(null),true)!=VersionOne) throw new InvalidOperationException("the version 1 text of an ordinary retained pair changed");
+                if(saveText(custodyRow("fedcba9876543210fedcba9876543210"),true)!=VersionOne) throw new InvalidOperationException("a placement observed in another area was saved");
+                if(saveText(custodyRow(SavedArea),false)!=VersionOne) throw new InvalidOperationException("a row of a transfer in flight saved an arrival placement");
+                var rows=adoptedRows(VersionOne,SavedCampaign);
+                if(rows.Length!=1 || pairType.GetField("Arrival",All).GetValue(rows.GetValue(0))!=null)
+                    throw new InvalidOperationException("a version 1 record gained an arrival placement at adoption");
+                if(adoptedRows(saveText(custodyRow(SavedArea),true),"7f9619ff-8b86-d011-b42d-00cf4fc964ff").Length!=0)
+                    throw new InvalidOperationException("another campaign adopted the record");
+                var stands=intent.GetMethod("StandsAtArrivalPlacement");
+                return !(bool)stands.Invoke(null,new object[]{null,SavedArea,true,0f,0f,0f,9f,0f,0f}) && retry(9f,false)=="Drop" && retry(4f,false)=="Restore";
+            });
+        Check("PRODUCT R1 the load adoption admits the selecting load, then the exact world, then takes its rows from the adoption conversion; the save takes its text from the capture conversion",
+            ()=>{
+                var adopt=Body(Method(persistence,"AdoptLoadedRetainedIntent",0));
+                var current=One(adopt,"MountedRetainedIntentAdoption","SelectingLoadIsCurrent");
+                var world=One(adopt,"MountedRetainedIntentRecord","MatchesLoadedWorld");
+                var rows=One(adopt,"MountedRetainedIntentAdoption","Pairs");
+                var project=One(adopt,"MountedPersistenceService","ToAdoptedPairs");
+                var slots=One(adopt,"MountedRetainedIntentAdoption","Slots");
+                var save=Body(Method(persistence,"CaptureRetainedIntentRecord",0));
+                var records=Find(save,"MountedPersistenceService","ToRecords");
+                // Rows of the retained custody may carry a placement (true); rows of a transfer in flight never (false).
+                return current<world && world<rows && rows<project && project<slots &&
+                    records.Count==2 && save[records[0]-1].Op==OpCodes.Ldc_I4_1 && save[records[1]-1].Op==OpCodes.Ldc_I4_0 &&
+                    One(save,"MountedRetainedIntentCapture","PendingRows")<One(save,"MountedRetainedIntentCapture","SaveText") &&
+                    Find(save,"MountedRetainedIntentRecord","Encode").Count==0;
+            });
+        Check("PRODUCT R1 a custody row's arrival placement is written only at an arrival deferral and when a saved row is adopted, so no newer transfer or world-map custody inherits it",
+            ()=>{
+                var arrivalField=pairType.GetField("Arrival",All);
+                if(arrivalField==null) throw new InvalidOperationException("the custody row has no arrival placement field in this build");
+                var types=new List<Type>{persistence};
+                types.AddRange(persistence.GetNestedTypes(BindingFlags.Public|BindingFlags.NonPublic));
+                var writers=new List<string>();
+                var scanned=0;
+                foreach(var type in types)
+                    foreach(var member in type.GetMembers(All))
+                    {
+                        var method=member as MethodBase;
+                        if(method==null || method.GetMethodBody()==null) continue;
+                        scanned++;
+                        foreach(var ins in Body(method))
+                            if(ins.Op==OpCodes.Stfld && ins.Field!=null && ins.Field.DeclaringType==pairType && ins.Field.Name=="Arrival") writers.Add(method.Name);
+                    }
+                writers.Sort(StringComparer.Ordinal);
+                var names=string.Join(",",writers.ToArray());
+                if(scanned<200 || writers.Count!=2 || !writers.Contains("MarkArrivalDeferred") || names.IndexOf("ToAdoptedPairs",StringComparison.Ordinal)<0)
+                    throw new InvalidOperationException("scanned "+scanned+" methods; written by "+names);
+                return true;
+            });
+        Check("PRODUCT R1 a row carried into a newer transfer, the world-map custody or a deferral is a new row without the arrival placement, and those three sites copy through it",
+            ()=>{
+                var copy=Method(pairType,"CarriedCopy",0);
+                var row=custodyRow(SavedArea);
+                pairType.GetField("EligibleSince",All).SetValue(row,3f);
+                pairType.GetField("RegroupAttempts",All).SetValue(row,2);
+                pairType.GetField("StagingBoundary",All).SetValue(row,"scene");
+                var participationField=pairType.GetField("Participation",All);
+                var participation=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(participationField.FieldType);
+                participationField.SetValue(row,participation);
+                var copied=copy.Invoke(row,null);
+                if(ReferenceEquals(copied,row)) throw new InvalidOperationException("the carried row is the same object");
+                if(pairType.GetField("Arrival",All).GetValue(row)==null) throw new InvalidOperationException("the probe row has no placement");
+                if(pairType.GetField("Arrival",All).GetValue(copied)!=null) throw new InvalidOperationException("the carried row kept the arrival placement");
+                if((string)pairType.GetField("RiderId",All).GetValue(copied)!=SavedRider || (string)pairType.GetField("MountId",All).GetValue(copied)!=SavedMount ||
+                    (string)pairType.GetField("ProfileId",All).GetValue(copied)!=SavedProfile || (string)pairType.GetField("OwnerId",All).GetValue(copied)!=SavedOwner ||
+                    (long)pairType.GetField("Generation",All).GetValue(copied)!=3L || !(bool)pairType.GetField("Carried",All).GetValue(copied) ||
+                    !ReferenceEquals(participationField.GetValue(copied),participation))
+                    throw new InvalidOperationException("the carried row lost its identity or its captured participation");
+                if((float)pairType.GetField("EligibleSince",All).GetValue(copied)!=-1f || (int)pairType.GetField("RegroupAttempts",All).GetValue(copied)!=0 ||
+                    pairType.GetField("StagingBoundary",All).GetValue(copied)!=null)
+                    throw new InvalidOperationException("the carried row kept transient state");
+                var types=new List<Type>{persistence};
+                types.AddRange(persistence.GetNestedTypes(BindingFlags.Public|BindingFlags.NonPublic));
+                int departure=0, arrival=0;
+                foreach(var type in types)
+                    foreach(var member in type.GetMembers(All))
+                    {
+                        var method=member as MethodBase;
+                        if(method==null || method.GetMethodBody()==null) continue;
+                        var copies=Find(Body(method),"AreaPair","CarriedCopy").Count;
+                        if(method.Name.IndexOf("BeginAreaTransition",StringComparison.Ordinal)>=0) departure+=copies;
+                        else if(method.Name.IndexOf("RestoreAreaPair",StringComparison.Ordinal)>=0) arrival+=copies;
+                        else if(copies!=0) throw new InvalidOperationException("an unexpected site copies a carried row: "+method.Name);
+                    }
+                // The departure of a newer transfer; the world-map custody and the deferred departing pair at arrival.
+                if(departure!=1 || arrival!=2) throw new InvalidOperationException("carried copies: departure "+departure+", arrival "+arrival);
+                return true;
+            });
+        Check("PRODUCT R1 the retained-intent member and its bound are unchanged: kmc-retained-intent, 4096 bytes in storage and 4096 characters in the record",
+            ()=>{
+                var storage=product.GetType("KingmakerMountedCombat.Integration.NativeMountedSaveStorage",true);
+                return (int)storage.GetField("MaximumRetainedIntentBytes",All).GetRawConstantValue()==4096 &&
+                    (int)intentRecord.GetField("MaximumCharacters").GetRawConstantValue()==4096 &&
+                    (string)storage.GetField("RetainedIntentMember",All).GetRawConstantValue()=="kmc-retained-intent";
             });
         Console.WriteLine("POST-LOAD VIEW READINESS CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;

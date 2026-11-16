@@ -16,10 +16,11 @@ namespace KingmakerMountedCombat.Tests
     // RestoreRetainedIntentCore and GameMountedRelationshipService.ValidateActivePair call them. That the compiled
     // integration makes the same calls in the same order is checked by scripts/Test-PostLoadViewReadinessContracts.ps1.
     // Nothing here is native evidence.
-    internal static class PostLoadViewReadinessTests
+    internal static partial class PostLoadViewReadinessTests
     {
         public static void Register(TestRunner runner)
         {
+            RegisterSaveAndLoad(runner);
             runner.Run("S02 restore readiness is exactly what the mounted invariant accepts in ordinary play, for all thirty-two observations", ReadinessIsTheSettledInvariant);
             runner.Run("S02 the prior arrival decision reproduces the recorded dismount; the readiness term attaches nothing to inactive views", PriorDecisionReproducesRecordedDismount);
             runner.Run("S02 1 recorded ordering: the pair attaches once when its exact views become active and stays valid", RecordedOrdering);
@@ -40,7 +41,9 @@ namespace KingmakerMountedCombat.Tests
 
         private sealed class Actor
         {
-            internal readonly string Id = Guid.NewGuid().ToString();
+            // A unit a load deserialised has the stable id of the unit that was saved.
+            internal readonly string Id;
+            internal Actor(string id = null) { Id = id ?? Guid.NewGuid().ToString(); }
             internal View View = new View();
             internal bool Present = true, Controllable = true, Alive = true;
             // Position along one axis, in metres.
@@ -63,14 +66,18 @@ namespace KingmakerMountedCombat.Tests
         // One pair boundary: what GameMountedRelationshipService holds for a pair.
         private sealed class Pair
         {
-            internal readonly Actor Rider = new Actor(), Mount = new Actor();
+            internal readonly Actor Rider, Mount;
             internal readonly CountingRuntime Runtime = new CountingRuntime();
             internal readonly MountedRelationshipCoordinator Coordinator;
             internal View CapturedRider, CapturedMount;
             internal MountedPairOwner<Actor, object> Owner;
             internal CleanupTrigger? LastTrigger;
             internal int VoluntaryMounts, SavedRestores;
-            internal Pair() { Coordinator = new MountedRelationshipCoordinator(Runtime); }
+            internal Pair(string riderId = null, string mountId = null)
+            {
+                Rider = new Actor(riderId); Mount = new Actor(mountId);
+                Coordinator = new MountedRelationshipCoordinator(Runtime);
+            }
             internal bool Mounted => Coordinator.State == RelationshipState.Mounted;
         }
 
@@ -78,13 +85,16 @@ namespace KingmakerMountedCombat.Tests
         {
             internal Pair Pair; internal Guid OwnerId; internal long Generation; internal float EligibleSince = -1f;
             internal object World;
-            // AreaPair.ArrivalDeferred and the arrival placement of its rider and mount (transient).
-            internal bool ArrivalDeferred; internal float ArrivalRiderX, ArrivalMountX;
+            // AreaPair.Arrival: the production record of where native arrival placed the rider and mount of a pair
+            // deferred for its views (null for every other row).
+            internal MountedRetainedArrivalPlacement Arrival;
         }
 
-        private sealed class Harness
+        private sealed partial class Harness
         {
             internal object World = new object();
+            // The area this world has loaded (Game.CurrentlyLoadedArea).
+            internal string Area = SaveArea;
             internal const string Campaign = "campaign";
             internal readonly MountedPairRegistry<Actor, object> Registry = new MountedPairRegistry<Actor, object>(a => a.Id);
             internal readonly List<Pair> Pairs = new List<Pair>();
@@ -188,8 +198,10 @@ namespace KingmakerMountedCombat.Tests
                     var refusal = candidate?.ValidateSavedRelationship();
                     var permanent = candidate != null && (!candidate.ExactReciprocalCompanionRelationship ||
                         !candidate.RiderIsAliveAndConscious || !candidate.MountIsAliveAndConscious);
-                    // A newer transfer copies its carried rows, so nothing of an earlier arrival placement travels.
-                    row.ArrivalDeferred = false;
+                    // A newer transfer copies its carried rows (AreaPair.CarriedCopy), so nothing of an earlier arrival
+                    // placement travels. This line stands for that copy; the compiled copy itself is driven by
+                    // scripts/Test-PostLoadViewReadinessContracts.ps1.
+                    row.Arrival = null;
                     var viewRefusal = ConsultViews && present && refusal == null ? ViewRefusal(pair) : null;
                     var arrival = ConsultViews
                         ? MountedRetainedIntentPolicy.DecideCarriedArrival(Combat, present, present, permanent, refusal, false, viewRefusal)
@@ -197,7 +209,7 @@ namespace KingmakerMountedCombat.Tests
                     if (arrival == MountedCarriedArrivalDecision.Retain)
                     {
                         // MarkArrivalDeferred: only a pair that nothing but its views held back.
-                        if (viewRefusal != null) { row.ArrivalDeferred = true; row.ArrivalRiderX = pair.Rider.X; row.ArrivalMountX = pair.Mount.X; }
+                        if (viewRefusal != null) row.Arrival = new MountedRetainedArrivalPlacement(Area, pair.Rider.X, 0f, 0f, pair.Mount.X, 0f, 0f);
                         continue;
                     }
                     Retained.Remove(row);
@@ -247,8 +259,8 @@ namespace KingmakerMountedCombat.Tests
                         !candidate.RiderIsAliveAndConscious || !candidate.MountIsAliveAndConscious);
                     var alreadyMounted = Pairs.Any(other => other.Coordinator.State != RelationshipState.Unmounted &&
                         (ReferenceEquals(other.Rider, pair.Rider) || ReferenceEquals(other.Mount, pair.Mount)));
-                    var held = MountedRetainedIntentPolicy.ArrivalPlacementHeld(row.ArrivalDeferred && present,
-                        Math.Abs(pair.Rider.X - row.ArrivalRiderX), Math.Abs(pair.Mount.X - row.ArrivalMountX));
+                    var held = MountedRetainedIntentPolicy.StandsAtArrivalPlacement(row.Arrival, Area, present,
+                        pair.Rider.X, 0f, 0f, pair.Mount.X, 0f, 0f);
                     var pairDecision = MountedRetainedIntentPolicy.DecidePair(candidate != null, candidate != null, alreadyMounted, permanent,
                         refusal, Math.Abs(pair.Rider.X - pair.Mount.X), MountedRetainedIntentPolicy.MaximumSeparationMetres(Kind), true, expired,
                         false, MountedRegroupState.Unavailable, false, viewRefusal, held);
@@ -730,7 +742,7 @@ namespace KingmakerMountedCombat.Tests
             // six metres of the world-map retry. Nothing moved them, so the deferred pair restores as the arrival
             // restoration always did.
             var held = ArriveFromWorldMap(out var apart, out var heldRow, riderX: 0f, mountX: 9f);
-            TestRunner.True(heldRow.ArrivalDeferred && !apart.Mounted, "The arrival placement of a deferred pair was not kept.");
+            TestRunner.True(heldRow.Arrival != null && !apart.Mounted, "The arrival placement of a deferred pair was not kept.");
             held.Loading = false;
             apart.Rider.Wake(); apart.Mount.Wake();
             held.Play(0f, 10);
@@ -762,7 +774,7 @@ namespace KingmakerMountedCombat.Tests
 
             // A pair retained at arrival for any other reason (here the arrival mode) never gets the arrival geometry.
             var other = ArriveFromWorldMap(out var scene, out var otherRow, riderX: 0f, mountX: 9f, arrivalMode: "Cutscene");
-            TestRunner.True(!otherRow.ArrivalDeferred && other.Retained.Count == 1, "A pair retained for another refusal was marked as deferred for its views.");
+            TestRunner.True(otherRow.Arrival == null && other.Retained.Count == 1, "A pair retained for another refusal was marked as deferred for its views.");
             other.Loading = false;
             scene.Rider.Wake(); scene.Mount.Wake();
             other.Play(0f, 10);
@@ -772,7 +784,7 @@ namespace KingmakerMountedCombat.Tests
             again.BoundaryOwned = true;
             again.Mode = "Cutscene";
             again.Arrive(FullLoadTransfer());
-            TestRunner.True(!twiceRow.ArrivalDeferred && !twice.Mounted, "An earlier arrival placement travelled into a newer transfer.");
+            TestRunner.True(twiceRow.Arrival == null && !twice.Mounted, "An earlier arrival placement travelled into a newer transfer.");
 
             // The policy itself.
             var tolerance = MountedRetainedIntentPolicy.ArrivalPlacementToleranceMetres;

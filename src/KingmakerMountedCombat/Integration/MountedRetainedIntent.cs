@@ -408,6 +408,9 @@ namespace KingmakerMountedCombat.Integration
                 if (!stagingOwned) pair.StagingOwnedSince = -1d;
                 else if (pair.StagingOwnedSince < 0d) pair.StagingOwnedSince = gameSeconds;
                 var stagingExpired = stagingOwned && gameSeconds - pair.StagingOwnedSince > MountedSceneContinuityPolicy.StagingPatienceSeconds;
+                var unknown = new UnityEngine.Vector3(float.NaN, float.NaN, float.NaN);
+                var riderAt = rider != null ? rider.Position : unknown;
+                var mountAt = mount != null ? mount.Position : unknown;
                 var pairDecision = MountedRetainedIntentPolicy.DecidePair(
                     candidate != null,
                     candidate != null && SupportedMountedProfiles.Resolve(rider, mount)?.Id == pair.ProfileId,
@@ -422,10 +425,11 @@ namespace KingmakerMountedCombat.Integration
                     regroup,
                     stagingExpired,
                     viewRefusal,
-                    // A pair deferred at arrival that has not moved since keeps the arrival placement's own geometry.
-                    MountedRetainedIntentPolicy.ArrivalPlacementHeld(pair.ArrivalDeferred && rider != null && mount != null,
-                        rider != null ? (rider.Position - pair.ArrivalRiderPosition).magnitude : float.NaN,
-                        mount != null ? (mount.Position - pair.ArrivalMountPosition).magnitude : float.NaN));
+                    // A pair deferred at arrival that has not moved since keeps the arrival placement's own geometry
+                    // (review R1: from the recorded placement, in the session of the arrival and after loading a save
+                    // written before the remount alike).
+                    MountedRetainedIntentPolicy.StandsAtArrivalPlacement(pair.Arrival, area?.AssetGuidThreadSafe, rider != null && mount != null,
+                        riderAt.x, riderAt.y, riderAt.z, mountAt.x, mountAt.y, mountAt.z));
                 if (pairDecision == MountedRetainedPairDecision.Retry) { remaining.Add(pair); continue; }
                 if (pairDecision == MountedRetainedPairDecision.Regroup)
                 {
@@ -675,19 +679,20 @@ namespace KingmakerMountedCombat.Integration
                     retainedIntent.CampaignId == player.GameId ? retainedIntent : null;
                 var transfer = areaTransfer != null && ReferenceEquals(areaTransfer.World.Target, player) ? areaTransfer : null;
                 var transferPending = transfer != null && !transfer.Lifecycle.ResumeAttempted;
-                var rows = MountedRetainedIntentCapture.PendingRows(ToRecords(retained?.Pairs), ToRecords(transfer?.Pairs), !transferPending);
+                // Review R1: an arrival placement travels only with a row of the retained custody, never with a row of a
+                // transfer still in flight; the capture conversion keeps it only for the area it was observed in.
+                var rows = MountedRetainedIntentCapture.PendingRows(ToRecords(retained?.Pairs, true), ToRecords(transfer?.Pairs, false),
+                    !transferPending);
                 var kind = MountedRetainedIntentCapture.Kind(retainedIntentKind, transferPending && transfer.Pairs.Length != 0,
                     transfer?.WorldMap ?? false, transfer?.CarriedKind ?? MountedRetainedIntentKind.WorldMapTravel);
                 var mounted = new HashSet<string>(WorldRelationships.Where(r => r.State == RelationshipState.Mounted)
                     .SelectMany(r => new[] { r.Rider?.UniqueId, r.Mount?.UniqueId }).Where(id => id != null), StringComparer.Ordinal);
-                var records = MountedRetainedIntentRecord.Recordable(rows, mounted);
-                if (records.Length == 0) return null;
                 // Second owner review finding 3: the retained pairs' own control rows travel with their intent.
                 var slotRows = (retained?.Slots ?? new SavedMountedSlot[0]).Concat(transferPending ? transfer.Slots : new SavedMountedSlot[0])
                     .Select(s => new MountedRetainedIntentSlotRecord { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind });
-                var text = new MountedRetainedIntentRecord { CampaignId = player.GameId, AreaId = area.AssetGuidThreadSafe,
-                    GameTimeTicks = game.TimeController.GameTime.Ticks, Kind = kind, Pairs = records,
-                    Slots = MountedRetainedIntentRecord.RecordableSlots(slotRows, records) }.Encode();
+                var text = MountedRetainedIntentCapture.SaveText(player.GameId, area.AssetGuidThreadSafe,
+                    game.TimeController.GameTime.Ticks, kind, rows, mounted, slotRows);
+                if (text == null) return null;
                 RetainedSavedCount++;
                 return text;
             }
@@ -698,9 +703,16 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private static IEnumerable<MountedRetainedIntentPairRecord> ToRecords(IEnumerable<AreaPair> pairs) =>
-            (pairs ?? Enumerable.Empty<AreaPair>()).Select(p => new MountedRetainedIntentPairRecord {
-                RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId, Generation = p.Generation });
+        // The two projections between a custody row and a save row. Every decision about what a row may carry is in
+        // the Domain (MountedRetainedIntentCapture.Row, MountedRetainedIntentAdoption.Pairs); these only copy fields.
+        private static IEnumerable<MountedRetainedIntentPairRecord> ToRecords(IEnumerable<AreaPair> pairs, bool retainedCustody) =>
+            (pairs ?? Enumerable.Empty<AreaPair>()).Select(p => MountedRetainedIntentCapture.Row(
+                p.RiderId, p.MountId, p.ProfileId, p.OwnerId, p.Generation, p.Arrival, retainedCustody));
+
+        private static AreaPair[] ToAdoptedPairs(IEnumerable<MountedRetainedIntentPairRecord> adopted) =>
+            (adopted ?? Enumerable.Empty<MountedRetainedIntentPairRecord>()).Select(p => new AreaPair { RiderId = p.RiderId,
+                MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId, Generation = p.Generation, Carried = true,
+                Arrival = p.Arrival }).ToArray();
 
         private void ClearPendingLoadedRetainedIntent() { pendingLoadedRetainedIntent = null; pendingLoadedRetainedSequence = -1; }
 
@@ -734,7 +746,7 @@ namespace KingmakerMountedCombat.Integration
             if (record == null) return;
             ClearPendingLoadedRetainedIntent();
             // Only the exact load that selected the record, still current, may adopt it.
-            if (restoreLoad == null || restoreLoad.Sequence != sequence || loadSequence != sequence)
+            if (!MountedRetainedIntentAdoption.SelectingLoadIsCurrent(sequence, restoreLoad != null, restoreLoad?.Sequence ?? -1, loadSequence))
             {
                 logger.Warning("Saved retained mounted intent belongs to a replaced or cancelled load; it is ignored.");
                 return;
@@ -751,13 +763,14 @@ namespace KingmakerMountedCombat.Integration
                 }
                 var archived = new HashSet<string>((LoadedArchiveData?.Pairs ?? new SavedMountedPair[0])
                     .SelectMany(p => new[] { p?.Rider?.Id, p?.Mount?.Id }).Where(id => id != null), StringComparer.Ordinal);
-                var pairs = record.Pairs.Where(p => !archived.Contains(p.RiderId) && !archived.Contains(p.MountId))
-                    .Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId,
-                        OwnerId = p.OwnerId, Generation = p.Generation, Carried = true }).ToArray();
+                // Review R1: the adopted rows keep exactly what the record holds for them, an arrival placement included
+                // when (and only when) the save carried one.
+                var adopted = MountedRetainedIntentAdoption.Pairs(record, player.GameId, game.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                    game.TimeController.GameTime.Ticks, archived);
+                var pairs = ToAdoptedPairs(adopted);
                 if (pairs.Length == 0) return;
-                var adoptedActors = new HashSet<string>(pairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
                 retainedIntent = new AreaTransfer { World = new WeakReference(player), CampaignId = player.GameId, AreaId = record.AreaId,
-                    Pairs = pairs, Slots = record.Slots.Where(s => adoptedActors.Contains(s.ActorId))
+                    Pairs = pairs, Slots = MountedRetainedIntentAdoption.Slots(record, adopted)
                         .Select(s => new SavedMountedSlot { ActorId = s.ActorId, Index = s.Index, Kind = s.Kind }).ToArray() };
                 retainedIntentKind = record.Kind;
                 ResetRetainedSettle();

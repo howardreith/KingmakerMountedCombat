@@ -198,8 +198,7 @@ namespace KingmakerMountedCombat.Integration
             var departingIds = new HashSet<string>(departing.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
             var carriedPairs = (carried?.Pairs ?? new AreaPair[0])
                 .Where(p => !departingIds.Contains(p.RiderId) && !departingIds.Contains(p.MountId))
-                .Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId, OwnerId = p.OwnerId,
-                    Generation = p.Generation, Participation = p.Participation, Carried = true }).ToArray();
+                .Select(p => p.CarriedCopy()).ToArray();
             var slots = controls.CapturePersistentSlots();
             // Third owner review: merge live and retained control rows per logical row, never per actor.
             var mergedSlots = MountedRetainedIntentRecord.MergeSlotRows(
@@ -280,8 +279,7 @@ namespace KingmakerMountedCombat.Integration
                     // fails to resolve must never be able to latch the all-pair failure at the next arrival.
                     var pairActors = new HashSet<string>(transfer.Pairs.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
                     retainedIntent = new AreaTransfer { World = transfer.World, CampaignId = transfer.CampaignId, AreaId = transfer.AreaId,
-                        Pairs = transfer.Pairs.Select(p => new AreaPair { RiderId = p.RiderId, MountId = p.MountId, ProfileId = p.ProfileId,
-                            OwnerId = p.OwnerId, Generation = p.Generation, Participation = p.Participation, Carried = true }).ToArray(),
+                        Pairs = transfer.Pairs.Select(p => p.CarriedCopy()).ToArray(),
                         Slots = transfer.Slots.Where(s => pairActors.Contains(s.ActorId)).ToArray() };
                     retainedIntentKind = MountedRetainedIntentKind.WorldMapTravel;
                     ResetRetainedSettle();
@@ -382,8 +380,7 @@ namespace KingmakerMountedCombat.Integration
                     if (departing == MountedDepartingArrivalDecision.Fail)
                         throw new InvalidOperationException("Area relationship was not eligible: " + refusal);
                     if (departing == MountedDepartingArrivalDecision.Retire) { retire.Add(pair); continue; }
-                    var deferred = new AreaPair { RiderId = pair.RiderId, MountId = pair.MountId, ProfileId = pair.ProfileId,
-                        OwnerId = pair.OwnerId, Generation = pair.Generation, Participation = pair.Participation, Carried = true };
+                    var deferred = pair.CarriedCopy();
                     carriedRetained.Add(deferred);
                     MarkArrivalDeferred(transfer, deferred, rider, mount, views);
                 }
@@ -607,15 +604,15 @@ namespace KingmakerMountedCombat.Integration
 
         internal int ArrivalViewDeferralCount { get; private set; }
 
-        // Known issues S02: the pair keeps where native arrival placed its rider and mount (transient, never saved), so
-        // the in-area retry can tell the arrival placement from a later relocation. One bounded line per deferred pair
-        // per arrival (never per frame).
+        // Known issues S02: the pair keeps where native arrival placed its rider and mount, so the in-area retry can tell
+        // the arrival placement from a later relocation. Review R1: a save written before the remount carries it (retained
+        // intent record version 2), so loading that save judges the pair as the session of the arrival would. One bounded
+        // line per deferred pair per arrival (never per frame).
         private void MarkArrivalDeferred(AreaTransfer transfer, AreaPair pair, Kingmaker.EntitySystem.Entities.UnitEntityData rider,
             Kingmaker.EntitySystem.Entities.UnitEntityData mount, string views)
         {
-            pair.ArrivalDeferred = true;
-            pair.ArrivalRiderPosition = rider.Position;
-            pair.ArrivalMountPosition = mount.Position;
+            pair.Arrival = new MountedRetainedArrivalPlacement(transfer.AreaId, rider.Position.x, rider.Position.y, rider.Position.z,
+                mount.Position.x, mount.Position.y, mount.Position.z);
             ArrivalViewDeferralCount++;
             try
             {
@@ -646,10 +643,16 @@ namespace KingmakerMountedCombat.Integration
             internal double StagingOwnedSince = -1d;
             internal int RegroupAttempts;
             internal string StagingBoundary;
-            // Known issues S02, transient (never saved): this pair was eligible at its arrival placement but its views
-            // were not active; where native arrival placed its rider and mount.
-            internal bool ArrivalDeferred;
-            internal UnityEngine.Vector3 ArrivalRiderPosition, ArrivalMountPosition;
+            // Known issues S02: this pair was eligible at its arrival placement but its views were not active; where
+            // native arrival placed its rider and mount (null for every other row). Written only by MarkArrivalDeferred
+            // and by the adoption of a saved record that holds it; every copy of a row into a newer transfer or a
+            // world-map custody leaves it out, so it never outlives the arrival it describes.
+            internal MountedRetainedArrivalPlacement Arrival;
+
+            // This row as a newer transfer, the world-map custody or a deferral carries it: its identity and captured
+            // participation, as carried intent. Nothing transient travels, and never an arrival placement.
+            internal AreaPair CarriedCopy() => new AreaPair { RiderId = RiderId, MountId = MountId, ProfileId = ProfileId,
+                OwnerId = OwnerId, Generation = Generation, Participation = Participation, Carried = true };
         }
         private sealed class AreaTransfer
         {

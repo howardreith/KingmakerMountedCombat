@@ -112,6 +112,18 @@ namespace KingmakerMountedCombat.Domain
                 mountDisplacementMetres <= ArrivalPlacementToleranceMetres;
         }
 
+        // Known issues S02 review R1: the same rule from the recorded placement itself, which is what the custody row
+        // holds in the session of the arrival and what a save written before the remount carries to its load. A row
+        // without a recorded placement (ordinary retained intent, every version 1 record), a placement observed in
+        // another area than the one now loaded, an unresolved unit, or a unit that no longer stands where arrival
+        // placed it, does not hold it.
+        public static bool StandsAtArrivalPlacement(MountedRetainedArrivalPlacement arrival, string currentAreaId, bool unitsResolved,
+            float riderX, float riderY, float riderZ, float mountX, float mountY, float mountZ)
+        {
+            return arrival != null && arrival.IsFinite && arrival.ObservedIn(currentAreaId) && ArrivalPlacementHeld(unitsResolved,
+                arrival.RiderDisplacementMetres(riderX, riderY, riderZ), arrival.MountDisplacementMetres(mountX, mountY, mountZ));
+        }
+
         // Known issues S02: an explicit player dismount ends that pair's retained intent at once, so a restoration that
         // is still pending for it (not yet settled, or held through an encounter) can never re-attach a pair the
         // player dismounted.
