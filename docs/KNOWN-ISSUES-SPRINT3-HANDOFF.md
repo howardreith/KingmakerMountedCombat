@@ -6,7 +6,7 @@ of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
 ## Identity
 
-- **Branch:** `codex/kmc-known-issues-sprint3`, draft PR, no reviewers requested.
+- **Branch:** `codex/kmc-known-issues-sprint3`, draft PR #47, no reviewers requested.
 - **Base:** `1dffc3e09ffeddc70ba09e3a1f46c1613a997bd7`, the reviewed head of Sprint 2 (draft PR #46, open and
   unmerged when this sprint started and when it was pushed). The branch was created from that commit in its own
   worktree and its PR targets `codex/kmc-known-issues-sprint2`, so the PR shows only the Sprint 3 change. PR #46

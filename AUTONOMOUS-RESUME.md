@@ -1,6 +1,6 @@
 # Known issues remediation, Sprint 3 — review checkpoint (2026-11-16)
 
-Branch `codex/kmc-known-issues-sprint3`; base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
 (draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md and
 docs/CURRENT-KNOWN-ISSUES.md.
 

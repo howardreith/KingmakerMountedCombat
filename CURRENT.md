@@ -1,6 +1,6 @@
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — MOUNTED PACE REPAIRED OFFLINE; MARKER REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
 
-Branch `codex/kmc-known-issues-sprint3`, created from the reviewed Sprint 2 head `1dffc3e0` and targeting
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), created from the reviewed Sprint 2 head `1dffc3e0` and targeting
 `codex/kmc-known-issues-sprint2` (draft PR #46, still open). Read the
 [handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md) and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
 

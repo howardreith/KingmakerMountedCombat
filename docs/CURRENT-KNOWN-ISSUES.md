@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-16, Sprint 3 (M01–M04, and the new M05). Branch `codex/kmc-known-issues-sprint3`,
+- **Last updated:** 2026-11-16, Sprint 3 (M01–M04, and the new M05). Branch `codex/kmc-known-issues-sprint3`, draft PR #47,
   stacked on Sprint 2 (branch `codex/kmc-known-issues-sprint2`, draft PR #46, reviewed head `1dffc3e0`), which is
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
