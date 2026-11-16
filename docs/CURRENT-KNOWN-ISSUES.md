@@ -198,6 +198,10 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
   - A malformed or unsupported version 2 text is refused whole; its pairs load dismounted.
   - A build older than this change (0.2.3 to 0.2.11) refuses a version 2 text by its header, and every pair in
     it loads dismounted there. That matters only if the mod is downgraded on such a save.
+  - Size-limit exception: if the arrival rows would take the text past the member's bound (4096 characters), the
+    writer falls back to the version 1 text instead of losing the record. Every pair of that save then loads
+    without an arrival placement and gets the ordinary 6 m rule. (Recorded here at the Sprint 3 intake,
+    2026-11-16; the behaviour is Sprint 2's and is unchanged.)
 - **Limits:**
   - A fight that starts before the remount cancels it (existing rule for world-map custody); the pair fights
     dismounted.
