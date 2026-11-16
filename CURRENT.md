@@ -1,6 +1,6 @@
 # KNOWN ISSUES REMEDIATION, SPRINT 1 — VALIDATION TOOLS REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-15)
 
-Branch `codex/kmc-known-issues-sprint1` from main `7a5cd2c3` (0.2.11). Read the
+Branch `codex/kmc-known-issues-sprint1` (draft PR #45) from main `7a5cd2c3` (0.2.11). Read the
 [handoff](docs/KNOWN-ISSUES-SPRINT1-HANDOFF.md) and the new [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
 
 - **Scope:** T01–T03 of the owner's Known Issues Remediation Epic, and the ledger. Validation tooling only. No
@@ -19,6 +19,8 @@ Branch `codex/kmc-known-issues-sprint1` from main `7a5cd2c3` (0.2.11). Read the
   - Kingmaker assembly contracts: 810 pass, 0 fail on this machine's genuine 0.33.0 (801 pass, 3 fail before).
   - The declared minimum stays 0.28.2 and is unassessed: no genuine 0.28.2 binary is available.
 - **Checks:** Fast PASS 9/0 (components 1234/0, Validate-Source 151/0, six focused scripts). Three mutations caught.
+- **Review:** one independent read. No defect in T01 or the T02 producer; five in the T02 reader and T03, all
+  corrected with a check each (the handoff lists them).
 - **New open items:** T04, and two stale neighbour scripts that fail identically on main (T05, T06).
 - **Native:** NOT RUN. Nothing was launched, staged or installed.
 - **Not authorized:** merge, release, tag, install, reviewer request or Sprint 2.

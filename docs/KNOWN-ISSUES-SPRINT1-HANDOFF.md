@@ -8,8 +8,9 @@ staged, installed or run in the game, and no gameplay code changed.
 
 - **Base:** main `7a5cd2c393fad80fe09700ecbc40949245335449` (release 0.2.11). It is the epic's planning baseline;
   nothing had landed after it, and none of the three corrections existed on it.
-- **Branch:** `codex/kmc-known-issues-sprint1`, in its own worktree.
-- **Commits:** `07edd2fe` (T01), `3c64128a` (T02), `42fdf52d` (T03), then the records.
+- **Branch:** `codex/kmc-known-issues-sprint1`, in its own worktree. Draft PR #45, no reviewers requested.
+- **Commits:** `07edd2fe` (T01), `3c64128a` (T02), `42fdf52d` (T03), `471fc632` (records), `a80a28b0` (review
+  corrections to T02 and T03), then this record.
 - **Product version:** unchanged, 0.2.11. T02 changes diagnostic code, so a build of this branch is a different
   binary from the released 0.2.11.
 
@@ -57,7 +58,7 @@ staged, installed or run in the game, and no gameplay code changed.
     the revision name. Diagnostic evidence protocol only.
   - Horse owners follow the revision. The reader's list was stale too (see the ledger).
 - **Checks:**
-  - `scripts/chunk7/Test-Chunk7RepeatedWorldEvidence.ps1`: 212 pass. Historical fixtures unchanged and passing;
+  - `scripts/chunk7/Test-Chunk7RepeatedWorldEvidence.ps1`: 220 pass. Historical fixtures unchanged and passing;
     synthetic current fixtures pass; missing, duplicate and foreign handlers, wrong ownership, stale world
     identities and mixed serial/hash rows are refused, each asserted by its own reason. On main this file exits 1
     after 165.
@@ -91,7 +92,7 @@ staged, installed or run in the game, and no gameplay code changed.
 - **Results:** see the matrix in the ledger. Kingmaker assembly contracts 810 pass, 0 fail (801 pass, 3 fail
   before); the 785 checks unrelated to the loader are line-for-line unchanged.
 - **Counterexamples:** selecting `umm-0.33.2` or `umm-0.28.2` for the installed loader fails identity and only
-  identity; an unprofiled loader with a complete API fails identity; five synthetic stub loaders each fail the
+  identity; an unprofiled loader with a complete API fails identity; six synthetic stub loaders each fail the
   API; a wrong game-assembly pin still fails (809 pass, 1 fail).
 - **A weakness of mine, found by the negative tests and fixed:** the first binding sweep scanned member-reference
   tokens and treated one exception type as the end of the table. A missing member raises that same type, so the
@@ -102,13 +103,14 @@ staged, installed or run in the game, and no gameplay code changed.
 
 ## What was run
 
-All under Windows PowerShell 5.1, offline. Budget `known-issues-sprint1`: 6.6 of 90 minutes in three tier
-entries (one failed entry is the baseline, which stops at the stale charge assertion by design).
+All under Windows PowerShell 5.1, offline. Budget `known-issues-sprint1`: about 9 of 90 minutes in four tier
+entries (one failed entry is the baseline, which stops at the stale charge assertion by design). The final rows
+are from the head after the review corrections.
 
 | Check | Result |
 |---|---|
 | Baseline at `7a5cd2c3`: `Test-Tiers.ps1 -Tier Fast -Focused Test-ChargeOwnershipContracts.ps1,…` | build, components 1229/0 and Validate-Source 151/0 pass; charge script FAIL at the two-pair assertion |
-| Final: `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint1 -Focused chunk7\Test-Chunk7RepeatedWorldEvidence.ps1,chunk7\Test-Chunk7ReplaySubscriberContract.ps1,chunk7\Test-Chunk7RepeatedWorldAdapter.ps1,chunk7\Test-Chunk7OwnerSeedRepeatedEvidence.ps1,chunk7\Test-Chunk7OwnedReplayEvidence.ps1,Test-UmmLoaderContractChecks.ps1` | **PASS 9/0**, 2.69 min: components 1234/0, Validate-Source 151/0, reader 212, compiled contract 21, adapter 76, owner-seed 29, owned replay 59, loader checks 16 (1 unassessed) |
+| Final: `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint1 -Focused chunk7\Test-Chunk7RepeatedWorldEvidence.ps1,chunk7\Test-Chunk7ReplaySubscriberContract.ps1,chunk7\Test-Chunk7RepeatedWorldAdapter.ps1,chunk7\Test-Chunk7OwnerSeedRepeatedEvidence.ps1,chunk7\Test-Chunk7OwnedReplayEvidence.ps1,Test-UmmLoaderContractChecks.ps1` | **PASS 9/0**, 2.19 min: components 1234/0, Validate-Source 151/0, reader 220, compiled contract 21, adapter 76, owner-seed 29, owned replay 59, loader checks 18 (1 unassessed) |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` | **810 pass, 0 fail** |
 | `Test-ChargeOwnershipContracts.ps1` (complete run) | 71 pass, then **exit 1** at T04 |
 | `chunk7\Test-Chunk7RepeatedOwnerActorIdentity.ps1` | 17 pass on main and on the branch |
@@ -118,6 +120,19 @@ entries (one failed entry is the baseline, which stops at the stale charge asser
 
 Three mutation runs (capacity 5, lost interface, wrong game pin) each built or ran a temporary copy and were
 reverted; the working tree holds none of them.
+
+## Independent review
+
+One independent read of the three code commits, before any use. It found no defect in T01 or in the T02
+producer, and five in the T02 reader and T03. All five are corrected in `a80a28b0`, each with a check.
+
+| Finding | Correction |
+|---|---|
+| **T03.** The compiled-reference binding ignored accessibility: a loader member that became non-public still "bound", and the API passed. | A bound member must also be public on a visible type. A synthetic loader with `internal ModEntry.Active` and `private UI.tabId` now fails the API. |
+| **T03.** The binding sweep took `bin\Release`, else `bin\Debug`, so it could describe a build that was not under test. A mistyped `-ProductDll` read as unassessed. | The scripts take `-Configuration` and use exactly that build. A named product that does not exist is refused (exit 2). An unassessed sweep is stated on the API line. |
+| **T03.** `UnityModManagerProfile` from `LocalGamePaths.props` was applied to any reference, and would have failed the check script. | It applies to the installed loader only, and the check script never reads it. |
+| **T02.** Names were compared with culture-sensitive operators, which ignore characters such as U+00AD, so an inventory with an invisible character in a name was accepted. | Every evidence name is compared ordinally. Five checks with U+00AD. |
+| **T02.** Some refusals were not labelled unsupported: a release-scheme producer with v1/v2, v1 from preview.100 or later, a missing contract name, a version with a trailing line break. | Each is now an explicit "Unsupported repeated-world evidence" refusal, with a check. |
 
 ## Not run, and not claimed
 
@@ -132,9 +147,9 @@ reverted; the working tree holds none of them.
 ## Evidence
 
 Logs are in the lab, outside the repository:
-`C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint1\`, numbered `01` to `14`: the baselines at
+`C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint1\`, numbered `01` to `15`: the baselines at
 `7a5cd2c3`, the T01 full run, the T04 scratch characterisation (labelled UNCOMMITTED), the three mutation runs,
-the loader matrix, the assembly contracts before and after, and the final Fast run.
+the loader matrix, the assembly contracts before and after, and the Fast runs before and after the review.
 
 ## For the next session
 

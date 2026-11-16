@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-15, Sprint 1 (T01–T03), branch `codex/kmc-known-issues-sprint1`.
+- **Last updated:** 2026-11-15, Sprint 1 (T01–T03), branch `codex/kmc-known-issues-sprint1`, draft PR #45.
 - **Sprint 1 record:** [KNOWN-ISSUES-SPRINT1-HANDOFF.md](KNOWN-ISSUES-SPRINT1-HANDOFF.md).
 - **Reconciled so far:** only T01–T06. Every row of Sprints 2–8 is a *carried-forward planning finding*: it is
   copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since. A sprint
@@ -31,8 +31,8 @@ or feedback work is actually done.
 | ID | Purpose | Classification | Status | Source | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|---|
 | T01 | The charge ownership probe asserted a two-pair capacity; production admits six. The assertion threw and hid the rest of the script. | Stale test | **Implemented and verified offline** (the capacity probe). The script as a whole still exits 1 at T04. | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md) (validation table); epic T01 | Commit `07edd2fe`. `scripts/Test-ChargeOwnershipContracts.ps1`: 71 checks run (29 before). A build with capacity 5 fails the probe. | Not applicable: detached probe |
-| T02 | The repeated-world evidence reader, and the producer's own check, required the chunk7b subscriber set (13 lifecycle interfaces, 15 rows). | Stale reader and producer | **Implemented and verified offline** (reader repaired and verified offline) | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (review item P3); epic T02 | Commit `3c64128a`. Reader tests 212 pass; compiled-contract check 21 pass; 5 component tests. | **Not run.** No repeated-world native qualification was made or claimed. |
-| T03 | The assembly checks pinned UMM 0.33.2 in line, so a genuine 0.33.0 loader reported three failures that said nothing about API compatibility. | Validator conflation | **Implemented and verified offline** | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md), [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (assembly-contract failures); epic T03 | Commit `42fdf52d`. Kingmaker assembly contracts 810 pass, 0 fail (801/3 before); loader checks 16 pass, 1 unassessed. | **Not run** on any loader by this sprint |
+| T02 | The repeated-world evidence reader, and the producer's own check, required the chunk7b subscriber set (13 lifecycle interfaces, 15 rows). | Stale reader and producer | **Implemented and verified offline** (reader repaired and verified offline) | [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (review item P3); epic T02 | Commits `3c64128a`, `a80a28b0`. Reader tests 220 pass; compiled-contract check 21 pass; 5 component tests. | **Not run.** No repeated-world native qualification was made or claimed. |
+| T03 | The assembly checks pinned UMM 0.33.2 in line, so a genuine 0.33.0 loader reported three failures that said nothing about API compatibility. | Validator conflation | **Implemented and verified offline** | [SAVE-LOAD handoff](SAVE-LOAD-ENTRANCE-REPAIR-HANDOFF.md), [RATNOOK handoff](RATNOOK-DOOR-REPAIR-HANDOFF.md) (assembly-contract failures); epic T03 | Commits `42fdf52d`, `a80a28b0`. Kingmaker assembly contracts 810 pass, 0 fail (801/3 before); loader checks 18 pass, 1 unassessed. | **Not run** on any loader by this sprint |
 | T04 | Behind the T01 assertion, the same script calls production members by reflection with shapes that changed on 2026-11-03. | Stale test (probe drift), not a product failure as far as established | **Open correction** | Exposed by T01 on 2026-11-15 | See "T04" below. Not repaired in Sprint 1 by the sprint's own rule. | Not applicable |
 | T05 | `scripts/chunk7/Test-Chunk7SixPairNativeOwnership.ps1` no longer compiles its source list. | Stale test harness | **Open correction** | Found as a T01 neighbour on 2026-11-15 | See "T05" below. Fails identically on main `7a5cd2c3`. | Not applicable |
 | T06 | `scripts/chunk7/Test-Chunk7RepeatedWorldProtocol.ps1` stops at an undefined variable. | Stale test harness | **Open correction** | Found as a T02 neighbour on 2026-11-15 | See "T06" below. Fails identically on main `7a5cd2c3`. | Not applicable |
@@ -67,6 +67,7 @@ were not surveyed, and more of them may be stale.
   without a revision (inside preview.100 and again inside preview.103), their producer still emits v2, and it
   could not pass its own check.
 - Selection is by evidence contract and producer identity. The expected set is never derived from the inventory.
+  Names are compared ordinally, character for character.
 - **Also found and fixed inside T02:** the reader's Horse-owner profile list predated the Gnome, female and
   build-variant Small profiles (2026-11-01/02). Its own test had been failing on that since then.
 - **Production change:** diagnostic evidence protocol only (`Diagnostics/Chunk7ReplaySubscriberContract.cs`, and
