@@ -293,7 +293,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 catch (Exception error) { cleanupErrors.Add(error); }
             if (cleanupErrors.Count != 0) throw new AggregateException(cleanupErrors);
-            mountedWorld?.DiscardAdmissionBindings();
+            mountedWorld?.DiscardAdmissionBindingsForWorldReplacement();
             areaRestoreFailure = null;
             combatRestored = false;
             combatRestoreFailure = null;

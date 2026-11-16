@@ -107,6 +107,10 @@ namespace KingmakerMountedCombat.Integration
             continuousDrive.RecoverRetained();
         }
 
+        // What of that holds the pair's world: everything but the retained stick-movement cleanup.
+        private bool RetainsWorldCleanupObligations => MountedCleanupCompletionPolicy.OwnerHoldsWorld(
+            cleanupRetryRequired, !runtime.NoPreparedPairResidue);
+
         // What keeps this pair's detached owner unsettled and its boundary from being reused.
         private bool RetainsCleanupObligations => MountedCleanupCompletionPolicy.OwnerRetainsCleanup(
             cleanupRetryRequired, !runtime.NoPreparedPairResidue, ContinuousDriveCleanupPending);

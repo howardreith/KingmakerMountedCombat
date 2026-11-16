@@ -402,6 +402,8 @@ public static class KmcContinuousDriveProbe
     }
 
     public static bool Refuse<T>(T trigger) { return false; }
+    public static bool AlwaysRetained<T>(T rider, T mount) { return true; }
+    public static void FailingSubscriber<T>(T trigger) { throw new InvalidOperationException("a dismount subscriber failed"); }
 
     // The product's real GameMountedRelationshipService, built without the game and unmounted. Its stick-movement owner
     // is replaced by the same compiled owner on the scripted host, because binding through the real adapter needs a
@@ -490,6 +492,134 @@ public static class KmcContinuousDriveProbe
         }
     }
 
+    // ---- world boundaries (review of fe22563a) ----
+    // The product's real MountedWorldService, built without the game as Test-WorldOwnershipContracts.ps1 builds it: its
+    // real registry, real pair boundaries (GameMountedRelationshipService) and real admission discard. Actors are genuine
+    // UnitEntityData objects made without the game; their stable ids are read through the registry's own id-reader seam.
+    // A boundary's stick-movement owner runs on the scripted host, as in the lifecycle checks.
+    private static readonly Dictionary<object,string> worldActorIds=new Dictionary<object,string>();
+    public static string ReadWorldActorId<T>(T unit) { string id; return worldActorIds.TryGetValue(unit,out id)?id:null; }
+    private static Assembly nativeAssembly;
+
+    private sealed class WorldFixture
+    {
+        public Assembly Product; public object World, Registry; public Type UnitType, ServiceType, Trigger, RegistryType;
+        public object Session=new object(); public string Campaign=Guid.NewGuid().ToString("N");
+        private PropertyInfo gate; private object gateBefore;
+        public readonly Dictionary<object,KmcScriptedDriveHost> Hosts=new Dictionary<object,KmcScriptedDriveHost>();
+        public bool Seam;
+
+        public WorldFixture(Assembly product)
+        {
+            Product=product;
+            ServiceType=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+            Trigger=product.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+            UnitType=nativeAssembly.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+            gate=product.GetType("KingmakerMountedCombat.Integration.NativeMountedSaveFormat",true).GetProperty("ArchiveNativeSupportEnabled",Any);
+            gateBefore=gate.GetValue(null,null); gate.SetValue(null,true,null);
+            var settings=Activator.CreateInstance(product.GetType("KingmakerMountedCombat.Diagnostics.DiagnosticSettings",true));
+            var logger=new KmcRecordingLogger(product.GetType("KingmakerMountedCombat.Logging.IModLogger",true)).GetTransparentProxy();
+            foreach(var constructor in product.GetType("KingmakerMountedCombat.Integration.MountedWorldService",true).GetConstructors(Any))
+                if(constructor.GetParameters().Length==2) World=constructor.Invoke(new[]{logger,settings});
+            if(World==null) throw new InvalidOperationException("the world service could not be constructed");
+            Registry=World.GetType().GetField("Registry",Any).GetValue(World);
+            RegistryType=Registry.GetType();
+            var reader=typeof(KmcContinuousDriveProbe).GetMethod("ReadWorldActorId").MakeGenericMethod(UnitType);
+            RegistryType.GetField("actorId",Any).SetValue(Registry,Delegate.CreateDelegate(typeof(Func<,>).MakeGenericType(UnitType,typeof(string)),reader));
+            Seam=ServiceType.GetMethod("ImportSavedOwnershipForSession",Any)!=null;
+        }
+        public void Close() { gate.SetValue(null,gateBefore,null); }
+
+        public object Actor(string id) { var unit=FormatterServices.GetUninitializedObject(UnitType); worldActorIds[unit]=id; return unit; }
+        // A pair boundary of the world. Its combat collaborators subscribe to its dismount (the Dismounting event and the
+        // charge barrier) and need the running game, so they are detached from this boundary's dismount; every ownership,
+        // discard and import decision below is the product's own. Charge, participation and command refusals are
+        // exercised through the boundary's own readiness predicates (check D) and the drains are pinned from IL.
+        public object Boundary()
+        {
+            var pair=World.GetType().GetMethod("CreateRestoredBoundary",Any).Invoke(World,null);
+            var boundary=pair.GetType().GetField("Relationship",Any).GetValue(pair);
+            ServiceType.GetProperty("ChargeCleanupBarrier",Any).SetValue(boundary,null,null);
+            ServiceType.GetField("Dismounting",Any).SetValue(boundary,null);
+            return boundary;
+        }
+        public object Call(object target,string name,params object[] arguments)
+        {
+            var method=target.GetType().GetMethod(name,Any);
+            if(method==null) throw new InvalidOperationException(name+" does not exist in this build");
+            return method.Invoke(target,arguments);
+        }
+        public object Owners { get { return RegistryType.GetProperty("Owners",Any).GetValue(Registry,null); } }
+        public int OwnerCount { get { return ((Array)Owners).Length; } }
+        public int EarlierCount { get { var p=RegistryType.GetProperty("EarlierWorldCleanupOwners",Any); return p==null?0:((Array)p.GetValue(Registry,null)).Length; } }
+        public object PairOwner(object boundary) { return ServiceType.GetProperty("PairOwner",Any).GetValue(boundary,null); }
+        public object OwnerOf(object actor) { return RegistryType.GetMethod("FindOwner",Any).Invoke(Registry,new[]{actor}); }
+        public static object Read(object owner,string field) { return owner.GetType().GetField(field,Any).GetValue(owner); }
+        public static string State(object owner) { return owner==null?"none":Convert.ToString(owner.GetType().GetProperty("State",Any).GetValue(owner,null)); }
+
+        // The owner is registered as production registers it: ImportSavedOwnership's session seam, with the boundary's own
+        // retained-obligation predicate and its declared world predicate. The reviewed build has no seam; there the
+        // registry is asked directly with the reserve lambda's own expression, read from the boundary at each call:
+        // its cleanup obligations, its retained commands and its retained participation.
+        public object Register(object boundary,object rider,object mount,Guid id,long generation,object session,string campaign)
+        {
+            if(Seam) Call(boundary,"ImportSavedOwnershipForSession",session,campaign,rider,mount,id.ToString("N"),generation,true);
+            else
+            {
+                var cleanup=ServiceType.GetProperty("RetainsCleanupObligations",Any).GetGetMethod(true);
+                var commandsField=ServiceType.GetField("retainedCommands",Any); var participationField=ServiceType.GetField("retainedParticipation",Any);
+                Func<bool> retained=()=>(bool)cleanup.Invoke(boundary,null) || ((Func<bool>)commandsField.GetValue(boundary))() ||
+                    (bool)((Delegate)participationField.GetValue(boundary)).DynamicInvoke(rider,mount);
+                var arguments=new object[]{session,campaign,rider,mount,generation,boundary,retained,
+                    ServiceType.GetField("pairSaveReady",Any).GetValue(boundary),ServiceType.GetField("pairTeardownReady",Any).GetValue(boundary),null,null,6,(Guid?)id};
+                if(!(bool)RegistryType.GetMethod("TryReserve",Any).Invoke(Registry,arguments)) throw new InvalidOperationException("registration refused: "+arguments[10]);
+                ServiceType.GetProperty("PairOwner",Any).GetSetMethod(true).Invoke(boundary,new[]{arguments[9]});
+            }
+            var owner=PairOwner(boundary);
+            RegistryType.GetMethod("Commit",Any).Invoke(Registry,new[]{owner});
+            return owner;
+        }
+
+        // The boundary's stick-movement owner on the scripted host, with an admitted drive: command C on view V1, agent A.
+        public KmcScriptedDriveHost Drive(object boundary,Assembly product,object command,object view,object agent)
+        {
+            var host=NewScriptedHost(product);
+            ServiceType.GetField("continuousDrive",Any).SetValue(boundary,host.Owner);
+            host.CurrentView=view; host.Overrides[view]=agent;
+            host.Owner.GetType().GetMethod("Bind").Invoke(host.Owner,new object[]{command});
+            host.SlotCommand=command;
+            host.Owner.GetType().GetMethod("ObserveRun").Invoke(host.Owner,new object[]{command});
+            host.Calls.Clear();
+            Hosts[boundary]=host;
+            return host;
+        }
+        public object Dismount(object boundary,string trigger) { return Call(boundary,"Dismount",Enum.Parse(Trigger,trigger)); }
+        public bool WorldGuard(object boundary,string trigger) { return (bool)Call(boundary,"GuardWorldBoundary",Enum.Parse(Trigger,trigger)); }
+        public bool StrictGuard(object boundary,string trigger) { return (bool)Call(boundary,"GuardBoundary",Enum.Parse(Trigger,trigger)); }
+        public int Retained(object boundary) { var host=Hosts[boundary]; return (int)host.Owner.GetType().GetProperty("ResidueCount").GetValue(host.Owner,null); }
+        public void Recover(object boundary) { Call(boundary,"RecoverContinuousDriveCleanup"); }
+        // The discard each boundary calls in this build: area suspension the admission discard; load housekeeping the
+        // world-replacement discard (the reviewed build's load housekeeping called the admission discard itself).
+        public string Discard(bool worldReplacement)
+        {
+            var name=worldReplacement && World.GetType().GetMethod("DiscardAdmissionBindingsForWorldReplacement",Any)!=null
+                ? "DiscardAdmissionBindingsForWorldReplacement" : "DiscardAdmissionBindings";
+            try { Call(World,name); return null; }
+            catch(Exception error) { return Innermost(error).Message; }
+        }
+        public bool Held(object boundary,object rider,object mount,Guid id) { return (bool)Call(boundary,"PairHeldByDetachedCleanup",rider,mount,id.ToString("N")); }
+        public string TryRegister(object boundary,object rider,object mount,Guid id,long generation,object session,string campaign)
+        {
+            try { Register(boundary,rider,mount,id,generation,session,campaign); return null; }
+            catch(Exception error) { return Innermost(error).Message; }
+        }
+        public void Settle() { Call(World,"ReleaseSettledAdmissions"); }
+        public string AdmissionRefusal(object session,string campaign,object rider,object mount)
+        {
+            return (string)RegistryType.GetMethod("AdmissionRefusal",Any).Invoke(Registry,new object[]{session,campaign,rider,mount,6});
+        }
+    }
+
     // UnitCommand.Init called non-virtually: UnitMoveContiniously.Init itself needs Unity components.
     private static DynamicMethod baseInitCall;
 
@@ -506,6 +636,7 @@ public static class KmcContinuousDriveProbe
         };
         AppDomain.CurrentDomain.AssemblyResolve+=resolver;
         var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
+        nativeAssembly=native;
         var product=Assembly.LoadFrom(productPath);
         Console.WriteLine("INFO product "+productPath+" MVID "+product.ManifestModule.ModuleVersionId);
         var modern=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony.dll"));
@@ -1605,7 +1736,8 @@ public static class KmcContinuousDriveProbe
                 for(var i=0;i<update.Count;i++) if(update[i].Op==OpCodes.Ldftn && ReferenceEquals(update[i].Call,recoverLambda) || update[i].Op==OpCodes.Ldftn && update[i].Call!=null && update[i].Call.MetadataToken==recoverLambda.MetadataToken) taken=i;
                 var recover=Body(Required(relationship,"RecoverContinuousDriveCleanup",0));
                 var retained=0;
-                foreach(var name in new[]{"TryReserveOwnership","ImportSavedOwnership"})
+                var importSite=Method(relationship,"ImportSavedOwnershipForSession",-1)!=null?"ImportSavedOwnershipForSession":"ImportSavedOwnership";
+                foreach(var name in new[]{"TryReserveOwnership",importSite})
                     foreach(var lambda in Lambdas(relationship,name)) if(Count(Body(lambda),"GameMountedRelationshipService","get_RetainsCleanupObligations")==1) retained++;
                 var reuse=0;
                 foreach(var name in new[]{"AcquireEmptyBoundary","ReleaseSettledAdmissions"})
@@ -1621,6 +1753,228 @@ public static class KmcContinuousDriveProbe
                     retained==2 && reuse==2 &&
                     Count(Body(Required(relationship,"AdvanceIdleBoundaryGeneration",0)),"GameMountedRelationshipService","get_RetainsCleanupObligations")==1 &&
                     One(dispose,null,"GuardNativeBoundary")<One(dispose,null,"UnpatchAll");
+            });
+        Check("PRODUCT-EXECUTED world boundary A, area transition, on the real world service with a registered owner: the pair's owner is imported and committed, its drive's agent removal fails once at the area suspension guard while a foreign override B sits on the mount's new view; the guard passes and the admission discard that follows passes with the owner still registered (detached, its actors and identity held); the arrival defers the pair instead of importing beside that owner; after recovery the owner retires, B is untouched, and the pair is imported with its exact identity, generation, session and campaign",
+            ()=>{
+                var w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-a"); var mount=w.Actor("mount-a"); var id=Guid.NewGuid();
+                    var old=w.Boundary();
+                    var owner=w.Register(old,rider,mount,id,7L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object(), viewTwo=new object(), foreign=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    host.CurrentView=viewTwo; host.Overrides[viewTwo]=foreign;
+                    host.FailClears=1;
+                    var guard=w.WorldGuard(old,"AreaSuspension");
+                    var discard=w.Discard(false);
+                    Console.WriteLine("INFO world A, area suspension: guard="+guard+"; owner "+WorldFixture.State(owner)+"; retained="+w.Retained(old)+"; admission discard: "+(discard??"passed"));
+                    if(!guard) throw new InvalidOperationException("setup: the world-boundary guard refused");
+                    if(w.Retained(old)!=1 || WorldFixture.State(owner)!="Detached" || !ReferenceEquals(w.OwnerOf(rider),owner)) throw new InvalidOperationException("setup: the owner should be detached and still registered");
+                    if(discard!=null) throw new InvalidOperationException("the admission discard after the guard failed over stick-movement cleanup alone ("+discard+"): area suspension would latch a failed transfer");
+                    if(!ReferenceEquals(w.OwnerOf(rider),owner) || !ReferenceEquals(w.OwnerOf(mount),owner) || w.OwnerCount!=1) throw new InvalidOperationException("the discard erased the unfinished owner");
+                    if(!ReferenceEquals(host.OverrideOn(viewTwo),foreign) || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("the failed removal touched the foreign override or lost the captured agent");
+                    // The arrival: the pair is held, so it is deferred; an import beside the owner is refused cleanly.
+                    if(!w.Held(old,rider,mount,id)) throw new InvalidOperationException("the arrival does not see the pair held by its earlier owner");
+                    var restored=w.Boundary();
+                    var early=w.TryRegister(restored,rider,mount,id,7L,w.Session,w.Campaign);
+                    if(early==null || early.IndexOf("stick-movement cleanup is still outstanding",StringComparison.Ordinal)<0) throw new InvalidOperationException("an import beside the earlier owner was not refused with the truthful reason: "+(early??"admitted"));
+                    if(w.OwnerCount!=1) throw new InvalidOperationException("a refused import left a duplicate owner");
+                    // Recovery before the root's gate; the owner retires; the deferred pair restores with its identity.
+                    w.Recover(old);
+                    w.Settle();
+                    Console.WriteLine("INFO world A, after recovery: retained="+w.Retained(old)+"; owner "+WorldFixture.State(owner)+"; held="+w.Held(old,rider,mount,id)+"; B intact="+ReferenceEquals(host.OverrideOn(viewTwo),foreign));
+                    if(w.Retained(old)!=0 || WorldFixture.State(owner)!="Retired" || w.Held(old,rider,mount,id)) return false;
+                    if(!ReferenceEquals(host.OverrideOn(viewTwo),foreign) || host.OverrideOn(viewOne)!=null || host.Finished.Count!=1) return false;
+                    var late=w.TryRegister(restored,rider,mount,id,7L,w.Session,w.Campaign);
+                    var again=w.PairOwner(restored);
+                    if(late!=null) throw new InvalidOperationException("the deferred pair was not restored after the cleanup: "+late);
+                    return w.OwnerCount==1 && (Guid)WorldFixture.Read(again,"Id")==id && (long)WorldFixture.Read(again,"Generation")==7L &&
+                        ReferenceEquals(WorldFixture.Read(again,"Session"),w.Session) && (string)WorldFixture.Read(again,"CampaignId")==w.Campaign &&
+                        WorldFixture.State(again)=="Active" && w.PairOwner(old)==null;
+                }
+                finally { w.Close(); }
+            });
+        Check("PRODUCT-EXECUTED world boundary B, load, on the real world service with a registered owner: the old world's owner still owes stick-movement cleanup through load housekeeping; the world-replacement discard passes and sets that owner aside with its obligation; the new world's pair (the same characters from the save, same owner identity) is imported under the new session without an old-session, actor-index or duplicate-identity refusal; the old cleanup, recovered later, touches only its own view and leaves the new pair, its owner and its view alone",
+            ()=>{
+                var w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-b"); var mount=w.Actor("mount-b"); var id=Guid.NewGuid();
+                    var old=w.Boundary();
+                    var owner=w.Register(old,rider,mount,id,4L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    host.FailInterrupts=1000000;
+                    var guard=w.WorldGuard(old,"LoadRequested");
+                    var discard=w.Discard(true);
+                    Console.WriteLine("INFO world B, load housekeeping: guard="+guard+"; retained="+w.Retained(old)+"; world-replacement discard: "+(discard??"passed")+"; live owners="+w.OwnerCount+"; set aside="+w.EarlierCount);
+                    if(!guard || w.Retained(old)!=1) throw new InvalidOperationException("setup: the obligation should be retained through the load guard");
+                    if(discard!=null) throw new InvalidOperationException("load housekeeping failed over stick-movement cleanup alone ("+discard+")");
+                    if(w.OwnerCount!=0 || w.EarlierCount!=1 || WorldFixture.State(owner)!="Detached") throw new InvalidOperationException("the old owner was not set aside with its obligation");
+                    // The new world: new objects for the same characters, the save's owner identity.
+                    var session=new object(); var campaign=w.Campaign;
+                    var newRider=w.Actor("rider-b"); var newMount=w.Actor("mount-b");
+                    var fresh=w.Boundary();
+                    if(ReferenceEquals(fresh,old)) throw new InvalidOperationException("the boundary that still owes cleanup was reused");
+                    var refusal=w.AdmissionRefusal(session,campaign,newRider,newMount);
+                    var import=w.TryRegister(fresh,newRider,newMount,id,4L,session,campaign);
+                    var newOwner=w.PairOwner(fresh);
+                    Console.WriteLine("INFO world B, new world: admission refusal="+(refusal??"none")+"; import="+(import??"imported")+"; new owner "+WorldFixture.State(newOwner));
+                    if(refusal!=null || import!=null) throw new InvalidOperationException("the new world was refused over the old world's cleanup: "+(refusal??import));
+                    if(!ReferenceEquals(WorldFixture.Read(newOwner,"Session"),session) || (Guid)WorldFixture.Read(newOwner,"Id")!=id || !ReferenceEquals(w.OwnerOf(newRider),newOwner)) return false;
+                    // The new pair's mount view, with its own override, as the scripted host sees views.
+                    object newView=new object(), newOverride=new object();
+                    host.Overrides[newView]=newOverride; host.CurrentView=newView;
+                    host.FailInterrupts=0;
+                    w.Recover(old);
+                    for(var frame=0;frame<3;frame++) { host.Frame++; w.Dismount(old,"ModDisabled"); }
+                    w.Settle();
+                    Console.WriteLine("INFO world B, old cleanup after the load: retained="+w.Retained(old)+"; old owner "+WorldFixture.State(owner)+"; set aside="+w.EarlierCount+"; new override intact="+ReferenceEquals(host.OverrideOn(newView),newOverride)+"; new owner "+WorldFixture.State(newOwner));
+                    return w.Retained(old)==0 && host.Finished.Contains(driveCommand) && ReferenceEquals(host.OverrideOn(newView),newOverride) &&
+                        WorldFixture.State(owner)=="Retired" && w.EarlierCount==0 && w.PairOwner(old)==null &&
+                        WorldFixture.State(newOwner)=="Active" && ReferenceEquals(w.OwnerOf(newRider),newOwner) && w.OwnerCount==1;
+                }
+                finally { w.Close(); }
+            });
+        Check("PRODUCT-EXECUTED world boundary C, persistent cleanup, on the real world service: the automatic limit is reached with one report; the obligation and the owner stay; the pair stays held, an import or a new admission of it is refused with a truthful reason, and nothing reports it restored; the world boundaries still pass; disable, shutdown and guard removal stay strict on the held boundary; a later deliberate recovery clears the obligation, the owner retires and the pair imports with its identity",
+            ()=>{
+                var w=new WorldFixture(product);
+                try
+                {
+                    var limit=(int)product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true).GetField("AutomaticRetryLimit").GetValue(null);
+                    var rider=w.Actor("rider-c"); var mount=w.Actor("mount-c"); var id=Guid.NewGuid();
+                    var old=w.Boundary();
+                    var owner=w.Register(old,rider,mount,id,3L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    host.FailInterrupts=1000000;
+                    w.Dismount(old,"Exception");
+                    for(var frame=0;frame<8;frame++) { host.Frame++; w.Recover(old); }
+                    var interrupts=0; foreach(var call in host.Calls) if(call.StartsWith("Interrupt")) interrupts++;
+                    var warnings=0; foreach(var call in host.Calls) if(call.StartsWith("Report(") && call.EndsWith(",True)")) warnings++;
+                    if(interrupts!=limit || warnings!=1 || w.Retained(old)!=1) throw new InvalidOperationException("setup: the automatic limit was not reached with one report");
+                    var discard=w.Discard(false);
+                    if(discard!=null) throw new InvalidOperationException("the admission discard failed over the held pair: "+discard);
+                    var held=w.Held(old,rider,mount,id);
+                    var restored=w.Boundary();
+                    var import=w.TryRegister(restored,rider,mount,id,3L,w.Session,w.Campaign);
+                    var admission=w.AdmissionRefusal(w.Session,w.Campaign,rider,mount);
+                    Console.WriteLine("INFO world C, held past the limit: discard="+(discard??"passed")+"; held="+held+"; import refusal="+import+"; admission refusal="+admission);
+                    if(discard!=null || !held || import==null || import.IndexOf("stick-movement cleanup is still outstanding",StringComparison.Ordinal)<0 || admission==null) return false;
+                    if(w.PairOwner(restored)!=null || w.OwnerCount!=1 || WorldFixture.State(owner)!="Detached") throw new InvalidOperationException("a held pair was reported restored, or its owner was discarded");
+                    // Strict gates on the held boundary itself; each is also one deliberate attempt.
+                    if(w.StrictGuard(old,"ModDisabled")) throw new InvalidOperationException("the strict guard passed over the retained cleanup");
+                    var shutdown=w.Call(old,"Shutdown");
+                    if((bool)shutdown.GetType().GetProperty("Succeeded").GetValue(shutdown,null)) throw new InvalidOperationException("shutdown completed over the retained cleanup");
+                    if(!w.WorldGuard(old,"EventSuspension")) throw new InvalidOperationException("an event boundary was failed over stick-movement cleanup alone");
+                    host.FailInterrupts=0;
+                    w.Dismount(old,"ModDisabled");
+                    w.Settle();
+                    var late=w.TryRegister(restored,rider,mount,id,3L,w.Session,w.Campaign);
+                    Console.WriteLine("INFO world C, deliberate recovery: retained="+w.Retained(old)+"; owner "+WorldFixture.State(owner)+"; held="+w.Held(old,rider,mount,id)+"; import="+(late??"imported"));
+                    return w.Retained(old)==0 && WorldFixture.State(owner)=="Retired" && !w.Held(old,rider,mount,id) && late==null &&
+                        (Guid)WorldFixture.Read(w.PairOwner(restored),"Id")==id && w.OwnerCount==1;
+                }
+                finally { w.Close(); }
+            });
+        Check("PRODUCT-EXECUTED world boundary D, controls on the real world service: a healthy release retires its owner at once and the pair imports again; an unrelated registered pair is never held; a detached owner that still holds retained commands, native participation or a failed attachment cleanup keeps the admission discard and the world replacement refused, with or without stick-movement cleanup beside it; a save in flight keeps the discard refused",
+            ()=>{
+                var w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-d"); var mount=w.Actor("mount-d"); var id=Guid.NewGuid();
+                    var other=w.Actor("rider-e"); var otherMount=w.Actor("mount-e"); var otherId=Guid.NewGuid();
+                    var healthy=w.Boundary();
+                    var owner=w.Register(healthy,rider,mount,id,2L,w.Session,w.Campaign);
+                    var unrelated=w.Boundary();
+                    var unrelatedOwner=w.Register(unrelated,other,otherMount,otherId,9L,w.Session,w.Campaign);
+                    var host=w.Drive(healthy,product,new object(),new object(),new object());
+                    var healthyGuard=w.WorldGuard(healthy,"AreaSuspension"); var unrelatedGuard=w.WorldGuard(unrelated,"AreaSuspension");
+                    w.Settle();
+                    var healthyDiscard=w.Discard(false);
+                    Console.WriteLine("INFO world D, healthy: guards="+healthyGuard+"/"+unrelatedGuard+"; retained="+w.Retained(healthy)+"; owners "+WorldFixture.State(owner)+"/"+WorldFixture.State(unrelatedOwner)+"; discard="+(healthyDiscard??"passed"));
+                    if(!healthyGuard || !unrelatedGuard || w.Retained(healthy)!=0 || WorldFixture.State(owner)!="Retired" || WorldFixture.State(unrelatedOwner)!="Retired" || healthyDiscard!=null) return false;
+                    if(w.Seam && (w.Held(healthy,rider,mount,id) || w.Held(healthy,other,otherMount,otherId))) return false;
+                    var restored=w.Boundary();
+                    var restoredImport=w.TryRegister(restored,rider,mount,id,2L,w.Session,w.Campaign);
+                    var unrelatedImport=w.TryRegister(w.Boundary(),other,otherMount,otherId,9L,w.Session,w.Campaign);
+                    Console.WriteLine("INFO world D, healthy arrival: imports="+(restoredImport??"imported")+"/"+(unrelatedImport??"imported"));
+                    if(restoredImport!=null || unrelatedImport!=null) return false;
+                    // Genuine world obligations keep their refusals.
+                    var labels=new[]{"retained commands","native participation","a failed attachment cleanup"};
+                    for(var kind=0;kind<3;kind++)
+                        foreach(var withStick in new[]{false,true})
+                        {
+                            var v=new WorldFixture(product);
+                            try
+                            {
+                                var r=v.Actor("rider-f"); var m=v.Actor("mount-f");
+                                var b=v.Boundary();
+                                var o=v.Register(b,r,m,Guid.NewGuid(),1L,v.Session,v.Campaign);
+                                var h=v.Drive(b,product,new object(),new object(),new object());
+                                if(withStick) { h.FailInterrupts=1000000; h.CurrentView=new object(); }
+                                // The obligation is in place before the boundary: the pair's own predicates read it.
+                                if(kind==0) v.ServiceType.GetField("retainedCommands",Any).SetValue(b,new Func<bool>(()=>true));
+                                if(kind==1) v.ServiceType.GetField("retainedParticipation",Any).SetValue(b,Delegate.CreateDelegate(
+                                    typeof(Func<,,>).MakeGenericType(v.UnitType,v.UnitType,typeof(bool)),typeof(KmcContinuousDriveProbe).GetMethod("AlwaysRetained").MakeGenericMethod(v.UnitType)));
+                                // A failed attachment cleanup: a Dismounting subscriber fails, as the product records any.
+                                if(kind==2) v.ServiceType.GetField("Dismounting",Any).SetValue(b,Delegate.CreateDelegate(
+                                    typeof(Action<>).MakeGenericType(v.Trigger),typeof(KmcContinuousDriveProbe).GetMethod("FailingSubscriber").MakeGenericMethod(v.Trigger)));
+                                var guarded=v.WorldGuard(b,"AreaSuspension");
+                                var discard=v.Discard(false); var replacement=v.Discard(true);
+                                if(kind==2 && guarded) throw new InvalidOperationException("the world-boundary guard passed over a failed attachment cleanup");
+                                if(withStick && v.Retained(b)!=1) throw new InvalidOperationException("setup: the stick-movement cleanup should be retained beside the other obligation");
+                                Console.WriteLine("INFO world D, "+labels[kind]+(withStick?" beside stick cleanup":"")+": discard="+(discard??"passed")+"; world replacement="+(replacement??"passed")+"; owner "+WorldFixture.State(o));
+                                if(discard==null || replacement==null || v.OwnerCount!=1 || v.EarlierCount!=0) return false;
+                                if(v.Seam && v.Held(b,r,m,(Guid)WorldFixture.Read(o,"Id"))) return false;
+                                if(withStick) { h.FailInterrupts=0; v.Recover(b); }
+                            }
+                            finally { v.Close(); }
+                        }
+                    w.World.GetType().GetProperty("ArchiveWorkerRunning",Any).SetValue(w.World,new Func<bool>(()=>true),null);
+                    return w.Discard(false)!=null;
+                }
+                finally { w.Close(); }
+            });
+        Check("PRODUCT-IL the world boundaries around the guard: area suspension asks the world-boundary guard, then the admission discard; load housekeeping asks it, then the world-replacement discard (never the plain one); the admission discard decides through the registry, and the world replacement sets detached cleanup aside after it; the arrival asks whether the pair is held before its departing decision and before any import or attachment; the import refuses a held pair before the registry import, and both ownership sites declare the world predicate without the stick-movement cleanup",
+            ()=>{
+                var persistence=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+                var world=product.GetType("KingmakerMountedCombat.Integration.MountedWorldService",true);
+                var suspend=Body(Required(persistence,"SuspendAreaPair",0));
+                var load=Body(Required(persistence,"BeginLoadHousekeeping",0));
+                var arrival=Body(Required(persistence,"RestoreAreaPair",0));
+                var discard=Body(Required(world,"DiscardAdmissionBindings",0));
+                var replacement=Body(Required(world,"DiscardAdmissionBindingsForWorldReplacement",0));
+                var import=Body(Required(relationship,"ImportSavedOwnershipForSession",7));
+                var reserve=Body(Required(relationship,"TryReserveOwnership",3));
+                var held=One(arrival,"GameMountedRelationshipService","PairHeldByDetachedCleanup");
+                foreach(var name in new[]{"ImportSavedOwnership","RestoreSavedPair","RestoreRetainedPair","RestoreParticipation"})
+                    foreach(var index in Find(arrival,null,name))
+                        if(index<held) throw new InvalidOperationException(name+" precedes the held-pair question");
+                var worldLambdas=0;
+                foreach(var name in new[]{"TryReserveOwnership","ImportSavedOwnershipForSession"})
+                    foreach(var lambda in Lambdas(relationship,name))
+                    {
+                        var body=Body(lambda);
+                        var commandsRead=false; var participationRead=false;
+                        foreach(var ins in body) if(ins.Field!=null) { if(ins.Field.Name=="retainedCommands") commandsRead=true; if(ins.Field.Name=="retainedParticipation") participationRead=true; }
+                        // The world predicate is the retained predicate without the stick-movement cleanup: commands and
+                        // participation still hold the world.
+                        if(Count(body,"GameMountedRelationshipService","get_RetainsWorldCleanupObligations")==1 && Count(body,"GameMountedRelationshipService","get_RetainsCleanupObligations")==0 &&
+                            commandsRead && participationRead) worldLambdas++;
+                    }
+                return One(suspend,"GameMountedRelationshipService","GuardWorldBoundary")<One(suspend,"MountedWorldService","DiscardAdmissionBindings") &&
+                    Count(suspend,"MountedWorldService","DiscardAdmissionBindingsForWorldReplacement")==0 &&
+                    One(load,"GameMountedRelationshipService","GuardWorldBoundary")<One(load,"MountedWorldService","DiscardAdmissionBindingsForWorldReplacement") &&
+                    Count(load,"MountedWorldService","DiscardAdmissionBindings")==0 &&
+                    Count(discard,null,"SettledForAdmissionDiscard")==1 && Count(discard,null,"get_Owners")==0 &&
+                    One(replacement,"MountedWorldService","DiscardAdmissionBindings")<One(replacement,null,"SetAsideEarlierWorldCleanup") &&
+                    held<One(arrival,"MountedRetainedIntentPolicy","DecideDepartingArrival") &&
+                    One(arrival,"MountedRetainedIntentPolicy","DecideDepartingArrival")<One(arrival,"MountedRetainedIntentPolicy","DeferHeldArrival") &&
+                    One(import,null,"HeldForDetachedCleanup")<One(import,null,"TryImport") &&
+                    Count(import,null,"DeclareDetachedCleanup")==1 && Count(reserve,null,"DeclareDetachedCleanup")==1 && worldLambdas==2 &&
+                    Count(Body(Required(relationship,"get_RetainsWorldCleanupObligations",0)),"MountedCleanupCompletionPolicy","OwnerHoldsWorld")==1;
             });
         Console.WriteLine("CONTINUOUS DRIVE CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;

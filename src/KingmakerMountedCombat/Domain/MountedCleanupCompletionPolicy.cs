@@ -41,5 +41,15 @@ namespace KingmakerMountedCombat.Domain
         // A detached owner is not settled, and its boundary is not reused, while any of its cleanup remains.
         public static bool OwnerRetainsCleanup(bool cleanupRetryRequired, bool preparedPairResidue, bool retainedStickMovementCleanup) =>
             cleanupRetryRequired || preparedPairResidue || retainedStickMovementCleanup;
+
+        // What of that cleanup holds the pair's world (review of fe22563a). Retained stick-movement cleanup does not:
+        // the boundary keeps the exact command, view and agent, and retries them by itself. An admission discard, an
+        // area arrival and a world replacement may go on over it; the owner stays, and the pair stays dismounted.
+        public static bool OwnerHoldsWorld(bool cleanupRetryRequired, bool preparedPairResidue) =>
+            OwnerRetainsCleanup(cleanupRetryRequired, preparedPairResidue, false);
+
+        // The refusal of a restoration whose pair is still held by its earlier owner's detached cleanup.
+        public const string HeldByDetachedCleanupRefusal =
+            "The pair's earlier stick-movement cleanup is still outstanding; the pair stays dismounted until that cleanup is established.";
     }
 }

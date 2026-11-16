@@ -78,6 +78,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues M05 lifecycle C (root sequence modelled; owner, policy and registry are production): a persistent failure is attempted a bounded number of times and reported once; owner settlement, boundary reuse, guard removal and shutdown stay refused; a later deliberate recovery clears the obligation and every refusal", PersistentFailureAndTeardown);
             runner.Run("known issues M05 lifecycle: a record past the automatic limit gets no further automatic attempt, and still leaves once native has ended the command itself", OverLimitRecordLeavesWhenTheFactsEstablishIt);
             runner.Run("known issues M05 lifecycle D (root sequence modelled; owner, policy and registry are production): a healthy release completes the disable at once, and an unmounted or unrelated pair is unaffected by another pair's retained cleanup", HealthyLifecycleControls);
+            runner.Run("known issues M05 world boundaries: the registry tells detached stick-movement cleanup from what holds a world, holds the pair's actors and identity, and sets an earlier world's cleanup aside without letting it block or collide with the new session", WorldBoundaryRegistryDecisions);
+            runner.Run("known issues M05 world boundary A (persistence sequence modelled; registry, owner and policy are production): an area transition over a one-shot agent-removal failure latches nothing, defers the pair while its earlier owner owes the cleanup, protects the foreign override, and restores the pair with its exact identity once the cleanup is established", AreaTransitionOverRetainedStickCleanup);
+            runner.Run("known issues M05 world boundary B (persistence sequence modelled; registry, owner and policy are production): a load carries the old world's cleanup obligation through housekeeping, the new world imports its pair under its own session and identity, and the old cleanup later leaves the new pair alone", LoadOverRetainedStickCleanup);
+            runner.Run("known issues M05 world boundary C (persistence sequence modelled; registry, owner and policy are production): a persistent cleanup keeps the obligation and the owner, keeps the pair truthfully dismounted with the true reason, and a later deliberate recovery clears the refusal", PersistentStickCleanupAtWorldBoundaries);
+            runner.Run("known issues M05 world boundary D (persistence sequence modelled; registry, owner and policy are production): healthy area, load and event paths, unrelated pairs, and world obligations other than stick-movement cleanup keep their established outcomes", WorldBoundaryControls);
             runner.Run("known issues M05 (model only): the model follows the pinned native slot rules for InterruptMove, the Move/Standard pairing and an uninterruptible action", TheModelFollowsThePinnedNativeSlotRules);
         }
 
@@ -1337,6 +1342,286 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(world.OwnerSettled(world.Pair) && world.MayRemoveGuards(), "The refusals did not clear with the record.");
         }
 
+        // ---- review of fe22563a: world boundaries after the guard ----
+        // The registry, the owner, its predicates and every decision are production code. The persistence service's area
+        // suspension and arrival, its in-area retry, event suspension and load housekeeping are modelled
+        // (World.SuspendArea, Arrive, RetryRetained, SuspendEvent, LoadWorld); the contract script runs the real world
+        // service's admission discard, world replacement and import seam with a registered owner.
+
+        private sealed class Actor { public string Id; }
+
+        private static void WorldBoundaryRegistryDecisions()
+        {
+            var registry = new MountedPairRegistry<Actor, object>(actor => actor.Id);
+            var oldWorld = new object();
+            Actor rider = new Actor { Id = "r" }, mount = new Actor { Id = "m" }, other = new Actor { Id = "o" }, otherMount = new Actor { Id = "p" };
+            var stick = true; var world = false;
+            MountedPairOwner<Actor, object> owner; string refusal;
+            TestRunner.True(registry.TryImport(oldWorld, "c", Guid.NewGuid(), 5, rider, mount, new object(), true, () => stick || world, () => true, () => true, out owner, out refusal), refusal);
+            registry.DeclareDetachedCleanup(owner, () => world);
+            registry.Commit(owner);
+            TestRunner.True(!registry.IsDetachedCleanupOnly(owner) && !registry.SettledForAdmissionDiscard(), "An active owner counts as settled.");
+            registry.Detach(owner);
+            registry.RetireSettled();
+            TestRunner.True(registry.IsDetachedCleanupOnly(owner) && registry.SettledForAdmissionDiscard(), "Detached stick cleanup alone holds the world.");
+            TestRunner.True(registry.HeldForDetachedCleanup(rider, null, null) && registry.HeldForDetachedCleanup(null, mount, null) &&
+                registry.HeldForDetachedCleanup(new Actor { Id = "x" }, new Actor { Id = "y" }, owner.Id) && !registry.HeldForDetachedCleanup(other, otherMount, Guid.NewGuid()),
+                "The held pair is not recognised by its actors and identity, or an unrelated pair is.");
+            TestRunner.True(registry.AdmissionRefusal(oldWorld, "c", rider, mount) != null && registry.AdmissionRefusal(oldWorld, "c", other, otherMount) == null,
+                "The held actors are admitted again, or an unrelated pair is refused, in the same world.");
+            MountedPairOwner<Actor, object> duplicate;
+            TestRunner.True(!registry.TryImport(oldWorld, "c", owner.Id, 5, new Actor { Id = "x" }, new Actor { Id = "y" }, new object(), true, () => false, () => true, () => true, out duplicate, out refusal),
+                "The held identity was imported twice in the same world.");
+            // Another obligation beside it holds the world.
+            world = true;
+            TestRunner.True(!registry.IsDetachedCleanupOnly(owner) && !registry.SettledForAdmissionDiscard() && !registry.HeldForDetachedCleanup(rider, mount, owner.Id),
+                "An owner that holds the world counts as detached cleanup only.");
+            var setAsideRefused = false;
+            try { registry.SetAsideEarlierWorldCleanup(); } catch (InvalidOperationException) { setAsideRefused = true; }
+            TestRunner.True(setAsideRefused && registry.Owners.Length == 1, "A world replacement set aside an owner that still holds the world.");
+            world = false;
+            // A world replacement sets the cleanup aside; the new session admits the same characters and identity.
+            TestRunner.Equal(1, registry.SetAsideEarlierWorldCleanup(), "The old world's cleanup owner was not set aside.");
+            TestRunner.True(registry.Owners.Length == 0 && registry.EarlierWorldCleanupOwners.Length == 1 && owner.State == MountedPairOwnershipState.Detached,
+                "The set-aside owner was erased or kept in the new session.");
+            var newWorld = new object();
+            Actor newRider = new Actor { Id = "r" }, newMount = new Actor { Id = "m" };
+            MountedPairOwner<Actor, object> fresh;
+            TestRunner.True(registry.AdmissionRefusal(newWorld, "c", newRider, newMount) == null, "The new world was refused over the old world's cleanup.");
+            TestRunner.True(registry.TryImport(newWorld, "c", owner.Id, 5, newRider, newMount, new object(), true, () => false, () => true, () => true, out fresh, out refusal), refusal);
+            TestRunner.True(ReferenceEquals(fresh.Session, newWorld) && ReferenceEquals(registry.FindOwner(newRider), fresh) && !registry.HeldForDetachedCleanup(newRider, newMount, owner.Id),
+                "The new world's owner is not the one indexed, or the old cleanup still holds it.");
+            registry.RetireSettled();
+            TestRunner.True(owner.State == MountedPairOwnershipState.Detached && registry.EarlierWorldCleanupOwners.Length == 1, "The old owner retired with its cleanup outstanding.");
+            stick = false;
+            registry.RetireSettled();
+            TestRunner.True(owner.State == MountedPairOwnershipState.Retired && registry.EarlierWorldCleanupOwners.Length == 0 && ReferenceEquals(registry.FindOwner(newRider), fresh),
+                "The old owner did not retire once its cleanup was established, or its retirement touched the new owner.");
+            // Set-aside owners still count against the registry's owner capacity until they retire.
+            var crowded = new MountedPairRegistry<Actor, object>(actor => actor.Id);
+            var obligations = new List<bool[]>();
+            for (var index = 0; index < 7; index++)
+            {
+                var owes = new[] { true };
+                obligations.Add(owes);
+                MountedPairOwner<Actor, object> earlier;
+                TestRunner.True(crowded.TryImport(oldWorld, "c", Guid.NewGuid(), 1, new Actor { Id = "or" + index }, new Actor { Id = "om" + index }, new object(), true,
+                    () => owes[0], () => true, () => true, out earlier, out refusal), refusal);
+                crowded.DeclareDetachedCleanup(earlier, () => false);
+                crowded.Commit(earlier); crowded.Detach(earlier);
+            }
+            TestRunner.Equal(7, crowded.SetAsideEarlierWorldCleanup(), "Setup: seven earlier owners are set aside.");
+            // Five live owners of the new world that keep their own obligations: twelve owners in all.
+            for (var index = 0; index < 5; index++)
+            {
+                MountedPairOwner<Actor, object> live;
+                TestRunner.True(crowded.TryImport(newWorld, "c", Guid.NewGuid(), 1, new Actor { Id = "lr" + index }, new Actor { Id = "lm" + index }, new object(), true,
+                    () => true, () => true, () => true, out live, out refusal), refusal);
+                crowded.Commit(live); crowded.Detach(live);
+            }
+            crowded.RetireSettled();
+            TestRunner.True(crowded.Owners.Length == 5 && crowded.EarlierWorldCleanupOwners.Length == 7, "Setup: five live and seven set-aside owners.");
+            TestRunner.True(crowded.AdmissionRefusal(newWorld, "c", new Actor { Id = "x1" }, new Actor { Id = "x2" }) != null,
+                "The registry admitted a thirteenth owner while set-aside owners held their place.");
+            foreach (var owes in obligations) owes[0] = false;
+            crowded.RetireSettled();
+            TestRunner.True(crowded.EarlierWorldCleanupOwners.Length == 0 && crowded.AdmissionRefusal(newWorld, "c", new Actor { Id = "x1" }, new Actor { Id = "x2" }) == null,
+                "The capacity was not released when the earlier owners retired.");
+            // The arrival decision for a held pair: deferred, whatever else the arrival found; otherwise unchanged.
+            foreach (MountedDepartingArrivalDecision decision in Enum.GetValues(typeof(MountedDepartingArrivalDecision)))
+                TestRunner.True(MountedRetainedIntentPolicy.DeferHeldArrival(true, decision) == MountedDepartingArrivalDecision.Defer &&
+                    MountedRetainedIntentPolicy.DeferHeldArrival(false, decision) == decision, "A held pair's arrival is not deferred, or another pair's arrival changed: " + decision);
+            // An owner that never declared the split is never detached cleanup only.
+            var legacy = new MountedPairRegistry<Actor, object>(actor => actor.Id);
+            MountedPairOwner<Actor, object> plain;
+            TestRunner.True(legacy.TryImport(oldWorld, "c", Guid.NewGuid(), 1, rider, mount, new object(), true, () => true, () => true, () => true, out plain, out refusal), refusal);
+            legacy.Commit(plain); legacy.Detach(plain);
+            TestRunner.True(!legacy.IsDetachedCleanupOnly(plain) && !legacy.SettledForAdmissionDiscard(), "An undeclared obligation was taken for detached cleanup.");
+        }
+
+        private static World StickWorld(bool reviewed)
+        {
+            var world = new World { ReviewedWorldBoundaries = reviewed };
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            world.Stick = 0f;
+            world.Current = null;
+            world.TurnBasedHold = true;
+            return world;
+        }
+
+        private static void AreaTransitionOverRetainedStickCleanup()
+        {
+            foreach (var reviewed in new[] { false, true })
+            {
+                var world = StickWorld(reviewed);
+                var command = world.Mount.Slot;
+                var boundView = world.Mount.View;
+                var agent = boundView.Override;
+                var row = world.Capture(world.Pair);
+                var replacement = world.ReplaceView(world.Mount);
+                var foreign = new Agent { Continuous = true };
+                replacement.Override = replacement.Component = foreign;
+                world.Pair.FailClears = 1;
+                var suspended = world.SuspendArea(world.Pair);
+                TestRunner.True(command.Finished && ReferenceEquals(boundView.Override, agent) && world.Pair.Drive.ResidueCount == 1, "Setup: the agent removal failed once and is retained.");
+                if (reviewed)
+                {
+                    // The wiring of fe22563a (a model of it): the admission discard refused the retained owner, and the
+                    // area suspension latched a failed transfer.
+                    TestRunner.True(!suspended && world.FailedAreaTransfer, "Setup (model of the reviewed wiring): the area suspension should have failed after the guard.");
+                    continue;
+                }
+                TestRunner.True(suspended && !world.FailedAreaTransfer, "The area suspension failed over stick-movement cleanup alone.");
+                TestRunner.True(!world.OwnerSettled(world.Pair) && world.Registry.Owners.Length == 1, "The unfinished owner was erased, or settled, at the suspension.");
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The failed removal touched the foreign override.");
+                world.Arrive(row);
+                TestRunner.True(!world.FailedAreaTransfer && world.RetainedRows.Contains(row) && !row.Restored, "The arrival did not defer the held pair, or failed the transfer.");
+                world.RetryRetained();
+                TestRunner.True(!row.Restored && row.Refusal == MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal && world.Registry.Owners.Length == 1,
+                    "The held pair was restored beside its earlier owner, or refused without the true reason.");
+                // The root's recovery before its gate removes the agent; the owner retires; the retry restores the pair.
+                world.OrdinaryUpdateHeld = true;
+                world.RootUpdate();
+                world.OrdinaryUpdateHeld = false;
+                TestRunner.True(boundView.Override == null && agent.PendingDestroy && world.Pair.Drive.ResidueCount == 0, "The recovery did not remove the captured agent.");
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The recovery touched the foreign override.");
+                world.RetryRetained();
+                var restored = world.RestoredOwner(row);
+                TestRunner.True(row.Restored && restored != null && restored.Id == row.OwnerId && restored.Generation == row.Generation &&
+                    ReferenceEquals(restored.Session, world.Session) && restored.State == MountedPairOwnershipState.Active && world.Registry.Owners.Length == 1,
+                    "The pair was not restored with its exact identity, generation and session, or a duplicate owner remains.");
+                TestRunner.True(command.EndCallbacks == 1 && world.Pair.Interrupted == 1, "The terminal command was ended again.");
+            }
+        }
+
+        private static void LoadOverRetainedStickCleanup()
+        {
+            foreach (var reviewed in new[] { false, true })
+            {
+                var world = StickWorld(reviewed);
+                var command = world.Mount.Slot;
+                var row = world.Capture(world.Pair);
+                world.Pair.FailInterrupts = 1000;
+                var loaded = world.LoadWorld();
+                TestRunner.True(!command.Finished && world.Pair.Drive.ResidueCount == 1, "Setup: the command could not be retired before the load.");
+                if (reviewed)
+                {
+                    TestRunner.True(!loaded && world.LoadFailed, "Setup (model of the reviewed wiring): load housekeeping should have thrown after the guard.");
+                    continue;
+                }
+                TestRunner.True(loaded && !world.LoadFailed, "Load housekeeping failed over stick-movement cleanup alone.");
+                var oldOwner = world.OwnerOf(world.Pair);
+                TestRunner.True(world.Registry.Owners.Length == 0 && world.Registry.EarlierWorldCleanupOwners.Length == 1 && oldOwner.State == MountedPairOwnershipState.Detached,
+                    "The old world's owner was erased or kept in the new session.");
+                // The new world: the save's pair, the same characters as new objects, the same owner identity.
+                var saved = world.NewWorldRow(row);
+                var refusal = world.Import(saved);
+                TestRunner.True(refusal == null, "The new world's pair was refused over the old world's cleanup: " + refusal);
+                var fresh = world.RestoredOwner(saved);
+                var freshPair = world.PairOf(saved);
+                TestRunner.True(fresh.Id == row.OwnerId && ReferenceEquals(fresh.Session, world.Session) && !ReferenceEquals(world.Session, oldOwner.Session),
+                    "The new world's owner does not carry its own session and the saved identity.");
+                // The old cleanup finishes later and touches only the old world's objects.
+                world.Pair.FailInterrupts = 0;
+                world.RootUpdate();
+                TestRunner.True(command.Finished && world.Pair.Drive.ResidueCount == 0 && oldOwner.State == MountedPairOwnershipState.Retired, "The old cleanup did not finish and retire its owner.");
+                TestRunner.True(freshPair.Mounted && fresh.State == MountedPairOwnershipState.Active && freshPair.Mount.Override == null &&
+                    ReferenceEquals(freshPair.Rider.Override, freshPair.RiderAgent) && freshPair.Interrupted + freshPair.Cleared == 0,
+                    "The old cleanup mutated the new world's pair.");
+            }
+        }
+
+        private static void PersistentStickCleanupAtWorldBoundaries()
+        {
+            var world = StickWorld(false);
+            var row = world.Capture(world.Pair);
+            world.Pair.FailClears = 1000;
+            world.ReplaceView(world.Mount);
+            TestRunner.True(world.SuspendArea(world.Pair) && !world.FailedAreaTransfer, "The area suspension failed over a persistent stick-movement cleanup.");
+            for (var i = 0; i < 6; i++) world.RootUpdate();
+            TestRunner.Equal(MountedContinuousDriveOwner.AutomaticRetryLimit, world.Pair.Cleared, "Automatic attempts are not bounded across the world boundary.");
+            TestRunner.Equal(1, world.Pair.Warnings, "The persistent failure was reported more than once.");
+            world.Arrive(row);
+            world.RetryRetained(patienceExpired: true);
+            TestRunner.True(!row.Restored && world.Dropped.Contains(row) && row.Refusal == MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal,
+                "The held pair was reported restored, or stayed dismounted without the true reason.");
+            TestRunner.True(world.Pair.Drive.ResidueCount == 1 && !world.OwnerSettled(world.Pair) && world.Registry.AdmissionRefusal(world.Session, "campaign", world.Rider, world.Mount) != null,
+                "The cleanup responsibility or the owner was discarded with the pair's intent.");
+            // A deliberate recovery clears the obligation; the refusal clears; the pair can be admitted again.
+            world.Pair.FailClears = 0;
+            world.DismountResult(world.Pair, CleanupTrigger.ModDisabled);
+            TestRunner.True(world.Pair.Drive.ResidueCount == 0 && world.OwnerSettled(world.Pair) &&
+                world.Registry.AdmissionRefusal(world.Session, "campaign", world.Rider, world.Mount) == null, "The refusal stayed after the deliberate recovery.");
+            TestRunner.True(world.Import(row) == null && world.RestoredOwner(row).Id == row.OwnerId, "The pair could not be restored with its identity after the recovery.");
+        }
+
+        private static void WorldBoundaryControls()
+        {
+            // Healthy area transition: the pair restores at the arrival itself, never deferred.
+            var world = StickWorld(false);
+            var second = world.AddPair("rider2", "mount2");
+            var row = world.Capture(world.Pair);
+            var otherRow = world.Capture(second);
+            TestRunner.True(world.SuspendArea(world.Pair, second), "A healthy area suspension failed.");
+            world.Arrive(row, otherRow);
+            TestRunner.True(row.Restored && otherRow.Restored && world.RetainedRows.Count == 0 && !world.FailedAreaTransfer, "A healthy arrival was deferred or failed.");
+            // Healthy load.
+            world = StickWorld(false);
+            row = world.Capture(world.Pair);
+            TestRunner.True(world.LoadWorld() && world.Registry.EarlierWorldCleanupOwners.Length == 0 && world.Import(world.NewWorldRow(row)) == null, "A healthy load failed.");
+            // Event suspension over a one-shot failure: no discard at all; the in-area retry waits for the cleanup.
+            world = StickWorld(false);
+            world.ReplaceView(world.Mount);
+            world.Pair.FailClears = 1;
+            row = world.SuspendEvent(world.Pair);
+            TestRunner.True(world.Pair.Drive.ResidueCount == 1 && world.RetainedRows.Contains(row), "Setup: the event suspension retained the cleanup and captured the pair.");
+            world.RetryRetained();
+            TestRunner.True(!row.Restored, "The event's pair was restored beside its earlier owner.");
+            world.RootUpdate();
+            world.RetryRetained();
+            TestRunner.True(row.Restored && world.RestoredOwner(row).Id == row.OwnerId, "The event's pair did not restore after the cleanup.");
+            // An unrelated pair beside a held one is neither held nor deferred; an unmounted pair is untouched.
+            world = StickWorld(false);
+            var unrelated = world.AddPair("rider3", "mount3");
+            var idle = world.AddPair("rider4", "mount4");
+            idle.Mounted = false;
+            idle.Rider.Override = null;
+            row = world.Capture(world.Pair);
+            otherRow = world.Capture(unrelated);
+            world.ReplaceView(world.Mount);
+            world.Pair.FailClears = 1000;
+            TestRunner.True(world.SuspendArea(world.Pair, unrelated), "The suspension failed.");
+            world.Arrive(row, otherRow);
+            TestRunner.True(!row.Restored && otherRow.Restored && !world.Registry.HeldForDetachedCleanup(unrelated.Rider, unrelated.Mount, otherRow.OwnerId),
+                "The unrelated pair was held, or the held pair was restored.");
+            TestRunner.True(idle.Interrupted + idle.Cleared == 0 && world.OwnerOf(idle) == null, "The unmounted pair was touched.");
+            // World obligations other than stick-movement cleanup keep the established refusals, with or without it.
+            foreach (var withStick in new[] { false, true })
+            {
+                world = StickWorld(false);
+                world.Pair.WorldObligation = true;
+                if (withStick) { world.ReplaceView(world.Mount); world.Pair.FailClears = 1000; }
+                world.Capture(world.Pair);
+                TestRunner.True(!world.SuspendArea(world.Pair) && world.FailedAreaTransfer, "An owner that holds the world let the area suspension through.");
+                world = StickWorld(false);
+                world.Pair.WorldObligation = true;
+                if (withStick) { world.ReplaceView(world.Mount); world.Pair.FailClears = 1000; }
+                world.Capture(world.Pair);
+                TestRunner.True(!world.LoadWorld() && world.LoadFailed && world.Registry.EarlierWorldCleanupOwners.Length == 0,
+                    "An owner that holds the world let the load through, or was set aside.");
+            }
+            // The earlier strict gates are unchanged on a held boundary.
+            world = StickWorld(false);
+            world.Capture(world.Pair);
+            world.ReplaceView(world.Mount);
+            world.Pair.FailClears = 1000;
+            world.SuspendArea(world.Pair);
+            TestRunner.True(!world.RequestDisable() && world.ServicesEnabled && !world.MayRemoveGuards() && !world.Shutdown(world.Pair),
+                "Disable, guard removal or shutdown passed over the retained cleanup.");
+        }
+
         private static void HealthyLifecycleControls()
         {
             // An ordinary release during stick movement completes the disable at once.
@@ -1455,6 +1740,9 @@ namespace KingmakerMountedCombat.Tests
             public Unit Rider, Mount;
             public bool Mounted = true;
             public long Generation = 1;
+            // An obligation other than stick-movement cleanup that keeps the owner and its world (commands, participation
+            // or a failed attachment cleanup in production).
+            public bool WorldObligation;
             public string Fault;
             public int Interrupted, EndEvents, Cleared, Warnings, Reports;
             // Failure injection: the adapter's native calls fail this many times, and its report always fails.
@@ -1858,10 +2146,144 @@ namespace KingmakerMountedCombat.Tests
             private bool Reserve(Pair pair, out MountedPairOwner<Unit, Pair> owner)
             {
                 string refusal;
-                return Registry.TryReserve(this, "campaign", pair.Rider, pair.Mount, 1, pair,
-                    () => MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, false, pair.Drive.ResidueCount != 0),
-                    () => true, () => true, out owner, out refusal);
+                if (!Registry.TryReserve(Session, "campaign", pair.Rider, pair.Mount, 1, pair, Retained(pair),
+                    () => true, () => true, out owner, out refusal)) return false;
+                Declare(owner, pair);
+                return true;
             }
+
+            // The production relationship service's two predicates: what keeps the owner, and what of it holds the world.
+            private static Func<bool> Retained(Pair pair) =>
+                () => MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, false, pair.Drive.ResidueCount != 0) || pair.WorldObligation;
+
+            private void Declare(MountedPairOwner<Unit, Pair> owner, Pair pair)
+            {
+                // The reviewed head declared no split: every obligation held the world.
+                if (!ReviewedWorldBoundaries)
+                    Registry.DeclareDetachedCleanup(owner, () => MountedCleanupCompletionPolicy.OwnerHoldsWorld(false, false) || pair.WorldObligation);
+            }
+
+            // ---- world boundaries (review of fe22563a): a model of MountedPersistenceService's area suspension and arrival,
+            // its in-area retry, event suspension and load housekeeping, around the production registry and policy. ----
+
+            // The wiring of fe22563a: the discard read every obligation, the arrival imported every departing pair, and a
+            // load had nothing to set aside.
+            public bool ReviewedWorldBoundaries;
+            private object session;
+            public object Session { get { return session ?? this; } set { session = value; } }
+            public bool FailedAreaTransfer, LoadFailed;
+            public readonly List<Row> RetainedRows = new List<Row>();
+            public readonly List<Row> Dropped = new List<Row>();
+            private readonly Dictionary<Row, Pair> restoredPairs = new Dictionary<Row, Pair>();
+
+            public sealed class Row
+            {
+                public Unit Rider, Mount;
+                public Guid OwnerId;
+                public long Generation;
+                public bool Restored;
+                public string Refusal;
+            }
+
+            public MountedPairOwner<Unit, Pair> OwnerOf(Pair pair) { MountedPairOwner<Unit, Pair> owner; return owners.TryGetValue(pair, out owner) ? owner : null; }
+            public MountedPairOwner<Unit, Pair> RestoredOwner(Row row) => restoredPairs.ContainsKey(row) ? OwnerOf(restoredPairs[row]) : null;
+            public Pair PairOf(Row row) => restoredPairs[row];
+
+            // The departing pair's row, as BeginAreaTransition captures it while the pair is mounted.
+            public Row Capture(Pair pair)
+            {
+                var owner = OwnerOf(pair);
+                if (owner == null && Reserve(pair, out owner)) { Registry.Commit(owner); owners[pair] = owner; }
+                return new Row { Rider = pair.Rider, Mount = pair.Mount, OwnerId = owner.Id, Generation = owner.Generation };
+            }
+
+            // The admission discard: what MountedWorldService.DiscardAdmissionBindings asks the registry.
+            private bool DiscardSettled() => ReviewedWorldBoundaries
+                ? Registry.Owners.All(owner => owner.State == MountedPairOwnershipState.Retired ||
+                    owner.State == MountedPairOwnershipState.Detached && !owner.RetainsObligations())
+                : Registry.SettledForAdmissionDiscard();
+
+            // SuspendAreaPair: the world-boundary guard of every departing pair, then the admission discard. A failure
+            // latches the failed transfer.
+            public bool SuspendArea(params Pair[] departing)
+            {
+                foreach (var pair in departing) DismountResult(pair, CleanupTrigger.AreaSuspension);
+                Registry.RetireSettled();
+                if (!DiscardSettled()) { FailedAreaTransfer = true; return false; }
+                return true;
+            }
+
+            // SuspendPairs (an event): the captured row and the world-boundary guard; no discard.
+            public Row SuspendEvent(Pair pair)
+            {
+                var row = Capture(pair);
+                DismountResult(pair, CleanupTrigger.EventSuspension);
+                RetainedRows.Add(row);
+                return row;
+            }
+
+            // RestoreAreaPair, departing pairs: a pair still held by its earlier owner's detached cleanup is deferred to the
+            // retained custody; any other import refusal is the established all-pair failure.
+            public void Arrive(params Row[] rows)
+            {
+                foreach (var row in rows)
+                {
+                    var held = !ReviewedWorldBoundaries && Registry.HeldForDetachedCleanup(row.Rider, row.Mount, row.OwnerId);
+                    if (MountedRetainedIntentPolicy.DeferHeldArrival(held, MountedDepartingArrivalDecision.Restore) == MountedDepartingArrivalDecision.Defer)
+                    { RetainedRows.Add(row); continue; }
+                    var refusal = Import(row);
+                    if (refusal != null) { FailedAreaTransfer = true; return; }
+                }
+            }
+
+            // The in-area retry (RestoreRetainedPair): an import refusal is a clean refusal, retried until the patience
+            // expires; then the pair stays dismounted, with the refusal as its reason.
+            public void RetryRetained(bool patienceExpired = false)
+            {
+                foreach (var row in RetainedRows.ToArray())
+                {
+                    var refusal = Import(row);
+                    row.Refusal = refusal;
+                    if (refusal == null) { RetainedRows.Remove(row); continue; }
+                    if (patienceExpired) { RetainedRows.Remove(row); Dropped.Add(row); }
+                }
+            }
+
+            // ImportSavedOwnership on a restored boundary, then the attachment.
+            public string Import(Row row)
+            {
+                Registry.RetireSettled();
+                if (!ReviewedWorldBoundaries && Registry.HeldForDetachedCleanup(row.Rider, row.Mount, row.OwnerId))
+                    return MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal;
+                var pair = new Pair { World = this, Rider = row.Rider, Mount = row.Mount };
+                MountedPairOwner<Unit, Pair> owner; string refusal;
+                if (!Registry.TryImport(Session, "campaign", row.OwnerId, row.Generation, row.Rider, row.Mount, pair, true, Retained(pair),
+                    () => true, () => true, out owner, out refusal)) return refusal;
+                Declare(owner, pair);
+                Registry.Commit(owner);
+                pair.Rider.Override = pair.RiderAgent;
+                Pairs.Add(pair);
+                owners[pair] = owner;
+                restoredPairs[row] = pair;
+                row.Restored = true;
+                return null;
+            }
+
+            // BeginLoadHousekeeping: the world-boundary guard of every pair, then the world-replacement discard; the new
+            // world's session follows.
+            public bool LoadWorld()
+            {
+                foreach (var pair in Pairs.ToList()) DismountResult(pair, CleanupTrigger.LoadRequested);
+                Registry.RetireSettled();
+                if (!DiscardSettled()) { LoadFailed = true; return false; }
+                if (!ReviewedWorldBoundaries) Registry.SetAsideEarlierWorldCleanup();
+                Session = new object();
+                return true;
+            }
+
+            // The save's row in the new world: new objects for the same characters, the saved identity and generation.
+            public Row NewWorldRow(Row saved) => new Row { Rider = NewUnit(saved.Rider.Name), Mount = NewUnit(saved.Mount.Name),
+                OwnerId = saved.OwnerId, Generation = saved.Generation };
 
             public TransitionResult DismountResult(Pair pair, CleanupTrigger trigger, bool automaticRetry = false)
             {
@@ -1926,6 +2348,8 @@ namespace KingmakerMountedCombat.Tests
                 if (FailureStopPending && Pairs.All(pair => pair.Drive.ResidueCount == 0)) RuntimeErrorCleanup();
                 if (ServicesEnabled && !OrdinaryUpdateHeld)
                 {
+                    // MountedWorldService.UpdatePairs ends with the settled-admission sweep, which retires settled owners.
+                    Registry.RetireSettled();
                     foreach (var pair in Pairs.ToList()) Validate(pair);
                     UpdateMovement(false);
                 }

@@ -291,11 +291,23 @@ namespace KingmakerMountedCombat.Integration
 
         internal void DiscardAdmissionBindings()
         {
-            if (SerializationBusy || Registry.Owners.Any(owner => owner.State != MountedPairOwnershipState.Retired &&
-                (owner.State != MountedPairOwnershipState.Detached || owner.RetainsObligations())))
+            // Known issues sprint 3 (review of fe22563a): a detached owner that owes only the stick-movement cleanup its
+            // boundary keeps does not hold the world; it stays registered, with its actors and identity.
+            if (SerializationBusy || !Registry.SettledForAdmissionDiscard())
                 throw new InvalidOperationException("Old-world custody has not settled before admission discard.");
             NativeControls?.RetireWorldControlBindings();
             ReleaseSettledAdmissions();
+        }
+
+        // A load replaces the world: after the discard, owners that still owe detached cleanup leave the old session,
+        // so the new world's owners are admitted and imported under their own session.
+        internal void DiscardAdmissionBindingsForWorldReplacement()
+        {
+            DiscardAdmissionBindings();
+            var moved = Registry.SetAsideEarlierWorldCleanup();
+            if (moved != 0)
+                logger.Warning("World replacement continues while " + moved + " earlier mounted pair" + (moved == 1 ? " still owes" : "s still owe") +
+                    " stick-movement cleanup; that cleanup keeps its exact references and boundary and retires on its own.");
         }
 
         // Some pair still owes the retirement of its stick movement.

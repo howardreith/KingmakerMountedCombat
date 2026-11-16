@@ -45,6 +45,10 @@ namespace KingmakerMountedCombat.Integration
                 rider, mount, checked(mountedPairGeneration + 1), this,
                 () => RetainsCleanupObligations || retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out owner, out refusal, NativePairCapacity)) return false;
+            // Known issues sprint 3 (review of fe22563a): the same obligations without the stick-movement cleanup the
+            // boundary keeps on its own. Only world boundaries read this; the owner itself retires on the full set.
+            Ownership.DeclareDetachedCleanup(owner,
+                () => RetainsWorldCleanupObligations || retainedCommands() || retainedParticipation(rider, mount));
             PairOwner = owner;
             return true;
         }
@@ -52,15 +56,28 @@ namespace KingmakerMountedCombat.Integration
         internal void ImportSavedOwnership(UnitEntityData rider, UnitEntityData mount, string ownerId,
             long generation, bool mounted)
         {
+            var player = Game.Instance?.Player;
+            ImportSavedOwnershipForSession(player, player?.GameId, rider, mount, ownerId, generation, mounted);
+        }
+
+        // The session is observed once at the native boundary; detached contract probes supply that observation.
+        internal void ImportSavedOwnershipForSession(object session, string campaign, UnitEntityData rider, UnitEntityData mount,
+            string ownerId, long generation, bool mounted)
+        {
             RefreshOwnership();
             if (PairOwner != null || !Guid.TryParse(ownerId, out var id))
                 throw new InvalidOperationException("Saved custody cannot replace an existing owner.");
-            if (!Ownership.TryImport(Game.Instance?.Player, Game.Instance?.Player?.GameId, id, generation,
+            // A pair whose earlier owner still owes its stick-movement cleanup is not imported beside that owner.
+            if (Ownership.HeldForDetachedCleanup(rider, mount, id))
+                throw new InvalidOperationException(MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal);
+            if (!Ownership.TryImport(session, campaign, id, generation,
                 rider, mount, this, mounted,
                 () => importedParticipationOwnership || RetainsCleanupObligations ||
                     retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out var owner, out var refusal))
                 throw new InvalidOperationException(refusal);
+            Ownership.DeclareDetachedCleanup(owner, () => importedParticipationOwnership || RetainsWorldCleanupObligations ||
+                retainedCommands() || retainedParticipation(rider, mount));
             PairOwner = owner;
             mountedPairGeneration = generation;
             importedMountedOwnership = mounted;
@@ -125,6 +142,14 @@ namespace KingmakerMountedCombat.Integration
             PairOwner = null;
             importedMountedOwnership = false;
             importedParticipationOwnership = false;
+        }
+
+        // Known issues sprint 3 (review of fe22563a): an area arrival defers a pair still held by its earlier owner's
+        // detached cleanup instead of importing it beside that owner.
+        internal bool PairHeldByDetachedCleanup(UnitEntityData rider, UnitEntityData mount, string ownerId)
+        {
+            RefreshOwnership();
+            return Ownership.HeldForDetachedCleanup(rider, mount, Guid.TryParse(ownerId, out var id) ? id : (Guid?)null);
         }
 
         internal GameMountedRelationshipService ResolveActorOwner(UnitEntityData actor, bool activeOnly = false) =>
