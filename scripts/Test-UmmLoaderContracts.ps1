@@ -2,27 +2,31 @@
 param(
     # The UnityModManager.dll to inspect. Default: the loader installed in the Kingmaker the build references.
     [string]$Reference='',
-    # The reviewed profile (planning/UMM-LOADER-PROFILES.json) the reference must be. Default: the
-    # UnityModManagerProfile of LocalGamePaths.props, else the profile the reference identifies as.
+    # The reviewed profile (planning/UMM-LOADER-PROFILES.json) the reference must be. Default: for the installed
+    # loader, the UnityModManagerProfile of LocalGamePaths.props; otherwise the profile the reference identifies as.
     [string]$Profile='',
+    # Do not read UnityModManagerProfile from LocalGamePaths.props.
+    [switch]$IgnoreLocalProfile,
     # Inspect the API of a genuine loader that has no reviewed profile. Identity is then reported as not
     # asserted; it is never reported as passed.
     [switch]$ApiOnly,
-    # The compiled product whose loader member references are resolved. Default: bin\Release, else bin\Debug.
+    # The build whose loader member references are bound: bin\<Configuration>, or the product named explicitly.
+    [ValidateSet('Debug','Release')][string]$Configuration='Release',
     [string]$ProductDll=''
 )
 # One loader reference, one process: two UnityModManager assemblies cannot be inspected side by side.
 # Reports four things separately and never lets one stand in for another:
 #   the declared minimum, the identity result for one profile, the API result, and native execution (not run).
 # Exit 0: nothing failed. Exit 1: an identity or API check failed. Exit 2: the requested profile is not a
-# reviewed one. Exit 3: the reference is unavailable, so
+# reviewed one, or the named product does not exist. Exit 3: the reference is unavailable, so
 # nothing was assessed. The installed loader is only read; no loader binary is copied, installed or replaced.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'));$labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))
 $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.json')|ConvertFrom-Json
 $managed=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker_Data\Managed'
 . (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
-if([string]::IsNullOrWhiteSpace($Reference)){$Reference=Join-Path $managed 'UnityModManager\UnityModManager.dll'}
+$installed=[IO.Path]::GetFullPath((Join-Path $managed 'UnityModManager\UnityModManager.dll'))
+if([string]::IsNullOrWhiteSpace($Reference)){$Reference=$installed}
 $document=Get-KmcUmmLoaderProfiles $repoRoot
 $minimum=Get-KmcUmmDeclaredMinimum $repoRoot
 Write-Host ('UMM DECLARED MINIMUM '+$minimum+' (Info.json ManagerVersion; a support declaration, not assessed by inspecting another version)')
@@ -51,23 +55,27 @@ if($ApiOnly){
     $identityLine='UMM IDENTITY NOT ASSERTED no reviewed profile was applied (-ApiOnly); this is not an identity pass'
 }else{
     # A profile name that is not reviewed is refused outright; it never falls back to another profile.
-    try{$selected=Resolve-KmcUmmLoaderProfile $document $identity $Profile (Get-KmcUmmLocalSetting $repoRoot 'UnityModManagerProfile')}
+    # LocalGamePaths.props describes the installed loader, so its profile is applied to that reference only.
+    $local=if($IgnoreLocalProfile-or$Reference-ine$installed){''}else{Get-KmcUmmLocalSetting $repoRoot 'UnityModManagerProfile'}
+    try{$selected=Resolve-KmcUmmLoaderProfile $document $identity $Profile $local}
     catch{Write-Host ('UMM PROFILE REFUSED '+$_.Exception.Message);Write-Host 'TOTAL PASS=0 FAIL=1 UNASSESSED=0';exit 2}
     $identityOk=Invoke-KmcUmmLoaderIdentityChecks $assembly $identity $selected ${function:Assert-Contract}
     $identityLine='UMM IDENTITY '+$(if($identityOk){'PASS'}else{'FAIL'})+' profile '+$(if($null-eq$selected.profile){'<none matches>'}else{$selected.profile.id})+' ('+$selected.selection+')'
 }
 $before=$failures.Count
 Invoke-KmcUmmLoaderApiChecks $assembly ${function:Assert-Contract}
-$product=Get-KmcUmmProductAssembly $repoRoot $ProductDll;$reader=Get-KmcUmmMetadataReaderPath $managed
+try{$product=Get-KmcUmmProductAssembly $repoRoot $Configuration $ProductDll}
+catch{Write-Host ('UMM PRODUCT REFUSED '+$_.Exception.Message);Write-Host ('TOTAL PASS='+$passes+' FAIL='+($failures.Count+1)+' UNASSESSED=0');exit 2}
+$reader=Get-KmcUmmMetadataReaderPath $managed
 if($null-eq$product-or-not$reader){
-    $unassessed.Add('UMM API product binding sweep: '+$(if($null-eq$product){'no compiled product (build first)'}else{'no metadata reader (dnlib beside the installed loader)'}));Write-Host ('UNASSESSED '+$unassessed[$unassessed.Count-1])
+    $unassessed.Add('UMM API product binding sweep: '+$(if($null-eq$product){'no '+$Configuration+' build of the product (build first)'}else{'no metadata reader (dnlib beside the installed loader)'}));Write-Host ('UNASSESSED '+$unassessed[$unassessed.Count-1])
 }else{
     $bindings=Invoke-KmcUmmProductBindingChecks $product $reader ${function:Assert-Contract}
     Write-Host ('INFO compiled product '+$product.Location+' MVID '+$product.ManifestModule.ModuleVersionId+' was built against '+(@($product.GetReferencedAssemblies()|Where-Object Name -CEQ 'UnityModManager')|ForEach-Object{$_.Version})+' and binds '+$bindings.resolved.Count+' loader members')
 }
 $apiOk=$failures.Count-eq$before
 Write-Host $identityLine
-Write-Host ('UMM API '+$(if($apiOk){'PASS'}else{'FAIL'})+' reference '+$identity.version+$(if($unassessed.Count){' (product binding sweep unassessed)'}else{''}))
+Write-Host ('UMM API '+$(if($apiOk){'PASS'}else{'FAIL'})+' reference '+$identity.version+$(if($unassessed.Count){' for the explicit binding surface only; the compiled product''s own references are UNASSESSED'}else{''}))
 Write-Host 'UMM NATIVE EXECUTION not run by this check'
 Write-Host ('TOTAL PASS='+$passes+' FAIL='+$failures.Count+' UNASSESSED='+$unassessed.Count)
 if($failures.Count-ne0){exit 1}

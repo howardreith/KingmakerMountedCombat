@@ -124,32 +124,36 @@ function Get-KmcChunk7ReplaySubscriberContracts {
                 'small-gnome-male-fat-horse-v1','small-gnome-male-thin-horse-v1','small-gnome-female-fat-horse-v1','small-gnome-female-thin-horse-v1'))}
     )
 }
+# Names in evidence are compared ordinally. PowerShell's -ceq, -cin and -ccontains are culture-sensitive and ignore
+# characters such as U+00AD, so they cannot decide exact membership.
+function Test-KmcChunk7Ordinal($Left,$Right) { $Left-is[string]-and$Right-is[string]-and[string]::Equals($Left,$Right,[StringComparison]::Ordinal) }
 function Get-KmcChunk7ReplaySubscriberContract([string]$Revision) {
-    $found=@(Get-KmcChunk7ReplaySubscriberContracts|Where-Object revision -CEQ $Revision)
+    $found=@(Get-KmcChunk7ReplaySubscriberContracts|Where-Object{Test-KmcChunk7Ordinal $_.revision $Revision})
     if($found.Count-ne1){throw ('Unsupported repeated-world evidence: no reviewed subscriber contract revision '+$Revision+'.')}
     $found[0]
 }
 # One reviewed contract for this evidence, or an explicit refusal. serials: whether its rows carry weak-reference serials.
 function Resolve-KmcChunk7ReplaySubscriberContract($Request,$Repeated) {
-    $declares=@($Repeated.PSObject.Properties.Name)-ccontains'subscriberContract'
-    $evidence=if($Repeated.contract-is[string]){$Repeated.contract}else{'<not a string>'}
-    if($evidence-cin@('chunk7-repeated-worlds-v1','chunk7-repeated-worlds-v2')){
+    $names=[string[]]@($Repeated.PSObject.Properties.Name)
+    $declares=[Array]::IndexOf($names,'subscriberContract')-ge0
+    $evidence=if([Array]::IndexOf($names,'contract')-ge0-and$Repeated.contract-is[string]){$Repeated.contract}else{'<missing or not a string>'}
+    $serials=Test-KmcChunk7Ordinal $evidence 'chunk7-repeated-worlds-v2'
+    if($serials-or(Test-KmcChunk7Ordinal $evidence 'chunk7-repeated-worlds-v1')){
         if($declares){throw 'Unsupported repeated-world evidence: a v1 or v2 contract cannot declare a subscriber contract revision.'}
-        $serials=$evidence-ceq'chunk7-repeated-worlds-v2'
-        # Any other version scheme is refused by the revision reader itself.
-        $preview=Get-KmcChunk7CheckpointProducerPreview $Request
+        # Only the chunk7b preview scheme (and the synthetic fixtures) ever produced v1 or v2.
+        try{$preview=Get-KmcChunk7CheckpointProducerPreview $Request}catch{throw ('Unsupported repeated-world evidence: '+$_.Exception.Message)}
+        if($preview-ge100){throw ('Unsupported repeated-world evidence: chunk7b preview.'+$preview+' holds an owned subscriber set that no reviewed contract describes; the implicit historical contract ends at preview.99.')}
         # The runner binds productVersion to the delivered DLL. Preview.95 and later cannot opt out of
         # collision-free subscriber observations by relabelling their evidence as the historical v1 contract.
         if($preview-ge95-and-not$serials){throw 'This producer revision requires repeated-world v2 subscriber serial evidence.'}
-        if($preview-ge100){throw ('Unsupported repeated-world evidence: chunk7b preview.'+$preview+' holds an owned subscriber set that no reviewed contract describes; the implicit historical contract ends at preview.99.')}
         return [pscustomobject]@{contract=(Get-KmcChunk7ReplaySubscriberContract 'kmc-global-subscribers-r1');serials=$serials}
     }
-    if($evidence-cne'chunk7-repeated-worlds-v3'){throw ('Unsupported repeated-world evidence contract: '+$evidence+'.')}
+    if(-not(Test-KmcChunk7Ordinal $evidence 'chunk7-repeated-worlds-v3')){throw ('Unsupported repeated-world evidence contract: '+$evidence+'.')}
     if(-not$declares-or$Repeated.subscriberContract-isnot[string]){throw 'Unsupported repeated-world evidence: v3 must declare its subscriber contract revision.'}
     $contract=Get-KmcChunk7ReplaySubscriberContract $Repeated.subscriberContract
     if($null-eq$contract.firstRelease){throw ('Unsupported repeated-world evidence: '+$contract.revision+' is the implicit historical contract and cannot be declared.')}
     $version=[string]$Request.productVersion
-    if($version-cne'synthetic'-and($version-cnotmatch'^0[.]2[.]([0-9]{1,4})$'-or[int]$Matches[1]-lt$contract.firstRelease)){
+    if($version-cne'synthetic'-and($version-cnotmatch'\A0[.]2[.]([0-9]{1,4})\z'-or[int]$Matches[1]-lt$contract.firstRelease)){
         throw ('Unsupported repeated-world evidence: producer '+$version+' cannot carry '+$contract.revision+' (first release 0.2.'+$contract.firstRelease+').')
     }
     [pscustomobject]@{contract=$contract;serials=$true}
@@ -159,34 +163,34 @@ function Resolve-KmcChunk7ReplaySubscriberContract($Request,$Repeated) {
 # Riding Dog and unknown profiles do not.
 function Get-KmcChunk7KmcHorseOwnerCount($Pairs,$Contract) {
     if($null-eq$Contract-or@($Contract.horseProfileIds).Count-eq0){throw 'Horse owners are counted under a reviewed subscriber contract.'}
-    $ids=@($Contract.horseProfileIds)
-    @(@($Pairs)|Where-Object{$null-ne$_-and$_.ProfileId-is[string]-and$_.ProfileId-cin$ids}).Count
+    $ids=[Collections.Generic.HashSet[string]]::new([string[]]@($Contract.horseProfileIds),[StringComparer]::Ordinal)
+    @(@($Pairs)|Where-Object{$null-ne$_-and$_.ProfileId-is[string]-and$ids.Contains($_.ProfileId)}).Count
 }
 function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$NativeLoad,[int]$HorseFacts,$Contract) {
     if($null-eq$Contract-or@($Contract.processOwned).Count-eq0){throw 'Repeated subscriber boundary requires its reviewed subscriber contract.'}
     $horse='KingmakerMountedCombat.Integration.HorseCompanionAddPet'
     $entries=@($Current.entries)
-    $h=@($entries|Where-Object type -CEQ $horse)
+    $h=@($entries|Where-Object{Test-KmcChunk7Ordinal $_.type $horse})
     $label=if(Test-KmcChunk7ReplaySerialInventory $Current){'serial'}else{'identity'}
     $failure='Repeated world subscribers differ from reviewed contract '+$Contract.revision+': '
     if($HorseFacts-lt1-or$HorseFacts-gt2){throw ($failure+'Horse owners must be one or two.')}
     # Membership, instances and every aggregate come from the reviewed set, never from the inventory.
     $expectedEntries=$HorseFacts;$processLabels=@()
     foreach($owner in $Contract.processOwned){
-        $rows=@($entries|Where-Object type -CEQ $owner.type)
+        $rows=@($entries|Where-Object{Test-KmcChunk7Ordinal $_.type $owner.type})
         $listed=@($rows|ForEach-Object{$_.interface}|Sort-Object -CaseSensitive)
-        if(($listed-join'|')-cne(@($owner.interfaces)-join'|')){throw ($failure+$owner.type+' does not list exactly its reviewed interfaces (missing, duplicate or foreign handler).')}
+        if(-not(Test-KmcChunk7Ordinal ($listed-join'|') (@($owner.interfaces)-join'|'))){throw ($failure+$owner.type+' does not list exactly its reviewed interfaces (missing, duplicate or foreign handler).')}
         $labels=@($rows|ForEach-Object{$_.$label}|Select-Object -Unique)
         if($labels.Count-ne1){throw ($failure+$owner.type+' is not one process-owned instance.')}
         if($processLabels-contains$labels[0]){throw ($failure+$owner.type+' shares its instance with another process-owned subscriber.')}
         $processLabels+=$labels[0];$expectedEntries+=@($owner.interfaces).Count
     }
-    if($h.Count-ne$HorseFacts-or@($h|Where-Object interface -CNE 'Kingmaker.PubSubSystem.ISceneHandler').Count-ne0-or
+    if($h.Count-ne$HorseFacts-or@($h|Where-Object{-not(Test-KmcChunk7Ordinal $_.interface 'Kingmaker.PubSubSystem.ISceneHandler')}).Count-ne0-or
        @($h|ForEach-Object{$_.$label}|Select-Object -Unique).Count-ne$HorseFacts-or@($h|Where-Object{$processLabels-contains$_.$label}).Count-ne0){
         throw ($failure+'Horse fact subscribers are not exactly one ISceneHandler instance per Horse owner.')
     }
     $reviewed=@($Contract.processOwned|ForEach-Object{$_.type})+@($horse)
-    if(@($entries|Where-Object{$_.type-cnotin$reviewed}).Count-ne0){throw ($failure+'a subscriber type outside the reviewed set is present.')}
+    if(@($entries|Where-Object{$type=$_.type;@($reviewed|Where-Object{Test-KmcChunk7Ordinal $type $_}).Count-eq0}).Count-ne0){throw ($failure+'a subscriber type outside the reviewed set is present.')}
     if($Current.uniqueOwnedSubscribers-ne(@($Contract.processOwned).Count+$HorseFacts)-or$Current.ownedInterfaceEntries-ne$expectedEntries-or$entries.Count-ne$expectedEntries){
         throw ($failure+'aggregate subscriber counts differ from the reviewed set.')
     }
@@ -196,9 +200,9 @@ function Assert-KmcChunk7RepeatedSubscriptionBoundary($Previous,$Current,[bool]$
     $oldShape=@($prior|ForEach-Object{$_.interface+'|'+$_.type}|Sort-Object -CaseSensitive)
     # v2 compares collision-free serials (a new object never repeats one); v1 keeps its identity-hash comparison.
     if((Test-KmcChunk7ReplaySerialInventory $Previous)-ne($label-ceq'serial')){throw 'Repeated subscriber inventories mix serial and hash-only labels.'}
-    $stable=@($entries|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
-    $oldStable=@($prior|Where-Object type -CNE $horse|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
-    $oldHorse=@($prior|Where-Object type -CEQ $horse|ForEach-Object{$_.$label}|Sort-Object)
+    $stable=@($entries|Where-Object{-not(Test-KmcChunk7Ordinal $_.type $horse)}|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
+    $oldStable=@($prior|Where-Object{-not(Test-KmcChunk7Ordinal $_.type $horse)}|ForEach-Object{$_.interface+'|'+$_.type+'|'+$_.$label}|Sort-Object -CaseSensitive)
+    $oldHorse=@($prior|Where-Object{Test-KmcChunk7Ordinal $_.type $horse}|ForEach-Object{$_.$label}|Sort-Object)
     $newHorse=@($h|ForEach-Object{$_.$label}|Sort-Object)
     if($Current.assemblyMvid-cne$Previous.assemblyMvid-or
        (ConvertTo-KmcChunk7Canonical $shape)-cne(ConvertTo-KmcChunk7Canonical $oldShape)-or

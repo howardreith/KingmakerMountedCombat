@@ -2,7 +2,9 @@
 param([ValidateSet('Both','Kingmaker','Wrath')][string]$Target='Both',
     # The reviewed loader profile (planning/UMM-LOADER-PROFILES.json) the installed UnityModManager must be. Default:
     # UnityModManagerProfile of LocalGamePaths.props, else the reviewed profile the installed loader identifies as.
-    [string]$UmmProfile='')
+    [string]$UmmProfile='',
+    # The product build whose loader member references are bound (bin\<Configuration>); no other build is used.
+    [ValidateSet('Debug','Release')][string]$Configuration='Release')
 
 $ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')); $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))
@@ -10,7 +12,7 @@ $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.js
 if($Target -eq 'Both'){
     $totalPass=0
     foreach($childTarget in @('Kingmaker','Wrath')){
-        $childArguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Target',$childTarget);if($childTarget-eq'Kingmaker'-and$UmmProfile){$childArguments+=@('-UmmProfile',$UmmProfile)}
+        $childArguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Target',$childTarget,'-Configuration',$Configuration);if($childTarget-eq'Kingmaker'-and$UmmProfile){$childArguments+=@('-UmmProfile',$UmmProfile)}
         $output=@(& powershell.exe @childArguments)
         if($LASTEXITCODE-ne0){$output|ForEach-Object{Write-Host $_};throw "$childTarget assembly-contract child failed."}
         $output|ForEach-Object{Write-Host $_}
@@ -348,8 +350,8 @@ if($Target-eq'Kingmaker'){
     $ummFailuresBeforeApi=$failures.Count
     Invoke-KmcUmmLoaderApiChecks $ummAssembly ${function:Assert-Contract}
     # Every loader member the compiled product references, when a build exists. No build: reported, never passed.
-    $ummProduct=Get-KmcUmmProductAssembly $repoRoot;$ummReader=Get-KmcUmmMetadataReaderPath $managed;$ummSweepRan=$null-ne$ummProduct-and[bool]$ummReader
-    if($ummSweepRan){[void](Invoke-KmcUmmProductBindingChecks $ummProduct $ummReader ${function:Assert-Contract})}else{Write-Host "UNASSESSED $Target UMM API product binding sweep: no compiled product or no metadata reader"}
+    $ummProduct=Get-KmcUmmProductAssembly $repoRoot $Configuration;$ummReader=Get-KmcUmmMetadataReaderPath $managed;$ummSweepRan=$null-ne$ummProduct-and[bool]$ummReader
+    if($ummSweepRan){[void](Invoke-KmcUmmProductBindingChecks $ummProduct $ummReader ${function:Assert-Contract})}else{Write-Host "UNASSESSED $Target UMM API product binding sweep: no $Configuration build of the product, or no metadata reader"}
     $ummApiOk=$failures.Count-eq$ummFailuresBeforeApi
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)
@@ -1523,7 +1525,7 @@ if($Target-eq'Kingmaker'){
     Write-Host ('UMM DECLARED MINIMUM '+(Get-KmcUmmDeclaredMinimum $repoRoot)+' (Info.json ManagerVersion; a support declaration, not assessed by inspecting another version)')
     Write-Host ('UMM REFERENCE '+$ummIdentity.path+' version '+$ummIdentity.version)
     Write-Host ('UMM IDENTITY '+$(if($ummIdentityOk){'PASS'}else{'FAIL'})+' profile '+$(if($null-eq$ummSelected.profile){'<none matches>'}else{$ummSelected.profile.id})+' ('+$ummSelected.selection+')')
-    Write-Host ('UMM API '+$(if($ummApiOk){'PASS'}else{'FAIL'})+' reference '+$ummIdentity.version+$(if(-not$ummSweepRan){' (product binding sweep UNASSESSED)'}else{''}))
+    Write-Host ('UMM API '+$(if($ummApiOk){'PASS'}else{'FAIL'})+' reference '+$ummIdentity.version+$(if(-not$ummSweepRan){' for the explicit binding surface only; the compiled product''s own references are UNASSESSED'}else{''}))
     Write-Host 'UMM NATIVE EXECUTION not run by this check'
 }
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"

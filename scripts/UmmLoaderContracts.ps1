@@ -131,7 +131,8 @@ function Invoke-KmcUmmLoaderApiChecks($Assembly,[scriptblock]$Assert) {
 # signature, as the runtime binder requires. The references are read from the product's own metadata with the
 # dnlib that ships beside the installed loader (a metadata reader only), then each is bound through reflection
 # with $Assembly as the product's UnityModManager (Register-KmcUmmReferenceResolver). Reflection alone cannot
-# name a reference that fails to bind, which is why the names come from the metadata.
+# name a reference that fails to bind, which is why the names come from the metadata. Reflection also resolves
+# members the product could not call, so a bound member must in addition be public on a visible type.
 function Get-KmcUmmProductLoaderReferences([string]$ProductPath,[string]$DnlibPath) {
     [void][Reflection.Assembly]::LoadFrom($DnlibPath)
     $metadata=[dnlib.DotNet.ModuleDefMD]::Load($ProductPath,[dnlib.DotNet.ModuleCreationOptions]$null)
@@ -145,7 +146,11 @@ function Get-KmcUmmProductBindings($Product,$References) {
     $resolved=@();$missing=@()
     foreach($reference in @($References)){
         $bound=$false
-        try{$member=$Product.ManifestModule.ResolveMember($reference.token);$bound=$member.Module.Assembly.GetName().Name-ceq'UnityModManager'}catch{$bound=$false}
+        try{
+            $member=$Product.ManifestModule.ResolveMember($reference.token)
+            $public=$(if($member-is[Reflection.FieldInfo]-or$member-is[Reflection.MethodBase]){$member.IsPublic}else{$false})
+            $bound=$member.Module.Assembly.GetName().Name-ceq'UnityModManager'-and$member.DeclaringType.IsVisible-and$public
+        }catch{$bound=$false}
         if($bound){$resolved+=$reference.name}else{$missing+=$reference.name}
     }
     [pscustomobject]@{resolved=@($resolved|Sort-Object -Unique);missing=@($missing|Sort-Object -Unique)}
@@ -159,7 +164,7 @@ function Invoke-KmcUmmProductBindingChecks($Product,[string]$DnlibPath,[scriptbl
     $seen=@($names|Where-Object{$_-cmatch'ModEntry::Info$|ModEntry::Logger$|ModLogger::Log\(System\.String\)$|ModLogger::LogException\(System\.String,System\.Exception\)$'}).Count-eq4
     & $Assert $seen ('UMM API the compiled product''s loader references were read from its metadata ('+$names.Count+' members, the production entry and logger among them)')
     $bindings=Get-KmcUmmProductBindings $Product $references
-    & $Assert ($bindings.missing.Count-eq0) ('UMM API every loader member the compiled product references binds by name and signature ('+$bindings.resolved.Count+' of '+$names.Count+$(if($bindings.missing.Count){'; unbound: '+($bindings.missing-join' | ')}else{''})+')')
+    & $Assert ($bindings.missing.Count-eq0) ('UMM API every loader member the compiled product references binds by name and signature and is public ('+$bindings.resolved.Count+' of '+$names.Count+$(if($bindings.missing.Count){'; unbound or not accessible: '+($bindings.missing-join' | ')}else{''})+')')
     $bindings
 }
 # Makes $Assembly the UnityModManager every later reflection-only load in this process binds to, so the product's
@@ -169,11 +174,16 @@ function Register-KmcUmmReferenceResolver($Assembly) {
     [AppDomain]::CurrentDomain.add_ReflectionOnlyAssemblyResolve({param($sender,$eventArgs)if(($eventArgs.Name-split',')[0]-ceq'UnityModManager'){return $reference};return $null}.GetNewClosure())
 }
 
-# Loads the compiled product for the binding sweep. Null when no build exists: that is unassessed, never a pass.
-function Get-KmcUmmProductAssembly([string]$RepoRoot,[string]$ProductDll='') {
-    $candidates=if(-not[string]::IsNullOrWhiteSpace($ProductDll)){@($ProductDll)}else{@('Release','Debug')|ForEach-Object{Join-Path $RepoRoot ('bin\'+$_+'\KingmakerMountedCombat.dll')}}
-    $path=@($candidates|Where-Object{Test-Path -LiteralPath $_ -PathType Leaf})|Select-Object -First 1
-    if($null-eq$path){return $null}
+# Loads the compiled product for the binding sweep: the build of exactly the named configuration, never another
+# one that happens to exist. Null when that build does not exist: unassessed, never a pass. A product named
+# explicitly must exist.
+function Get-KmcUmmProductAssembly([string]$RepoRoot,[string]$Configuration,[string]$ProductDll='') {
+    if(-not[string]::IsNullOrWhiteSpace($ProductDll)){
+        if(-not(Test-Path -LiteralPath $ProductDll -PathType Leaf)){throw ('The named product does not exist: '+$ProductDll)}
+        return [Reflection.Assembly]::ReflectionOnlyLoadFrom([IO.Path]::GetFullPath($ProductDll))
+    }
+    $path=Join-Path $RepoRoot ('bin\'+$Configuration+'\KingmakerMountedCombat.dll')
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $null}
     [Reflection.Assembly]::ReflectionOnlyLoadFrom($path)
 }
 # The metadata reader for the product binding sweep: the dnlib beside the installed loader. Empty when absent.

@@ -2,7 +2,9 @@
 param(
     # Further genuine UnityModManager.dll files to inspect, held outside this repository. Also read from the
     # semicolon-separated UnityModManagerReferencePaths of LocalGamePaths.props. They are only read.
-    [string[]]$AdditionalReference=@()
+    [string[]]$AdditionalReference=@(),
+    # The product build whose loader member references are bound (bin\<Configuration>).
+    [ValidateSet('Debug','Release')][string]$Configuration='Release'
 )
 # Checks the loader checker (Test-UmmLoaderContracts.ps1) and reports the loader matrix.
 #   - A genuine reference passes identity under its own reviewed profile and fails under any other, while
@@ -27,6 +29,8 @@ function Need([bool]$Condition,[string]$Message){if(-not$Condition){throw $Messa
 function Invoke-Checker([string[]]$Arguments){
     # A refusal the checker writes to its error stream is a result to read here, not an error of this script.
     $preference=$ErrorActionPreference;$ErrorActionPreference='Continue'
+    # Every case states its own profile, so the machine-local profile setting is never read here.
+    $Arguments=@('-Configuration',$Configuration,'-IgnoreLocalProfile')+@($Arguments)
     try{$output=@(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $checker @Arguments 2>&1|ForEach-Object{[string]$_});$code=$LASTEXITCODE}finally{$ErrorActionPreference=$preference}
     $line={param([string]$Prefix)$found=@($output|Where-Object{$_.StartsWith($Prefix,[StringComparison]::Ordinal)});if($found.Count){$found[$found.Count-1]}else{''}}
     [pscustomobject]@{exit=$code;lines=$output;identity=(& $line 'UMM IDENTITY ');api=(& $line 'UMM API ');failures=@($output|Where-Object{$_.StartsWith('FAIL ',[StringComparison]::Ordinal)})}
@@ -105,7 +109,11 @@ namespace UnityModManagerNet {
 $vswhere=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer\vswhere.exe'
 $compiler=if(Test-Path -LiteralPath $vswhere -PathType Leaf){[string](@(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\Roslyn\csc.exe')|Select-Object -First 1)}else{''}
 $unityCore=Join-Path $managed 'UnityEngine.CoreModule.dll'
-$product=@('Release','Debug'|ForEach-Object{Join-Path $repoRoot ('bin\'+$_+'\KingmakerMountedCombat.dll')}|Where-Object{Test-Path -LiteralPath $_ -PathType Leaf})|Select-Object -First 1
+$product=Join-Path $repoRoot ('bin\'+$Configuration+'\KingmakerMountedCombat.dll');if(-not(Test-Path -LiteralPath $product -PathType Leaf)){$product=$null}
+Check 'a product named explicitly that does not exist is refused, not reported as unassessed' {
+    $r=Invoke-Checker @('-ProductDll',(Join-Path $labRoot 'analysis-cache\no-such-product\KingmakerMountedCombat.dll'))
+    Need ($r.exit-eq2-and$r.api-ceq''-and@($r.lines|Where-Object{$_.StartsWith('UMM PRODUCT REFUSED The named product does not exist',[StringComparison]::Ordinal)}).Count-eq1) (Format-Result $r)
+}
 if([string]::IsNullOrWhiteSpace($compiler)-or-not(Test-Path -LiteralPath $unityCore -PathType Leaf)){
     Unassessed 'synthetic loader cases: the C# compiler or UnityEngine.CoreModule is not available'
 }else{
@@ -132,12 +140,15 @@ if([string]::IsNullOrWhiteSpace($compiler)-or-not(Test-Path -LiteralPath $unityC
         @('an incompatible signature (ModLogger.Log takes an Int32)',{param($s)$s.Replace('/*LOGPARAMETER*/string/*END*/','int')},'FAIL UMM API ModLogger.Log(System.String) void',$true),
         @('a callback that cannot be assigned (readonly ModEntry.OnUpdate)',{param($s)$s.Replace('/*ONUPDATE*/','readonly ')},'FAIL UMM API ModEntry.OnUpdate *',$false),
         @('a retyped callback (OnToggle without its second argument)',{param($s)[regex]::Replace($s,'/\*ONTOGGLE\*/.*?/\*END\*/','public Func<ModEntry,bool> OnToggle;')},'FAIL UMM API ModEntry.OnToggle *',$true),
-        @('a missing capture member (no UI.ToggleWindow)',{param($s)[regex]::Replace($s,'/\*TOGGLEWINDOW\*/.*?/\*END\*/','')},'FAIL UMM API UI.ToggleWindow(System.Boolean) void',$true))
+        @('a missing capture member (no UI.ToggleWindow)',{param($s)[regex]::Replace($s,'/\*TOGGLEWINDOW\*/.*?/\*END\*/','')},'FAIL UMM API UI.ToggleWindow(System.Boolean) void',$true),
+        # Only the compiled product's own references show this one: no explicit check names these members.
+        @('members the product calls made non-public (internal ModEntry.Active, private UI.tabId)',{param($s)$s.Replace('public bool Active','internal bool Active').Replace('public int tabId','private int tabId')},'FAIL UMM API every loader member the compiled product references binds by name and signature*',$true))
     $index=0
     foreach($break in $breaks){
         $index++;$changed=& $break[1] $stub
         if($changed-ceq$stub){throw ('Synthetic loader change did not apply: '+$break[0])}
         $loader=New-SyntheticLoader ('break-'+$index) $changed
+        if($null-eq$product-and$break[2]-clike'*compiled product references*'){Unassessed ('SYNTHETIC loader with '+$break[0]+': no '+$Configuration+' build of the product');continue}
         Check ('SYNTHETIC loader with '+$break[0]+' fails the API') {
             $r=Invoke-Checker @('-Reference',$loader,'-ApiOnly')
             Need ($r.exit-eq1-and$r.api-clike'UMM API FAIL*'-and@($r.failures|Where-Object{$_-clike$break[2]}).Count-eq1) (Format-Result $r)
