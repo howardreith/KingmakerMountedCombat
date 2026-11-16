@@ -220,11 +220,13 @@ namespace KingmakerMountedCombat.Domain
     // command of this owner that clearing is allowed only when that view and override are the bound ones
     // (NativeEndMayClearOverride, asked from inside that native method), so a foreign override on a replaced view, or
     // one that replaced the bound agent, is never cleared by retiring or ending the owned command.
-    // A retirement that is not established stays as residue, with its exact command, view and agent, and is retried.
+    // A retirement that is not established stays as residue, with its exact command, view and agent, and is retried:
+    // automatically up to AutomaticRetryLimit attempts, and deliberately by a release the lifecycle makes on purpose.
     public sealed class MountedContinuousDriveOwner
     {
-        // Automatic retries (each settlement) of one failing retirement; explicit recovery (release, a new binding)
-        // always retries.
+        // Automatic attempts at one failing retirement: its first attempt, each settlement, the recovery that runs
+        // while ordinary updates are stopped, and a new binding all stay within this limit. Only a deliberate release
+        // retries beyond it.
         public const int AutomaticRetryLimit = 3;
 
         private sealed class Residue
@@ -286,6 +288,7 @@ namespace KingmakerMountedCombat.Domain
             // an earlier record no longer clears it, and an earlier command's native end may no longer clear it.
             foreach (var residue in residues)
                 if (ReferenceEquals(residue.View, view) && ReferenceEquals(residue.Agent, agent)) residue.Agent = null;
+            // A new binding recovers earlier residue within the automatic limit.
             RecoverResidue(explicitRecovery: false);
             // A record that is still bound to an earlier command is retired, never overwritten.
             if (watch.IsBound)
@@ -322,13 +325,21 @@ namespace KingmakerMountedCombat.Domain
             return settlement;
         }
 
-        // Dismount and disposal: explicit recovery of anything an earlier retirement left, then the pair stops owning
-        // its stick movement before it stops being a pair.
-        public void Release(string reason)
+        // Dismount and disposal: recovery of anything an earlier retirement left, then the pair stops owning its stick
+        // movement before it stops being a pair. A deliberate release retries retained cleanup whatever its earlier
+        // failures; one made from a path that can run every frame stays within the automatic limit.
+        public void Release(string reason, bool explicitRecovery = true)
         {
-            RecoverResidue(true);
+            RecoverResidue(explicitRecovery);
             if (watch.IsBound) Retire(MountedContinuousDriveSettlement.Unowned, reason);
         }
+
+        // Retained cleanup alone, automatically and within the limit. The lifecycle calls this when the pair's ordinary
+        // update, which settles the drive, is not running.
+        public void RecoverRetained() => RecoverResidue(false);
+
+        // A deliberate retry of retained cleanup alone, for a caller that cannot go on to release (a readiness refusal).
+        public void RecoverRetainedDeliberately() => RecoverResidue(true);
 
         // The mounted invariant's question: is this override of the mount the bound live drive of this pair? Residue
         // is never owned.
@@ -387,7 +398,13 @@ namespace KingmakerMountedCombat.Domain
             foreach (var residue in residues.ToArray())
             {
                 if (residue.InProgress) continue;
-                if (!explicitRecovery && residue.Failures >= AutomaticRetryLimit) continue;
+                if (!explicitRecovery && residue.Failures >= AutomaticRetryLimit)
+                {
+                    // No further automatic attempt. The record still leaves once the facts establish its retirement
+                    // without one: native ended the command itself, and the captured view lost the agent.
+                    if (EstablishedWithoutAnAttempt(residue)) Drop(residue);
+                    continue;
+                }
                 if (Complete(residue)) Drop(residue);
             }
         }
@@ -397,6 +414,15 @@ namespace KingmakerMountedCombat.Domain
             residues.Remove(residue);
             try { host.Forget(residue.Command); }
             catch (System.Exception) { ReportFailureCount++; }
+        }
+
+        private bool EstablishedWithoutAnAttempt(Residue residue)
+        {
+            try
+            {
+                return MountedContinuousDrivePolicy.RetirementEstablished(host.IsFinished(residue.Command), host.IsHeld(residue.Command), CapturedAgentInstalled(residue));
+            }
+            catch (System.Exception) { return false; }
         }
 
         private bool CapturedAgentInstalled(Residue residue) =>

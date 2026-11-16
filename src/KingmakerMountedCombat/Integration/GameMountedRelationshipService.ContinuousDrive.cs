@@ -94,7 +94,22 @@ namespace KingmakerMountedCombat.Integration
         private void SettleContinuousDrive() => continuousDrive.Settle(false);
 
         // Dismount and disposal.
-        internal void ReleaseContinuousDrive(string reason) => continuousDrive.Release(reason);
+        internal void ReleaseContinuousDrive(string reason, bool explicitRecovery) => continuousDrive.Release(reason, explicitRecovery);
+
+        // The pair still owes the retirement of an owned command or the removal of its captured agent.
+        internal bool ContinuousDriveCleanupPending => continuousDrive.ResidueCount != 0;
+
+        // Retained cleanup is retried here, within the automatic limit, when the pair's ordinary update does not run:
+        // services disabled or stopping, a save in flight, an area change. The ordinary update settles it otherwise.
+        internal void RecoverContinuousDriveCleanup()
+        {
+            if (SaveSerializationSuspended || !ContinuousDriveCleanupPending) return;
+            continuousDrive.RecoverRetained();
+        }
+
+        // What keeps this pair's detached owner unsettled and its boundary from being reused.
+        private bool RetainsCleanupObligations => MountedCleanupCompletionPolicy.OwnerRetainsCleanup(
+            cleanupRetryRequired, !runtime.NoPreparedPairResidue, ContinuousDriveCleanupPending);
 
         private sealed class ContinuousDriveHost : IMountedContinuousDriveHost
         {

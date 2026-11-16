@@ -397,8 +397,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var before = owner.State;
             var result = owner.Dismount(trigger);
-            var succeeded = result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
-                owner.State == RelationshipState.Unmounted;
+            var succeeded = MountedCleanupCompletionPolicy.IsComplete(result, owner.State);
             ledger.Record(boundary, source, before, owner.State, trigger, true, succeeded, result.Errors, detail);
             return succeeded;
         }

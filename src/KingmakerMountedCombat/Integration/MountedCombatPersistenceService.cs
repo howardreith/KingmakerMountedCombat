@@ -288,7 +288,7 @@ namespace KingmakerMountedCombat.Integration
                 try
                 {
                     owner.CancelSavedOwnershipImport();
-                    if (!owner.GuardBoundary(CleanupTrigger.LoadRequested))
+                    if (!owner.GuardWorldBoundary(CleanupTrigger.LoadRequested))
                         cleanupErrors.Add(new InvalidOperationException("Loaded world cleanup retained mounted references."));
                 }
                 catch (Exception error) { cleanupErrors.Add(error); }

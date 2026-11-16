@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Integration
             MountedPairOwner<UnitEntityData, GameMountedRelationshipService> owner;
             if (!Ownership.TryReserve(Game.Instance?.Player, Game.Instance?.Player?.GameId,
                 rider, mount, checked(mountedPairGeneration + 1), this,
-                () => cleanupRetryRequired || !runtime.NoPreparedPairResidue || retainedCommands() || retainedParticipation(rider, mount),
+                () => RetainsCleanupObligations || retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out owner, out refusal, NativePairCapacity)) return false;
             PairOwner = owner;
             return true;
@@ -57,7 +57,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Saved custody cannot replace an existing owner.");
             if (!Ownership.TryImport(Game.Instance?.Player, Game.Instance?.Player?.GameId, id, generation,
                 rider, mount, this, mounted,
-                () => importedParticipationOwnership || cleanupRetryRequired || !runtime.NoPreparedPairResidue ||
+                () => importedParticipationOwnership || RetainsCleanupObligations ||
                     retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out var owner, out var refusal))
                 throw new InvalidOperationException(refusal);

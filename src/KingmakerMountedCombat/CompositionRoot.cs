@@ -298,14 +298,26 @@ namespace KingmakerMountedCombat
 
         private void PerformFailureCleanup()
         {
+            var awaitingStickMovement = 0;
             var errors = world.Visit(pair =>
             {
                 pair.Combat.Cancel("world update failure");
                 var cleanup = pair.Relationship.Dismount(CleanupTrigger.Exception);
-                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                // Ordinary updates are stopped below only when every pair's cleanup left nothing behind; a retained
+                // obligation keeps them, and with them its recovery, running.
+                if (!MountedCleanupCompletionPolicy.IsWithoutResidue(cleanup))
+                {
+                    if (pair.Relationship.LastCleanupHeldOnlyByStickMovement) awaitingStickMovement++;
                     throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+                }
             });
-            if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
+            if (errors.Length != 0)
+            {
+                // Held back by retained stick-movement cleanup alone, the stop is not abandoned: Update takes it again
+                // once that cleanup is established.
+                if (awaitingStickMovement == errors.Length) failureCleanupPending = true;
+                throw new AggregateException("World update cleanup retained owners.", errors);
+            }
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
@@ -338,11 +350,15 @@ namespace KingmakerMountedCombat
             persistence.Update();
             // Debt retries precede the ordinary disabled/save/area/restore update gates.
             if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Combat.UpdateChargeCleanup());
+            // Known issues sprint 3 (review of 25cbdbe2): retained stick-movement cleanup is retried here too, so its
+            // recovery does not depend on the ordinary pair update below, which stops when the services are disabled.
+            if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Relationship.RecoverContinuousDriveCleanup());
             removal.Update();
             removalShortcut.Update();
             // A latched update-failure cleanup runs on the first frame after the
-            // owned save that deferred it has settled.
-            if (failureCleanupPending && !persistence.SaveSuspended)
+            // owned save that deferred it has settled, and after retained
+            // stick-movement cleanup that held it back is established.
+            if (failureCleanupPending && !persistence.SaveSuspended && !world.AnyContinuousDriveCleanupPending)
             {
                 failureCleanupPending = false;
                 PerformFailureCleanup();

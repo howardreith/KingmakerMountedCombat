@@ -253,8 +253,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var pair = pairs.FirstOrDefault(candidate => candidate.AdmissionSession == null &&
                 candidate.Relationship.PairOwner == null && candidate.Relationship.State == RelationshipState.Unmounted &&
-                candidate.Relationship.Runtime.NoPreparedPairResidue && !candidate.Combat.HasRetainedPairCommands &&
-                candidate.Participant.CanReleaseBoundary);
+                candidate.Relationship.Runtime.NoPreparedPairResidue && !candidate.Relationship.ContinuousDriveCleanupPending &&
+                !candidate.Combat.HasRetainedPairCommands && candidate.Participant.CanReleaseBoundary);
             if (pair != null) return pair;
             if (pairs.Count >= MountedPairRegistry<UnitEntityData, GameMountedRelationshipService>.MaximumOwners) return null;
             return ConstructPair();
@@ -278,6 +278,7 @@ namespace KingmakerMountedCombat.Integration
                     pair.Relationship.RefreshRetiredOwnership();
                     if (pair.AdmissionSession == null || pair.Relationship.PairOwner != null ||
                         pair.Relationship.State != RelationshipState.Unmounted || !pair.Relationship.Runtime.NoPreparedPairResidue ||
+                        pair.Relationship.ContinuousDriveCleanupPending ||
                         pair.Combat.HasRetainedPairCommands || !pair.Participant.CanReleaseBoundary ||
                         NativeControls?.HasUnsettledShellFor(pair.Relationship) == true) continue;
                     pair.Participant.ReleaseSettledParticipation();
@@ -295,6 +296,17 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Old-world custody has not settled before admission discard.");
             NativeControls?.RetireWorldControlBindings();
             ReleaseSettledAdmissions();
+        }
+
+        // Some pair still owes the retirement of its stick movement.
+        internal bool AnyContinuousDriveCleanupPending
+        {
+            get
+            {
+                foreach (var pair in PairSnapshot)
+                    if (pair.Relationship.ContinuousDriveCleanupPending) return true;
+                return false;
+            }
         }
 
         internal Exception[] Visit(Action<MountedPairServices> action)

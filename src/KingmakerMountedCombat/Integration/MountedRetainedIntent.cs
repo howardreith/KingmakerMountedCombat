@@ -93,7 +93,7 @@ namespace KingmakerMountedCombat.Integration
                     StagingBoundary = stagingBoundary };
                 try
                 {
-                    if (owner.GuardBoundary(CleanupTrigger.EventSuspension)) captured.Add(pair);
+                    if (owner.GuardWorldBoundary(CleanupTrigger.EventSuspension)) captured.Add(pair);
                     else failed = true;
                 }
                 catch (Exception error) { failed = true; logger.Exception("Mounted event suspension retained a pair", error); }

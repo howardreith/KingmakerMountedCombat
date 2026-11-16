@@ -444,10 +444,20 @@ namespace KingmakerMountedCombat.Integration
             }
 
             CancelSavedOwnershipImport();
+            // Known issues sprint 3 (review of 25cbdbe2): whether this dismount retries retained stick-movement cleanup
+            // deliberately or within the automatic limit.
+            var explicitRecovery = MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(trigger, automaticCleanupRetry);
             // Refuse before subscribers can release turn, view, or relationship ownership.
             if (ChargeCleanupBarrier != null && !ChargeCleanupBarrier(trigger))
-                return Record(new TransitionResult(false, coordinator.State, trigger,
-                    new[] { "Mounted charge cleanup is incomplete; exact native ownership is retained." }, false, false));
+            {
+                // A readiness refusal does not stop the recovery of cleanup that is already retained.
+                try { if (explicitRecovery) continuousDrive.RecoverRetainedDeliberately(); else continuousDrive.RecoverRetained(); }
+                catch (Exception exception) { logger.Exception("Mounted stick movement recovery during a refused cleanup", exception); }
+                attachmentCleanup = new TransitionResult(false, coordinator.State, trigger,
+                    new[] { "Mounted charge cleanup is incomplete; exact native ownership is retained." }, false, false);
+                return Record(MountedCleanupCompletionPolicy.WithRetainedStickMovement(attachmentCleanup,
+                    continuousDrive.ResidueCount, continuousDrive.LastRetirementFailure));
+            }
 
             var subscriberErrors = new List<string>();
             var subscribers = Dismounting?.GetInvocationList();
@@ -462,7 +472,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             // Known issues sprint 3 continuation (M05): the pair's own stick movement ends with the pair.
-            try { ReleaseContinuousDrive("dismount:" + trigger); }
+            try { ReleaseContinuousDrive("dismount:" + trigger, explicitRecovery); }
             catch (Exception exception)
             {
                 subscriberErrors.Add(exception.GetType().Name + ": " + exception.Message);
@@ -477,9 +487,33 @@ namespace KingmakerMountedCombat.Integration
                 result = new TransitionResult(false, result.State, trigger, result.Errors.Concat(subscriberErrors).ToArray(),
                     result.MovementAuthorityResidual, result.PresentationResidual);
             }
+            // The owner contains its own failures and keeps the exact command, view and agent it could not retire. While
+            // any of that remains, this cleanup is not complete, whatever the coordinator returned.
+            attachmentCleanup = result;
+            result = MountedCleanupCompletionPolicy.WithRetainedStickMovement(result, continuousDrive.ResidueCount, continuousDrive.LastRetirementFailure);
             runtime.ClearPreparedPairWhenUnmounted();
             CompleteOwnershipAttempt();
             return Record(result);
+        }
+
+        // Set only around a dismount the pair's per-frame update makes.
+        private bool automaticCleanupRetry;
+
+        // The last dismount's result before retained stick-movement cleanup was added to it: what the attachment
+        // itself left behind.
+        private TransitionResult attachmentCleanup;
+
+        // The last dismount was incomplete for no other reason than retained stick-movement cleanup.
+        internal bool LastCleanupHeldOnlyByStickMovement =>
+            ContinuousDriveCleanupPending && MountedCleanupCompletionPolicy.IsWithoutResidue(attachmentCleanup);
+
+        // A dismount made from the pair's per-frame update (an invalidated invariant, the retry of a failed cleanup).
+        // It can repeat every frame, so retained stick-movement cleanup stays within its automatic limit here.
+        private TransitionResult DismountFromUpdate(CleanupTrigger trigger)
+        {
+            automaticCleanupRetry = true;
+            try { return Dismount(trigger); }
+            finally { automaticCleanupRetry = false; }
         }
 
         public bool RouteGroundCommand(ref UnitEntityData unit, bool pairedMountInput = false)
@@ -662,8 +696,19 @@ namespace KingmakerMountedCombat.Integration
         public bool GuardBoundary(CleanupTrigger trigger)
         {
             var result = Dismount(trigger);
-            return result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
-                coordinator.State == RelationshipState.Unmounted;
+            return MountedCleanupCompletionPolicy.IsComplete(result, coordinator.State);
+        }
+
+        // Area suspension, load and event suspension ask whether the pair has let go of the world that is being left:
+        // unmounted, with nothing of the attachment remaining. Retained stick-movement cleanup is not a hold on that
+        // world. It stays this pair's obligation, keeps its owner unsettled and its boundary out of reuse, and is
+        // retried through the boundary and after it; failing the boundary over it would latch a failed area transfer
+        // or a failed load without helping the recovery. Every other gate reads GuardBoundary.
+        public bool GuardWorldBoundary(CleanupTrigger trigger)
+        {
+            attachmentCleanup = null;
+            var result = Dismount(trigger);
+            return MountedCleanupCompletionPolicy.IsComplete(attachmentCleanup ?? result, coordinator.State);
         }
 
         internal void BeginNativeMovementUpdate()
@@ -699,7 +744,7 @@ namespace KingmakerMountedCombat.Integration
             if (error != null)
             {
                 logger.Warning("Mounted invariant invalidated: " + error);
-                Dismount(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated);
+                DismountFromUpdate(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated);
                 if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
                 {
                     RetryFailedCleanupOrThrow();
@@ -879,9 +924,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var trigger = cleanupRetryTrigger;
             logger.Warning("Retrying a failed mounted cleanup before any further relationship work.");
-            var retry = Dismount(trigger);
-            if (!retry.Succeeded || retry.MovementAuthorityResidual || retry.PresentationResidual ||
-                coordinator.State != RelationshipState.Unmounted)
+            var retry = DismountFromUpdate(trigger);
+            if (!MountedCleanupCompletionPolicy.IsComplete(retry, coordinator.State))
             {
                 throw new InvalidOperationException("Mounted cleanup retry retained runtime residue: " +
                     string.Join(" | ", retry.Errors.ToArray()));
@@ -896,7 +940,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var result = Dismount(CleanupTrigger.ModDisabled);
-            if (!result.Succeeded || result.MovementAuthorityResidual || result.PresentationResidual)
+            if (!MountedCleanupCompletionPolicy.IsWithoutResidue(result))
             {
                 return result;
             }

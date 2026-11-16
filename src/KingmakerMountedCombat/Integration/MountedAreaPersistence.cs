@@ -239,7 +239,7 @@ namespace KingmakerMountedCombat.Integration
                 foreach (var owner in WorldRelationships)
                     try
                     {
-                        if (!owner.GuardBoundary(CleanupTrigger.AreaSuspension))
+                        if (!owner.GuardWorldBoundary(CleanupTrigger.AreaSuspension))
                             errors.Add(new InvalidOperationException("Area suspension retained mounted references."));
                     }
                     catch (Exception error) { errors.Add(error); }

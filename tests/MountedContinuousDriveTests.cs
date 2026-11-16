@@ -72,6 +72,12 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues M05 R2: enqueueing a rider order leaves the stick movement; its later admission by queue promotion ends it exactly once", QueuedRiderOrderEndsTheDriveWhenItIsAdmitted);
             runner.Run("known issues M05 R2: a refused promotion, a Free order, an unrelated unit, another pair and a stale order leave the stick movement", RefusedPromotionAndOtherAdmissionsLeaveTheDrive);
             runner.Run("known issues M05 R2: direct admission still ends the stick movement, and nested public and internal Run calls end it once", NestedRunsEndTheDriveOnce);
+            runner.Run("known issues M05 lifecycle: the cleanup-completion decisions report retained stick-movement cleanup, tell deliberate releases from per-frame failure paths, and keep a detached owner unsettled", CleanupCompletionDecisions);
+            runner.Run("known issues M05 lifecycle A (root and subscriber sequence modelled; owner, policy and registry are production): a disable whose agent removal fails once is reported incomplete and retained; recovery removes the agent without touching the foreign override; the disable completes only then, and the terminal command is not ended again", DisableWithAOneShotAgentRemovalFailure);
+            runner.Run("known issues M05 lifecycle B (root sequence modelled; owner and policy are production): runtime-error cleanup with a failed interrupt keeps the command owned and ordinary updates running; the agent is cleaned on its own, the command is retired by the recovery that follows, and the stop is then completed without being asked again", RuntimeErrorCleanupWithAnUnfinishedCommand);
+            runner.Run("known issues M05 lifecycle C (root sequence modelled; owner, policy and registry are production): a persistent failure is attempted a bounded number of times and reported once; owner settlement, boundary reuse, guard removal and shutdown stay refused; a later deliberate recovery clears the obligation and every refusal", PersistentFailureAndTeardown);
+            runner.Run("known issues M05 lifecycle: a record past the automatic limit gets no further automatic attempt, and still leaves once native has ended the command itself", OverLimitRecordLeavesWhenTheFactsEstablishIt);
+            runner.Run("known issues M05 lifecycle D (root sequence modelled; owner, policy and registry are production): a healthy release completes the disable at once, and an unmounted or unrelated pair is unaffected by another pair's retained cleanup", HealthyLifecycleControls);
             runner.Run("known issues M05 (model only): the model follows the pinned native slot rules for InterruptMove, the Move/Standard pairing and an uninterruptible action", TheModelFollowsThePinnedNativeSlotRules);
         }
 
@@ -839,7 +845,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "The record was discarded after its automatic retries.");
             TestRunner.Equal(1, world.Pair.Warnings, "A persistent failure was reported more than once.");
             TestRunner.True(!command.Finished && world.Mount.Override == null && agent.PendingDestroy, "Setup: the command is still unfinished; its agent was cleaned on its own.");
-            // Explicit recovery always retries, and succeeds once the failure is gone.
+            // A deliberate release retries beyond the automatic limit, and succeeds once the failure is gone.
             world.Pair.FailInterrupts = 1;
             world.Pair.Drive.Release("explicit recovery");
             TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "Explicit recovery did not retry and keep the record.");
@@ -1153,6 +1159,220 @@ namespace KingmakerMountedCombat.Tests
             world.Frame();
             TestRunner.True(!busy.Finished && world.Companion.Slot == null && world.Companion.Queue.Count == 1 && world.NativeFaults == 1,
                 "Model: an uninterruptible action did not queue the continuous command.");
+        }
+
+        // ---- review of 25cbdbe2: retained cleanup and the lifecycle around the owner ----
+        // The owner, its record and every decision named MountedCleanupCompletionPolicy are production code. The dismount
+        // that composes the result, the lifecycle subscriber's per-pair cleanup, and the composition root's disable,
+        // runtime-error cleanup and update loop are modelled (World.DismountResult, RequestDisable, RuntimeErrorCleanup,
+        // RootUpdate); the real GameMountedRelationshipService.Dismount is executed by the contract script.
+
+        private static void CleanupCompletionDecisions()
+        {
+            var clean = new TransitionResult(true, RelationshipState.Unmounted, CleanupTrigger.ModDisabled, new string[0], false, false);
+            TestRunner.True(ReferenceEquals(MountedCleanupCompletionPolicy.WithRetainedStickMovement(clean, 0, null), clean), "A result without retained cleanup was changed.");
+            var retained = MountedCleanupCompletionPolicy.WithRetainedStickMovement(clean, 2, "InvalidOperationException: x");
+            TestRunner.True(!retained.Succeeded && retained.MovementAuthorityResidual && !retained.PresentationResidual, "Retained stick-movement cleanup is not reported as failed movement-authority residue.");
+            TestRunner.True(retained.State == RelationshipState.Unmounted && retained.Trigger == CleanupTrigger.ModDisabled, "The coordinator's state or trigger was lost.");
+            TestRunner.True(retained.Errors.Count == 1 && retained.Errors[0].Contains("2 retained obligation(s)") && retained.Errors[0].Contains("InvalidOperationException: x"),
+                "The result does not say what is retained and why.");
+            var withPresentation = MountedCleanupCompletionPolicy.WithRetainedStickMovement(
+                new TransitionResult(false, RelationshipState.Faulted, CleanupTrigger.Exception, new[] { "earlier" }, false, true), 1, null);
+            TestRunner.True(withPresentation.PresentationResidual && withPresentation.Errors.Count == 2 && withPresentation.Errors[0] == "earlier" && withPresentation.State == RelationshipState.Faulted,
+                "An earlier failure of the same cleanup was not kept.");
+
+            TestRunner.True(MountedCleanupCompletionPolicy.IsComplete(clean, RelationshipState.Unmounted) && MountedCleanupCompletionPolicy.IsWithoutResidue(clean), "A clean result is not complete.");
+            TestRunner.True(!MountedCleanupCompletionPolicy.IsComplete(retained, RelationshipState.Unmounted) && !MountedCleanupCompletionPolicy.IsWithoutResidue(retained), "Retained cleanup counts as complete.");
+            TestRunner.True(!MountedCleanupCompletionPolicy.IsComplete(clean, RelationshipState.Mounted) && !MountedCleanupCompletionPolicy.IsComplete(null, RelationshipState.Unmounted), "A mounted relationship or a missing result counts as complete.");
+            TestRunner.True(!MountedCleanupCompletionPolicy.IsWithoutResidue(new TransitionResult(true, RelationshipState.Unmounted, CleanupTrigger.Exception, new string[0], true, false)) &&
+                !MountedCleanupCompletionPolicy.IsWithoutResidue(new TransitionResult(true, RelationshipState.Unmounted, CleanupTrigger.Exception, new string[0], false, true)) &&
+                !MountedCleanupCompletionPolicy.IsWithoutResidue(new TransitionResult(false, RelationshipState.Unmounted, CleanupTrigger.Exception, new string[0], false, false)),
+                "A failed result, or one with movement or presentation residue, reads as without residue.");
+
+            TestRunner.True(MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(CleanupTrigger.ModDisabled, false) && MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(CleanupTrigger.AreaUnloading, false) &&
+                MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(CleanupTrigger.Manual, false), "A lifecycle boundary does not retry retained cleanup deliberately.");
+            TestRunner.True(!MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(CleanupTrigger.Exception, false) && !MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(CleanupTrigger.ModDisabled, true),
+                "A failure path that can run every frame retries retained cleanup beyond the automatic limit.");
+
+            TestRunner.True(!MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, false, false) && MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, false, true) &&
+                MountedCleanupCompletionPolicy.OwnerRetainsCleanup(true, false, false) && MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, true, false),
+                "A detached owner with retained cleanup is settled, or a clean one is not.");
+        }
+
+        private static void DisableWithAOneShotAgentRemovalFailure()
+        {
+            foreach (var reportsRetainedCleanup in new[] { true, false })
+            {
+                var world = new World { LifecycleReportsRetainedCleanup = reportsRetainedCleanup };
+                world.Current = world.Rider;
+                world.Stick = 1f;
+                world.Frame();
+                var command = world.Mount.Slot;
+                var boundView = world.Mount.View;
+                var agent = boundView.Override;
+                var foreign = new Agent { Continuous = true };
+                var replacement = world.ReplaceView(world.Mount);
+                replacement.Override = replacement.Component = foreign;
+                world.Stick = 0f;
+                world.Pair.FailClears = 1;
+                var disabled = world.RequestDisable();
+                TestRunner.True(command.Finished && ReferenceEquals(boundView.Override, agent) && world.Pair.Drive.ResidueCount == 1, "Setup: the command ended and its agent could not be removed.");
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The failed removal touched the foreign override.");
+                if (!reportsRetainedCleanup)
+                {
+                    // The wiring of the reviewed head 25cbdbe2 (a model of it): the dismount returned the coordinator's
+                    // clean result, the disable completed, ordinary updates stopped, and nothing ever retried.
+                    TestRunner.True(disabled && !world.ServicesEnabled, "Setup (model of the reviewed wiring): the disable should have completed over the retained obligation.");
+                    for (var i = 0; i < 6; i++) world.RootUpdate();
+                    TestRunner.True(ReferenceEquals(boundView.Override, agent) && world.Pair.Drive.ResidueCount == 1, "Setup (model of the reviewed wiring): nothing should have recovered the agent.");
+                    continue;
+                }
+                TestRunner.True(!disabled && world.ServicesEnabled, "The disable completed although an owned agent is still installed.");
+                TestRunner.True(!MountedCleanupCompletionPolicy.IsComplete(world.LastCleanup, RelationshipState.Unmounted) && world.LastCleanup.MovementAuthorityResidual &&
+                    world.LastCleanup.Errors.Any(error => error.Contains("retained obligation")), "The cleanup result does not report the retained obligation.");
+                TestRunner.True(!world.OwnerSettled(world.Pair), "The pair's owner counts as settled while its cleanup is retained.");
+                // The ordinary pair update is held back (a save or an area change), so only the retry that precedes
+                // the root's gates can recover.
+                world.OrdinaryUpdateHeld = true;
+                world.RootUpdate();
+                world.OrdinaryUpdateHeld = false;
+                TestRunner.True(boundView.Override == null && agent.PendingDestroy && world.Pair.Drive.ResidueCount == 0, "The recovery path did not remove the captured agent.");
+                TestRunner.True(ReferenceEquals(replacement.Override, foreign) && !foreign.PendingDestroy, "The recovery touched the foreign override.");
+                TestRunner.True(world.RequestDisable() && !world.ServicesEnabled, "The disable did not complete once the cleanup was established.");
+                TestRunner.True(world.Pair.Interrupted == 1 && command.EndCallbacks == 1, "The terminal command was ended again.");
+                TestRunner.Equal(2, world.Pair.Cleared, "The removal was not attempted exactly twice.");
+                TestRunner.True(world.OwnerSettled(world.Pair), "The owner is not settled after the cleanup was established.");
+            }
+        }
+
+        private static void RuntimeErrorCleanupWithAnUnfinishedCommand()
+        {
+            foreach (var reportsRetainedCleanup in new[] { true, false })
+            {
+                var world = new World { LifecycleReportsRetainedCleanup = reportsRetainedCleanup };
+                world.Current = world.Rider;
+                world.Stick = 1f;
+                world.Frame();
+                var command = world.Mount.Slot;
+                var agent = world.Mount.Override;
+                world.Stick = 0f;
+                world.Current = null;
+                world.Pair.FailInterrupts = 1;
+                var stopped = world.RuntimeErrorCleanup();
+                TestRunner.True(!command.Finished && ReferenceEquals(world.Mount.Slot, command), "Setup: the interrupt failed and the command is still held.");
+                TestRunner.True(world.Mount.Override == null && agent.PendingDestroy, "The agent was not cleaned on its own when the interrupt failed.");
+                TestRunner.Equal(1, world.Pair.Drive.ResidueCount, "The unfinished command is no longer owned for cleanup.");
+                if (!reportsRetainedCleanup)
+                {
+                    TestRunner.True(stopped && !world.ServicesEnabled, "Setup (model of the reviewed wiring): the runtime-error cleanup should have stopped ordinary updates.");
+                    world.TurnBasedHold = true;
+                    for (var i = 0; i < 6; i++) world.RootUpdate();
+                    TestRunner.True(!command.Finished && world.Pair.Drive.ResidueCount == 1 && world.Pair.Interrupted == 1,
+                        "Setup (model of the reviewed wiring): nothing should have retried the command once updates stopped.");
+                    continue;
+                }
+                TestRunner.True(!stopped && world.ServicesEnabled, "A successful-looking transition stopped ordinary updates over an unfinished owned command.");
+                TestRunner.True(!MountedCleanupCompletionPolicy.IsWithoutResidue(world.LastCleanup), "The runtime-error cleanup result reads as complete.");
+                // Native would not tick the command by itself here (turn-based hold); only the mod's recovery can retire it.
+                world.TurnBasedHold = true;
+                world.RootUpdate();
+                TestRunner.True(command.Finished && world.Pair.Interrupted == 2 && world.Pair.Drive.ResidueCount == 0, "The retained command was not retired by the recovery that followed.");
+                // The stop was held back by the stick-movement cleanup alone: the root takes it again by itself.
+                TestRunner.True(!world.ServicesEnabled && !world.FailureStopPending, "The runtime-error stop was abandoned after its cleanup was established.");
+                TestRunner.Equal(2, world.Pair.Interrupted, "The retired command was interrupted again.");
+            }
+        }
+
+        private static void PersistentFailureAndTeardown()
+        {
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            world.Stick = 0f;
+            world.Current = null;
+            world.TurnBasedHold = true;
+            world.Pair.FailInterrupts = 1000;
+            TestRunner.True(!world.RequestDisable() && world.ServicesEnabled, "The disable completed over a command that could not be retired.");
+            // Ordinary frames, and a failure path that would run every frame: attempts stay within the automatic limit.
+            for (var i = 0; i < 12; i++) world.RootUpdate();
+            for (var i = 0; i < 6; i++) TestRunner.True(!world.RuntimeErrorCleanup(), "Runtime-error cleanup completed over the retained command.");
+            TestRunner.Equal(MountedContinuousDriveOwner.AutomaticRetryLimit, world.Pair.Interrupted, "Per-frame recovery and per-frame failure cleanup are not bounded together.");
+            TestRunner.True(world.FailureStopPending && world.ServicesEnabled, "The runtime-error stop is not waiting for the retained cleanup.");
+            TestRunner.Equal(1, world.Pair.Warnings, "The persistent failure was reported more than once.");
+            TestRunner.True(!command.Finished && world.Pair.Drive.ResidueCount == 1, "The obligation was discarded.");
+            // Everything that would treat the pair as settled stays refused.
+            TestRunner.True(!world.OwnerSettled(world.Pair), "The owner was settled, or its boundary offered for reuse, over retained cleanup.");
+            TestRunner.True(!world.MayRemoveGuards(), "The Harmony guards could be removed while an owned command can still end natively.");
+            TestRunner.True(!world.Shutdown(world.Pair), "Shutdown completed over retained cleanup.");
+            TestRunner.True(world.ServicesEnabled && world.Pair.Drive.ResidueCount == 1, "A refused teardown changed the retained state.");
+            // The failure goes away; a deliberate release recovers, and every refusal clears.
+            world.Pair.FailInterrupts = 0;
+            TestRunner.True(world.RequestDisable() && !world.ServicesEnabled, "A later deliberate recovery did not complete the disable.");
+            TestRunner.True(command.Finished && world.Pair.Drive.ResidueCount == 0, "The obligation did not clear.");
+            TestRunner.True(world.OwnerSettled(world.Pair) && world.MayRemoveGuards() && world.Shutdown(world.Pair), "A refusal stayed latched after the cleanup was established.");
+        }
+
+        private static void OverLimitRecordLeavesWhenTheFactsEstablishIt()
+        {
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            world.Stick = 0f;
+            world.Current = null;
+            world.TurnBasedHold = true;
+            world.Pair.FailInterrupts = 1000;
+            TestRunner.True(!world.RequestDisable(), "Setup: the disable is refused over the command that could not be retired.");
+            for (var i = 0; i < 6; i++) world.RootUpdate();
+            TestRunner.Equal(MountedContinuousDriveOwner.AutomaticRetryLimit, world.Pair.Interrupted, "Setup: the automatic limit was not reached.");
+            TestRunner.True(!world.OwnerSettled(world.Pair) && world.Pair.Drive.ResidueCount == 1, "Setup: the obligation is retained past the limit.");
+            // Native ends the command itself (another order displaces it). Nothing is owed any more.
+            world.Interrupt(command, false);
+            world.RootUpdate();
+            TestRunner.Equal(0, world.Pair.Drive.ResidueCount, "A record whose retirement the facts establish stayed latched past the automatic limit.");
+            TestRunner.Equal(MountedContinuousDriveOwner.AutomaticRetryLimit, world.Pair.Interrupted, "A record past the limit got another automatic attempt.");
+            TestRunner.True(world.OwnerSettled(world.Pair) && world.MayRemoveGuards(), "The refusals did not clear with the record.");
+        }
+
+        private static void HealthyLifecycleControls()
+        {
+            // An ordinary release during stick movement completes the disable at once.
+            var world = new World();
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            var command = world.Mount.Slot;
+            TestRunner.True(world.RequestDisable() && !world.ServicesEnabled, "A healthy release did not complete the disable.");
+            TestRunner.True(command.Finished && world.Pair.Interrupted == 1 && world.Pair.Cleared == 0 && world.Pair.Drive.ResidueCount == 0, "A healthy release was not retired once by its own native end.");
+            TestRunner.True(MountedCleanupCompletionPolicy.IsComplete(world.LastCleanup, RelationshipState.Unmounted) && world.LastCleanup.Errors.Count == 0, "A healthy cleanup result carries an obligation.");
+            TestRunner.True(world.OwnerSettled(world.Pair) && world.MayRemoveGuards(), "A healthy pair is refused settlement or guard removal.");
+
+            // No drive at all, mounted or not.
+            world = new World();
+            TestRunner.True(world.RuntimeErrorCleanup() && !world.ServicesEnabled && world.Pair.Interrupted + world.Pair.Cleared == 0, "A pair without stick movement did not clean up at once.");
+            world = new World();
+            world.Pair.Mounted = false;
+            world.Rider.Override = null;
+            TestRunner.True(world.RequestDisable() && world.Pair.Interrupted + world.Pair.Cleared == 0, "An unmounted pair did not disable at once.");
+
+            // Another pair's retained cleanup refuses the disable, and leaves this pair alone and settled.
+            world = new World();
+            var second = world.AddPair("rider2", "mount2");
+            world.Current = world.Rider;
+            world.Stick = 1f;
+            world.Frame();
+            world.Stick = 0f;
+            world.Current = null;
+            world.TurnBasedHold = true;
+            world.Pair.FailInterrupts = 1;
+            TestRunner.True(!world.RequestDisable(), "Setup: the first pair's retained cleanup refuses the disable.");
+            TestRunner.True(second.Interrupted + second.Cleared == 0 && second.Drive.ResidueCount == 0 && world.OwnerSettled(second), "An unrelated pair was touched or left unsettled.");
+            TestRunner.True(!world.OwnerSettled(world.Pair), "The pair with retained cleanup is settled.");
+            world.RootUpdate();
+            TestRunner.True(world.RequestDisable() && second.Interrupted + second.Cleared == 0, "The disable did not complete after recovery, or it touched the unrelated pair.");
         }
 
         // ---- the model ----
@@ -1615,12 +1835,123 @@ namespace KingmakerMountedCombat.Tests
                 Dismount(pair);
             }
 
-            public void Dismount(Pair pair)
+            public void Dismount(Pair pair) => DismountResult(pair, CleanupTrigger.Manual);
+
+            // ---- the lifecycle around the owner: a model of GameMountedRelationshipService.Dismount, the lifecycle
+            // subscriber's per-pair cleanup and the composition root. Every decision in it is production code. ----
+
+            // The correction: the dismount result reports cleanup the owner retains, and the root retries retained cleanup
+            // before its enabled gate. False is the wiring of the reviewed head 25cbdbe2.
+            public bool LifecycleReportsRetainedCleanup = true;
+            public bool ServicesEnabled = true;
+            // A save, an area change or a combat restoration holds the ordinary pair update back.
+            public bool OrdinaryUpdateHeld;
+            // The runtime-error stop was held back by stick-movement cleanup alone; the root takes it again.
+            public bool FailureStopPending;
+            public TransitionResult LastCleanup;
+
+            // The production ownership registry. A pair's owner is reserved and committed the first time the lifecycle
+            // touches the pair, with the retained predicate the relationship service gives its own owner.
+            public readonly MountedPairRegistry<Unit, Pair> Registry = new MountedPairRegistry<Unit, Pair>(unit => unit.Name);
+            private readonly Dictionary<Pair, MountedPairOwner<Unit, Pair>> owners = new Dictionary<Pair, MountedPairOwner<Unit, Pair>>();
+
+            private bool Reserve(Pair pair, out MountedPairOwner<Unit, Pair> owner)
             {
-                if (Corrected) pair.Drive.Release("dismount");
+                string refusal;
+                return Registry.TryReserve(this, "campaign", pair.Rider, pair.Mount, 1, pair,
+                    () => MountedCleanupCompletionPolicy.OwnerRetainsCleanup(false, false, pair.Drive.ResidueCount != 0),
+                    () => true, () => true, out owner, out refusal);
+            }
+
+            public TransitionResult DismountResult(Pair pair, CleanupTrigger trigger, bool automaticRetry = false)
+            {
+                MountedPairOwner<Unit, Pair> owner;
+                if (!owners.TryGetValue(pair, out owner) && pair.Mounted && Reserve(pair, out owner))
+                {
+                    Registry.Commit(owner);
+                    owners[pair] = owner;
+                }
+                if (Corrected) pair.Drive.Release("dismount:" + trigger, MountedCleanupCompletionPolicy.ReleaseRecoversExplicitly(trigger, automaticRetry));
                 pair.Mounted = false;
                 if (ReferenceEquals(pair.Rider.Override, pair.RiderAgent)) pair.Rider.Override = null;
+                var result = new TransitionResult(true, RelationshipState.Unmounted, trigger, new string[0], false, false);
+                if (LifecycleReportsRetainedCleanup)
+                    result = MountedCleanupCompletionPolicy.WithRetainedStickMovement(result, pair.Drive.ResidueCount, pair.Drive.LastRetirementFailure);
+                if (owner != null && owner.State == MountedPairOwnershipState.Active) Registry.Detach(owner);
+                LastCleanup = result;
+                return result;
             }
+
+            // CompositionRoot.SetEnabled(false): every pair's cleanup, then ordinary updates stop only if all are complete.
+            public bool RequestDisable()
+            {
+                var complete = true;
+                TransitionResult incomplete = null;
+                foreach (var pair in Pairs)
+                {
+                    var result = DismountResult(pair, CleanupTrigger.ModDisabled);
+                    if (MountedCleanupCompletionPolicy.IsComplete(result, RelationshipState.Unmounted)) continue;
+                    complete = false;
+                    incomplete = result;
+                }
+                if (incomplete != null) LastCleanup = incomplete;
+                if (complete) ServicesEnabled = false;
+                return complete;
+            }
+
+            // CompositionRoot.PerformFailureCleanup: the root throws, before it stops ordinary updates, when a pair's
+            // cleanup left something behind.
+            public bool RuntimeErrorCleanup()
+            {
+                var held = false;
+                foreach (var pair in Pairs)
+                {
+                    var result = DismountResult(pair, CleanupTrigger.Exception);
+                    if (!MountedCleanupCompletionPolicy.IsWithoutResidue(result)) held = true;
+                }
+                // In this model stick-movement cleanup is the only thing a dismount can leave behind.
+                FailureStopPending = held;
+                if (held) return false;
+                ServicesEnabled = false;
+                return true;
+            }
+
+            // CompositionRoot.UpdateCore: retained cleanup is retried before the enabled gate; the ordinary pair update,
+            // which settles the drive, runs only while the services are enabled.
+            public void RootUpdate()
+            {
+                FrameNumber++;
+                Tick();
+                if (LifecycleReportsRetainedCleanup) foreach (var pair in Pairs) pair.Drive.RecoverRetained();
+                if (FailureStopPending && Pairs.All(pair => pair.Drive.ResidueCount == 0)) RuntimeErrorCleanup();
+                if (ServicesEnabled && !OrdinaryUpdateHeld)
+                {
+                    foreach (var pair in Pairs.ToList()) Validate(pair);
+                    UpdateMovement(false);
+                }
+                EndOfFrame();
+            }
+
+            // The registry's settlement of the pair's detached owner (ownership completion), and whether its actors can be
+            // reserved again (reuse). A pair the lifecycle never mounted has no owner and is settled.
+            public bool OwnerSettled(Pair pair)
+            {
+                Registry.RetireSettled();
+                MountedPairOwner<Unit, Pair> owner;
+                if (!owners.TryGetValue(pair, out owner)) return true;
+                var retired = owner.State == MountedPairOwnershipState.Retired;
+                MountedPairOwner<Unit, Pair> again;
+                var reusable = Reserve(pair, out again);
+                if (reusable) { Registry.Detach(again); Registry.RetireSettled(); }
+                TestRunner.True(retired == reusable, "The owner's retirement and the reuse of its actors disagree.");
+                return retired;
+            }
+
+            // MountedPatchController.Dispose: the guards go only when every pair's boundary cleanup is complete.
+            public bool MayRemoveGuards() => Pairs.All(pair => MountedCleanupCompletionPolicy.IsComplete(DismountResult(pair, CleanupTrigger.ModDisabled), RelationshipState.Unmounted));
+
+            // GameMountedRelationshipService.Shutdown.
+            public bool Shutdown(Pair pair) => MountedCleanupCompletionPolicy.IsWithoutResidue(DismountResult(pair, CleanupTrigger.ModDisabled));
 
             // The mount attempt requires both views to carry no override.
             public bool CanMount(Pair pair) => !pair.Mounted && Live(pair.Rider.Override) == null && Live(pair.Mount.Override) == null;

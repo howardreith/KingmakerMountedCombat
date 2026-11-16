@@ -48,6 +48,20 @@ public sealed class KmcThrowingLogger : RealProxy
     }
 }
 
+// A logger that records what the product logs.
+public sealed class KmcRecordingLogger : RealProxy
+{
+    public readonly List<string> Lines=new List<string>();
+    public KmcRecordingLogger(Type type) : base(type) { }
+    public override IMessage Invoke(IMessage message)
+    {
+        var call=(IMethodCallMessage)message;
+        if(call.MethodName=="GetType") return new ReturnMessage(GetProxiedType(),null,0,call.LogicalCallContext,call);
+        Lines.Add(call.MethodName+": "+(call.ArgCount>0?Convert.ToString(call.GetArg(0)):""));
+        return new ReturnMessage(null,null,0,call.LogicalCallContext,call);
+    }
+}
+
 // A scripted stand-in for the game adapter of the product's stick-movement owner: a transparent proxy for the
 // product's own host interface. The mount unit and its current view are separate identities, each view keeps its
 // own override, and Interrupt behaves as the native call does: the command becomes terminal first, and then its
@@ -212,6 +226,18 @@ public static class KmcContinuousDriveProbe
         return null;
     }
 
+    // The compiler-generated methods of the lambdas written inside one method.
+    private static List<MethodBase> Lambdas(Type type, string enclosing)
+    {
+        var found=new List<MethodBase>();
+        var types=new List<Type>{type};
+        types.AddRange(type.GetNestedTypes(Any));
+        foreach(var candidate in types)
+            foreach(var method in candidate.GetMethods(All))
+                if(method.Name.StartsWith("<"+enclosing+">",StringComparison.Ordinal) && method.GetMethodBody()!=null) found.Add(method);
+        return found;
+    }
+
     private static MethodBase Required(Type type, string name, int parameters)
     {
         var method=Method(type,name,parameters);
@@ -366,6 +392,102 @@ public static class KmcContinuousDriveProbe
         var scripted=new KmcScriptedDriveHost(hostType);
         scripted.Owner=ownerType.GetConstructors()[0].Invoke(new object[]{scripted.GetTransparentProxy()});
         return scripted;
+    }
+
+    // A release as the lifecycle makes it deliberately, on either build's owner.
+    private static void ReleaseOwner(object owner, string reason)
+    {
+        var release=owner.GetType().GetMethod("Release");
+        release.Invoke(owner,release.GetParameters().Length==1?new object[]{reason}:new object[]{reason,true});
+    }
+
+    public static bool Refuse<T>(T trigger) { return false; }
+
+    // The product's real GameMountedRelationshipService, built without the game and unmounted. Its stick-movement owner
+    // is replaced by the same compiled owner on the scripted host, because binding through the real adapter needs a
+    // live pair. Everything the service then does about that owner's cleanup is the product's own code.
+    private sealed class Lifecycle
+    {
+        public Assembly Product; public Type ServiceType, Trigger, Policy; public object Service; public KmcScriptedDriveHost Host; public KmcRecordingLogger Logger;
+        public object Command=new object(), AgentA=new object(), ViewOne;
+
+        public Lifecycle(Assembly product)
+        {
+            Product=product;
+            ServiceType=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+            Trigger=product.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+            Policy=product.GetType("KingmakerMountedCombat.Domain.MountedCleanupCompletionPolicy",false);
+            var loggerType=product.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+            Logger=new KmcRecordingLogger(loggerType);
+            var settings=Activator.CreateInstance(product.GetType("KingmakerMountedCombat.Diagnostics.DiagnosticSettings",true));
+            foreach(var ctor in ServiceType.GetConstructors(Any))
+                if(ctor.GetParameters().Length==2) Service=ctor.Invoke(new object[]{Logger.GetTransparentProxy(),settings});
+            if(Service==null) throw new InvalidOperationException("the relationship service could not be constructed");
+            var field=ServiceType.GetField("continuousDrive",Any);
+            if(field==null) throw new InvalidOperationException("the relationship service has no stick-movement owner in this build");
+            Host=NewScriptedHost(product);
+            field.SetValue(Service,Host.Owner);
+            ViewOne=Host.CurrentView;
+        }
+
+        // The pair's command is bound on view V1 with agent A and admitted to the mount's Move slot.
+        public void BindAdmitted()
+        {
+            Host.Overrides[ViewOne]=AgentA;
+            Host.Owner.GetType().GetMethod("Bind").Invoke(Host.Owner,new object[]{Command});
+            Host.SlotCommand=Command;
+            Host.Owner.GetType().GetMethod("ObserveRun").Invoke(Host.Owner,new object[]{Command});
+            Host.Calls.Clear();
+        }
+
+        public object Call(string name, params object[] arguments)
+        {
+            var method=ServiceType.GetMethod(name,Any);
+            if(method==null) throw new InvalidOperationException(name+" does not exist in this build");
+            return method.Invoke(Service,arguments);
+        }
+        public object Dismount(string trigger) { return Call("Dismount",Enum.Parse(Trigger,trigger)); }
+        public string State { get { return Convert.ToString(ServiceType.GetProperty("State").GetValue(Service,null)); } }
+        public int Retained { get { return (int)Host.Owner.GetType().GetProperty("ResidueCount").GetValue(Host.Owner,null); } }
+        public bool Finished { get { return Host.Finished.Contains(Command); } }
+        public bool AgentInstalled { get { return ReferenceEquals(Host.OverrideOn(ViewOne),AgentA); } }
+        public int Count(string prefix) { var count=0; foreach(var call in Host.Calls) if(call.StartsWith(prefix)) count++; return count; }
+        public int Warnings { get { var count=0; foreach(var call in Host.Calls) if(call.StartsWith("Report(") && call.EndsWith(",True)")) count++; return count; } }
+
+        private static bool Flag(object result, string name) { return (bool)result.GetType().GetProperty(name).GetValue(result,null); }
+        public static string Errors(object result) { var parts=new List<string>(); foreach(var error in (IEnumerable)result.GetType().GetProperty("Errors").GetValue(result,null)) parts.Add(Convert.ToString(error)); return string.Join(" | ",parts.ToArray()); }
+
+        // The decision every lifecycle gate makes on a cleanup result. The corrected build's gates call these two
+        // policy methods (pinned below); the reviewed build's gates carried the same expression inline.
+        public bool WithoutResidue(object result)
+        {
+            if(Policy!=null) return (bool)Policy.GetMethod("IsWithoutResidue").Invoke(null,new object[]{result});
+            return Flag(result,"Succeeded") && !Flag(result,"MovementAuthorityResidual") && !Flag(result,"PresentationResidual");
+        }
+        public bool Complete(object result)
+        {
+            if(Policy!=null) return (bool)Policy.GetMethod("IsComplete").Invoke(null,new object[]{result,ServiceType.GetProperty("State").GetValue(Service,null)});
+            return WithoutResidue(result) && State=="Unmounted";
+        }
+
+        // The retry the composition root makes before its enabled gate.
+        public void Recover() { Call("RecoverContinuousDriveCleanup"); }
+        public bool Has(string name) { return ServiceType.GetMethod(name,Any)!=null; }
+        // Whether the pair's owner retains cleanup; a build without that reading retains nothing for stick movement.
+        public bool OwnerRetains { get { return Has("get_RetainsCleanupObligations") && (bool)Call("get_RetainsCleanupObligations"); } }
+
+        // The gate MountedPatchController.Dispose asks before it removes the Harmony guards.
+        public bool GuardsMayBeRemoved()
+        {
+            var controller=Product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
+            var bridge=controller.GetNestedType("PatchBridge",Any).GetField("Service",Any);
+            var guard=controller.GetNestedType("PatchMethods",Any).GetMethod("GuardNativeBoundary",Any);
+            var boundary=Product.GetType("KingmakerMountedCombat.Diagnostics.NativeLifecycleBoundary",true);
+            var before=bridge.GetValue(null);
+            bridge.SetValue(null,Service);
+            try { return (bool)guard.Invoke(null,new object[]{Enum.Parse(boundary,"ModDisable"),Enum.Parse(Trigger,"ModDisabled"),"patch-disposal"}); }
+            finally { bridge.SetValue(null,before); }
+        }
     }
 
     // UnitCommand.Init called non-virtually: UnitMoveContiniously.Init itself needs Unity components.
@@ -827,7 +949,7 @@ public static class KmcContinuousDriveProbe
                     ownerType.GetMethod("ObserveRun").Invoke(scripted.Owner,new object[]{pushed});
                     scripted.Calls.Clear();
                     scripted.CurrentView=viewTwo; scripted.Overrides[viewTwo]=overrideB;
-                    if(byDismount) ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                    if(byDismount) ReleaseOwner(scripted.Owner,"dismount");
                     else ownerType.GetMethod("ObserveRiderOrder").Invoke(scripted.Owner,new object[]{true,true});
                     var how=byDismount?"dismount":"rider order";
                     Console.WriteLine("INFO reproduction A ("+how+"): ["+scripted.Log+"]; B survives="+ReferenceEquals(scripted.OverrideOn(viewTwo),overrideB)+"; A removed="+(scripted.OverrideOn(viewOne)==null)+"; command terminal="+scripted.Finished.Contains(pushed));
@@ -835,7 +957,7 @@ public static class KmcContinuousDriveProbe
                     if(scripted.OverrideOn(viewOne)!=null || !scripted.Finished.Contains(pushed)) throw new InvalidOperationException("the owned command or its agent was not retired by the "+how+" release");
                     // Later cleanup, settlement and a repeated native termination.
                     ownerType.GetMethod("Settle").Invoke(scripted.Owner,new object[]{false});
-                    ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"again"});
+                    ReleaseOwner(scripted.Owner,"again");
                     scripted.NativeEnd(pushed);
                     if(!ReferenceEquals(scripted.OverrideOn(viewTwo),overrideB)) throw new InvalidOperationException("a later cleanup or termination cleared the unrelated override B");
                     if((int)ownerType.GetProperty("ResidueCount").GetValue(scripted.Owner,null)!=0) return false;
@@ -855,7 +977,7 @@ public static class KmcContinuousDriveProbe
                 scripted.Calls.Clear();
                 scripted.Overrides[scripted.CurrentView]=foreignOverride;
                 var ownsForeign=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{foreignOverride});
-                ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                ReleaseOwner(scripted.Owner,"dismount");
                 var afterCleanup=ReferenceEquals(scripted.OverrideOn(scripted.CurrentView),foreignOverride);
                 var retiredByCleanup=scripted.Finished.Contains(pushed);
                 // The original command's later life: native ticking ends a continuous command whose own agent is gone.
@@ -892,7 +1014,7 @@ public static class KmcContinuousDriveProbe
                     if(failure.EndsWith("clear")) scripted.FailClears=1;
                     // A replaced view: the command's native end cannot remove the agent, so only the owner's own removal can.
                     if(failure=="clear") scripted.CurrentView=new object();
-                    ownerType.GetMethod("Release").Invoke(scripted.Owner,new object[]{"dismount"});
+                    ReleaseOwner(scripted.Owner,"dismount");
                     var residueAfterFailure=(int)ownerType.GetProperty("ResidueCount").GetValue(scripted.Owner,null);
                     var agentStillInstalled=ReferenceEquals(scripted.OverrideOn(viewOne),agentA);
                     var ownedWhileResidue=(bool)ownerType.GetMethod("OwnsMountOverride").Invoke(scripted.Owner,new object[]{agentA});
@@ -1029,7 +1151,7 @@ public static class KmcContinuousDriveProbe
                 var retire=Body(Required(ownerType,"Retire",3));
                 var complete=Body(Required(ownerType,"Attempt",1));
                 var installed=Body(Required(ownerType,"CapturedAgentInstalled",1));
-                var release=Body(Required(ownerType,"Release",1));
+                var release=Body(Required(ownerType,"Release",-1));
                 var settle=Body(Required(ownerType,"Settle",1));
                 var made=-1; var added=-1;
                 for(var i=0;i<retire.Count;i++)
@@ -1160,7 +1282,7 @@ public static class KmcContinuousDriveProbe
                 return One(validate,"GameMountedRelationshipService","SettleContinuousDrive")<One(validate,"KingmakerMountedPairRuntime","ValidateMountedInvariants") &&
                     Count(Body(Required(relationship,"SettleContinuousDrive",0)),"MountedContinuousDriveOwner","Settle")==1 &&
                     One(dismount,"GameMountedRelationshipService","ReleaseContinuousDrive")<One(dismount,"MountedRelationshipCoordinator","Dismount") &&
-                    Count(Body(Required(relationship,"ReleaseContinuousDrive",1)),"MountedContinuousDriveOwner","Release")==1 &&
+                    Count(Body(Required(relationship,"ReleaseContinuousDrive",-1)),"MountedContinuousDriveOwner","Release")==1 &&
                     Count(observe,"MountedContinuousDriveOwner","ObserveRun")==1 &&
                     One(order,null,"get_Rider")<One(order,"MountedContinuousDriveOwner","ObserveRiderOrder") && Count(order,"UnitCommands","Contains")==1 &&
                     Count(order,"UnitCommand","get_Type")==2 && Count(order,null,"get_Mount")==0 &&
@@ -1238,6 +1360,263 @@ public static class KmcContinuousDriveProbe
                     }
                 }
                 return found.Count==5;
+            });
+        Check("PRODUCT-EXECUTED lifecycle A on the real relationship service (disable, one failed agent removal): the command is bound to V1/A, the mount receives V2 carrying a foreign override B, and the disable cleanup's removal of A fails once; the cleanup result is not complete and names the retained obligation; the retry the root makes before its enabled gate removes A and leaves B; the next disable cleanup is complete; the terminal command is ended once",
+            ()=>{
+                var life=new Lifecycle(product);
+                life.BindAdmitted();
+                object viewTwo=new object(), overrideB=new object();
+                life.Host.CurrentView=viewTwo; life.Host.Overrides[viewTwo]=overrideB;
+                life.Host.FailClears=1;
+                var result=life.Dismount("ModDisabled");
+                Console.WriteLine("INFO lifecycle A, disable cleanup: ["+life.Host.Log+"]; retained="+life.Retained+"; A installed="+life.AgentInstalled+"; command terminal="+life.Finished+"; result complete="+life.Complete(result)+"; errors=["+Lifecycle.Errors(result)+"]");
+                if(!life.Finished || !life.AgentInstalled || life.Retained!=1) throw new InvalidOperationException("setup: the command should be terminal with its agent still installed and retained");
+                if(!ReferenceEquals(life.Host.OverrideOn(viewTwo),overrideB)) throw new InvalidOperationException("the failed removal touched the foreign override B");
+                if(life.Complete(result)) throw new InvalidOperationException("the disable cleanup reported complete while the captured agent A is still installed on V1 and its removal is retained: the disable would stop ordinary updates over it");
+                if(Lifecycle.Errors(result).IndexOf("retained obligation",StringComparison.Ordinal)<0) return false;
+                if(!(bool)life.Call("get_ContinuousDriveCleanupPending") || !(bool)life.Call("get_RetainsCleanupObligations")) return false;
+                life.Recover();
+                Console.WriteLine("INFO lifecycle A, after the pre-gate retry: ["+life.Host.Log+"]; retained="+life.Retained+"; A installed="+life.AgentInstalled);
+                if(life.AgentInstalled || life.Retained!=0) throw new InvalidOperationException("the retry outside the ordinary pair update did not remove the captured agent");
+                if(!ReferenceEquals(life.Host.OverrideOn(viewTwo),overrideB)) throw new InvalidOperationException("the recovery touched the foreign override B");
+                var again=life.Dismount("ModDisabled");
+                return life.Complete(again) && Lifecycle.Errors(again)=="" && life.Count("Interrupt")==1 && life.Count("ClearOverride")==2 && life.Warnings==1 &&
+                    !(bool)life.Call("get_RetainsCleanupObligations");
+            });
+        Check("PRODUCT-EXECUTED lifecycle B on the real relationship service (runtime-error cleanup, unfinished command): the cleanup's interrupt fails while the command stays held; the agent is removed on its own; the result does not read as without residue, so the root's failure cleanup cannot stop ordinary updates; the command stays owned and is retired by the next retry, by the root's pre-gate retry and by the ordinary pair update alike",
+            ()=>{
+                foreach(var byOrdinaryUpdate in new[]{false,true})
+                {
+                    var life=new Lifecycle(product);
+                    life.BindAdmitted();
+                    life.Host.FailInterrupts=1;
+                    var result=life.Dismount("Exception");
+                    Console.WriteLine("INFO lifecycle B, runtime-error cleanup: ["+life.Host.Log+"]; retained="+life.Retained+"; command terminal="+life.Finished+"; A installed="+life.AgentInstalled+"; result without residue="+life.WithoutResidue(result)+"; errors=["+Lifecycle.Errors(result)+"]");
+                    if(life.Finished || !ReferenceEquals(life.Host.SlotCommand,life.Command) || life.Retained!=1) throw new InvalidOperationException("setup: the command should still be held and retained");
+                    if(life.AgentInstalled) throw new InvalidOperationException("the agent was not removed on its own when the interrupt failed");
+                    if(life.WithoutResidue(result)) throw new InvalidOperationException("the runtime-error cleanup read as without residue while the owned command is still held: the root would stop ordinary updates, the command's only recovery");
+                    if(byOrdinaryUpdate) life.Call("ValidateActivePair"); else life.Recover();
+                    if(!life.Finished || life.Retained!=0) throw new InvalidOperationException("the retained command was not retired by the "+(byOrdinaryUpdate?"ordinary pair update":"pre-gate retry"));
+                    var again=life.Dismount("Exception");
+                    if(!life.WithoutResidue(again) || life.Count("Interrupt")!=2 || life.Count("ClearOverride")!=1) return false;
+                }
+                return true;
+            });
+        Check("PRODUCT-EXECUTED lifecycle C on the real relationship service (persistent failure and teardown): the first attempt and the automatic retries (pre-gate retry, ordinary update, runtime-error cleanup, and the per-frame retry of a failed cleanup) stop at the automatic limit with one report; owner retention, boundary reuse, the gate before guard removal and shutdown stay refused; when the failure ends, a deliberate cleanup retires the command and every refusal clears",
+            ()=>{
+                var life=new Lifecycle(product);
+                var limit=(int)product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true).GetField("AutomaticRetryLimit").GetValue(null);
+                life.BindAdmitted();
+                life.Host.FailInterrupts=1000000;
+                if(life.Complete(life.Dismount("ModDisabled"))) throw new InvalidOperationException("the disable cleanup reported complete over a command that could not be retired");
+                var retryRequired=life.ServiceType.GetField("cleanupRetryRequired",Any);
+                var retryTrigger=life.ServiceType.GetField("cleanupRetryTrigger",Any);
+                var refusedRetries=0;
+                for(var frame=0;frame<8;frame++)
+                {
+                    life.Host.Frame++;
+                    life.Recover();
+                    life.Call("ValidateActivePair");
+                    if(life.WithoutResidue(life.Dismount("Exception"))) throw new InvalidOperationException("a runtime-error cleanup read as without residue over the retained command");
+                    // The per-frame retry of a failed cleanup: a dismount with the disable's own trigger, every frame.
+                    retryRequired.SetValue(life.Service,true); retryTrigger.SetValue(life.Service,Enum.Parse(life.Trigger,"ModDisabled"));
+                    try { life.Call("ValidateActivePair"); }
+                    catch(Exception error) { if(Innermost(error).Message.IndexOf("retained",StringComparison.Ordinal)>=0) refusedRetries++; else throw; }
+                }
+                Console.WriteLine("INFO lifecycle C, eight frames of automatic recovery: interrupts="+life.Count("Interrupt")+" (automatic limit "+limit+"); warnings="+life.Warnings+"; per-frame cleanup retries refused="+refusedRetries+"; retained="+life.Retained);
+                if(life.Count("Interrupt")!=limit) throw new InvalidOperationException("automatic recovery made "+life.Count("Interrupt")+" attempts, expected the automatic limit of "+limit);
+                if(life.Warnings!=1 || refusedRetries!=8 || life.Retained!=1 || life.Finished) return false;
+                // Teardown stays refused. Each of these gates is a deliberate cleanup and makes one more attempt.
+                if(!(bool)life.Call("get_RetainsCleanupObligations")) throw new InvalidOperationException("the pair's owner does not retain its unfinished cleanup: it would be settled and its actors reused");
+                var recycled=true;
+                try { life.Call("AdvanceIdleBoundaryGeneration"); } catch(Exception error) { if(Innermost(error).Message.IndexOf("unfinished owner",StringComparison.Ordinal)>=0) recycled=false; else throw; }
+                if(recycled) throw new InvalidOperationException("the boundary was recycled over retained cleanup");
+                if(life.GuardsMayBeRemoved()) throw new InvalidOperationException("the gate before guard removal passed while an owned command can still end natively");
+                var shutdown=life.Call("Shutdown");
+                if(life.WithoutResidue(shutdown) || life.State=="Disposed") throw new InvalidOperationException("shutdown completed over retained cleanup");
+                if(life.Count("Interrupt")!=limit+2 || life.Retained!=1 || life.Warnings!=1) return false;
+                // The failure ends; a deliberate cleanup recovers.
+                life.Host.FailInterrupts=0;
+                var recovered=life.Dismount("ModDisabled");
+                Console.WriteLine("INFO lifecycle C, deliberate recovery: complete="+life.Complete(recovered)+"; command terminal="+life.Finished+"; retained="+life.Retained+"; interrupts="+life.Count("Interrupt"));
+                if(!life.Complete(recovered) || !life.Finished || life.Retained!=0) return false;
+                if((bool)life.Call("get_RetainsCleanupObligations") || !life.GuardsMayBeRemoved()) return false;
+                life.Call("AdvanceIdleBoundaryGeneration");
+                return life.WithoutResidue(life.Call("Shutdown")) && life.State=="Disposed" && life.Count("Interrupt")==limit+3;
+            });
+        Check("PRODUCT-EXECUTED a readiness refusal on the real relationship service does not stop recovery: with the charge barrier refusing the cleanup, the dismount still retries the retained retirement, and reports only the refusal once nothing is retained",
+            ()=>{
+                var life=new Lifecycle(product);
+                life.BindAdmitted();
+                life.Host.FailInterrupts=1;
+                if(life.Complete(life.Dismount("ModDisabled")) || life.Retained!=1 || life.Finished) throw new InvalidOperationException("setup: the command's retirement should be retained");
+                var barrier=life.ServiceType.GetProperty("ChargeCleanupBarrier",Any);
+                barrier.SetValue(life.Service,Delegate.CreateDelegate(barrier.PropertyType,typeof(KmcContinuousDriveProbe).GetMethod("Refuse").MakeGenericMethod(life.Trigger)),null);
+                var refused=life.Dismount("ModDisabled");
+                Console.WriteLine("INFO readiness refusal: retained="+life.Retained+"; command terminal="+life.Finished+"; errors=["+Lifecycle.Errors(refused)+"]");
+                if(life.Retained!=0 || !life.Finished) throw new InvalidOperationException("the readiness refusal returned before the retained cleanup was retried");
+                if(life.Complete(refused) || Lifecycle.Errors(refused).IndexOf("charge cleanup",StringComparison.Ordinal)<0 ||
+                    Lifecycle.Errors(refused).IndexOf("retained obligation",StringComparison.Ordinal)>=0) return false;
+                // Past the automatic limit, a refused deliberate cleanup still makes its attempt; a refused cleanup from a
+                // path that can run every frame makes none.
+                var limit=(int)product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true).GetField("AutomaticRetryLimit").GetValue(null);
+                var persistent=new Lifecycle(product);
+                persistent.BindAdmitted();
+                persistent.Host.FailInterrupts=1000000;
+                persistent.Dismount("ModDisabled");
+                for(var frame=0;frame<4;frame++) persistent.Recover();
+                if(persistent.Count("Interrupt")!=limit) throw new InvalidOperationException("setup: the automatic limit was not reached");
+                barrier.SetValue(persistent.Service,Delegate.CreateDelegate(barrier.PropertyType,typeof(KmcContinuousDriveProbe).GetMethod("Refuse").MakeGenericMethod(persistent.Trigger)),null);
+                for(var frame=0;frame<4;frame++) persistent.Dismount("Exception");
+                if(persistent.Count("Interrupt")!=limit) throw new InvalidOperationException("a refused cleanup from a per-frame path retried beyond the automatic limit");
+                var deliberate=persistent.Dismount("ModDisabled");
+                Console.WriteLine("INFO readiness refusal past the limit: interrupts after four per-frame cleanups="+limit+", after one deliberate cleanup="+persistent.Count("Interrupt")+"; errors=["+Lifecycle.Errors(deliberate)+"]");
+                return persistent.Count("Interrupt")==limit+1 && persistent.Retained==1 &&
+                    Lifecycle.Errors(deliberate).IndexOf("charge cleanup",StringComparison.Ordinal)>=0 && Lifecycle.Errors(deliberate).IndexOf("retained obligation",StringComparison.Ordinal)>=0 &&
+                    !(bool)persistent.Call("get_LastCleanupHeldOnlyByStickMovement");
+            });
+        Check("PRODUCT-EXECUTED world boundaries on the real relationship service: with stick-movement cleanup retained past the automatic limit, the area, load and event guard lets the boundary proceed, makes its deliberate attempt, and leaves the obligation retained and the owner unsettled, while the strict guard and the gate before guard removal stay refused; a boundary the attachment itself refuses is refused by both; a cleanup held back by stick movement alone is told from one held back by anything else",
+            ()=>{
+                var limit=(int)product.GetType("KingmakerMountedCombat.Domain.MountedContinuousDriveOwner",true).GetField("AutomaticRetryLimit").GetValue(null);
+                var life=new Lifecycle(product);
+                life.BindAdmitted();
+                life.Host.FailInterrupts=1000000;
+                var first=life.Dismount("Exception");
+                if(life.WithoutResidue(first) || !(bool)life.Call("get_LastCleanupHeldOnlyByStickMovement")) throw new InvalidOperationException("a cleanup held back by stick movement alone is not recognised as such");
+                for(var frame=0;frame<4;frame++) life.Recover();
+                if(life.Count("Interrupt")!=limit) throw new InvalidOperationException("setup: the automatic limit was not reached");
+                var area=(bool)life.Call("GuardWorldBoundary",Enum.Parse(life.Trigger,"AreaSuspension"));
+                var load=(bool)life.Call("GuardWorldBoundary",Enum.Parse(life.Trigger,"LoadRequested"));
+                var scene=(bool)life.Call("GuardWorldBoundary",Enum.Parse(life.Trigger,"EventSuspension"));
+                var strict=(bool)life.Call("GuardBoundary",Enum.Parse(life.Trigger,"AreaSuspension"));
+                Console.WriteLine("INFO world boundaries with a retained obligation: area="+area+" load="+load+" event="+scene+"; strict guard="+strict+"; interrupts="+life.Count("Interrupt")+"; retained="+life.Retained);
+                if(!area || !load || !scene) throw new InvalidOperationException("a world boundary was failed over retained stick-movement cleanup alone");
+                if(strict || life.GuardsMayBeRemoved()) throw new InvalidOperationException("the strict guard passed over retained stick-movement cleanup");
+                if(life.Count("Interrupt")!=limit+5 || life.Retained!=1 || !(bool)life.Call("get_RetainsCleanupObligations")) return false;
+                var barrier=life.ServiceType.GetProperty("ChargeCleanupBarrier",Any);
+                barrier.SetValue(life.Service,Delegate.CreateDelegate(barrier.PropertyType,typeof(KmcContinuousDriveProbe).GetMethod("Refuse").MakeGenericMethod(life.Trigger)),null);
+                if((bool)life.Call("GuardWorldBoundary",Enum.Parse(life.Trigger,"AreaSuspension")) || (bool)life.Call("get_LastCleanupHeldOnlyByStickMovement"))
+                    throw new InvalidOperationException("a boundary the attachment itself refused was let through as if only stick-movement cleanup remained");
+                barrier.SetValue(life.Service,null,null);
+                var healthy=new Lifecycle(product);
+                healthy.BindAdmitted();
+                return (bool)healthy.Call("GuardWorldBoundary",Enum.Parse(healthy.Trigger,"AreaSuspension")) && !(bool)healthy.Call("get_LastCleanupHeldOnlyByStickMovement") && healthy.Retained==0;
+            });
+        Check("PRODUCT-EXECUTED lifecycle D on the real relationship service (healthy controls, which hold on the reviewed build too): a release with nothing failing gives a complete result with no error; a service with no stick movement cleans up, retries nothing, recycles its boundary and passes the gate before guard removal; one pair's retained cleanup leaves another pair's service complete and untouched",
+            ()=>{
+                var healthy=new Lifecycle(product);
+                healthy.BindAdmitted();
+                var result=healthy.Dismount("ModDisabled");
+                if(!healthy.Complete(result) || Lifecycle.Errors(result)!="" || healthy.Host.Log!="Interrupt(True) Report(Unowned,False)" || healthy.Retained!=0) return false;
+                var idle=new Lifecycle(product);
+                var idleResult=idle.Dismount("Exception");
+                if(idle.Has("RecoverContinuousDriveCleanup")) idle.Recover();
+                idle.Call("ValidateActivePair"); idle.Call("AdvanceIdleBoundaryGeneration");
+                if(!idle.WithoutResidue(idleResult) || idle.Host.Calls.Count!=0 || idle.OwnerRetains || !idle.GuardsMayBeRemoved()) return false;
+                var failing=new Lifecycle(product); var other=new Lifecycle(product);
+                failing.BindAdmitted(); failing.Host.FailInterrupts=1;
+                failing.Dismount("ModDisabled");
+                var otherResult=other.Dismount("ModDisabled");
+                return other.Complete(otherResult) && other.Host.Calls.Count==0 && !other.OwnerRetains && other.GuardsMayBeRemoved() && failing.Retained==1;
+            });
+        Check("PRODUCT-IL the lifecycle gates read the cleanup-completion policy: the dismount adds retained stick-movement cleanup to its result after the coordinator and before ownership completion, and decides deliberate or automatic recovery by the policy; the disable's per-pair cleanup, the boundary guard, shutdown, the failed-cleanup retry and the root's failure cleanup decide on the result through it; the failed-cleanup retry marks its dismount automatic",
+            ()=>{
+                var policy="MountedCleanupCompletionPolicy";
+                var dismount=Body(Required(relationship,"Dismount",1));
+                var retry=Body(Required(relationship,"RetryFailedCleanupOrThrow",0));
+                var subscriber=product.GetType("KingmakerMountedCombat.Integration.MountedLifecycleSubscriber",true);
+                var root=product.GetType("KingmakerMountedCombat.CompositionRoot",true);
+                var validate=Body(Required(relationship,"ValidateActivePair",0));
+                var fromUpdate=Body(Required(relationship,"DismountFromUpdate",1));
+                var flagWrites=0;
+                foreach(var ins in fromUpdate) if(ins.Op==OpCodes.Stfld && ins.Field!=null && ins.Field.Name=="automaticCleanupRetry") flagWrites++;
+                // Every dismount the per-frame update makes goes through the automatic one.
+                if(Count(validate,"GameMountedRelationshipService","Dismount")!=0 || Count(validate,"GameMountedRelationshipService","DismountFromUpdate")!=1 ||
+                    Count(retry,"GameMountedRelationshipService","Dismount")!=0 || Count(retry,"GameMountedRelationshipService","DismountFromUpdate")!=1 ||
+                    Count(fromUpdate,"GameMountedRelationshipService","Dismount")!=1)
+                    throw new InvalidOperationException("a dismount made from the pair's per-frame update is not marked automatic");
+                var failureCleanup=false;
+                foreach(var lambda in Lambdas(root,"PerformFailureCleanup"))
+                {
+                    var body=Body(lambda);
+                    if(Count(body,"GameMountedRelationshipService","Dismount")==1 && One(body,"GameMountedRelationshipService","Dismount")<One(body,policy,"IsWithoutResidue") &&
+                        Count(body,"GameMountedRelationshipService","get_LastCleanupHeldOnlyByStickMovement")==1) failureCleanup=true;
+                }
+                // The stop held back by stick-movement cleanup alone is latched, and taken again by Update once no pair
+                // owes any.
+                var failure=Body(Required(root,"PerformFailureCleanup",0));
+                var latched=0; var disabled=-1;
+                for(var i=0;i<failure.Count;i++)
+                {
+                    if(failure[i].Op==OpCodes.Stfld && failure[i].Field!=null && failure[i].Field.Name=="failureCleanupPending") latched++;
+                    if(Is(failure[i],"CompositionRoot","set_IsEnabled")) disabled=i;
+                }
+                var rootUpdate=Body(Required(root,"UpdateCore",-1));
+                if(latched!=1 || disabled<0 || First(failure,null,"Visit")>disabled ||
+                    One(rootUpdate,"MountedWorldService","get_AnyContinuousDriveCleanupPending")>One(rootUpdate,"CompositionRoot","PerformFailureCleanup"))
+                    throw new InvalidOperationException("the runtime-error stop is not deferred until retained stick-movement cleanup is established");
+                var with=Find(dismount,policy,"WithRetainedStickMovement");
+                return with.Count==2 && One(dismount,"MountedRelationshipCoordinator","Dismount")<with[1] && with[1]<One(dismount,"GameMountedRelationshipService","CompleteOwnershipAttempt") &&
+                    One(dismount,policy,"ReleaseRecoversExplicitly")<One(dismount,"GameMountedRelationshipService","ReleaseContinuousDrive") &&
+                    Count(dismount,"MountedContinuousDriveOwner","RecoverRetained")==1 && Count(dismount,"MountedContinuousDriveOwner","RecoverRetainedDeliberately")==1 &&
+                    Count(Body(Required(subscriber,"CleanupOwner",5)),policy,"IsComplete")==1 &&
+                    Count(Body(Required(relationship,"GuardBoundary",1)),policy,"IsComplete")==1 &&
+                    Count(Body(Required(relationship,"Shutdown",0)),policy,"IsWithoutResidue")==1 &&
+                    Count(retry,policy,"IsComplete")==1 && flagWrites==2 && failureCleanup;
+            });
+        Check("PRODUCT-IL the area, load and event boundaries read the world-boundary guard, which decides on the attachment's own result; the gate before guard removal and every other caller read the strict guard",
+            ()=>{
+                var world=new List<string>(); var strict=new List<string>(); var unread=new List<string>();
+                foreach(var type in product.GetTypes())
+                    foreach(var member in type.GetMembers(All))
+                    {
+                        var method=member as MethodBase;
+                        if(method==null || method.GetMethodBody()==null || type.Namespace=="KingmakerMountedCombat.Diagnostics" || (type.DeclaringType!=null && type.DeclaringType.Namespace=="KingmakerMountedCombat.Diagnostics")) continue;
+                        var owner0=(type.DeclaringType??type).Name;
+                        List<Ins> body;
+                        try { body=Body(method); } catch(Exception) { unread.Add(owner0+"."+method.Name); continue; }
+                        var owner=(type.DeclaringType??type).Name;
+                        for(var i=0;i<Count(body,"GameMountedRelationshipService","GuardWorldBoundary");i++) world.Add(owner+"."+method.Name);
+                        for(var i=0;i<Count(body,"GameMountedRelationshipService","GuardBoundary");i++) strict.Add(owner);
+                    }
+                world.Sort(); strict.Sort();
+                Console.WriteLine("INFO callers of the world-boundary guard: "+string.Join(",",world.ToArray())+"; of the strict guard: "+string.Join(",",strict.ToArray())+"; methods the instruction reader could not read: "+unread.Count);
+                var guard=Body(Required(relationship,"GuardWorldBoundary",1));
+                // The three callers are the persistence service's area suspension, load housekeeping and event suspension.
+                return world.Count==3 && world[0]=="MountedPersistenceService.BeginLoadHousekeeping" && world[1]=="MountedPersistenceService.SuspendAreaPair" && world[2]=="MountedPersistenceService.SuspendPairs" &&
+                    string.Join(",",strict.ToArray())=="MountedPatchController" &&
+                    One(guard,"GameMountedRelationshipService","Dismount")<One(guard,"MountedCleanupCompletionPolicy","IsComplete") &&
+                    Count(Body(Required(relationship,"get_LastCleanupHeldOnlyByStickMovement",0)),"MountedCleanupCompletionPolicy","IsWithoutResidue")==1;
+            });
+        Check("PRODUCT-IL recovery and teardown around the gates: the root retries retained stick-movement cleanup before it reads its enabled gate, through the owner's automatic recovery; owner retention (reservation and import), boundary recycling and the world's boundary reuse read the retained cleanup; the patch controller asks the boundary guard before it removes the Harmony guards",
+            ()=>{
+                var root=product.GetType("KingmakerMountedCombat.CompositionRoot",true);
+                var world=product.GetType("KingmakerMountedCombat.Integration.MountedWorldService",true);
+                var controller=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
+                var update=Body(Required(root,"UpdateCore",-1));
+                MethodBase recoverLambda=null;
+                foreach(var lambda in Lambdas(root,"UpdateCore")) if(Count(Body(lambda),"GameMountedRelationshipService","RecoverContinuousDriveCleanup")==1) recoverLambda=lambda;
+                if(recoverLambda==null) throw new InvalidOperationException("the root's update does not retry retained stick-movement cleanup");
+                var taken=-1;
+                for(var i=0;i<update.Count;i++) if(update[i].Op==OpCodes.Ldftn && ReferenceEquals(update[i].Call,recoverLambda) || update[i].Op==OpCodes.Ldftn && update[i].Call!=null && update[i].Call.MetadataToken==recoverLambda.MetadataToken) taken=i;
+                var recover=Body(Required(relationship,"RecoverContinuousDriveCleanup",0));
+                var retained=0;
+                foreach(var name in new[]{"TryReserveOwnership","ImportSavedOwnership"})
+                    foreach(var lambda in Lambdas(relationship,name)) if(Count(Body(lambda),"GameMountedRelationshipService","get_RetainsCleanupObligations")==1) retained++;
+                var reuse=0;
+                foreach(var name in new[]{"AcquireEmptyBoundary","ReleaseSettledAdmissions"})
+                {
+                    var found=Count(Body(Required(world,name,0)),"GameMountedRelationshipService","get_ContinuousDriveCleanupPending");
+                    foreach(var lambda in Lambdas(world,name)) found+=Count(Body(lambda),"GameMountedRelationshipService","get_ContinuousDriveCleanupPending");
+                    if(found==1) reuse++;
+                }
+                var dispose=Body(Required(controller,"Dispose",0));
+                return taken>=0 && taken<First(update,"CompositionRoot","get_IsEnabled") &&
+                    Count(recover,"MountedContinuousDriveOwner","RecoverRetained")==1 && Count(recover,"MountedContinuousDriveOwner","Release")==0 &&
+                    Count(Body(Required(relationship,"get_RetainsCleanupObligations",0)),"MountedCleanupCompletionPolicy","OwnerRetainsCleanup")==1 &&
+                    retained==2 && reuse==2 &&
+                    Count(Body(Required(relationship,"AdvanceIdleBoundaryGeneration",0)),"GameMountedRelationshipService","get_RetainsCleanupObligations")==1 &&
+                    One(dispose,null,"GuardNativeBoundary")<One(dispose,null,"UnpatchAll");
             });
         Console.WriteLine("CONTINUOUS DRIVE CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;
