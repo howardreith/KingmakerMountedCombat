@@ -10,7 +10,7 @@ staged, installed or run in the game, and no gameplay code changed.
   nothing had landed after it, and none of the three corrections existed on it.
 - **Branch:** `codex/kmc-known-issues-sprint1`, in its own worktree. Draft PR #45, no reviewers requested.
 - **Commits:** `07edd2fe` (T01), `3c64128a` (T02), `42fdf52d` (T03), `471fc632` (records), `a80a28b0` (review
-  corrections to T02 and T03), then this record.
+  corrections to T02 and T03), `fdd93249` (records), `e52a59f0` (owner review of PR #45), then this record.
 - **Product version:** unchanged, 0.2.11. T02 changes diagnostic code, so a build of this branch is a different
   binary from the released 0.2.11.
 
@@ -103,14 +103,14 @@ staged, installed or run in the game, and no gameplay code changed.
 
 ## What was run
 
-All under Windows PowerShell 5.1, offline. Budget `known-issues-sprint1`: about 9 of 90 minutes in four tier
+All under Windows PowerShell 5.1, offline. Budget `known-issues-sprint1`: about 12 of 90 minutes in five tier
 entries (one failed entry is the baseline, which stops at the stale charge assertion by design). The final rows
-are from the head after the review corrections.
+are from the head after both rounds of review corrections.
 
 | Check | Result |
 |---|---|
 | Baseline at `7a5cd2c3`: `Test-Tiers.ps1 -Tier Fast -Focused Test-ChargeOwnershipContracts.ps1,…` | build, components 1229/0 and Validate-Source 151/0 pass; charge script FAIL at the two-pair assertion |
-| Final: `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint1 -Focused chunk7\Test-Chunk7RepeatedWorldEvidence.ps1,chunk7\Test-Chunk7ReplaySubscriberContract.ps1,chunk7\Test-Chunk7RepeatedWorldAdapter.ps1,chunk7\Test-Chunk7OwnerSeedRepeatedEvidence.ps1,chunk7\Test-Chunk7OwnedReplayEvidence.ps1,Test-UmmLoaderContractChecks.ps1` | **PASS 9/0**, 2.19 min: components 1234/0, Validate-Source 151/0, reader 220, compiled contract 21, adapter 76, owner-seed 29, owned replay 59, loader checks 18 (1 unassessed) |
+| Final: `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint1 -Focused Test-TierSelection.ps1,Test-AssemblyContractConfiguration.ps1,Test-UmmLoaderContractChecks.ps1,chunk7\Test-Chunk7RepeatedWorldEvidence.ps1,chunk7\Test-Chunk7ReplaySubscriberContract.ps1,chunk7\Test-Chunk7RepeatedWorldAdapter.ps1,chunk7\Test-Chunk7OwnerSeedRepeatedEvidence.ps1,chunk7\Test-Chunk7OwnedReplayEvidence.ps1` | **PASS 11/0**, 3.34 min: components 1234/0, Validate-Source 151/0, tier selection 29, checker configuration 6, loader checks 22 (1 unassessed, 0 errors), reader 220, compiled contract 21, adapter 76, owner-seed 29, owned replay 59 |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` | **810 pass, 0 fail** |
 | `Test-ChargeOwnershipContracts.ps1` (complete run) | 71 pass, then **exit 1** at T04 |
 | `chunk7\Test-Chunk7RepeatedOwnerActorIdentity.ps1` | 17 pass on main and on the branch |
@@ -118,8 +118,8 @@ are from the head after the review corrections.
 | `chunk7\Test-Chunk7SixPairNativeOwnership.ps1` | compile failure on main and on the branch (T05) |
 | `chunk7\Test-Chunk7RepeatedWorldProtocol.ps1` | 27 pass, then failure on main and on the branch (T06) |
 
-Three mutation runs (capacity 5, lost interface, wrong game pin) each built or ran a temporary copy and were
-reverted; the working tree holds none of them.
+Four mutation runs (capacity 5, lost interface, wrong game pin, a sweep that ignores the configuration) each
+built or ran a temporary copy and were reverted; the working tree holds none of them.
 
 ## Independent review
 
@@ -134,12 +134,61 @@ producer, and five in the T02 reader and T03. All five are corrected in `a80a28b
 | **T02.** Names were compared with culture-sensitive operators, which ignore characters such as U+00AD, so an inventory with an invisible character in a name was accepted. | Every evidence name is compared ordinally. Five checks with U+00AD. |
 | **T02.** Some refusals were not labelled unsupported: a release-scheme producer with v1/v2, v1 from preview.100 or later, a missing contract name, a version with a trailing line break. | Each is now an explicit "Unsupported repeated-world evidence" refusal, with a check. |
 
+## Owner review of `fdd93249` (PR #45)
+
+Two findings, both in T03, both corrected in `e52a59f0`.
+
+**1. The umbrella did not hand its configuration to the assembly checker.** `scripts/Test.ps1` called
+`Test-AssemblyContracts.ps1` with `-Target` only, so the loader binding sweep read the Release build whatever
+the umbrella was testing.
+
+- `Test.ps1` now forwards `-Configuration $Configuration`.
+- The call chain, as checked:
+  - Full: `Test-Tiers.ps1` → `Test.ps1 -Configuration` → `Test-AssemblyContracts.ps1 -Target -Configuration`.
+  - Candidate: `Test-Tiers.ps1` → `Test-AssemblyContracts.ps1`; the selector forwards `-Configuration` to
+    any child that declares it, which the checker does.
+  - `-Target Both` hands the configuration to both children.
+- `Test-TierSelection.ps1` runs the real umbrella with tracing children. It now asserts the configuration the
+  assembly checker received. On `fdd93249` it fails ("Full did not forward target/configuration/SkipBuild
+  through the actual umbrella"); now it passes 29.
+- New `Test-AssemblyContractConfiguration.ps1` runs the real checker in private repository layouts. 6 pass:
+  - only a Debug build exists: a Debug run binds it; a run that is not told the configuration reads nothing and
+    reports the sweep unassessed;
+  - a Debug build beside a different Release file: the Debug run reads the Debug build, and the Release run
+    reads the other file and fails on it;
+  - `-Target Both` hands the configuration to its Kingmaker child.
+- The checker now prints which build its sweep read.
+- **Counterexample:** a sweep that takes Release, else Debug, whatever it is told fails the new test.
+- **Found by the new test:** a product with no loader reference crashed the sweep under strict mode instead of
+  failing it. It now fails explicitly.
+- The Full umbrella was not run to verify this, by instruction.
+
+**2. The loader matrix showed an incomplete inspection as a finished row.** For an additional reference with no
+reviewed profile, the matrix printed the child's identity and API lines without checking that there were any.
+
+- One inspection now ends as exactly one of four outcomes:
+
+  | Outcome | Row | Counts as |
+  |---|---|---|
+  | Completed, API PASS | identity not asserted, API PASS | data |
+  | Completed, API FAIL | identity not asserted, API FAIL, the incompatible members | data: an unprofiled or below-minimum loader is not required to be compatible |
+  | Reference unavailable | UNAVAILABLE, both cells UNASSESSED | unassessed |
+  | No usable result | INSPECTION ERROR with the checker's exit code, both cells UNASSESSED, then the checker's own output | error: the script exits 1 and says the matrix is incomplete |
+
+- The exit code and the result lines must agree; anything else is the last outcome.
+- Before, with an unreadable file as an additional reference: a row with three blank cells, `PASS=18 FAIL=0`,
+  exit 0. After: an `INSPECTION ERROR` row, the `BadImageFormatException` text kept, `ERRORS=1`, exit 1.
+- Regressions in `Test-UmmLoaderContractChecks.ps1` (22 pass, was 18): the classifier on eleven result shapes;
+  a real unreadable reference; a real absent reference; synthetic compatible and incompatible loaders.
+- No identity check, incompatibility report or declared minimum changed.
+
 ## Not run, and not claimed
 
 - No game launch, no native fixture, no transaction, no install, no loader change.
 - No native repeated-world run. T02's current contract is not natively observed.
 - `Test-AssemblyContracts.ps1 -Target Both` and `-Target Wrath`: this machine has no Wrath install.
-- Candidate and Full tiers: not selected. Sprint 1 touches no gameplay code.
+- Candidate and Full tiers: not selected. Sprint 1 touches no gameplay code. The forwarding through the Full
+  umbrella is checked by the tracing run in `Test-TierSelection.ps1`, not by a Full run.
 - UMM 0.28.2: no genuine binary available, so unassessed.
 - The remaining offline scripts outside the Fast tier were not surveyed. Three of the neighbours that were run
   are stale (T04–T06); others may be.
@@ -147,9 +196,10 @@ producer, and five in the T02 reader and T03. All five are corrected in `a80a28b
 ## Evidence
 
 Logs are in the lab, outside the repository:
-`C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint1\`, numbered `01` to `15`: the baselines at
+`C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint1\`, numbered `01` to `21`: the baselines at
 `7a5cd2c3`, the T01 full run, the T04 scratch characterisation (labelled UNCOMMITTED), the three mutation runs,
-the loader matrix, the assembly contracts before and after, and the Fast runs before and after the review.
+the loader matrix, the assembly contracts before and after, the Fast runs before and after each review, and
+the before and after of both owner-review findings (`16` to `21`).
 
 ## For the next session
 

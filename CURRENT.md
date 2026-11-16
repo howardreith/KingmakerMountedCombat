@@ -21,6 +21,9 @@ Branch `codex/kmc-known-issues-sprint1` (draft PR #45) from main `7a5cd2c3` (0.2
 - **Checks:** Fast PASS 9/0 (components 1234/0, Validate-Source 151/0, six focused scripts). Three mutations caught.
 - **Review:** one independent read. No defect in T01 or the T02 producer; five in the T02 reader and T03, all
   corrected with a check each (the handoff lists them).
+- **Owner review of `fdd93249`:** two T03 findings, corrected in `e52a59f0`. The umbrella now hands its configuration
+  to the assembly checker, and the loader matrix reports an inspection without a result as an error instead of
+  blank cells. Fast PASS 11/0 on that head.
 - **New open items:** T04, and two stale neighbour scripts that fail identically on main (T05, T06).
 - **Native:** NOT RUN. Nothing was launched, staged or installed.
 - **Not authorized:** merge, release, tag, install, reviewer request or Sprint 2.

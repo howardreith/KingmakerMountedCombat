@@ -3,7 +3,8 @@
 Branch `codex/kmc-known-issues-sprint1` (draft PR #45); base main `7a5cd2c3` (0.2.11). Read CURRENT.md,
 docs/KNOWN-ISSUES-SPRINT1-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
 
-- **State:** T01–T03 implemented and verified offline. Fast PASS 9/0. One independent review, corrected. Native
+- **State:** T01–T03 implemented and verified offline. Fast PASS 11/0. One independent review and one owner
+  review, both corrected. Native
   NOT RUN. The ledger is started;
   Sprints 2–8 are carried-forward rows that have not been rechecked.
 - **Seams:**
