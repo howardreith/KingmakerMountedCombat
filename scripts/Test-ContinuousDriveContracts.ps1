@@ -1932,8 +1932,14 @@ public static class KmcContinuousDriveProbe
                             }
                             finally { v.Close(); }
                         }
+                    // A save in flight: with every owner settled, the discard passes until a save worker is running.
+                    foreach(var live in (Array)w.Owners) if(WorldFixture.State(live)=="Active") w.WorldGuard(WorldFixture.Read(live,"Boundary"),"AreaSuspension");
+                    w.Settle();
+                    var settledDiscard=w.Discard(false);
                     w.World.GetType().GetProperty("ArchiveWorkerRunning",Any).SetValue(w.World,new Func<bool>(()=>true),null);
-                    return w.Discard(false)!=null;
+                    var savingDiscard=w.Discard(false);
+                    Console.WriteLine("INFO world D, a save in flight: discard before="+(settledDiscard??"passed")+"; during="+(savingDiscard??"passed"));
+                    return settledDiscard==null && savingDiscard!=null;
                 }
                 finally { w.Close(); }
             });
