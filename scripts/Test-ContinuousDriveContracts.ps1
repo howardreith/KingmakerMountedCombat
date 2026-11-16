@@ -1527,14 +1527,18 @@ public static class KmcContinuousDriveProbe
                 var subscriber=product.GetType("KingmakerMountedCombat.Integration.MountedLifecycleSubscriber",true);
                 var root=product.GetType("KingmakerMountedCombat.CompositionRoot",true);
                 var validate=Body(Required(relationship,"ValidateActivePair",0));
-                var fromUpdate=Body(Required(relationship,"DismountFromUpdate",1));
+                // Every dismount the per-frame update makes is bracketed by the automatic mark: set before the call,
+                // cleared after it.
                 var flagWrites=0;
-                foreach(var ins in fromUpdate) if(ins.Op==OpCodes.Stfld && ins.Field!=null && ins.Field.Name=="automaticCleanupRetry") flagWrites++;
-                // Every dismount the per-frame update makes goes through the automatic one.
-                if(Count(validate,"GameMountedRelationshipService","Dismount")!=0 || Count(validate,"GameMountedRelationshipService","DismountFromUpdate")!=1 ||
-                    Count(retry,"GameMountedRelationshipService","Dismount")!=0 || Count(retry,"GameMountedRelationshipService","DismountFromUpdate")!=1 ||
-                    Count(fromUpdate,"GameMountedRelationshipService","Dismount")!=1)
-                    throw new InvalidOperationException("a dismount made from the pair's per-frame update is not marked automatic");
+                foreach(var body in new[]{validate,retry})
+                {
+                    var marks=new List<int>();
+                    for(var i=0;i<body.Count;i++) if(body[i].Op==OpCodes.Stfld && body[i].Field!=null && body[i].Field.Name=="automaticCleanupRetry") marks.Add(i);
+                    var call=One(body,"GameMountedRelationshipService","Dismount");
+                    if(marks.Count!=2 || marks[0]>call || marks[1]<call || body[marks[0]-1].Op!=OpCodes.Ldc_I4_1 || body[marks[1]-1].Op!=OpCodes.Ldc_I4_0)
+                        throw new InvalidOperationException("a dismount made from the pair's per-frame update is not marked automatic");
+                    flagWrites+=marks.Count;
+                }
                 var failureCleanup=false;
                 foreach(var lambda in Lambdas(root,"PerformFailureCleanup"))
                 {
@@ -1562,7 +1566,7 @@ public static class KmcContinuousDriveProbe
                     Count(Body(Required(subscriber,"CleanupOwner",5)),policy,"IsComplete")==1 &&
                     Count(Body(Required(relationship,"GuardBoundary",1)),policy,"IsComplete")==1 &&
                     Count(Body(Required(relationship,"Shutdown",0)),policy,"IsWithoutResidue")==1 &&
-                    Count(retry,policy,"IsComplete")==1 && flagWrites==2 && failureCleanup;
+                    Count(retry,policy,"IsComplete")==1 && flagWrites==4 && failureCleanup;
             });
         Check("PRODUCT-IL the area, load and event boundaries read the world-boundary guard, which decides on the attachment's own result; the gate before guard removal and every other caller read the strict guard",
             ()=>{

@@ -496,7 +496,9 @@ namespace KingmakerMountedCombat.Integration
             return Record(result);
         }
 
-        // Set only around a dismount the pair's per-frame update makes.
+        // Set only around a dismount the pair's per-frame update makes (an invalidated invariant, the retry of a failed
+        // cleanup). Such a dismount can repeat every frame, so retained stick-movement cleanup stays within its
+        // automatic limit there.
         private bool automaticCleanupRetry;
 
         // The last dismount's result before retained stick-movement cleanup was added to it: what the attachment
@@ -506,15 +508,6 @@ namespace KingmakerMountedCombat.Integration
         // The last dismount was incomplete for no other reason than retained stick-movement cleanup.
         internal bool LastCleanupHeldOnlyByStickMovement =>
             ContinuousDriveCleanupPending && MountedCleanupCompletionPolicy.IsWithoutResidue(attachmentCleanup);
-
-        // A dismount made from the pair's per-frame update (an invalidated invariant, the retry of a failed cleanup).
-        // It can repeat every frame, so retained stick-movement cleanup stays within its automatic limit here.
-        private TransitionResult DismountFromUpdate(CleanupTrigger trigger)
-        {
-            automaticCleanupRetry = true;
-            try { return Dismount(trigger); }
-            finally { automaticCleanupRetry = false; }
-        }
 
         public bool RouteGroundCommand(ref UnitEntityData unit, bool pairedMountInput = false)
         {
@@ -744,7 +737,9 @@ namespace KingmakerMountedCombat.Integration
             if (error != null)
             {
                 logger.Warning("Mounted invariant invalidated: " + error);
-                DismountFromUpdate(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated);
+                automaticCleanupRetry = true;
+                try { Dismount(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated); }
+                finally { automaticCleanupRetry = false; }
                 if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
                 {
                     RetryFailedCleanupOrThrow();
@@ -924,7 +919,10 @@ namespace KingmakerMountedCombat.Integration
         {
             var trigger = cleanupRetryTrigger;
             logger.Warning("Retrying a failed mounted cleanup before any further relationship work.");
-            var retry = DismountFromUpdate(trigger);
+            TransitionResult retry;
+            automaticCleanupRetry = true;
+            try { retry = Dismount(trigger); }
+            finally { automaticCleanupRetry = false; }
             if (!MountedCleanupCompletionPolicy.IsComplete(retry, coordinator.State))
             {
                 throw new InvalidOperationException("Mounted cleanup retry retained runtime residue: " +
