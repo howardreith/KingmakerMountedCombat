@@ -105,6 +105,9 @@ namespace KingmakerMountedCombat.Integration
                 // Horse speed repair: the native accelerated group move is offered to selected units only.
                 PatchExact(typeof(UnitCommand), "AccelerateIfPathIsLong", 0x060027B4, null,
                     nameof(PatchMethods.NativeGroupAccelerationPrefix), nameof(PatchMethods.NativeGroupAccelerationPostfix));
+                // Known issues sprint 3 (M04): the whole body of this method places the unit's destination pointer.
+                PatchExact(typeof(UnitEntityView), "OnMovementStarted", 0x0600184E, new[] { typeof(UnityEngine.Vector3), typeof(bool) },
+                    nameof(PatchMethods.CarriedRiderPointerPrefix));
                 // Known issues sprint 3 (M02): the gamepad's follower acceleration pass walks selected units only.
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.InputLayers.InGameLayer.InGameInputLayer), "UpdateMovement", 0x06005D0C,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.GamepadFollowerOfferTranspiler));
@@ -705,6 +708,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 try { return MountedPaceActors.Project(selected, unit => PatchBridge.CombatFor(unit)?.GamepadFollowerOfferMover(unit, selected)); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted group pace: the gamepad follower pass was left native", error); return selected; }
+            }
+
+            // Known issues sprint 3 (M04). A carried rider's own plan for its entrance member command places no second
+            // marker beside the mount's. A fault leaves the native placement.
+            internal static bool CarriedRiderPointerPrefix(UnitEntityView __instance)
+            {
+                try
+                {
+                    var unit = __instance != null ? __instance.EntityData : null;
+                    return PatchBridge.CombatFor(unit)?.SkipCarriedRiderPointer(unit) != true;
+                }
+                catch (Exception error) { ReportGroupPaceFault("Mounted entrance approach: the rider's pointer placement was left native", error); return true; }
             }
 
             // These hooks run many times a second; one fault is reported once.

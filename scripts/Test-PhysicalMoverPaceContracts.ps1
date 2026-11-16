@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$ProductDll)
-# Known issues sprint 3: M01 (entrance acceleration), M02 (gamepad follower acceleration) and M03 (group speed
-# inputs).
+# Known issues sprint 3: M01 (entrance acceleration), M02 (gamepad follower acceleration), M03 (group speed inputs)
+# and M04 (destination markers).
 #
 # Two groups of contracts, read without launching anything:
 #   NATIVE   the installed Assembly-CSharp contracts the changes rest on: how an entrance order is made and offered
@@ -272,6 +272,45 @@ public static class KmcPhysicalMoverPaceProbe
                 return HasString(run,"Invalid command, can't run (unit: {0}, command: {1})") && Count(run,"UnitCommand","get_Executor")>=2 &&
                     Count(init,"UnitEntityView","set_AgentOverride")>=1;
             });
+        Check("NATIVE M04 the pointer pass only shows or hides: a unit's pointer is visible while it holds a live marker move or a live UnitAreaTransition, and nothing is placed or removed there",
+            ()=>{
+                var body=Body(Token(pointers,"Update",0x06002D64));
+                return Count(body,"ClickPointerPrefab","SetVisible")==3 && Count(body,"ClickPointerManager","AddPointer")==0 &&
+                    Count(body,null,"Remove")==0 && Count(body,"UnitCommands","get_Move")==1 && Count(body,"UnitMoveTo","get_ShowTargetMarker")==1 &&
+                    Count(body,"UnitCommands","GetCommand")==1;
+            });
+        Check("NATIVE M04 a pointer is placed by the unit's own view when its movement starts, and UnitMoveTo asks for a marker unless told otherwise",
+            ()=>{
+                var started=Body(Method(view,"OnMovementStarted",2));
+                var show=Body(Method(ground,"ShowDestination",3));
+                var agentTest=false;
+                foreach(var ins in show) if(ins.Op==OpCodes.Isinst && (Type)ins.Operand==agent) agentTest=true;
+                var asks=0;
+                foreach(var member in moveTo.GetMember(".ctor",MemberTypes.Constructor,All))
+                {
+                    var body=Body((MethodBase)member);
+                    for(var i=1;i<body.Count;i++)
+                        if(body[i].Op==OpCodes.Stfld && body[i].Field!=null && body[i].Field.Name.Contains("ShowTargetMarker") && LoadsInt(body[i-1],1)) asks++;
+                }
+                return Count(started,"ClickPointerManager","AddPointer")==1 && Count(started,"UnitEntityData","get_IsDirectlyControllable")==1 &&
+                    agentTest && asks==2 && One(Body(Method(agent,"OnPathComplete",1)),"UnitEntityView","OnMovementStarted")>=0;
+            });
+        Check("NATIVE M04 a command's approach is planned by the unit's stock agent whatever override is installed and whether or not that agent is enabled, and OnMovementStarted (0600184E) does nothing but place a pointer",
+            ()=>{
+                var move=Body(Method(view,"MoveTo",5));
+                var plan=Body(Method(agent,"PathTo",5));
+                var started=Body(Token(view,"OnMovementStarted",0x0600184E));
+                foreach(var ins in plan) if(Is(ins,null,"get_enabled") || Is(ins,null,"get_isActiveAndEnabled")) throw new InvalidOperationException("PathTo tests whether the agent is enabled");
+                foreach(var ins in started)
+                {
+                    if(ins.Op==OpCodes.Stfld) throw new InvalidOperationException("OnMovementStarted writes the field "+ins.Field.Name);
+                    if(ins.Call!=null && (ins.Call.DeclaringType==commands || ins.Call.DeclaringType==command) && !ins.Call.Name.StartsWith("get_") && ins.Call.Name!="GetCommand")
+                        throw new InvalidOperationException("OnMovementStarted calls "+ins.Call.Name);
+                }
+                return One(move,"UnitEntityView","get_AgentASP")<One(move,"UnitMovementAgent","PathTo") && Count(plan,null,"StartPath")>=2 &&
+                    Count(started,"ClickPointerManager","AddPointer")==1 && Count(started,"ClickPointerManager","AddPreviewPointer")==1 &&
+                    One(Body(Method(command,"TickApproaching",0)),"UnitEntityView","MoveTo")>=0;
+            });
 
         // ---- PRODUCT ----
         var patchMethods=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods",true);
@@ -453,7 +492,68 @@ public static class KmcPhysicalMoverPaceProbe
                     Count(body,null,"Accelerate")==0 && Count(body,null,"get_IsAccelerated")==0 &&
                     Count(update,"MountedCombatController","ReleaseEntranceCarrier")==1 && Count(release,"MountedEntranceCarrierWatch","ReleaseIfEnded")==1;
             });
-        Check("PRODUCT patch installation names its sites by exact token: MoveSelectedUnitsToPoint (060093DB) and InGameInputLayer.UpdateMovement (06005D0C)",
+        Check("PRODUCT M04 the rider's old pointer is retired after the carrier ran, by the policy, entry first and object second, and nothing else in the product changes the native pointer table",
+            ()=>{
+                var entrance=Body(Method(combat,"CarryRiderEntranceTransition",2));
+                var markers=product.GetType("KingmakerMountedCombat.Integration.MountedDestinationMarkers",true);
+                var retire=Body(Method(markers,"RetireRiderPointer",2));
+                var writers=0;
+                foreach(var type in product.GetTypes())
+                    foreach(var member in type.GetMembers(All))
+                    {
+                        var method=member as MethodBase;
+                        if(method==null || method.IsAbstract || method.GetMethodBody()==null) continue;
+                        List<Ins> body;
+                        try { body=Body(method); } catch(Exception) { continue; }
+                        // A diagnostic scenario reads the table; only a method that removes, adds, sets or places counts here.
+                        var tableWrite=false;
+                        foreach(var ins in body)
+                            if(ins.Call!=null && ins.Call.DeclaringType.IsGenericType && ins.Call.DeclaringType.GetGenericTypeDefinition()==typeof(Dictionary<,>) &&
+                                ins.Call.DeclaringType.GetGenericArguments()[0]==unit &&
+                                (ins.Call.Name=="Remove" || ins.Call.Name=="Clear" || ins.Call.Name=="set_Item" || ins.Call.Name=="Add")) tableWrite=true;
+                        if(Count(body,"ClickPointerManager","AddPointer")>0 || Count(body,"ClickPointerManager","AddPreviewPointer")>0 ||
+                            (Count(body,"ClickPointerManager","get_UnitMarks")>0 && tableWrite)) writers++;
+                    }
+                if(writers!=1) throw new InvalidOperationException("methods that change the native pointer table: "+writers);
+                return One(entrance,"MountedDestinationMarkers","RetireRiderPointer")>One(entrance,"UnitCommands","Run") &&
+                    One(retire,"MountedDestinationMarkerPolicy","RetireRiderPointer")<One(retire,null,"Remove") &&
+                    One(retire,null,"Remove")<One(retire,"Object","Destroy");
+            });
+        Check("PRODUCT M04 the compiled marker decisions: retire needs an admitted carrier and an existing pointer; the rider's placement is skipped only for a mounted pair's rider whose command the mount carries",
+            ()=>{
+                var markerPolicy=product.GetType("KingmakerMountedCombat.Domain.MountedDestinationMarkerPolicy",true);
+                var decide=markerPolicy.GetMethod("RetireRiderPointer");
+                var skip=markerPolicy.GetMethod("CarriedRiderPlacesNoPointer");
+                if(skip==null) throw new InvalidOperationException("CarriedRiderPlacesNoPointer does not exist in this build");
+                return (bool)decide.Invoke(null,new object[]{true,true}) && !(bool)decide.Invoke(null,new object[]{false,true}) &&
+                    !(bool)decide.Invoke(null,new object[]{true,false}) && !(bool)decide.Invoke(null,new object[]{false,false}) &&
+                    (bool)skip.Invoke(null,new object[]{true,true,true}) && !(bool)skip.Invoke(null,new object[]{false,true,true}) &&
+                    !(bool)skip.Invoke(null,new object[]{true,false,true}) && !(bool)skip.Invoke(null,new object[]{true,true,false});
+            });
+        Check("PRODUCT M04 the placement prefix decides through the carry classification and the policy, writes nothing, and with no pair lets native place the pointer",
+            ()=>{
+                var skip=Body(Method(combat,"SkipCarriedRiderPointer",1));
+                foreach(var ins in skip)
+                    if(Is(ins,null,"Accelerate") || Is(ins,null,"Run") || Is(ins,null,"Interrupt") || Is(ins,null,"Remove") || Is(ins,null,"Destroy") ||
+                        Is(ins,null,"AddPointer") || Is(ins,null,"SetVisible")) throw new InvalidOperationException("the decision calls "+ins.Call.Name);
+                var prefix=(MethodInfo)Method(patchMethods,"CarriedRiderPointerPrefix",1);
+                var uninitialised=FormatterServices.GetUninitializedObject(view);
+                return Count(skip,"MountedDestinationMarkerPolicy","CarriedRiderPlacesNoPointer")==1 && Count(skip,"MountedCombatController","ClassifyMountGroupOrder")==1 &&
+                    prefix.ReturnType==typeof(bool) && (bool)prefix.Invoke(null,new object[]{null}) && (bool)prefix.Invoke(null,new object[]{uninitialised});
+            });
+        Check("PRODUCT M04 the scene regroup walk is made by one factory that asks for no destination marker",
+            ()=>{
+                var persistence=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+                var factory=Method(persistence,"NewRegroupMove",1);
+                if(factory==null) throw new InvalidOperationException("NewRegroupMove does not exist in this build");
+                var body=Body(factory);
+                var marker=One(body,"UnitMoveTo","set_ShowTargetMarker");
+                var regroup=Body(Method(persistence,"StartRegroup",5));
+                var direct=0;
+                foreach(var ins in regroup) if(ins.Op==OpCodes.Newobj && ins.Call!=null && ins.Call.DeclaringType==moveTo) direct++;
+                return LoadsInt(body[marker-1],0) && direct==0 && Count(regroup,"MountedPersistenceService","NewRegroupMove")==1;
+            });
+        Check("PRODUCT patch installation names its sites by exact token: MoveSelectedUnitsToPoint (060093DB), InGameInputLayer.UpdateMovement (06005D0C) and UnitEntityView.OnMovementStarted (0600184E)",
             ()=>{
                 var controller=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
                 var found=0;
@@ -466,8 +566,8 @@ public static class KmcPhysicalMoverPaceProbe
                     {
                         if(body[i].Op!=OpCodes.Ldstr) continue;
                         var name=(string)body[i].Operand;
-                        var token=name=="UpdateMovement"?0x06005D0C:(name=="MoveSelectedUnitsToPoint"?0x060093DB:0);
-                        var transpiler=name=="UpdateMovement"?"GamepadFollowerOfferTranspiler":"GroundGroupMoveTranspiler";
+                        var token=name=="UpdateMovement"?0x06005D0C:(name=="MoveSelectedUnitsToPoint"?0x060093DB:(name=="OnMovementStarted"?0x0600184E:0));
+                        var transpiler=name=="UpdateMovement"?"GamepadFollowerOfferTranspiler":(name=="OnMovementStarted"?"CarriedRiderPointerPrefix":"GroundGroupMoveTranspiler");
                         if(token==0) continue;
                         var pinned=false; var wired=false;
                         // Up to the next patch registration: the parameter-type array of a registration lies between.
@@ -480,7 +580,7 @@ public static class KmcPhysicalMoverPaceProbe
                         if(pinned && wired) found++;
                     }
                 }
-                return found==2;
+                return found==3;
             });
         Console.WriteLine("PHYSICAL MOVER PACE CONTRACT PASS="+passes+" FAIL="+failures+"; installed-assembly and compiled-product contracts, not native gameplay evidence");
         return failures==0?0:1;

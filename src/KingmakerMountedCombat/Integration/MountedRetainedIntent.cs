@@ -567,7 +567,7 @@ namespace KingmakerMountedCombat.Integration
         {
             pair.RegroupAttempts++;
             pair.RegroupStartedAt = gameSeconds;
-            var move = new UnitMoveTo(rider.Position, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres);
+            var move = NewRegroupMove(rider.Position);
             try { mount.Commands.Run(move); }
             catch (Exception error) { logger.Exception("Mounted regroup move was not issued", error); }
             pair.RegroupMove = mount.Commands.Contains(move) ? move : null;
@@ -575,6 +575,14 @@ namespace KingmakerMountedCombat.Integration
             logger.Info("Retained mounted pair regroups natively: rider=" + pair.RiderId + ";mount=" + pair.MountId +
                 ";separation=" + separation.ToString("0.0") + ";attempt=" + pair.RegroupAttempts + ";issued=" + (pair.RegroupMove != null) + ".");
         }
+
+        // Known issues sprint 3 (M04): no player gave this order, so it carries no destination marker. Native shows a
+        // marker for any directly controllable unit's UnitMoveTo that asks for one, and UnitMoveTo asks by default.
+        internal static UnitMoveTo NewRegroupMove(UnityEngine.Vector3 destination) =>
+            new UnitMoveTo(destination, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres)
+            {
+                ShowTargetMarker = MountedDestinationMarkerPolicy.UnorderedMountMoveShowsMarker
+            };
 
         private void InterruptRegroups(AreaTransfer custody, Game game, string reason)
         {
