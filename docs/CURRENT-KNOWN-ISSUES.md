@@ -3,14 +3,15 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-16, Sprint 2 (S01, S02) after the owner's review of head `f71fabe7` (R1: the arrival
-  placement through saving and loading; R2: the S01 wording). Branch `codex/kmc-known-issues-sprint2`, draft PR
-  #46, stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
-- **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
-- **Reconciled so far:** T01–T08, S01 and S02. Every row of Sprints 3–8 is a *carried-forward planning finding*:
-  it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since. A sprint
-  reconciles its own rows when it starts.
-- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprint 1 or Sprint 2.
+- **Last updated:** 2026-11-16, Sprint 3 (M01–M04, and the new M05). Branch `codex/kmc-known-issues-sprint3`,
+  stacked on Sprint 2 (branch `codex/kmc-known-issues-sprint2`, draft PR #46, reviewed head `1dffc3e0`), which is
+  stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
+- **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
+  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
+- **Reconciled so far:** T01–T08, S01, S02 and M01–M05. Every row of Sprints 4–8 is a *carried-forward planning
+  finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
+  A sprint reconciles its own rows when it starts.
+- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 3.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Dispositions
@@ -224,16 +225,74 @@ Full record: [KNOWN-ISSUES-SPRINT2-HANDOFF.md](KNOWN-ISSUES-SPRINT2-HANDOFF.md).
 - Not a harness defect, for the record: `Test-Chunk7CapitalArrivalEvidence.ps1` reports 162 pass, 3 fail; the
   three require native evidence for batches 196–198 that is not on this machine.
 
-## Sprints 3–8 — carried forward, pending reconciliation
+## Sprint 3 — mounted pace and the marker report (reconciled 2026-11-16)
+
+Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
+
+| ID | Symptom | Classification | Status | Source | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|---|
+| M01 | Entrance and exit orders do not receive the native acceleration offer. | Source-established omission | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M01 | Commit `c5b52387`. The mount's carried member command is classified beside the routed ground order and gets the same native `Accelerate()` call. 8 component tests; contract script 27 pass (the base build fails its 16 product checks); mutants A, H and N fail. | **Not run.** |
+| M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission, for a following pair | **Implemented and verified offline** for a pair that follows a stick-driven character. The stick-driven pair is M05. | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M02 | Commit `c5b52387`. The native follower pass is answered with the mount that executes the selected rider's routed order. 6 component tests; the production transpiler run on the installed `UpdateMovement`; mutants B, G and L fail. | **Not run.** No gamepad session has ever been run in this project. |
+| M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M03 | Commit `c5b52387`. The native speed selection reads each pair's mount, each actor once; the native selector, `Min`, 30 ft floor and selection are untouched. 8 component tests; the production transpiler run on the installed `MoveSelectedUnitsToPoint`; mutants C, F and M fail. | **Not run.** |
+| M04 | An extra or stale green movement marker. | Reported defect, cause unknown | **Investigation complete, issue unresolved.** Two adjacent marker defects are implemented and verified offline. | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md); epic M04 | Commit `26b4169e`. See "M04" below. 11 component tests; 7 contract checks; mutants D, E, I, J and K fail. | **Not run.** |
+| M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair. | Source-established defect, never observed | **Open correction** | Found while reconciling M02 on 2026-11-16 | Not repaired. See "M05" below. Two native contract checks record the facts behind it. | **Not run.** |
+
+### M01–M03 — what changed and what it rests on
+
+- **One idea:** three native passes read the selected units for pace, while a mounted pair's order runs on its
+  unselected mount. Each pass is now answered with the unit that moves. Native still decides and applies
+  everything: `Accelerate`, `CanAccelerate`, `Deaccelerate`, the group algorithm and its floor.
+- **M01 ownership:** only the exact member command the entrance carry issued, for its group and pair generation,
+  in the mount's Move slot, while the rider still holds its own member command of that group. The carrier is
+  issued as before and bound only after its `Run`.
+- **M02 boundary:** the gamepad's follower pass (every selected unit's `Commands.Move` gets `Accelerate()` or
+  `Deaccelerate()` at each repath). Only the routed ground order of a selected rider is answered for. No state.
+- **M03 inputs:** a mounted pair's rider is answered by its mount in the native minimum, real time only. The
+  floor is the native 30 ft per round (3.048 m/s): a mover slower than that is bounded by its own speed and the
+  party does not wait below the floor.
+- **Limits:** the methods that gather these facts from the game are read from IL, not executed. The Harmony
+  installation of the new patches was not run. Nothing ran in the game.
+
+### M04 — what is established, and what is not
+
+- **The report's cause is not established.** Its original log is not available. Three later owner logs (0.2.3 to
+  0.2.5) hold 119 mount pace summaries, no "stopped short" line, and one rider-held entrance command (0.2.3, the
+  defect 0.2.5 repaired).
+- **Native contract:** one pointer per unit, placed when that unit's stock agent completes a plan, shown while
+  the unit holds a live marker move or a live `UnitAreaTransition`. A command is planned by the stock agent
+  whether or not that agent is enabled, so a mounted rider's own commands are still planned and marked.
+- **Established by source and repaired:**
+  - A carried entrance approach showed two markers for one pair (the mount's and the rider's). The rider's
+    placement is now skipped only while the mount executes the carrier of that same rider command, and a pointer
+    the rider already had is retired when the carrier is admitted.
+  - The scene regroup walk asked for a marker under the rider though no player ordered it. It asks for none now.
+- **Kept:** a rider command nothing carries keeps its native marker; a live order that stopped short keeps its
+  marker. Nothing is cleared globally and no command is completed or hidden.
+- **Not established:** that either path is what the owner saw. The pre-0.2.5 entrance state is consistent with
+  the report; no log ties the report to an entrance click.
+- **The missing observation:** at the moment an extra marker is visible, the keys of the native pointer table,
+  and for each key its position and the command that keeps it visible.
+- **To close:** the owner's description of when the marker appears (after an exit click, after a scene, during an
+  ordinary walk), or a log from a build that records the pointer table.
+
+### M05 — the stick-driven mounted pair (new, open)
+
+- With a mounted rider as the gamepad's driven unit, the mod rewrites the continuous command's executor to the
+  mount, native `Run` then refuses that command on the rider's slots, and the native layer dereferences the
+  missing command. The mount is left with the continuous agent as its override, which the mounted invariant
+  treats as a changed movement agent.
+- The console selection (`UnitSelectionManager`) is not projected by the mod; only the mouse selection is.
+- This is a reading of the installed assembly and the product. It has never been observed.
+- Repairing it means letting the mount move through the native continuous agent, which the pair's movement
+  synchronisation and invariant do not allow. That is a design decision for the owner, with native evidence
+  first.
+
+## Sprints 4–8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 3 | M01 | Entrance and exit orders do not receive the native acceleration offer. | Source-established omission | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |
-| 3 | M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |
-| 3 | M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | Open correction | Implemented and verified offline | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md) |
-| 3 | M04 | An extra or stale green movement marker. Parked by the owner; no cause established. | Reported defect, cause unknown | Open investigation | Repair if a cause is established, else unresolved | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md) |
 | 4 | C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Open correction | Implemented offline, or explicitly unsupported with its blocker | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
 | 4 | C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Open correction | Implemented and verified offline | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
 | 4 | C03 | Restoration fallbacks (combat starts while staged; 30 m, same navigation, bounded regroup) need truthful feedback and clean retirement. | Intentional boundaries | Open correction | Intentional limit documented | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |

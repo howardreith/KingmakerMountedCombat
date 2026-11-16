@@ -1,3 +1,49 @@
+# Known issues remediation, Sprint 3 — review checkpoint (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3`; base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
+(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md and
+docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** M01 and M03 implemented and verified offline; M02 the same for a following pair; M04 investigation
+  complete, issue unresolved, with two adjacent marker repairs; M05 new and open. Fast PASS 7/0. One independent
+  review, corrected. Native NOT RUN.
+- **Seams:**
+  - `MountedCombatController.ClassifyMountGroupOrder` is the one place that says what the mount's Move-slot
+    command is to the pair (`MountedGroupPacePolicy.ClassifyOrder`: routed ground order, carried entrance order,
+    or none). The acceleration carry, the gamepad follower answer and the marker prefix all go through it. A new
+    owned move of the mount must stay `None` there.
+  - The entrance carrier is bound in `MountedEntranceCarrierWatch` only after its `Run`, and let go by the
+    controller's `Update` (`ReleaseEntranceCarrier`). Both watches answer for one pair generation.
+  - `GroupPaceTranspilers` holds the two transpilers. Each requires exactly its recorded site and throws
+    otherwise, which fails the patch installation. `MoveSelectedUnitsToPoint` now has two stages: the earlier
+    paired-input stage, then `SpeedInputs`.
+  - `MountedPaceActors.Project` is the only projection: a mover per unit, each actor once, nulls kept. The native
+    selection is never changed.
+  - `MountedDestinationMarkers.RetireRiderPointer` is the only write to the native pointer table. The entry is
+    removed before the object is destroyed, because the native per-frame pass dereferences every entry.
+  - `MountedPersistenceService.NewRegroupMove` is the one factory of the scene regroup move.
+  - `scripts/Test-PhysicalMoverPaceContracts.ps1` runs the production transpilers on the installed methods' real
+    instructions and reads the compiled wiring. It runs only as a focused selection, like the Sprint 2 script.
+- **Facts for a successor:**
+  - `UnitEntityView.MoveTo` always plans through the stock agent (`AgentASP.PathTo`), whatever override is
+    installed, and neither `PathTo` nor the path callback tests whether the agent is enabled. A mounted rider's
+    own commands are therefore still planned: their path completion calls `AccelerateIfPathIsLong` and places the
+    rider's destination pointer.
+  - `UnitEntityView.OnMovementStarted` does nothing but place a pointer.
+  - `ClickPointerManager` never removes a pointer and shows one whenever its unit holds a live marker move or
+    `UnitAreaTransition`, wherever it was last placed.
+  - `UnitMoveTo` and `UnitAreaTransition` share the Move slot (`CommandType.Move`).
+  - In gamepad mode `Game.Instance.UI.SelectionManager` is the console `UnitSelectionManager`; the mouse
+    `SelectionManager` and the mod's selection projection are not in play.
+  - `UnitCommands.Run` refuses a command whose executor is another unit, and only logs.
+  - The installed reader yields modern Harmony instructions; a production transpiler takes Harmony 1.2 ones. Build
+    them from the same instruction list you compare against, or local-variable operands will not compare equal.
+  - Run mutation checks in a separate worktree. Then no mutant binary can be left in the tree whose results you
+    report.
+- **Open from this sprint:** M04 (needs the owner's description or a pointer-table log), M05 (needs the owner's
+  decision on gamepad scope and a native observation), native acceptance of M01–M03.
+- **Next:** owner review of the draft PR. Sprint 4 (C01–C03) is not started.
+
 # Known issues remediation, Sprint 2 — review checkpoint (2026-11-16, after owner review R1 and R2)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46); base `b62c59a8`, the reviewed head of

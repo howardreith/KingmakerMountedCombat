@@ -1,3 +1,38 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — MOUNTED PACE REPAIRED OFFLINE; MARKER REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3`, created from the reviewed Sprint 2 head `1dffc3e0` and targeting
+`codex/kmc-known-issues-sprint2` (draft PR #46, still open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md) and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Scope:** M01–M04 of the owner's Known Issues Remediation Epic. Gameplay code changed: three native pace reads
+  are answered with a mounted pair's mount, one native marker placement is skipped for a carried rider, and one
+  internal move lost its marker request. A build of this branch is a new binary. No save format changed.
+- **M01, entrance and exit orders: implemented and verified offline.** The mount's carried entrance command now
+  gets the same native `Accelerate()` offer its selected rider's order gets. The carrier is issued as before.
+- **M02, gamepad: implemented and verified offline for a following pair.** The native follower pass now reaches
+  the mount that executes a following rider's order.
+- **M05 (new, open): the stick-driven mounted pair.** By source, stick input for a mounted rider moves nothing
+  and dismounts the pair: native `Run` refuses the continuous command the mod redirected. Never observed; not
+  repaired. Whether gamepad play of a mounted pair is in scope is the owner's decision.
+- **M03, group pace: implemented and verified offline.** The native group speed limit reads each pair's mount
+  instead of its rider. The native minimum, the 30 ft floor and the selection are untouched, so a mover slower than
+  30 ft is still bounded by its own speed while the party walks at the floor.
+- **M04, the marker report: investigation complete, issue unresolved.**
+  - The report's original log is not available and no cause is established.
+  - Two adjacent defects were found in the installed marker contract and repaired: a second, rider-keyed marker
+    during a carried entrance approach, and a marker under the rider for the scene regroup walk.
+  - Neither is shown to be what the owner saw. Needed: when the marker appears, or a log of the native pointer
+    table at that moment.
+- **Checks:** Fast PASS 7/0 (components 1290/0, Validate-Source 151/0, physical mover pace 27, post-load view
+  readiness 26, persistence contracts 223, world boundary 8). Kingmaker assembly contracts 814/0.
+  - At the reviewed base `1dffc3e0`: components 1257/0; the base build fails 16 of the 27 pace contract checks.
+  - Fourteen mutations of the new decisions and wiring, run in a separate worktree, each fail the suite.
+- **Review:** one independent read of the diff. No production defect; its points on test strength, a missing
+  generation check and a retained reference were corrected or recorded (the handoff lists each).
+- **Open:** M04, M05; T04–T08 unchanged (none blocked a Sprint 3 check).
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No fixture exists on this machine.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 2 — POST-LOAD DISMOUNT REPAIRED OFFLINE; SAVING REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46), created from the reviewed Sprint 1 head `b62c59a8` and
