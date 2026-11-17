@@ -113,18 +113,26 @@ public static class KmcScenePlacementProbe
             ()=>Registers(controller,translocate.FullName,0x06008FA2,"ScenePlacementCapturePrefix","TranslocateUnitPostfix") &&
                 Registers(controller,move.FullName,0x06009E4E,"ScenePlacementCapturePrefix","CommandMoveUnitPostfix") &&
                 Registers(controller,party.FullName,0x06009E90,"ScenePlacementCapturePrefix","CommandTeleportPartyPostfix"));
-        Check("PRODUCT-IL the prefix captures the mounted pairs; each postfix attributes through the decision and hands a rider-only write to the rider's synchronizer; the synchronizer's own detection asks the unchanged distance rule; faults are contained",
+        Check("PRODUCT-IL the prefix captures the mounted pairs; each postfix, only for the captured mounting instance, classifies the write and hands a rider placement to the rider's synchronizer or clears it for a whole-pair placement; the synchronizer's samples and the owner's poll both go through the hold (review R2); faults are contained",
             ()=>{
                 var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
                 var attribute=Body(attribution.GetMethod("Attribute",Any));
                 var agent=product.GetType("KingmakerMountedCombat.Integration.RiderMovementAgent",true);
                 var hold=Body(agent.GetMethod("HoldForScenePlacement",Any));
+                var current=Body(agent.GetMethod("CurrentScenePlacement",Any));
+                var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+                var poll=Body(intent.GetMethod("ObserveScenePlacements",Any));
+                var classify=Find(attribute,"MountedSceneContinuityPolicy","ClassifyOperationWrite");
                 var share=Body(methods.GetMethod("AttributeScenePlacement",Any));
                 var prefix=Body(methods.GetMethod("ScenePlacementCapturePrefix",Any));
                 return Find(prefix,"MountedScenePlacementAttribution","Capture").Count==1 && Find(share,"MountedScenePlacementAttribution","Attribute").Count==1 &&
                     Find(share,null,"ReportScriptZoneFault").Count==1 && Find(prefix,null,"ReportScriptZoneFault").Count==1 &&
-                    Find(attribute,"MountedSceneContinuityPolicy","AttributesRiderPlacement")[0]<Find(attribute,"RiderMovementAgent","AttributeScenePlacement")[0] &&
-                    Find(hold,"MountedSceneContinuityPolicy","HoldsUnattributedPlacement").Count==1 && Find(hold,"MountedSceneContinuityPolicy","IsScenePlacement").Count==0;
+                    classify.Count==1 && Find(attribute,"GameMountedRelationshipService","get_MountingInstance").Count>=1 &&
+                    Find(attribute,"GameMountedRelationshipService","get_MountingInstance")[0]<classify[0] &&
+                    classify[0]<Find(attribute,"RiderMovementAgent","AttributeScenePlacement")[0] &&
+                    classify[0]<Find(attribute,"RiderMovementAgent","SupersedeScenePlacementWithWholePair")[0] &&
+                    Find(hold,"MountedScenePlacementHold","Sample").Count==1 && Find(current,"MountedScenePlacementHold","Refresh").Count==1 &&
+                    Find(poll,"RiderMovementAgent","CurrentScenePlacement").Count==1 && Find(poll,"RiderMovementAgent","get_PendingScenePlacement").Count==0;
             });
         Check("NATIVE-IL (C01) no installed method pauses a cutscene for combat: of the methods that set Paused, only CutsceneController.Activate reads IsInCombat, and only to interrupt AI commands before it pauses background cutscenes by IsBackground; and CommandMoveUnit.OnRun (06009E4D) runs a UnitMoveTo on the unit, which a seated rider cannot walk",
             ()=>{
@@ -181,6 +189,23 @@ public static class KmcScenePlacementProbe
                 var core=Body(intent.GetMethod("RestoreRetainedIntentCore",Any));
                 var asks=Find(core,"CombatHoldNotice","ShouldNotify");
                 return asks.Count==2 && Find(core,null,"Report").Count>=2;
+            });
+        Check("PRODUCT-EXECUTED (review R2) the compiled hold keeps the scene's latest placement: a second attribution supersedes the first (endpoint and orientation), a whole-pair placement clears it, a far unattributed write since the hold supersedes it and a near one does not, a release corrects once",
+            ()=>{
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                var h=Activator.CreateInstance(holdType);
+                Func<string,object> get=n=>holdType.GetProperty(n).GetValue(h,null);
+                var attribute=holdType.GetMethod("Attribute"); var clear=holdType.GetMethod("ClearForWholePair");
+                var refresh=holdType.GetMethod("Refresh"); var release=holdType.GetMethod("Release"); var sample=holdType.GetMethod("Sample");
+                attribute.Invoke(h,new object[]{1.2f,0f,1.6f,30f,1}); attribute.Invoke(h,new object[]{-2f,0f,1.5f,120f,2});
+                var latest=(bool)get("Pending") && (float)get("X")==-2f && (float)get("Z")==1.5f && (float)get("Orientation")==120f;
+                var cleared=clear.Invoke(h,null).ToString()=="Cleared" && !(bool)get("Pending");
+                attribute.Invoke(h,new object[]{6f,0f,0f,0f,3});
+                var nearKept=(bool)refresh.Invoke(h,new object[]{4,true,7f,0f,0f,5f,0f,0f}) && (float)get("X")==6f;
+                var farTaken=(bool)refresh.Invoke(h,new object[]{5,true,0f,0f,7f,5f,0f,0f}) && (float)get("Z")==7f && (float)get("X")==0f;
+                release.Invoke(h,null);
+                var correctsOnce=!(bool)sample.Invoke(h,new object[]{6,true,9f,0f,9f,0f,0f,0f,true,9f,9f}) && !(bool)get("Pending");
+                return latest && cleared && nearKept && farTaken && correctsOnce;
             });
         Check("PRODUCT-EXECUTED the compiled decisions: only a scene operation's write of the rider without its mount is attributed; the unattributed rule still needs more than 3 m from both the saddle and the last write, during a scene",
             ()=>{

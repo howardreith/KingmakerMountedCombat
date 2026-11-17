@@ -185,7 +185,7 @@ namespace KingmakerMountedCombat.Integration
             foreach (var owner in WorldRelationships)
             {
                 var agent = owner.State == RelationshipState.Mounted ? owner.Runtime?.MovementAgent : null;
-                var placement = agent?.PendingScenePlacement;
+                var placement = agent?.CurrentScenePlacement();
                 if (placement == null) continue;
                 var orientation = agent.PendingSceneOrientation;
                 var handedOff = false;

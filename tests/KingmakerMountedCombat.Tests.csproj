@@ -365,6 +365,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedBoundedFaultReport.cs"><Link>Shared\Domain\MountedBoundedFaultReport.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedContinuousDrivePolicy.cs"><Link>Shared\Domain\MountedContinuousDrivePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCleanupCompletionPolicy.cs"><Link>Shared\Domain\MountedCleanupCompletionPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedScenePlacementHold.cs"><Link>Shared\Domain\MountedScenePlacementHold.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedScriptZonePolicy.cs"><Link>Shared\Domain\MountedScriptZonePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroundOrderAdmissionPolicy.cs"><Link>Shared\Domain\MountedGroundOrderAdmissionPolicy.cs</Link></Compile>
     <Compile Include="MountedGroundOrderAdmissionPolicyTests.cs" />

@@ -17,6 +17,9 @@ namespace KingmakerMountedCombat.Integration
         internal sealed class Snapshot
         {
             internal GameMountedRelationshipService Owner;
+            // Review R2: the mounting instance and its rider synchronizer the positions were captured for.
+            internal MountedPair Instance;
+            internal RiderMovementAgent Agent;
             internal Vector3 Rider, Mount;
         }
 
@@ -29,7 +32,8 @@ namespace KingmakerMountedCombat.Integration
             foreach (var owner in owners)
             {
                 if (owner == null || owner.State != RelationshipState.Mounted || owner.Rider == null || owner.Mount == null) continue;
-                (snapshots = snapshots ?? new List<Snapshot>()).Add(new Snapshot { Owner = owner, Rider = owner.Rider.Position, Mount = owner.Mount.Position });
+                (snapshots = snapshots ?? new List<Snapshot>()).Add(new Snapshot { Owner = owner, Instance = owner.MountingInstance,
+                    Agent = owner.Runtime?.MovementAgent, Rider = owner.Rider.Position, Mount = owner.Mount.Position });
             }
             return snapshots;
         }
@@ -45,15 +49,29 @@ namespace KingmakerMountedCombat.Integration
                 var owner = snapshot.Owner;
                 var rider = owner.Rider; var mount = owner.Mount;
                 if (rider == null || mount == null) continue;
-                var r = rider.Position - snapshot.Rider; var m = mount.Position - snapshot.Mount;
-                if (!MountedSceneContinuityPolicy.AttributesRiderPlacement(owner.State == RelationshipState.Mounted, sceneActive,
-                    MountedSceneContinuityPolicy.PositionWritten(r.x, r.y, r.z), MountedSceneContinuityPolicy.PositionWritten(m.x, m.y, m.z))) continue;
+                // Only the mounting instance (and its synchronizer) the positions were captured for: a pair that was
+                // dismounted, or dismounted and mounted again, inside the operation is not attributed anything.
                 var agent = owner.Runtime?.MovementAgent;
-                if (agent == null || !agent.AttributeScenePlacement(rider.Position, rider.Orientation)) continue;
+                if (snapshot.Instance == null || !ReferenceEquals(owner.MountingInstance, snapshot.Instance) || agent == null ||
+                    !ReferenceEquals(agent, snapshot.Agent)) continue;
+                var r = rider.Position - snapshot.Rider; var m = mount.Position - snapshot.Mount;
+                var write = MountedSceneContinuityPolicy.ClassifyOperationWrite(owner.State == RelationshipState.Mounted, sceneActive,
+                    MountedSceneContinuityPolicy.PositionWritten(r.x, r.y, r.z), MountedSceneContinuityPolicy.PositionWritten(m.x, m.y, m.z));
+                if (write == MountedScenePlacementOperation.WholePair)
+                {
+                    if (agent.SupersedeScenePlacementWithWholePair() == MountedScenePlacementChange.Cleared)
+                        logger?.Info("Pending scene placement of a seated rider superseded by " + operation + " placing the whole pair: rider=" +
+                            rider.UniqueId + "; mount=" + mount.UniqueId + "; the pair stays together at the mount's placement.");
+                    continue;
+                }
+                if (write != MountedScenePlacementOperation.RiderPlacement) continue;
+                var change = agent.AttributeScenePlacement(rider.Position, rider.Orientation);
+                if (change == MountedScenePlacementChange.Unchanged) continue;
                 AttributedCount++;
                 logger?.Info("Scene placement of a seated rider attributed to " + operation + ": rider=" + rider.UniqueId +
-                    "; mount=" + mount.UniqueId + "; target=" + rider.Position + "; from saddle " +
-                    new Vector2(rider.Position.x - mount.Position.x, rider.Position.z - mount.Position.z).magnitude.ToString("0.00") + " m.");
+                    "; mount=" + mount.UniqueId + "; target=" + rider.Position + "; orientation=" + rider.Orientation.ToString("0.0") +
+                    "; from saddle " + new Vector2(rider.Position.x - mount.Position.x, rider.Position.z - mount.Position.z).magnitude.ToString("0.00") +
+                    " m" + (change == MountedScenePlacementChange.Superseded ? "; supersedes the earlier pending placement" : "") + ".");
             }
         }
     }

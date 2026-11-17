@@ -133,7 +133,16 @@ namespace KingmakerMountedCombat.Domain
         // placement. A mount the operation moved too keeps the pair together (the rider follows the saddle, as before), and
         // outside a scene nothing changes.
         public static bool AttributesRiderPlacement(bool pairMounted, bool sceneActive, bool riderWritten, bool mountWritten) =>
-            pairMounted && sceneActive && riderWritten && !mountWritten;
+            ClassifyOperationWrite(pairMounted, sceneActive, riderWritten, mountWritten) == MountedScenePlacementOperation.RiderPlacement;
+
+        // Review R2 of b30c24f8: an operation that wrote the rider and its mount is a whole-pair placement, in a scene or
+        // not; it makes any pending rider-only target of that pair obsolete (MountedScenePlacementHold.ClearForWholePair).
+        public static MountedScenePlacementOperation ClassifyOperationWrite(bool pairMounted, bool sceneActive, bool riderWritten,
+            bool mountWritten) =>
+            !pairMounted || !riderWritten ? MountedScenePlacementOperation.None
+            : mountWritten ? MountedScenePlacementOperation.WholePair
+            : sceneActive ? MountedScenePlacementOperation.RiderPlacement
+            : MountedScenePlacementOperation.None;
 
         // Retained custody has one kind and one rule set. Scene staging never joins camp or world-map custody (it would
         // inherit their separation, no regroup and cancellation in combat); the pair then stays attached.
