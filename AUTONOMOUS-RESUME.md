@@ -1,3 +1,19 @@
+# Known issues remediation, Sprint 4 — review of e1c0c7ad checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `e1c0c7ad`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R7–R9 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R7, R8 and R9 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Seams added:**
+  - `MountedScenePlacementAttributionCore.Apply` (Domain) is the only place one operation is applied to the captured
+    pairs' holds. Log only through its report delegate.
+  - `MountedScenePlacementSource` names the operation; never use a display string as authority.
+  - The `CommandTeleportParty` prefix records the proven target set. `TranslocateUnit` and `CommandMoveUnit` stay
+    single-unit unless installed IL proves otherwise.
+  - `MountedScriptZoneChecks.CheckEach` (Domain) is the C04 zone pass.
+  - `MountedScenePlacementHold.Reorient` holds a standalone rider turn at the rider's position.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 4 — review of 263ac3ea checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `263ac3ea`. Read CURRENT.md,
@@ -11,7 +27,7 @@ docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R4–R6 section first) and docs/CURRENT-KN
     - Never attempt it during a load.
   - **Scene placements:** classify moves and turns of both units (`ClassifyOperationWrite`, six inputs, wrapped angle
     comparison).
-    - A rider-only turn only reorients a pending placement.
+    - A rider-only turn reorients a pending placement; with nothing pending it is held at the rider's position (R7).
     - Keep attribution limited to the three patched operations.
   - **Fault reports:** each hook family keeps its own `MountedBoundedFaultReport`.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.

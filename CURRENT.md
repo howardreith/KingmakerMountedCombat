@@ -1,3 +1,36 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF e1c0c7ad: R7, R8, R9 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `e1c0c7ad`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R7–R9
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `e1c0c7ad`:**
+  - R4: owed versus spent, the no-receiver retry and the loading gate;
+  - R5's supersession while a placement is pending;
+  - R6;
+  - C04's observations;
+  - C01.
+- **R7, C02 (`ed83339c`):** an exact rider-only turn with nothing pending was discarded. It is now held at the rider's
+  position with the authored orientation and handed off once. In combat: one refusal and one return to the saddle.
+- **R8, C02:** the installed `CommandTeleportParty.OnRun` writes `Position` and `Orientation` to every unit of
+  `Player.GetCharactersList(m_UnitsList)`, unconditionally.
+  - Its prefix now records whether the exact rider and mount are in that set.
+  - A proven write of both is whole-pair even when one actor was already at its authored transform.
+  - Single-unit operations are unchanged.
+- **R9:** the C02 attribution and the C04 zone pass now run through Domain loops. Their success logging cannot
+  truncate the remaining pairs or zones.
+- **Records:** `DeliveredCount` counts notice deliveries with at least one successful receiver. R5 is complete only
+  with R7 and R8.
+- **Checks:**
+  - Fast PASS 10/0: components 1367/0, Validate-Source 151/0, scene placement 19/0 (reviewed build 12/7), Candlemere
+    11/0 (reviewed build 9/2), and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Four targeted mutations, each caught.
+  - Product-build commit `ed83339c`, DLL SHA-256 `e3448787…a390c95bc5`, MVID `c94292d4-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08; accepted Sprint 3 behaviour; C01's guards.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 263ac3ea: R4, R5, R6 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
@@ -10,11 +43,11 @@ section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
   - Native `EventBus.RaiseEvent` returns nothing and invokes the action once per subscribed receiver.
   - The warning UI subscribes only on `OnAreaDidLoad`, in the last loading step.
   - The notice is now never attempted during a load, and spent only once a receiver was reached.
-  - `DeliveredCount` counts receivers that took it.
+  - `DeliveredCount` counts notice deliveries with at least one successful receiver.
 - **R5, C02 (`e62cad39`):** the installed `TranslocateUnit` (copy rotation) and `CommandTeleportParty` write
   `Orientation` without any position comparison.
   - The capture and classification now see turns, and a same-endpoint placement's final orientation stands.
-  - A rider-only turn alone starts nothing.
+  - A rider-only turn alone started nothing (swallowed; corrected by R7 of the review of `e1c0c7ad`).
 - **R6 (`e62cad39`):** C04 and C02 hooks have separate bounded fault reports.
 - **Checks:**
   - Fast PASS 10/0 under budget `known-issues-sprint4`: components 1362/0, Validate-Source 151/0, scene placement

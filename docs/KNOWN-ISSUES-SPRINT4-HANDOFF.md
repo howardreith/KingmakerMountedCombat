@@ -3,7 +3,160 @@
 Sprint 4 of the Mounted Combat Known Issues Remediation Epic, in the owner's order C04, C01, C02, C03. Offline work
 only. Nothing was launched, staged or installed, and nothing in this record is native gameplay evidence.
 
-## Review of `263ac3ea` (R4–R6), 2026-11-17 — read this first
+## Review of `e1c0c7ad` (R7–R9), 2026-11-17 — read this first
+
+The owner accepted, at `e1c0c7ad`:
+- R4's owed-versus-spent notice, the no-receiver retry and the loading gate;
+- R5's final-orientation supersession while a positional placement is pending;
+- R6's independent fault latches;
+- C04's mounting-instance observations;
+- C01's unsupported disposition and its guards.
+
+R5 was not complete at `e1c0c7ad`. A standalone turn was discarded (R7), and a whole-pair write was missed when one
+actor was already at its authored transform (R8). Both are corrected here, together with logging truncation (R9).
+
+| Item | Value |
+|---|---|
+| Starting head (reviewed) | `e1c0c7ad2235abdfcd6fff15eb3c07859016e289`. Its product DLL is the `e62cad39` build (SHA-256 `c1bec351…1dfa4728`, MVID `9b5abe93-…`), frozen as `artifacts/known-issues-sprint4/head-e62cad39/` |
+| Parent | `codex/kmc-known-issues-sprint3` at `e5b92474` |
+| Repair commit | `ed83339c` (R7, R8, R9: product, tests and both contract scripts; the product-build commit), then the records commit carrying this section, which is the branch head |
+| Product DLL (clean Release build of `ed83339c`) | SHA-256 `e3448787557d3fb7e063c717367f14efa01b626b81b1080ddc8ea1a390c95bc5`, MVID `c94292d4-973f-42e9-bd7c-31969d7f317e`; frozen copy `artifacts/known-issues-sprint4/head-ed83339c/` |
+
+### R7 — an exact rider-only turn with nothing pending
+
+- **Reproduced:**
+  1. With the reviewed build's compiled classification and hold, as its `Attribute` composes them, a rider-only turn
+     classified `RiderTurn`.
+  2. `Reorient` on an empty hold returned `Unchanged`, so nothing was held.
+  3. The reviewed component test asserted that swallowed outcome.
+- **Repair:** `MountedScenePlacementHold.Reorient(x, y, z, orientation, frame)` changes as follows:
+  - With nothing pending, it holds the rider's current position with the authored orientation.
+  - That goes through the ordinary bounded scene-placement handoff (applied once, translocation verified).
+  - With a placement pending, it still only takes the final orientation.
+  - Scope is unchanged: only the three patched operations, the exact mounting instance and synchronizer, and no global
+    orientation observer.
+- **In combat:** the existing guard applies. There is no suspension: one refusal, one return to the saddle, no
+  oscillation. Nothing is granted, prepared, refunded or replayed.
+- **After (executed, compiled core and hold):**
+  - Nothing pending; a turn to 75° at (4, 7), mount unchanged, in a scene: (4, 7) at 75° is pending.
+  - In the component scene: one handoff at the rider's position and 75°.
+- **Controls (component, production core and hold):**
+  - Outside a scene: nothing.
+  - Mount-only turn: nothing.
+  - Ordinary turning between operations: nothing.
+  - A mounting replaced inside the operation: nothing.
+  - Combat: one refusal, never pending again.
+  - Repeated turns (75 then 200): one handoff at 200.
+  - Nested: the outermost final turn.
+  - 10 to 370 (the same facing): nothing. 350 to 10: a turn.
+- **Safety:** source evidence showed nothing unsafe in using the existing lifecycle for this case. The handoff,
+  refusal and guards are the ones every C02 placement uses.
+
+### R8 — whole-pair intent from the proven target set
+
+**Native contract (installed IL; `OnRun` call sequence pinned):**
+
+| Fact | Kind |
+|---|---|
+| `CommandTeleportParty.OnRun` (06009E90) reads `m_UnitsList`, calls `Game.Instance.Player.GetCharactersList(m_UnitsList)` once and enumerates it. For each unit it does `Targets[i % Targets.Length].FindView()`, writes `Position` (the locator's position, or zero with an error log if the view is missing) and `Orientation` (the locator's `transform.rotation.y`). There is no filter and no comparison. | IL read and pinned |
+| `GetCharactersList`: `ActiveUnits` gives `ControllableCharacters`. `Everyone` gives `AllCharacters`. `EveryoneNotDetached` and `AllDetachedUnits` give the cross-scene units, filtered by `IsDetached`. `DetachedPartyCharacters` and `PartyCharacters` give the `UnitReference` values. | IL read and pinned |
+| `UpdateCharacterLists` / `AddCharacterToLists`: pets are added to `ControllableCharacters` (in game, not detached, not ex-companions) and to `AllCharacters`. `PartyCharacters` holds no pets. So the mount is in `ActiveUnits` and `Everyone`, and not in `PartyCharacters`. | IL read (decompiled), not pinned |
+| The list is lazily evaluated over live lists that `OnRun`'s setters do not change. Evaluating it in the prefix therefore yields the units native will write. | Inferred from the IL |
+| Executing `GetCharactersList` offline | Not feasible: `UnitReference` resolution and `UpdateCharacterLists` need the live entity pool and unit descriptors |
+
+- **Repair:**
+  - Each patched operation has its own prefix naming it: `MountedScenePlacementSource`. The display string is no
+    longer authority.
+  - The `CommandTeleportParty` prefix takes the operation instance and reads `m_UnitsList`. It evaluates
+    `GetCharactersList` and records whether this exact rider and mount are in the set (`RiderTargeted`,
+    `MountTargeted`).
+  - `ClassifyOperationWrite` (eight inputs) counts a proven write of an actor as a write even when its value was
+    already there. Both actors written is `WholePair`: the hold is cleared and nothing is moved.
+  - Single-unit operations (`TranslocateUnit`, `CommandMoveUnit`) carry no target evidence and classify by changes, as
+    before.
+- **Before and after:** a rider-only placement A was pending, then `CommandTeleportParty` ran. Executed through the
+  reviewed build's compiled classification and hold, as its `Attribute` composes them, and through this build's
+  compiled core:
+
+  | Case | Reviewed `e1c0c7ad` | Corrected |
+  |---|---|---|
+  | 1. Both targeted; rider already at its authored transform, only the mount changes | A stays pending, and is reapplied | Cleared; no handoff |
+  | 2. Both targeted; mount already at its transform, only the rider changes | Replaced by another rider-only hold, and handed off | Cleared; not replaced |
+  | 3. Both targeted, both change | Cleared | Cleared |
+  | 4. Both targeted, both already equal | A reapplied | Cleared; nothing moved |
+  | 5. Only the rider targeted (for example `PartyCharacters`) | Rider placement | Rider placement (supersedes A) |
+  | 6. Single-unit operation on the mount | A stays | A stays |
+
+- Preserved: mounting-instance and synchronizer identity, nested operations, the 3 m rule, R7, combat refusal, and no
+  native resource or action change.
+
+### R9 — a throwing success logger truncated the loops
+
+- **Reproduced:**
+  - The reviewed `Attribute` called `logger.Info` inside its pair loop with no containment.
+  - The reviewed `Recheck` called it inside its zone loop. A throw ended the loop at the hook's catch.
+  - The reviewed loop shape is transcribed in the component test and shown to skip the second pair. The IL pins for
+    "no logging in the loop body" fail on the reviewed build.
+- **Repair:**
+  - `MountedScenePlacementAttributionCore.Apply` (Domain) applies every pair's own writes to its own hold. A success
+    report that throws is contained per pair.
+  - `MountedScriptZoneChecks.CheckEach` (Domain) checks every zone and contains a throwing change report. A failing
+    native check still ends the pass, so the hook's bounded R6 report still sees it.
+  - The Integration code calls them and logs only through their report delegates.
+- **After (executed, compiled code):**
+  - Two pairs in one operation, with a logger that throws on each success: both holds updated, 2 logger calls, nothing
+    escapes. A healthy logger receives both.
+  - One rider and two zones, with a throwing logger: both zones checked and both memberships right. A healthy logger
+    gets both lines, and a failing check propagates.
+  - R6's independent latches are re-executed unchanged: one script-zone and one scene-placement line; a throwing fault
+    logger called twice.
+
+### Records corrected by this review
+
+- **R4:** "DeliveredCount counts notice deliveries with at least one successful receiver." The per-dispatch `accepted`
+  value in the notifier is the receiver count. `DeliveredCount` is not.
+- **R5:** "a rider-only turn alone starts nothing" described the swallowed outcome, not a repair. R7 replaces it.
+- **R5:** whole-pair classification by changed values alone missed a proven write. R8 replaces it.
+- R5 is complete only with R7 and R8.
+
+### Checks of this review
+
+| Check | Result |
+|---|---|
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint4`, focused: both Sprint 4 contract scripts, persistence, post-load view readiness, continuous drive, world ownership, physical mover pace | TIER FAST PASS=10 FAIL=0, 0.78 min; budget spent 2.87 of 90 minutes over 4 entries |
+| Components | 1367/0 (1362 at `e1c0c7ad`; +2 R7, +1 R8, +1 R9 pairs, +1 R9 zones) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 |
+| Clean Release build of `ed83339c` (outputs removed first) | PASS; identity above |
+| `Test-ScenePlacementAttributionContracts.ps1` | 19/0. Reviewed `e1c0c7ad` build 12/7: R7, R8 and R9 executed, and the R5/R8 and hook wiring pins |
+| `Test-CandlemereCrossingContracts.ps1` | 11/0. Reviewed build 9/2 (the two C04 R9 checks) |
+| Targeted mutations (each restored), log `32-review-mutations-r7-r9.log` | M10 standalone turn discarded: 2 component failures and the R7 check. M11 proven targets ignored: R8 component test and the R8 check. M12 pair loop uncontained: R9 component test and the R9 check. M13 zone loop uncontained: C04 R9 component test and the Candlemere R9 check |
+
+- Logs are in `artifacts/known-issues-sprint4/`, numbered 30–36.
+- Not run: Full, Candidate, historical campaigns, release qualification, unrelated stale harnesses.
+
+### Evidence kinds for this review
+
+| Kind | What |
+|---|---|
+| Production code executed offline | `MountedScenePlacementAttributionCore`, `MountedScenePlacementHold`, `ClassifyOperationWrite`, `MountedScriptZoneChecks` and the coordinator (component tests and compiled-product checks) |
+| Installed native code executed | None new (R4's `EventBus` checks still run) |
+| Installed native IL inspected | `CommandTeleportParty.OnRun`'s call sequence; `Player.GetCharactersList` and the character-list construction |
+| Engine behaviour represented | Native position and orientation writes, the capture around operations, the synchronizer, zones and their membership |
+| Modelled orchestration | The owner's poll and the evaluation order in the component scene |
+| Native gameplay | None; not run |
+
+### Remaining evidence limits
+
+- `GetCharactersList` was not executed offline. That the horse is in `ActiveUnits` and `Everyone` and not in
+  `PartyCharacters` is read from decompiled code.
+- Not seen in play:
+  - a standalone copy-rotation `TranslocateUnit` of a seated rider;
+  - a `CommandTeleportParty` with one actor already at its locator;
+  - logging failures in either hook;
+  - every earlier native gap still listed below.
+
+## Review of `263ac3ea` (R4–R6), 2026-11-17
 
 The owner accepted, at `263ac3ea`:
 - C04's mounting-instance observations;
@@ -49,7 +202,8 @@ This review raised two P2 findings and one P3 diagnostic finding.
     - `Spend` is called by the notifier.
   - `MountedCombatHoldNotifier` counts receivers inside the action that native invokes per subscriber. The notice is
     spent only once at least one receiver was reached, or if the dispatch itself throws (bounded, one attempt).
-  - `DeliveredCount` now counts receivers whose `HandleWarning` returned. `FailedCount` counts spent attempts no
+  - `DeliveredCount` counts notice deliveries with at least one successful receiver (corrected by the review of
+    `e1c0c7ad`; the per-dispatch accepted value is the receiver count). `FailedCount` counts spent attempts no
     receiver took. `NoReceiverCount` counts attempts that reached nobody and spent nothing.
   - A dispatch that reaches no receiver is retried at the next evaluation. This happens only while scene-staging
     custody is held in combat, and costs one dictionary lookup per evaluation.
@@ -89,8 +243,9 @@ This review raised two P2 findings and one P3 diagnostic finding.
     - moving or turning both units is `WholePair`, which clears a pending rider-only placement;
     - moving the rider is `RiderPlacement`;
     - only turning the rider, in a scene, is `RiderTurn`.
-  - `MountedScenePlacementHold.Reorient` takes a `RiderTurn` while a placement is held. On its own, `RiderTurn` starts
-    nothing: a seated rider's facing follows its saddle, and no handoff is made for a turn.
+  - `MountedScenePlacementHold.Reorient` takes a `RiderTurn` while a placement is held. At `e62cad39` a `RiderTurn` with
+    nothing pending started nothing, and the turn was lost. Corrected by R7 of the review of `e1c0c7ad`: it is held at
+    the rider's position.
   - The scope is unchanged: only the three patched operations, no global orientation observer, and the 3 m
     unattributed rule untouched.
 - **After:** P/120 is pending, and the handoff applies it once. This was executed through the compiled decisions,
@@ -99,7 +254,7 @@ This review raised two P2 findings and one P3 diagnostic finding.
   - same endpoint, final orientation (the reviewed position-only attribution, transcribed, keeps 30);
   - a rotation-only whole-pair operation clears the rider-only hold;
   - a mount-only turn keeps it;
-  - a rider-only turn alone starts nothing;
+  - a rider-only turn alone started nothing (the swallowed outcome; replaced by R7);
   - nested operations take the outermost final turn;
   - a mounting replaced inside the operation is not attributed;
   - combat refuses once;

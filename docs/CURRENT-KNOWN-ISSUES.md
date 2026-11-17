@@ -3,8 +3,10 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-17, the review of `263ac3ea` (R4 C03 notice spent only on receipt and never during a
-  load, R5 C02 orientation-only placements, R6 separate C02 and C04 fault reports), after the review repair of
+- **Last updated:** 2026-11-17, the review of `e1c0c7ad` (R7 C02 standalone rider turn, R8 C02 whole-pair writes from
+  CommandTeleportParty's proven target set, R9 contained success logging in the C02 and C04 loops), after the review
+  of `263ac3ea` (R4 C03 notice spent only on receipt and never during a load, R5 C02 orientation-only placements, R6
+  separate C02 and C04 fault reports), after the review repair of
   `b30c24f8` (R1 C04 observation lifetime, R2 C02 final placement, R3 C03 notice delivery; C01 wording narrowed),
   after Sprint 4 (C04, C01, C02, C03 reconciled and
   dispositioned). Branch
@@ -359,14 +361,14 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 ## Sprint 4 — scene continuity (reconciled 2026-11-17)
 
 Order C04, C01, C02, C03 (owner amendment of 2026-11-16). Record: [Sprint 4 handoff](KNOWN-ISSUES-SPRINT4-HANDOFF.md).
-Product-build commit `e62cad39` (after the review of `263ac3ea`), clean Release DLL SHA-256
-`c1bec3516b1c1dfd6c0e5b72406ef805e3f54cbcdd6936321de87cf31dfa4728`, MVID `9b5abe93-648e-46c6-941a-18cae1c96568`.
+Product-build commit `ed83339c` (after the review of `e1c0c7ad`), clean Release DLL SHA-256
+`e3448787557d3fb7e063c717367f14efa01b626b81b1080ddc8ea1a390c95bc5`, MVID `c94292d4-973f-42e9-bd7c-31969d7f317e`.
 
 | ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|
-| C04 | At Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Mounted traversal defect | Implemented and verified offline | `ef264ff3`: a seated rider's script-zone membership is rechecked with native `ScriptZone.CheckUnit` when native did not check it. Review R1 (`60ba91ae`): observations belong to the mounting instance, so a remount is checked again. `CandlemereCrossingTests` (7); `Test-CandlemereCrossingContracts.ps1` 9/0, reviewed build 7/2 | Not run; the owner's `output_log(9).txt` is not on this machine |
+| C04 | At Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Mounted traversal defect | Implemented and verified offline | `ef264ff3`: a seated rider's script-zone membership is rechecked with native `ScriptZone.CheckUnit` when native did not check it. Review R1 (`60ba91ae`): observations belong to the mounting instance, so a remount is checked again. Review R9 (`ed83339c`): a throwing success logger never stops the remaining zones. `CandlemereCrossingTests` (8); `Test-CandlemereCrossingContracts.ps1` 11/0, reviewed `e1c0c7ad` build 9/2 | Not run; the owner's `output_log(9).txt` is not on this machine |
 | C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Explicitly unsupported, with its blocker | No change. Blocker: the existing scene-staging lifecycle cannot take an actively participating pair out of combat while preserving the restoration intent under its present contract. Fallback pinned and bounded by C02 | Not run |
-| C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Implemented and verified offline | `eabbd8c8`: the three native placement operations attribute a rider-only write to the scene. Review R2 (`3cbdf077`): the scene's latest placement stands; a whole-pair placement clears a pending rider-only one. Review R5 (`e62cad39`): the installed operations' orientation writes are observed, so a same-endpoint placement's final orientation stands; a rider-only turn alone starts nothing. Review R6: C02's hooks have their own fault report. `ScenePlacementAttributionTests` (13); `Test-ScenePlacementAttributionContracts.ps1` 14/0, reviewed `263ac3ea` build 8/6 | Not run |
+| C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Implemented and verified offline | `eabbd8c8`: the three native placement operations attribute a rider-only write to the scene. Review R2 (`3cbdf077`): the scene's latest placement stands; a whole-pair placement clears a pending rider-only one. Review R5 (`e62cad39`): the installed operations' orientation writes are observed, so a same-endpoint placement's final orientation stands. Review R6: C02's hooks have their own fault report. Review R7 (`ed83339c`): a standalone rider-only turn is held at the rider's position and handed off once (R5's "starts nothing" was the swallowed outcome). Review R8: CommandTeleportParty's proven target set makes a whole-pair write even when one actor was already at its authored transform. Review R9: a throwing success logger never truncates the pairs of one operation. `ScenePlacementAttributionTests` (17); `Test-ScenePlacementAttributionContracts.ps1` 19/0, reviewed `e1c0c7ad` build 12/7 | Not run |
 | C03 | Restoration fallbacks need truthful feedback and clean retirement. | Intentional boundaries | Intentional limit documented; one separate repair | Limits unchanged and stated in the handoff. Repair `9a371910`: the combat-hold notice is once per custody and encounter. Review R3 (`fb7f048d`, `b80534f9`): it is delivered through the native warning notification. Review R4 (`e62cad39`): never attempted during a load, and spent only once native invoked a warning receiver; the compiled notifier was run through the installed native `EventBus` with no receiver, then a receiver, and during a load (`CombatHoldNoticeTests` (4)) | Not run |
 
 ### C04 — what is established, and what is not
