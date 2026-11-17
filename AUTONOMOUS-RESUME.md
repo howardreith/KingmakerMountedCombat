@@ -1,3 +1,20 @@
+# Known issues remediation, Sprint 4 — review repair checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `b30c24f8`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (review section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R1, R2 and R3 corrected offline; C01 still explicitly unsupported (wording narrowed). Fast PASS 10/0.
+  Native NOT RUN.
+- **Seams added by the repair:**
+  - `MountedScriptZoneObservations<TUnit>` (Domain): zone observations per mounting instance (`MountedPair`). Never
+    key them by the rider alone, and never depend on cleanup reaching them.
+  - `MountedScenePlacementHold` (Domain): the rider synchronizer's only pending-placement state; always the scene's
+    latest. The owner's poll reads `RiderMovementAgent.CurrentScenePlacement()`, not the raw pending value.
+  - `MountedCombatHoldNotifier` (Integration): the only path for the combat-hold notice, through the native
+    `IWarningNotificationUIHandler`. Do not make other persistence Reports visible through it.
+- **Do not:** lift the encounter refusal or the settled-participation guard for C01.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 4 — review checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4`; parent `e5b92474`, the accepted head of `codex/kmc-known-issues-sprint3`

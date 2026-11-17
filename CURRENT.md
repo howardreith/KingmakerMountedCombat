@@ -1,3 +1,28 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW REPAIR OF b30c24f8: R1, R2, R3 CORRECTED OFFLINE; C01 STILL UNSUPPORTED; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `b30c24f8`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its review
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R1, C04 (`60ba91ae`):** zone observations were keyed by the rider and outlived a normal dismount, whose cleanup
+  clears the references the adapter read first. A remount at the place last checked kept the stale membership. They
+  now belong to the mounting instance (`MountedScriptZoneObservations`, the coordinator's `MountedPair`).
+- **R2, C02 (`3cbdf077`):** the first of two placements before the poll won. `MountedScenePlacementHold` now keeps the
+  scene's latest placement (endpoint and orientation), clears a rider-only one on a whole-pair placement, and applies
+  the unchanged 3 m rule to unattributed writes since the hold, at sample and poll.
+- **R3, C03 (`fb7f048d`, `b80534f9`):** the notice went to a Report nothing displays. `MountedCombatHoldNotifier` now
+  delivers it through the native warning notification. Executed through the installed native `EventBus` to a
+  subscribed sink: once per custody and encounter, and contained on failure.
+- **C01:** still explicitly unsupported. The wording is narrowed: the staging lifecycle cannot take an actively
+  participating pair out of combat with its restoration intent under its present contract, and other designs are not
+  excluded.
+- **Checks:** Fast PASS 10/0 under budget `known-issues-sprint4` (components 1356/0, Validate-Source 151/0, both
+  Sprint 4 contract scripts 9/0 and the five neighbours). Kingmaker assembly contracts 815/0. Six targeted mutations
+  each caught. Product-build commit `b80534f9`, DLL SHA-256 `70bbe6f7…a15099`, MVID `fc4bb6b3-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08 keep their dispositions; accepted Sprint 3 behaviour is untouched.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 4 — SCENE CONTINUITY: C04, C02 IMPLEMENTED OFFLINE; C01 UNSUPPORTED WITH ITS BLOCKER; C03 LIMITS DOCUMENTED; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR stacked on `codex/kmc-known-issues-sprint3`, PR #47, open), created

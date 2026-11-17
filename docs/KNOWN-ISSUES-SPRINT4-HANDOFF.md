@@ -3,6 +3,132 @@
 Sprint 4 of the Mounted Combat Known Issues Remediation Epic, in the owner's order C04, C01, C02, C03. Offline work
 only. Nothing was launched, staged or installed, and nothing in this record is native gameplay evidence.
 
+## Review repair of `b30c24f8` (R1–R3, C01 wording), 2026-11-17 — read this first
+
+The owner's review of the first Sprint 4 checkpoint (`b30c24f8`) left three findings open and narrowed the C01
+statement. Each finding was reproduced in source and under matched conditions before its repair. Sections below
+this one describe the first pass and are corrected where this review changed a claim.
+
+| Item | Value |
+|---|---|
+| Reviewed head | `b30c24f8586e1b86d351a6fa214e309226ab83aa` (its DLL is the frozen `head-9a371910` copy; the records commit changed no product code) |
+| Repair commits | `60ba91ae` R1; `3cbdf077` R2; `fb7f048d` R3; `b80534f9` R3 test coverage (the product-build commit); then the records commit carrying this section, which is the branch head |
+| Product DLL (clean Release build of `b80534f9`) | SHA-256 `70bbe6f75f1e7116dc80f72d94ebaa6948c761df7141e35264446cc778a15099`, MVID `fc4bb6b3-900f-4b7e-999c-a72fac3865ca`; frozen copy `artifacts/known-issues-sprint4/head-b80534f9/` |
+
+### R1 — C04's zone observations outlived the dismount
+
+- **Reproduced (source and component sequence):** `MountedScriptZoneAdapter.Recheck` returned when the relationship's
+  rider was null, before its only removal. A normal dismount's cleanup clears the runtime's rider and mount
+  references, so the rider-keyed entry survived. Sequence: checked at P inside the zone, dismounted (references
+  cleared), walked outside (native membership updated), remounted the stationary mount at P without native motion.
+  The first rider-first tick found the old entry at P and did not check: membership stayed "outside" and the crossing
+  sent the party back. The reviewed cache, transcribed in the test and labelled as such, does exactly that.
+- **Repair:** observations are scoped to the mounting instance. `MountedScriptZoneObservations` (Domain) keys each
+  observation by the rider and records the coordinator's `MountedPair`, which every `Attach` creates anew. The adapter
+  reads `GameMountedRelationshipService.MountingInstance`; an observation of another instance is never reused. No
+  cleanup has to reach it, so reference clearing cannot strand it.
+- **Preserved:** a stationary rider within one mounting is not checked again. Native zone enter and exit are untouched.
+- **After:** the same sequence checks the rider on the first mounted tick, and the crossing goes across. This holds
+  on the same relationship (remount on the same reusable boundary), on another relationship (a second coordinator),
+  and for another world's unit (another object).
+- **Evidence (executed):**
+  - The C04 model now mounts and dismounts through the real `MountedRelationshipCoordinator`, with a runtime that
+    clears its references on cleanup. The "tracked=false on dismount" stand-in is gone.
+  - Decisions and records are the production observations.
+  - The native tick and the zone remain represented.
+- **Contract pins:** the adapter asks the observations with the mounting instance, and the compiled observations are
+  instance-scoped. The reviewed build fails both.
+
+### R2 — C02 kept the first of two placements
+
+- **Reproduced:** `AttributeScenePlacement` refused while a placement was pending. With placement A, then placement B
+  before the owner's poll, the handoff translocated the rider back to A with orientation A. A later whole-pair
+  placement left the rider-only target to be reapplied. The unattributed path had the same first-wins hold.
+- **Repair:**
+  - The pending state is now `MountedScenePlacementHold` (Domain), used by `RiderMovementAgent`. It holds one
+    placement, always the scene's latest.
+  - A later rider placement supersedes the pending one: final endpoint and orientation.
+  - An operation that writes the whole pair (`ClassifyOperationWrite`) clears it. The synchronizer then resumes as
+    after any whole-pair placement, so nothing obsolete is reapplied.
+  - An unattributed write since the hold supersedes it only by the unchanged 3 m rule, measured from the held target.
+    This is applied at every sample and at the owner's poll (`CurrentScenePlacement`), so neither order reapplies an
+    earlier target. A near unattributed write, 1 m from the held target, is not taken.
+  - The attribution acts only on the mounting instance and synchronizer it captured.
+  - Refusal, the frame budget, Configure and Deconfigure release or reset as before.
+- **Cases (component, production hold; native writes, capture and poll represented):**
+
+  | Case | Reviewed hold (transcribed) | Corrected |
+  |---|---|---|
+  | Two rider-only placements before the next poll | Back to the first endpoint and orientation | One handoff, final endpoint and orientation |
+  | 6 m then 7 m, attributed | 6 m | 7 m |
+  | 6 m then 7 m, unattributed, during the hold | 6 m | 7 m (far from the held target) |
+  | Short attributable placements (0.5, 2, 3 m) | Kept | Kept |
+  | Later whole-pair placement | Obsolete rider-only target reapplied | Cleared; no handoff; pair together at the mount's placement |
+  | Nested operations | First write kept | The rider's position at the end of the outermost operation |
+  | Combat, two placements | One refusal | One refusal, one return to the saddle |
+
+- **Contract pins:** the wiring (instance check, classification, hold at sample and poll) and the compiled hold. The
+  reviewed build fails both.
+- Not connected to the Candlemere incident; no evidence links them.
+
+### R3 — C03's notice reached no player
+
+- **Reproduced (source):** `Report` only sets `Feedback` and `FeedbackIsRoutine` and writes `logger.Info`. No
+  gameplay display reads it, and the old feedback panel is gone.
+- **Repair:** `MountedCombatHoldNotifier` keeps the custody-aware deduplication (`CombatHoldNotice`) and delivers this
+  notice only through the native `IWarningNotificationUIHandler` warning (`HandleWarning(text, addToLog: true)`).
+  This is the path the project's other player warnings use. Other routine Reports are unchanged.
+- **Text:** "&lt;pairs&gt; stay dismounted for this fight, because they were still part of a scene when it began. After
+  the fight they remount automatically if they still can." Identities and the mechanism go to the diagnostic log.
+- **Failure:** delivery is contained. The notifier owns no retained or combat state, never throws, and does not repeat.
+- **Evidence (executed against installed native code):** `Test-ScenePlacementAttributionContracts.ps1` runs the
+  compiled notifier through the installed native `EventBus`. It delivers to a subscribed sink, a class implementing
+  the installed interface that the probe emits. Results:
+  - the actual text once across repeated held evaluations;
+  - again for a later encounter after an evaluation outside combat;
+  - again for a new custody held in combat right after the previous one disappeared;
+  - a refusing display neither throws out of the notifier nor gets a second attempt.
+- **What that run does not show:** the warning on screen. Offline, native's own catch of a subscriber exception
+  rethrew while logging (UberDebug cannot run outside the game), so the notifier contained it (failed=1). In the game,
+  native catches and logs it itself.
+- **Coverage gap closed:** a targeted mutation (any earlier custody suppresses the notice) passed the component tests,
+  which always evaluated outside combat between custodies. `b80534f9` adds the direct case to both layers.
+
+### C01 (wording narrowed; still unsupported, not fixed)
+
+- **Blocker:** the existing scene-staging lifecycle cannot take an actively participating pair out of combat while
+  preserving the required restoration intent under its present contract. Its handoff refuses during an encounter, and
+  its suspension requires settled participation.
+- **Future designs:** capturing and restoring a live activation is not established as the only possible design. A
+  combination of the existing native split with a separate deferred remount intent is another candidate. It would
+  need its own investigation and verification.
+- **Not done:** no refusal was removed or weakened, and no combat-authority design was introduced.
+
+### Checks of this repair
+
+| Check | Result |
+|---|---|
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint4`, focused: both Sprint 4 contract scripts, continuous drive, post-load view readiness, persistence, world ownership, physical mover pace | TIER FAST PASS=10 FAIL=0, 0.77 min; budget spent 1.13 of 90 minutes over 2 entries |
+| Components | 1356/0 (1349 at `b30c24f8`; +2 R1, +5 R2; C03 cases extended) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 |
+| Clean Release build of `b80534f9` (outputs removed first) | PASS; identity above |
+| `Test-CandlemereCrossingContracts.ps1` | 9/0; reviewed build 7/2 (the two R1 pins) |
+| `Test-ScenePlacementAttributionContracts.ps1` | 9/0; reviewed build 5/4 (the R2 and R3 pins) |
+| Targeted mutations (each restored), log `10-review-mutations.log`, rerun `11-review-mutation-m6-rerun.log` | M1 instance ignored: 3 component failures. M2 first wins: 3. M3 whole pair clears nothing: 1. M4 no supersession during the hold: 1. M5 notice not raised: delivery check fails. M6 any earlier custody suppresses: delivery check fails, and after `b80534f9` one component failure too |
+
+- Logs are in `artifacts/known-issues-sprint4/`, numbered 10–16.
+- Not run: Full, Candidate, historical campaigns, release qualification, unrelated stale harnesses (T04–T08 untouched).
+
+### Evidence limits after this repair
+
+| Kind | What it covers |
+|---|---|
+| Executed production code | The observations, hold, classification, notice deduplication, handoff sequence and coordinator; the compiled notifier through native `EventBus` |
+| Represented engine behaviour | The native tick and zone membership, native position writes, the capture around operations, the synchronizer's saddle write, the owner's poll |
+| Compiled wiring (IL pins) | The adapter, attribution, agent and restore-loop calls |
+| Native gameplay | None; still not run |
+
 ## Branch and identity
 
 | Item | Value |
@@ -95,8 +221,10 @@ The same words are used throughout.
 - `MountedScriptZoneAdapter.Recheck` (Integration) runs in a postfix of `ScriptZoneController.Tick` (060092A0). It
   calls native `ScriptZone.CheckUnit` on native's own active zones. It writes no position, runs no action and
   replays nothing. Native's checks, failures, costs and teleport are untouched.
-- Faults are contained by the bounded fault report. Tracking is dropped when the pair is not mounted, and a new
-  world has new unit objects.
+- Faults are contained by the bounded fault report.
+- Corrected by review R1: the first pass claimed tracking was dropped when the pair was not mounted. It was not after
+  a normal dismount, whose cleanup clears the references the adapter read first. Observations now belong to the
+  mounting instance and are never reused by a later mounting or another world's unit (see the review section).
 
 ### Distances kept apart
 
@@ -115,7 +243,7 @@ The same words are used throughout.
 | Mount-first order | Already correct | Unchanged; no recheck is needed |
 | Failed check | Interaction disabled | Same; nothing extra |
 | Unmounted control, unrelated pair | Correct | Unchanged; never rechecked |
-| Manual dismount, then remount | Correct while dismounted | Tracking dropped and rebuilt |
+| Manual dismount, then remount | Correct while dismounted | Checked again on the first mounted tick, because the observation belongs to the earlier mounting (review R1; the first pass's model cleared it unconditionally) |
 
 ### Contract script
 
@@ -163,11 +291,12 @@ The original `output_log(9).txt` remains unavailable.
 - Pinned as unchanged: the PRODUCT-IL check "C01 fallback" in `Test-ScenePlacementAttributionContracts.ps1` passes
   on both the base and the corrected build.
 
-### What would unblock it
+### What a future solution would need (narrowed by the review)
 
-A native participation contract for taking a pair out of a running encounter with retained intent: capturing and
-restoring an unsettled activation without granting or refunding anything. That is a design decision for the owner,
-not a Sprint 4 change.
+The existing scene-staging lifecycle cannot take an actively participating pair out of combat while preserving the
+required restoration intent under its present contract. Capturing and restoring a live activation is one conceivable
+design, not established as the only one. Combining the existing native split with a separate deferred remount intent
+is another. Either would need its own investigation and verification. Neither is a Sprint 4 change.
 
 ## C02 — rider-only scene placements of 3 m or less
 
@@ -192,6 +321,8 @@ not a Sprint 4 change.
   - An attributed write is handed to that rider's synchronizer (`RiderMovementAgent.AttributeScenePlacement`) as the
     scene's own placement, whatever its distance. The existing handoff then keeps it (captured rider, authored
     endpoint, translocation verified within 0.1 m).
+  - Corrected by review R2: the first pass kept the first of several placements. The scene's latest now stands, and a
+    whole-pair placement clears a pending rider-only one (see the review section).
   - Unattributed writes keep the unchanged rule, now named `HoldsUnattributedPlacement`. The 3 m threshold is not
     lowered, and ordinary saddle correction is never classified as a teleport.
 
@@ -250,7 +381,9 @@ and then a handoff `at the scene's placement`.
   A later custody's encounter, held outside combat while its scene ran and then in combat, went unreported. The player
   was never told in any case, because it was only a log line.
 - **Correction:** `MountedRetainedIntentPolicy.CombatHoldNotice` decides once per custody and encounter. A different
-  custody, or an evaluation outside combat, starts afresh. The notice is a routine player report naming the pairs.
+  custody, or an evaluation outside combat, starts afresh.
+- Corrected by review R3: the first pass sent the notice as a routine persistence Report, which reaches no display.
+  It is now delivered through the native warning notification (see the review section).
 - **Regression:** `CombatHoldNoticeTests` runs the production notice: once per encounter, not per frame; a second
   encounter of the same custody; the dropped-custody sequence. The base latch is reproduced from `e5b92474` and
   labelled as such, only to show that the same sequence reported custody A alone. The PRODUCT-IL check "C03" pins the
@@ -268,7 +401,7 @@ and then a handoff `at the scene's placement`.
 - S01, M04 and T04–T08 remain visible in the ledger. `Test-ChargeOwnershipContracts.ps1` still stops at T04 and was
   not part of the selection. No harness repair was needed.
 
-## Checks run (budget `known-issues-sprint4`, 0.37 of 90 minutes recorded by the tier runner)
+## Checks run in the first pass (at `9a371910`; budget `known-issues-sprint4`, 0.37 of 90 minutes)
 
 | Check | Result | Duration |
 |---|---|---|
@@ -290,8 +423,9 @@ and then a handoff `at the scene's placement`.
 |---|---|
 | C04 native | A mounted Candlemere crossing with the new log line; the owner's `output_log(9).txt` |
 | C02 native | A scene placement within 3 m of a seated rider, logged as attributed and handed off |
-| C01 | The owner's decision on a native participation contract for an in-combat handoff; until then, unsupported |
-| C03 native | A staged pair entering combat, with the single report and the post-combat remount |
+| C01 | Unsupported. Any future design (for example the native split plus a separate deferred remount intent) needs its own investigation |
+| C03 native | A staged pair entering combat: the warning on screen and in the log once, then the post-combat remount |
+| R2 native | Two scene placements of a seated rider before the poll, logged as superseded, handed off once at the final endpoint |
 | M01–M03, M05 native | Unchanged from Sprint 3 |
 | M04 | Original report unresolved (unchanged) |
 | S01, T04–T08 | Unchanged |

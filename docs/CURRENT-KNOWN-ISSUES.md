@@ -3,7 +3,9 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-17, Sprint 4 (C04, C01, C02, C03 reconciled and dispositioned). Branch
+- **Last updated:** 2026-11-17, the review repair of `b30c24f8` (R1 C04 observation lifetime, R2 C02 final
+  placement, R3 C03 notice delivery; C01 wording narrowed), after Sprint 4 (C04, C01, C02, C03 reconciled and
+  dispositioned). Branch
   `codex/kmc-known-issues-sprint4`, draft PR stacked on `codex/kmc-known-issues-sprint3`, from the accepted Sprint 3
   head `e5b92474`. Sprint 3's last change before that: the owner review of `119088ed` (the registry, discard and load-session correction
   accepted; the arrival's override-only exception now requires the override to be the pair's own retained agent),
@@ -355,15 +357,15 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 ## Sprint 4 — scene continuity (reconciled 2026-11-17)
 
 Order C04, C01, C02, C03 (owner amendment of 2026-11-16). Record: [Sprint 4 handoff](KNOWN-ISSUES-SPRINT4-HANDOFF.md).
-Product commit `9a371910`, clean Release DLL SHA-256 `3ef14c3a36a42ef542689baf5bd746b5cd3d98dd27503c4ddec7e0ebc0558968`,
-MVID `495b82b0-1b4b-4885-b53b-345cf5f62a0e`.
+Product-build commit `b80534f9` (after the review repair of `b30c24f8`), clean Release DLL SHA-256
+`70bbe6f75f1e7116dc80f72d94ebaa6948c761df7141e35264446cc778a15099`, MVID `fc4bb6b3-900f-4b7e-999c-a72fac3865ca`.
 
 | ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|
-| C04 | At Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Mounted traversal defect | Implemented and verified offline | `ef264ff3`: a seated rider's script-zone membership is rechecked with native `ScriptZone.CheckUnit` when native did not check it. `CandlemereCrossingTests` (5); `Test-CandlemereCrossingContracts.ps1` 8/0, base 5/3 | Not run; the owner's `output_log(9).txt` is not on this machine |
-| C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Explicitly unsupported, with its blocker | No change. Blocker: the only lifecycle that keeps restoration intent refuses in an encounter behind the settled-participation guard. Fallback pinned and bounded by C02 | Not run |
-| C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Implemented and verified offline | `eabbd8c8`: the three native placement operations attribute a rider-only write to the scene. `ScenePlacementAttributionTests` (4); `Test-ScenePlacementAttributionContracts.ps1` 7/0, base 3/4 | Not run |
-| C03 | Restoration fallbacks need truthful feedback and clean retirement. | Intentional boundaries | Intentional limit documented; one separate repair | Limits unchanged and stated in the handoff. Repair `9a371910`: the combat-hold notice is now once per custody and encounter, to the player (`CombatHoldNoticeTests` (2); the PRODUCT-IL "C03" pin fails on the base) | Not run |
+| C04 | At Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Mounted traversal defect | Implemented and verified offline | `ef264ff3`: a seated rider's script-zone membership is rechecked with native `ScriptZone.CheckUnit` when native did not check it. Review R1 (`60ba91ae`): observations belong to the mounting instance, so a remount is checked again. `CandlemereCrossingTests` (7); `Test-CandlemereCrossingContracts.ps1` 9/0, reviewed build 7/2 | Not run; the owner's `output_log(9).txt` is not on this machine |
+| C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Explicitly unsupported, with its blocker | No change. Blocker: the existing scene-staging lifecycle cannot take an actively participating pair out of combat while preserving the restoration intent under its present contract. Fallback pinned and bounded by C02 | Not run |
+| C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Implemented and verified offline | `eabbd8c8`: the three native placement operations attribute a rider-only write to the scene. Review R2 (`3cbdf077`): the scene's latest placement stands; a whole-pair placement clears a pending rider-only one. `ScenePlacementAttributionTests` (9); `Test-ScenePlacementAttributionContracts.ps1` 9/0, reviewed build 5/4 | Not run |
+| C03 | Restoration fallbacks need truthful feedback and clean retirement. | Intentional boundaries | Intentional limit documented; one separate repair | Limits unchanged and stated in the handoff. Repair `9a371910`: the combat-hold notice is once per custody and encounter. Review R3 (`fb7f048d`, `b80534f9`): it is delivered through the native warning notification; the compiled notifier was run through the installed native `EventBus` to a subscribed sink (`CombatHoldNoticeTests` (2)) | Not run |
 
 ### C04 — what is established, and what is not
 
@@ -377,10 +379,17 @@ MVID `495b82b0-1b4b-4885-b53b-345cf5f62a0e`.
 
 ### C01 — the exact blocker
 
-`TryHandOffForStaging` refuses during an encounter. Beneath it, `SuspensionRefusal` requires settled participation
-(`HasAreaParticipationObligations`), which cannot settle while an actor is in combat. A plain in-combat dismount
-would lose the restoration intent; forwarding to the mount and early completion are not permitted. Unblocking needs an
-owner decision on a native participation contract for an in-combat handoff.
+The existing scene-staging lifecycle cannot take an actively participating pair out of combat while preserving the
+required restoration intent under its present contract:
+- `TryHandOffForStaging` refuses during an encounter.
+- Beneath it, `SuspensionRefusal` requires settled participation (`HasAreaParticipationObligations`), which cannot
+  settle while an actor is in combat.
+- A plain in-combat dismount would lose the restoration intent.
+- Forwarding to the mount and early completion are not permitted.
+
+Capturing and restoring a live activation is not established as the only possible design. A combination of the
+existing native split with a separate deferred remount intent would need its own investigation and verification.
+C01 remains unsupported, not fixed.
 
 ## Sprints 5–8 — carried forward, pending reconciliation
 
