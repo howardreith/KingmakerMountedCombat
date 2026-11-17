@@ -2049,6 +2049,7 @@ public static class KmcContinuousDriveProbe
             });
         Check("PRODUCT-EXECUTED arrival override ownership on the real world service with a registered owner: the own-agent exception holds only when the mount's current override is the captured agent, on its captured view, of a retirement the pair's exact earlier owner still owes, and that override is the only refusal; a foreign override replacing the agent on the same view, or one on a replacement view while the captured agent is still held elsewhere, keeps the departing Fail and gives a carried pair no cleanup placement; two departing pairs keep the all-pair failure; the owned case defers and later restores with its identity and generation",
             ()=>{
+                var failed=new List<string>();
                 // 1. The owned agent is still installed on its captured view, which is the mount's current view.
                 var w=new WorldFixture(product);
                 try
@@ -2060,7 +2061,7 @@ public static class KmcContinuousDriveProbe
                     var host=w.Drive(old,product,driveCommand,viewOne,agent);
                     // The command's native end fails after it became terminal, and the removal fails: A stays on V1.
                     host.EndCallbackFails=true; host.FailClears=1000000;
-                    if(!w.WorldGuard(old,"AreaSuspension") || w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("setup: the captured agent should stay installed and retained");
+                    if(!w.WorldGuard(old,"AreaSuspension") || w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) { failed.Add("setup: the captured agent should stay installed and retained"); }
                     string how;
                     var owned=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewOne,agent,out how);
                     var wrongGeneration=w.OwnAgentOnly(asker,rider,mount,id,7L,w.Candidate(false,true),viewOne,agent,out how);
@@ -2073,12 +2074,12 @@ public static class KmcContinuousDriveProbe
                     bool ownedPlacement; var ownedCarried=w.Carried(true,owned,out ownedPlacement);
                     Console.WriteLine("INFO arrival 1, owned agent on its captured view ("+how+"): own agent only="+owned+"; departing Fail becomes "+w.Departing(true,owned,"Fail")+
                         "; carried "+ownedCarried+" with cleanup placement="+ownedPlacement+"; another generation="+wrongGeneration+"; another owner="+wrongOwner+"; with another refusal="+otherRefusal);
-                    if(!owned || w.Departing(true,owned,"Fail")!="Defer" || ownedCarried!="Retain" || !ownedPlacement) throw new InvalidOperationException("the pair's own retained agent did not qualify");
-                    if(w.Seam && (wrongGeneration || wrongOwner || otherRefusal || otherView)) throw new InvalidOperationException("the own-agent exception held for another generation, another owner, beside another refusal, or for the agent on another view");
-                    if(w.Retained(old)!=1) throw new InvalidOperationException("the classification changed the retained custody");
+                    if(!owned || w.Departing(true,owned,"Fail")!="Defer" || ownedCarried!="Retain" || !ownedPlacement) { failed.Add("the pair's own retained agent did not qualify"); }
+                    if(w.Seam && (wrongGeneration || wrongOwner || otherRefusal || otherView)) { failed.Add("the own-agent exception held for another generation, another owner, beside another refusal, or for the agent on another view"); }
+                    if(w.Retained(old)!=1) { failed.Add("the classification changed the retained custody"); }
                     host.FailClears=0; w.Recover(old); w.Settle();
                     var restored=w.TryRegister(w.Boundary(),rider,mount,id,6L,w.Session,w.Campaign);
-                    if(restored!=null) throw new InvalidOperationException("the owned case did not restore with its identity and generation after the cleanup: "+restored);
+                    if(restored!=null) { failed.Add("the owned case did not restore with its identity and generation after the cleanup: "+restored); }
                 }
                 finally { w.Close(); }
                 // 2. A foreign override B replaces the agent on the same view while the owned command still needs retirement.
@@ -2093,14 +2094,14 @@ public static class KmcContinuousDriveProbe
                     host.FailInterrupts=1000000;
                     w.WorldGuard(old,"AreaSuspension");
                     host.Overrides[viewOne]=foreign;
-                    if(w.Retained(old)!=1 || host.Finished.Contains(driveCommand)) throw new InvalidOperationException("setup: the owned command should still need retirement");
+                    if(w.Retained(old)!=1 || host.Finished.Contains(driveCommand)) { failed.Add("setup: the owned command should still need retirement"); }
                     string how;
                     var agentOnly=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewOne,foreign,out how);
                     var held=w.Held(asker,rider,mount,id);
                     var decision=w.Departing(held,agentOnly,"Fail");
                     Console.WriteLine("INFO arrival 2, foreign B on the captured view ("+how+"): held="+held+"; own agent only="+agentOnly+"; departing Fail becomes "+decision);
-                    if(!held) throw new InvalidOperationException("setup: the pair should be held");
-                    if(agentOnly || decision!="Fail") throw new InvalidOperationException("foreign override B on the captured view was classified as the pair's own retained agent: the departing Fail became "+decision);
+                    if(!held) { failed.Add("setup: the pair should be held"); }
+                    if(agentOnly || decision!="Fail") { failed.Add("foreign override B on the captured view was classified as the pair's own retained agent: the departing Fail became "+decision); }
                 }
                 finally { w.Close(); }
                 // 3 and 4. B sits on replacement view V2 while V1/A is still held; a second departing pair is eligible.
@@ -2119,7 +2120,7 @@ public static class KmcContinuousDriveProbe
                     w.WorldGuard(old,"AreaSuspension"); w.WorldGuard(neighbour,"AreaSuspension"); w.Settle();
                     var ownersBefore=w.OwnerCount;
                     // The condition under test stays in place through the classification: A is still installed on V1.
-                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("setup: V1/A should still be held");
+                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) { failed.Add("setup: V1/A should still be held"); }
                     string how;
                     var agentOnly=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewTwo,foreign,out how);
                     var held=w.Held(asker,rider,mount,id);
@@ -2128,14 +2129,16 @@ public static class KmcContinuousDriveProbe
                     bool placement; var carried=w.Carried(held,agentOnly,out placement);
                     Console.WriteLine("INFO arrival 3, foreign B on replacement view V2 ("+how+"): held="+held+"; own agent only="+agentOnly+"; V1/A still held="+(w.Retained(old)==1 && ReferenceEquals(host.OverrideOn(viewOne),agent))+
                         "; departing decisions "+first+"/"+second+"; carried "+carried+" with cleanup placement="+placement);
-                    if(agentOnly || first!="Fail") throw new InvalidOperationException("foreign override B on replacement view V2 was classified as the pair's own retained agent: the departing Fail became "+first+", so the eligible pair would be restored");
-                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("the classification removed the condition under test");
+                    if(agentOnly || first!="Fail") { failed.Add("foreign override B on replacement view V2 was classified as the pair's own retained agent: the departing Fail became "+first+", so the eligible pair would be restored"); }
+                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) { failed.Add("the classification removed the condition under test"); }
                     // RestoreAreaPair decides every pair before it attaches any (pinned by the post-load contract); a Fail attaches none.
-                    if(w.OwnerCount!=ownersBefore) return false;
-                    if(carried!="Retain" || placement) throw new InvalidOperationException("a carried pair took the cleanup placement on the strength of foreign override B");
-                    return true;
+                    if(w.OwnerCount!=ownersBefore) failed.Add("an owner was imported by an arrival that must fail");
+                    if(carried!="Retain" || placement) { failed.Add("a carried pair took the cleanup placement on the strength of foreign override B"); }
                 }
                 finally { w.Close(); }
+                foreach(var failure in failed) Console.WriteLine("INFO arrival failure: "+failure);
+                if(failed.Count!=0) throw new InvalidOperationException(failed.Count+" arrival case(s) failed: "+string.Join(" | ",failed.ToArray()));
+                return true;
             });
         Check("PRODUCT-IL the world boundaries around the guard: area suspension asks the world-boundary guard, then the admission discard; load housekeeping asks it, then the world-replacement discard (never the plain one); the admission discard decides through the registry, and the world replacement sets detached cleanup aside after it; the arrival asks, for carried and departing pairs alike, whether the pair is held and whether only its own agent refuses it, before any import or attachment, and decides through the held-pair decisions; the in-area retry refuses a held pair before it acquires a boundary; the import refuses a held pair before the registry import; a boundary that still owes cleanup takes no new owner; both ownership sites declare the world predicate without the stick-movement cleanup",
             ()=>{
