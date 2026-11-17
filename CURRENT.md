@@ -1,3 +1,44 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 119088ed: ARRIVAL OVERRIDE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `119088ed`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `119088ed` (source review):** the registry, admission-discard and load-session correction.
+  Unchanged.
+- **The finding, corrected (`7a657838`, `29f987b8`, `f6e86858`):** the arrival's override-only exception took any
+  installed mount override for the pair's own retained agent. A foreign agent (on the captured view, or on a
+  replacement view while the captured agent was still held) turned a departing Fail into Defer, so another eligible
+  pair restored, and gave a carried pair the cleanup placement.
+  - Now two distinct facts are required. First, the mount's current view and override must be the captured view and
+    agent of a retirement still owed by the pair's exact earlier owner (identity, generation, rider, mount). That is
+    asked of that owner's own stick-movement owner (`RetainsCapturedAgent`; the residue keeps its binding generation).
+    Second, that override must be the only refusal.
+  - `OwnsMountOverride` (the invariant's live-drive question) is unchanged and still owns no residue.
+- **Owned and foreign cases:**
+  - The owned agent on its captured view defers, keeps its cleanup custody, and imports with its identity and
+    generation afterwards.
+  - Foreign B on the captured view, or on V2, keeps the departing Fail. With an eligible neighbour, the all-pair
+    failure stands and neither pair is attached.
+  - A carried pair with B keeps its ordinary Retain without the cleanup placement.
+- **Checks:** Fast PASS 11/0 (components 1338/0, Validate-Source 151/0, continuous drive 59, physical mover pace 27,
+  post-load view readiness 26, persistence 223, world boundary 8, paired activation, world ownership 29, command
+  slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head fails 2 of the 59 continuous-drive checks. With its own compiled parts, its classification
+    defers both foreign cases and grants the carried placement on B.
+  - 11 targeted mutations removing parts of the ownership distinction, run in a separate worktree, each fail.
+- **Executed vs modelled:**
+  - Executed: the real world service, a registered owner, and the production ownership question.
+  - Scripted: the native interrupt and end, and the views and agents.
+  - Modelled and pinned from IL: the arrival's all-pair preflight and attachment.
+- **Wording corrected:** an installed override does not prove ownership, and an ownership import is not a full
+  restoration.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Next:** Sprint 4, ordered C04 (Candlemere's "wade through" failure), C01, C02, C03. Not started.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF fe22563a: WORLD BOUNDARIES AFTER THE GUARD CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `fe22563a`, still on the
@@ -16,7 +57,8 @@ Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (d
   - The admission discard accepts an owner that owes only that cleanup. The owner stays registered, holding its
     actors and identity, and the pair stays dismounted.
   - The arrival defers a pair still held this way (departing or carried), with its owner identity and arrival
-    placement. Only Restore, Defer, or a refusal by its own installed agent defer it; any other refusal keeps the
+    placement. Only Restore, Defer, or a refusal by its own retained agent defer it (ownership fact added at the
+    review of `119088ed`); any other refusal keeps the
     all-pair failure, and the capital rule still retires.
   - The in-area retry restores it once the owner retires, with the same identity, generation, session and campaign.
     Until then the true reason is given.

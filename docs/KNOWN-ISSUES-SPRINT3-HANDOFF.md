@@ -4,7 +4,7 @@ Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (e
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
-**Read the last four sections first, the last one above all.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
+**Read the last five sections first, the last one above all.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
 pair in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
 records that work (M05 repaired offline, the fault report corrected, C04 recorded) and supersedes what the sections
 below say about M05 being unrepaired. The owner then reviewed that head, `5e27c9bd`; the
@@ -1168,8 +1168,10 @@ The charge drains before the guard are unchanged.
 - At the arrival, a departing pair still held by that owner is deferred into the retained custody with its exact
   owner identity, generation and arrival placement (`DeferHeldArrival`).
 - Only three cases defer it: the arrival would restore it, the arrival would defer it anyway, or its only refusal is
-  the mount's installed movement-agent override. That last refusal is the one the pair's own retained agent causes,
-  found by a hypothetical re-validation that grants nothing (`RefusedOnlyForMountAgentOverride`).
+  the mount's installed movement-agent override, found by a hypothetical re-validation that grants nothing
+  (`RefusedOnlyForMountAgentOverride`). *Corrected by the review of `119088ed`:* that refusal does not show whose
+  override it is. A foreign override causes it too, and only an override established as the pair's own retained
+  agent now qualifies (see the last section).
 - Any other refusal keeps its established outcome. The capital rule retires the pair; anything else fails the
   all-pair restoration and attaches no other pair.
 - A carried pair (world-map travel, an earlier event) held the same way is retained with its arrival placement too
@@ -1313,8 +1315,9 @@ done:
 
 - **Major, corrected (`ee8cca11`).** A held departing pair was deferred whatever the arrival found. An unrelated
   refusal (a dead mount, a pair not directly controllable) therefore bypassed the all-pair failure, and the capital
-  rule no longer retired it. Now only Restore, Defer, or a refusal caused solely by the pair's own installed agent
-  defer it.
+  rule no longer retired it. Now only Restore, Defer, or a refusal caused solely by the pair's own retained agent
+  defer it. (At `ee8cca11` "its own agent" was taken from the override-only refusal alone; the review of `119088ed`
+  added the ownership fact.)
 - **Minor, corrected.** A carried pair held at arrival got no arrival placement, so the retry could drop it for
   separation.
 - **Notes, applied.** The in-area retry checks the hold before acquiring a boundary. The legacy single-boundary mode
@@ -1355,5 +1358,183 @@ done:
 - **M04** stays unresolved. **T04–T08** are unchanged and open; none of their evidence depends on this change.
 
 Sprint 4's order stays C04, C01, C02, C03 and is not started.
+
+Not run: no merge, release, tag, installation, loader replacement or reviewer request.
+
+## Review of `119088ed` (2026-11-16) — who owns the mount's override at the arrival
+
+The owner accepted the registry, admission-discard and load-session correction at source-review level and returned
+one finding. The arrival's override-only exception did not establish that the installed override belonged to the
+pair's retained cleanup. That is corrected. The accepted behaviour is unchanged:
+
+- owner retirement on the full obligations;
+- world obligations excluding only the retained stick cleanup;
+- the old world's cleanup kept apart at a load;
+- bounded retries and the retained-intent timeout;
+- strict disable, shutdown and guard removal;
+- R2;
+- the deliberately preserved stationary rider actions.
+
+Nothing here was run in the game.
+
+### Identity
+
+- **Base:** the reviewed head `119088ed77d23e154460fb6fbdf7e187d9afda4e`. The branch had not advanced. It is still
+  on the Sprint 2 head `1dffc3e09ffeddc70ba09e3a1f46c1613a997bd7`, and PR #47 still targets
+  `codex/kmc-known-issues-sprint2`. PRs #46 and #45 and `main` are untouched.
+- **Commits:**
+  - `7a657838`: the correction, with its tests and contract checks.
+  - `29f987b8`: the arrival check reports every case before failing.
+  - `f6e86858`: a redundant re-read dropped after a targeted mutant survived it.
+  - Then the records commit.
+- **Artifact:** `bin/Release/KingmakerMountedCombat.dll` built from `f6e86858`.
+  - SHA-256 `FCBBA76ED68DF28F2DDB578AE2EB287D556A8C297473B39D639F06EA6E4A2C57`
+  - MVID `16c76ae9-7416-4e49-8de5-937b61be2926`
+- **The reviewed head's build**, used for the before results, was rebuilt from `119088ed` in a separate worktree.
+  - SHA-256 `5EC8C94F…F9F2`, MVID `f279989f-…`: identical to the artifact reported for that head.
+  - It is kept at `artifacts\known-issues-sprint3\reviewed-119088ed\`.
+- **Save format, settings:** unchanged.
+
+### The finding
+
+`RestoreAreaPair` granted the exception when the pair was held by its earlier owner's cleanup
+(`PairHeldByDetachedCleanup`) and the candidate's only refusal was the mount's override
+(`RefusedOnlyForMountAgentOverride`).
+
+- The candidate learns that refusal from `mountUnit.View.AgentOverride == null`. It says nothing about whose override
+  it is.
+- So with retained cleanup of command C on view V1 with agent A, a foreign agent B on the mount qualified, whether it
+  replaced A on V1 or sat on a replacement view V2.
+- A departing pair's established Fail then became Defer, and another eligible pair restored in the same arrival.
+- A carried pair received the cleanup-specific arrival placement.
+
+### The correction
+
+Two distinct questions, both required:
+
+1. **Is the current override owned by this pair's retained cleanup?**
+   - `GameMountedRelationshipService.ArrivalRefusedOnlyForRetainedAgent` finds the exact held owner of the pair in the
+     registry (`FindHeldOwner`: the same owner identity and generation, the same rider and mount).
+   - It requires that owner to be its boundary's current owner.
+   - It then asks that boundary's stick-movement owner whether the mount's current view and the override it carries
+     are the captured view and agent of a retirement it still owes, bound in that pair generation
+     (`MountedContinuousDriveOwner.RetainsCapturedAgent`).
+   - The residue record now keeps its binding generation for this.
+2. **Is that override the only eligibility refusal?** This is the candidate's existing hypothetical re-validation
+   (`RefusedOnlyForMountAgentOverride`), asked only when the first answer is yes.
+
+`MountedRetainedIntentPolicy.RefusedOnlyForHeldAgent` needs both. Departing and carried arrivals both use the
+question. The carried cleanup placement is decided by `HeldCarriedArrivalPlacement`, through the same single call
+site as before.
+
+The existing queries keep their meaning:
+
+- `OwnsMountOverride` still answers the mounted invariant's live-drive question and never owns residue.
+- `NativeEndMayClearOverride` is not used as ownership evidence.
+- A held pair whose mount carries no override is still deferred as before; that is the normal deferral of an
+  otherwise eligible held pair.
+
+**Wording corrected.** The previous section said a held pair is deferred when "its only refusal is the mount's
+installed movement-agent override", which it called the refusal the pair's own agent causes. Its records and check
+descriptions said the pair "imports" or "is restored" after the cleanup. Corrected:
+
+- A foreign override causes the same refusal. Only an override established as the pair's own retained agent
+  qualifies.
+- The executed checks import the pair's ownership; the attachment that follows is modelled, not executed.
+
+### Behaviour, owned and foreign
+
+| Case | Reviewed head `119088ed` | Corrected |
+|---|---|---|
+| 1. Owned agent A still installed on its captured view, the mount's current view; override is the only refusal | Deferred | Deferred; cleanup keeps its custody; after the cleanup the pair's ownership imports with the same identity and generation. Another generation, another owner identity, a second refusal, or A installed on a different view do not qualify |
+| 2. Foreign B replaced A on the captured view; owned command still needs retirement | **Defer** (B taken for the pair's agent) | B does not qualify; the departing outcome stays **Fail** |
+| 3. Foreign B on replacement view V2; V1/A still held through the classification | **Defer** | B does not qualify; **Fail**; V1/A still held after the classification |
+| 4. Case 3 plus an eligible second departing pair | **Defer**/Restore: the eligible pair restores | Fail/Restore: the all-pair failure stands and neither pair is attached (modelled sequence; executed decisions) |
+| 5. Carried pair whose only refusal is foreign B | Retain **with** the cleanup placement | Retain, its ordinary carried outcome, **without** the cleanup placement. The owned case keeps the placement |
+
+Unrelated refusals and the capital retirement keep their outcomes (existing controls, unchanged).
+
+### Evidence
+
+All runs are offline, Release, Windows PowerShell 5.1, from the Sprint 3 worktree. Logs `53-…` to `58-…` and
+`mutant-r5-*.log` are in `C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint3\`.
+
+| Check | Reviewed head `119088ed` | Corrected (`f6e86858`) |
+|---|---|---|
+| Component test exe | 1337 / 0 | 1338 / 0 (1 new test, and the held-arrival control rewritten to derive ownership) |
+| `Test-ContinuousDriveContracts.ps1` | 58 / 0 as it was; **57 pass, 2 fail** against the script as extended (run with `-ProductDll`, log `53-…`) | 59 / 0 (log `56-…`) |
+| `Test-PhysicalMoverPaceContracts.ps1` | 27 / 0 | 27 / 0 |
+| `Test-PostLoadViewReadinessContracts.ps1` | 26 / 0 | 26 / 0 |
+| `Test-PersistenceContracts.ps1` | 223 / 0 | 223 / 0 |
+| `Test-WorldOwnershipContracts.ps1` | 29 / 0 | 29 / 0 |
+| `Validate-Source.ps1` | 151 / 0 | 151 / 0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815 / 0 | 815 / 0 (log `57-…`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3 -Focused` (the same eight scripts as before) | PASS 11/0 | **PASS 11/0** (log `55-…`) |
+
+The reviewed head's other rows are its results recorded at the previous checkpoint (same product). Workflow budget
+`known-issues-sprint3`: 5.63 of 90 minutes. The two failed entries are the earlier continuation's, kept as recorded.
+
+**The reviewed classification failing, with its own compiled parts** (log `53-…`). On the reviewed build the check
+computes what that build's `RestoreAreaPair` decided: the hold, and the candidate's override-only refusal. It
+reports every case:
+
+- "the own-agent exception held for another generation, another owner, beside another refusal, or for the agent on
+  another view"
+- "foreign override B on the captured view was classified as the pair's own retained agent: the departing Fail became
+  Defer"
+- "foreign override B on replacement view V2 was classified as the pair's own retained agent: the departing Fail
+  became Defer, so the eligible pair would be restored"
+- "a carried pair took the cleanup placement on the strength of foreign override B"
+
+The second failure is the IL check of the new wiring. In the component tests, every case also runs under a model flag
+that reproduces the reviewed classification. There the foreign cases defer, the eligible neighbour restores, and the
+carried pair takes the placement.
+
+**What was executed, scripted, modelled or inspected.**
+
+| Kind | What |
+|---|---|
+| Production code executed offline | The real `MountedWorldService` with its real registry and pair boundaries, a registered owner imported through the production seam, `GuardWorldBoundary`, `RecoverContinuousDriveCleanup`, the world sweep, and the new `ArrivalRefusedOnlyForRetainedAgent` (with `FindHeldOwner`, `RetainsCapturedAgent` and the compiled candidate). It is asked from a different boundary than the held one, as the persistence service asks it. Also the compiled `DeferHeldArrival`, `DeferHeldCarriedArrival`, `DecideCarriedArrival` and `HeldCarriedArrivalPlacement`. In the component tests, the same registry, policy and stick-movement owner. |
+| Scripted native behaviour | The stick-movement owner's host: the native interrupt and end (including an end callback that fails after the command turned terminal), the override write, and the views V1 and V2 with agents A and B as plain objects. The view and override are passed to the production question as the arrival reads them from the mount. |
+| Modelled persistence orchestration | `RestoreAreaPair`'s all-pair preflight and attachment, its carried branch, and the in-area retry. Their decisions come from the production registry, owner and policy; the mount's current view and override are the model's. |
+| Compiled wiring inspected (IL) | `RestoreAreaPair` asks `ArrivalRefusedOnlyForRetainedAgent` for carried and departing pairs, never the candidate directly. The question asks `FindHeldOwner`, then `RetainsCapturedAgent`, then the candidate, then `RefusedOnlyForHeldAgent`. The carried placement comes from `HeldCarriedArrivalPlacement` after `DeferHeldCarriedArrival` and is passed to the one carried `MarkArrivalDeferred` call. |
+| Native gameplay | **NOT RUN.** |
+
+**Targeted mutations** were run in the separate scratch worktree; its unmutated build has the reported identity.
+Each removes part of the ownership distinction:
+
+| Mutant | The change | Component tests failed | Contract checks failed |
+|---|---|---|---|
+| A | the question ignores ownership (override-only refusal alone) | 0 | 1 |
+| B | the policy needs only the override-only fact | 1 | 0 |
+| C | the retained-agent question ignores the agent | 1 | 1 |
+| D | it ignores the view | 1 | 1 |
+| E | it ignores the generation | 1 | 0 |
+| G | the residue forgets its binding generation | 1 | 1 |
+| H | the held owner ignores identity and generation | 0 | 1 |
+| I | the question asks its own boundary, not the held owner's | 0 | 1 |
+| J | the departing wiring reverts to the candidate alone | 0 | 1 |
+| K | the carried wiring reverts to the candidate alone | 0 | 1 |
+| L | the carried placement ignores the own-agent fact | 1 | 1 |
+
+All 11 are caught on `f6e86858`. A first run on `29f987b8` is not kept as a separate summary: the second run reused
+its round name. In that run:
+
+- **F** survived. It dropped a re-read of the view's override inside the question; the caller already passes that
+  override, so the re-read was redundant and was removed in `f6e86858`.
+- **G** did not build: a never-assigned field is an error under warnings-as-errors. It was rewritten as above.
+
+### Remaining limitation
+
+- **Native: NOT RUN.** A foreign continuous agent on a pair's mount at an area arrival is a constructed case; nothing
+  in the game is known to produce one. The mount's view and override are read once at the arrival
+  (`mount.View.AgentOverride`), in the native boundary that the offline checks replace with plain objects.
+- **The arrival's all-pair preflight and attachment are modelled and pinned, not run.** The ownership question and
+  every decision are executed; `RestoreAreaPair` itself is not.
+- The limits recorded in the previous section stand (the old world's cleanup after a load, the 10 s retained-intent
+  patience, voluntary-dismount wording). **M04** stays unresolved. **T04–T08** are unchanged and open; none of
+  their evidence depends on this change.
+
+Sprint 4's order stays C04, C01, C02, C03, with Candlemere's "wade through" failure (C04) first. It is not started.
 
 Not run: no merge, release, tag, installation, loader replacement or reviewer request.

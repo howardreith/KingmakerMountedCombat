@@ -7,8 +7,9 @@ and docs/CURRENT-KNOWN-ISSUES.md.
 - **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
   with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. The owner's
   review of `5e27c9bd` (R1, R2) is corrected. The review of `25cbdbe2` accepted R2; its one R1 lifecycle finding
-  is corrected, and the review of `fe22563a` (world boundaries after the guard) is corrected. Fast PASS 11/0. Five
-  independent reviews (Sprint 3, continuation, R1/R2, lifecycle, world boundaries), corrected.
+  is corrected, the review of `fe22563a` (world boundaries after the guard) is corrected, and the review of
+  `119088ed` (who owns the mount's override at the arrival) is corrected. Fast PASS 11/0. Five independent reviews
+  (Sprint 3, continuation, R1/R2, lifecycle, world boundaries), corrected.
   Native NOT RUN; gamepad never run.
 - **Seams of the continuation (M05):**
   - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
@@ -36,7 +37,10 @@ and docs/CURRENT-KNOWN-ISSUES.md.
     - A load calls `DiscardAdmissionBindingsForWorldReplacement`, which sets cleanup-only owners aside
       (`earlierWorldCleanup`).
     - The arrival defers a held pair through `DeferHeldArrival` / `DeferHeldCarriedArrival`. Never widen those beyond
-      Restore, Defer and the pair's own agent (`RefusedOnlyForMountAgentOverride`).
+      Restore, Defer and the pair's own retained agent.
+    - "Its own retained agent" is `ArrivalRefusedOnlyForRetainedAgent`. It asks the exact held owner's boundary
+      `RetainsCapturedAgent(current view, current override, generation)`, then the candidate's
+      `RefusedOnlyForMountAgentOverride`. The candidate alone cannot tell a foreign override from the pair's own.
   - `Test-PostLoadViewReadinessContracts.ps1` pins two `MarkArrivalDeferred` call sites and one view read per
     arrival decision; the held deferrals share those sites.
   - `MountedWorldService` can be built offline with a registered owner (see `WorldFixture` in the continuous-drive

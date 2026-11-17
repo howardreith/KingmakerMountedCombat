@@ -3,7 +3,9 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-16, owner review of `fe22563a` (the lifecycle correction accepted; the operations after
+- **Last updated:** 2026-11-16, owner review of `119088ed` (the registry, discard and load-session correction
+  accepted; the arrival's override-only exception now requires the override to be the pair's own retained agent),
+  after the owner review of `fe22563a` (the lifecycle correction accepted; the operations after
   the world-boundary guard corrected), after the owner review of `25cbdbe2` (R2 accepted; the lifecycle around R1's
   retained cleanup corrected), after the review of `5e27c9bd` (R1 and R2 corrected in M05's ownership code) and the
   continuation (M05 repaired offline, the fault report, C04 recorded) and Sprint 3 (M01–M04). Branch `codex/kmc-known-issues-sprint3`, draft PR #47,
@@ -241,7 +243,7 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 | M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission | **Implemented and verified offline, in two parts.** A following pair: the native follower pass reaches its mount (`c5b52387`). A directly driven pair: native accelerates and decelerates the mount's own continuous command once M05 lets it run (`99b632f2`). | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M02 | Commit `c5b52387`. The native follower pass is answered with the mount that executes the selected rider's routed order. 6 component tests; the production transpiler run on the installed `UpdateMovement`; mutants B, G and L fail. | **Not run.** No gamepad session has ever been run in this project. |
 | M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M03 | Commit `c5b52387`. The native speed selection reads each pair's mount, each actor once; the native selector, `Min`, 30 ft floor and selection are untouched. 8 component tests; the production transpiler run on the installed `MoveSelectedUnitsToPoint`; mutants C, F and M fail. | **Not run.** |
 | M04 | An extra or stale green movement marker. | Reported defect, cause unknown | **Investigation complete, issue unresolved.** Two adjacent marker defects are implemented and verified offline. | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md); epic M04 | Commit `26b4169e`. See "M04" below. 11 component tests; 7 contract checks; mutants D, E, I, J and K fail. | **Not run.** |
-| M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair and blocks remounting. | Source-established defect, never observed | **Implemented and verified offline** | Found while reconciling M02 on 2026-11-16; owner put direct gamepad control in scope the same day | Commits `99b632f2`; after the owner's review of `5e27c9bd`, `e98eac31` (R1, R2); after the review of `25cbdbe2`, `f4369506` and `899fe393` (the lifecycle around retained cleanup); after the review of `fe22563a`, `7fa9f74e`, `ee8cca11`, `56cae55f` and `1ad306ce` (world boundaries after the guard). The stick drives the pair's mount; the mount's continuous agent is owned by the exact command that installed it; retiring that command never clears a foreign override. See "M05" below. 46 component tests; contract script 58 / 0 (head `5e27c9bd` fails 12 of its 43, both required reproductions among them; head `25cbdbe2` fails 8 of 52, the disable and runtime-error regressions among them; head `fe22563a` fails 5 of the 58, the registered-owner area, load and persistent-cleanup regressions among them); 27 mutants of the R1/R2 corrections, 35 of the lifecycle correction and 37 of the world-boundary correction fail. | **Not run.** No gamepad session has ever been run in this project. |
+| M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair and blocks remounting. | Source-established defect, never observed | **Implemented and verified offline** | Found while reconciling M02 on 2026-11-16; owner put direct gamepad control in scope the same day | Commits `99b632f2`; after the owner's review of `5e27c9bd`, `e98eac31` (R1, R2); after the review of `25cbdbe2`, `f4369506` and `899fe393` (the lifecycle around retained cleanup); after the review of `fe22563a`, `7fa9f74e`, `ee8cca11`, `56cae55f` and `1ad306ce` (world boundaries after the guard); after the review of `119088ed`, `7a657838`, `29f987b8` and `f6e86858` (who owns the mount's override at the arrival). The stick drives the pair's mount; the mount's continuous agent is owned by the exact command that installed it; retiring that command never clears a foreign override. See "M05" below. 47 component tests; contract script 59 / 0 (head `5e27c9bd` fails 12 of its 43, both required reproductions among them; head `25cbdbe2` fails 8 of 52, the disable and runtime-error regressions among them; head `fe22563a` fails 5 of 58, the registered-owner area, load and persistent-cleanup regressions among them; head `119088ed` fails 2 of the 59, its classification taking foreign overrides for the pair's own agent); 27 mutants of the R1/R2 corrections, 35 of the lifecycle correction and 37 of the world-boundary correction fail. | **Not run.** No gamepad session has ever been run in this project. |
 
 ### M01–M03 — what changed and what it rests on
 
@@ -323,6 +325,15 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
     owner retires, with the same identity, generation, session and campaign; until then the true reason is given.
   - A load sets such owners aside from the old session, so the new world imports its pairs under its own session.
   - Unrelated refusals keep the all-pair failure, and the capital rule still retires.
+- **Owner review of `119088ed`, who owns the mount's override at the arrival (corrected):** the override-only
+  exception took any installed override for the pair's own retained agent. A foreign agent on the captured view or on
+  a replacement view changed a departing Fail into Defer, and gave a carried pair the cleanup placement. Now the
+  exception needs two facts:
+  - the mount's current view and override are the captured view and agent of a retirement still owed by the pair's
+    exact earlier owner (identity, generation, rider, mount);
+  - that override is the only refusal.
+
+  Foreign overrides keep the established outcomes.
 - **Deliberately preserved (owner decision, 2026-11-16):** a *stationary* rider Standard order runs on while the
   stick drives the mount, as it does beside a routed ground order. For one native unit the same push would end it
   through the Move/Standard pairing; that pairing is not mirrored onto the rider. Approaching rider orders are
