@@ -16,6 +16,42 @@ namespace KingmakerMountedCombat.Domain
         CommandTeleportParty
     }
 
+    // Review R10 of 813d00a1: who owned the exact operation when it was entered (captured at its prefix).
+    public enum MountedSceneOwnership
+    {
+        // No scene owns it: a direct invocation, a finished, replaced or unrelated player, or an action outside any cutscene.
+        None,
+        // A foreground scene: the cutscene lock, Dialog or Cutscene mode (the global rule, unchanged).
+        ForegroundScene,
+        // CommandMoveUnit or CommandTeleportParty run by the live player whose started track has it as its current command
+        // (a background cutscene in Default play included).
+        OwningCutscenePlayer,
+        // TranslocateUnit run inside a cutscene player's parameter scope that does not name a finished player.
+        CutsceneActionScope
+    }
+
+    public static class MountedSceneOperationOwnership
+    {
+        public static bool CommandOwnedByLivePlayer(bool playerPresent, bool playerFinished, bool commandIsCurrentOfUnfinishedStartedTrack) =>
+            playerPresent && !playerFinished && commandIsCurrentOfUnfinishedStartedTrack;
+
+        // A scope opened before the player's first tick names no player yet; it is still that starting player's scope.
+        public static bool ActionInCutsceneScope(bool scopePresent, bool scopePlayerKnown, bool scopePlayerFinished) =>
+            scopePresent && !(scopePlayerKnown && scopePlayerFinished);
+
+        // Each operation's own evidence only: a command never counts an action scope, an action never counts a player.
+        public static MountedSceneOwnership Decide(MountedScenePlacementSource source, bool foregroundScene, bool commandOwnedByLivePlayer,
+            bool actionInCutsceneScope)
+        {
+            if (foregroundScene) return MountedSceneOwnership.ForegroundScene;
+            if (source == MountedScenePlacementSource.TranslocateUnit)
+                return actionInCutsceneScope ? MountedSceneOwnership.CutsceneActionScope : MountedSceneOwnership.None;
+            return commandOwnedByLivePlayer ? MountedSceneOwnership.OwningCutscenePlayer : MountedSceneOwnership.None;
+        }
+
+        public static bool SceneOwned(MountedSceneOwnership ownership) => ownership != MountedSceneOwnership.None;
+    }
+
     // One mounted pair around one native scene placement operation: what it was before and is after, whether the
     // operation's proven target set held the rider and the mount, and the rider synchronizer's hold for that exact
     // mounting (null when that synchronizer is not configured, or when the pair's mounting or synchronizer changed inside
@@ -31,13 +67,15 @@ namespace KingmakerMountedCombat.Domain
         public bool RiderTargeted, MountTargeted;
     }
 
-    // Review R8 and R9 of e1c0c7ad: the attribution of one native operation to every captured pair. Each pair is
+    // Review R8 and R9 of e1c0c7ad: the attribution of one native operation to every captured pair. Review R10 of
+    // 813d00a1: sceneOwned is the ownership captured at the operation's entry (MountedSceneOperationOwnership), never
+    // the global mode at its end. Each pair is
     // classified from its own writes and target evidence and applied to its own hold; a report that fails (a throwing
     // logger) never stops the remaining pairs.
     public static class MountedScenePlacementAttributionCore
     {
-        public static MountedScenePlacementOperation Classify(MountedScenePlacementObservation o, bool sceneActive) =>
-            MountedSceneContinuityPolicy.ClassifyOperationWrite(o.PairMounted, sceneActive,
+        public static MountedScenePlacementOperation Classify(MountedScenePlacementObservation o, bool sceneOwned) =>
+            MountedSceneContinuityPolicy.ClassifyOperationWrite(o.PairMounted, sceneOwned,
                 MountedSceneContinuityPolicy.PositionWritten(o.RiderX - o.RiderX0, o.RiderY - o.RiderY0, o.RiderZ - o.RiderZ0),
                 MountedSceneContinuityPolicy.OrientationWritten(o.RiderOrientation0, o.RiderOrientation),
                 MountedSceneContinuityPolicy.PositionWritten(o.MountX - o.MountX0, o.MountY - o.MountY0, o.MountZ - o.MountZ0),
@@ -45,7 +83,7 @@ namespace KingmakerMountedCombat.Domain
                 o.RiderTargeted, o.MountTargeted);
 
         // Returns how many holds changed.
-        public static int Apply(IList<MountedScenePlacementObservation> observations, bool sceneActive, int frame,
+        public static int Apply(IList<MountedScenePlacementObservation> observations, bool sceneOwned, int frame,
             Action<MountedScenePlacementObservation, MountedScenePlacementOperation, MountedScenePlacementChange> report)
         {
             if (observations == null) return 0;
@@ -53,7 +91,7 @@ namespace KingmakerMountedCombat.Domain
             foreach (var o in observations)
             {
                 if (o?.Hold == null) continue;
-                var write = Classify(o, sceneActive);
+                var write = Classify(o, sceneOwned);
                 MountedScenePlacementChange change;
                 switch (write)
                 {

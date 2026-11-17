@@ -719,23 +719,34 @@ namespace KingmakerMountedCombat.Integration
             // Known issues C02: around each native scene placement operation, every mounted pair's positions are captured and
             // a rider the operation alone wrote is attributed to the scene. A fault leaves the placement unattributed.
             // Review R8 of e1c0c7ad: each operation's prefix names it exactly; CommandTeleportParty's also reads its proven
-            // target set as native will (single-unit operations carry none).
+            // target set as native will (single-unit operations carry none). Review R10 of 813d00a1: the commands' prefixes
+            // take the original CutscenePlayerData argument, and who owns the operation is captured here, at entry.
             internal static void TranslocateUnitCapturePrefix(out object __state) =>
-                __state = CaptureScenePlacement(MountedScenePlacementSource.TranslocateUnit, null);
+                __state = CaptureScenePlacement(MountedScenePlacementSource.TranslocateUnit, null, null);
 
-            internal static void CommandMoveUnitCapturePrefix(out object __state) =>
-                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandMoveUnitTimedOut, null);
+            internal static void CommandMoveUnitCapturePrefix(Kingmaker.AreaLogic.Cutscenes.Commands.CommandMoveUnit __instance,
+                Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData player, out object __state) =>
+                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandMoveUnitTimedOut, __instance, player);
 
-            internal static void CommandTeleportPartyCapturePrefix(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty __instance, out object __state) =>
-                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandTeleportParty, __instance);
+            internal static void CommandTeleportPartyCapturePrefix(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty __instance,
+                Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData player, out object __state) =>
+                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandTeleportParty, __instance, player);
 
-            internal static object CaptureScenePlacement(MountedScenePlacementSource source, Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty party)
+            internal static object CaptureScenePlacement(MountedScenePlacementSource source, Kingmaker.AreaLogic.Cutscenes.CommandBase command,
+                Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData player)
             {
                 try
                 {
                     var owners = PatchBridge.World == null ? new[] { PatchBridge.Service } : PatchBridge.World.Pairs.Select(pair => pair.Relationship);
-                    var targets = source == MountedScenePlacementSource.CommandTeleportParty ? MountedScenePlacementAttribution.TeleportPartyTargets(party) : null;
-                    return MountedScenePlacementAttribution.Take(source, owners, targets);
+                    var targets = source == MountedScenePlacementSource.CommandTeleportParty
+                        ? MountedScenePlacementAttribution.TeleportPartyTargets(command as Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty) : null;
+                    return MountedScenePlacementAttribution.Take(source, () =>
+                    {
+                        var game = Kingmaker.Game.Instance;
+                        var foreground = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
+                            game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog), game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene));
+                        return NativeSceneOperationOwnership.Decide(source, foreground, command, player);
+                    }, owners, targets);
                 }
                 catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the positions were not captured", error); return null; }
             }

@@ -9,6 +9,10 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$
 # Review of e1c0c7ad: R7 (an exact standalone rider turn is held and handed off), R8 (CommandTeleportParty's proven
 # target set makes a whole-pair write even when one actor was already at its authored transform) and R9 (a throwing
 # success logger never truncates the pairs of one operation).
+# Review of 813d00a1: R10 (scene ownership of the exact operation, captured at entry: a live background player's
+# CommandMoveUnit and CommandTeleportParty, and TranslocateUnit inside a cutscene player's parameter scope), with the
+# installed cutscene ownership contract pinned and the compiled ownership helper run against represented installed
+# player state.
 #   NATIVE-IL         the installed Assembly-CSharp is READ: the scene placement operations write a unit's Position
 #                     directly (TranslocateUnit.RunAction, CommandMoveUnit.IsFinished when the move took too long,
 #                     CommandTeleportParty.OnRun), not through UnitEntityData.Translocate.
@@ -165,6 +169,55 @@ public static class KmcScenePlacementProbe
             }
         }
         return false;
+    }
+
+    // Every method of the installed assembly that calls the given method (call or callvirt), as "Type.Method".
+    private static Type[] nativeTypes;
+    private static List<string> Callers(Assembly native, MethodBase target)
+    {
+        if (nativeTypes == null) { try { nativeTypes = native.GetTypes(); } catch (ReflectionTypeLoadException partial) { nativeTypes = partial.Types; } }
+        var found = new List<string>();
+        foreach (var type in nativeTypes)
+        {
+            if (type == null) continue;
+            foreach (var member in type.GetMembers(All))
+            {
+                var method = member as MethodBase; if (method == null) continue;
+                byte[] il; try { var body = method.GetMethodBody(); if (body == null) continue; il = body.GetILAsByteArray(); } catch { continue; }
+                for (var i = 0; i + 4 < il.Length; i++)
+                    if ((il[i] == 0x28 || il[i] == 0x6F) && BitConverter.ToInt32(il, i + 1) == target.MetadataToken) { found.Add(type.FullName + "." + method.Name); break; }
+            }
+        }
+        return found;
+    }
+
+    // Represented installed cutscene state (review R10): a CutscenePlayerData whose one activated gate has one started track
+    // whose current command is the given one; built from the installed types with no constructor run.
+    private static object RepresentedPlayer(Assembly native, object command, bool finished, int commandIndex)
+    {
+        var playerType = native.GetType("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData", true);
+        var gateDataType = playerType.GetNestedType("GateData"); var trackDataType = playerType.GetNestedType("TrackData");
+        var gateType = native.GetType("Kingmaker.AreaLogic.Cutscenes.Gate", true); var trackType = native.GetType("Kingmaker.AreaLogic.Cutscenes.Track", true);
+        var commandBase = native.GetType("Kingmaker.AreaLogic.Cutscenes.CommandBase", true);
+        var track = FormatterServices.GetUninitializedObject(trackType);
+        var commands = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(commandBase)); commands.Add(command);
+        trackType.GetField("m_Commands", Any).SetValue(track, commands);
+        var gate = FormatterServices.GetUninitializedObject(gateType);
+        var tracks = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(trackType)); tracks.Add(track);
+        gateType.GetField("m_Tracks", Any).SetValue(gate, tracks);
+        var gateData = FormatterServices.GetUninitializedObject(gateDataType);
+        gateDataType.GetField("Gate").SetValue(gateData, gate);
+        var trackData = FormatterServices.GetUninitializedObject(trackDataType);
+        trackDataType.GetField("StartGate").SetValue(trackData, gateData);
+        trackDataType.GetField("TrackIndex").SetValue(trackData, 0);
+        trackDataType.GetField("CommandIndex").SetValue(trackData, commandIndex);
+        var started = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(trackDataType)); started.Add(trackData);
+        gateDataType.GetField("StartedTracks").SetValue(gateData, started);
+        var player = FormatterServices.GetUninitializedObject(playerType);
+        var gates = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(gateDataType)); gates.Add(gateData);
+        playerType.GetField("m_ActivatedGates", Any).SetValue(player, gates);
+        playerType.GetField("<IsFinished>k__BackingField", Any).SetValue(player, finished);
+        return player;
     }
 
     // A compiled MountedScenePlacementObservation (review R7-R9 checks).
@@ -614,6 +667,122 @@ public static class KmcScenePlacementProbe
                 apply.Invoke(null,new object[]{healthyList,true,1,throwing});
                 Console.WriteLine("INFO R9: throwing logger called "+throwingCalls+" time(s); both holds updated="+bothHeld+"; escaped="+escaped+"; healthy logger calls="+KmcReportRelay.Calls);
                 return !escaped && bothHeld && throwingCalls==2 && KmcReportRelay.Calls==2;
+            });
+        Check("NATIVE-IL (review R10) cutscene command ownership: CommandBase.Run (which runs OnRun) is called only by TrackData.StartCommand and CutscenePlayerData.Restore; CommandBase.IsFinished only by TrackData.Tick, StartCommand and ForceStop; nothing calls CommandMoveUnit.IsFinished or CommandTeleportParty.OnRun directly; StartCommand records the command in m_CommandData before running it; both commands' player parameter is named player; the player's activated gates (m_ActivatedGates) hold GateData whose StartedTracks are TrackData with public Command and IsFinished",
+            ()=>{
+                var commandBase=native.GetType("Kingmaker.AreaLogic.Cutscenes.CommandBase",true);
+                var playerType=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData",true);
+                var trackData=playerType.GetNestedType("TrackData"); var gateData=playerType.GetNestedType("GateData");
+                var run=commandBase.GetMethod("Run"); var finished=commandBase.GetMethod("IsFinished");
+                var runCallers=Callers(native,run); var finishedCallers=Callers(native,finished);
+                var direct=Callers(native,Token(move,"IsFinished",0x06009E4E)).Count+Callers(native,Token(party,"OnRun",0x06009E90)).Count;
+                var start=Body(trackData.GetMethod("StartCommand",Any));
+                var store=-1; for(var i=0;i<start.Count;i++) if(start[i].Op==OpCodes.Ldfld && start[i].Operand is FieldInfo && ((FieldInfo)start[i].Operand).Name=="m_CommandData") store=i;
+                var runAt=Find(start,"CommandBase","Run");
+                var gatesField=playerType.GetField("m_ActivatedGates",Any);
+                Console.WriteLine("INFO R10: Run callers "+string.Join(", ",runCallers.ToArray())+"; IsFinished callers "+string.Join(", ",finishedCallers.ToArray())+"; direct calls "+direct);
+                var expectedRun=new HashSet<string>(StringComparer.Ordinal){"Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData+TrackData.StartCommand","Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData.Restore"};
+                var expectedFinished=new HashSet<string>(StringComparer.Ordinal){"Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData+TrackData.ForceStop","Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData+TrackData.StartCommand","Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData+TrackData.Tick"};
+                return runCallers.Count==2 && expectedRun.SetEquals(runCallers) && finishedCallers.Count==3 && expectedFinished.SetEquals(finishedCallers) &&
+                    direct==0 && store>=0 && runAt.Count==1 && store<runAt[0] &&
+                    Token(move,"IsFinished",0x06009E4E).GetParameters()[0].Name=="player" && Token(party,"OnRun",0x06009E90).GetParameters()[0].Name=="player" &&
+                    gatesField!=null && gatesField.FieldType==typeof(List<>).MakeGenericType(gateData) &&
+                    gateData.GetField("StartedTracks").FieldType==typeof(List<>).MakeGenericType(trackData) &&
+                    trackData.GetProperty("Command").GetGetMethod()!=null && trackData.GetProperty("IsFinished").GetGetMethod()!=null;
+            });
+        Check("NATIVE-IL (review R10) action ownership: the CutsceneParametersContext scope (its Data) is opened only by CutscenePlayerData (Start, TickScene, the Paused setter, Restore, Stop, Dispose); only TickScene names the player in it (set_Cutscene), before opening it and after its paused return; the scope is the native ElementsContext data that actions read",
+            ()=>{
+                var context=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutsceneParametersContext",true);
+                var playerType=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData",true);
+                var opens=Callers(native,context.GetProperty("Data").GetGetMethod()); var names=Callers(native,context.GetProperty("Cutscene").GetSetMethod());
+                var tick=Body(playerType.GetMethod("TickScene"));
+                var paused=-1; for(var i=0;i<tick.Count;i++) if(tick[i].Op==OpCodes.Ldfld && tick[i].Operand is FieldInfo && ((FieldInfo)tick[i].Operand).Name=="m_Paused") paused=i;
+                var setAt=Find(tick,"CutsceneParametersContext","set_Cutscene"); var openAt=Find(tick,"CutsceneParametersContext","get_Data");
+                var dataType=context.GetNestedType("ContextData");
+                Console.WriteLine("INFO R10: scope opened by "+string.Join(", ",opens.ToArray())+"; named by "+string.Join(", ",names.ToArray()));
+                return opens.Count==6 && opens.TrueForAll(n=>n.StartsWith("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData.")) &&
+                    names.Count==1 && names[0]=="Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData.TickScene" &&
+                    paused>=0 && setAt.Count==1 && openAt.Count==1 && paused<setAt[0] && setAt[0]<openAt[0] &&
+                    dataType.BaseType.FullName=="Kingmaker.ElementsSystem.ElementsContextData";
+            });
+        Check("INSTALLED-NATIVE AND PRODUCT EXECUTED (review R10) the compiled ownership helper against represented installed player state: a live player whose started track has the command current owns it; a null, finished or unrelated player, a replaced command and a finished track do not; inside an installed CutsceneParametersContext scope (opened through the native ElementsContext) an action is owned, unless the scope names a finished player; outside one it is not",
+            ()=>{
+                var helper=product.GetType("KingmakerMountedCombat.Integration.NativeSceneOperationOwnership",true);
+                var owned=helper.GetMethod("CommandOwnedByLivePlayer",Any); var scoped=helper.GetMethod("ActionInCutsceneScope",Any);
+                var command=FormatterServices.GetUninitializedObject(move); var other=FormatterServices.GetUninitializedObject(move);
+                Func<object,object,bool> ask=(c,p)=>(bool)owned.Invoke(null,new object[]{c,p});
+                var live=RepresentedPlayer(native,command,false,0);
+                var results=new Dictionary<string,bool>{
+                    {"live",ask(command,live)}, {"null",ask(command,null)}, {"finished",ask(command,RepresentedPlayer(native,command,true,0))},
+                    {"replaced",ask(other,live)}, {"unrelated",ask(command,RepresentedPlayer(native,other,false,0))},
+                    {"finished track",ask(command,RepresentedPlayer(native,command,false,1))}};
+                var context=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutsceneParametersContext",true);
+                var ctx=Activator.CreateInstance(context);
+                var outside=(bool)scoped.Invoke(null,null);
+                bool inStarting, inLive, inFinished;
+                using((IDisposable)context.GetProperty("Data").GetValue(ctx,null)) { inStarting=(bool)scoped.Invoke(null,null); }
+                context.GetProperty("Cutscene").SetValue(ctx,live,null);
+                using((IDisposable)context.GetProperty("Data").GetValue(ctx,null)) { inLive=(bool)scoped.Invoke(null,null); }
+                context.GetProperty("Cutscene").SetValue(ctx,RepresentedPlayer(native,command,true,0),null);
+                using((IDisposable)context.GetProperty("Data").GetValue(ctx,null)) { inFinished=(bool)scoped.Invoke(null,null); }
+                var after=(bool)scoped.Invoke(null,null);
+                var text=new List<string>(); foreach(var r in results) text.Add(r.Key+"="+r.Value);
+                Console.WriteLine("INFO R10: command ownership "+string.Join(", ",text.ToArray())+"; action scope outside="+outside+", starting="+inStarting+", live="+inLive+", finished="+inFinished+", after="+after);
+                return results["live"] && !results["null"] && !results["finished"] && !results["replaced"] && !results["unrelated"] && !results["finished track"] &&
+                    !outside && inStarting && inLive && !inFinished && !after;
+            });
+        Check("PRODUCT-IL (review R10) the commands' prefixes take the original instance and CutscenePlayerData player; the capture decides ownership through the production helper (with the global foreground rule) and stores it in the typed capture before the operation runs; the postfix passes the captured ownership to the core and never reads the global mode itself",
+            ()=>{
+                var moveP=methods.GetMethod("CommandMoveUnitCapturePrefix",Any); var partyP=methods.GetMethod("CommandTeleportPartyCapturePrefix",Any);
+                var playerType=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData",true);
+                Func<MethodInfo,Type,bool> shape=(m,t)=>{ var ps=m.GetParameters(); return ps.Length==3 && ps[0].ParameterType==t && ps[0].Name=="__instance" && ps[1].ParameterType==playerType && ps[1].Name=="player" && ps[2].IsOut; };
+                var closureDecides=false;
+                foreach(var nested in methods.GetNestedTypes(Any)) foreach(var m in nested.GetMethods(All))
+                    if(m.GetMethodBody()!=null && Find(Body(m),"NativeSceneOperationOwnership","Decide").Count==1 && Find(Body(m),"MountedSceneContinuityPolicy","SceneActive").Count==1) closureDecides=true;
+                var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
+                var take=Body(attribution.GetMethod("Take",Any)); var attribute=Body(attribution.GetMethod("Attribute",Any));
+                var stored=false; foreach(var ins in take) if(ins.Op==OpCodes.Stfld && ins.Operand is FieldInfo && ((FieldInfo)ins.Operand).Name=="Ownership") stored=true;
+                var read=false; foreach(var ins in attribute) if(ins.Op==OpCodes.Ldfld && ins.Operand is FieldInfo && ((FieldInfo)ins.Operand).Name=="Ownership") read=true;
+                var owned=Find(attribute,"MountedSceneOperationOwnership","SceneOwned"); var apply=Find(attribute,"MountedScenePlacementAttributionCore","Apply");
+                return shape(moveP,move) && shape(partyP,party) && closureDecides && stored && read && owned.Count==1 && apply.Count==1 && owned[0]<apply[0] &&
+                    Find(attribute,"MountedSceneContinuityPolicy","SceneActive").Count==0 && Find(attribute,"Game","get_CutsceneLock").Count==0 && Find(attribute,"Game","IsModeActive").Count==0;
+            });
+        Check("PRODUCT-EXECUTED (review R10) in Default play (no foreground scene), a live background player's operations through this build's compiled ownership and core as its attribution composes them: A a timed-out CommandMoveUnit moving the rider 1.5 m, B a rider-only CommandTeleportParty, C a standalone turn to 75 degrees are each held; a null, finished or replaced player is not; ownership captured at entry survives the player finishing inside the operation",
+            ()=>{
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                var core=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementAttributionCore",true);
+                var helper=product.GetType("KingmakerMountedCombat.Integration.NativeSceneOperationOwnership");
+                var sourceType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementSource",true);
+                var command=FormatterServices.GetUninitializedObject(move);
+                // The ownership this build's attribution uses: the captured decision, or (813d00a1) the global mode at postfix.
+                Func<string,object,bool> owned=(source,player)=>{
+                    if(helper==null) return false;   // Default play: no lock, no Dialog, no Cutscene mode
+                    var ownership=helper.GetMethod("Decide",Any).Invoke(null,new object[]{Enum.Parse(sourceType,source),false,command,player});
+                    return (bool)product.GetType("KingmakerMountedCombat.Domain.MountedSceneOperationOwnership",true).GetMethod("SceneOwned").Invoke(null,new object[]{ownership});
+                };
+                Func<string,object,float,float,float,bool,string> run=(source,player,rx,rz,ro,riderTargeted)=>{
+                    var h=Activator.CreateInstance(holdType);
+                    var sceneOwned=owned(source,player);
+                    var o=NewObservation(product,h,0f,0f,0f,rx,rz,ro,0f,0f,0f,0f,0f,0f,riderTargeted,false);
+                    core.GetMethod("Apply").Invoke(null,new object[]{ListOf(product,o),sceneOwned,1,null});
+                    return (bool)holdType.GetProperty("Pending").GetValue(h,null)
+                        ? "held ("+holdType.GetProperty("X").GetValue(h,null)+", "+holdType.GetProperty("Z").GetValue(h,null)+") "+holdType.GetProperty("Orientation").GetValue(h,null) : "none";
+                };
+                var live=RepresentedPlayer(native,command,false,0);
+                var a=run("CommandMoveUnitTimedOut",live,0.9f,1.2f,0f,false);
+                var b=run("CommandTeleportParty",live,-2f,0.5f,0f,true);
+                var c=run("CommandTeleportParty",live,0f,0f,75f,true);
+                var nul=run("CommandMoveUnitTimedOut",null,0.9f,1.2f,0f,false);
+                var fin=run("CommandMoveUnitTimedOut",RepresentedPlayer(native,command,true,0),0.9f,1.2f,0f,false);
+                var rep=run("CommandMoveUnitTimedOut",RepresentedPlayer(native,FormatterServices.GetUninitializedObject(move),false,0),0.9f,1.2f,0f,false);
+                // Captured at entry, then the player finishes inside the operation.
+                var entry=owned("CommandMoveUnitTimedOut",live);
+                live.GetType().GetField("<IsFinished>k__BackingField",Any).SetValue(live,true);
+                var h2=Activator.CreateInstance(holdType);
+                core.GetMethod("Apply").Invoke(null,new object[]{ListOf(product,NewObservation(product,h2,0f,0f,0f,0.9f,1.2f,0f,0f,0f,0f,0f,0f,0f,false,false)),entry,1,null});
+                var kept=(bool)holdType.GetProperty("Pending").GetValue(h2,null);
+                Console.WriteLine("INFO R10: A move -> "+a+"; B rider-only teleport -> "+b+"; C turn -> "+c+"; null -> "+nul+"; finished -> "+fin+"; replaced -> "+rep+"; captured at entry kept="+kept);
+                return a=="held (0.9, 1.2) 0" && b=="held (-2, 0.5) 0" && c=="held (0, 0) 75" && nul=="none" && fin=="none" && rep=="none" && kept;
             });
         Check("PRODUCT-EXECUTED (review R2) the compiled hold keeps the scene's latest placement: a second attribution supersedes the first (endpoint and orientation), a whole-pair placement clears it, a far unattributed write since the hold supersedes it and a near one does not, a release corrects once",
             ()=>{

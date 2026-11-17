@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker.EntitySystem.Entities;
@@ -29,10 +30,11 @@ namespace KingmakerMountedCombat.Integration
             internal bool RiderTargeted, MountTargeted;
         }
 
-        // What the prefix hands the postfix: the exact operation and the captured pairs.
+        // What the prefix hands the postfix: the exact operation, who owned it at entry (review R10), and the captured pairs.
         internal sealed class Capture
         {
             internal MountedScenePlacementSource Source;
+            internal MountedSceneOwnership Ownership;
             internal List<Snapshot> Snapshots;
         }
 
@@ -40,8 +42,8 @@ namespace KingmakerMountedCombat.Integration
 
         // Null when no pair is mounted: the native operation then runs without any work here. targets: the operation's
         // proven target set (CommandTeleportParty), or null for a single-unit operation.
-        internal static Capture Take(MountedScenePlacementSource source, IEnumerable<GameMountedRelationshipService> owners,
-            ICollection<UnitEntityData> targets)
+        internal static Capture Take(MountedScenePlacementSource source, Func<MountedSceneOwnership> ownership,
+            IEnumerable<GameMountedRelationshipService> owners, ICollection<UnitEntityData> targets)
         {
             List<Snapshot> snapshots = null;
             foreach (var owner in owners)
@@ -52,7 +54,8 @@ namespace KingmakerMountedCombat.Integration
                     RiderOrientation = owner.Rider.Orientation, MountOrientation = owner.Mount.Orientation,
                     RiderTargeted = targets != null && targets.Contains(owner.Rider), MountTargeted = targets != null && targets.Contains(owner.Mount) });
             }
-            return snapshots == null ? null : new Capture { Source = source, Snapshots = snapshots };
+            // Ownership is read only when a pair is mounted, before the operation runs.
+            return snapshots == null ? null : new Capture { Source = source, Ownership = ownership(), Snapshots = snapshots };
         }
 
         // Review R8 of e1c0c7ad: the exact CommandTeleportParty target set, read as native reads it at OnRun
@@ -72,9 +75,6 @@ namespace KingmakerMountedCombat.Integration
         internal static void Attribute(Capture capture, IModLogger logger)
         {
             if (capture?.Snapshots == null) return;
-            var game = Game.Instance;
-            var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
-                game.IsModeActive(GameModeType.Dialog), game.IsModeActive(GameModeType.Cutscene));
             var observations = new List<MountedScenePlacementObservation>(capture.Snapshots.Count);
             foreach (var snapshot in capture.Snapshots)
             {
@@ -98,11 +98,11 @@ namespace KingmakerMountedCombat.Integration
                 });
             }
             // Review R9 of e1c0c7ad: the core applies every pair's own writes; a throwing logger never stops the rest.
-            MountedScenePlacementAttributionCore.Apply(observations, sceneActive, Time.frameCount, (o, write, change) =>
+            MountedScenePlacementAttributionCore.Apply(observations, MountedSceneOperationOwnership.SceneOwned(capture.Ownership), Time.frameCount, (o, write, change) =>
             {
                 AttributedCount++;
                 var pair = (Snapshot)o.Pair;
-                logger?.Info("Scene placement of a seated rider: " + Describe(capture.Source) + " " + write + " -> " + change +
+                logger?.Info("Scene placement of a seated rider: " + Describe(capture.Source) + " (" + capture.Ownership + ") " + write + " -> " + change +
                     ": rider=" + pair.Owner.Rider?.UniqueId + "; mount=" + pair.Owner.Mount?.UniqueId + "; target=(" + o.RiderX.ToString("0.00") + ", " +
                     o.RiderZ.ToString("0.00") + "); orientation=" + o.RiderOrientation.ToString("0.0") + "; targeted rider=" + o.RiderTargeted +
                     ", mount=" + o.MountTargeted + ".");

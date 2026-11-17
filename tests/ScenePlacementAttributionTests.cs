@@ -38,6 +38,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("C02 review R7 (core and hold production): a standalone turn outside a scene, a mount-only turn, ordinary turning, a replaced mounting, combat, repeated and nested turns and wrapped orientations", StandaloneTurnControls);
             runner.Run("C02 review R8 (core production): a CommandTeleportParty proven to target both actors is whole-pair even when one actor was already at its authored transform; only-rider and only-mount targets are not; the reviewed attribution reapplied or replaced the obsolete target", WholePairByProvenTargets);
             runner.Run("C02 review R9 (core production): one operation over two pairs with a logger that throws on the first success still updates both pairs' holds; a healthy logger receives both", ThrowingSuccessLogger);
+            runner.Run("C02 review R10 (ownership policy, core and hold production; native cutscene state represented): in Default play a live background player's timed-out CommandMoveUnit, rider-only CommandTeleportParty and standalone turn are each held and handed off once; the reviewed global-mode attribution swallowed all three", BackgroundSceneOwnership);
+            runner.Run("C02 review R10: a null, finished, replaced or unrelated player, a direct invocation and a TranslocateUnit outside any cutscene scope are not owned; a TranslocateUnit inside a live (or starting) cutscene scope is", NonSceneControls);
+            runner.Run("C02 review R10: ownership is captured at the operation's entry; a mode or player change inside the operation does not change it either way", OwnershipCapturedAtEntry);
         }
 
         private static void PolicyDecisions()
@@ -506,6 +509,128 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(a.Pending && !b.Pending, "Setup (reviewed loop): the second pair should have been skipped.");
         }
 
+        private static Provenance LivePlayer(MountedScenePlacementSource source) =>
+            new Provenance { Source = source, PlayerPresent = true, CommandCurrent = true };
+
+        private static void BackgroundSceneOwnership()
+        {
+            foreach (var reviewed in new[] { false, true })
+            {
+                // A. A live background player's CommandMoveUnit times out and places the seated rider 1.5 m away; mount unchanged.
+                var move = new Scene { Attribution = true, ReviewedGlobalAtPostfix = reviewed };
+                move.Frames(3, false);
+                float tx = move.Mount.X + 0.9f, tz = move.Mount.Z + 1.2f;
+                move.Operation(() => { move.Rider.X = tx; move.Rider.Z = tz; }, LivePlayer(MountedScenePlacementSource.CommandMoveUnitTimedOut));
+                move.TargetX = tx; move.TargetZ = tz;
+                move.Frames(40, false);
+                // B. A live background CommandTeleportParty whose target set holds the rider and not the pet.
+                var party = new Scene { Attribution = true, ReviewedGlobalAtPostfix = reviewed };
+                party.Frames(3, false);
+                float px = party.Mount.X - 2f, pz = party.Mount.Z + 0.5f;
+                party.Operation(() => { party.Rider.X = px; party.Rider.Z = pz; party.Rider.O = 0.3f; }, LivePlayer(MountedScenePlacementSource.CommandTeleportParty), true, false);
+                party.TargetX = px; party.TargetZ = pz;
+                party.Frames(40, false);
+                // C. The same ownership; the rider stays where it is and is turned to 75 degrees.
+                var turn = new Scene { Attribution = true, ReviewedGlobalAtPostfix = reviewed };
+                turn.Frames(3, false);
+                float sx = turn.Rider.X, sz = turn.Rider.Z;
+                turn.Operation(() => { turn.Rider.O = 75f; }, LivePlayer(MountedScenePlacementSource.CommandTeleportParty), true, false);
+                turn.TargetX = sx; turn.TargetZ = sz;
+                turn.Frames(40, false);
+                if (!reviewed)
+                {
+                    TestRunner.True(move.HandOffs == 1 && move.KeptLastTarget, "A. The background timed-out move was not handed off once at its endpoint.");
+                    TestRunner.True(party.HandOffs == 1 && party.KeptLastTarget && party.Hold.ClearedCount == 0, "B. The background rider-only party teleport was not a rider placement.");
+                    TestRunner.True(turn.HandOffs == 1 && turn.KeptLastTarget && Math.Abs(turn.Rider.O - 75f) < 0.01f, "C. The background standalone turn was not handed off once at its position and 75 degrees.");
+                }
+                else
+                {
+                    TestRunner.True(move.HandOffs == 0 && move.AtSaddle && party.HandOffs == 0 && party.AtSaddle && turn.HandOffs == 0 && turn.Hold.ObservedCount == 0,
+                        "Setup (reviewed global-mode attribution): the background operations should have been swallowed.");
+                }
+            }
+            // B, classified directly: RiderPlacement, neither None nor WholePair.
+            var observation = new MountedScenePlacementObservation { Hold = new MountedScenePlacementHold(), PairMounted = true, RiderX = 2f, RiderTargeted = true };
+            TestRunner.Equal(MountedScenePlacementOperation.RiderPlacement, MountedScenePlacementAttributionCore.Classify(observation,
+                MountedSceneOperationOwnership.SceneOwned(LivePlayer(MountedScenePlacementSource.CommandTeleportParty).Decide())), "B was not classified as a rider placement.");
+            // Combat: a background placement is still refused once.
+            var combat = new Scene { Attribution = true, Combat = true };
+            combat.Frames(3, false);
+            combat.Operation(() => { combat.Rider.X += 1f; }, LivePlayer(MountedScenePlacementSource.CommandMoveUnitTimedOut));
+            combat.Frames(60, false);
+            TestRunner.True(combat.HandOffs == 0 && combat.Refusals == 1 && combat.AtSaddle, "A background placement in combat was not refused exactly once.");
+        }
+
+        private static void NonSceneControls()
+        {
+            var cases = new[]
+            {
+                Tuple.Create("null player", new Provenance { Source = MountedScenePlacementSource.CommandMoveUnitTimedOut }),
+                Tuple.Create("finished player", new Provenance { Source = MountedScenePlacementSource.CommandMoveUnitTimedOut, PlayerPresent = true, PlayerFinished = true, CommandCurrent = true }),
+                Tuple.Create("replaced or unrelated player (the command is not its current one)", new Provenance { Source = MountedScenePlacementSource.CommandTeleportParty, PlayerPresent = true }),
+                Tuple.Create("direct TranslocateUnit outside any cutscene scope", new Provenance { Source = MountedScenePlacementSource.TranslocateUnit }),
+                Tuple.Create("TranslocateUnit in the scope of a finished player", new Provenance { Source = MountedScenePlacementSource.TranslocateUnit, ScopePresent = true, ScopePlayerKnown = true, ScopePlayerFinished = true }),
+                Tuple.Create("a command claiming an action scope", new Provenance { Source = MountedScenePlacementSource.CommandMoveUnitTimedOut, ScopePresent = true }),
+            };
+            foreach (var c in cases)
+            {
+                var scene = new Scene { Attribution = true };
+                scene.Frames(3, false);
+                scene.Operation(() => { scene.Rider.X += 1.5f; }, c.Item2);
+                scene.Frames(20, false);
+                TestRunner.True(scene.HandOffs == 0 && scene.Hold.ObservedCount == 0 && scene.AtSaddle, "Attributed with " + c.Item1 + ".");
+            }
+            foreach (var known in new[] { true, false })
+            {
+                var scoped = new Scene { Attribution = true };
+                scoped.Frames(3, false);
+                scoped.Operation(() => { scoped.Rider.X += 1.5f; }, new Provenance { Source = MountedScenePlacementSource.TranslocateUnit, ScopePresent = true, ScopePlayerKnown = known });
+                scoped.TargetX = scoped.Rider.X; scoped.TargetZ = scoped.Rider.Z;
+                scoped.Frames(40, false);
+                TestRunner.True(scoped.HandOffs == 1 && scoped.KeptLastTarget, "A TranslocateUnit inside a " + (known ? "live" : "starting") + " cutscene scope was not owned.");
+            }
+            // Ordinary position and orientation updates outside the operations.
+            var ordinary = new Scene { Attribution = true };
+            ordinary.Frames(3, false);
+            ordinary.Rider.X += 1.5f; ordinary.Rider.O = 80f;
+            ordinary.Frames(10, false);
+            TestRunner.True(ordinary.HandOffs == 0 && ordinary.Hold.ObservedCount == 0 && ordinary.AtSaddle, "An ordinary update outside the operations was attributed.");
+        }
+
+        private static void OwnershipCapturedAtEntry()
+        {
+            foreach (var reviewed in new[] { false, true })
+            {
+                // Owned at entry by a live background player; the player finishes inside the operation.
+                var kept = new Scene { Attribution = true, ReviewedGlobalAtPostfix = reviewed };
+                kept.Frames(3, false);
+                var live = LivePlayer(MountedScenePlacementSource.CommandMoveUnitTimedOut);
+                kept.Operation(() => { kept.Rider.X += 1.5f; live.PlayerFinished = true; live.CommandCurrent = false; }, live);
+                kept.Frames(40, false);
+                // Not owned at entry; a foreground mode begins inside the operation.
+                var late = new Scene { Attribution = true, ReviewedGlobalAtPostfix = reviewed };
+                late.Frames(3, false);
+                var none = new Provenance { Source = MountedScenePlacementSource.TranslocateUnit };
+                late.Operation(() => { late.Rider.X += 1.5f; none.Foreground = true; }, none);
+                late.Frames(40, false);
+                if (!reviewed)
+                    TestRunner.True(kept.HandOffs == 1 && late.HandOffs == 0 && late.AtSaddle, "Ownership was not the one captured at the operation's entry.");
+                else
+                    TestRunner.True(kept.HandOffs == 0 && late.HandOffs == 1, "Setup (reviewed attribution): ownership should have been read at the postfix.");
+            }
+        }
+
+        // Review R10: the native facts the prefix reads for one operation (represented). Decide is the production policy.
+        private sealed class Provenance
+        {
+            public MountedScenePlacementSource Source;
+            public bool Foreground, PlayerPresent, PlayerFinished, CommandCurrent, ScopePresent, ScopePlayerKnown, ScopePlayerFinished;
+
+            public MountedSceneOwnership Decide() => MountedSceneOperationOwnership.Decide(Source, Foreground,
+                Source != MountedScenePlacementSource.TranslocateUnit && MountedSceneOperationOwnership.CommandOwnedByLivePlayer(PlayerPresent, PlayerFinished, CommandCurrent),
+                Source == MountedScenePlacementSource.TranslocateUnit && MountedSceneOperationOwnership.ActionInCutsceneScope(ScopePresent, ScopePlayerKnown, ScopePlayerFinished));
+        }
+
         // ---- represented engine and orchestration around the production hold ----
         private sealed class Body { internal float X, Z, O; }
 
@@ -528,7 +653,7 @@ namespace KingmakerMountedCombat.Tests
             // Attribution false: no native operation is attributed (the behaviour before C02). ReviewedFirstWins: the
             // reviewed b30c24f8 attribution, transcribed (not production) only to show what R2 changes: a pending placement
             // rejects a later one, and a whole-pair write clears nothing.
-            public bool Attribution, Combat, ReviewedFirstWins, ReviewedPositionOnly, ReviewedE1c0;
+            public bool Attribution, Combat, ReviewedFirstWins, ReviewedPositionOnly, ReviewedE1c0, ReviewedGlobalAtPostfix;
             public readonly Body Rider = new Body(), Mount = new Body();
             public readonly MountedScenePlacementHold Hold = new MountedScenePlacementHold();
             private readonly MountedRelationshipCoordinator coordinator;
@@ -584,8 +709,16 @@ namespace KingmakerMountedCombat.Tests
             // A native scene placement operation: the product's capture before it and its attribution after it
             // (MountedScenePlacementAttribution), with the production classification and hold.
             // riderTargeted/mountTargeted: the operation's proven target set (CommandTeleportParty); false for single-unit ones.
-            public void Operation(Action writes, bool sceneActive, bool riderTargeted = false, bool mountTargeted = false)
+            // A foreground scene (the global rule) owns the operation when sceneActive.
+            public void Operation(Action writes, bool sceneActive, bool riderTargeted = false, bool mountTargeted = false) =>
+                Operation(writes, new Provenance { Source = MountedScenePlacementSource.TranslocateUnit, Foreground = sceneActive }, riderTargeted, mountTargeted);
+
+            // Review R10: the operation's own provenance (represented native cutscene state). The production policy decides who
+            // owns it at entry, as the prefix does; the reviewed 813d00a1 attribution (transcribed) read only the global mode
+            // at the postfix.
+            public void Operation(Action writes, Provenance provenance, bool riderTargeted = false, bool mountTargeted = false)
             {
+                var ownership = provenance.Decide();
                 float rx = Rider.X, rz = Rider.Z, ro = Rider.O, mx = Mount.X, mz = Mount.Z, mo = Mount.O;
                 var instance = coordinator.ActivePair;
                 depth++;
@@ -603,6 +736,7 @@ namespace KingmakerMountedCombat.Tests
                     // Earlier reviewed attributions, transcribed (not production) only to show what each review changed:
                     // b30c24f8 first wins; 263ac3ea positions only; e1c0c7ad turns without target evidence, and a turn
                     // only reorients a pending placement.
+                    var sceneActive = provenance.Foreground;
                     var reviewed = ReviewedPositionOnly ? MountedSceneContinuityPolicy.ClassifyOperationWrite(mounted, sceneActive, riderMoved, mountMoved)
                         : MountedSceneContinuityPolicy.ClassifyOperationWrite(mounted, sceneActive, riderMoved, ReviewedE1c0 && riderTurned, mountMoved, ReviewedE1c0 && mountTurned);
                     if (reviewed == MountedScenePlacementOperation.RiderTurn) { if (Hold.Pending) Hold.Reorient(Hold.X, Hold.Y, Hold.Z, Rider.O, frame); return; }
@@ -619,7 +753,7 @@ namespace KingmakerMountedCombat.Tests
                         RiderX = Rider.X, RiderZ = Rider.Z, RiderOrientation = Rider.O, MountX = Mount.X, MountZ = Mount.Z, MountOrientation = Mount.O,
                         RiderTargeted = riderTargeted, MountTargeted = mountTargeted
                     }
-                }, sceneActive, frame, null);
+                }, ReviewedGlobalAtPostfix ? provenance.Foreground : MountedSceneOperationOwnership.SceneOwned(ownership), frame, null);
             }
 
             public void Frames(int count, bool sceneActive) { for (var i = 0; i < count; i++) Frame(sceneActive); }
