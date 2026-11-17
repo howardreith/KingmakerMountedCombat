@@ -226,6 +226,20 @@ public static class KmcContinuousDriveProbe
         return null;
     }
 
+    // The local a ldloc/stloc instruction addresses, or -1.
+    private static int LocalIndex(Ins ins)
+    {
+        var name=ins.Op.Name;
+        if(!name.StartsWith("ldloc",StringComparison.Ordinal) && !name.StartsWith("stloc",StringComparison.Ordinal)) return -1;
+        if(name.EndsWith(".0")) return 0; if(name.EndsWith(".1")) return 1; if(name.EndsWith(".2")) return 2; if(name.EndsWith(".3")) return 3;
+        var info=ins.Operand as LocalVariableInfo;
+        if(info!=null) return info.LocalIndex;
+        if(ins.Operand is byte) return (byte)ins.Operand;
+        if(ins.Operand is short) return (short)ins.Operand;
+        if(ins.Operand is int) return (int)ins.Operand;
+        return -1;
+    }
+
     // The compiler-generated methods of the lambdas written inside one method.
     private static List<MethodBase> Lambdas(Type type, string enclosing)
     {
@@ -2002,6 +2016,19 @@ public static class KmcContinuousDriveProbe
                 if(!(helds[0]<One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival") && One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival")<One(arrival,"MountedRetainedIntentPolicy","DeferHeldCarriedArrival") &&
                     ownAgent[0]<One(arrival,"MountedRetainedIntentPolicy","DecideCarriedArrival") && held<ownAgent[1] && ownAgent[1]<One(arrival,"MountedRetainedIntentPolicy","DeferHeldArrival")))
                     throw new InvalidOperationException("the held-pair decisions are not made from the held-pair questions");
+                // The carried deferral records the arrival placement for a held pair: the held-deferral result decides
+                // the call and is passed to it (one local, stored once, read for the condition and as the argument).
+                var marks=Find(arrival,"MountedPersistenceService","MarkArrivalDeferred");
+                var carriedMark=marks[0];
+                var flag=LocalIndex(arrival[carriedMark-1]);
+                if(flag<0) throw new InvalidOperationException("the carried deferral is not given the held-deferral result");
+                var reads=0; var stores=0;
+                for(var i=One(arrival,"MountedRetainedIntentPolicy","DeferHeldCarriedArrival");i<carriedMark;i++)
+                {
+                    if(arrival[i].Op.Name.StartsWith("ldloc",StringComparison.Ordinal) && LocalIndex(arrival[i])==flag) reads++;
+                    if(arrival[i].Op.Name.StartsWith("stloc",StringComparison.Ordinal) && LocalIndex(arrival[i])==flag) stores++;
+                }
+                if(stores!=1 || reads!=2) throw new InvalidOperationException("the held-deferral result is stored "+stores+" and read "+reads+" times before the carried deferral, expected once and twice");
                 var retained=Body(Required(persistence,"RestoreRetainedPair",6));
                 var reserveSite=Body(Required(relationship,"TryReserveOwnership",3));
                 if(One(retained,"GameMountedRelationshipService","PairHeldByDetachedCleanup")>First(retained,"MountedWorldService","CreateRestoredBoundary") ||
