@@ -60,6 +60,16 @@ namespace KingmakerMountedCombat.Tests
             foreach (var step in sequence)
                 if (step.Item2 && !latched) { latched = true; baseReports.Add(step.Item1); }
             TestRunner.True(baseReports.Count == 1 && baseReports[0] == a, "Setup: the base latch should have reported only custody A.");
+
+            // Review R3: custody A disappears during the encounter and custody B is held in combat at once, with no
+            // evaluation outside combat between them: B is still reported, once.
+            var direct = new MountedRetainedIntentPolicy.CombatHoldNotice();
+            var c = new Custody(); var d = new Custody();
+            var directReports = new List<object>();
+            for (var i = 0; i < 4; i++) if (direct.ShouldNotify(c, true)) directReports.Add(c);
+            for (var i = 0; i < 4; i++) if (direct.ShouldNotify(d, true)) directReports.Add(d);
+            TestRunner.True(directReports.Count == 2 && directReports[0] == c && directReports[1] == d,
+                "A new custody held in combat right after another was not reported exactly once.");
         }
     }
 }

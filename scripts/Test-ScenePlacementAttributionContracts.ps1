@@ -262,8 +262,8 @@ public static class KmcScenePlacementProbe
                     ask(a,false,null); for(var i=0;i<3;i++) ask(a,true,amiri);
                     messages=messagesNow();
                     var again=messages.Count==2 && messages[1]==expectedA;
-                    // Custody A disappears during the encounter (no later evaluation of it); custody B is held, then in combat.
-                    for(var i=0;i<3;i++) ask(b,false,null); for(var i=0;i<3;i++) ask(b,true,two);
+                    // Custody A disappears during the encounter (no later evaluation of it); custody B is held in combat at once.
+                    for(var i=0;i<3;i++) ask(b,true,two);
                     messages=messagesNow();
                     var newCustody=messages.Count==3 && messages[2]==expectedB;
                     unsubscribe.Invoke(null,new object[]{sink});
