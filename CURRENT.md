@@ -1,3 +1,28 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — SCENE CONTINUITY: C04, C02 IMPLEMENTED OFFLINE; C01 UNSUPPORTED WITH ITS BLOCKER; C03 LIMITS DOCUMENTED; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR stacked on `codex/kmc-known-issues-sprint3`, PR #47, open), created
+from the accepted Sprint 3 head `e5b92474`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Sprint 3 accepted at `e5b92474`:** a review checkpoint of offline work. Native is not run. M04's original report,
+  S01 and T04–T08 keep their dispositions.
+- **C04 (`ef264ff3`), implemented and verified offline:** the crossing's Conditional reads the rider's script-zone
+  membership, which native updates only for units with native motion. A seated rider's membership is now rechecked
+  with native `ScriptZone.CheckUnit` (postfix of `ScriptZoneController.Tick`). The owner's `output_log(9).txt` is not
+  on this machine and was not read.
+- **C01, explicitly unsupported:** in combat the only lifecycle that keeps restoration intent refuses behind the
+  settled-participation guard. The scene's command still waits for its own timeout; the rider then returns to the
+  saddle once.
+- **C02 (`eabbd8c8`), implemented and verified offline:** `TranslocateUnit`, a timed-out `CommandMoveUnit` and
+  `CommandTeleportParty` attribute a rider-only write to the scene, so out of combat 0.5, 2 and 3 m placements keep
+  their endpoint. The 3 m rule for unattributed writes is unchanged.
+- **C03 (`9a371910`), intentional limit documented:** limits unchanged. Separate repair: the combat-hold notice is
+  now once per custody and encounter, and reaches the player.
+- **Checks:** Fast PASS 10/0 under budget `known-issues-sprint4` (components 1349/0, Validate-Source 151/0, seven
+  focused scripts). Kingmaker assembly contracts 815/0. Product DLL SHA-256 `3ef14c3a…0558968`, MVID `495b82b0-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 119088ed: ARRIVAL OVERRIDE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `119088ed`, still on the

@@ -1,3 +1,25 @@
+# Known issues remediation, Sprint 4 — review checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4`; parent `e5b92474`, the accepted head of `codex/kmc-known-issues-sprint3`
+(draft PR #47, open), which the Sprint 4 draft PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md and
+docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** C04 and C02 implemented and verified offline; C01 explicitly unsupported with its blocker; C03
+  intentional limit documented, with one separate repair (the combat-hold notice). Fast PASS 10/0. Native NOT RUN.
+- **Seams added:**
+  - `MountedScriptZonePolicy` (Domain) and `MountedScriptZoneAdapter` (Integration), from a postfix of
+    `ScriptZoneController.Tick` (060092A0). They only call native `ScriptZone.CheckUnit`; never write a position here.
+  - `MountedScenePlacementAttribution`, around `TranslocateUnit.RunAction` (06008FA2), `CommandMoveUnit.IsFinished`
+    (06009E4E) and `CommandTeleportParty.OnRun` (06009E90). The decision is
+    `MountedSceneContinuityPolicy.AttributesRiderPlacement`; the unattributed rule is `HoldsUnattributedPlacement`
+    (keep its 3 m threshold).
+  - `MountedRetainedIntentPolicy.CombatHoldNotice`, asked on every restore-loop evaluation.
+- **Do not:** lift the encounter refusal or the settled-participation guard to support C01; that needs an owner
+  decision on a native participation contract.
+- **Contract scripts:** `Test-CandlemereCrossingContracts.ps1` and `Test-ScenePlacementAttributionContracts.ps1`. Both
+  take `-ProductDll` for base comparisons and read installed files in place.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 3 and its continuation — review checkpoint (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`

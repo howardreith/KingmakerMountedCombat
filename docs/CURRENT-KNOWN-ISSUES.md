@@ -3,7 +3,9 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-16, owner review of `119088ed` (the registry, discard and load-session correction
+- **Last updated:** 2026-11-17, Sprint 4 (C04, C01, C02, C03 reconciled and dispositioned). Branch
+  `codex/kmc-known-issues-sprint4`, draft PR stacked on `codex/kmc-known-issues-sprint3`, from the accepted Sprint 3
+  head `e5b92474`. Sprint 3's last change before that: the owner review of `119088ed` (the registry, discard and load-session correction
   accepted; the arrival's override-only exception now requires the override to be the pair's own retained agent),
   after the owner review of `fe22563a` (the lifecycle correction accepted; the operations after
   the world-boundary guard corrected), after the owner review of `25cbdbe2` (R2 accepted; the lifecycle around R1's
@@ -12,12 +14,14 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
   stacked on Sprint 2 (branch `codex/kmc-known-issues-sprint2`, draft PR #46, reviewed head `1dffc3e0`), which is
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
-  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
-- **Reconciled so far:** T01–T08, S01, S02 and M01–M05. C04 was added by the owner on 2026-11-16 and is recorded,
-  not reconciled. Every row of Sprints 4–8 is a *carried-forward planning
+  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md).
+- **Sprint 3 accepted (owner, 2026-11-16, at `e5b92474`):** a review checkpoint of offline work. M01–M03 and M05 are
+  implemented and verified offline, and their native acceptance is still not run. M04's original report stays
+  unresolved; S01 and T04–T08 keep their dispositions. The acceptance does not mark every Sprint 3 report resolved.
+- **Reconciled so far:** T01–T08, S01, S02, M01–M05 and C01–C04. Every row of Sprints 5–8 is a *carried-forward planning
   finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
   A sprint reconciles its own rows when it starts.
-- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 3.
+- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 4.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Dispositions
@@ -348,19 +352,42 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
   native fallback. The report now contains a failing logger (`b65977d8`). Executed check: an operational failure
   with a throwing logger; the reviewed head fails it with the logger's exception.
 
-## Sprints 4–8 — carried forward, pending reconciliation
+## Sprint 4 — scene continuity (reconciled 2026-11-17)
+
+Order C04, C01, C02, C03 (owner amendment of 2026-11-16). Record: [Sprint 4 handoff](KNOWN-ISSUES-SPRINT4-HANDOFF.md).
+Product commit `9a371910`, clean Release DLL SHA-256 `3ef14c3a36a42ef542689baf5bd746b5cd3d98dd27503c4ddec7e0ebc0558968`,
+MVID `495b82b0-1b4b-4885-b53b-345cf5f62a0e`.
+
+| ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|
+| C04 | At Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Mounted traversal defect | Implemented and verified offline | `ef264ff3`: a seated rider's script-zone membership is rechecked with native `ScriptZone.CheckUnit` when native did not check it. `CandlemereCrossingTests` (5); `Test-CandlemereCrossingContracts.ps1` 8/0, base 5/3 | Not run; the owner's `output_log(9).txt` is not on this machine |
+| C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Explicitly unsupported, with its blocker | No change. Blocker: the only lifecycle that keeps restoration intent refuses in an encounter behind the settled-participation guard. Fallback pinned and bounded by C02 | Not run |
+| C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Implemented and verified offline | `eabbd8c8`: the three native placement operations attribute a rider-only write to the scene. `ScenePlacementAttributionTests` (4); `Test-ScenePlacementAttributionContracts.ps1` 7/0, base 3/4 | Not run |
+| C03 | Restoration fallbacks need truthful feedback and clean retirement. | Intentional boundaries | Intentional limit documented; one separate repair | Limits unchanged and stated in the handoff. Repair `9a371910`: the combat-hold notice is now once per custody and encounter, to the player (`CombatHoldNoticeTests` (2); the PRODUCT-IL "C03" pin fails on the base) | Not run |
+
+### C04 — what is established, and what is not
+
+- **Inspected:** the interaction (`FindWay`'s `InteractionSkillCheck`), its passed actions (a Conditional on
+  `UnitInScriptZone(InteractingUnit, "SortcutBefore")` choosing between two `TeleportParty` destinations), the
+  geometry, and native's zone membership, which is updated only for units with native motion this tick.
+- **Inferred, not observed:** a seated rider processed before its mount never shows native motion. Its stale
+  membership sends the party to the enter point where it already stands.
+- **Not established:** the awake order in the owner's game. The original log was not read; it is absent.
+- **Kept apart:** the authored crossing distance (8.26 m), C02's recognition distance and C03's regroup limits.
+
+### C01 — the exact blocker
+
+`TryHandOffForStaging` refuses during an encounter. Beneath it, `SuspensionRefusal` requires settled participation
+(`HasAreaParticipationObligations`), which cannot settle while an actor is in combat. A plain in-combat dismount
+would lose the restoration intent; forwarding to the mount and early completion are not permitted. Unblocking needs an
+owner decision on a native participation contract for an in-combat handoff.
+
+## Sprints 5–8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
-**Sprint 4's order is C04, C01, C02, C03** (owner amendment of 2026-11-16, which added C04; see "C04" below the
-table). Sprint 4 is not started.
-
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 4 | C04 | Preserve the Candlemere crossing while mounted: at Candlemere Tower, "wade through" fades the screen but does not cross while mounted; dismounting by hand permits the crossing. | Reported mounted traversal defect | Open investigation | The native action, its actors, checks, destination and completion boundary identified before any correction is selected | Owner report and `output_log(9).txt` (owner amendment of 2026-11-16) |
-| 4 | C01 | A scripted movement command on a seated rider during combat waits for the scene timeout. | Unsupported command path | Open correction | Implemented offline, or explicitly unsupported with its blocker | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
-| 4 | C02 | Rider-only scene placements of three metres or less can be swallowed. | Known omission | Open correction | Implemented and verified offline | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
-| 4 | C03 | Restoration fallbacks (combat starts while staged; 30 m, same navigation, bounded regroup) need truthful feedback and clean retirement. | Intentional boundaries | Open correction | Intentional limit documented | [CUTSCENE handoff](CUTSCENE-CONTINUITY-REPAIR-HANDOFF.md) |
 | 5 | R01 | Carried travel in a separate initiative slot gives no ranged-movement contribution. | Conservative omission | Open correction | Implemented offline, or documented unresolved design fact | [MOUNTED-ARCHERY handoff](MOUNTED-ARCHERY-HANDOFF.md) |
 | 5 | R02 | The accepted ranged rules (3.25 s threshold, native difficulty floor, turn-based only, per roll, no Run) need precise documentation. | Intentional adaptations | Open correction | Intentional limit documented | [MOUNTED-ARCHERY handoff](MOUNTED-ARCHERY-HANDOFF.md) |
 | 6 | A01 | A fresh same-target click just after attack completion gets inconsistent feedback. | One-frame feedback edge | Open correction | Implemented and verified offline | [ATTACK-COMPLETION handoff](ATTACK-COMPLETION-WARNINGS-HANDOFF.md) |
@@ -375,7 +402,7 @@ table). Sprint 4 is not started.
 | 8 | D02 | Support, removal and rollback limits need one current description. | Documentation | Open correction | Documented | `README.md`, [0.2.0 notes](RELEASE-NOTES-0.2.0.md), [deferred items](FINALIZATION-DEFERRED-ITEMS.md), [UI polish handoff](UI-POLISH-REVIEW-HANDOFF.md) |
 | 8 | D03 | Final sprint handoff and completion accounting. | Documentation | Open correction | Delivered | Sprint PRs and this ledger |
 
-### C04 — the Candlemere crossing while mounted (recorded 2026-11-16, first in Sprint 4, not yet investigated)
+### C04 — as recorded on 2026-11-16, before Sprint 4 (kept for history; the current disposition is in the Sprint 4 section)
 
 Recorded from the owner's amendment. Nothing below was investigated or reproduced by Sprint 3.
 
