@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$ProductDll)
 # Known issues C02: rider-only scene placements of three metres or less. Also pins the C01 fallback (no staging
-# handoff in an encounter) and the C03 combat-hold notice wiring.
+# handoff in an encounter) and the C03 combat-hold notice: its wiring, and its delivery, executed through the installed
+# native EventBus to a subscribed IWarningNotificationUIHandler sink (the interface the game's warning display implements).
 #   NATIVE-IL         the installed Assembly-CSharp is READ: the scene placement operations write a unit's Position
 #                     directly (TranslocateUnit.RunAction, CommandMoveUnit.IsFinished when the move took too long,
 #                     CommandTeleportParty.OnRun), not through UnitEntityData.Translocate.
@@ -23,8 +24,48 @@ using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
 
+// What the emitted warning sinks received (the sinks are real classes implementing the installed native interface,
+// emitted once the installed assembly is loaded; see WarningSinkType).
+public static class KmcWarningRelay
+{
+    public static readonly Dictionary<object, List<string>> Received = new Dictionary<object, List<string>>();
+    public static readonly HashSet<object> Refusing = new HashSet<object>();
+    public static void Text(object sink, string text, bool addToLog)
+    {
+        List<string> list; if(!Received.TryGetValue(sink, out list)) Received[sink] = list = new List<string>();
+        list.Add(text + "|addToLog=" + addToLog);
+        if(Refusing.Contains(sink)) throw new InvalidOperationException("the warning display refused");
+    }
+    public static List<string> Of(object sink) { List<string> list; return Received.TryGetValue(sink, out list) ? list : new List<string>(); }
+}
+
 public static class KmcScenePlacementProbe
 {
+    // A class implementing the installed Kingmaker.PubSubSystem.IWarningNotificationUIHandler: its text overload hands
+    // each warning to KmcWarningRelay; its enum overload does nothing.
+    private static Type WarningSinkType(Assembly native)
+    {
+        var handler = native.GetType("Kingmaker.PubSubSystem.IWarningNotificationUIHandler", true);
+        var module = AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName("KmcWarningSink"), AssemblyBuilderAccess.Run).DefineDynamicModule("KmcWarningSink");
+        var type = module.DefineType("KmcWarningSink", TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.Class, typeof(object), new[] { handler });
+        type.DefineDefaultConstructor(MethodAttributes.Public);
+        foreach (var method in handler.GetMethods())
+        {
+            var parameters = Array.ConvertAll(method.GetParameters(), p => p.ParameterType);
+            var body = type.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.Final | MethodAttributes.HideBySig | MethodAttributes.NewSlot,
+                method.ReturnType, parameters);
+            var il = body.GetILGenerator();
+            if (parameters[0] == typeof(string))
+            {
+                il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ldarg_1); il.Emit(OpCodes.Ldarg_2);
+                il.Emit(OpCodes.Call, typeof(KmcWarningRelay).GetMethod("Text"));
+            }
+            il.Emit(OpCodes.Ret);
+            type.DefineMethodOverride(body, method);
+        }
+        return type.CreateType();
+    }
+
     private static int passes, failures;
     private static MethodInfo read;
     private const BindingFlags All=BindingFlags.Instance|BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly;
@@ -183,12 +224,63 @@ public static class KmcScenePlacementProbe
                 return combat.Count>=1 && Find(refusal,null,"HasAreaParticipationObligations").Count==1 &&
                     Find(handoff,"MountedSceneHandOffSequence","Run").Count==1 && combat[0]<Find(handoff,"MountedSceneHandOffSequence","Run")[0];
             });
-        Check("PRODUCT-IL (C03) the restore loop asks the combat-hold notice on its hold and on its other evaluations, and reports the hold to the player through it",
+        Check("PRODUCT-IL (C03, review R3) the restore loop asks the combat-hold notifier on its hold and on its other evaluations; the notifier raises the native IWarningNotificationUIHandler warning",
             ()=>{
                 var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
                 var core=Body(intent.GetMethod("RestoreRetainedIntentCore",Any));
-                var asks=Find(core,"CombatHoldNotice","ShouldNotify");
-                return asks.Count==2 && Find(core,null,"Report").Count>=2;
+                var notifier=product.GetType("KingmakerMountedCombat.Integration.MountedCombatHoldNotifier",true);
+                var evaluate=Body(notifier.GetMethod("Evaluate",Any));
+                var raises=false;
+                foreach(var ins in evaluate) if(ins.Call!=null && ins.Call.Name=="RaiseEvent" && ins.Call.DeclaringType.Name=="EventBus" && ins.Call.IsGenericMethod &&
+                    ins.Call.GetGenericArguments()[0].Name=="IWarningNotificationUIHandler") raises=true;
+                return Find(core,"MountedCombatHoldNotifier","Evaluate").Count==2 && Find(core,"CombatHoldNotice","ShouldNotify").Count==0 &&
+                    Find(evaluate,"CombatHoldNotice","ShouldNotify").Count==1 && raises;
+            });
+        Check("PRODUCT-EXECUTED (C03, review R3) the compiled notifier delivers through the installed native EventBus to a subscribed warning sink: the actual text once across repeated held evaluations, again for a later encounter, again for a new custody after the previous one disappeared in combat; a refusing display neither throws out of it nor repeats",
+            ()=>{
+                var sinkType=WarningSinkType(native);
+                var sink=Activator.CreateInstance(sinkType); var refusingSink=Activator.CreateInstance(sinkType);
+                KmcWarningRelay.Refusing.Add(refusingSink);
+                var bus=native.GetType("Kingmaker.PubSubSystem.EventBus",true);
+                var subscribe=bus.GetMethod("Subscribe",new[]{typeof(object)}); var unsubscribe=bus.GetMethod("Unsubscribe",new[]{typeof(object)});
+                Func<List<string>> messagesNow=()=>KmcWarningRelay.Of(sink);
+                var notifierType=product.GetType("KingmakerMountedCombat.Integration.MountedCombatHoldNotifier",true);
+                var notifier=notifierType.GetConstructors(BindingFlags.Instance|BindingFlags.NonPublic)[0].Invoke(new object[]{null});
+                var evaluate=notifierType.GetMethod("Evaluate",Any);
+                var compose=notifierType.GetMethod("Compose",Any);
+                Func<object,bool,string[],bool> ask=(custody,held,pairs)=>(bool)evaluate.Invoke(notifier,new object[]{custody,held,(Func<string[]>)(()=>pairs),(Func<string>)(()=>"probe")});
+                var a=new object(); var b=new object(); var c=new object();
+                var amiri=new[]{"Amiri and Horse"}; var two=new[]{"Valerie and Horse","Harrim and Pony"};
+                var expectedA=(string)compose.Invoke(null,new object[]{amiri})+"|addToLog=True";
+                var expectedB=(string)compose.Invoke(null,new object[]{two})+"|addToLog=True";
+                subscribe.Invoke(null,new object[]{sink});
+                try
+                {
+                    for(var i=0;i<5;i++) ask(a,true,amiri);
+                    var messages=messagesNow();
+                    var once=messages.Count==1 && messages[0]==expectedA;
+                    ask(a,false,null); for(var i=0;i<3;i++) ask(a,true,amiri);
+                    messages=messagesNow();
+                    var again=messages.Count==2 && messages[1]==expectedA;
+                    // Custody A disappears during the encounter (no later evaluation of it); custody B is held, then in combat.
+                    for(var i=0;i<3;i++) ask(b,false,null); for(var i=0;i<3;i++) ask(b,true,two);
+                    messages=messagesNow();
+                    var newCustody=messages.Count==3 && messages[2]==expectedB;
+                    unsubscribe.Invoke(null,new object[]{sink});
+                    subscribe.Invoke(null,new object[]{refusingSink});
+                    var threw=false;
+                    try { for(var i=0;i<3;i++) ask(c,true,amiri); } catch { threw=true; }
+                    unsubscribe.Invoke(null,new object[]{refusingSink});
+                    var refused=KmcWarningRelay.Of(refusingSink);
+                    messages=messagesNow();
+                    var bounded=!threw && refused.Count==1 && messages.Count==3;
+                    Console.WriteLine("INFO delivered: "+string.Join(" || ",messages.ToArray()));
+                    Console.WriteLine("INFO refusing display received "+refused.Count+" notice(s); notifier threw="+threw+"; notifier delivered="+
+                        notifierType.GetProperty("DeliveredCount",Any).GetValue(notifier,null)+", failed="+notifierType.GetProperty("FailedCount",Any).GetValue(notifier,null));
+                    return once && again && newCustody && bounded &&
+                        expectedA.StartsWith("Amiri and Horse stay dismounted for this fight") && expectedB.StartsWith("Valerie and Horse; Harrim and Pony stay dismounted");
+                }
+                finally { unsubscribe.Invoke(null,new object[]{sink}); unsubscribe.Invoke(null,new object[]{refusingSink}); }
             });
         Check("PRODUCT-EXECUTED (review R2) the compiled hold keeps the scene's latest placement: a second attribution supersedes the first (endpoint and orientation), a whole-pair placement clears it, a far unattributed write since the hold supersedes it and a near one does not, a release corrects once",
             ()=>{
