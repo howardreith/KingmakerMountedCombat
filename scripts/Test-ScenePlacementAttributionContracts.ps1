@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$ProductDll)
-# Known issues C02: rider-only scene placements of three metres or less.
+# Known issues C02: rider-only scene placements of three metres or less. Also pins the C01 fallback (no staging
+# handoff in an encounter) and the C03 combat-hold notice wiring.
 #   NATIVE-IL         the installed Assembly-CSharp is READ: the scene placement operations write a unit's Position
 #                     directly (TranslocateUnit.RunAction, CommandMoveUnit.IsFinished when the move took too long,
 #                     CommandTeleportParty.OnRun), not through UnitEntityData.Translocate.
@@ -124,6 +125,62 @@ public static class KmcScenePlacementProbe
                     Find(share,null,"ReportScriptZoneFault").Count==1 && Find(prefix,null,"ReportScriptZoneFault").Count==1 &&
                     Find(attribute,"MountedSceneContinuityPolicy","AttributesRiderPlacement")[0]<Find(attribute,"RiderMovementAgent","AttributeScenePlacement")[0] &&
                     Find(hold,"MountedSceneContinuityPolicy","HoldsUnattributedPlacement").Count==1 && Find(hold,"MountedSceneContinuityPolicy","IsScenePlacement").Count==0;
+            });
+        Check("NATIVE-IL (C01) no installed method pauses a cutscene for combat: of the methods that set Paused, only CutsceneController.Activate reads IsInCombat, and only to interrupt AI commands before it pauses background cutscenes by IsBackground; and CommandMoveUnit.OnRun (06009E4D) runs a UnitMoveTo on the unit, which a seated rider cannot walk",
+            ()=>{
+                var player=native.GetType("Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData",true);
+                var setPaused=player.GetProperty("Paused",Any).GetSetMethod(true).MetadataToken;
+                var combatTokens=new HashSet<int>();
+                Type[] types; try { types=native.GetTypes(); } catch(ReflectionTypeLoadException partial) { types=partial.Types; }
+                foreach(var type in types) if(type!=null) foreach(var member in type.GetMember("get_IsInCombat",MemberTypes.Method,All)) combatTokens.Add(member.MetadataToken);
+                var callers=0; var combatCallers=0;
+                foreach(var type in types)
+                {
+                    if(type==null) continue;
+                    foreach(var member in type.GetMembers(All))
+                    {
+                        var method=member as MethodBase; if(method==null) continue;
+                        byte[] il; try { var body=method.GetMethodBody(); if(body==null) continue; il=body.GetILAsByteArray(); } catch { continue; }
+                        var calls=new HashSet<int>();
+                        for(var i=0;i+4<il.Length;i++) if(il[i]==0x28 || il[i]==0x6F) calls.Add(BitConverter.ToInt32(il,i+1));
+                        if(!calls.Contains(setPaused)) continue;
+                        callers++;
+                        foreach(var token in combatTokens) if(calls.Contains(token))
+                        {
+                            Console.WriteLine("INFO Paused setter reads IsInCombat: "+type.FullName+"."+method.Name);
+                            var activate=type.FullName=="Kingmaker.Controllers.CutsceneController" && method.Name=="Activate";
+                            if(activate)
+                            {
+                                var a=Body(method); var combat=Find(a,null,"get_IsInCombat"); var interrupt=Find(a,"UnitCommands","InterruptAll");
+                                var background=new List<int>(); var pause=Find(a,"CutscenePlayerData","set_Paused");
+                                for(var k=0;k<a.Count;k++) if(a[k].Op==OpCodes.Ldfld && a[k].Operand is FieldInfo && ((FieldInfo)a[k].Operand).Name=="IsBackground") background.Add(k);
+                                var last=0; foreach(var c in combat) last=Math.Max(last,c);
+                                activate=interrupt.Count==1 && background.Count==1 && pause.Count==1 && last<interrupt[0] && interrupt[0]<background[0] && background[0]<pause[0];
+                            }
+                            if(!activate) combatCallers++;
+                            break;
+                        }
+                    }
+                }
+                Console.WriteLine("INFO Paused setters="+callers+"; pausing on combat="+combatCallers);
+                var run=Body(Token(move,"OnRun",0x06009E4D));
+                var builds=false; foreach(var ins in run) if(ins.Op==OpCodes.Newobj && ins.Call!=null && ins.Call.DeclaringType.Name=="UnitMoveTo") builds=true;
+                return callers>=1 && combatCallers==0 && builds && Find(run,"UnitCommands","Run").Count>=1;
+            });
+        Check("PRODUCT-IL (C01 fallback, unchanged) the staging handoff refuses during an encounter before any suspension, and the suspension guard still requires settled participation",
+            ()=>{
+                var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+                var handoff=Body(intent.GetMethod("TryHandOffForStaging",Any)); var refusal=Body(intent.GetMethod("SuspensionRefusal",Any));
+                var combat=Find(handoff,null,"get_IsInCombat"); var suspend=Find(handoff,null,"Run");
+                return combat.Count>=1 && Find(refusal,null,"HasAreaParticipationObligations").Count==1 &&
+                    Find(handoff,"MountedSceneHandOffSequence","Run").Count==1 && combat[0]<Find(handoff,"MountedSceneHandOffSequence","Run")[0];
+            });
+        Check("PRODUCT-IL (C03) the restore loop asks the combat-hold notice on its hold and on its other evaluations, and reports the hold to the player through it",
+            ()=>{
+                var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+                var core=Body(intent.GetMethod("RestoreRetainedIntentCore",Any));
+                var asks=Find(core,"CombatHoldNotice","ShouldNotify");
+                return asks.Count==2 && Find(core,null,"Report").Count>=2;
             });
         Check("PRODUCT-EXECUTED the compiled decisions: only a scene operation's write of the rider without its mount is attributed; the unattributed rule still needs more than 3 m from both the saddle and the last write, during a scene",
             ()=>{

@@ -96,6 +96,23 @@ namespace KingmakerMountedCombat.Domain
             return settledFrames >= SettleFrames && settledSeconds >= SettleSeconds;
         }
 
+        // Known issues C03: the notice that pairs still staged when an encounter began stay dismounted through it is
+        // given once per custody and encounter. An evaluation outside combat ends the encounter, and a different custody
+        // (a later suspension after the earlier intent was dropped, restored or released) gets its own notice; nothing
+        // carries over from an intent that no longer exists.
+        public sealed class CombatHoldNotice
+        {
+            private object notifiedCustody;
+
+            public bool ShouldNotify(object custody, bool heldThroughEncounter)
+            {
+                if (!heldThroughEncounter || custody == null) { notifiedCustody = null; return false; }
+                if (ReferenceEquals(notifiedCustody, custody)) return false;
+                notifiedCustody = custody;
+                return true;
+            }
+        }
+
         // Patience counts from the first settled evaluation in which the pair was neither staged nor regrouping
         // (a negative start means it is not counting).
         public static bool PatienceExpired(float eligibleSince, float now)
