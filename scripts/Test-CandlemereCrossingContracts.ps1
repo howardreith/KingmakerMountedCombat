@@ -308,7 +308,7 @@ public static class KmcCandlemereProbe
                 var body2=Body(postfix);
                 return found && (Find(body2,"MountedScriptZoneAdapter","Recheck").Count+lambdas)>=2 && Find(body2,null,"ReportScriptZoneFault").Count==1;
             });
-        Check("PRODUCT-IL the adapter asks the production decision for a mounted rider without native motion, then checks it with the native ScriptZone.CheckUnit against zones selected as native selects them (active, on a map object in game); the pair's synchronization of the rider still runs in the UnitMoveController prefix, before the native stamp",
+        Check("PRODUCT-IL the adapter reads the relationship's mounting instance and asks the instance-scoped observations (with the rider's native motion) before it checks with the native ScriptZone.CheckUnit, then records under that instance; zones are selected as native selects them (active, on a map object in game); the pair's synchronization of the rider still runs in the UnitMoveController prefix, before the native stamp",
             ()=>{
                 var adapter=product.GetType("KingmakerMountedCombat.Integration.MountedScriptZoneAdapter",true);
                 var recheck=Body(adapter.GetMethod("Recheck",Any));
@@ -316,10 +316,25 @@ public static class KmcCandlemereProbe
                 var prefix=Body(methods.GetMethod("NativeMovementUpdatePrefix",Any));
                 var visits=0; foreach(var nested in methods.GetNestedTypes(Any)) foreach(var m in nested.GetMethods(All))
                     if(m.Name.Contains("NativeMovementUpdatePrefix") && m.GetMethodBody()!=null && Find(Body(m),"GameMountedRelationshipService","BeginNativeMovementUpdate").Count==1) visits++;
-                return One(recheck,"UnitEntityData","get_HasMotionThisTick")<One(recheck,"MountedScriptZonePolicy","RiderNeedsZoneRecheck") &&
-                    One(recheck,"MountedScriptZonePolicy","RiderNeedsZoneRecheck")<One(recheck,"ScriptZone","CheckUnit") &&
+                var ask=One(recheck,"MountedScriptZoneObservations`1","NeedsRecheck");
+                return One(recheck,"GameMountedRelationshipService","get_MountingInstance")<ask &&
+                    One(recheck,"UnitEntityData","get_HasMotionThisTick")<ask && ask<One(recheck,"ScriptZone","CheckUnit") &&
+                    One(recheck,"ScriptZone","CheckUnit")<One(recheck,"MountedScriptZoneObservations`1","Record") &&
                     One(zones,"ScriptZone","get_IsActive")>=0 && One(zones,"EntityDataBase","get_IsInGame")>=0 &&
                     (Find(prefix,"GameMountedRelationshipService","BeginNativeMovementUpdate").Count+visits)>=1;
+            });
+        Check("PRODUCT-EXECUTED (review R1) the compiled observations belong to their mounting instance: a stationary rider is not checked again within one, a later instance at the same place is checked, another unit object is checked",
+            ()=>{
+                var open=product.GetType("KingmakerMountedCombat.Domain.MountedScriptZoneObservations`1",true);
+                var observations=Activator.CreateInstance(open.MakeGenericType(typeof(object)));
+                var pairType=product.GetType("KingmakerMountedCombat.Domain.MountedPair",true);
+                var first=Activator.CreateInstance(pairType,"rider-a","horse-a"); var later=Activator.CreateInstance(pairType,"rider-a","horse-a");
+                var needs=observations.GetType().GetMethod("NeedsRecheck"); var record=observations.GetType().GetMethod("Record");
+                Func<object,object,bool> ask=(unit,instance)=>(bool)needs.Invoke(observations,new object[]{unit,instance,false,1f,0f,1f});
+                var rider=new object();
+                var firstAsk=ask(rider,first);
+                record.Invoke(observations,new object[]{rider,first,1f,0f,1f});
+                return firstAsk && !ask(rider,first) && ask(rider,later) && ask(new object(),first);
             });
         Check("PRODUCT-EXECUTED the compiled decision checks a seated rider only when the pair is mounted, native did not check it this tick, and it moved since its last check (or was never checked while mounted); position equality follows Unity's Vector3 equality",
             ()=>{

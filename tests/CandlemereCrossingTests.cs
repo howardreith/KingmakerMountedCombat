@@ -8,7 +8,11 @@ namespace KingmakerMountedCombat.Tests
     // Known issues C04: Candlemere Tower, "wade through" while mounted.
     //
     // Production code executed here: MountedScriptZonePolicy (whether a seated rider is checked against the script zones
-    // after the native zone tick). Everything else is a model, labelled as such:
+    // after the native zone tick), MountedScriptZoneObservations (where each rider was last checked, per mounting
+    // instance) and the real MountedRelationshipCoordinator, whose Attach creates the mounting instance and whose cleanup
+    // runs a runtime that clears the rider and mount references as the game runtime does. The adapter's own few lines
+    // (read the relationship's rider and instance, ask, check, record) are restated in AdapterTick. Everything else is a
+    // model, labelled as such:
     // - the native tick, as read from the installed IL: the product's synchronization of the rider before
     //   UnitMoveController stamps PreviousPosition (06009183), the awake-unit loop (a moving unit's Position follows its
     //   view; an attached rider's view follows the mount's), ScriptZoneController.Tick (060092A0) checking only units
@@ -31,6 +35,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues C04 (modelled native tick): the crossing works in both directions while mounted, the endpoint is kept through the mounted updates that follow, and a repeated activation decides its direction again", BothDirectionsAndRepeat);
             runner.Run("known issues C04 (modelled native tick): when the mount precedes its rider natively the rider already moves natively; no extra check is made and the crossing works either way", MountFirstOrderNeedsNothing);
             runner.Run("known issues C04 (modelled native tick): unmounted and unrelated units, a failed check, a manual dismount and a remount keep their native outcomes", Controls);
+            runner.Run("C04 review R1 (real coordinator and reference clearing; observations production): a remount at the place the rider was last checked, after it left the zone dismounted, is checked again on the same and on another relationship; the reviewed rider-keyed cache was not", RemountAfterLeavingTheZone);
+            runner.Run("C04 review R1 (observations production): an observation belongs to its mounting instance only; a stationary rider within it is not checked again; another instance or another world's unit is", ObservationsBelongToTheirInstance);
         }
 
         private static void PolicyDecisions()
@@ -117,15 +123,67 @@ namespace KingmakerMountedCombat.Tests
             failed.RideTo(World.NearSideApproach);
             TestRunner.Equal(null, failed.WadeThrough(false), "A failed check moved the party.");
             TestRunner.True(failed.InteractionDisabled && !failed.FarSide(failed.Rider), "A failed check did not keep its native outcome.");
-            // A manual dismount clears the pair's record; a remount checks the rider again on its first frame.
+            // A manual dismount (real cleanup, references cleared): nothing is checked while dismounted; a remount checks the
+            // rider again on its first frame.
             var remount = new World { Adapter = true };
             remount.RideTo(World.NearSideApproach);
             remount.Dismount();
-            remount.Frames(1);
-            TestRunner.True(!remount.Tracked, "A dismounted rider is still tracked by the pair.");
+            var before = remount.AdapterChecks;
+            remount.Frames(3);
+            TestRunner.True(remount.AdapterChecks == before && remount.RuntimeRider == null, "A dismounted rider was checked, or cleanup kept the reference.");
             remount.Remount();
             remount.Frames(1);
-            TestRunner.True(remount.Tracked && remount.Zone.Contains(remount.Rider), "A remounted rider was not checked on its first frame.");
+            TestRunner.True(remount.AdapterChecks == before + 1 && remount.Zone.Contains(remount.Rider), "A remounted rider was not checked on its first frame.");
+            remount.Frames(5);
+            TestRunner.True(remount.AdapterChecks == before + 1, "A stationary seated rider was checked again within one mounting.");
+        }
+
+        // Review R1 of b30c24f8: the rider was checked at P inside the zone; a normal dismount cleared the relationship's
+        // references; the rider walked out (native updates its membership); it remounts the stationary mount at P, which
+        // writes it to the saddle without native motion. The first mounted tick must check it again.
+        private static void RemountAfterLeavingTheZone()
+        {
+            foreach (var mode in new[] { CacheMode.Production, CacheMode.ReviewedRiderKeyed })
+                foreach (var anotherBoundary in new[] { false, true })
+                {
+                    var world = new World { Adapter = true, Cache = mode };
+                    world.RideTo(World.EdgeInside);
+                    TestRunner.True(world.Zone.Contains(world.Rider), "Setup: the mounted rider was not checked inside the zone at P.");
+                    world.Dismount();
+                    TestRunner.True(world.RuntimeRider == null, "Setup: cleanup did not clear the relationship's rider reference.");
+                    world.WalkRiderTo(World.EdgeOutside);
+                    TestRunner.True(!world.Zone.Contains(world.Rider), "Setup: native did not update the walking rider's membership.");
+                    if (anotherBoundary) world.RemountOnAnotherRelationship(); else world.Remount();
+                    world.Frames(1);
+                    var inside = world.Zone.Contains(world.Rider);
+                    var destination = world.WadeThrough(true);
+                    if (mode == CacheMode.Production)
+                        TestRunner.True(inside && destination == "CandlemereTowerShortcut",
+                            "The remounted rider kept its stale membership (" + (anotherBoundary ? "another" : "the same") + " relationship).");
+                    else
+                        TestRunner.True(!inside && destination == "CandlemereTowerShortcutBack",
+                            "Setup (reviewed cache): the stale observation should have suppressed the first mounted check.");
+                }
+        }
+
+        private static void ObservationsBelongToTheirInstance()
+        {
+            var observations = new MountedScriptZoneObservations<Unit>();
+            var rider = new Unit { Name = "rider" };
+            var first = new MountedPair("rider-a", "horse-a");
+            TestRunner.True(observations.NeedsRecheck(rider, first, false, 1, 0, 1), "A rider never checked in this mounting was not checked.");
+            observations.Record(rider, first, 1, 0, 1);
+            TestRunner.True(!observations.NeedsRecheck(rider, first, false, 1, 0, 1), "A stationary rider was checked again within its mounting.");
+            TestRunner.True(observations.NeedsRecheck(rider, first, false, 1.5f, 0, 1), "A carried rider that moved was not checked.");
+            TestRunner.True(!observations.NeedsRecheck(rider, first, true, 2, 0, 1) && !observations.NeedsRecheck(rider, first, false, 2, 0, 1),
+                "A tick with native motion was not taken as native's own check.");
+            // The same rider, the same place, a later mounting (same or another relationship): not the instance asked about.
+            var later = new MountedPair("rider-a", "horse-a");
+            TestRunner.True(observations.NeedsRecheck(rider, later, false, 2, 0, 1), "A later mounting inherited an earlier observation.");
+            // Another world's unit with the same identity and place is another object.
+            TestRunner.True(observations.NeedsRecheck(new Unit { Name = "rider" }, first, false, 2, 0, 1), "Another world's unit inherited an observation.");
+            TestRunner.True(!observations.NeedsRecheck(null, first, false, 0, 0, 0) && !observations.NeedsRecheck(rider, null, false, 0, 0, 0),
+                "An absent rider or mounting was checked.");
         }
 
         // ---- the model ----
@@ -137,6 +195,57 @@ namespace KingmakerMountedCombat.Tests
         }
 
         private static float Sq(float dx, float dz) => dx * dx + dz * dz;
+
+        private enum CacheMode { Production, ReviewedRiderKeyed }
+
+        // The game runtime's reference handling, as the coordinator drives it: attachment seats the rider; cleanup puts it
+        // beside the mount and clears both references (a later tick reads a null rider from the relationship).
+        private sealed class PairRuntime : IMountedPairRuntime
+        {
+            public Unit Rider, Mount;
+            private readonly Unit rider, mount;
+            public PairRuntime(Unit rider, Unit mount) { this.rider = rider; this.mount = mount; }
+            public void AcquireMovementAuthority(MountedPair pair) { Rider = rider; Mount = mount; }
+            public void AttachPresentation(MountedPair pair) { }
+            public void RestorePresentation(MountedPair pair) { }
+            public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)
+            {
+                rider.X = mount.X + 1.0f; rider.Z = mount.Z;
+                Rider = null; Mount = null;
+            }
+        }
+
+        // The reviewed b30c24f8 adapter's cache, transcribed only to show the sequence the correction changes (not
+        // production): keyed by the rider alone; its one removal is reachable only while the relationship still names a rider.
+        private sealed class ReviewedRiderKeyedCache
+        {
+            private readonly Dictionary<Unit, float[]> checkedAt = new Dictionary<Unit, float[]>();
+            public void Tick(Unit relationshipRider, bool mounted, Zone zone, Action counted)
+            {
+                if (relationshipRider == null) return;
+                float[] last; var known = checkedAt.TryGetValue(relationshipRider, out last);
+                if (!mounted) { if (known) checkedAt.Remove(relationshipRider); return; }
+                var native = relationshipRider.HasMotionThisTick;
+                var dx = known ? relationshipRider.X - last[0] : 0f; var dz = known ? relationshipRider.Z - last[1] : 0f;
+                if (!MountedScriptZonePolicy.RiderNeedsZoneRecheck(true, native, known, dx, 0, dz))
+                {
+                    if (native) checkedAt[relationshipRider] = new[] { relationshipRider.X, relationshipRider.Z };
+                    return;
+                }
+                zone.CheckUnit(relationshipRider);
+                counted();
+                checkedAt[relationshipRider] = new[] { relationshipRider.X, relationshipRider.Z };
+            }
+        }
+
+        private static MountedPairCandidate PairCandidate() =>
+            new MountedPairCandidate("rider-a", "horse-a")
+            {
+                RiderIsDirectlyControllable = true, MountIsDirectlyControllable = true, RiderIsAliveAndConscious = true, MountIsAliveAndConscious = true,
+                ExactReciprocalCompanionRelationship = true, RiderSizeOrdinal = 4, MountSizeOrdinal = 5, RiderViewAndStockAgentAvailable = true,
+                MountViewAndStockAgentAvailable = true, RiderStockAgentEnabled = true, MountStockAgentEnabled = true, RiderAgentOverrideAvailable = true,
+                MountAgentOverrideAvailable = true, RiderIsExactlyMedium = true, SafeMovementMode = true
+            };
 
         private sealed class Zone
         {
@@ -157,26 +266,44 @@ namespace KingmakerMountedCombat.Tests
             // Authored world positions (x, z) from the installed scene: the interaction and the two enter points.
             public static readonly float[] FindWay = { 4.44f, 9.14f }, Shortcut = { 4.20f, 5.20f }, ShortcutBack = { 4.05f, 13.46f };
             public static readonly float[] NearSideApproach = { 4.4f, 11.5f }, FarSideApproach = { 4.3f, 4.0f };
+            // Review R1: a place just inside the zone's edge, and one just outside it.
+            public static readonly float[] EdgeInside = { 4.4f, 7.6f }, EdgeOutside = { 4.4f, 6.4f };
 
             public bool Adapter, MountFirst, InteractionDisabled;
+            public CacheMode Cache = CacheMode.Production;
             public readonly Unit Rider = new Unit { Name = "rider", X = 4f, Z = 25f, PrevX = 4f, PrevZ = 25f };
             public readonly Unit Mount = new Unit { Name = "mount", X = 4f, Z = 25f, PrevX = 4f, PrevZ = 25f };
             public readonly List<Unit> Others = new List<Unit>();
             public readonly Zone Zone = new Zone();
-            public bool Seated = true;
             public int AdapterChecks, AdapterChecksWhileMoving;
             private readonly Dictionary<Unit, int> adapterChecks = new Dictionary<Unit, int>();
-            private bool tracked;
-            private float trackedX, trackedZ;
+            private readonly MountedScriptZoneObservations<Unit> observations = new MountedScriptZoneObservations<Unit>();
+            private readonly ReviewedRiderKeyedCache reviewed = new ReviewedRiderKeyedCache();
+            private PairRuntime runtime;
+            private MountedRelationshipCoordinator coordinator;
             private bool mountMovingThisFrame;
 
             public World()
             {
                 // The pair starts outside the zone, beyond the near side, and rides into it.
                 TestRunner.True(!Zone.InShape(Rider.Z), "Setup: the pair should start outside the zone.");
+                Attach(newRelationship: true);
             }
 
-            public bool Tracked => tracked;
+            public bool Seated => coordinator.State == RelationshipState.Mounted;
+            public Unit RuntimeRider => runtime.Rider;
+
+            private void Attach(bool newRelationship)
+            {
+                if (newRelationship)
+                {
+                    runtime = new PairRuntime(Rider, Mount);
+                    coordinator = new MountedRelationshipCoordinator(runtime);
+                }
+                TestRunner.True(coordinator.Mount(PairCandidate()).Succeeded, "Setup: the pair did not mount.");
+                // The product's configuration writes the rider to the saddle (no native motion).
+                Rider.X = Mount.X; Rider.Z = Mount.Z;
+            }
             public bool FarSide(Unit unit) => unit.Z < 7f;
             public int CheckCountFor(Unit unit) { int n; return Zone.Checks.TryGetValue(unit, out n) ? n : 0; }
             public int AdapterChecksFor(Unit unit) { int n; return adapterChecks.TryGetValue(unit, out n) ? n : 0; }
@@ -238,25 +365,29 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var unit in AllUnits()) if (unit.HasMotionThisTick) Zone.CheckUnit(unit);
                 // The product's postfix: the production decision for the seated rider.
                 if (Adapter) AdapterTick();
-                else if (!Seated) tracked = false;
                 // LateUpdate: the seated rider is written to the saddle.
                 if (Seated) { Rider.X = Mount.X; Rider.Z = Mount.Z; }
             }
 
+            // MountedScriptZoneAdapter.Recheck for this relationship: the rider and mounting instance are read from the
+            // relationship (null after cleanup), the decision and the record are the production observations.
             private void AdapterTick()
             {
-                if (!Seated) { tracked = false; return; }
-                var native = Rider.HasMotionThisTick;
-                if (!MountedScriptZonePolicy.RiderNeedsZoneRecheck(true, native, tracked, Rider.X - trackedX, 0, Rider.Z - trackedZ))
-                {
-                    if (native) { tracked = true; trackedX = Rider.X; trackedZ = Rider.Z; }
-                    return;
-                }
-                Zone.CheckUnit(Rider);
+                var rider = runtime.Rider;
+                if (Cache == CacheMode.ReviewedRiderKeyed) { reviewed.Tick(rider, Seated, Zone, () => Count(rider)); return; }
+                var instance = coordinator.ActivePair;
+                if (rider == null || instance == null || !Seated) return;
+                if (!observations.NeedsRecheck(rider, instance, rider.HasMotionThisTick, rider.X, 0, rider.Z)) return;
+                Zone.CheckUnit(rider);
+                Count(rider);
+                observations.Record(rider, instance, rider.X, 0, rider.Z);
+            }
+
+            private void Count(Unit rider)
+            {
                 AdapterChecks++;
                 if (mountMovingThisFrame && MountFirst) AdapterChecksWhileMoving++;
-                int n; adapterChecks.TryGetValue(Rider, out n); adapterChecks[Rider] = n + 1;
-                tracked = true; trackedX = Rider.X; trackedZ = Rider.Z;
+                int n; adapterChecks.TryGetValue(rider, out n); adapterChecks[rider] = n + 1;
             }
 
             private IEnumerable<Unit> AllUnits() => new[] { Rider, Mount }.Concat(Others);
@@ -276,8 +407,18 @@ namespace KingmakerMountedCombat.Tests
                 return name;
             }
 
-            public void Dismount() { Seated = false; Rider.X = Mount.X + 1.0f; Rider.Z = Mount.Z; }
-            public void Remount() { Seated = true; }
+            // A normal successful dismount through the real coordinator: the runtime puts the rider beside the mount and
+            // clears the relationship's references.
+            public void Dismount()
+            {
+                var result = coordinator.Dismount(CleanupTrigger.Manual);
+                TestRunner.True(result.Succeeded && coordinator.State == RelationshipState.Unmounted && coordinator.ActivePair == null,
+                    "Setup: the dismount did not complete cleanly.");
+            }
+
+            public void Remount() => Attach(newRelationship: false);
+
+            public void RemountOnAnotherRelationship() => Attach(newRelationship: true);
         }
     }
 }

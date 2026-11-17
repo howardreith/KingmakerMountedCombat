@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace KingmakerMountedCombat.Domain
 {
     // Known issues C04 (Candlemere, "wade through"). Native ScriptZoneController.Tick (060092A0) rechecks a unit's
@@ -24,5 +26,48 @@ namespace KingmakerMountedCombat.Domain
         public static bool RiderNeedsZoneRecheck(bool pairMounted, bool riderHasNativeMotionThisTick, bool checkedBefore,
             float dx, float dy, float dz) =>
             pairMounted && !riderHasNativeMotionThisTick && (!checkedBefore || PositionChanged(dx, dy, dz));
+    }
+
+    // Known issues C04, review R1 of b30c24f8: where each seated rider's zone membership was last checked (by native, or
+    // by the pair's recheck), scoped to the mounting instance it was checked in: the coordinator's MountedPair, which
+    // every Attach creates anew. An observation of an earlier mounting (on the same relationship or another), or of a unit
+    // of another world (a different object), is never the instance asked about, so it is never reused; nothing has to
+    // remove it when cleanup clears the relationship's references. Within one mounting instance a stationary rider is
+    // not checked again.
+    public sealed class MountedScriptZoneObservations<TUnit> where TUnit : class
+    {
+        private sealed class Observation
+        {
+            internal MountedPair Instance;
+            internal float X, Y, Z;
+        }
+
+        private readonly ConditionalWeakTable<TUnit, Observation> observations = new ConditionalWeakTable<TUnit, Observation>();
+
+        // Whether the zone check must run for this mounted rider now. A tick with native motion is native's own check
+        // and is recorded as such.
+        public bool NeedsRecheck(TUnit rider, MountedPair instance, bool nativeMotionThisTick, float x, float y, float z)
+        {
+            if (rider == null || instance == null) return false;
+            Observation last;
+            var known = observations.TryGetValue(rider, out last) && ReferenceEquals(last.Instance, instance);
+            var needs = MountedScriptZonePolicy.RiderNeedsZoneRecheck(true, nativeMotionThisTick, known,
+                known ? x - last.X : 0f, known ? y - last.Y : 0f, known ? z - last.Z : 0f);
+            if (!needs && nativeMotionThisTick) Record(rider, instance, x, y, z);
+            return needs;
+        }
+
+        public void Record(TUnit rider, MountedPair instance, float x, float y, float z)
+        {
+            if (rider == null || instance == null) return;
+            Observation last;
+            if (!observations.TryGetValue(rider, out last))
+            {
+                last = new Observation();
+                observations.Add(rider, last);
+            }
+            last.Instance = instance;
+            last.X = x; last.Y = y; last.Z = z;
+        }
     }
 }
