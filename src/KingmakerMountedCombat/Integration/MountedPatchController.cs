@@ -197,6 +197,10 @@ namespace KingmakerMountedCombat.Integration
                 // route; ITeleportHandler.HandlePartyTeleport (MountedLifecycleSubscriber) is that route's placement.
                 PatchExact(typeof(Kingmaker.Game), "Teleport", 0x06000CCB, new[] { typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint) },
                     nameof(PatchMethods.LocalTeleportDispatchPrefix));
+                // Known issues C04: native ScriptZoneController.Tick (internal) rechecks only units with native motion this
+                // tick; a seated rider's carried motion is checked after it.
+                PatchExact(typeof(Kingmaker.Game).Assembly.GetType("Kingmaker.Controllers.MapObjects.ScriptZoneController", true), "Tick",
+                    0x060092A0, Type.EmptyTypes, null, nameof(PatchMethods.ScriptZoneTickPostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameMainMenuLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
@@ -684,6 +688,27 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
                 (PatchBridge.CombatFor(__instance?.Executor)?.AllowChargeExecution(__instance) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance));
+
+            // Known issues C04: a seated rider whose carried position moved without native motion is checked against the
+            // active script zones with the native ScriptZone.CheckUnit. A fault leaves native membership as it was.
+            internal static void ScriptZoneTickPostfix()
+            {
+                try
+                {
+                    List<Kingmaker.View.MapObjects.SriptZones.ScriptZone> zones = null;
+                    if (PatchBridge.World == null) MountedScriptZoneAdapter.Recheck(PatchBridge.Service, ref zones, PatchBridge.Logger);
+                    else
+                    {
+                        var errors = PatchBridge.World.Visit(pair => MountedScriptZoneAdapter.Recheck(pair.Relationship, ref zones, PatchBridge.Logger));
+                        if (errors.Length != 0) throw new AggregateException(errors);
+                    }
+                }
+                catch (Exception error) { ReportScriptZoneFault("Mounted script zones: a seated rider's membership was left native", error); }
+            }
+
+            private static readonly MountedBoundedFaultReport scriptZoneFault = new MountedBoundedFaultReport();
+            private static void ReportScriptZoneFault(string message, Exception error) =>
+                scriptZoneFault.Report((text, fault) => PatchBridge.Logger?.Exception(text, fault), message, error);
 
             internal static void NativeMovementUpdatePrefix()
             {
