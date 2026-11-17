@@ -1,3 +1,21 @@
+# Known issues remediation, Sprint 4 — review of 263ac3ea checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `263ac3ea`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R4–R6 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R4, R5 and R6 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Rules the review established:**
+  - **Combat-hold notice:**
+    - Never spend it before a receiver was reached. A returning `EventBus.RaiseEvent` proves nothing.
+    - Count receivers inside the action native invokes per subscriber.
+    - Never attempt it during a load.
+  - **Scene placements:** classify moves and turns of both units (`ClassifyOperationWrite`, six inputs, wrapped angle
+    comparison).
+    - A rider-only turn only reorients a pending placement.
+    - Keep attribution limited to the three patched operations.
+  - **Fault reports:** each hook family keeps its own `MountedBoundedFaultReport`.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 4 — review repair checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `b30c24f8`. Read CURRENT.md,

@@ -1,3 +1,32 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 263ac3ea: R4, R5, R6 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `263ac3ea`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R4–R6
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `263ac3ea`:** C04's mounting-instance observations, C02's different-endpoint supersession and
+  whole-pair clear, C03's deduplication and native warning interface, and C01's unsupported disposition.
+- **R4, C03 (`e62cad39`):** the notice was spent before any receiver existed.
+  - Native `EventBus.RaiseEvent` returns nothing and invokes the action once per subscribed receiver.
+  - The warning UI subscribes only on `OnAreaDidLoad`, in the last loading step.
+  - The notice is now never attempted during a load, and spent only once a receiver was reached.
+  - `DeliveredCount` counts receivers that took it.
+- **R5, C02 (`e62cad39`):** the installed `TranslocateUnit` (copy rotation) and `CommandTeleportParty` write
+  `Orientation` without any position comparison.
+  - The capture and classification now see turns, and a same-endpoint placement's final orientation stands.
+  - A rider-only turn alone starts nothing.
+- **R6 (`e62cad39`):** C04 and C02 hooks have separate bounded fault reports.
+- **Checks:**
+  - Fast PASS 10/0 under budget `known-issues-sprint4`: components 1362/0, Validate-Source 151/0, scene placement
+    contracts 14/0 (reviewed build 8/6), Candlemere 9/0, and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Three targeted mutations, each caught.
+  - Product-build commit `e62cad39`, DLL SHA-256 `c1bec351…1dfa4728`, MVID `9b5abe93-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08 keep their dispositions; accepted Sprint 3 behaviour and C01's guards are
+  untouched.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW REPAIR OF b30c24f8: R1, R2, R3 CORRECTED OFFLINE; C01 STILL UNSUPPORTED; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),

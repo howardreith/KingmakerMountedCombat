@@ -3,7 +3,160 @@
 Sprint 4 of the Mounted Combat Known Issues Remediation Epic, in the owner's order C04, C01, C02, C03. Offline work
 only. Nothing was launched, staged or installed, and nothing in this record is native gameplay evidence.
 
-## Review repair of `b30c24f8` (R1–R3, C01 wording), 2026-11-17 — read this first
+## Review of `263ac3ea` (R4–R6), 2026-11-17 — read this first
+
+The owner accepted, at `263ac3ea`:
+- C04's mounting-instance observations;
+- C02's supersession for different endpoints and its position-changing whole-pair clear;
+- C03's custody and encounter deduplication and its use of the native warning interface;
+- C01's unsupported disposition and its guards.
+
+This review raised two P2 findings and one P3 diagnostic finding.
+
+| Item | Value |
+|---|---|
+| Starting head (reviewed) | `263ac3ea7b923c1e4c269c8570d6e1ada8524ffc`. Its product DLL is the `b80534f9` build (SHA-256 `70bbe6f7…a15099`, MVID `fc4bb6b3-…`), frozen again as `artifacts/known-issues-sprint4/head-263ac3ea/` |
+| Parent | `codex/kmc-known-issues-sprint3` at `e5b92474` (PR #48 stays stacked on it) |
+| Repair commit | `e62cad39` (R4, R5, R6: product, tests and contract script; the product-build commit), then the records commit carrying this section, which is the branch head |
+| Product DLL (clean Release build of `e62cad39`) | SHA-256 `c1bec3516b1c1dfd6c0e5b72406ef805e3f54cbcdd6936321de87cf31dfa4728`, MVID `9b5abe93-648e-46c6-941a-18cae1c96568`; frozen copy `artifacts/known-issues-sprint4/head-e62cad39/` |
+
+### R4 — the notice was spent before any receiver existed
+
+**Native contract (installed Kingmaker 2.1.7b):**
+
+| Fact | Kind |
+|---|---|
+| `EventBus.RaiseEvent<T>(Action<T>)` returns `void`. It passes straight to `GlobalSubscribers.RaiseEvent`. | IL read |
+| `SubscriptionManager.RaiseEvent`: with no subscriber list for `T`, it returns without invoking anything. Otherwise it invokes the action once per subscriber. It catches each subscriber's exception and logs it through `UberDebug`, then continues. Nothing reports how many ran. | IL read |
+| With nobody subscribed, the compiled notifier's dispatch reaches nobody. With a subscribed sink (a class implementing the installed interface), the sink receives the text once per dispatch. | Executed (installed native `EventBus`) |
+| Offline, a throwing subscriber's exception escaped native's catch, because `UberDebug` logging cannot run outside the game. | Executed |
+| The installed warning receivers are `Kingmaker.UI.WarningsText`, `Kingmaker.UI.Log.BattleLogManager` and `CombatLogVM` (console UI). | Reflection over the installed assembly |
+| `WarningsText` subscribes in `Initialize` and unsubscribes in `Dispose`. `StaticCanvas.Initialize` and `Dispose` reach their child UI elements. They are called from `StaticCanvas.OnAreaDidLoad` and `OnAreaBeginUnloading`. | IL read |
+| `OnAreaDidLoad` is raised by `Game.OnAreaLoaded`, the callback of the last `LoadingProcess` step (`InitSpawnersCoroutine`). | IL read |
+| The warning receivers are therefore absent from the start of unloading until area-load, and can be present while the load is still in progress. | Inferred from the IL above; not observed in play |
+| That `WarningsText` is a child of the `StaticCanvas` children list. | Inferred; the UI scene data was not read |
+
+- **Reproduced:** with the reviewed `263ac3ea` build, run through the compiled notifier and the installed native
+  `EventBus`:
+  1. Held custody A was evaluated with no sink subscribed, and nobody received anything.
+  2. A sink subscribed.
+  3. The same still-held custody was evaluated again and received nothing, because the notice had been consumed.
+  4. During a load, with a receiver present, the reviewed notifier delivered at once. It has no load gate.
+- **Repair:**
+  - `CombatHoldNotice` now separates owing from spending:
+    - `IsOwed` reserves nothing;
+    - `ShouldAttempt` is false while a load is in progress;
+    - `Spend` is called by the notifier.
+  - `MountedCombatHoldNotifier` counts receivers inside the action that native invokes per subscriber. The notice is
+    spent only once at least one receiver was reached, or if the dispatch itself throws (bounded, one attempt).
+  - `DeliveredCount` now counts receivers whose `HandleWarning` returned. `FailedCount` counts spent attempts no
+    receiver took. `NoReceiverCount` counts attempts that reached nobody and spent nothing.
+  - A dispatch that reaches no receiver is retried at the next evaluation. This happens only while scene-staging
+    custody is held in combat, and costs one dictionary lookup per evaluation.
+  - The restore loop passes `LoadingProcess.Instance.IsLoadingInProcess`.
+  - The notifier owns no retained, combat, restoration, action or cleanup state. Its logging failures are contained.
+- **After (executed, corrected build):**
+  - No receiver: nothing is spent. After the sink subscribes, the same custody is delivered once.
+  - During a load, with a receiver present: nothing, while the compiled `Decide` holds scene-staging custody in combat
+    during the load. After the load: once.
+  - Repeated evaluations stay suppressed. A later encounter is delivered again, and so is a new custody held directly
+    in combat.
+  - A refusing display gets one attempt (Failed) and nothing escapes the notifier.
+- **Component tests (production `CombatHoldNotice`, receiver represented):** owed until received; held during a load,
+  then once.
+- **Not shown:** the warning on screen. `WarningsText` rendering and the battle-log entry are native UI and were not
+  run.
+
+### R5 — orientation-only scene placements
+
+**Native contract (installed IL, pinned):**
+
+| Operation | Writes `Orientation`? | Condition | Same position possible? | Units |
+|---|---|---|---|---|
+| `TranslocateUnit.RunAction` (06008FA2) | Yes, once, after `Position` | Only when its `m_CopyRotation` field is set, on its locator branch (not its position-evaluator branch); no position comparison | Yes: it writes the locator's position, which may equal the unit's current one | The one unit its `Unit` evaluator names: rider or mount |
+| `CommandTeleportParty.OnRun` (06009E90) | Yes, once per listed character, after `Position` | Unconditional; the value is the locator's `transform.rotation.y` (a quaternion component, as authored natively) | Yes | Each character of its list: rider, mount or both |
+| `CommandMoveUnit.IsFinished` (06009E4E) | No | — | — | — |
+| `UnitEntityData.set_Orientation` | Stores the value as given, and sets `DesiredOrientation` | — | — | — |
+
+- **Reproduced:** with the reviewed build's compiled classification (positions only, as its attribution composes it):
+  placement A wrote P at 30°, then placement B wrote the same P at 120°. B was classified `None`, and P/30 stayed
+  pending.
+- **Repair:**
+  - The capture records both units' orientations.
+  - `MountedSceneContinuityPolicy.OrientationWritten` compares by the shortest wrapped difference, beyond 0.001°, so 0
+    and 360, and -90 and 270, are the same facing.
+  - `ClassifyOperationWrite` sees moves and turns:
+    - moving or turning both units is `WholePair`, which clears a pending rider-only placement;
+    - moving the rider is `RiderPlacement`;
+    - only turning the rider, in a scene, is `RiderTurn`.
+  - `MountedScenePlacementHold.Reorient` takes a `RiderTurn` while a placement is held. On its own, `RiderTurn` starts
+    nothing: a seated rider's facing follows its saddle, and no handoff is made for a turn.
+  - The scope is unchanged: only the three patched operations, no global orientation observer, and the 3 m
+    unattributed rule untouched.
+- **After:** P/120 is pending, and the handoff applies it once. This was executed through the compiled decisions,
+  pinned to the attribution by IL, and in the component scene with the production hold.
+- **Component cases (production hold and classification):**
+  - same endpoint, final orientation (the reviewed position-only attribution, transcribed, keeps 30);
+  - a rotation-only whole-pair operation clears the rider-only hold;
+  - a mount-only turn keeps it;
+  - a rider-only turn alone starts nothing;
+  - nested operations take the outermost final turn;
+  - a mounting replaced inside the operation is not attributed;
+  - combat refuses once;
+  - nothing outside a scene;
+  - ordinary turning between operations changes nothing.
+- **Correction:** R2's claim that the "final endpoint and orientation" stand held only when the endpoint changed. The
+  orientation alone was not observed until R5.
+
+### R6 — one fault latch for two hooks
+
+- **Reproduced:** with the reviewed build, real operational failures in the compiled hooks: a stateless relationship
+  service makes each hook's own work fail inside production code. The C04 fault was logged once. The C02 fault was
+  never logged, because the shared latch was already spent.
+- **Repair:** `MountedPatchController` has `scriptZoneFault` (C04) and `scenePlacementFault` (C02 capture and
+  attribution), each its own `MountedBoundedFaultReport`.
+- **After (executed):**
+  - With a recording logger: one script-zone line and one scene-placement line across four rounds of failures in both.
+  - With a throwing logger: two attempts, and nothing escapes.
+  - Every hook is `void`, so native always runs.
+- **Correction:** any earlier statement that C02 and C04 faults were reported independently was not true before
+  `e62cad39`.
+
+### Checks of this review
+
+| Check | Result |
+|---|---|
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint4`, focused: both Sprint 4 contract scripts, persistence, post-load view readiness, continuous drive, world ownership, physical mover pace | TIER FAST PASS=10 FAIL=0, 0.97 min; budget spent 2.1 of 90 minutes over 3 entries |
+| Components | 1362/0 (1356 at `263ac3ea`; +2 R4, +4 R5) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 |
+| Clean Release build of `e62cad39` (outputs removed first) | PASS; identity above |
+| `Test-ScenePlacementAttributionContracts.ps1` | 14/0. Reviewed build 8/6: R4 reproduction, R4 wiring, R5 wiring, R5 same endpoint, R6, and the C02 hook pin (now requiring C02's own report). The native R5 pin passes on both |
+| `Test-CandlemereCrossingContracts.ps1` | 9/0 on both builds (C04 code unchanged) |
+| Targeted mutations (each restored), log `21-review-mutations-r4-r6.log` | M7 (a dispatch nobody received spends the notice): R4 check fails. M8 (a same-position turn not observed): 2 component failures and the R5 check. M9 (one shared fault budget): R6 check fails |
+
+- Logs are in `artifacts/known-issues-sprint4/`, numbered 20–26.
+- Not run: Full, Candidate, historical campaigns, release qualification, unrelated stale harnesses.
+
+### Evidence kinds for this review
+
+| Kind | What |
+|---|---|
+| Production code executed offline | `CombatHoldNotice`, orientation comparison and classification, `MountedScenePlacementHold`, the coordinator and handoff sequence (component tests). The compiled notifier, compiled decisions and compiled hooks (contract script) |
+| Installed native code executed | `EventBus.Subscribe`, `Unsubscribe` and `RaiseEvent` with an emitted receiver |
+| Installed native IL inspected | The `EventBus` and `SubscriptionManager` paths, the warning receivers' subscription points, the three operations' orientation writes, the Orientation setter |
+| Engine behaviour represented | The receiver in component tests; position and orientation writes, the capture, the synchronizer and the poll in the component scene |
+| Modelled orchestration | The restore loop's evaluation sequence |
+| Native gameplay | None; not run |
+
+### Remaining native evidence limits
+
+- The warning on screen and in the battle log after a loaded combat.
+- A copy-rotation `TranslocateUnit` at a seated rider's held endpoint.
+- A `CommandTeleportParty` that turns a mounted pair in place.
+- Faults in either hook in play.
+
+## Review repair of `b30c24f8` (R1–R3, C01 wording), 2026-11-17
 
 The owner's review of the first Sprint 4 checkpoint (`b30c24f8`) left three findings open and narrowed the C01
 statement. Each finding was reproduced in source and under matched conditions before its repair. Sections below
@@ -81,6 +234,9 @@ this one describe the first pass and are corrected where this review changed a c
 - **Text:** "&lt;pairs&gt; stay dismounted for this fight, because they were still part of a scene when it began. After
   the fight they remount automatically if they still can." Identities and the mechanism go to the diagnostic log.
 - **Failure:** delivery is contained. The notifier owns no retained or combat state, never throws, and does not repeat.
+- **Corrected by review R4:** this repair spent the notice before dispatch and counted every dispatch as delivered, so
+  a dispatch nobody received (a loaded combat before the UI subscribes) consumed it. An EventBus call alone does not
+  prove delivery. See the R4 section.
 - **Evidence (executed against installed native code):** `Test-ScenePlacementAttributionContracts.ps1` runs the
   compiled notifier through the installed native `EventBus`. It delivers to a subscribed sink, a class implementing
   the installed interface that the probe emits. Results:
@@ -221,7 +377,8 @@ The same words are used throughout.
 - `MountedScriptZoneAdapter.Recheck` (Integration) runs in a postfix of `ScriptZoneController.Tick` (060092A0). It
   calls native `ScriptZone.CheckUnit` on native's own active zones. It writes no position, runs no action and
   replays nothing. Native's checks, failures, costs and teleport are untouched.
-- Faults are contained by the bounded fault report.
+- Faults are contained by the bounded fault report. Until review R6 (`e62cad39`) that report was shared with C02's
+  hooks, so a C04 fault silenced C02's first diagnostic and the reverse. Each now has its own.
 - Corrected by review R1: the first pass claimed tracking was dropped when the pair was not mounted. It was not after
   a normal dismount, whose cleanup clears the references the adapter read first. Observations now belong to the
   mounting instance and are never reused by a later mounting or another world's unit (see the review section).
