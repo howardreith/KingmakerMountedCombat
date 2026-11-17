@@ -145,6 +145,7 @@
     <Compile Include="MountedBoundedFaultReportTests.cs" />
     <Compile Include="MountedContinuousDriveTests.cs" />
     <Compile Include="CandlemereCrossingTests.cs" />
+    <Compile Include="ScenePlacementAttributionTests.cs" />
     <Compile Include="RatnookDoorRepairTests.cs" />
     <Compile Include="PostLoadViewReadinessTests.cs" />
     <Compile Include="DeferredArrivalSaveLoadTests.cs" />

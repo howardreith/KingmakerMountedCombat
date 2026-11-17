@@ -113,6 +113,28 @@ namespace KingmakerMountedCombat.Domain
                 horizontalDeviationMetres > ScenePlacementMinimumMetres;
         }
 
+        // Known issues C02. An unattributed rider position write (no native placement operation is known to have made it)
+        // is taken for the scene's placement only when it is far from both the saddle and the synchronizer's own last write,
+        // during a scene (the rule above). Nearer writes cannot be told from synchronization lag, so the rider returns to
+        // the saddle. This is the synchronizer's whole decision for such a write.
+        public static bool HoldsUnattributedPlacement(bool sceneActive, bool hasLastWrite, float deviationFromSaddleMetres,
+            float moveFromLastWriteMetres) =>
+            hasLastWrite && deviationFromSaddleMetres > ScenePlacementMinimumMetres && moveFromLastWriteMetres > ScenePlacementMinimumMetres &&
+            IsScenePlacement(sceneActive, deviationFromSaddleMetres);
+
+        // Unity's Vector3 equality, as native compares positions: closer than this squared distance is the same position.
+        public const float SamePositionSquaredDistance = 9.99999944E-11f;
+
+        public static bool PositionWritten(float dx, float dy, float dz) => dx * dx + dy * dy + dz * dz >= SamePositionSquaredDistance;
+
+        // Known issues C02. A native scene placement operation (TranslocateUnit, a timed-out CommandMoveUnit,
+        // CommandTeleportParty) that wrote this pair's rider and not its mount is the scene's own placement of the rider,
+        // whatever its distance from the saddle: the synchronizer holds it for the pair's owner exactly as it holds a far
+        // placement. A mount the operation moved too keeps the pair together (the rider follows the saddle, as before), and
+        // outside a scene nothing changes.
+        public static bool AttributesRiderPlacement(bool pairMounted, bool sceneActive, bool riderWritten, bool mountWritten) =>
+            pairMounted && sceneActive && riderWritten && !mountWritten;
+
         // Retained custody has one kind and one rule set. Scene staging never joins camp or world-map custody (it would
         // inherit their separation, no regroup and cancellation in combat); the pair then stays attached.
         public static string HandOffCustodyRefusal(MountedRetainedIntentKind? pendingCustodyKind)

@@ -457,6 +457,22 @@ namespace KingmakerMountedCombat.Integration
 
         internal long ScenePlacementObservedCount { get; private set; }
 
+        internal long ScenePlacementAttributedCount { get; private set; }
+
+        // Known issues C02: a native scene placement operation wrote this rider's position (MountedScenePlacementAttribution).
+        // The placement is held for the pair's owner whatever its distance from the saddle, exactly as a far placement is.
+        internal bool AttributeScenePlacement(Vector3 position, float orientation)
+        {
+            if (!configured || pendingScenePlacement.HasValue) return false;
+            pendingScenePlacement = position;
+            pendingSceneOrientation = orientation;
+            pendingScenePlacementFrame = Time.frameCount;
+            correctNextWithoutSceneDetection = false;
+            ScenePlacementObservedCount++;
+            ScenePlacementAttributedCount++;
+            return true;
+        }
+
         // The owner refused the handoff (combat, an owned boundary): the next sample corrects the rider back onto the saddle.
         internal void ReleaseScenePlacement()
         {
@@ -481,11 +497,10 @@ namespace KingmakerMountedCombat.Integration
             if (deviation <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres || !lastWrittenEntityPosition.HasValue) return false;
             var written = lastWrittenEntityPosition.Value;
             var externalMove = new Vector2(entityPosition.x - written.x, entityPosition.z - written.z).magnitude;
-            if (externalMove <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres) return false;
             var game = Kingmaker.Game.Instance;
             var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
                 game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog), game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene));
-            if (!MountedSceneContinuityPolicy.IsScenePlacement(sceneActive, deviation)) return false;
+            if (!MountedSceneContinuityPolicy.HoldsUnattributedPlacement(sceneActive, true, deviation, externalMove)) return false;
             pendingScenePlacement = entityPosition;
             pendingSceneOrientation = Unit.EntityData.Orientation;
             pendingScenePlacementFrame = Time.frameCount;
