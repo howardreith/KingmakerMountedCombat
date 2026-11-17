@@ -147,11 +147,21 @@ namespace KingmakerMountedCombat.Domain
         // that only turned the rider is RiderTurn (it reorients a pending placement and starts nothing on its own).
         public static MountedScenePlacementOperation ClassifyOperationWrite(bool pairMounted, bool sceneActive, bool riderMoved,
             bool riderTurned, bool mountMoved, bool mountTurned) =>
-            !pairMounted || !(riderMoved || riderTurned) ? MountedScenePlacementOperation.None
-            : mountMoved || mountTurned ? MountedScenePlacementOperation.WholePair
-            : !sceneActive ? MountedScenePlacementOperation.None
-            : riderMoved ? MountedScenePlacementOperation.RiderPlacement
-            : MountedScenePlacementOperation.RiderTurn;
+            ClassifyOperationWrite(pairMounted, sceneActive, riderMoved, riderTurned, mountMoved, mountTurned, false, false);
+
+        // Review R8 of e1c0c7ad: an operation proven to have written an actor (CommandTeleportParty gives every unit of its
+        // target set Position and Orientation, unconditionally) wrote it even when the value it wrote was already there.
+        // Both actors written, by change or by proven target: a whole-pair placement (nothing is moved by it here; a
+        // pending rider-only target is obsolete). Otherwise only an actual change of the rider is a rider placement or turn.
+        public static MountedScenePlacementOperation ClassifyOperationWrite(bool pairMounted, bool sceneActive, bool riderMoved,
+            bool riderTurned, bool mountMoved, bool mountTurned, bool riderTargeted, bool mountTargeted)
+        {
+            if (!pairMounted) return MountedScenePlacementOperation.None;
+            var riderChanged = riderMoved || riderTurned;
+            if ((riderChanged || riderTargeted) && (mountMoved || mountTurned || mountTargeted)) return MountedScenePlacementOperation.WholePair;
+            if (!riderChanged || !sceneActive) return MountedScenePlacementOperation.None;
+            return riderMoved ? MountedScenePlacementOperation.RiderPlacement : MountedScenePlacementOperation.RiderTurn;
+        }
 
         // UnitEntityData.Orientation is a yaw in degrees (Euler y; native also writes other values and stores them as
         // given). Two orientations are the same when their shortest wrapped difference is within this tolerance, so 0 and

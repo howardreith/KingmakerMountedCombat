@@ -456,19 +456,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal long ScenePlacementSupersededCount => sceneHold.SupersededCount;
 
-        // Known issues C02: a native scene placement operation wrote this rider's position (MountedScenePlacementAttribution).
-        // The placement is held for the pair's owner whatever its distance from the saddle, exactly as a far placement is;
-        // a later one supersedes it (review R2 of b30c24f8).
-        internal MountedScenePlacementChange AttributeScenePlacement(Vector3 position, float orientation) =>
-            configured ? sceneHold.Attribute(position.x, position.y, position.z, orientation, Time.frameCount) : MountedScenePlacementChange.Unchanged;
-
-        // Review R5 of 263ac3ea: a native operation turned the rider in place while a placement is held.
-        internal MountedScenePlacementChange ReorientScenePlacement(float orientation) =>
-            configured ? sceneHold.Reorient(orientation, Time.frameCount) : MountedScenePlacementChange.Unchanged;
-
-        // Review R2: a native operation placed the whole pair; an earlier rider-only target is obsolete.
-        internal MountedScenePlacementChange SupersedeScenePlacementWithWholePair() =>
-            configured ? sceneHold.ClearForWholePair() : MountedScenePlacementChange.Unchanged;
+        // Known issues C02: the hold a native scene placement operation's attribution acts on
+        // (MountedScenePlacementAttributionCore: a rider placement or turn is held, a later one supersedes it, a whole-pair
+        // placement clears it). Only while this synchronizer is configured for its mounting.
+        internal MountedScenePlacementHold ConfiguredSceneHold => configured ? sceneHold : null;
 
         // The owner refused the handoff (combat, an owned boundary): the next sample corrects the rider back onto the saddle.
         internal void ReleaseScenePlacement() => sceneHold.Release();

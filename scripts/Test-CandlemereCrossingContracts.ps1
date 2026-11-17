@@ -145,6 +145,19 @@ public static class KmcCandlemereProbe
         for(var i=0;i<body.Count;i++) if(body[i].Call!=null && body[i].Call.Name==name && (type==null || body[i].Call.DeclaringType.Name==type)) found.Add(i);
         return found;
     }
+    // Where the adapter checks the rider: native ScriptZone.CheckUnit directly, or (since review R9 of e1c0c7ad) the contained
+    // loop MountedScriptZoneChecks.CheckEach whose check delegate, a closure of the adapter, calls native ScriptZone.CheckUnit.
+    private static int CheckSite(Type adapter, List<Ins> recheck)
+    {
+        var direct=Find(recheck,"ScriptZone","CheckUnit");
+        if(direct.Count==1) return direct[0];
+        var loop=Find(recheck,"MountedScriptZoneChecks","CheckEach");
+        if(loop.Count!=1) return -1;
+        foreach(var nested in adapter.GetNestedTypes(BindingFlags.NonPublic|BindingFlags.Public))
+            foreach(var m in nested.GetMethods(BindingFlags.Instance|BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.DeclaredOnly))
+                if(m.GetMethodBody()!=null && Find(Body(m),"ScriptZone","CheckUnit").Count==1) return loop[0];
+        return -1;
+    }
     private static int One(List<Ins> body, string type, string name)
     {
         var f=Find(body,type,name); if(f.Count!=1) throw new InvalidOperationException(name+" is referenced "+f.Count+" times, expected once"); return f[0];
@@ -318,10 +331,38 @@ public static class KmcCandlemereProbe
                     if(m.Name.Contains("NativeMovementUpdatePrefix") && m.GetMethodBody()!=null && Find(Body(m),"GameMountedRelationshipService","BeginNativeMovementUpdate").Count==1) visits++;
                 var ask=One(recheck,"MountedScriptZoneObservations`1","NeedsRecheck");
                 return One(recheck,"GameMountedRelationshipService","get_MountingInstance")<ask &&
-                    One(recheck,"UnitEntityData","get_HasMotionThisTick")<ask && ask<One(recheck,"ScriptZone","CheckUnit") &&
-                    One(recheck,"ScriptZone","CheckUnit")<One(recheck,"MountedScriptZoneObservations`1","Record") &&
+                    One(recheck,"UnitEntityData","get_HasMotionThisTick")<ask && ask<CheckSite(adapter,recheck) &&
+                    CheckSite(adapter,recheck)<One(recheck,"MountedScriptZoneObservations`1","Record") &&
                     One(zones,"ScriptZone","get_IsActive")>=0 && One(zones,"EntityDataBase","get_IsInGame")>=0 &&
                     (Find(prefix,"GameMountedRelationshipService","BeginNativeMovementUpdate").Count+visits)>=1;
+            });
+        Check("PRODUCT-IL (review R9 of e1c0c7ad) the adapter checks the rider's zones through the contained loop and does not log from its own body",
+            ()=>{
+                var adapter=product.GetType("KingmakerMountedCombat.Integration.MountedScriptZoneAdapter",true);
+                var recheck=Body(adapter.GetMethod("Recheck",Any));
+                return Find(recheck,"MountedScriptZoneChecks","CheckEach").Count==1 && Find(recheck,"IModLogger","Info").Count==0 &&
+                    Find(recheck,"ScriptZone","CheckUnit").Count==0;
+            });
+        Check("PRODUCT-EXECUTED (review R9 of e1c0c7ad) the compiled zone loop: one rider, two zones it is now inside, a success logger that throws on the first change: the second zone is still checked and both memberships are right; a healthy logger receives both; a failing check still reaches the hook's fault report",
+            ()=>{
+                var checks=product.GetType("KingmakerMountedCombat.Domain.MountedScriptZoneChecks",true);
+                var each=checks.GetMethod("CheckEach").MakeGenericMethod(typeof(object));
+                var first=new object(); var second=new object();
+                var inside=new HashSet<object>();
+                var zones=new List<object>{first,second};
+                Func<object,bool> contains=z=>inside.Contains(z);
+                Action<object> check=z=>inside.Add(z);
+                var reports=0;
+                Action<object,bool> throwing=(z,now)=>{ reports++; throw new InvalidOperationException("the logger failed"); };
+                var escaped=false; var changes=0;
+                try { changes=(int)each.Invoke(null,new object[]{zones,contains,check,throwing}); } catch { escaped=true; }
+                var lines=new List<string>(); var healthyInside=new HashSet<object>();
+                each.Invoke(null,new object[]{new List<object>{new object(),new object()},(Func<object,bool>)(z=>healthyInside.Contains(z)),(Action<object>)(z=>healthyInside.Add(z)),(Action<object,bool>)((z,now)=>lines.Add("inside="+now))});
+                var propagated=false;
+                try { each.Invoke(null,new object[]{zones,(Func<object,bool>)(z=>false),(Action<object>)(z=>{ throw new InvalidOperationException("check failed"); }),null}); }
+                catch(TargetInvocationException error){ propagated=error.InnerException is InvalidOperationException; }
+                Console.WriteLine("INFO R9: zones checked with a throwing logger="+inside.Count+"; changes="+changes+"; logger calls="+reports+"; escaped="+escaped+"; healthy lines="+lines.Count+"; failing check propagated="+propagated);
+                return !escaped && changes==2 && reports==2 && inside.Contains(first) && inside.Contains(second) && lines.Count==2 && propagated;
             });
         Check("PRODUCT-EXECUTED (review R1) the compiled observations belong to their mounting instance: a stationary rider is not checked again within one, a later instance at the same place is checked, another unit object is checked",
             ()=>{

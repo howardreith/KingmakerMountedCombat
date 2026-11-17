@@ -204,13 +204,13 @@ namespace KingmakerMountedCombat.Integration
                 // Known issues C02: the native scene placement operations, around which a seated rider's own placement is
                 // attributed (they write Position directly).
                 PatchExact(typeof(Kingmaker.Designers.EventConditionActionSystem.Actions.TranslocateUnit), "RunAction", 0x06008FA2, Type.EmptyTypes,
-                    nameof(PatchMethods.ScenePlacementCapturePrefix), nameof(PatchMethods.TranslocateUnitPostfix));
+                    nameof(PatchMethods.TranslocateUnitCapturePrefix), nameof(PatchMethods.TranslocateUnitPostfix));
                 PatchExact(typeof(Kingmaker.AreaLogic.Cutscenes.Commands.CommandMoveUnit), "IsFinished", 0x06009E4E,
                     new[] { typeof(Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData) },
-                    nameof(PatchMethods.ScenePlacementCapturePrefix), nameof(PatchMethods.CommandMoveUnitPostfix));
+                    nameof(PatchMethods.CommandMoveUnitCapturePrefix), nameof(PatchMethods.CommandMoveUnitPostfix));
                 PatchExact(typeof(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty), "OnRun", 0x06009E90,
                     new[] { typeof(Kingmaker.AreaLogic.Cutscenes.CutscenePlayerData) },
-                    nameof(PatchMethods.ScenePlacementCapturePrefix), nameof(PatchMethods.CommandTeleportPartyPostfix));
+                    nameof(PatchMethods.CommandTeleportPartyCapturePrefix), nameof(PatchMethods.CommandTeleportPartyPostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameMainMenuLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
@@ -718,26 +718,37 @@ namespace KingmakerMountedCombat.Integration
 
             // Known issues C02: around each native scene placement operation, every mounted pair's positions are captured and
             // a rider the operation alone wrote is attributed to the scene. A fault leaves the placement unattributed.
-            internal static void ScenePlacementCapturePrefix(out object __state)
+            // Review R8 of e1c0c7ad: each operation's prefix names it exactly; CommandTeleportParty's also reads its proven
+            // target set as native will (single-unit operations carry none).
+            internal static void TranslocateUnitCapturePrefix(out object __state) =>
+                __state = CaptureScenePlacement(MountedScenePlacementSource.TranslocateUnit, null);
+
+            internal static void CommandMoveUnitCapturePrefix(out object __state) =>
+                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandMoveUnitTimedOut, null);
+
+            internal static void CommandTeleportPartyCapturePrefix(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty __instance, out object __state) =>
+                __state = CaptureScenePlacement(MountedScenePlacementSource.CommandTeleportParty, __instance);
+
+            internal static object CaptureScenePlacement(MountedScenePlacementSource source, Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty party)
             {
-                __state = null;
                 try
                 {
-                    __state = MountedScenePlacementAttribution.Capture(PatchBridge.World == null
-                        ? new[] { PatchBridge.Service } : PatchBridge.World.Pairs.Select(pair => pair.Relationship));
+                    var owners = PatchBridge.World == null ? new[] { PatchBridge.Service } : PatchBridge.World.Pairs.Select(pair => pair.Relationship);
+                    var targets = source == MountedScenePlacementSource.CommandTeleportParty ? MountedScenePlacementAttribution.TeleportPartyTargets(party) : null;
+                    return MountedScenePlacementAttribution.Take(source, owners, targets);
                 }
-                catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the positions were not captured", error); }
+                catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the positions were not captured", error); return null; }
             }
 
-            internal static void TranslocateUnitPostfix(object __state) => AttributeScenePlacement(__state, "TranslocateUnit");
+            internal static void TranslocateUnitPostfix(object __state) => AttributeScenePlacement(__state);
 
-            internal static void CommandMoveUnitPostfix(object __state) => AttributeScenePlacement(__state, "CommandMoveUnit (timed out)");
+            internal static void CommandMoveUnitPostfix(object __state) => AttributeScenePlacement(__state);
 
-            internal static void CommandTeleportPartyPostfix(object __state) => AttributeScenePlacement(__state, "CommandTeleportParty");
+            internal static void CommandTeleportPartyPostfix(object __state) => AttributeScenePlacement(__state);
 
-            private static void AttributeScenePlacement(object state, string operation)
+            private static void AttributeScenePlacement(object state)
             {
-                try { MountedScenePlacementAttribution.Attribute(state as List<MountedScenePlacementAttribution.Snapshot>, operation, PatchBridge.Logger); }
+                try { MountedScenePlacementAttribution.Attribute(state as MountedScenePlacementAttribution.Capture, PatchBridge.Logger); }
                 catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the placement was left unattributed", error); }
             }
 

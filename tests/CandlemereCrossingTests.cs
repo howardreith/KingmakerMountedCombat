@@ -37,6 +37,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues C04 (modelled native tick): unmounted and unrelated units, a failed check, a manual dismount and a remount keep their native outcomes", Controls);
             runner.Run("C04 review R1 (real coordinator and reference clearing; observations production): a remount at the place the rider was last checked, after it left the zone dismounted, is checked again on the same and on another relationship; the reviewed rider-keyed cache was not", RemountAfterLeavingTheZone);
             runner.Run("C04 review R1 (observations production): an observation belongs to its mounting instance only; a stationary rider within it is not checked again; another instance or another world's unit is", ObservationsBelongToTheirInstance);
+            runner.Run("C04 review R9 (zone loop production): a rider checked against two zones with a logger that throws on the first change still has the second zone checked and its membership right; a healthy logger receives both; a failing check still ends the pass", ThrowingSuccessLoggerZones);
         }
 
         private static void PolicyDecisions()
@@ -164,6 +165,29 @@ namespace KingmakerMountedCombat.Tests
                         TestRunner.True(!inside && destination == "CandlemereTowerShortcutBack",
                             "Setup (reviewed cache): the stale observation should have suppressed the first mounted check.");
                 }
+        }
+
+        private static void ThrowingSuccessLoggerZones()
+        {
+            // Two active zones the rider is now inside; native has it outside both (it was carried in).
+            var rider = new Unit { Name = "rider", X = 4f, Z = 10f };
+            var first = new Zone(); var second = new Zone();
+            var zones = new List<Zone> { first, second };
+            var reports = 0;
+            var changes = MountedScriptZoneChecks.CheckEach(zones, zone => zone.Contains(rider), zone => zone.CheckUnit(rider),
+                (zone, inside) => { reports++; throw new InvalidOperationException("the logger failed"); });
+            TestRunner.True(changes == 2 && reports == 2 && first.Contains(rider) && second.Contains(rider),
+                "A throwing success logger stopped the rider's remaining zones.");
+            var lines = new List<string>();
+            var healthy = new Unit { Name = "rider", X = 4f, Z = 10f };
+            MountedScriptZoneChecks.CheckEach(new List<Zone> { new Zone(), new Zone() }, zone => zone.Contains(healthy), zone => zone.CheckUnit(healthy),
+                (zone, inside) => lines.Add("inside=" + inside));
+            TestRunner.True(lines.Count == 2 && lines[0] == "inside=True", "A healthy logger did not receive both membership changes.");
+            // An operational failure (the native check itself throws) still ends the pass, for the hook's bounded report.
+            var thrown = false;
+            try { MountedScriptZoneChecks.CheckEach(zones, zone => false, zone => { throw new InvalidOperationException("check failed"); }, null); }
+            catch (InvalidOperationException) { thrown = true; }
+            TestRunner.True(thrown, "A failing zone check was swallowed by the loop instead of reaching the hook's fault report.");
         }
 
         private static void ObservationsBelongToTheirInstance()

@@ -31,15 +31,10 @@ namespace KingmakerMountedCombat.Integration
             var position = rider.Position;
             if (!observations.NeedsRecheck(rider, instance, rider.HasMotionThisTick, position.x, position.y, position.z)) return;
             zones = zones ?? ActiveZones();
-            foreach (var zone in zones)
-            {
-                var before = zone.ContainsUnit(rider);
-                zone.CheckUnit(rider);
-                if (zone.ContainsUnit(rider) == before) continue;
-                MembershipChangeCount++;
-                logger?.Info("Mounted script-zone membership followed the carried rider: rider=" + rider.UniqueId +
-                    "; zone=" + zone.name + "; inside=" + !before + "; position=" + position + ".");
-            }
+            // Review R9 of e1c0c7ad: a throwing logger never stops the remaining zones.
+            MembershipChangeCount += MountedScriptZoneChecks.CheckEach(zones, zone => zone.ContainsUnit(rider), zone => zone.CheckUnit(rider),
+                (zone, inside) => logger?.Info("Mounted script-zone membership followed the carried rider: rider=" + rider.UniqueId +
+                    "; zone=" + zone.name + "; inside=" + inside + "; position=" + position + "."));
             RecheckCount++;
             observations.Record(rider, instance, position.x, position.y, position.z);
         }

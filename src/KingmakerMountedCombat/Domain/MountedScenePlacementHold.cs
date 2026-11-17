@@ -10,8 +10,9 @@ namespace KingmakerMountedCombat.Domain
         RiderPlacement,
         // The operation wrote the rider and the mount: the pair goes with the mount, as a whole-pair placement always has.
         WholePair,
-        // Review R5 of 263ac3ea: the operation turned the rider without moving it, during a scene. It supersedes the
-        // orientation of a pending placement; on its own it starts nothing (a seated rider's facing follows its saddle).
+        // Review R5 of 263ac3ea and R7 of e1c0c7ad: the operation turned the rider without moving it, during a scene. It
+        // supersedes the orientation of a pending placement; with nothing pending it is held as the scene's placement of
+        // the rider at its current position with the authored orientation, for the ordinary handoff.
         RiderTurn
     }
 
@@ -72,10 +73,19 @@ namespace KingmakerMountedCombat.Domain
             return change;
         }
 
-        // Review R5: an operation turned the rider in place while a placement is held: the scene's final orientation.
-        public MountedScenePlacementChange Reorient(float orientation, int frame)
+        // Review R5: an operation turned the rider in place. A held placement takes the scene's final orientation and keeps
+        // its endpoint; with nothing held (review R7 of e1c0c7ad) the rider's current position and the authored
+        // orientation are held as the scene's placement.
+        public MountedScenePlacementChange Reorient(float x, float y, float z, float orientation, int frame)
         {
-            if (!pending) return MountedScenePlacementChange.Unchanged;
+            if (!pending)
+            {
+                ObservedCount++;
+                AttributedCount++;
+                Hold(x, y, z, orientation, frame);
+                correctNextWithoutDetection = false;
+                return MountedScenePlacementChange.Held;
+            }
             SupersededCount++;
             Orientation = orientation;
             heldAtFrame = frame;

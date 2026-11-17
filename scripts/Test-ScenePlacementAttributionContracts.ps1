@@ -6,6 +6,9 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$
 # Review of 263ac3ea: R4 (a notice is spent only once a receiver took it, never during a load), R5 (the installed
 # operations' orientation writes, and the scene's final orientation at the same endpoint) and R6 (C02 and C04 have
 # independent bounded fault reports), each run against this build and, with -ProductDll, the reviewed one.
+# Review of e1c0c7ad: R7 (an exact standalone rider turn is held and handed off), R8 (CommandTeleportParty's proven
+# target set makes a whole-pair write even when one actor was already at its authored transform) and R9 (a throwing
+# success logger never truncates the pairs of one operation).
 #   NATIVE-IL         the installed Assembly-CSharp is READ: the scene placement operations write a unit's Position
 #                     directly (TranslocateUnit.RunAction, CommandMoveUnit.IsFinished when the move took too long,
 #                     CommandTeleportParty.OnRun), not through UnitEntityData.Translocate.
@@ -41,6 +44,18 @@ public sealed class KmcRecordingLogger : RealProxy
         if (call.MethodName == "GetType") return new ReturnMessage(GetProxiedType(), null, 0, call.LogicalCallContext, call);
         Lines.Add(call.MethodName + ": " + (call.ArgCount > 0 ? Convert.ToString(call.GetArg(0)) : ""));
         return new ReturnMessage(null, null, 0, call.LogicalCallContext, call);
+    }
+}
+
+// A success-report sink for the compiled attribution core: counts calls and throws when asked (review R9).
+public static class KmcReportRelay
+{
+    public static int Calls;
+    public static bool Throw;
+    public static void Report<TObservation, TOperation, TChange>(TObservation observation, TOperation operation, TChange change)
+    {
+        Calls++;
+        if (Throw) throw new InvalidOperationException("the logger failed");
     }
 }
 
@@ -152,6 +167,27 @@ public static class KmcScenePlacementProbe
         return false;
     }
 
+    // A compiled MountedScenePlacementObservation (review R7-R9 checks).
+    private static object NewObservation(Assembly product, object hold, float rx0, float rz0, float ro0, float rx, float rz, float ro,
+        float mx0, float mz0, float mo0, float mx, float mz, float mo, bool riderTargeted, bool mountTargeted)
+    {
+        var type = product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementObservation", true);
+        var o = Activator.CreateInstance(type);
+        Action<string, object> set = (name, value) => type.GetField(name).SetValue(o, value);
+        set("Hold", hold); set("PairMounted", true);
+        set("RiderX0", rx0); set("RiderZ0", rz0); set("RiderOrientation0", ro0); set("RiderX", rx); set("RiderZ", rz); set("RiderOrientation", ro);
+        set("MountX0", mx0); set("MountZ0", mz0); set("MountOrientation0", mo0); set("MountX", mx); set("MountZ", mz); set("MountOrientation", mo);
+        set("RiderTargeted", riderTargeted); set("MountTargeted", mountTargeted);
+        return o;
+    }
+
+    private static object ListOf(Assembly product, object first)
+    {
+        var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementObservation", true)));
+        list.Add(first);
+        return list;
+    }
+
     // The notifier's Evaluate, as each build declares it (the reviewed 263ac3ea build takes no loading flag).
     private static void Evaluate(MethodInfo evaluate, object notifier, object custody, bool held, bool loading, string[] pairs)
     {
@@ -189,11 +225,11 @@ public static class KmcScenePlacementProbe
 
         var controller=product.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
         var methods=controller.GetNestedType("PatchMethods",Any);
-        Check("PRODUCT-IL the three operations are patched by their exact tokens with the capture prefix and their attribution postfix",
-            ()=>Registers(controller,translocate.FullName,0x06008FA2,"ScenePlacementCapturePrefix","TranslocateUnitPostfix") &&
-                Registers(controller,move.FullName,0x06009E4E,"ScenePlacementCapturePrefix","CommandMoveUnitPostfix") &&
-                Registers(controller,party.FullName,0x06009E90,"ScenePlacementCapturePrefix","CommandTeleportPartyPostfix"));
-        Check("PRODUCT-IL the prefix captures the mounted pairs; each postfix, only for the captured mounting instance, classifies the write and hands a rider placement to the rider's synchronizer or clears it for a whole-pair placement; the synchronizer's samples and the owner's poll both go through the hold (review R2); faults are contained in C02's own bounded report (review R6)",
+        Check("PRODUCT-IL the three operations are patched by their exact tokens, each with its own capture prefix (naming the operation; review R8) and its attribution postfix",
+            ()=>Registers(controller,translocate.FullName,0x06008FA2,"TranslocateUnitCapturePrefix","TranslocateUnitPostfix") &&
+                Registers(controller,move.FullName,0x06009E4E,"CommandMoveUnitCapturePrefix","CommandMoveUnitPostfix") &&
+                Registers(controller,party.FullName,0x06009E90,"CommandTeleportPartyCapturePrefix","CommandTeleportPartyPostfix"));
+        Check("PRODUCT-IL each prefix captures the mounted pairs with the exact operation (CommandTeleportParty's also its proven target set); the postfix keeps only the captured mounting instance and synchronizer and hands every pair to the attribution core with no logging of its own (review R9); the synchronizer's samples and the owner's poll both go through the hold (review R2); faults are contained in C02's own bounded report (review R6)",
             ()=>{
                 var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
                 var attribute=Body(attribution.GetMethod("Attribute",Any));
@@ -202,16 +238,20 @@ public static class KmcScenePlacementProbe
                 var current=Body(agent.GetMethod("CurrentScenePlacement",Any));
                 var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
                 var poll=Body(intent.GetMethod("ObserveScenePlacements",Any));
-                var classify=Find(attribute,"MountedSceneContinuityPolicy","ClassifyOperationWrite");
+                var apply=Find(attribute,"MountedScenePlacementAttributionCore","Apply");
                 var share=Body(methods.GetMethod("AttributeScenePlacement",Any));
-                var prefix=Body(methods.GetMethod("ScenePlacementCapturePrefix",Any));
-                return Find(prefix,"MountedScenePlacementAttribution","Capture").Count==1 && Find(share,"MountedScenePlacementAttribution","Attribute").Count==1 &&
+                var prefix=Body(methods.GetMethod("CaptureScenePlacement",Any));
+                var partyPrefix=Body(methods.GetMethod("CommandTeleportPartyCapturePrefix",Any));
+                var single=Body(methods.GetMethod("TranslocateUnitCapturePrefix",Any));
+                return Find(prefix,"MountedScenePlacementAttribution","Take").Count==1 && Find(prefix,"MountedScenePlacementAttribution","TeleportPartyTargets").Count==1 &&
+                    Find(partyPrefix,null,"CaptureScenePlacement").Count==1 && Find(single,null,"CaptureScenePlacement").Count==1 &&
+                    Find(share,"MountedScenePlacementAttribution","Attribute").Count==1 &&
                     Find(share,null,"ReportScenePlacementFault").Count==1 && Find(prefix,null,"ReportScenePlacementFault").Count==1 &&
                     Find(share,null,"ReportScriptZoneFault").Count==0 && Find(prefix,null,"ReportScriptZoneFault").Count==0 &&
-                    classify.Count==1 && Find(attribute,"GameMountedRelationshipService","get_MountingInstance").Count>=1 &&
-                    Find(attribute,"GameMountedRelationshipService","get_MountingInstance")[0]<classify[0] &&
-                    classify[0]<Find(attribute,"RiderMovementAgent","AttributeScenePlacement")[0] &&
-                    classify[0]<Find(attribute,"RiderMovementAgent","SupersedeScenePlacementWithWholePair")[0] &&
+                    apply.Count==1 && Find(attribute,"IModLogger","Info").Count==0 &&
+                    Find(attribute,"GameMountedRelationshipService","get_MountingInstance").Count>=1 &&
+                    Find(attribute,"GameMountedRelationshipService","get_MountingInstance")[0]<apply[0] &&
+                    Find(attribute,"RiderMovementAgent","get_ConfiguredSceneHold").Count==1 &&
                     Find(hold,"MountedScenePlacementHold","Sample").Count==1 && Find(current,"MountedScenePlacementHold","Refresh").Count==1 &&
                     Find(poll,"RiderMovementAgent","CurrentScenePlacement").Count==1 && Find(poll,"RiderMovementAgent","get_PendingScenePlacement").Count==0;
             });
@@ -381,13 +421,40 @@ public static class KmcScenePlacementProbe
                     cO.Count==1 && cP.Count==1 && cP[0]<cO[0] && !comparesPositions(c) &&
                     setterCalls==1 && Find(setter,"UnitEntityData","set_DesiredOrientation").Count==1;
             });
-        Check("PRODUCT-IL (review R5) the capture records both units' orientations and the attribution classifies with both turns, reorienting a pending placement for a rider-only turn",
+        Check("PRODUCT-IL (review R5 and R8) the capture records both units' orientations and their membership of the proven target set; the core classifies with both moves, both turns and both target flags, and a rider-only turn goes to the hold's Reorient",
             ()=>{
                 var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
-                var capture=Body(attribution.GetMethod("Capture",Any)); var attribute=Body(attribution.GetMethod("Attribute",Any));
-                var classify=-1; foreach(var ins in attribute) if(ins.Call!=null && ins.Call.Name=="ClassifyOperationWrite" && ins.Call.GetParameters().Length==6) classify=1;
-                return Find(capture,"UnitEntityData","get_Orientation").Count==2 && Find(attribute,"MountedSceneContinuityPolicy","OrientationWritten").Count==2 &&
-                    classify==1 && Find(attribute,"RiderMovementAgent","ReorientScenePlacement").Count==1;
+                var core=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementAttributionCore",true);
+                var capture=Body(attribution.GetMethod("Take",Any)); var classify=Body(core.GetMethod("Classify"));
+                var apply=Body(core.GetMethod("Apply"));
+                var eight=false; foreach(var ins in classify) if(ins.Call!=null && ins.Call.Name=="ClassifyOperationWrite" && ins.Call.GetParameters().Length==8) eight=true;
+                return Find(capture,"UnitEntityData","get_Orientation").Count==2 && Find(capture,null,"Contains").Count==2 &&
+                    Find(classify,"MountedSceneContinuityPolicy","OrientationWritten").Count==2 && eight &&
+                    Find(apply,"MountedScenePlacementHold","Reorient").Count==1 && Find(apply,"MountedScenePlacementHold","ClearForWholePair").Count==1;
+            });
+        Check("NATIVE-IL (review R8) CommandTeleportParty.OnRun (06009E90) reads its m_UnitsList, asks Player.GetCharactersList once and writes Position and Orientation for every unit it yields, with no filter of its own; GetCharactersList reads the live lists (ControllableCharacters, AllCharacters, the cross-scene units, PartyCharacters, DetachedPartyCharacters)",
+            ()=>{
+                var c=Body(Token(party,"OnRun",0x06009E90));
+                var player=native.GetType("Kingmaker.Player",true);
+                var list=Body(player.GetMethod("GetCharactersList"));
+                var field=-1; for(var i=0;i<c.Count;i++) if(c[i].Op==OpCodes.Ldfld && c[i].Operand is FieldInfo && ((FieldInfo)c[i].Operand).Name=="m_UnitsList") field=i;
+                var get=Find(c,"Player","GetCharactersList");
+                var calls=new List<string>(); foreach(var ins in c) if(ins.Call!=null) calls.Add(ins.Call.DeclaringType.Name+"."+ins.Call.Name);
+                var filters=calls.FindAll(n=>n.Contains("IsPet")||n.Contains("IsDetached")||n.Contains("IsInGame")||n.Contains("Where"));
+                Console.WriteLine("INFO R8: OnRun calls "+string.Join(", ",calls.ToArray()));
+                return field>=0 && get.Count==1 && field<get[0] && Find(c,null,"MoveNext").Count>=1 && filters.Count==0 &&
+                    Find(list,"Player","get_ControllableCharacters").Count==1 && Find(list,"Player","get_AllCharacters").Count==1 &&
+                    Find(list,"Player","get_PartyCharacters").Count==1 && Find(list,"Player","get_DetachedPartyCharacters").Count==1 &&
+                    Find(list,"Player","get_AllCrossSceneUnits").Count==2;
+            });
+        Check("PRODUCT-IL (review R8) the CommandTeleportParty prefix passes the operation instance; its target set is the native Player.GetCharactersList of the instance's m_UnitsList field",
+            ()=>{
+                var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
+                var targets=Body(attribution.GetMethod("TeleportPartyTargets",Any));
+                var prefix=methods.GetMethod("CommandTeleportPartyCapturePrefix",Any);
+                var named=false; foreach(var member in attribution.GetMembers(All)){ var m=member as MethodBase; if(m==null||m.GetMethodBody()==null) continue; foreach(var ins in Body(m)) if(ins.Op==OpCodes.Ldstr && (string)ins.Operand=="m_UnitsList") named=true; }
+                return prefix.GetParameters()[0].ParameterType==party && prefix.GetParameters()[0].Name=="__instance" &&
+                    Find(targets,"Player","GetCharactersList").Count==1 && Find(targets,"FieldInfo","GetValue").Count==1 && named;
             });
         Check("PRODUCT-EXECUTED (review R5) the same endpoint with a final orientation: placement A writes P at 30 degrees; placement B writes the same P at 120 before the poll; through this build's compiled classification (as its attribution composes it) and hold, P/120 is pending",
             ()=>{
@@ -404,7 +471,8 @@ public static class KmcScenePlacementProbe
                     kind=six.Invoke(null,new object[]{true,true,false,turned,false,false}).ToString();
                 }
                 else kind=four.Invoke(null,new object[]{true,true,false,false}).ToString();   // positions only, as that attribution reads them
-                if(kind=="RiderTurn") holdType.GetMethod("Reorient").Invoke(h,new object[]{120f,2});
+                var reorient=holdType.GetMethod("Reorient");
+                if(kind=="RiderTurn") reorient.Invoke(h,reorient.GetParameters().Length==5 ? new object[]{4f,0f,7f,120f,2} : new object[]{120f,2});
                 else if(kind=="RiderPlacement") holdType.GetMethod("Attribute").Invoke(h,new object[]{4f,0f,7f,120f,2});
                 var orientation=(float)holdType.GetProperty("Orientation").GetValue(h,null);
                 var x=(float)holdType.GetProperty("X").GetValue(h,null);
@@ -418,7 +486,8 @@ public static class KmcScenePlacementProbe
                 var faultType=product.GetType("KingmakerMountedCombat.Domain.MountedBoundedFaultReport",true);
                 var relationship=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
                 var snapshotType=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true).GetNestedType("Snapshot",Any);
-                var zone=hooks.GetMethod("ScriptZoneTickPostfix",Any); var prefix=hooks.GetMethod("ScenePlacementCapturePrefix",Any);
+                var zone=hooks.GetMethod("ScriptZoneTickPostfix",Any);
+                var prefix=hooks.GetMethod("TranslocateUnitCapturePrefix",Any) ?? hooks.GetMethod("ScenePlacementCapturePrefix",Any);
                 var postfix=hooks.GetMethod("TranslocateUnitPostfix",Any);
                 var voids=zone.ReturnType==typeof(void) && prefix.ReturnType==typeof(void) && postfix.ReturnType==typeof(void) &&
                     hooks.GetMethod("CommandMoveUnitPostfix",Any).ReturnType==typeof(void) && hooks.GetMethod("CommandTeleportPartyPostfix",Any).ReturnType==typeof(void);
@@ -426,13 +495,16 @@ public static class KmcScenePlacementProbe
                 Action<string,object> setStatic=(name,value)=>bridge.GetField(name,Any).SetValue(null,value);
                 var broken=(IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(snapshotType));
                 broken.Add(Activator.CreateInstance(snapshotType,true));   // a captured pair with no owner: attribution fails inside production code
+                var captureType=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true).GetNestedType("Capture",Any);
+                object brokenState=broken;
+                if(captureType!=null){ brokenState=Activator.CreateInstance(captureType,true); captureType.GetField("Snapshots",Any).SetValue(brokenState,broken); }
                 var escaped=false;
                 Action failBoth=()=>{
                     try
                     {
                         zone.Invoke(null,null);
                         prefix.Invoke(null,new object[]{null});
-                        postfix.Invoke(null,new object[]{broken});
+                        postfix.Invoke(null,new object[]{brokenState});
                     }
                     catch { escaped=true; }
                 };
@@ -454,6 +526,94 @@ public static class KmcScenePlacementProbe
                     return voids && !escaped && zoneLines==1 && placementLines==1 && recording.Lines.Count==2 && throwing.Calls==2;
                 }
                 finally { setStatic("Service",null); setStatic("Logger",null); reset(); }
+            });
+        Check("PRODUCT-EXECUTED (review R7) nothing pending; an exact operation turns the seated rider to 75 degrees at its own position, the mount unchanged, in a scene: through this build's compiled attribution (as its Attribute composes it) and hold, the rider's position at 75 degrees is pending for the handoff",
+            ()=>{
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                var h=Activator.CreateInstance(holdType);
+                var core=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementAttributionCore");
+                string how;
+                if(core!=null)
+                {
+                    var o=NewObservation(product,h,4f,7f,0f,4f,7f,75f,4f,7f,0f,4f,7f,0f,false,false);
+                    core.GetMethod("Apply").Invoke(null,new object[]{ListOf(product,o),true,1,null});
+                    how="core";
+                }
+                else
+                {
+                    // e1c0c7ad: classification of position and orientation changes, and Reorient for a rider-only turn.
+                    var policy=product.GetType("KingmakerMountedCombat.Domain.MountedSceneContinuityPolicy",true);
+                    MethodInfo six=null; foreach(var m in policy.GetMethods()) if(m.Name=="ClassifyOperationWrite" && m.GetParameters().Length==6) six=m;
+                    var kind=six.Invoke(null,new object[]{true,true,false,true,false,false}).ToString();
+                    if(kind=="RiderTurn") holdType.GetMethod("Reorient").Invoke(h,new object[]{75f,1});
+                    how="reviewed classification "+kind+" and Reorient";
+                }
+                var pending=(bool)holdType.GetProperty("Pending").GetValue(h,null);
+                Console.WriteLine("INFO R7: "+how+"; pending="+pending+(pending?" at ("+holdType.GetProperty("X").GetValue(h,null)+", "+holdType.GetProperty("Z").GetValue(h,null)+") "+holdType.GetProperty("Orientation").GetValue(h,null):""));
+                return pending && (float)holdType.GetProperty("X").GetValue(h,null)==4f && (float)holdType.GetProperty("Z").GetValue(h,null)==7f &&
+                    (float)holdType.GetProperty("Orientation").GetValue(h,null)==75f;
+            });
+        Check("PRODUCT-EXECUTED (review R8) with a rider-only placement A pending, CommandTeleportParty targeting both actors: rider already at its authored transform, mount already at its, and both already at theirs each clear the obsolete hold without a new one; a rider-only target set and a single-unit mount operation do not",
+            ()=>{
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                var core=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementAttributionCore");
+                var policy=product.GetType("KingmakerMountedCombat.Domain.MountedSceneContinuityPolicy",true);
+                MethodInfo six=null; foreach(var m in policy.GetMethods()) if(m.Name=="ClassifyOperationWrite" && m.GetParameters().Length==6) six=m;
+                // A (2, 3) at 30 is pending; the mount stands at (0, 0) at 0. Returns the hold after one operation.
+                Func<float,float,float,float,float,float,bool,bool,object> run=(rx,rz,ro,mx,mz,mo,riderTargeted,mountTargeted)=>{
+                    var h=Activator.CreateInstance(holdType);
+                    holdType.GetMethod("Attribute").Invoke(h,new object[]{2f,0f,3f,30f,1});
+                    if(core!=null)
+                    {
+                        var o=NewObservation(product,h,2f,3f,30f,rx,rz,ro,0f,0f,0f,mx,mz,mo,riderTargeted,mountTargeted);
+                        core.GetMethod("Apply").Invoke(null,new object[]{ListOf(product,o),true,2,null});
+                    }
+                    else
+                    {
+                        // e1c0c7ad's attribution: changes only, no target evidence.
+                        var kind=six.Invoke(null,new object[]{true,true,rx!=2f||rz!=3f,ro!=30f,mx!=0f||mz!=0f,mo!=0f}).ToString();
+                        if(kind=="WholePair") holdType.GetMethod("ClearForWholePair").Invoke(h,null);
+                        else if(kind=="RiderPlacement") holdType.GetMethod("Attribute").Invoke(h,new object[]{rx,0f,rz,ro,2});
+                    }
+                    return h;
+                };
+                Func<object,string> state=h=>(bool)holdType.GetProperty("Pending").GetValue(h,null)
+                    ? "pending ("+holdType.GetProperty("X").GetValue(h,null)+", "+holdType.GetProperty("Z").GetValue(h,null)+")" : "cleared";
+                var riderAtTarget=state(run(2f,3f,30f,6f,0f,90f,true,true));
+                var mountAtTarget=state(run(-1.5f,0f,10f,0f,0f,0f,true,true));
+                var bothAtTarget=state(run(2f,3f,30f,0f,0f,0f,true,true));
+                var bothChange=state(run(9f,0f,0f,8f,0f,0f,true,true));
+                var riderOnlyTargets=state(run(-2f,1.5f,20f,0f,0f,0f,true,false));
+                var mountSingle=state(run(2f,3f,30f,2f,0f,0f,false,false));
+                Console.WriteLine("INFO R8: rider at target -> "+riderAtTarget+"; mount at target -> "+mountAtTarget+"; both at target -> "+bothAtTarget+
+                    "; both change -> "+bothChange+"; rider-only target set -> "+riderOnlyTargets+"; single-unit mount operation -> "+mountSingle);
+                return riderAtTarget=="cleared" && mountAtTarget=="cleared" && bothAtTarget=="cleared" && bothChange=="cleared" &&
+                    riderOnlyTargets=="pending (-2, 1.5)" && mountSingle=="pending (2, 3)";
+            });
+        Check("PRODUCT-EXECUTED (review R9) the compiled attribution core over two pairs of one operation with a success logger that throws on the first: both holds are updated, nothing escapes; a healthy logger receives both",
+            ()=>{
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                var core=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementAttributionCore",true);
+                var observationType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementObservation",true);
+                var operation=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementOperation",true);
+                var change=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementChange",true);
+                var apply=core.GetMethod("Apply");
+                var reportType=apply.GetParameters()[3].ParameterType;
+                var a=Activator.CreateInstance(holdType); var b=Activator.CreateInstance(holdType);
+                var list=ListOf(product,NewObservation(product,a,0f,0f,0f,2f,1f,45f,0f,0f,0f,0f,0f,0f,false,false));
+                ((IList)list).Add(NewObservation(product,b,0f,0f,0f,3f,1f,45f,0f,0f,0f,0f,0f,0f,false,false));
+                KmcReportRelay.Calls=0; KmcReportRelay.Throw=true;
+                var throwing=Delegate.CreateDelegate(reportType,typeof(KmcReportRelay).GetMethod("Report").MakeGenericMethod(observationType,operation,change));
+                var escaped=false;
+                try { apply.Invoke(null,new object[]{list,true,1,throwing}); } catch { escaped=true; }
+                var bothHeld=(bool)holdType.GetProperty("Pending").GetValue(a,null) && (bool)holdType.GetProperty("Pending").GetValue(b,null);
+                var throwingCalls=KmcReportRelay.Calls;
+                KmcReportRelay.Calls=0; KmcReportRelay.Throw=false;
+                var healthyList=ListOf(product,NewObservation(product,Activator.CreateInstance(holdType),0f,0f,0f,2f,1f,45f,0f,0f,0f,0f,0f,0f,false,false));
+                ((IList)healthyList).Add(NewObservation(product,Activator.CreateInstance(holdType),0f,0f,0f,3f,1f,45f,0f,0f,0f,0f,0f,0f,false,false));
+                apply.Invoke(null,new object[]{healthyList,true,1,throwing});
+                Console.WriteLine("INFO R9: throwing logger called "+throwingCalls+" time(s); both holds updated="+bothHeld+"; escaped="+escaped+"; healthy logger calls="+KmcReportRelay.Calls);
+                return !escaped && bothHeld && throwingCalls==2 && KmcReportRelay.Calls==2;
             });
         Check("PRODUCT-EXECUTED (review R2) the compiled hold keeps the scene's latest placement: a second attribution supersedes the first (endpoint and orientation), a whole-pair placement clears it, a far unattributed write since the hold supersedes it and a near one does not, a release corrects once",
             ()=>{

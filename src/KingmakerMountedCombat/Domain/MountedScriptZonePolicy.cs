@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace KingmakerMountedCombat.Domain
@@ -26,6 +28,30 @@ namespace KingmakerMountedCombat.Domain
         public static bool RiderNeedsZoneRecheck(bool pairMounted, bool riderHasNativeMotionThisTick, bool checkedBefore,
             float dx, float dy, float dz) =>
             pairMounted && !riderHasNativeMotionThisTick && (!checkedBefore || PositionChanged(dx, dy, dz));
+    }
+
+    // Review R9 of e1c0c7ad: a seated rider is checked against every active zone; a membership change is reported, and a
+    // report that fails (a throwing logger) never stops the remaining zones. A failing check itself is an operational
+    // failure and still ends the pass (the hook's bounded fault report takes it).
+    public static class MountedScriptZoneChecks
+    {
+        public static int CheckEach<TZone>(IList<TZone> zones, Func<TZone, bool> contains, Action<TZone> check, Action<TZone, bool> changed)
+        {
+            if (zones == null) return 0;
+            var changes = 0;
+            foreach (var zone in zones)
+            {
+                var before = contains(zone);
+                check(zone);
+                var after = contains(zone);
+                if (after == before) continue;
+                changes++;
+                if (changed == null) continue;
+                try { changed(zone, after); }
+                catch (Exception) { }
+            }
+            return changes;
+        }
     }
 
     // Known issues C04, review R1 of b30c24f8: where each seated rider's zone membership was last checked (by native, or

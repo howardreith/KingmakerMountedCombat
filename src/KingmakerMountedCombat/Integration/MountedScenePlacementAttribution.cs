@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker;
 using Kingmaker.GameModes;
 using KingmakerMountedCombat.Domain;
@@ -23,12 +25,23 @@ namespace KingmakerMountedCombat.Integration
             internal Vector3 Rider, Mount;
             // Review R5: the installed operations also write orientation.
             internal float RiderOrientation, MountOrientation;
+            // Review R8: whether the operation's proven target set holds the rider and the mount (CommandTeleportParty).
+            internal bool RiderTargeted, MountTargeted;
+        }
+
+        // What the prefix hands the postfix: the exact operation and the captured pairs.
+        internal sealed class Capture
+        {
+            internal MountedScenePlacementSource Source;
+            internal List<Snapshot> Snapshots;
         }
 
         internal static long AttributedCount { get; private set; }
 
-        // Null when no pair is mounted: the native operation then runs without any work here.
-        internal static List<Snapshot> Capture(IEnumerable<GameMountedRelationshipService> owners)
+        // Null when no pair is mounted: the native operation then runs without any work here. targets: the operation's
+        // proven target set (CommandTeleportParty), or null for a single-unit operation.
+        internal static Capture Take(MountedScenePlacementSource source, IEnumerable<GameMountedRelationshipService> owners,
+            ICollection<UnitEntityData> targets)
         {
             List<Snapshot> snapshots = null;
             foreach (var owner in owners)
@@ -36,18 +49,34 @@ namespace KingmakerMountedCombat.Integration
                 if (owner == null || owner.State != RelationshipState.Mounted || owner.Rider == null || owner.Mount == null) continue;
                 (snapshots = snapshots ?? new List<Snapshot>()).Add(new Snapshot { Owner = owner, Instance = owner.MountingInstance,
                     Agent = owner.Runtime?.MovementAgent, Rider = owner.Rider.Position, Mount = owner.Mount.Position,
-                    RiderOrientation = owner.Rider.Orientation, MountOrientation = owner.Mount.Orientation });
+                    RiderOrientation = owner.Rider.Orientation, MountOrientation = owner.Mount.Orientation,
+                    RiderTargeted = targets != null && targets.Contains(owner.Rider), MountTargeted = targets != null && targets.Contains(owner.Mount) });
             }
-            return snapshots;
+            return snapshots == null ? null : new Capture { Source = source, Snapshots = snapshots };
         }
 
-        internal static void Attribute(List<Snapshot> snapshots, string operation, IModLogger logger)
+        // Review R8 of e1c0c7ad: the exact CommandTeleportParty target set, read as native reads it at OnRun
+        // (Player.GetCharactersList(m_UnitsList), evaluated before the operation; its setters do not change the lists).
+        internal static ICollection<UnitEntityData> TeleportPartyTargets(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty command)
         {
-            if (snapshots == null) return;
+            var player = Game.Instance?.Player;
+            if (command == null || player == null || UnitsListField == null) return null;
+            var list = (Player.CharactersList)UnitsListField.GetValue(command);
+            return new HashSet<UnitEntityData>(player.GetCharactersList(list).Where(unit => unit != null));
+        }
+
+        private static readonly System.Reflection.FieldInfo UnitsListField =
+            typeof(Kingmaker.AreaLogic.Cutscenes.Commands.CommandTeleportParty).GetField("m_UnitsList",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+        internal static void Attribute(Capture capture, IModLogger logger)
+        {
+            if (capture?.Snapshots == null) return;
             var game = Game.Instance;
             var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
                 game.IsModeActive(GameModeType.Dialog), game.IsModeActive(GameModeType.Cutscene));
-            foreach (var snapshot in snapshots)
+            var observations = new List<MountedScenePlacementObservation>(capture.Snapshots.Count);
+            foreach (var snapshot in capture.Snapshots)
             {
                 var owner = snapshot.Owner;
                 var rider = owner.Rider; var mount = owner.Mount;
@@ -57,34 +86,36 @@ namespace KingmakerMountedCombat.Integration
                 var agent = owner.Runtime?.MovementAgent;
                 if (snapshot.Instance == null || !ReferenceEquals(owner.MountingInstance, snapshot.Instance) || agent == null ||
                     !ReferenceEquals(agent, snapshot.Agent)) continue;
-                var r = rider.Position - snapshot.Rider; var m = mount.Position - snapshot.Mount;
-                var write = MountedSceneContinuityPolicy.ClassifyOperationWrite(owner.State == RelationshipState.Mounted, sceneActive,
-                    MountedSceneContinuityPolicy.PositionWritten(r.x, r.y, r.z),
-                    MountedSceneContinuityPolicy.OrientationWritten(snapshot.RiderOrientation, rider.Orientation),
-                    MountedSceneContinuityPolicy.PositionWritten(m.x, m.y, m.z),
-                    MountedSceneContinuityPolicy.OrientationWritten(snapshot.MountOrientation, mount.Orientation));
-                if (write == MountedScenePlacementOperation.RiderTurn)
+                Vector3 r = rider.Position, m = mount.Position;
+                observations.Add(new MountedScenePlacementObservation
                 {
-                    if (agent.ReorientScenePlacement(rider.Orientation) == MountedScenePlacementChange.Superseded)
-                        logger?.Info("Pending scene placement of a seated rider reoriented by " + operation + ": rider=" + rider.UniqueId +
-                            "; orientation=" + rider.Orientation.ToString("0.0") + ".");
-                    continue;
-                }
-                if (write == MountedScenePlacementOperation.WholePair)
-                {
-                    if (agent.SupersedeScenePlacementWithWholePair() == MountedScenePlacementChange.Cleared)
-                        logger?.Info("Pending scene placement of a seated rider superseded by " + operation + " placing the whole pair: rider=" +
-                            rider.UniqueId + "; mount=" + mount.UniqueId + "; the pair stays together at the mount's placement.");
-                    continue;
-                }
-                if (write != MountedScenePlacementOperation.RiderPlacement) continue;
-                var change = agent.AttributeScenePlacement(rider.Position, rider.Orientation);
-                if (change == MountedScenePlacementChange.Unchanged) continue;
+                    Pair = snapshot, Hold = agent.ConfiguredSceneHold, PairMounted = owner.State == RelationshipState.Mounted,
+                    RiderX0 = snapshot.Rider.x, RiderY0 = snapshot.Rider.y, RiderZ0 = snapshot.Rider.z, RiderOrientation0 = snapshot.RiderOrientation,
+                    MountX0 = snapshot.Mount.x, MountY0 = snapshot.Mount.y, MountZ0 = snapshot.Mount.z, MountOrientation0 = snapshot.MountOrientation,
+                    RiderX = r.x, RiderY = r.y, RiderZ = r.z, RiderOrientation = rider.Orientation,
+                    MountX = m.x, MountY = m.y, MountZ = m.z, MountOrientation = mount.Orientation,
+                    RiderTargeted = snapshot.RiderTargeted, MountTargeted = snapshot.MountTargeted
+                });
+            }
+            // Review R9 of e1c0c7ad: the core applies every pair's own writes; a throwing logger never stops the rest.
+            MountedScenePlacementAttributionCore.Apply(observations, sceneActive, Time.frameCount, (o, write, change) =>
+            {
                 AttributedCount++;
-                logger?.Info("Scene placement of a seated rider attributed to " + operation + ": rider=" + rider.UniqueId +
-                    "; mount=" + mount.UniqueId + "; target=" + rider.Position + "; orientation=" + rider.Orientation.ToString("0.0") +
-                    "; from saddle " + new Vector2(rider.Position.x - mount.Position.x, rider.Position.z - mount.Position.z).magnitude.ToString("0.00") +
-                    " m" + (change == MountedScenePlacementChange.Superseded ? "; supersedes the earlier pending placement" : "") + ".");
+                var pair = (Snapshot)o.Pair;
+                logger?.Info("Scene placement of a seated rider: " + Describe(capture.Source) + " " + write + " -> " + change +
+                    ": rider=" + pair.Owner.Rider?.UniqueId + "; mount=" + pair.Owner.Mount?.UniqueId + "; target=(" + o.RiderX.ToString("0.00") + ", " +
+                    o.RiderZ.ToString("0.00") + "); orientation=" + o.RiderOrientation.ToString("0.0") + "; targeted rider=" + o.RiderTargeted +
+                    ", mount=" + o.MountTargeted + ".");
+            });
+        }
+
+        internal static string Describe(MountedScenePlacementSource source)
+        {
+            switch (source)
+            {
+                case MountedScenePlacementSource.CommandMoveUnitTimedOut: return "CommandMoveUnit (timed out)";
+                case MountedScenePlacementSource.CommandTeleportParty: return "CommandTeleportParty";
+                default: return "TranslocateUnit";
             }
         }
     }

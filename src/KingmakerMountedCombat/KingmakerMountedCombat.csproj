@@ -557,6 +557,7 @@
     <Compile Include="Domain\MountedCleanupCompletionPolicy.cs" />
     <Compile Include="Domain\MountedScriptZonePolicy.cs" />
     <Compile Include="Domain\MountedScenePlacementHold.cs" />
+    <Compile Include="Domain\MountedScenePlacementAttributionCore.cs" />
     <Compile Include="Integration\MountedScriptZoneAdapter.cs" />
     <Compile Include="Integration\MountedScenePlacementAttribution.cs" />
     <Compile Include="Integration\MountedCombatHoldNotifier.cs" />
