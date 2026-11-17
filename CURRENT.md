@@ -1,3 +1,46 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF fe22563a: WORLD BOUNDARIES AFTER THE GUARD CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `fe22563a`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted by the owner at `fe22563a`:** the lifecycle correction (retained stick cleanup in `Dismount`'s result,
+  strict disable/shutdown/guard removal, recovery before the update gate, the pending runtime-error stop, owner
+  retention, bounded retries). R2 stays accepted. Stationary rider actions stay deliberately preserved.
+- **The remaining P2, corrected (`7fa9f74e`, `ee8cca11`; tests `56cae55f`, `1ad306ce`):** the world-boundary guard passed, but the
+  admission discard right after it refused the pair's retained owner. Area suspension latched a failed transfer and
+  load housekeeping threw.
+  - The registry tells detached stick cleanup apart from what holds a world. Owners declare a second predicate: their
+    obligations without the stick cleanup the boundary keeps with its exact references.
+  - The admission discard accepts an owner that owes only that cleanup. The owner stays registered, holding its
+    actors and identity, and the pair stays dismounted.
+  - The arrival defers a pair still held this way (departing or carried), with its owner identity and arrival
+    placement. Only Restore, Defer, or a refusal by its own installed agent defer it; any other refusal keeps the
+    all-pair failure, and the capital rule still retires.
+  - The in-area retry restores it once the owner retires, with the same identity, generation, session and campaign.
+    Until then the true reason is given.
+  - A load sets such owners aside from the old session. The new world imports its pairs (same characters, same
+    identities) under its own session. The old cleanup touches only old objects and retires its owner when done.
+- **Unchanged:** disable, shutdown and guard removal are strict on every boundary; retries are bounded; voluntary
+  dismount results stay strict (their wording is a non-blocking refinement left as it is).
+- **Checks:** Fast PASS 11/0 (components 1337/0, Validate-Source 151/0, continuous drive 58, physical mover pace 27,
+  post-load view readiness 26, persistence 223, world boundary 8, paired activation, world ownership 29, command
+  slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head `fe22563a` fails 5 of the 58 continuous-drive checks. On the real world service with a
+    registered owner, the admission discard after the guard refuses for the area, the load and the persistent case.
+  - 37 mutations of the correction, run in a separate worktree, each fail the suite (one only after the IL pin of `1ad306ce`).
+- **What ran, what was modelled:**
+  - Ran: the real `MountedWorldService` offline, with its real registry and boundaries, the production import seam
+    and the actual retained-obligation predicate.
+  - Modelled and pinned from IL: the persistence service's area, arrival, retry, event and load sequence.
+- **Review:** one independent read. No blocker; the major point (a held pair overrode unrelated refusals) and the
+  minor ones were corrected.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 25cbdbe2: R1 LIFECYCLE CORRECTED OFFLINE, R2 ACCEPTED; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `25cbdbe2`, still on the

@@ -4,14 +4,16 @@ Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (e
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
 
-**Read the last three sections first, the last one above all.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
+**Read the last four sections first, the last one above all.** The owner reviewed head `1223eb2f` and put direct gamepad control of a mounted
 pair in scope. The [continuation section](#continuation-2026-11-16--direct-gamepad-control-m05-the-fault-report-c04)
 records that work (M05 repaired offline, the fault report corrected, C04 recorded) and supersedes what the sections
 below say about M05 being unrepaired. The owner then reviewed that head, `5e27c9bd`; the
 [review section](#review-of-5e27c9bd-2026-11-16--r1-and-r2) records the two corrections to M05's ownership code.
 The owner then reviewed that head, `25cbdbe2`, accepted R2 and returned one finding about the lifecycle around R1;
-the [last section](#review-of-25cbdbe2-2026-11-16--r1-the-lifecycle-around-retained-cleanup) records that
-correction and holds the current results. The earlier sections are kept as the record of their own heads.
+the [section after it](#review-of-25cbdbe2-2026-11-16--r1-the-lifecycle-around-retained-cleanup) records that
+correction. The owner then reviewed `fe22563a`, accepted that correction and returned one P2 about the operation after
+the world-boundary guard; the [last section](#review-of-fe22563a-2026-11-16--r1-world-boundaries-after-the-guard)
+records it and holds the current results. The earlier sections are kept as the record of their own heads.
 
 ## Identity
 
@@ -913,7 +915,8 @@ trigger and from a flag set only around the per-frame dismounts. A retained stic
 `cleanupRetryRequired`; that flag makes `ValidateActivePair` dismount again every frame, which would have turned
 per-frame recovery into repeated releases.
 
-**World boundaries: a choice for the owner to confirm.** Area suspension, load housekeeping and event suspension
+**World boundaries: a choice for the owner to confirm.** (Decided at the review of `fe22563a`: the owner kept this
+policy. The operation after the guard still failed; the last section completes it.) Area suspension, load housekeeping and event suspension
 ask a separate guard, `GuardWorldBoundary`, which decides on what the attachment itself left behind. A stick-only
 obligation does not fail those three boundaries. It stays retained through them, keeps the owner unsettled, and
 each boundary still makes its deliberate attempt. The reason: failing them latches a failed area transfer (which
@@ -1087,6 +1090,269 @@ code. No blocker. Its findings and what was done:
   slow-down exemption still read the selected rider; a refused admission still faults natively.
 - **M04** stays unresolved. **T04–T08** are unchanged and open. T04 was met once in this continuation (above) and
   is exactly as ledgered.
+
+Sprint 4's order stays C04, C01, C02, C03 and is not started.
+
+Not run: no merge, release, tag, installation, loader replacement or reviewer request.
+
+## Review of `fe22563a` (2026-11-16) — R1, world boundaries after the guard
+
+The owner accepted the lifecycle correction of `fe22563a` and returned one remaining P2. The world-boundary policy
+(area, load and event progression go on when attachment cleanup is complete and only detached stick-movement cleanup
+remains) failed at the operation right after the new guard. That is corrected through ownership, the admission
+bindings and restoration. The policy itself is kept. R2 stays accepted, and stationary rider actions stay
+deliberately preserved. Nothing here was run in the game.
+
+### Identity
+
+- **Base:** the reviewed head `fe22563ae4e51e4d8af04524ac0501621bf47442`, still on the Sprint 2 head
+  `1dffc3e09ffeddc70ba09e3a1f46c1613a997bd7`. PR #47 still targets `codex/kmc-known-issues-sprint2`. PRs #46 and
+  #45 and `main` are untouched.
+- **Commits:**
+  - `7fa9f74e`: the correction, with its tests and contract checks.
+  - `ee8cca11`: the independent review's corrections.
+  - `56cae55f`: one control in the contract script made to discriminate, after the first mutation round (no
+    product source).
+  - `1ad306ce`: one IL pin added after the final mutation round (no product source).
+  - Then the records commit.
+- **Artifact:** `bin/Release/KingmakerMountedCombat.dll` built from `ee8cca11`; `56cae55f` and `1ad306ce` leave it unchanged.
+  - SHA-256 `5EC8C94FEBA600298D9CC299CAC0C58A0DB75A380D57C4DA77997166B5F4F9F2`
+  - MVID `f279989f-845a-4a91-9afd-265b8ae8082e`
+- **The reviewed head's build**, used for the before results, was rebuilt from `fe22563a` in a separate worktree.
+  - SHA-256 `0CCDC0F5…5928`, MVID `5df81ce7-…`: identical to the artifact reported for that head.
+  - It is kept at `artifacts\known-issues-sprint3\reviewed-fe22563a\`.
+- **Save format, settings:** unchanged.
+
+### The missed post-guard check
+
+The world-boundary check of `fe22563a` stopped at the guard, with no registered owner. The sequence right after it
+failed:
+
+1. A registered pair dismounts with only its stick-movement cleanup left.
+2. Its detached owner stays registered, because the owner's obligation predicate includes that cleanup.
+3. `GuardWorldBoundary` passes.
+4. `SuspendAreaPair` and `BeginLoadHousekeeping` then call `MountedWorldService.DiscardAdmissionBindings`.
+5. The discard refuses the retained owner: "Old-world custody has not settled before admission discard."
+6. Area suspension latches `failedAreaTransfer`, and load housekeeping throws.
+
+Run on the reviewed build with a genuine registered owner, the real world service does exactly that (see Evidence).
+
+### The correction
+
+**Detached cleanup is told apart from what holds a world.**
+
+- Each owner keeps its full obligation predicate. That predicate alone decides when the owner retires: until the
+  cleanup is established, the owner stays registered, holding its actors and its identity.
+- The relationship service now also declares a second predicate when it reserves or imports an owner
+  (`DeclareDetachedCleanup`). It is the same obligations without the stick-movement cleanup that the boundary keeps
+  on its own, with its exact command, view and agent.
+- Owners whose paths never declare it keep the full predicate for both: the legacy retained-detached participation
+  and older paths.
+
+**The admission discard** (`SettledForAdmissionDiscard`) accepts a detached owner that owes nothing but that cleanup.
+Everything else still refuses, as before:
+
+- a reserved or active owner;
+- retained commands or an unsettled native shell;
+- participation;
+- `cleanupRetryRequired`;
+- prepared-pair residue;
+- an imported participation;
+- a save in flight.
+
+The charge drains before the guard are unchanged.
+
+**Area transition.**
+
+- Suspension passes, the owner stays registered, and no failed transfer is latched.
+- At the arrival, a departing pair still held by that owner is deferred into the retained custody with its exact
+  owner identity, generation and arrival placement (`DeferHeldArrival`).
+- Only three cases defer it: the arrival would restore it, the arrival would defer it anyway, or its only refusal is
+  the mount's installed movement-agent override. That last refusal is the one the pair's own retained agent causes,
+  found by a hypothetical re-validation that grants nothing (`RefusedOnlyForMountAgentOverride`).
+- Any other refusal keeps its established outcome. The capital rule retires the pair; anything else fails the
+  all-pair restoration and attaches no other pair.
+- A carried pair (world-map travel, an earlier event) held the same way is retained with its arrival placement too
+  (`DeferHeldCarriedArrival`).
+- The in-area retry refuses a held pair cleanly before it acquires a boundary, giving the true reason: "The pair's
+  earlier stick-movement cleanup is still outstanding; the pair stays dismounted until that cleanup is established."
+- An import beside the held owner is refused with the same reason.
+- Once the cleanup is established, the owner retires, and the retry imports the pair with the same owner identity,
+  generation, session and campaign. No duplicate owner exists at any point.
+
+**Load (world replacement).**
+
+- Load housekeeping calls `DiscardAdmissionBindingsForWorldReplacement`. After the ordinary discard, owners that
+  still owe detached cleanup are set aside from the old session (`SetAsideEarlierWorldCleanup`): they leave its
+  roster, actor index and identities.
+- A set-aside owner is not erased. It keeps its boundary and its obligation, still counts against the registry's
+  owner capacity, and retires when its cleanup is established.
+- With the roster empty, the new world's first admission or import begins the new session. The save's pairs (the
+  same characters, the same owner identities) import without an old-session, actor-index or duplicate-identity
+  refusal.
+- The old cleanup then acts only on the old world's exact command, view and agent. It leaves the new pair, its owner
+  and its view alone.
+- The old boundary is not handed out again while it owes cleanup.
+
+**Event suspension** has no discard. The retained pair restores through the same in-area retry, which waits for the
+earlier owner to retire.
+
+**Unchanged:**
+
+- Disable, shutdown and guard removal stay strict on every boundary, including a held or set-aside one.
+- Automatic retries stay bounded, and deliberate releases retry beyond the limit.
+- A boundary that still owes cleanup takes no new owner. Only the legacy single-boundary mode could reach that
+  directly.
+- A voluntary dismount's cleanup result stays strict; its wording was not changed.
+
+### Before and after, with a registered owner
+
+| Situation | Reviewed head `fe22563a` | Corrected |
+|---|---|---|
+| **A. Area transition**, agent removal fails once at the guard, foreign override B on the mount's new view | Guard passes; the admission discard refuses the retained owner; the transfer is latched as failed | Discard passes with the owner registered; the arrival defers the pair; the import beside the owner is refused with the true reason; recovery removes the agent and leaves B; the owner retires; the pair imports with the same identity, generation, session and campaign |
+| **B. Load**, interrupt fails through load housekeeping | Load housekeeping throws on the retained owner | The owner is set aside with its obligation; the new world imports the same characters and identity under its own session; the old cleanup finishes later on old objects only; the new pair, owner and view are untouched; the old owner retires |
+| **C. Persistent failure** | The discard refuses (as A) | Three automatic attempts, one report; the owner and obligation stay; the pair stays held, refused with the true reason, never reported restored; disable, shutdown and guard removal stay refused; a deliberate recovery retires the owner and the pair imports |
+| **D. Controls** | Healthy paths pass | Healthy area, load and event paths and an unrelated pair are unchanged; retained commands, participation or a failed attachment cleanup, with or without stick cleanup beside them, keep both discards refused; a save in flight keeps the discard refused; a held pair with an unrelated refusal still fails the all-pair restoration, and under the capital rule is still retired |
+
+### Evidence
+
+All runs are offline, Release, Windows PowerShell 5.1, from the Sprint 3 worktree. Logs `42-…` to `52-…` and
+`mutant-r4*.log` are in `C:\Dev\KingmakerMountedCombatLab\artifacts\known-issues-sprint3\`.
+
+The reviewed head's column comes from its own build for the continuous-drive script. The other rows come from logs
+`38-…` and `40-…` of `899fe393`; `fe22563a` changed only records on top of it, so the product is the same.
+
+| Check | Reviewed head `fe22563a` | Corrected (`ee8cca11`, final script `1ad306ce`) |
+|---|---|---|
+| Component test exe | 1332 / 0 | 1337 / 0 (5 more: the registry decisions, world boundaries A, B, C, D) |
+| `Test-ContinuousDriveContracts.ps1` | 52 / 0 as it was; **53 pass, 5 fail** against the script as extended (run with `-ProductDll`) | 58 / 0 (6 more) |
+| `Test-PhysicalMoverPaceContracts.ps1` | 27 / 0 | 27 / 0 |
+| `Test-PostLoadViewReadinessContracts.ps1` | 26 / 0 | 26 / 0 |
+| `Test-PersistenceContracts.ps1` | 223 / 0 | 223 / 0 |
+| `Test-WorldOwnershipContracts.ps1` | 29 / 0 | 29 / 0 |
+| `Validate-Source.ps1` | 151 / 0 | 151 / 0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815 / 0 | 815 / 0 |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3 -Focused` (continuous drive, physical mover pace, post-load view readiness, persistence, world boundary, paired activation, world ownership, command slot) | PASS 11/0 | **PASS 11/0** |
+
+Workflow budget `known-issues-sprint3`: 5.25 of 90 minutes, twelve entries. The two failed entries are the earlier
+continuation's, kept as recorded.
+
+**The reviewed head failing the new checks** (logs `48-…` and `51-…`, run on the real world service with a registered owner):
+
+- **A** fails with "the admission discard after the guard failed over stick-movement cleanup alone (Old-world custody
+  has not settled before admission discard.): area suspension would latch a failed transfer".
+- **B** fails with "load housekeeping failed over stick-movement cleanup alone (Old-world custody has not settled
+  before admission discard.)". On that build the check calls the discard its load housekeeping called.
+- **C** fails with "the admission discard failed over the held pair: Old-world custody has not settled before
+  admission discard."
+- The check of the compiled held-pair decisions and the IL check of the new wiring fail. **D** (the controls) passes
+  on both builds.
+
+In the component tests, A, B and C also run under a flag of the model that reproduces the reviewed wiring. There the
+area suspension latches the failed transfer and the load fails.
+
+**What was executed, read, or modelled.**
+
+| Kind | What |
+|---|---|
+| Production code executed | The real `MountedWorldService`, built offline as `Test-WorldOwnershipContracts.ps1` builds it, with its real registry and real pair boundaries: `CreateRestoredBoundary`; `ImportSavedOwnershipForSession` (the production import, with the boundary's own retained-obligation predicate and its declared world predicate); the registry's `Commit`; `GuardWorldBoundary`, `GuardBoundary`, `Dismount` and `Shutdown`; `DiscardAdmissionBindings` and `DiscardAdmissionBindingsForWorldReplacement`; `ReleaseSettledAdmissions`; `PairHeldByDetachedCleanup`; `RecoverContinuousDriveCleanup`; `AdmissionRefusal`. Actors are genuine `UnitEntityData` objects made without the game. The compiled `DeferHeldArrival`, `DeferHeldCarriedArrival` and `RefusedOnlyForMountAgentOverride`. In the component tests, the same registry, policy and owner. |
+| Substituted in that execution | Each boundary's stick-movement owner runs on the scripted host, which stands in for the native interrupt, the native end and the override write. The boundary's `Dismounting` subscribers and charge barrier, which need the running game, are detached; one check re-attaches a failing subscriber to stand for a failed attachment cleanup. On the reviewed build, which has no import seam, the owner is reserved through the registry with the reserve lambda's own expression, read from the boundary at every call. |
+| Production code read (IL) | `SuspendAreaPair` asks the world-boundary guard, then the admission discard; `BeginLoadHousekeeping` asks it, then the world-replacement discard; the discard decides through the registry; `RestoreAreaPair` asks the held-pair and own-agent questions for carried and departing pairs before any import or attachment, and decides through the held-pair decisions; `RestoreRetainedPair` refuses a held pair before it acquires a boundary; the reservation refuses a boundary that owes cleanup; both ownership sites declare a world predicate that reads commands and participation but not the stick-movement cleanup. |
+| Modelled | `MountedPersistenceService`'s area suspension, arrival, in-area retry (without its separation, patience-timing and staging rules), event suspension and load housekeeping, which cannot be constructed offline. The component tests model their sequence and take every decision from the production registry and policy. The test names say so. |
+| Installed native code executed | Nothing new. |
+| Not executed | `SuspendAreaPair`, `RestoreAreaPair`, `RestoreRetainedIntentCore`, `SuspendPairs` and `BeginLoadHousekeeping` as whole methods; the world-map branch; native `OnEnded` or `AgentOverride` on a destroyed view after a load; any gameplay. |
+
+**Mutation checks** were run in the separate scratch worktree, never in the worktree whose artifact is reported.
+
+37 one-line mutations of the correction, each built and run through the component tests and the contract script. Every one fails at least one check. In the round, j alone was not detected: the carried deferral sits in the persistence orchestration, which cannot run offline, and no check read that condition. `1ad306ce` adds an IL pin for it; the same mutant, rebuilt in the scratch worktree, fails that pin (log `mutant-r4b-j-carried-held-pair-without-placement-recheck.log`).
+
+| Mutant | The change | Component tests failed | Contract checks failed |
+|---|---|---|---|
+| A | the admission discard reads every obligation again | 5 | 3 |
+| B | "detached cleanup only" ignores the world predicate | 1 | 1 |
+| C | an owner that declares nothing holds no world | 1 | 0 |
+| D | the declared world predicate is ignored | 5 | 3 |
+| E | the hold ignores the owner identity | 1 | 0 |
+| F | the hold ignores the actors | 1 | 0 |
+| G | the set-aside keeps the actor index | 2 | 1 |
+| H | the set-aside erases the owner | 2 | 1 |
+| I | the set-aside keeps the owner in the live roster | 2 | 1 |
+| J | a set-aside owner never retires | 2 | 1 |
+| K | a set-aside owner retires with its cleanup outstanding | 1 | 0 |
+| L | the sweep skips set-aside owners | 2 | 1 |
+| M | owner capacity ignores set-aside owners | 1 | 0 |
+| N | the set-aside runs without the settlement check | 1 | 0 |
+| O | the world predicate includes the stick cleanup | 4 | 3 |
+| P | the world predicate drops a failed attachment cleanup | 0 | 1 |
+| Q | a held departing pair overrides every arrival decision (the reviewed defect of 7fa9f74e) | 2 | 1 |
+| c | a held departing pair is never deferred | 4 | 1 |
+| d | a departing refusal by the pair's own agent is ignored | 2 | 1 |
+| e | a held carried pair is never retained | 1 | 1 |
+| f | a held carried pair overrides Drop and the capital retirement | 1 | 1 |
+| g | any refusal counts as the pair's own agent | 1 | 1 |
+| h | the candidate is left changed by the re-validation | 1 | 1 |
+| i | the carried arrival never asks whether the pair is held | 0 | 1 |
+| j | a held carried pair is retained without its arrival placement | 0 | 0 in the round; 1 after the pin of `1ad306ce` (re-run) |
+| k | the departing arrival never asks about the pair's own agent | 0 | 1 |
+| R | the import goes ahead beside the held owner | 0 | 2 |
+| S | the import declares every obligation as the world predicate | 0 | 5 |
+| T | the import's world predicate drops retained commands | 0 | 2 |
+| U | the reservation declares every obligation as the world predicate | 0 | 2 |
+| V | the reservation's world predicate drops participation | 0 | 1 |
+| W | the departing arrival never asks whether the pair is held | 0 | 1 |
+| X | the world replacement sets nothing aside | 0 | 2 |
+| Y | load housekeeping uses the plain discard | 0 | 1 |
+| Z | the discard reverts to the reviewed expression | 0 | 4 |
+| a | the discard ignores a save in flight | 0 | 1 |
+| b | the hold seam ignores the registry | 0 | 2 |
+
+A first round of 28 on `7fa9f74e`, before the review, is kept as `mutants-r4a-prereview-summary.txt`. Two of its mutants did not build (rewritten here as G and J), and one survived: `a`, the discard without its save-in-flight guard. Its control was not discriminating, and `56cae55f` corrected the control.
+
+**Independent review.** One independent, read-only review of `7fa9f74e` found no blocker. What it found and what was
+done:
+
+- **Major, corrected (`ee8cca11`).** A held departing pair was deferred whatever the arrival found. An unrelated
+  refusal (a dead mount, a pair not directly controllable) therefore bypassed the all-pair failure, and the capital
+  rule no longer retired it. Now only Restore, Defer, or a refusal caused solely by the pair's own installed agent
+  defer it.
+- **Minor, corrected.** A carried pair held at arrival got no arrival placement, so the retry could drop it for
+  separation.
+- **Notes, applied.** The in-area retry checks the hold before acquiring a boundary. The legacy single-boundary mode
+  can no longer give a boundary that owes cleanup a new owner. One test message was wrong.
+- **Recorded, not changed.**
+  - A set-aside owner retires only when its cleanup is established against the old world's objects. Until then it
+    occupies its boundary and one owner slot.
+  - Save and teardown readiness skip set-aside owners. Strictness still holds per boundary.
+  - The component tests model the persistence sequence; the review's own reading of `RestoreAreaPair` is recorded
+    above.
+- **Found sound.**
+  - The registry's settlement, set-aside and identity handling.
+  - `Owns` returning false for a set-aside owner.
+  - The area and event paths for a pair held only by the cleanup.
+  - Old cleanup never reaching a new pair.
+  - The non-stick refusals, the strict gates and the bounded retries.
+
+### Remaining uncertainty
+
+- **Native: NOT RUN.** No gamepad session has ever been run in this project. A failed native interrupt or a failed
+  override removal is a constructed case.
+- **The persistence sequence is modelled and pinned, not run.** Its decisions and the ownership operations it calls
+  are executed; the methods themselves are not.
+- **After a load, the old cleanup runs on the old world's objects.** Native `UnitCommand.Interrupt` and the
+  `AgentOverride` setter on a destroyed view were read, not run. If those facts never settle, the set-aside owner keeps
+  its boundary and an owner slot until a deliberate release succeeds.
+- **A held pair that outlasts the retained-intent patience (10 s)** stays dismounted with the true reason. It is not
+  remounted automatically once the cleanup is later established; the player mounts it again.
+- **Voluntary dismount wording.** A voluntary dismount that leaves a retained obligation still reports not accepted,
+  although the pair is dismounted and its cost stands. The result stays strict, as the owner asked. The wording is a
+  non-blocking refinement left for later.
+- **Earlier limits stand:**
+  - the guarded native write is not executed;
+  - the paused-game parking of a rider order is not modelled;
+  - a detached owned component is left for native's next `Init`;
+  - the followers' native speed cap and slow-down exemption still read the selected rider;
+  - a refused admission still faults natively.
+- **M04** stays unresolved. **T04–T08** are unchanged and open; none of their evidence depends on this change.
 
 Sprint 4's order stays C04, C01, C02, C03 and is not started.
 

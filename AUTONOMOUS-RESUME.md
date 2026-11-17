@@ -7,7 +7,8 @@ and docs/CURRENT-KNOWN-ISSUES.md.
 - **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
   with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. The owner's
   review of `5e27c9bd` (R1, R2) is corrected. The review of `25cbdbe2` accepted R2; its one R1 lifecycle finding
-  is corrected. Fast PASS 11/0. Four independent reviews (Sprint 3, continuation, R1/R2, lifecycle), corrected.
+  is corrected, and the review of `fe22563a` (world boundaries after the guard) is corrected. Fast PASS 11/0. Five
+  independent reviews (Sprint 3, continuation, R1/R2, lifecycle, world boundaries), corrected.
   Native NOT RUN; gamepad never run.
 - **Seams of the continuation (M05):**
   - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
@@ -28,7 +29,18 @@ and docs/CURRENT-KNOWN-ISSUES.md.
   - `ValidateActivePair` must keep calling `Dismount` directly after the invariant;
     `Test-PostLoadViewReadinessContracts.ps1` pins that.
   - `GuardBoundary` is strict. `GuardWorldBoundary` (area suspension, load, event suspension only) passes over a
-    stick-only obligation; the owner may ask for those three to be strict.
+    stick-only obligation; the owner kept that policy at the review of `fe22563a`.
+  - What follows those guards must agree. Owners declare a world predicate (`DeclareDetachedCleanup`) beside their
+    retained one.
+    - `SettledForAdmissionDiscard` reads the world predicate.
+    - A load calls `DiscardAdmissionBindingsForWorldReplacement`, which sets cleanup-only owners aside
+      (`earlierWorldCleanup`).
+    - The arrival defers a held pair through `DeferHeldArrival` / `DeferHeldCarriedArrival`. Never widen those beyond
+      Restore, Defer and the pair's own agent (`RefusedOnlyForMountAgentOverride`).
+  - `Test-PostLoadViewReadinessContracts.ps1` pins two `MarkArrivalDeferred` call sites and one view read per
+    arrival decision; the held deferrals share those sites.
+  - `MountedWorldService` can be built offline with a registered owner (see `WorldFixture` in the continuous-drive
+    script). Detach a boundary's `Dismounting` event and `ChargeCleanupBarrier` first: they need the game.
   - `Test-ChargeOwnershipContracts.ps1` still stops at T04 after 71 checks. Keep it out of a Fast selection that
     has to pass.
   - The real `GameMountedRelationshipService` can be constructed offline (a logger proxy and `DiagnosticSettings`)
