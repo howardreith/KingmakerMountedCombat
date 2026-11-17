@@ -111,6 +111,9 @@ namespace KingmakerMountedCombat.Domain
 
         public object View { get; private set; }
 
+        // The pair generation the command was bound in.
+        public long Generation => generation;
+
         public bool IsBound => Command != null;
 
         public void Bind(object command, object agent, object view, long pairGeneration, int frame)
@@ -232,6 +235,8 @@ namespace KingmakerMountedCombat.Domain
         private sealed class Residue
         {
             public object Command, Agent, View;
+            // The pair generation the command was bound in (review of 119088ed).
+            public long Generation;
             public MountedContinuousDriveSettlement Settlement;
             public string Reason;
             public bool EffectApplied, FailureReported, InProgress;
@@ -350,6 +355,19 @@ namespace KingmakerMountedCombat.Domain
                 watch.Owns(agent, host.PairGeneration, host.PairMounted, host.IsFinished(command), host.InMountMoveSlot(command), host.Frame);
         }
 
+        // Known issues sprint 3 (review of 119088ed). A different question from OwnsMountOverride: is this exact agent,
+        // installed on this exact view, the captured agent of a retirement this owner still owes, for a command bound in
+        // this pair generation? Only the captured view and agent of an outstanding record answer yes; an adopted agent,
+        // a foreign override on the captured view, or any override on another view does not.
+        public bool RetainsCapturedAgent(object view, object agent, long pairGeneration)
+        {
+            if (view == null || agent == null) return false;
+            foreach (var residue in residues)
+                if (residue.Agent != null && ReferenceEquals(residue.View, view) && ReferenceEquals(residue.Agent, agent) &&
+                    residue.Generation == pairGeneration && ReferenceEquals(host.OverrideOf(view), agent)) return true;
+            return false;
+        }
+
         // Asked from inside native UnitMoveContiniously.OnEnded, which is about to clear the override of the
         // executor's current view. A command this owner never bound, or whose retirement is established, keeps the
         // native rule.
@@ -369,7 +387,8 @@ namespace KingmakerMountedCombat.Domain
         // An agent a new command has adopted is no longer this record's to clear.
         private void Retire(MountedContinuousDriveSettlement settlement, string reason, bool agentAdoptedByNewCommand = false)
         {
-            var residue = new Residue { Command = watch.Command, Agent = agentAdoptedByNewCommand ? null : watch.Agent, View = watch.View, Settlement = settlement, Reason = reason };
+            var residue = new Residue { Command = watch.Command, Agent = agentAdoptedByNewCommand ? null : watch.Agent, View = watch.View,
+                Generation = watch.Generation, Settlement = settlement, Reason = reason };
             watch.Clear();
             residues.Add(residue);
             var established = Complete(residue);

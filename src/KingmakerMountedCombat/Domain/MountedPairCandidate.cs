@@ -58,8 +58,9 @@ namespace KingmakerMountedCombat.Domain
             Validate(MountedRelationshipAdmission.SavedRestore);
 
         // Known issues sprint 3 (review of fe22563a): whether the saved-relationship refusal is only the mount's installed
-        // movement-agent override, the one refusal a pair's own retained stick-movement agent causes. A hypothetical
-        // re-validation without it; it grants nothing and leaves the candidate as it was.
+        // movement-agent override. A hypothetical re-validation without it; it grants nothing and leaves the candidate as
+        // it was. It says nothing about whose override it is: a pair's own retained agent and a foreign agent refuse alike
+        // (review of 119088ed). Ownership is asked separately (ArrivalRefusedOnlyForRetainedAgent).
         internal bool RefusedOnlyForMountAgentOverride()
         {
             if (MountAgentOverrideAvailable || ValidateSavedRelationship() == null) return false;

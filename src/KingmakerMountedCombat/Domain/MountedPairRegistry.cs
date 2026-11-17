@@ -170,6 +170,17 @@ namespace KingmakerMountedCombat.Domain
             return false;
         }
 
+        // Known issues sprint 3 (review of 119088ed): the exact earlier owner of this pair that owes only detached
+        // cleanup: the same identity and generation, the same rider and mount. Null when there is none.
+        internal MountedPairOwner<TActor, TBoundary> FindHeldOwner(TActor rider, TActor mount, Guid id, long generation)
+        {
+            var riderKey = Key(rider); var mountKey = Key(mount);
+            foreach (var owner in owners)
+                if (IsDetachedCleanupOnly(owner) && owner.Id == id && owner.Generation == generation &&
+                    riderKey != null && riderKey == owner.RiderId && mountKey != null && mountKey == owner.MountId) return owner;
+            return null;
+        }
+
         // World replacement (a load). The old world's custody must have settled as for an admission discard. Owners
         // that still owe detached cleanup leave this session (roster, actor index, identities) with that obligation
         // and their boundary, and retire once it is established. A new world session can then begin.

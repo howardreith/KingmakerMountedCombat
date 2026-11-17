@@ -264,8 +264,22 @@ namespace KingmakerMountedCombat.Domain
             heldByDetachedCleanup && (decision == MountedDepartingArrivalDecision.Restore || decision == MountedDepartingArrivalDecision.Defer ||
                 refusedOnlyForHeldAgent) ? MountedDepartingArrivalDecision.Defer : decision;
 
+        // Known issues sprint 3 (review of 119088ed). The override-only exception needs two distinct facts: the mount's
+        // current override is owned by this pair's retained cleanup (its captured view and agent), and that override is
+        // the only eligibility refusal. A foreign override, on the captured view or another one, never qualifies.
+        public static bool RefusedOnlyForHeldAgent(bool overrideOwnedByRetainedCleanup, bool refusedOnlyForMountOverride) =>
+            overrideOwnedByRetainedCleanup && refusedOnlyForMountOverride;
+
+        // Whether a held carried pair takes the arrival placement for its cleanup: it is retained only because of that
+        // cleanup (it would have restored, or its only refusal is its own retained agent). Any other retention keeps the
+        // placement rules it already had.
+        public static bool HeldCarriedArrivalPlacement(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedCarriedArrivalDecision decided, MountedCarriedArrivalDecision arrival) =>
+            arrival == MountedCarriedArrivalDecision.Retain && heldByDetachedCleanup &&
+            (decided == MountedCarriedArrivalDecision.Restore || refusedOnlyForHeldAgent);
+
         // The same for carried intent (world-map travel, an earlier event): a held pair that would restore, or that is
-        // retained only for its own installed agent, is retained with its arrival placement. Drop and the capital
+        // retained only for its own retained agent (RefusedOnlyForHeldAgent), is retained with its arrival placement. Drop and the capital
         // retirement keep their outcome.
         public static MountedCarriedArrivalDecision DeferHeldCarriedArrival(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
             MountedCarriedArrivalDecision decision) =>

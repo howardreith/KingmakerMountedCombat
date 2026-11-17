@@ -598,6 +598,9 @@ public static class KmcContinuousDriveProbe
         public KmcScriptedDriveHost Drive(object boundary,Assembly product,object command,object view,object agent)
         {
             var host=NewScriptedHost(product);
+            // The adapter's pair generation is the boundary's, which is its committed owner's generation.
+            var registered=PairOwner(boundary);
+            if(registered!=null) host.Generation=(long)Read(registered,"Generation");
             ServiceType.GetField("continuousDrive",Any).SetValue(boundary,host.Owner);
             host.CurrentView=view; host.Overrides[view]=agent;
             host.Owner.GetType().GetMethod("Bind").Invoke(host.Owner,new object[]{command});
@@ -628,6 +631,55 @@ public static class KmcContinuousDriveProbe
             catch(Exception error) { return Innermost(error).Message; }
         }
         public void Settle() { Call(World,"ReleaseSettledAdmissions"); }
+        // The compiled saved-relationship candidate: every eligibility fact true except those named.
+        public object Candidate(bool mountOverrideAvailable,bool mountAlive)
+        {
+            var type=Product.GetType("KingmakerMountedCombat.Domain.MountedPairCandidate",true);
+            var value=Activator.CreateInstance(type,new object[]{"rider","mount"});
+            foreach(var flag in new[]{"RiderIsDirectlyControllable","MountIsDirectlyControllable","RiderIsAliveAndConscious","MountIsAliveAndConscious",
+                "ExactReciprocalCompanionRelationship","RiderViewAndStockAgentAvailable","MountViewAndStockAgentAvailable","RiderStockAgentEnabled",
+                "MountStockAgentEnabled","RiderAgentOverrideAvailable","MountAgentOverrideAvailable","RiderIsExactlyMedium","SafeMovementMode"})
+                type.GetProperty(flag).SetValue(value,true,null);
+            type.GetProperty("RiderSizeOrdinal").SetValue(value,4,null); type.GetProperty("MountSizeOrdinal").SetValue(value,5,null);
+            type.GetProperty("MountAgentOverrideAvailable").SetValue(value,mountOverrideAvailable,null);
+            type.GetProperty("MountIsAliveAndConscious").SetValue(value,mountAlive,null);
+            return value;
+        }
+
+        // The build's own classification of "refused only for this pair's retained agent", for the mount's current view
+        // and override. The corrected build asks its production question with the exact identities. The reviewed build
+        // computed, in RestoreAreaPair, the hold and the candidate's override-only refusal; that composition of its own
+        // compiled parts is what it decided.
+        public bool OwnAgentOnly(object asker,object rider,object mount,Guid id,long generation,object candidate,object view,object current,out string how)
+        {
+            var question=ServiceType.GetMethod("ArrivalRefusedOnlyForRetainedAgent",Any,null,
+                new[]{UnitType,UnitType,typeof(string),typeof(long),candidate.GetType(),typeof(object),typeof(object)},null);
+            if(question!=null) { how="production ownership question"; return (bool)question.Invoke(asker,new object[]{rider,mount,id.ToString("N"),generation,candidate,view,current}); }
+            how="reviewed classification (hold and override-only refusal)";
+            return Held(asker,rider,mount,id) && (bool)candidate.GetType().GetMethod("RefusedOnlyForMountAgentOverride",Any).Invoke(candidate,null);
+        }
+
+        public string Departing(bool held,bool agentOnly,string decision)
+        {
+            var intent=Product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPolicy",true);
+            var type=Product.GetType("KingmakerMountedCombat.Domain.MountedDepartingArrivalDecision",true);
+            return intent.GetMethod("DeferHeldArrival").Invoke(null,new object[]{held,agentOnly,Enum.Parse(type,decision)}).ToString();
+        }
+
+        // The carried arrival of a pair whose only eligibility refusal is the mount's override: its decision, and whether
+        // it takes the cleanup-specific arrival placement.
+        public string Carried(bool held,bool agentOnly,out bool placement)
+        {
+            var intent=Product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPolicy",true);
+            var type=Product.GetType("KingmakerMountedCombat.Domain.MountedCarriedArrivalDecision",true);
+            var decided=intent.GetMethod("DecideCarriedArrival").Invoke(null,new object[]{false,true,true,false,"Mount already owns an incompatible movement-agent override.",false,null});
+            var arrival=intent.GetMethod("DeferHeldCarriedArrival").Invoke(null,new object[]{held,agentOnly,decided});
+            var rule=intent.GetMethod("HeldCarriedArrivalPlacement");
+            placement=rule!=null ? (bool)rule.Invoke(null,new object[]{held,agentOnly,decided,arrival})
+                : arrival.ToString()=="Retain" && held && (decided.ToString()=="Restore" || agentOnly);
+            return arrival.ToString();
+        }
+
         public string AdmissionRefusal(object session,string campaign,object rider,object mount)
         {
             return (string)RegistryType.GetMethod("AdmissionRefusal",Any).Invoke(Registry,new object[]{session,campaign,rider,mount,6});
@@ -1768,7 +1820,7 @@ public static class KmcContinuousDriveProbe
                     Count(Body(Required(relationship,"AdvanceIdleBoundaryGeneration",0)),"GameMountedRelationshipService","get_RetainsCleanupObligations")==1 &&
                     One(dispose,null,"GuardNativeBoundary")<One(dispose,null,"UnpatchAll");
             });
-        Check("PRODUCT-EXECUTED world boundary A, area transition, on the real world service with a registered owner: the pair's owner is imported and committed, its drive's agent removal fails once at the area suspension guard while a foreign override B sits on the mount's new view; the guard passes and the admission discard that follows passes with the owner still registered (detached, its actors and identity held); the arrival defers the pair instead of importing beside that owner; after recovery the owner retires, B is untouched, and the pair is imported with its exact identity, generation, session and campaign",
+        Check("PRODUCT-EXECUTED world boundary A, area transition, on the real world service with a registered owner: the pair's owner is imported and committed, its drive's agent removal fails once at the area suspension guard while a foreign override B sits on the mount's new view; the guard passes and the admission discard that follows passes with the owner still registered (detached, its actors and identity held); the pair is reported held (the question the arrival asks before deferring it) and an import of its ownership beside that owner is refused; after recovery the owner retires, B is untouched, and the pair's ownership is imported with its exact identity, generation, session and campaign (the attachment that follows the import is not executed here)",
             ()=>{
                 var w=new WorldFixture(product);
                 try
@@ -1851,7 +1903,7 @@ public static class KmcContinuousDriveProbe
                 }
                 finally { w.Close(); }
             });
-        Check("PRODUCT-EXECUTED world boundary C, persistent cleanup, on the real world service: the automatic limit is reached with one report; the obligation and the owner stay; the pair stays held, an import or a new admission of it is refused with a truthful reason, and nothing reports it restored; the world boundaries still pass; disable, shutdown and guard removal stay strict on the held boundary; a later deliberate recovery clears the obligation, the owner retires and the pair imports with its identity",
+        Check("PRODUCT-EXECUTED world boundary C, persistent cleanup, on the real world service: the automatic limit is reached with one report; the obligation and the owner stay; the pair stays held, an import or a new admission of it is refused with a truthful reason, and nothing reports it restored; the world boundaries still pass; disable, shutdown and guard removal stay strict on the held boundary; a later deliberate recovery clears the obligation, the owner retires and the pair's ownership imports with its identity (the attachment is not executed here)",
             ()=>{
                 var w=new WorldFixture(product);
                 try
@@ -1957,7 +2009,7 @@ public static class KmcContinuousDriveProbe
                 }
                 finally { w.Close(); }
             });
-        Check("PRODUCT-EXECUTED the compiled arrival decisions for a held pair: departing Restore or Defer, or a refusal caused only by its own installed agent, become Defer, while the capital retirement and any other refusal keep their outcome; carried Restore, or Retain only for its own agent, become Retain, while Drop and the capital retirement keep theirs; the candidate counts only the mount's installed override as the pair's own agent and is left unchanged",
+        Check("PRODUCT-EXECUTED the compiled arrival decisions for a held pair: departing Restore or Defer, or a refusal caused only by its own retained agent (an input here; the ownership question that establishes it is checked separately), become Defer, while the capital retirement and any other refusal keep their outcome; carried Restore, or Retain only for its own agent, become Retain, while Drop and the capital retirement keep theirs; the candidate tells an override-only refusal from any other refusal (it says nothing about who owns the override) and is left unchanged",
             ()=>{
                 var intent=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPolicy",true);
                 var departingType=product.GetType("KingmakerMountedCombat.Domain.MountedDepartingArrivalDecision",true);
@@ -1995,6 +2047,96 @@ public static class KmcContinuousDriveProbe
                 return !(bool)only.Invoke(saved(),null) && (bool)only.Invoke(agent,null) && !(bool)candidateType.GetProperty("MountAgentOverrideAvailable").GetValue(agent,null) &&
                     !(bool)only.Invoke(dead,null);
             });
+        Check("PRODUCT-EXECUTED arrival override ownership on the real world service with a registered owner: the own-agent exception holds only when the mount's current override is the captured agent, on its captured view, of a retirement the pair's exact earlier owner still owes, and that override is the only refusal; a foreign override replacing the agent on the same view, or one on a replacement view while the captured agent is still held elsewhere, keeps the departing Fail and gives a carried pair no cleanup placement; two departing pairs keep the all-pair failure; the owned case defers and later restores with its identity and generation",
+            ()=>{
+                // 1. The owned agent is still installed on its captured view, which is the mount's current view.
+                var w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-o"); var mount=w.Actor("mount-o"); var id=Guid.NewGuid();
+                    var old=w.Boundary(); var asker=w.Boundary();
+                    w.Register(old,rider,mount,id,6L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    // The command's native end fails after it became terminal, and the removal fails: A stays on V1.
+                    host.EndCallbackFails=true; host.FailClears=1000000;
+                    if(!w.WorldGuard(old,"AreaSuspension") || w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("setup: the captured agent should stay installed and retained");
+                    string how;
+                    var owned=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewOne,agent,out how);
+                    var wrongGeneration=w.OwnAgentOnly(asker,rider,mount,id,7L,w.Candidate(false,true),viewOne,agent,out how);
+                    var wrongOwner=w.OwnAgentOnly(asker,rider,mount,Guid.NewGuid(),6L,w.Candidate(false,true),viewOne,agent,out how);
+                    var otherRefusal=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,false),viewOne,agent,out how);
+                    // The captured agent itself, installed on another view, is not the captured view's agent.
+                    var elsewhere=new object(); host.Overrides[elsewhere]=agent;
+                    var otherView=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),elsewhere,agent,out how);
+                    host.Overrides.Remove(elsewhere);
+                    bool ownedPlacement; var ownedCarried=w.Carried(true,owned,out ownedPlacement);
+                    Console.WriteLine("INFO arrival 1, owned agent on its captured view ("+how+"): own agent only="+owned+"; departing Fail becomes "+w.Departing(true,owned,"Fail")+
+                        "; carried "+ownedCarried+" with cleanup placement="+ownedPlacement+"; another generation="+wrongGeneration+"; another owner="+wrongOwner+"; with another refusal="+otherRefusal);
+                    if(!owned || w.Departing(true,owned,"Fail")!="Defer" || ownedCarried!="Retain" || !ownedPlacement) throw new InvalidOperationException("the pair's own retained agent did not qualify");
+                    if(w.Seam && (wrongGeneration || wrongOwner || otherRefusal || otherView)) throw new InvalidOperationException("the own-agent exception held for another generation, another owner, beside another refusal, or for the agent on another view");
+                    if(w.Retained(old)!=1) throw new InvalidOperationException("the classification changed the retained custody");
+                    host.FailClears=0; w.Recover(old); w.Settle();
+                    var restored=w.TryRegister(w.Boundary(),rider,mount,id,6L,w.Session,w.Campaign);
+                    if(restored!=null) throw new InvalidOperationException("the owned case did not restore with its identity and generation after the cleanup: "+restored);
+                }
+                finally { w.Close(); }
+                // 2. A foreign override B replaces the agent on the same view while the owned command still needs retirement.
+                w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-s"); var mount=w.Actor("mount-s"); var id=Guid.NewGuid();
+                    var old=w.Boundary(); var asker=w.Boundary();
+                    w.Register(old,rider,mount,id,6L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object(), foreign=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    host.FailInterrupts=1000000;
+                    w.WorldGuard(old,"AreaSuspension");
+                    host.Overrides[viewOne]=foreign;
+                    if(w.Retained(old)!=1 || host.Finished.Contains(driveCommand)) throw new InvalidOperationException("setup: the owned command should still need retirement");
+                    string how;
+                    var agentOnly=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewOne,foreign,out how);
+                    var held=w.Held(asker,rider,mount,id);
+                    var decision=w.Departing(held,agentOnly,"Fail");
+                    Console.WriteLine("INFO arrival 2, foreign B on the captured view ("+how+"): held="+held+"; own agent only="+agentOnly+"; departing Fail becomes "+decision);
+                    if(!held) throw new InvalidOperationException("setup: the pair should be held");
+                    if(agentOnly || decision!="Fail") throw new InvalidOperationException("foreign override B on the captured view was classified as the pair's own retained agent: the departing Fail became "+decision);
+                }
+                finally { w.Close(); }
+                // 3 and 4. B sits on replacement view V2 while V1/A is still held; a second departing pair is eligible.
+                w=new WorldFixture(product);
+                try
+                {
+                    var rider=w.Actor("rider-v"); var mount=w.Actor("mount-v"); var id=Guid.NewGuid();
+                    var otherRider=w.Actor("rider-w"); var otherMount=w.Actor("mount-w"); var otherId=Guid.NewGuid();
+                    var old=w.Boundary(); var neighbour=w.Boundary(); var asker=w.Boundary();
+                    w.Register(old,rider,mount,id,6L,w.Session,w.Campaign);
+                    w.Register(neighbour,otherRider,otherMount,otherId,2L,w.Session,w.Campaign);
+                    object driveCommand=new object(), viewOne=new object(), agent=new object(), viewTwo=new object(), foreign=new object();
+                    var host=w.Drive(old,product,driveCommand,viewOne,agent);
+                    host.CurrentView=viewTwo; host.Overrides[viewTwo]=foreign;
+                    host.FailClears=1000000;
+                    w.WorldGuard(old,"AreaSuspension"); w.WorldGuard(neighbour,"AreaSuspension"); w.Settle();
+                    var ownersBefore=w.OwnerCount;
+                    // The condition under test stays in place through the classification: A is still installed on V1.
+                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("setup: V1/A should still be held");
+                    string how;
+                    var agentOnly=w.OwnAgentOnly(asker,rider,mount,id,6L,w.Candidate(false,true),viewTwo,foreign,out how);
+                    var held=w.Held(asker,rider,mount,id);
+                    var first=w.Departing(held,agentOnly,"Fail");
+                    var second=w.Departing(false,false,"Restore");
+                    bool placement; var carried=w.Carried(held,agentOnly,out placement);
+                    Console.WriteLine("INFO arrival 3, foreign B on replacement view V2 ("+how+"): held="+held+"; own agent only="+agentOnly+"; V1/A still held="+(w.Retained(old)==1 && ReferenceEquals(host.OverrideOn(viewOne),agent))+
+                        "; departing decisions "+first+"/"+second+"; carried "+carried+" with cleanup placement="+placement);
+                    if(agentOnly || first!="Fail") throw new InvalidOperationException("foreign override B on replacement view V2 was classified as the pair's own retained agent: the departing Fail became "+first+", so the eligible pair would be restored");
+                    if(w.Retained(old)!=1 || !ReferenceEquals(host.OverrideOn(viewOne),agent)) throw new InvalidOperationException("the classification removed the condition under test");
+                    // RestoreAreaPair decides every pair before it attaches any (pinned by the post-load contract); a Fail attaches none.
+                    if(w.OwnerCount!=ownersBefore) return false;
+                    if(carried!="Retain" || placement) throw new InvalidOperationException("a carried pair took the cleanup placement on the strength of foreign override B");
+                    return true;
+                }
+                finally { w.Close(); }
+            });
         Check("PRODUCT-IL the world boundaries around the guard: area suspension asks the world-boundary guard, then the admission discard; load housekeeping asks it, then the world-replacement discard (never the plain one); the admission discard decides through the registry, and the world replacement sets detached cleanup aside after it; the arrival asks, for carried and departing pairs alike, whether the pair is held and whether only its own agent refuses it, before any import or attachment, and decides through the held-pair decisions; the in-area retry refuses a held pair before it acquires a boundary; the import refuses a held pair before the registry import; a boundary that still owes cleanup takes no new owner; both ownership sites declare the world predicate without the stick-movement cleanup",
             ()=>{
                 var persistence=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
@@ -2007,7 +2149,15 @@ public static class KmcContinuousDriveProbe
                 var import=Body(Required(relationship,"ImportSavedOwnershipForSession",7));
                 var reserve=Body(Required(relationship,"TryReserveOwnership",3));
                 var helds=Find(arrival,"GameMountedRelationshipService","PairHeldByDetachedCleanup");
-                var ownAgent=Find(arrival,"MountedPairCandidate","RefusedOnlyForMountAgentOverride");
+                var ownAgent=Find(arrival,"GameMountedRelationshipService","ArrivalRefusedOnlyForRetainedAgent");
+                var question=Body(Required(relationship,"ArrivalRefusedOnlyForRetainedAgent",7));
+                if(Count(arrival,"MountedPairCandidate","RefusedOnlyForMountAgentOverride")!=0 ||
+                    !(One(question,null,"FindHeldOwner")<One(question,"MountedContinuousDriveOwner","RetainsCapturedAgent") &&
+                      One(question,"MountedContinuousDriveOwner","RetainsCapturedAgent")<One(question,"MountedPairCandidate","RefusedOnlyForMountAgentOverride") &&
+                      One(question,"MountedPairCandidate","RefusedOnlyForMountAgentOverride")<One(question,"MountedRetainedIntentPolicy","RefusedOnlyForHeldAgent")))
+                    throw new InvalidOperationException("the own-agent exception does not ask first whether this pair's retained cleanup owns the current override");
+                if(One(arrival,"MountedRetainedIntentPolicy","HeldCarriedArrivalPlacement")<One(arrival,"MountedRetainedIntentPolicy","DeferHeldCarriedArrival"))
+                    throw new InvalidOperationException("the carried placement is not decided from the carried decision");
                 if(helds.Count!=2 || ownAgent.Count!=2) throw new InvalidOperationException("the arrival asks "+helds.Count+" held-pair and "+ownAgent.Count+" own-agent questions, expected one each for carried and departing pairs");
                 var held=helds[1];
                 foreach(var name in new[]{"ImportSavedOwnership","RestoreSavedPair","RestoreRetainedPair","RestoreParticipation"})

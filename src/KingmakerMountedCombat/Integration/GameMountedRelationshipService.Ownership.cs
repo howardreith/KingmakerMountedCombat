@@ -155,6 +155,31 @@ namespace KingmakerMountedCombat.Integration
             return Ownership.HeldForDetachedCleanup(rider, mount, Guid.TryParse(ownerId, out var id) ? id : (Guid?)null);
         }
 
+        // Known issues sprint 3 (review of 119088ed). Whether an arrival refusal is caused only by this pair's own
+        // retained agent. Two facts, asked separately: the mount's current override is the captured agent, on its captured
+        // view, of a retirement still owed by the exact earlier owner of this pair (same identity, generation, rider and
+        // mount), asked of that owner's own boundary; and that override is the candidate's only refusal.
+        internal bool ArrivalRefusedOnlyForRetainedAgent(UnitEntityData rider, UnitEntityData mount, string ownerId, long generation,
+            MountedPairCandidate candidate)
+        {
+            var view = mount?.View;
+            return ArrivalRefusedOnlyForRetainedAgent(rider, mount, ownerId, generation, candidate,
+                ReferenceEquals(view, null) ? null : view, ReferenceEquals(view, null) ? null : view.AgentOverride);
+        }
+
+        // The current view and override are observed once at the native boundary; detached probes supply them.
+        internal bool ArrivalRefusedOnlyForRetainedAgent(UnitEntityData rider, UnitEntityData mount, string ownerId, long generation,
+            MountedPairCandidate candidate, object currentView, object currentOverride)
+        {
+            if (candidate == null || !Guid.TryParse(ownerId, out var id)) return false;
+            RefreshOwnership();
+            var owner = Ownership.FindHeldOwner(rider, mount, id, generation);
+            var boundary = owner?.Boundary;
+            var owned = boundary != null && ReferenceEquals(boundary.PairOwner, owner) &&
+                boundary.continuousDrive.RetainsCapturedAgent(currentView, currentOverride, owner.Generation);
+            return MountedRetainedIntentPolicy.RefusedOnlyForHeldAgent(owned, owned && candidate.RefusedOnlyForMountAgentOverride());
+        }
+
         internal GameMountedRelationshipService ResolveActorOwner(UnitEntityData actor, bool activeOnly = false) =>
             (activeOnly ? Ownership.FindActive(actor) : Ownership.FindOwner(actor))?.Boundary;
 
