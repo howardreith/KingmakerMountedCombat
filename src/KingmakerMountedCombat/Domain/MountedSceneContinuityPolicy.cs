@@ -139,10 +139,38 @@ namespace KingmakerMountedCombat.Domain
         // not; it makes any pending rider-only target of that pair obsolete (MountedScenePlacementHold.ClearForWholePair).
         public static MountedScenePlacementOperation ClassifyOperationWrite(bool pairMounted, bool sceneActive, bool riderWritten,
             bool mountWritten) =>
-            !pairMounted || !riderWritten ? MountedScenePlacementOperation.None
-            : mountWritten ? MountedScenePlacementOperation.WholePair
-            : sceneActive ? MountedScenePlacementOperation.RiderPlacement
-            : MountedScenePlacementOperation.None;
+            ClassifyOperationWrite(pairMounted, sceneActive, riderWritten, false, mountWritten, false);
+
+        // Review R5 of 263ac3ea: the installed TranslocateUnit (with copy-rotation) and CommandTeleportParty write
+        // UnitEntityData.Orientation as well as Position, whether or not the position changes. An operation that moved or
+        // turned the rider and moved or turned the mount placed the whole pair; one that moved the rider placed it; one
+        // that only turned the rider is RiderTurn (it reorients a pending placement and starts nothing on its own).
+        public static MountedScenePlacementOperation ClassifyOperationWrite(bool pairMounted, bool sceneActive, bool riderMoved,
+            bool riderTurned, bool mountMoved, bool mountTurned) =>
+            !pairMounted || !(riderMoved || riderTurned) ? MountedScenePlacementOperation.None
+            : mountMoved || mountTurned ? MountedScenePlacementOperation.WholePair
+            : !sceneActive ? MountedScenePlacementOperation.None
+            : riderMoved ? MountedScenePlacementOperation.RiderPlacement
+            : MountedScenePlacementOperation.RiderTurn;
+
+        // UnitEntityData.Orientation is a yaw in degrees (Euler y; native also writes other values and stores them as
+        // given). Two orientations are the same when their shortest wrapped difference is within this tolerance, so 0 and
+        // 360, or -90 and 270, are the same facing.
+        public const float SameOrientationDegrees = 0.001f;
+
+        public static float OrientationDeltaDegrees(float from, float to)
+        {
+            var delta = (to - from) % 360f;
+            if (delta > 180f) delta -= 360f;
+            else if (delta < -180f) delta += 360f;
+            return delta;
+        }
+
+        public static bool OrientationWritten(float from, float to)
+        {
+            var delta = OrientationDeltaDegrees(from, to);
+            return !float.IsNaN(delta) && !float.IsInfinity(delta) && Math.Abs(delta) > SameOrientationDegrees;
+        }
 
         // Retained custody has one kind and one rule set. Scene staging never joins camp or world-map custody (it would
         // inherit their separation, no regroup and cancellation in combat); the pair then stays attached.

@@ -462,6 +462,10 @@ namespace KingmakerMountedCombat.Integration
         internal MountedScenePlacementChange AttributeScenePlacement(Vector3 position, float orientation) =>
             configured ? sceneHold.Attribute(position.x, position.y, position.z, orientation, Time.frameCount) : MountedScenePlacementChange.Unchanged;
 
+        // Review R5 of 263ac3ea: a native operation turned the rider in place while a placement is held.
+        internal MountedScenePlacementChange ReorientScenePlacement(float orientation) =>
+            configured ? sceneHold.Reorient(orientation, Time.frameCount) : MountedScenePlacementChange.Unchanged;
+
         // Review R2: a native operation placed the whole pair; an earlier rider-only target is obsolete.
         internal MountedScenePlacementChange SupersedeScenePlacementWithWholePair() =>
             configured ? sceneHold.ClearForWholePair() : MountedScenePlacementChange.Unchanged;

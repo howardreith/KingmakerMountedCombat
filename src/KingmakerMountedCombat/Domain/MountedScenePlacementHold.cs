@@ -9,7 +9,10 @@ namespace KingmakerMountedCombat.Domain
         // The operation wrote the rider and not its mount, during a scene: the scene's placement of the rider.
         RiderPlacement,
         // The operation wrote the rider and the mount: the pair goes with the mount, as a whole-pair placement always has.
-        WholePair
+        WholePair,
+        // Review R5 of 263ac3ea: the operation turned the rider without moving it, during a scene. It supersedes the
+        // orientation of a pending placement; on its own it starts nothing (a seated rider's facing follows its saddle).
+        RiderTurn
     }
 
     public enum MountedScenePlacementChange
@@ -67,6 +70,16 @@ namespace KingmakerMountedCombat.Domain
             Hold(x, y, z, orientation, frame);
             correctNextWithoutDetection = false;
             return change;
+        }
+
+        // Review R5: an operation turned the rider in place while a placement is held: the scene's final orientation.
+        public MountedScenePlacementChange Reorient(float orientation, int frame)
+        {
+            if (!pending) return MountedScenePlacementChange.Unchanged;
+            SupersededCount++;
+            Orientation = orientation;
+            heldAtFrame = frame;
+            return MountedScenePlacementChange.Superseded;
         }
 
         public MountedScenePlacementChange ClearForWholePair()

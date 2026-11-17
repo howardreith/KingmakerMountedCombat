@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Integration
             internal MountedPair Instance;
             internal RiderMovementAgent Agent;
             internal Vector3 Rider, Mount;
+            // Review R5: the installed operations also write orientation.
+            internal float RiderOrientation, MountOrientation;
         }
 
         internal static long AttributedCount { get; private set; }
@@ -33,7 +35,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (owner == null || owner.State != RelationshipState.Mounted || owner.Rider == null || owner.Mount == null) continue;
                 (snapshots = snapshots ?? new List<Snapshot>()).Add(new Snapshot { Owner = owner, Instance = owner.MountingInstance,
-                    Agent = owner.Runtime?.MovementAgent, Rider = owner.Rider.Position, Mount = owner.Mount.Position });
+                    Agent = owner.Runtime?.MovementAgent, Rider = owner.Rider.Position, Mount = owner.Mount.Position,
+                    RiderOrientation = owner.Rider.Orientation, MountOrientation = owner.Mount.Orientation });
             }
             return snapshots;
         }
@@ -56,7 +59,17 @@ namespace KingmakerMountedCombat.Integration
                     !ReferenceEquals(agent, snapshot.Agent)) continue;
                 var r = rider.Position - snapshot.Rider; var m = mount.Position - snapshot.Mount;
                 var write = MountedSceneContinuityPolicy.ClassifyOperationWrite(owner.State == RelationshipState.Mounted, sceneActive,
-                    MountedSceneContinuityPolicy.PositionWritten(r.x, r.y, r.z), MountedSceneContinuityPolicy.PositionWritten(m.x, m.y, m.z));
+                    MountedSceneContinuityPolicy.PositionWritten(r.x, r.y, r.z),
+                    MountedSceneContinuityPolicy.OrientationWritten(snapshot.RiderOrientation, rider.Orientation),
+                    MountedSceneContinuityPolicy.PositionWritten(m.x, m.y, m.z),
+                    MountedSceneContinuityPolicy.OrientationWritten(snapshot.MountOrientation, mount.Orientation));
+                if (write == MountedScenePlacementOperation.RiderTurn)
+                {
+                    if (agent.ReorientScenePlacement(rider.Orientation) == MountedScenePlacementChange.Superseded)
+                        logger?.Info("Pending scene placement of a seated rider reoriented by " + operation + ": rider=" + rider.UniqueId +
+                            "; orientation=" + rider.Orientation.ToString("0.0") + ".");
+                    continue;
+                }
                 if (write == MountedScenePlacementOperation.WholePair)
                 {
                     if (agent.SupersedeScenePlacementWithWholePair() == MountedScenePlacementChange.Cleared)

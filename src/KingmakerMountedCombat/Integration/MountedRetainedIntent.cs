@@ -344,15 +344,16 @@ namespace KingmakerMountedCombat.Integration
                 var encounter = player?.IsInCombat == true;
                 if (encounter) InterruptRegroups(custody, game, "an encounter began");
                 // Known issues C03: the player is told once per custody and encounter, through the native warning
-                // notification (review R3 of b30c24f8: a persistence Report reaches no player-facing display).
-                combatHoldNotifier.Evaluate(custody, encounter,
+                // notification (review R3 of b30c24f8: a persistence Report reaches no player-facing display). Review R4
+                // of 263ac3ea: never during a load, and spent only when a warning receiver was reached.
+                combatHoldNotifier.Evaluate(custody, encounter, LoadingProcess.Instance != null && LoadingProcess.Instance.IsLoadingInProcess,
                     () => custody.Pairs.Select(p => DescribePair(ResolveUnique(game, p.RiderId), ResolveUnique(game, p.MountId), p)).ToArray(),
                     () => "pairs=" + string.Join(", ", custody.Pairs.Select(p => p.RiderId + "/" + p.MountId).ToArray()) +
                         "; held through the encounter without Mount, preparation or refund; restoration after combat keeps its eligibility checks");
                 ResetRetainedSettle();
                 return;
             }
-            combatHoldNotifier.Evaluate(custody, false, null, null);
+            combatHoldNotifier.Evaluate(custody, false, false, null, null);
             var now = UnityEngine.Time.unscaledTime;
             if (retainedSettledSince < 0f) retainedSettledSince = now;
             if (!MountedRetainedIntentPolicy.Settled(++retainedSettledFrames, now - retainedSettledSince)) return;

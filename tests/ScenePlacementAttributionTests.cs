@@ -28,6 +28,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("C02 review R2 (hold production): a later whole-pair placement leaves no rider-only target to reapply; the pair stays together at the mount's placement", WholePairSupersedes);
             runner.Run("C02 review R2 (hold production): nested operations attribute the rider's position at the end of the outermost operation", NestedOperations);
             runner.Run("C02 review R2 (hold production): in combat two placements still end in one refusal and one return to the saddle", CombatRefusalAfterSupersession);
+            runner.Run("C02 review R5: orientation comparison wraps (0 and 360, -90 and 270 are the same facing) and classification sees turns", OrientationDecisions);
+            runner.Run("C02 review R5 (hold production): a second operation at the same endpoint with another orientation leaves P/120 pending and the handoff applies it once; the reviewed position-only attribution kept 30", SameEndpointFinalOrientation);
+            runner.Run("C02 review R5 (hold production): a rotation-only whole-pair operation clears an obsolete rider-only hold; a mount-only turn keeps it; a rider-only turn alone starts nothing", TurnsAndWholePair);
+            runner.Run("C02 review R5 (hold production): nested turns, a replaced mounting, combat, outside a scene and ordinary turning between operations", TurnControls);
         }
 
         private static void PolicyDecisions()
@@ -231,6 +235,105 @@ namespace KingmakerMountedCombat.Tests
                 "Two placements in combat did not end in one refusal and one return to the saddle.");
         }
 
+        private static void OrientationDecisions()
+        {
+            TestRunner.True(!MountedSceneContinuityPolicy.OrientationWritten(0f, 360f) && !MountedSceneContinuityPolicy.OrientationWritten(-90f, 270f) &&
+                !MountedSceneContinuityPolicy.OrientationWritten(30f, 30.0005f), "The same facing was taken for a turn.");
+            TestRunner.True(MountedSceneContinuityPolicy.OrientationWritten(350f, 10f) && MountedSceneContinuityPolicy.OrientationWritten(30f, 120f) &&
+                MountedSceneContinuityPolicy.OrientationWritten(0.1f, 0.7f), "A turn was missed.");
+            TestRunner.True(Math.Abs(MountedSceneContinuityPolicy.OrientationDeltaDegrees(350f, 10f) - 20f) < 0.001f &&
+                Math.Abs(MountedSceneContinuityPolicy.OrientationDeltaDegrees(10f, 350f) + 20f) < 0.001f, "The wrapped difference is not the shortest one.");
+            TestRunner.Equal(MountedScenePlacementOperation.RiderTurn, MountedSceneContinuityPolicy.ClassifyOperationWrite(true, true, false, true, false, false), "A rider-only turn was not recognised.");
+            TestRunner.Equal(MountedScenePlacementOperation.WholePair, MountedSceneContinuityPolicy.ClassifyOperationWrite(true, true, false, true, false, true), "A turn of both was not a whole-pair operation.");
+            TestRunner.Equal(MountedScenePlacementOperation.None, MountedSceneContinuityPolicy.ClassifyOperationWrite(true, true, false, false, false, true), "A mount-only turn touched the rider.");
+            TestRunner.Equal(MountedScenePlacementOperation.None, MountedSceneContinuityPolicy.ClassifyOperationWrite(true, false, false, true, false, false), "A turn outside a scene was classified.");
+            TestRunner.Equal(MountedScenePlacementOperation.RiderPlacement, MountedSceneContinuityPolicy.ClassifyOperationWrite(true, true, true, true, false, false), "A move and turn of the rider was not a placement.");
+        }
+
+        private static void SameEndpointFinalOrientation()
+        {
+            foreach (var reviewed in new[] { false, true })
+            {
+                var scene = new Scene { Attribution = true, ReviewedPositionOnly = reviewed };
+                scene.Frames(3, true);
+                scene.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+                // Placement B: the same endpoint P (TranslocateUnit to another locator at P, copy rotation), orientation 120.
+                scene.Operation(() => { scene.Rider.X = scene.TargetX; scene.Rider.Z = scene.TargetZ; scene.Rider.O = 120f; }, true);
+                scene.Frames(40, true);
+                if (!reviewed)
+                    TestRunner.True(scene.HandOffs == 1 && scene.KeptLastTarget && Math.Abs(scene.Rider.O - 120f) < 0.01f,
+                        "The same-endpoint placement's final orientation (120) was not the one applied once.");
+                else
+                    TestRunner.True(scene.HandOffs == 1 && scene.KeptLastTarget && Math.Abs(scene.Rider.O - 30f) < 0.01f,
+                        "Setup (reviewed position-only attribution): the handoff should have reapplied orientation 30.");
+            }
+        }
+
+        private static void TurnsAndWholePair()
+        {
+            // A whole-pair operation that only turns both units (CommandTeleportParty to locators where they already stand).
+            var whole = new Scene { Attribution = true };
+            whole.Frames(3, true);
+            whole.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+            whole.Operation(() => { whole.Rider.O = 200f; whole.Mount.O = 200f; }, true);
+            whole.Frames(40, true);
+            TestRunner.True(whole.HandOffs == 0 && whole.AtSaddle && whole.Hold.ClearedCount == 1, "A rotation-only whole-pair operation left the rider-only target to reapply.");
+            // A mount-only turn keeps the pending rider placement as it was.
+            var mountTurn = new Scene { Attribution = true };
+            mountTurn.Frames(3, true);
+            mountTurn.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+            mountTurn.Operation(() => { mountTurn.Mount.O = 90f; }, true);
+            mountTurn.Frames(40, true);
+            TestRunner.True(mountTurn.HandOffs == 1 && mountTurn.KeptLastTarget && Math.Abs(mountTurn.Rider.O - 30f) < 0.01f, "A mount-only turn changed the rider's pending placement.");
+            // A rider-only turn with nothing pending starts nothing: the seated rider's facing follows the saddle.
+            var riderTurn = new Scene { Attribution = true };
+            riderTurn.Frames(3, true);
+            riderTurn.Operation(() => { riderTurn.Rider.O = 75f; }, true);
+            riderTurn.Frames(40, true);
+            TestRunner.True(riderTurn.HandOffs == 0 && riderTurn.AtSaddle && riderTurn.Hold.ObservedCount == 0, "A rider-only turn on its own started a handoff.");
+        }
+
+        private static void TurnControls()
+        {
+            // Nested: the inner operation places P/30; the outer one then turns the rider in place to 120.
+            var nested = new Scene { Attribution = true };
+            nested.Frames(3, true);
+            nested.Operation(() =>
+            {
+                nested.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+                nested.Rider.O = 120f;
+            }, true);
+            nested.Frames(40, true);
+            TestRunner.True(nested.HandOffs == 1 && nested.KeptLastTarget && Math.Abs(nested.Rider.O - 120f) < 0.01f, "The outer operation's final turn did not stand.");
+            // A mounting replaced inside the operation (dismounted and mounted again): nothing is attributed to the new one.
+            var replaced = new Scene { Attribution = true };
+            replaced.Frames(3, true);
+            replaced.Operation(() => { replaced.Remount(); replaced.Rider.X = replaced.Mount.X + 2f; replaced.Rider.O = 50f; }, true);
+            replaced.Frames(40, true);
+            TestRunner.True(replaced.Hold.ObservedCount == 0 && replaced.HandOffs == 0, "A placement was attributed to a mounting made inside the operation.");
+            // Combat: a placement then a turn, one refusal and one return to the saddle.
+            var combat = new Scene { Attribution = true, Combat = true };
+            combat.Frames(3, true);
+            combat.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+            combat.Operation(() => { combat.Rider.O = 120f; }, true);
+            combat.Frames(60, true);
+            TestRunner.True(combat.HandOffs == 0 && combat.Refusals == 1 && combat.SaddleCorrections == 1 && combat.AtSaddle, "A turn in combat did not keep the bounded refusal.");
+            // Outside a scene a turn is not attributed.
+            var outside = new Scene { Attribution = true };
+            outside.Frames(3, false);
+            outside.Operation(() => { outside.Rider.O = 120f; }, false);
+            outside.Frames(10, false);
+            TestRunner.True(outside.Hold.ObservedCount == 0 && outside.HandOffs == 0, "A turn outside a scene was attributed.");
+            // Ordinary turning (animation, the saddle's yaw, a targeting turn) between operations is never an operation.
+            var ordinary = new Scene { Attribution = true };
+            ordinary.Frames(3, true);
+            ordinary.RiderOnlyPlacement(2f, 0.6f, 0.8f, 30f, true);
+            ordinary.Rider.O = 310f; ordinary.Mount.O = 45f;
+            ordinary.Frames(40, true);
+            TestRunner.True(ordinary.HandOffs == 1 && ordinary.KeptLastTarget && Math.Abs(ordinary.Rider.O - 30f) < 0.01f,
+                "An ordinary turn between operations changed the scene's placement.");
+        }
+
         // ---- represented engine and orchestration around the production hold ----
         private sealed class Body { internal float X, Z, O; }
 
@@ -253,7 +356,7 @@ namespace KingmakerMountedCombat.Tests
             // Attribution false: no native operation is attributed (the behaviour before C02). ReviewedFirstWins: the
             // reviewed b30c24f8 attribution, transcribed (not production) only to show what R2 changes: a pending placement
             // rejects a later one, and a whole-pair write clears nothing.
-            public bool Attribution, Combat, ReviewedFirstWins;
+            public bool Attribution, Combat, ReviewedFirstWins, ReviewedPositionOnly;
             public readonly Body Rider = new Body(), Mount = new Body();
             public readonly MountedScenePlacementHold Hold = new MountedScenePlacementHold();
             private readonly MountedRelationshipCoordinator coordinator;
@@ -266,18 +369,29 @@ namespace KingmakerMountedCombat.Tests
 
             public Scene()
             {
-                coordinator = new MountedRelationshipCoordinator(new ReleasingRuntime { Rider = Rider, Mount = Mount });
-                var candidate = new MountedPairCandidate("rider-a", "horse-a")
-                {
-                    RiderIsDirectlyControllable = true, MountIsDirectlyControllable = true, RiderIsAliveAndConscious = true, MountIsAliveAndConscious = true,
-                    ExactReciprocalCompanionRelationship = true, RiderSizeOrdinal = 4, MountSizeOrdinal = 5, RiderViewAndStockAgentAvailable = true,
-                    MountViewAndStockAgentAvailable = true, RiderStockAgentEnabled = true, MountStockAgentEnabled = true, RiderAgentOverrideAvailable = true,
-                    MountAgentOverrideAvailable = true, RiderIsExactlyMedium = true, SafeMovementMode = true
-                };
-                TestRunner.True(coordinator.Mount(candidate).Succeeded, "Setup: the pair did not mount.");
+                runtime = new ReleasingRuntime { Rider = Rider, Mount = Mount };
+                coordinator = new MountedRelationshipCoordinator(runtime);
+                TestRunner.True(coordinator.Mount(Candidate()).Succeeded, "Setup: the pair did not mount.");
             }
 
+            private readonly ReleasingRuntime runtime;
+
+            private static MountedPairCandidate Candidate() => new MountedPairCandidate("rider-a", "horse-a")
+            {
+                RiderIsDirectlyControllable = true, MountIsDirectlyControllable = true, RiderIsAliveAndConscious = true, MountIsAliveAndConscious = true,
+                ExactReciprocalCompanionRelationship = true, RiderSizeOrdinal = 4, MountSizeOrdinal = 5, RiderViewAndStockAgentAvailable = true,
+                MountViewAndStockAgentAvailable = true, RiderStockAgentEnabled = true, MountStockAgentEnabled = true, RiderAgentOverrideAvailable = true,
+                MountAgentOverrideAvailable = true, RiderIsExactlyMedium = true, SafeMovementMode = true
+            };
+
             public bool AtSaddle => Math.Abs(Rider.X - Mount.X) < 0.001f && Math.Abs(Rider.Z - Mount.Z) < 0.001f;
+
+            // A dismount and a new mounting of the same pair (a new mounting instance).
+            public void Remount()
+            {
+                TestRunner.True(coordinator.Dismount(CleanupTrigger.Manual).Succeeded, "Setup: the dismount did not complete.");
+                TestRunner.True(coordinator.Mount(Candidate()).Succeeded, "Setup: the remount did not complete.");
+            }
             public bool KeptLastTarget => Math.Abs(Rider.X - TargetX) < 0.1f && Math.Abs(Rider.Z - TargetZ) < 0.1f;
 
             public void RiderOnlyPlacement(float distance, float dirX, float dirZ, float orientation, bool sceneActive)
@@ -291,12 +405,22 @@ namespace KingmakerMountedCombat.Tests
             // (MountedScenePlacementAttribution), with the production classification and hold.
             public void Operation(Action writes, bool sceneActive)
             {
-                float rx = Rider.X, rz = Rider.Z, mx = Mount.X, mz = Mount.Z;
+                float rx = Rider.X, rz = Rider.Z, ro = Rider.O, mx = Mount.X, mz = Mount.Z, mo = Mount.O;
+                var instance = coordinator.ActivePair;
                 depth++;
                 try { writes(); } finally { depth--; }
                 if (!Attribution) return;
-                var write = MountedSceneContinuityPolicy.ClassifyOperationWrite(coordinator.State == RelationshipState.Mounted, sceneActive,
-                    MountedSceneContinuityPolicy.PositionWritten(Rider.X - rx, 0, Rider.Z - rz), MountedSceneContinuityPolicy.PositionWritten(Mount.X - mx, 0, Mount.Z - mz));
+                // MountedScenePlacementAttribution acts only on the mounting instance it captured.
+                if (instance == null || !ReferenceEquals(coordinator.ActivePair, instance)) return;
+                var mounted = coordinator.State == RelationshipState.Mounted;
+                bool riderMoved = MountedSceneContinuityPolicy.PositionWritten(Rider.X - rx, 0, Rider.Z - rz),
+                    mountMoved = MountedSceneContinuityPolicy.PositionWritten(Mount.X - mx, 0, Mount.Z - mz);
+                // The reviewed 263ac3ea attribution compared positions only (transcribed, not production).
+                var write = ReviewedPositionOnly
+                    ? MountedSceneContinuityPolicy.ClassifyOperationWrite(mounted, sceneActive, riderMoved, mountMoved)
+                    : MountedSceneContinuityPolicy.ClassifyOperationWrite(mounted, sceneActive, riderMoved,
+                        MountedSceneContinuityPolicy.OrientationWritten(ro, Rider.O), mountMoved, MountedSceneContinuityPolicy.OrientationWritten(mo, Mount.O));
+                if (write == MountedScenePlacementOperation.RiderTurn) { Hold.Reorient(Rider.O, frame); return; }
                 if (ReviewedFirstWins)
                 {
                     if (write == MountedScenePlacementOperation.RiderPlacement && !Hold.Pending) Hold.Attribute(Rider.X, 0, Rider.Z, Rider.O, frame);

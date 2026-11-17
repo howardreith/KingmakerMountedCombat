@@ -3,6 +3,9 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release',[string]$
 # Known issues C02: rider-only scene placements of three metres or less. Also pins the C01 fallback (no staging
 # handoff in an encounter) and the C03 combat-hold notice: its wiring, and its delivery, executed through the installed
 # native EventBus to a subscribed IWarningNotificationUIHandler sink (the interface the game's warning display implements).
+# Review of 263ac3ea: R4 (a notice is spent only once a receiver took it, never during a load), R5 (the installed
+# operations' orientation writes, and the scene's final orientation at the same endpoint) and R6 (C02 and C04 have
+# independent bounded fault reports), each run against this build and, with -ProductDll, the reviewed one.
 #   NATIVE-IL         the installed Assembly-CSharp is READ: the scene placement operations write a unit's Position
 #                     directly (TranslocateUnit.RunAction, CommandMoveUnit.IsFinished when the move took too long,
 #                     CommandTeleportParty.OnRun), not through UnitEntityData.Translocate.
@@ -23,6 +26,34 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.Remoting.Messaging;
+using System.Runtime.Remoting.Proxies;
+using System.Runtime.Serialization;
+
+// Loggers for the product's own (internal) logger interface: one records, one throws on every call.
+public sealed class KmcRecordingLogger : RealProxy
+{
+    public readonly List<string> Lines = new List<string>();
+    public KmcRecordingLogger(Type type) : base(type) { }
+    public override IMessage Invoke(IMessage message)
+    {
+        var call = (IMethodCallMessage)message;
+        if (call.MethodName == "GetType") return new ReturnMessage(GetProxiedType(), null, 0, call.LogicalCallContext, call);
+        Lines.Add(call.MethodName + ": " + (call.ArgCount > 0 ? Convert.ToString(call.GetArg(0)) : ""));
+        return new ReturnMessage(null, null, 0, call.LogicalCallContext, call);
+    }
+}
+
+public sealed class KmcThrowingLogger : RealProxy
+{
+    public int Calls;
+    public KmcThrowingLogger(Type type) : base(type) { }
+    public override IMessage Invoke(IMessage message)
+    {
+        Calls++;
+        return new ReturnMessage(new InvalidOperationException("the logger failed"), (IMethodCallMessage)message);
+    }
+}
 
 // What the emitted warning sinks received (the sinks are real classes implementing the installed native interface,
 // emitted once the installed assembly is loaded; see WarningSinkType).
@@ -121,6 +152,14 @@ public static class KmcScenePlacementProbe
         return false;
     }
 
+    // The notifier's Evaluate, as each build declares it (the reviewed 263ac3ea build takes no loading flag).
+    private static void Evaluate(MethodInfo evaluate, object notifier, object custody, bool held, bool loading, string[] pairs)
+    {
+        Func<string[]> names = () => pairs; Func<string> diagnostic = () => "probe";
+        if (evaluate.GetParameters().Length == 5) evaluate.Invoke(notifier, new object[] { custody, held, loading, names, diagnostic });
+        else evaluate.Invoke(notifier, new object[] { custody, held, names, diagnostic });
+    }
+
     public static int Run(string managed, string productPath)
     {
         AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{
@@ -154,7 +193,7 @@ public static class KmcScenePlacementProbe
             ()=>Registers(controller,translocate.FullName,0x06008FA2,"ScenePlacementCapturePrefix","TranslocateUnitPostfix") &&
                 Registers(controller,move.FullName,0x06009E4E,"ScenePlacementCapturePrefix","CommandMoveUnitPostfix") &&
                 Registers(controller,party.FullName,0x06009E90,"ScenePlacementCapturePrefix","CommandTeleportPartyPostfix"));
-        Check("PRODUCT-IL the prefix captures the mounted pairs; each postfix, only for the captured mounting instance, classifies the write and hands a rider placement to the rider's synchronizer or clears it for a whole-pair placement; the synchronizer's samples and the owner's poll both go through the hold (review R2); faults are contained",
+        Check("PRODUCT-IL the prefix captures the mounted pairs; each postfix, only for the captured mounting instance, classifies the write and hands a rider placement to the rider's synchronizer or clears it for a whole-pair placement; the synchronizer's samples and the owner's poll both go through the hold (review R2); faults are contained in C02's own bounded report (review R6)",
             ()=>{
                 var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
                 var attribute=Body(attribution.GetMethod("Attribute",Any));
@@ -167,7 +206,8 @@ public static class KmcScenePlacementProbe
                 var share=Body(methods.GetMethod("AttributeScenePlacement",Any));
                 var prefix=Body(methods.GetMethod("ScenePlacementCapturePrefix",Any));
                 return Find(prefix,"MountedScenePlacementAttribution","Capture").Count==1 && Find(share,"MountedScenePlacementAttribution","Attribute").Count==1 &&
-                    Find(share,null,"ReportScriptZoneFault").Count==1 && Find(prefix,null,"ReportScriptZoneFault").Count==1 &&
+                    Find(share,null,"ReportScenePlacementFault").Count==1 && Find(prefix,null,"ReportScenePlacementFault").Count==1 &&
+                    Find(share,null,"ReportScriptZoneFault").Count==0 && Find(prefix,null,"ReportScriptZoneFault").Count==0 &&
                     classify.Count==1 && Find(attribute,"GameMountedRelationshipService","get_MountingInstance").Count>=1 &&
                     Find(attribute,"GameMountedRelationshipService","get_MountingInstance")[0]<classify[0] &&
                     classify[0]<Find(attribute,"RiderMovementAgent","AttributeScenePlacement")[0] &&
@@ -224,7 +264,47 @@ public static class KmcScenePlacementProbe
                 return combat.Count>=1 && Find(refusal,null,"HasAreaParticipationObligations").Count==1 &&
                     Find(handoff,"MountedSceneHandOffSequence","Run").Count==1 && combat[0]<Find(handoff,"MountedSceneHandOffSequence","Run")[0];
             });
-        Check("PRODUCT-IL (C03, review R3) the restore loop asks the combat-hold notifier on its hold and on its other evaluations; the notifier raises the native IWarningNotificationUIHandler warning",
+        Check("PRODUCT-EXECUTED (C03, review R4) with no warning receiver subscribed the notice is not spent: held custody A evaluated with nobody subscribed reaches nobody; once a sink subscribes, the same still-held custody is delivered once; scene-staging custody held in combat during a load (the compiled Decide holds it) is not attempted even with a receiver present, then delivered once after the load",
+            ()=>{
+                var sinkType=WarningSinkType(native);
+                var sink=Activator.CreateInstance(sinkType);
+                var bus=native.GetType("Kingmaker.PubSubSystem.EventBus",true);
+                var subscribe=bus.GetMethod("Subscribe",new[]{typeof(object)}); var unsubscribe=bus.GetMethod("Unsubscribe",new[]{typeof(object)});
+                var notifierType=product.GetType("KingmakerMountedCombat.Integration.MountedCombatHoldNotifier",true);
+                var evaluate=notifierType.GetMethod("Evaluate",Any); var compose=notifierType.GetMethod("Compose",Any);
+                Func<object> fresh=()=>notifierType.GetConstructors(BindingFlags.Instance|BindingFlags.NonPublic)[0].Invoke(new object[]{null});
+                var namesA=new[]{"Linzi and Pony"}; var namesL=new[]{"Octavia and Horse"};
+                var expectedA=(string)compose.Invoke(null,new object[]{namesA})+"|addToLog=True";
+                var expectedL=(string)compose.Invoke(null,new object[]{namesL})+"|addToLog=True";
+                Func<string,int> seen=text=>{ var n=0; foreach(var m in KmcWarningRelay.Of(sink)) if(m==text) n++; return n; };
+                var policy=product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentPolicy",true);
+                var kind=Enum.Parse(product.GetType("KingmakerMountedCombat.Domain.MountedRetainedIntentKind",true),"ScriptedEvent");
+                var held=policy.GetMethod("Decide").Invoke(null,new object[]{kind,true,true,false,"Default",false,true,false,false}).ToString();
+                var loadingParameter=evaluate.GetParameters().Length==5;
+                try
+                {
+                    // 1-2: nobody subscribed; nothing anywhere receives the notice.
+                    var n=fresh(); var a=new object();
+                    for(var i=0;i<3;i++) Evaluate(evaluate,n,a,true,false,namesA);
+                    var nobody=KmcWarningRelay.Received.Count==0;
+                    // 3-4: a sink subscribes; the same custody is still held.
+                    subscribe.Invoke(null,new object[]{sink});
+                    for(var i=0;i<3;i++) Evaluate(evaluate,n,a,true,false,namesA);
+                    var afterSubscribe=seen(expectedA);
+                    // The load: scene-staging custody restored from a save, combat, loading in progress, a receiver present.
+                    var l=fresh(); var custody=new object();
+                    for(var i=0;i<5;i++) Evaluate(evaluate,l,custody,true,true,namesL);
+                    var duringLoad=seen(expectedL);
+                    for(var i=0;i<5;i++) Evaluate(evaluate,l,custody,true,false,namesL);
+                    var afterLoad=seen(expectedL);
+                    Console.WriteLine("INFO R4: Decide(scene staging, combat, loading)="+held+"; evaluate takes loading="+loadingParameter+"; nobody subscribed received="+
+                        (nobody?0:KmcWarningRelay.Received.Count)+"; after the sink subscribed the same custody was delivered "+afterSubscribe+" time(s); during the load "+
+                        duringLoad+", after it "+afterLoad);
+                    return held=="Hold" && nobody && afterSubscribe==1 && duringLoad==0 && afterLoad==1;
+                }
+                finally { unsubscribe.Invoke(null,new object[]{sink}); KmcWarningRelay.Received.Clear(); }
+            });
+        Check("PRODUCT-IL (C03, review R3 and R4) the restore loop asks the combat-hold notifier on its hold and on its other evaluations, passing whether a load is in progress; the notifier raises the native IWarningNotificationUIHandler warning and spends the notice only after the dispatch",
             ()=>{
                 var intent=product.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
                 var core=Body(intent.GetMethod("RestoreRetainedIntentCore",Any));
@@ -233,8 +313,11 @@ public static class KmcScenePlacementProbe
                 var raises=false;
                 foreach(var ins in evaluate) if(ins.Call!=null && ins.Call.Name=="RaiseEvent" && ins.Call.DeclaringType.Name=="EventBus" && ins.Call.IsGenericMethod &&
                     ins.Call.GetGenericArguments()[0].Name=="IWarningNotificationUIHandler") raises=true;
+                var raise=-1; for(var i=0;i<evaluate.Count;i++) if(evaluate[i].Call!=null && evaluate[i].Call.Name=="RaiseEvent") raise=i;
+                var spends=Find(evaluate,"CombatHoldNotice","Spend");
                 return Find(core,"MountedCombatHoldNotifier","Evaluate").Count==2 && Find(core,"CombatHoldNotice","ShouldNotify").Count==0 &&
-                    Find(evaluate,"CombatHoldNotice","ShouldNotify").Count==1 && raises;
+                    Find(core,"LoadingProcess","get_IsLoadingInProcess").Count>=2 &&
+                    Find(evaluate,"CombatHoldNotice","ShouldAttempt").Count==1 && spends.Count>=1 && raise>=0 && spends[0]>raise && raises;
             });
         Check("PRODUCT-EXECUTED (C03, review R3) the compiled notifier delivers through the installed native EventBus to a subscribed warning sink: the actual text once across repeated held evaluations, again for a later encounter, again for a new custody after the previous one disappeared in combat; a refusing display neither throws out of it nor repeats",
             ()=>{
@@ -248,7 +331,7 @@ public static class KmcScenePlacementProbe
                 var notifier=notifierType.GetConstructors(BindingFlags.Instance|BindingFlags.NonPublic)[0].Invoke(new object[]{null});
                 var evaluate=notifierType.GetMethod("Evaluate",Any);
                 var compose=notifierType.GetMethod("Compose",Any);
-                Func<object,bool,string[],bool> ask=(custody,held,pairs)=>(bool)evaluate.Invoke(notifier,new object[]{custody,held,(Func<string[]>)(()=>pairs),(Func<string>)(()=>"probe")});
+                Action<object,bool,string[]> ask=(custody,held,pairs)=>Evaluate(evaluate,notifier,custody,held,false,pairs);
                 var a=new object(); var b=new object(); var c=new object();
                 var amiri=new[]{"Amiri and Horse"}; var two=new[]{"Valerie and Horse","Harrim and Pony"};
                 var expectedA=(string)compose.Invoke(null,new object[]{amiri})+"|addToLog=True";
@@ -281,6 +364,96 @@ public static class KmcScenePlacementProbe
                         expectedA.StartsWith("Amiri and Horse stay dismounted for this fight") && expectedB.StartsWith("Valerie and Horse; Harrim and Pony stay dismounted");
                 }
                 finally { unsubscribe.Invoke(null,new object[]{sink}); unsubscribe.Invoke(null,new object[]{refusingSink}); }
+            });
+        Check("NATIVE-IL (review R5) the installed operations' orientation writes: TranslocateUnit.RunAction (06008FA2) writes UnitEntityData.Orientation once, after Position, only under its m_CopyRotation field, never conditioned on the position changing; CommandTeleportParty.OnRun (06009E90) writes Orientation once per listed character after Position, unconditionally; CommandMoveUnit.IsFinished (06009E4E) never writes Orientation; the Orientation setter stores the value as given (and the desired orientation)",
+            ()=>{
+                var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+                var a=Body(Token(translocate,"RunAction",0x06008FA2)); var b=Body(Token(move,"IsFinished",0x06009E4E)); var c=Body(Token(party,"OnRun",0x06009E90));
+                var setter=Body(unitType.GetProperty("Orientation").GetSetMethod());
+                var copy=new List<int>(); for(var i=0;i<a.Count;i++) if(a[i].Op==OpCodes.Ldfld && a[i].Operand is FieldInfo && ((FieldInfo)a[i].Operand).Name=="m_CopyRotation") copy.Add(i);
+                var aO=Find(a,"UnitEntityData","set_Orientation"); var aP=Find(a,"UnitEntityData","set_Position");
+                var cO=Find(c,"UnitEntityData","set_Orientation"); var cP=Find(c,"UnitEntityData","set_Position");
+                Func<List<Ins>,bool> comparesPositions=body=>Find(body,"Vector3","op_Equality").Count+Find(body,"Vector3","op_Inequality").Count+Find(body,"Vector3","Equals").Count>0;
+                var setterCalls=0; foreach(var ins in setter) if(ins.Call!=null) setterCalls++;
+                var branchAfterCopy=copy.Count==1 && (a[copy[0]+1].Op==OpCodes.Brfalse || a[copy[0]+1].Op==OpCodes.Brfalse_S);
+                return aO.Count==1 && copy.Count==1 && branchAfterCopy && aP.Count==2 && aP[0]<copy[0] && copy[0]<aO[0] && !comparesPositions(a) &&
+                    Find(b,"UnitEntityData","set_Orientation").Count==0 &&
+                    cO.Count==1 && cP.Count==1 && cP[0]<cO[0] && !comparesPositions(c) &&
+                    setterCalls==1 && Find(setter,"UnitEntityData","set_DesiredOrientation").Count==1;
+            });
+        Check("PRODUCT-IL (review R5) the capture records both units' orientations and the attribution classifies with both turns, reorienting a pending placement for a rider-only turn",
+            ()=>{
+                var attribution=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true);
+                var capture=Body(attribution.GetMethod("Capture",Any)); var attribute=Body(attribution.GetMethod("Attribute",Any));
+                var classify=-1; foreach(var ins in attribute) if(ins.Call!=null && ins.Call.Name=="ClassifyOperationWrite" && ins.Call.GetParameters().Length==6) classify=1;
+                return Find(capture,"UnitEntityData","get_Orientation").Count==2 && Find(attribute,"MountedSceneContinuityPolicy","OrientationWritten").Count==2 &&
+                    classify==1 && Find(attribute,"RiderMovementAgent","ReorientScenePlacement").Count==1;
+            });
+        Check("PRODUCT-EXECUTED (review R5) the same endpoint with a final orientation: placement A writes P at 30 degrees; placement B writes the same P at 120 before the poll; through this build's compiled classification (as its attribution composes it) and hold, P/120 is pending",
+            ()=>{
+                var policy=product.GetType("KingmakerMountedCombat.Domain.MountedSceneContinuityPolicy",true);
+                var holdType=product.GetType("KingmakerMountedCombat.Domain.MountedScenePlacementHold",true);
+                MethodInfo six=null, four=null;
+                foreach(var m in policy.GetMethods()) if(m.Name=="ClassifyOperationWrite"){ if(m.GetParameters().Length==6) six=m; else if(m.GetParameters().Length==4) four=m; }
+                var h=Activator.CreateInstance(holdType);
+                holdType.GetMethod("Attribute").Invoke(h,new object[]{4f,0f,7f,30f,1});
+                string kind;
+                if(six!=null)
+                {
+                    var turned=(bool)policy.GetMethod("OrientationWritten").Invoke(null,new object[]{30f,120f});
+                    kind=six.Invoke(null,new object[]{true,true,false,turned,false,false}).ToString();
+                }
+                else kind=four.Invoke(null,new object[]{true,true,false,false}).ToString();   // positions only, as that attribution reads them
+                if(kind=="RiderTurn") holdType.GetMethod("Reorient").Invoke(h,new object[]{120f,2});
+                else if(kind=="RiderPlacement") holdType.GetMethod("Attribute").Invoke(h,new object[]{4f,0f,7f,120f,2});
+                var orientation=(float)holdType.GetProperty("Orientation").GetValue(h,null);
+                var x=(float)holdType.GetProperty("X").GetValue(h,null);
+                Console.WriteLine("INFO R5: placement B classified "+kind+"; pending orientation "+orientation);
+                return x==4f && orientation==120f;
+            });
+        Check("PRODUCT-EXECUTED (review R6) real operational failures in the compiled hooks: C04's script-zone hook and C02's scene-placement hooks each report their first fault once and never again, independently; with a logger that throws, each is still attempted once and nothing escapes; every hook is void (native always runs)",
+            ()=>{
+                var hooks=controller.GetNestedType("PatchMethods",Any); var bridge=controller.GetNestedType("PatchBridge",Any);
+                var loggerType=product.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+                var faultType=product.GetType("KingmakerMountedCombat.Domain.MountedBoundedFaultReport",true);
+                var relationship=product.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+                var snapshotType=product.GetType("KingmakerMountedCombat.Integration.MountedScenePlacementAttribution",true).GetNestedType("Snapshot",Any);
+                var zone=hooks.GetMethod("ScriptZoneTickPostfix",Any); var prefix=hooks.GetMethod("ScenePlacementCapturePrefix",Any);
+                var postfix=hooks.GetMethod("TranslocateUnitPostfix",Any);
+                var voids=zone.ReturnType==typeof(void) && prefix.ReturnType==typeof(void) && postfix.ReturnType==typeof(void) &&
+                    hooks.GetMethod("CommandMoveUnitPostfix",Any).ReturnType==typeof(void) && hooks.GetMethod("CommandTeleportPartyPostfix",Any).ReturnType==typeof(void);
+                Action reset=()=>{ foreach(var f in hooks.GetFields(Any)) if(f.IsStatic && f.FieldType==faultType) f.SetValue(null,Activator.CreateInstance(faultType)); };
+                Action<string,object> setStatic=(name,value)=>bridge.GetField(name,Any).SetValue(null,value);
+                var broken=(IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(snapshotType));
+                broken.Add(Activator.CreateInstance(snapshotType,true));   // a captured pair with no owner: attribution fails inside production code
+                var escaped=false;
+                Action failBoth=()=>{
+                    try
+                    {
+                        zone.Invoke(null,null);
+                        prefix.Invoke(null,new object[]{null});
+                        postfix.Invoke(null,new object[]{broken});
+                    }
+                    catch { escaped=true; }
+                };
+                try
+                {
+                    // A relationship service with no state: the hooks' own work fails inside production code.
+                    setStatic("Service",FormatterServices.GetUninitializedObject(relationship));
+                    reset();
+                    var recording=new KmcRecordingLogger(loggerType);
+                    setStatic("Logger",recording.GetTransparentProxy());
+                    for(var i=0;i<4;i++) failBoth();
+                    int zoneLines=0, placementLines=0;
+                    foreach(var line in recording.Lines){ if(line.Contains("Mounted script zones")) zoneLines++; if(line.Contains("Mounted scene placement")) placementLines++; }
+                    reset();
+                    var throwing=new KmcThrowingLogger(loggerType);
+                    setStatic("Logger",throwing.GetTransparentProxy());
+                    for(var i=0;i<4;i++) failBoth();
+                    Console.WriteLine("INFO R6: recording logger lines="+recording.Lines.Count+" (script zones "+zoneLines+", scene placement "+placementLines+"); throwing logger calls="+throwing.Calls+"; escaped="+escaped);
+                    return voids && !escaped && zoneLines==1 && placementLines==1 && recording.Lines.Count==2 && throwing.Calls==2;
+                }
+                finally { setStatic("Service",null); setStatic("Logger",null); reset(); }
             });
         Check("PRODUCT-EXECUTED (review R2) the compiled hold keeps the scene's latest placement: a second attribution supersedes the first (endpoint and orientation), a whole-pair placement clears it, a far unattributed write since the hold supersedes it and a near one does not, a release corrects once",
             ()=>{

@@ -100,16 +100,28 @@ namespace KingmakerMountedCombat.Domain
         // given once per custody and encounter. An evaluation outside combat ends the encounter, and a different custody
         // (a later suspension after the earlier intent was dropped, restored or released) gets its own notice; nothing
         // carries over from an intent that no longer exists.
+        // Review R4 of 263ac3ea: owing a notice and spending it are separate. Nothing is spent by asking: a notice is
+        // attempted only outside a load, and spent only by the caller once a receiver was actually reached (or the
+        // attempt failed boundedly). Until then the same custody stays owed.
         public sealed class CombatHoldNotice
         {
-            private object notifiedCustody;
+            private object spentCustody;
 
-            public bool ShouldNotify(object custody, bool heldThroughEncounter)
+            // Whether this custody's notice is still owed in the current encounter.
+            public bool IsOwed(object custody, bool heldThroughEncounter)
             {
-                if (!heldThroughEncounter || custody == null) { notifiedCustody = null; return false; }
-                if (ReferenceEquals(notifiedCustody, custody)) return false;
-                notifiedCustody = custody;
-                return true;
+                if (!heldThroughEncounter || custody == null) { spentCustody = null; return false; }
+                return !ReferenceEquals(spentCustody, custody);
+            }
+
+            // Whether to attempt delivery now: owed, and no load in progress (the presentation that shows warnings is
+            // replaced during a load).
+            public bool ShouldAttempt(object custody, bool heldThroughEncounter, bool loading) =>
+                IsOwed(custody, heldThroughEncounter) && !loading;
+
+            public void Spend(object custody)
+            {
+                if (custody != null) spentCustody = custody;
             }
         }
 

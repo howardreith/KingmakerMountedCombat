@@ -726,7 +726,7 @@ namespace KingmakerMountedCombat.Integration
                     __state = MountedScenePlacementAttribution.Capture(PatchBridge.World == null
                         ? new[] { PatchBridge.Service } : PatchBridge.World.Pairs.Select(pair => pair.Relationship));
                 }
-                catch (Exception error) { ReportScriptZoneFault("Mounted scene placement: the positions were not captured", error); }
+                catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the positions were not captured", error); }
             }
 
             internal static void TranslocateUnitPostfix(object __state) => AttributeScenePlacement(__state, "TranslocateUnit");
@@ -738,12 +738,18 @@ namespace KingmakerMountedCombat.Integration
             private static void AttributeScenePlacement(object state, string operation)
             {
                 try { MountedScenePlacementAttribution.Attribute(state as List<MountedScenePlacementAttribution.Snapshot>, operation, PatchBridge.Logger); }
-                catch (Exception error) { ReportScriptZoneFault("Mounted scene placement: the placement was left unattributed", error); }
+                catch (Exception error) { ReportScenePlacementFault("Mounted scene placement: the placement was left unattributed", error); }
             }
 
+            // Review R6 of 263ac3ea: C04's script-zone hook and C02's scene-placement hooks each have their own bounded
+            // report, so a fault in one never silences the other's first diagnostic.
             private static readonly MountedBoundedFaultReport scriptZoneFault = new MountedBoundedFaultReport();
             private static void ReportScriptZoneFault(string message, Exception error) =>
                 scriptZoneFault.Report((text, fault) => PatchBridge.Logger?.Exception(text, fault), message, error);
+
+            private static readonly MountedBoundedFaultReport scenePlacementFault = new MountedBoundedFaultReport();
+            private static void ReportScenePlacementFault(string message, Exception error) =>
+                scenePlacementFault.Report((text, fault) => PatchBridge.Logger?.Exception(text, fault), message, error);
 
             internal static void NativeMovementUpdatePrefix()
             {
