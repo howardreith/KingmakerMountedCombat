@@ -355,16 +355,17 @@ namespace KingmakerMountedCombat.Domain
                 watch.Owns(agent, host.PairGeneration, host.PairMounted, host.IsFinished(command), host.InMountMoveSlot(command), host.Frame);
         }
 
-        // Known issues sprint 3 (review of 119088ed). A different question from OwnsMountOverride: is this exact agent,
-        // installed on this exact view, the captured agent of a retirement this owner still owes, for a command bound in
-        // this pair generation? Only the captured view and agent of an outstanding record answer yes; an adopted agent,
-        // a foreign override on the captured view, or any override on another view does not.
+        // Known issues sprint 3 (review of 119088ed). A different question from OwnsMountOverride: given a view and the
+        // override it currently carries (the caller reads both together), are they the captured view and agent of a
+        // retirement this owner still owes, for a command bound in this pair generation? Only the captured view and agent
+        // of an outstanding record answer yes; an adopted agent, a foreign override on the captured view, or any override
+        // on another view does not.
         public bool RetainsCapturedAgent(object view, object agent, long pairGeneration)
         {
             if (view == null || agent == null) return false;
             foreach (var residue in residues)
                 if (residue.Agent != null && ReferenceEquals(residue.View, view) && ReferenceEquals(residue.Agent, agent) &&
-                    residue.Generation == pairGeneration && ReferenceEquals(host.OverrideOf(view), agent)) return true;
+                    residue.Generation == pairGeneration) return true;
             return false;
         }
 
