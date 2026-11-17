@@ -3,7 +3,139 @@
 Sprint 4 of the Mounted Combat Known Issues Remediation Epic, in the owner's order C04, C01, C02, C03. Offline work
 only. Nothing was launched, staged or installed, and nothing in this record is native gameplay evidence.
 
-## Review of `e1c0c7ad` (R7–R9), 2026-11-17 — read this first
+## Review of `813d00a1` (R10), 2026-11-17 — read this first
+
+The owner accepted, at `813d00a1`:
+- R4's notice;
+- R7's standalone turn, when the operation is recognised as scene-owned;
+- R8's target membership;
+- R9's contained logging;
+- C04's observations;
+- C01.
+
+R10 is the one remaining C02 finding: scene ownership was decided after the operation, from the global mode alone.
+
+| Item | Value |
+|---|---|
+| Starting head (reviewed) | `813d00a177f43c0711a131818c11f1085d13cdcd`. Its product DLL is the `ed83339c` build (SHA-256 `e3448787…a390c95bc5`, MVID `c94292d4-…`), frozen as `artifacts/known-issues-sprint4/head-ed83339c/` |
+| Parent | `codex/kmc-known-issues-sprint3` at `e5b92474` |
+| Repair commit | `03685720` (product, tests and contract script; the product-build commit), then the records commit carrying this section, which is the branch head |
+| Product DLL (clean Release build of `03685720`) | SHA-256 `7ce8f88a99aaa74d142e6835590d3051a9a48ce984589090b9407eb01efd59c8`, MVID `efdc12b6-0098-4027-ad49-f8c8f33851bc`; frozen copy `artifacts/known-issues-sprint4/head-03685720/` |
+
+### The defect
+
+- `MountedScenePlacementAttribution.Attribute` read `Game.CutsceneLock` and the Dialog and Cutscene modes after the
+  operation, and ignored the `CutscenePlayerData` the commands receive.
+- A background cutscene keeps running in Default play. There, a live player's timed-out `CommandMoveUnit`, its
+  rider-only `CommandTeleportParty` and its standalone rider turn were classified `None` and swallowed.
+- A `CommandTeleportParty` of both actors was still `WholePair`, because whole-pair classification does not consult
+  the scene gate.
+
+### Native ownership contract (installed Kingmaker 2.1.7b)
+
+| Fact | Kind |
+|---|---|
+| `CommandBase.Run` (which calls `OnRun` and `OnTurnOn`) is called only by `CutscenePlayerData+TrackData.StartCommand` and `CutscenePlayerData.Restore` | IL read; caller scan of the whole assembly, pinned |
+| `CommandBase.IsFinished` is called only by `TrackData.Tick`, `StartCommand` and `ForceStop`. Nothing calls `CommandMoveUnit.IsFinished` (06009E4E) or `CommandTeleportParty.OnRun` (06009E90) directly | IL read; caller scan, pinned |
+| `StartCommand` records the command in the player's `m_CommandData` before running it. A track's current command is `TrackData.Command`, which is `Track.Commands[CommandIndex]`; `TrackData.IsFinished` means `CommandIndex` is past the end | IL read and pinned |
+| The player's started tracks are reachable only through its private `m_ActivatedGates` (a `List<GateData>`); each `GateData.StartedTracks` is a `List<TrackData>` | IL read and pinned (field types) |
+| `TickScene` returns before ticking any track while the player is paused (`m_Paused`). `StartCommand` also defers a command whose controlled unit's player is paused. The Paused setter and `Restore` re-run started commands for that same player | IL read (decompiled); the paused return before the scope is pinned |
+| Both commands name their parameter `player`, which the Harmony prefixes bind | Reflection, pinned |
+| `CutsceneParametersContext.Data` (an `ElementsContext` scope) is opened only by `CutscenePlayerData`: `Start`, `TickScene`, the Paused setter, `Restore`, `Stop` and `Dispose`. Only `TickScene` names the player in it (`set_Cutscene`), after its paused return and before opening the scope | IL read; caller scan, pinned |
+| `ElementsContext` is a static dictionary from data type to the current data; `ElementsContextData`'s constructor pushes itself and `Dispose` pops it | IL read; executed offline (installed code) |
+
+### TranslocateUnit result
+
+- `TranslocateUnit` receives no player. Its operation-owned signal is the cutscene parameter scope it runs in.
+- Inside a scope that names a live player, or no player yet (a scope opened before the player's first tick, which
+  belongs to that starting player), it is owned (`CutsceneActionScope`).
+- A scope naming a finished player is not owned, and neither is an action outside any scope (area triggers,
+  etudes and direct calls in Default play). Dialog stays under the foreground rule.
+- The actor-control signal (`NativeSceneControl`) is not used for ownership. It names the unit a command controls,
+  not the action that wrote it.
+- **Remaining limitation:** an action run synchronously by a non-cutscene handler while a cutscene's scope is open
+  would be counted as that cutscene's. Example: an event raised inside the scene's own tick. This is not observed,
+  and the scope cannot tell it apart.
+
+### Repair (`03685720`)
+
+- **Prefixes:** `CommandMoveUnitCapturePrefix(CommandMoveUnit __instance, CutscenePlayerData player, out object)` and
+  the `CommandTeleportParty` equivalent take the original player argument. `TranslocateUnitCapturePrefix` reads the
+  scope.
+- **`NativeSceneOperationOwnership` (Integration)** decides at entry, before the operation runs:
+  - for a command, whether a non-finished player has this exact command current on an unfinished started track
+    (`m_ActivatedGates`, compared by reference);
+  - for `TranslocateUnit`, whether it runs in a scope naming no finished player.
+- **`MountedSceneOperationOwnership.Decide` (Domain)** returns one of four outcomes:
+  - the foreground rule (`CutsceneLock`, Dialog, Cutscene; unchanged) gives `ForegroundScene`;
+  - otherwise `OwningCutscenePlayer` for a command, or `CutsceneActionScope` for `TranslocateUnit`;
+  - otherwise `None`.
+  - Each operation uses only its own kind of evidence.
+- **Capture and postfix:** the typed `Capture` stores `Ownership`. The postfix passes `SceneOwned(capture.Ownership)`
+  to the core, and no longer reads the global mode.
+- **Unchanged:** the 3 m unattributed rule, combat refusal, R7, R8, R9, mounting-instance and synchronizer identity,
+  and nested operations.
+
+### Before and after
+
+The reviewed `813d00a1` build is the `ed83339c` DLL. The cases run in Default play, with no lock and no foreground
+mode.
+
+| Case | Reviewed | Corrected |
+|---|---|---|
+| A. A live background player's `CommandMoveUnit` times out and moves the rider 1.5 m; mount unchanged | None; the synchronizer swallows it | Held at (0.9, 1.2); one handoff at the endpoint |
+| B. A live background `CommandTeleportParty`, target set rider only; rider moved | None | `RiderPlacement`, held at (-2, 0.5); not `WholePair` |
+| C. The same ownership; rider at the same position, turned to 75° | None | Held at the rider's position at 75°; one handoff |
+| E. Null, finished, replaced and unrelated player; a direct `TranslocateUnit` outside a scope; ordinary updates | None | None |
+| F. Owned at entry; the player finishes inside the operation | — | Kept (captured at entry); the reverse (a foreground mode starting inside) is not owned |
+| D. Foreground (Dialog, Cutscene, lock) and the earlier C02 cases | Unchanged | Unchanged |
+
+- Results were executed through the compiled ownership helper, `Decide` and core against represented installed player
+  state, and in the component scene through the production policy, core and hold.
+- The reviewed composition reads the global mode at its postfix. It is transcribed in the component scene, and its
+  compiled build has no helper.
+
+### Checks of this review
+
+| Check | Result |
+|---|---|
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint4`, focused: both Sprint 4 contract scripts, persistence, post-load view readiness, continuous drive, world ownership, physical mover pace | TIER FAST PASS=10 FAIL=0, 0.94 min; budget spent 3.8 of 90 minutes over 5 entries |
+| Components | 1370/0 (1367 at `813d00a1`; +3 R10) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 |
+| Clean Release build of `03685720` | PASS; identity above |
+| `Test-ScenePlacementAttributionContracts.ps1` | 24/0. Reviewed build 21/3: the compiled helper, the wiring, and A/B/C all None. The two native ownership pins pass on both |
+| `Test-CandlemereCrossingContracts.ps1` | 11/0 on both builds (C04 unchanged) |
+| Targeted mutations (each restored), log `41-review-mutations-r10.log` | M14 (captured command ownership removed): 2 component failures and the background check. M14b (action-scope ownership removed): the non-scene-controls component test. M15 (any player taken, no current-command check): the helper check and the background check |
+
+- Two first mutation attempts did not compile (unreachable code); they were replaced by the reachable forms above.
+- Logs are in `artifacts/known-issues-sprint4/`, numbered 40–45.
+- Not run: Full, Candidate, historical campaigns, release qualification, unrelated stale harnesses.
+
+### Evidence kinds for this review
+
+| Kind | What |
+|---|---|
+| Production code executed offline | `MountedSceneOperationOwnership`, `MountedScenePlacementAttributionCore`, `MountedScenePlacementHold` (component tests); the compiled `NativeSceneOperationOwnership`, `Decide` and core (contract script) |
+| Installed native code executed | `ElementsContext` and `CutsceneParametersContext.ContextData` (scope open and close); the `TrackData.Command` and `IsFinished` getters on represented objects |
+| Installed native IL inspected | The command callers, `StartCommand`, `TickScene`, the scope openers, the field types |
+| Represented native cutscene ownership | `CutscenePlayerData`, `GateData`, `TrackData`, `Gate` and `Track` built from the installed types without constructors; the provenance flags in the component scene |
+| Modelled orchestration | The poll and the frame order in the component scene |
+| Native gameplay | None; not run |
+
+### Remaining evidence limits
+
+- **Not seen in play:**
+  - a background cutscene in Default play placing or turning a seated rider;
+  - a `CommandTeleportParty` of the rider alone;
+  - a `TranslocateUnit` inside a cutscene's scope.
+- **Not exercised natively:** the `m_ActivatedGates` read is private-field reflection, pinned by type. A missing
+  field makes ownership `None`, the safe default.
+- The action-scope limitation above.
+- **C02's disposition:** implemented and verified offline. Background command ownership is now evidence-supported
+  offline; native is not run.
+
+## Review of `e1c0c7ad` (R7–R9), 2026-11-17
 
 The owner accepted, at `e1c0c7ad`:
 - R4's owed-versus-spent notice, the no-receiver retry and the loading gate;
@@ -118,6 +250,8 @@ actor was already at its authored transform (R8). Both are corrected here, toget
 - **R5:** "a rider-only turn alone starts nothing" described the swallowed outcome, not a repair. R7 replaces it.
 - **R5:** whole-pair classification by changed values alone missed a proven write. R8 replaces it.
 - R5 is complete only with R7 and R8.
+- Corrected by R10 of the review of `813d00a1`: R7 and R8 held only when the operation was recognised as scene-owned,
+  and that was the global mode read after the operation. A live background cutscene's operations were lost.
 
 ### Checks of this review
 

@@ -1,3 +1,18 @@
+# Known issues remediation, Sprint 4 — review of 813d00a1 checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `813d00a1`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R10 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R10 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Rule:**
+  - Scene ownership of a C02 operation is decided at its prefix (`NativeSceneOperationOwnership`,
+    `MountedSceneOperationOwnership.Decide`) and carried in the typed capture.
+  - Never recompute it from the global mode at the postfix.
+  - Commands use their own `CutscenePlayerData`: a live player with this exact command current.
+  - `TranslocateUnit` uses the cutscene parameter scope.
+  - Do not treat every patched invocation as scene-owned.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 4 — review of e1c0c7ad checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `e1c0c7ad`. Read CURRENT.md,

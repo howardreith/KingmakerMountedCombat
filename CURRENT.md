@@ -1,3 +1,31 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 813d00a1: R10 SCENE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `813d00a1`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R10 section
+first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `813d00a1`:** R4, R7 (when scene-owned), R8, R9, C04's observations and C01.
+- **R10, C02 (`03685720`):** scene ownership was the global mode read after the operation, so a live background
+  cutscene's operations in Default play were swallowed.
+  - The commands' prefixes now take the original `CutscenePlayerData player`.
+  - `NativeSceneOperationOwnership` decides at entry whether a live player has this exact command current on an
+    unfinished started track.
+  - For `TranslocateUnit`, it decides whether the action runs inside a cutscene's parameter scope.
+  - The typed capture stores the decision, and the core consumes it.
+  - Background move, rider-only teleport and standalone turn are now each held and handed off once.
+  - Null, finished, replaced and unrelated players are not owned.
+- **Checks:**
+  - Fast PASS 10/0: components 1370/0, Validate-Source 151/0, scene placement 24/0 (reviewed build 21/3), Candlemere
+    11/0, and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Three targeted mutations, each caught.
+  - Product-build commit `03685720`, DLL SHA-256 `7ce8f88a…01efd59c8`, MVID `efdc12b6-…`.
+- **Remaining limit:** an action run by a non-cutscene handler inside a cutscene's open scope counts as the
+  cutscene's.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08; accepted Sprint 3 behaviour; C01's guards.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF e1c0c7ad: R7, R8, R9 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
