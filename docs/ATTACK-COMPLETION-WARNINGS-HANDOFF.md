@@ -2,14 +2,15 @@
 
 ## Sprint 6 (2026-11-18), superseding
 
-Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md), as corrected after the review of `2ae4cc8b`; nothing
-below this section is rewritten.
+Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md), as corrected after the reviews of `2ae4cc8b` and
+`fa533e97`; nothing below this section is rewritten.
 
 - **A01:** the quiet answer after accepted work is still the rule for routine continuation. But an exact same-target
   click after the dispatched command ended (before the next Update retires the retained intent) is now a fresh
   request, with a new generation and its own answer. Before, it continued the finished work and stayed silent.
 - **A02:** terminal feedback no longer describes a cancellation, replacement, boundary or fault as "cannot act". The
-  capability text needs the capability to be the recorded or native-signature cause.
+  capability text needs the capability to be the recorded cause, or the exact native capability branch recorded where
+  native took it. A native target or InterruptAsSoonAsPossible end beside a blocked actor is not "cannot act".
 
 Branch: `codex/kmc-attack-completion-warnings`, draft PR #33.
 Base: main `680d02cb2cae62bbf646f2064b42014d145b3e71` (0.2.5, including PR #31).

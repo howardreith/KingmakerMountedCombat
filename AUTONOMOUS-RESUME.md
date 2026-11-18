@@ -4,19 +4,23 @@ Branch `codex/kmc-known-issues-sprint6` (draft PR targeting `codex/kmc-known-iss
 CURRENT.md, docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 7 bases on this branch
 after review.
 
-- **State:** A01, A02, A04 and A05 corrected offline; A03 settled; review of `2ae4cc8b` corrected (`ce9b1383`).
-  Fast PASS 13/0; mutations Q1–Q17 all caught. Native NOT RUN.
+- **State:** A01, A02, A04 and A05 corrected offline; A03 settled; reviews of `2ae4cc8b` (`ce9b1383`) and
+  `fa533e97` (`1d0054f0`) corrected. Fast PASS 13/0; mutations Q1–Q21 all caught. Native NOT RUN.
 - **Rules:**
   - A same-target click continues a retained intent only while its request has not dispatched or its dispatched
     command is live (`IsFreshRequestAfterTerminal`). Never bind freshness to frames or timers.
-  - Every owned pair-command end records a typed `MountedAttackEndCause` (`InterruptOwnedCommand`). The capability
-    snapshot explains a terminal only per `CapabilityIsCause`.
+  - Every owned pair-command end records a typed `MountedAttackEndCause` (`InterruptOwnedCommand`). A condition explains
+    a terminal only through `CausalCapability`: the recorded `ActorCapability` block, or the block of a native
+    capability branch recorded by `NativeCommandTerminalBranches` where native takes it. Never infer it from the
+    terminal result, the started flag or the terminal snapshot.
   - The automatic `CanNotAttack` refusal is stateless and automatic-only. Player routes never read it.
   - A target is recorded unreachable only for a typed `ApproachFailed` end with approach evidence; `Unrecorded` is
     never evidence.
   - Faults record their cause before any diagnostic; the terminal is always delivered.
   - Native `Run` replacement uses only the token-exact `MountedNativeRunScope` (transpiler and `finally`); never re-resolve
-    pair ownership to close a scope.
+    pair ownership to close a scope. Only the innermost open token on the ending command's container decides.
+  - State transitions precede diagnostics, and diagnostics are contained, in the terminal handler, charge cleanup and
+    the retired scheduler.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 7.
 
 # Known issues remediation, Sprint 5 — review checkpoint (2026-11-17)
