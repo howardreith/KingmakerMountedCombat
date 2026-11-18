@@ -27,6 +27,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted ranged movement: the allocation must be current for the pair's activation", AllocationCurrency);
             runner.Run("mounted ranged movement: a mid-encounter mount (PreparePartnerThisRound) charges the mounted travel, not earlier riderless travel", MidEncounterAdoption);
             runner.Run("mounted ranged movement: retained travel survives persistence and dismount; a fresh grant resets it", Lifetime);
+            runner.Run("sprint 5 R01 (production authority, adoption policy, activation): under the qualified paired authority a mounted pair's mount never travels with its rider on its own initiative slot", SeparateSlotCarriedTravelNotReachable);
+            runner.Run("sprint 5 R01 (production policy): a mount's own-slot record is riderless or before mounting and stays excluded; one authority per record; pair, generation and round identity hold; reading never consumes", OwnSlotRecordsStayExcluded);
             runner.Run("mounted archery publication: both KMC combat feats share one exact lease per selection array", CoordinatedLease);
             runner.Run("mounted archery publication: independent leases of one array would conflict", IndependentLeasesConflict);
             runner.Run("mounted archery publication: a drifted extra list stops offering it while the rule stays on", ExtraListDrift);
@@ -328,6 +330,115 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(retained.AdoptRunningBoundary(new object(), Domain.MidEncounterAdoption.RetainPartnerParticipation), "Retained adoption.");
             var retainedGrant = MountedRangedMovementPolicy.CurrentPairedGrant(retained, rider, horse);
             TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, riderlessGrant, retainedGrant, true, true), "A retained horse's own turn is not the pair's.");
+        }
+
+        // Known issues Sprint 5, R01. The epic expected carried travel under the mount's separate initiative allocation to
+        // contribute nothing. Reconciled against the accepted base, that travel has no reachable instance: the shared
+        // paired grant is the only allocation a mounted pair's mount ever moves under while carrying its rider. The links
+        // below are production code; the Integration links (candidate suppression, the dismount-only split) are pinned by
+        // Test-MountedRangedMovementContracts.ps1.
+        private static void SeparateSlotCarriedTravelNotReachable()
+        {
+            // 1. The qualified authority is the only production one: paired activation on, both retired turn modes off,
+            //    and nothing but explicit diagnostics changes it (no player switch, no settings file).
+            var settings = new KingmakerMountedCombat.Diagnostics.DiagnosticSettings();
+            TestRunner.True(MountedAuthorityPolicy.IsQualifiedForCombatMount(settings.EnablePairedActivation, settings.EnableUnifiedMountedTurn,
+                settings.EnablePairedCommandScheduler), "The production defaults are not the qualified paired authority.");
+            TestRunner.True(!MountedAuthorityPolicy.IsQualifiedForCombatMount(false, false, false) && !MountedAuthorityPolicy.IsQualifiedForCombatMount(true, true, false),
+                "An unqualified turn authority was accepted.");
+
+            // 2. A pair forms during combat only on the exact rider's running turn, never on the mount's own slot.
+            foreach (var order in new[] { new[] { 2, 5 }, new[] { 5, 2 } })
+                TestRunner.Equal(Domain.MidEncounterAdoption.Unavailable, MidEncounterAdoptionPolicy.Resolve(true, false, order[0], order[1], false, false, true),
+                    "Combat mounting outside the exact rider's turn was admitted.");
+
+            // 3. The mount's slot later in the round: it is prepared as the partner, so its record carries the shared grant.
+            var rider = new object();
+            var horse = new object();
+            var riderTurn = new object();
+            TestRunner.Equal(Domain.MidEncounterAdoption.PreparePartnerThisRound, MidEncounterAdoptionPolicy.Resolve(true, true, 2, 5, false, false, true), "Later mount slot.");
+            var prepared = new PairedActivation<object, object>(rider, horse);
+            TestRunner.True(prepared.AdoptRunningBoundary(riderTurn, Domain.MidEncounterAdoption.PreparePartnerThisRound) && prepared.BeginActorPreparation(horse, riderTurn),
+                "The partner's one native preparation.");
+            var shared = MountedRangedMovementPolicy.CurrentPairedGrant(prepared, rider, horse);
+            TestRunner.True(shared != null && MountedRangedMovementPolicy.IsAllocationCurrent(true, prepared.Identity, shared, true, true),
+                "The prepared partner's carried travel is not the pair's.");
+
+            // 4. The mount's slot earlier in the round: it already acted (riderless) and is ended, so it cannot be moved again
+            //    under the rider's boundary; its own record stays its own.
+            TestRunner.Equal(Domain.MidEncounterAdoption.RetainPartnerParticipation, MidEncounterAdoptionPolicy.Resolve(true, true, 5, 2, false, false, true), "Earlier mount slot.");
+            var retained = new PairedActivation<object, object>(rider, horse);
+            var retainedTurn = new object();
+            TestRunner.True(retained.AdoptRunningBoundary(retainedTurn, Domain.MidEncounterAdoption.RetainPartnerParticipation), "Retained adoption.");
+            TestRunner.True(retained.Mount.Ended && !retained.CanAddress(horse, retainedTurn),
+                "A retained partner can still be moved, carrying the rider, in the round it already acted.");
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, "native:" + new string('d', 32),
+                MountedRangedMovementPolicy.CurrentPairedGrant(retained, rider, horse), true, true), "The retained mount's own riderless record counted.");
+
+            // 5. The only split is the dismount's; once split, nothing is the pair's grant, and a later remount is a new activation.
+            var split = new PairedActivation<object, object>(rider, horse);
+            var boundary = new object();
+            TestRunner.True(split.Begin(boundary) && split.BeginActorPreparation(rider, boundary) && split.BeginActorPreparation(horse, boundary), "Paired round.");
+            var before = MountedRangedMovementPolicy.CurrentPairedGrant(split, rider, horse);
+            split.Detach();
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(split, rider, horse) == null, "A split activation still owned a grant.");
+            var remounted = new PairedActivation<object, object>(rider, horse);
+            var next = new object();
+            TestRunner.True(remounted.AdoptRunningBoundary(next, Domain.MidEncounterAdoption.PreparePartnerThisRound) && remounted.BeginActorPreparation(horse, next), "Remount.");
+            var after = MountedRangedMovementPolicy.CurrentPairedGrant(remounted, rider, horse);
+            TestRunner.True(after != null && after != before && !MountedRangedMovementPolicy.IsAllocationCurrent(true, before, after, true, true),
+                "The same rider and horse regained the earlier generation's travel after dismount and remount.");
+        }
+
+        private static void OwnSlotRecordsStayExcluded()
+        {
+            var rider = new object();
+            var horse = new object();
+            var activation = new PairedActivation<object, object>(rider, horse);
+            var boundary = new object();
+            TestRunner.True(activation.Begin(boundary) && activation.BeginActorPreparation(rider, boundary) && activation.BeginActorPreparation(horse, boundary), "Paired round.");
+            var grant = MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse);
+            var travelled = new Mount();
+            travelled.Travel(4.5f);
+            foreach (var owns in new[] { false, true })
+            {
+                // Shared paired activation: unchanged.
+                var facts = Rider(travelled.Normal, owns);
+                facts.CurrentAllocation = MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, grant, true, true);
+                TestRunner.Equal(owns ? -2 : -4, Contribution(facts), "Shared second-Move travel.");
+                // The same travel recorded under the mount's own native grant (riderless, or before mounting): excluded.
+                var own = Rider(travelled.Normal, owns);
+                own.CurrentAllocation = MountedRangedMovementPolicy.IsAllocationCurrent(true, "native:" + new string('e', 32), grant, true, true);
+                TestRunner.Equal(0, Contribution(own), "A mount-own record contributed.");
+            }
+            // One record, one authority: the reading is a pure function of the record, so repeated rolls agree and nothing
+            // is consumed; the contribution is a single value per roll.
+            var moved = travelled.State.TimeMoved;
+            var first = Contribution(Rider(travelled.Normal));
+            var second = Contribution(Rider(travelled.Normal));
+            TestRunner.True(first == -4 && second == -4 && travelled.State.TimeMoved == moved,
+                "Reading the record changed it, or two rolls after the same travel disagreed.");
+            // Stale round: the next round's Begin is a new grant; the previous round's record is no longer current.
+            activation.EndActor(rider);
+            activation.EndActor(horse);
+            activation.FinalizeActivation();
+            var nextRound = new object();
+            TestRunner.True(activation.Begin(nextRound) && activation.BeginActorPreparation(rider, nextRound) && activation.BeginActorPreparation(horse, nextRound), "Next round.");
+            var nextGrant = MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, horse);
+            TestRunner.True(nextGrant != grant && !MountedRangedMovementPolicy.IsAllocationCurrent(true, grant, nextGrant, true, true), "The previous round's travel counted.");
+            // Another pair, the same rider on another mount, another rider on the same mount: none owns this grant.
+            var otherRider = new object();
+            var otherHorse = new object();
+            var other = new PairedActivation<object, object>(otherRider, otherHorse);
+            var otherBoundary = new object();
+            TestRunner.True(other.Begin(otherBoundary) && other.BeginActorPreparation(otherRider, otherBoundary) && other.BeginActorPreparation(otherHorse, otherBoundary), "Second pair.");
+            var otherGrant = MountedRangedMovementPolicy.CurrentPairedGrant(other, otherRider, otherHorse);
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(true, nextGrant, otherGrant, true, true) &&
+                !MountedRangedMovementPolicy.IsAllocationCurrent(true, otherGrant, nextGrant, true, true), "Travel crossed between two pairs.");
+            TestRunner.True(MountedRangedMovementPolicy.CurrentPairedGrant(activation, rider, otherHorse) == null &&
+                MountedRangedMovementPolicy.CurrentPairedGrant(activation, otherRider, horse) == null, "A different rider or mount owned the pair's grant.");
+            // Another combat controller (a new encounter, a load or a world replacement): never current.
+            TestRunner.True(!MountedRangedMovementPolicy.IsAllocationCurrent(false, nextGrant, nextGrant, true, true), "Another controller's record counted.");
         }
 
         private static void Lifetime()
