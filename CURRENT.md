@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 6 — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
+# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEW OF 2AE4CC8B) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the
 accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md) and the
@@ -12,14 +12,21 @@ accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-
   aura, read by the current reader. Serenity adds no condition. No product change; live state not observed.
 - **A04:** automatic churn for a `CanNotAttack` rider established and refused (stateless, automatic only). The
   player's real-time wait is unchanged.
-- **A05 (new):** a capability-, cancellation- or fault-ended automatic command no longer marks its target unreachable.
+- **A05 (new):** only a typed `ApproachFailed` end, recorded at the exact movement boundary with the approach's own
+  evidence, marks an automatic target unreachable.
+- **Review of `2ae4cc8b` (`ce9b1383`):**
+  - every command end records a typed cause (audit table in the handoff);
+  - start and tick faults record before any diagnostic, and the terminal is always delivered;
+  - the capability boundary's exact block is the durable cause;
+  - native `Run` replacement scopes are token-exact and exception-safe (a transpiler and a `finally`);
+  - the A01 counter counts only the same request after its command ended.
 - **Checks:**
-  - Fast PASS 13/0 (0.66 min) (budget `known-issues-sprint6`).
-  - Components 1392/0; stall-repair probe 110/0 (accepted Sprint 5 build fails its 6 Sprint 6 sections).
+  - Fast PASS 13/0 (budget `known-issues-sprint6`).
+  - Components 1395/0; stall-repair probe 136/0. The Sprint 5 build fails 10 Sprint 6 sections; the reviewed
+    `2ae4cc8b` build fails the 6 review sections.
   - Kingmaker assembly contracts 815/0.
-  - Mutations incomplete: Q1-Q4 of twelve ran and were caught; the run was stopped for low system memory before
-    Q5, and Q5-Q12 await the owner's go-ahead.
-  - Product-build commit `3472914d (product sources; built at 221d748b)`, DLL SHA-256 `27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`.
+  - Mutation campaign Q1–Q17: 17/17 caught (serial, isolated).
+  - Product-build commit `ce9b1383`, DLL SHA-256 `3e20be03d913c2e7ba1a6a207b8076f018c08b0af6d54b72416d948009b666ae`, MVID `6b47a46b-8fad-40ac-824e-5a3c50f23ba1`.
 - **Sprint 5 note:** the `MountedRangedMovementTests.Lifetime` wording now describes a temporary applicability gate,
   not a dismount and reattachment. Ranged-movement behaviour is unchanged.
 - **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 7 was not started.

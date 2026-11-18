@@ -2,7 +2,8 @@
 
 ## Sprint 6 (2026-11-18), superseding
 
-Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md); nothing below this section is rewritten.
+Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md), as corrected after the review of `2ae4cc8b`; nothing
+below this section is rewritten.
 
 - **A01:** the quiet answer after accepted work is still the rule for routine continuation. But an exact same-target
   click after the dispatched command ended (before the next Update retires the retained intent) is now a fresh

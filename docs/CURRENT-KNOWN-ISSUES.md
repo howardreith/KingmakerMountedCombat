@@ -428,8 +428,8 @@ Record: [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md). No product change: 
 
 ## Sprint 6 — attack requests and terminals (reconciled 2026-11-18)
 
-Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Product-build commit `3472914d (product sources; built at 221d748b)`, clean Release DLL SHA-256
-`27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`.
+Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the review of `2ae4cc8b`. Product-build commit
+`ce9b1383`, clean Release DLL SHA-256 `3e20be03d913c2e7ba1a6a207b8076f018c08b0af6d54b72416d948009b666ae`, MVID `6b47a46b-8fad-40ac-824e-5a3c50f23ba1`.
 
 | ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|
@@ -437,7 +437,7 @@ Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Product-build commi
 | A02 | Terminal feedback can describe a player cancellation as "cannot act". | Diagnostic and feedback defect | **Implemented and verified offline** | Typed `MountedAttackEndCause` recorded at each end; `CapabilityIsCause` decides. Logging and warning delivery contained. Probe sections A02: the base fails (Stop while dazed read "cannot act"; a failing logger stopped retirement); this build passes | Not run |
 | A03 | The Serenity or Fascinate condition that stopped the rider is unidentified. | Open explanation | **Settled explanation; no product change** | Decoded assets: Fascinate = `FascinateEffectCombatBuff` (`8a59ee05…`, AddCondition Dazed) from the Lady of Shallows' beguiling aura; Serenity (`SerenityBuff`) adds no condition. Dazed → `CanAct` false (installed IL), read by `NativeActorCapability`. Live state not observed | Not run |
 | A04 | Real-time blocked orders wait natively (intended); automatic proposal churn was a hypothesis. | Intended behaviour plus established churn | **Intentional wait documented; churn established and corrected (automatic only)** | Installed brain and AI: no `CanNotAttack` exclusion; a re-proposal every 0.3–0.4 s; native interrupts. `Decide` now refuses with `RiderCannotAttack`, which is stateless. Probe A04: base 30/30 admitted, now 0/30 | Not run |
-| A05 | An automatic command ended by its rider's capability, a cancellation, a replacement or a fault marks its target unreachable for the rider's brain. | Product defect (found in A04) | **Implemented and verified offline** | `RecordsAutomaticApproachFailure`: only a genuinely failed approach records it. Probe A04 terminals: the base marks it, this build does not | Not run |
+| A05 | Any non-success automatic end with no strike (target death, capability, cancellation, an in-range interruption) marks its target unreachable for the rider's brain. | Product defect (found in A04) | **Implemented and verified offline** | Only the typed `ApproachFailed` cause, thrown at the repath-exhaustion or approach-time boundary, with approach evidence (approach required, delegated move started, no strike, no success or tail), records it. Probe A05 (12 cases): the Sprint 5 build and the reviewed `2ae4cc8b` build mark target death; this build marks only case 1 | Not run |
 
 ## Sprints 7–8 — carried forward, pending reconciliation
 

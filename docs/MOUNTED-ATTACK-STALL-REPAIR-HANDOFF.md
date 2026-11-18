@@ -2,7 +2,8 @@
 
 ## Sprint 6 (2026-11-18), superseding
 
-Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md); nothing below this section is rewritten.
+Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md), as corrected after the review of `2ae4cc8b`; nothing
+below this section is rewritten.
 
 - **"The Serenity and Fascinate blueprints were not decoded":** they are now, from the installed assets.
   - Fascinate from the Lady of Shallows is `FascinateEffectCombatBuff` (`AddCondition: Dazed`), applied by her
@@ -13,8 +14,10 @@ Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md); nothing below
 - **"Terminal text":** corrected (A02). A routine stopped by the player while its actor is blocked is now a
   cancellation, not "cannot act".
 - **"Real time, automatic order, `CanNotAttack`":** established from the installed brain and AI, and corrected (A04).
-  The automatic admission refuses such a proposal, and an automatic command ended by its actor's capability no longer
-  marks its target unreachable (A05). The player's real-time wait is intentional and unchanged.
+  The automatic admission refuses such a proposal. Only a typed `ApproachFailed` end, with the approach's own
+  evidence, marks an automatic target unreachable (A05). The player's real-time wait is intentional and unchanged.
+- **Terminal causes:** every end of a pair command records a typed cause. A capability end keeps the exact block it
+  read.
 
 Branch `codex/mounted-attack-stall-repair` from main `474b8667` (release 0.2.10). Scope: a mounted attack order that
 hangs turn-based combat when the rider cannot act. No merge, release, tag, version bump or install.

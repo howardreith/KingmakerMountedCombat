@@ -4,13 +4,19 @@ Branch `codex/kmc-known-issues-sprint6` (draft PR targeting `codex/kmc-known-iss
 CURRENT.md, docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 7 bases on this branch
 after review.
 
-- **State:** A01, A02, A04 and A05 corrected offline; A03 settled. Fast PASS 13/0 (0.66 min). Native NOT RUN.
+- **State:** A01, A02, A04 and A05 corrected offline; A03 settled; review of `2ae4cc8b` corrected (`ce9b1383`).
+  Fast PASS 13/0; mutations Q1–Q17 all caught. Native NOT RUN.
 - **Rules:**
   - A same-target click continues a retained intent only while its request has not dispatched or its dispatched
     command is live (`IsFreshRequestAfterTerminal`). Never bind freshness to frames or timers.
   - Every owned pair-command end records a typed `MountedAttackEndCause` (`InterruptOwnedCommand`). The capability
     snapshot explains a terminal only per `CapabilityIsCause`.
   - The automatic `CanNotAttack` refusal is stateless and automatic-only. Player routes never read it.
+  - A target is recorded unreachable only for a typed `ApproachFailed` end with approach evidence; `Unrecorded` is
+    never evidence.
+  - Faults record their cause before any diagnostic; the terminal is always delivered.
+  - Native `Run` replacement uses only the token-exact `MountedNativeRunScope` (transpiler and `finally`); never re-resolve
+    pair ownership to close a scope.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 7.
 
 # Known issues remediation, Sprint 5 — review checkpoint (2026-11-17)
