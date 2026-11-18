@@ -86,6 +86,26 @@ public static class KmcMarkerProbe
         return false;
     }
 
+    // The hook names one exact registration passes (the strings after its token up to its PatchExact call).
+    private static List<string> Hooks(Type controller, string typeName, int token)
+    {
+        foreach(var member in controller.GetMembers(All))
+        {
+            var method=member as MethodBase; if(method==null || method.GetMethodBody()==null) continue;
+            var body=Body(method);
+            for(var j=0;j<body.Count;j++)
+            {
+                if(!(body[j].Op==OpCodes.Ldc_I4 && (int)body[j].Operand==token)) continue;
+                var typed=false;
+                for(var k=Math.Max(0,j-8);k<j;k++) if(body[k].Op==OpCodes.Ldtoken && body[k].Operand is Type && ((Type)body[k].Operand).FullName==typeName) typed=true;
+                if(!typed) continue;
+                var names=new List<string>();
+                for(var k=j+1;k<body.Count;k++) { if(body[k].Call!=null && body[k].Call.Name=="PatchExact") return names; if(body[k].Op==OpCodes.Ldstr) names.Add((string)body[k].Operand); }
+            }
+        }
+        return null;
+    }
+
     private static Type[] TypesOf(Assembly assembly) { try { return assembly.GetTypes(); } catch(ReflectionTypeLoadException partial) { return partial.Types.Where(t=>t!=null).ToArray(); } }
 
     // Every method of an assembly whose IL uses one of the given metadata tokens with one of the given opcodes, as "Type.Method".
@@ -361,7 +381,7 @@ public static class KmcMarkerProbe
                     hookParameters.Length==2,
                     hookParameters[0]=="UnitCommands",
                     hookParameters[1]=="UnitCommand",
-                    Registers(controller,"Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler",0x060093ED,"UnitClickPrefix","CannotAttackApproachTranspiler"),
+                    string.Join(",",(Hooks(controller,"Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler",0x060093ED)??new List<string>()).ToArray())=="UnitClickPrefix,CannotAttackApproachTranspiler",
                     product.GetType("KingmakerMountedCombat.Integration.MountedNativeUnitClickScope")==null,
                     methods.GetMethod("UnitClickPostfix",Any)==null);
             });
@@ -436,7 +456,10 @@ public static class KmcMarkerProbe
                 var post=methods.GetMethod("PointerPlacedPostfix",Any); var parameters=post.GetParameters();
                 var entrance=product.GetType("KingmakerMountedCombat.Integration.MountedCombatController",true);
                 var carries=false; foreach(var m in entrance.GetMethods(All)) if(m.GetMethodBody()!=null && Find(Body(m),"MountedDestinationMarkers","RetireRiderPointer").Count==1) carries=true;
-                return Every("C6",Registers(controller,"Kingmaker.UI.ClickPointerManager",0x06002D62,"PointerPlacedPostfix",null),
+                var addHooks=Hooks(controller,"Kingmaker.UI.ClickPointerManager",0x06002D62); var startHooks=Hooks(controller,"Kingmaker.View.UnitEntityView",0x0600184E);
+                Console.WriteLine("INFO registrations: AddPointer="+(addHooks==null?"none":string.Join(",",addHooks.ToArray()))+"; OnMovementStarted="+(startHooks==null?"none":string.Join(",",startHooks.ToArray())));
+                return Every("C6",addHooks!=null && addHooks.Count==1 && addHooks[0]=="PointerPlacedPostfix",
+                    startHooks!=null && startHooks.Count==1 && startHooks[0]=="CarriedRiderPointerPrefix",
                     Registers(controller,"Kingmaker.View.UnitEntityView",0x0600184E,"CarriedRiderPointerPrefix",null),
                     methods.GetMethod("MarkerPlacementPostfix",Any)==null,
                     parameters.Length==1,
