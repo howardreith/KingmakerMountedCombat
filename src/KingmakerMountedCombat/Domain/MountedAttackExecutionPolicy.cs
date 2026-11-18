@@ -92,6 +92,71 @@ namespace KingmakerMountedCombat.Domain
         public int CompletedAttackCount;
     }
 
+    // Known issues Sprint 6 (A02). Why one pair command ended, recorded where it was ended, apart from the actor's
+    // capability snapshot read when it ended. The snapshot is diagnostic evidence; it is the cause only when this says so.
+    public enum MountedAttackEndCause
+    {
+        // Nothing recorded a cause: native ended it (its own interruption, a force-finish, a native order).
+        Unrecorded,
+        // The command's own execution boundary found its action actor blocked (TerminateIfActionActorBlocked).
+        ActorCapability,
+        // The pair controller cancelled it: Stop or Hold, a new order, dismount, a load, area or combat boundary, retirement.
+        Cancelled,
+        // A newer native order on the same actor replaced it (native UnitCommands.Run ended it inside that Run).
+        Replaced,
+        // The command faulted.
+        Fault,
+        // Its target became invalid (died, despawned, changed hostility, became unattackable).
+        TargetInvalid
+    }
+
+    public static class MountedAttackTerminalCausePolicy
+    {
+        // A recorded cause wins; otherwise an end inside a replacing native Run on the command's own actor is a replacement.
+        public static MountedAttackEndCause Resolve(MountedAttackEndCause recorded, bool endedInsideReplacingNativeRun)
+        {
+            if (recorded != MountedAttackEndCause.Unrecorded) return recorded;
+            return endedInsideReplacingNativeRun ? MountedAttackEndCause.Replaced : MountedAttackEndCause.Unrecorded;
+        }
+
+        // Whether the actor's capability, read when the command ended, is what ended it. Only the command's own boundary
+        // says so outright. With no recorded cause, two installed native signatures do (UnitActionController): an
+        // unstarted turn-based command force-finished with Success and nothing executed, and an interruption of the
+        // executor (always the action actor) for CanNotAttack (UnitAttack.ShouldBeInterrupted, at any time) or for an
+        // UnitState.CanAct term while it was running. A condition present beside any other cause never explains the end.
+        public static bool CapabilityIsCause(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
+            MountedActorCapabilityBlock block, bool nativeCommandStarted)
+        {
+            if (block == MountedActorCapabilityBlock.None) return false;
+            if (cause == MountedAttackEndCause.ActorCapability) return true;
+            if (cause != MountedAttackEndCause.Unrecorded) return false;
+            if (kind == MountedAttackTerminalKind.EndedWithoutExecution) return true;
+            if (kind != MountedAttackTerminalKind.Failed) return false;
+            return block == MountedActorCapabilityBlock.CanNotAttack || nativeCommandStarted;
+        }
+
+        // The player text for an explicitly ended command; null when the cause has no text of its own.
+        public static string CancellationFeedback(MountedAttackEndCause cause)
+        {
+            switch (cause)
+            {
+                case MountedAttackEndCause.Cancelled: return "Mounted pair attack cancelled.";
+                case MountedAttackEndCause.Replaced: return "Mounted pair attack replaced by a newer order.";
+                default: return null;
+            }
+        }
+
+        // AI-01's reach-only marking is for an automatic approach that failed. A command its actor's capability, a
+        // cancellation, a replacement or a fault ended did not fail to reach its target, and a transient condition must
+        // not leave a lasting unreachable mark (known issues Sprint 6, A04).
+        public static bool RecordsAutomaticApproachFailure(bool automatic, int childAttackStarts, bool rangedTail, bool nativeSuccess,
+            MountedAttackEndCause cause, bool capabilityIsCause)
+        {
+            return automatic && childAttackStarts == 0 && !rangedTail && !nativeSuccess && !capabilityIsCause &&
+                (cause == MountedAttackEndCause.Unrecorded || cause == MountedAttackEndCause.TargetInvalid);
+        }
+    }
+
     // Installed 2.1.7b: UnitCommand.ForceFinish stamps Success (and IsActed) on a command that never started, and
     // TickCommandTurnBased does that to an unstarted command whose executor cannot act, waits for initiative or has no
     // action for it. The retained order must not survive such a terminal, or every later update dispatches it again.

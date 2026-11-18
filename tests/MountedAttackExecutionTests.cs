@@ -21,6 +21,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("failed terminals keep their existing retirement", FailedTerminalsRetire);
             runner.Run("an unexecuted terminal retires one intent generation and leaves a fresh order unrestricted", UnexecutedTerminalRetiresOneGeneration);
             runner.Run("unexecuted feedback names the actor and the cause, never a completion", UnexecutedFeedbackIsTruthful);
+            runner.Run("sprint 6 A01 (production intent): a same-target click after the dispatched command ended is a fresh request with its own answer; a click while it runs continues it", SameTargetClickAfterTerminalIsFresh);
+            runner.Run("sprint 6 A01 (production intent): the fresh boundary holds for single, full, mount and ranged-tail routines, automatic promotion, retarget and boundaries", FreshBoundaryAcrossShapes);
+            runner.Run("sprint 6 A02 (production policy): the capability snapshot explains a terminal only where it is the cause; explicit ends keep their own cause", TerminalCauseSeparatesCapability);
+            runner.Run("sprint 6 A04 (production policy): only a genuinely failed automatic approach records its target unreachable", ApproachFailureNeedsAFailedApproach);
         }
 
         private static MountedActorCapabilityFacts Healthy() => new MountedActorCapabilityFacts { Known = true };
@@ -217,6 +221,128 @@ namespace KingmakerMountedCombat.Tests
             intent.ObserveDispatch(false);
             ObserveTerminal(intent, Terminal(true, true, false, true, 3));
             TestRunner.True(intent.Owns(target, intent.Generation), "A completed attack retired its order.");
+        }
+
+        // The controller's click decision (ContinuesStockIntent): continue only while the request has not dispatched or its
+        // dispatched command is live; otherwise begin a new generation (the existing replacement path).
+        private static bool Continues(MountedAttackIntent<object, object> intent, object target, object turn, bool mountActor, bool commandLive) =>
+            intent.CanContinue(target, turn, mountActor) && !intent.IsFreshRequestAfterTerminal(commandLive);
+
+        private static void ClickAfterCompletion(bool mountActor, MountedAttackTerminalFacts completion, string shape)
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            intent.Begin(target, turn, mountActor, true);
+            var generation = intent.Generation;
+            intent.ObserveDispatch(mountActor);
+            TestRunner.True(Continues(intent, target, turn, mountActor, true), shape + ": a click while the command runs did not continue it.");
+            ObserveTerminal(intent, completion);
+            TestRunner.True(intent.Owns(target, generation), shape + ": the executed routine did not keep its order.");
+            // The command released its reference; before the next Update the same exact click arrives.
+            TestRunner.True(intent.CanContinue(target, turn, mountActor), shape + ": setup, the retained order should still match the click.");
+            TestRunner.True(!Continues(intent, target, turn, mountActor, false), shape + ": the click after the terminal continued finished work.");
+            // Accepted Sprint 5 behaviour, for contrast: continuation kept hasDispatched, so the refusal was silent.
+            TestRunner.Equal(null, intent.GetRejectionFeedback("No Standard action."), shape + ": setup, the retained order answers nothing.");
+            intent.Begin(target, turn, mountActor, true);
+            TestRunner.True(intent.Generation == generation + 1, shape + ": the fresh request is not a new generation.");
+            TestRunner.Equal("No Standard action.", intent.GetRejectionFeedback("No Standard action."), shape + ": the fresh request has no answer of its own.");
+        }
+
+        private static void SameTargetClickAfterTerminalIsFresh()
+        {
+            ClickAfterCompletion(false, Terminal(true, true, false, true, 1), "rider single attack");
+            // Spent Standard: the controller's resource step answers the fresh request once and never dispatches.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, false, false, true, false,
+                    riderIsLegalActor: true, mountIsLegalActor: false), "A spent rider dispatched again.");
+            // Never dispatched yet (a paused click, a turn not reached): continuation stays.
+            var waiting = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            waiting.Begin(target, turn, false, true);
+            TestRunner.True(Continues(waiting, target, turn, false, false), "An order that never dispatched did not continue.");
+        }
+
+        private static void FreshBoundaryAcrossShapes()
+        {
+            ClickAfterCompletion(false, Terminal(true, true, false, true, 3), "rider full attack");
+            ClickAfterCompletion(true, Terminal(true, true, false, true, 1), "mount attack");
+            ClickAfterCompletion(false, Terminal(false, false, true, true, 2), "ranged tail");
+            // Automatic origin promoted by a genuine click while live; once terminal, a later click is fresh.
+            var auto = new MountedAttackIntent<object, object>();
+            var target = new object(); var turn = new object();
+            auto.Begin(target, turn, false, true, automatic: true);
+            auto.ObserveDispatch(false);
+            TestRunner.True(Continues(auto, target, turn, false, true), "A click on the live automatic command did not continue it.");
+            auto.PromoteToPlayer();
+            var generation = auto.Generation;
+            TestRunner.True(!auto.Automatic && auto.Generation == generation, "Promotion changed the generation.");
+            ObserveTerminal(auto, Terminal(true, true, false, true, 1));
+            TestRunner.True(!Continues(auto, target, turn, false, false), "A click after the promoted command ended continued it.");
+            // Retarget or another action context is a new request through the replacement path, as before.
+            TestRunner.True(!auto.CanContinue(new object(), turn, false), "Another target continued the order.");
+            TestRunner.True(!auto.CanContinue(target, turn, false, action: 9), "Another action continued the order.");
+            // Two pairs: one pair's terminal state never changes the other's decision.
+            var other = new MountedAttackIntent<object, object>();
+            var otherTarget = new object();
+            other.Begin(otherTarget, turn, false, true);
+            other.ObserveDispatch(false);
+            TestRunner.True(Continues(other, otherTarget, turn, false, true), "Another pair's live command was treated as finished.");
+            // Stop, dismount, a load, an area or combat end all clear the order: nothing about freshness is stored.
+            auto.Cancel();
+            TestRunner.True(!auto.IsFreshRequestAfterTerminal(false) && !Continues(auto, target, turn, false, false),
+                "A cleared order kept a stale fresh-request state.");
+        }
+
+        private static void TerminalCauseSeparatesCapability()
+        {
+            var dazed = MountedActorCapabilityBlock.Dazed;
+            var failed = MountedAttackTerminalKind.Failed;
+            // Explicit ends with a blocked actor: the condition never explains them.
+            foreach (var cause in new[] { MountedAttackEndCause.Cancelled, MountedAttackEndCause.Replaced, MountedAttackEndCause.Fault, MountedAttackEndCause.TargetInvalid })
+                foreach (var started in new[] { false, true })
+                    TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, cause, dazed, started), cause + " was explained by a daze.");
+            TestRunner.Equal("Mounted pair attack cancelled.", MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Cancelled), "Stop text.");
+            TestRunner.Equal("Mounted pair attack replaced by a newer order.", MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Replaced), "Replacement text.");
+            TestRunner.True(MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Unrecorded) == null &&
+                MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.ActorCapability) == null, "A non-cancellation got cancellation text.");
+            // The command's own boundary: causal in both modes, started or not.
+            TestRunner.True(MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, MountedAttackEndCause.ActorCapability, dazed, false), "The boundary's own cause was lost.");
+            // Native signatures with nothing recorded: the turn-based force-finish, CanNotAttack, a CanAct term while running.
+            TestRunner.True(MountedAttackTerminalCausePolicy.CapabilityIsCause(MountedAttackTerminalKind.EndedWithoutExecution,
+                MountedAttackEndCause.Unrecorded, dazed, false), "The native unstarted force-finish lost its condition.");
+            TestRunner.True(MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, MountedAttackEndCause.Unrecorded, MountedActorCapabilityBlock.CanNotAttack, false),
+                "Native's attack-ban interruption lost its condition.");
+            TestRunner.True(MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, MountedAttackEndCause.Unrecorded, MountedActorCapabilityBlock.Stunned, true),
+                "Native's running-command interruption lost its condition.");
+            TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, MountedAttackEndCause.Unrecorded, dazed, false),
+                "An unstarted interruption was explained by a CanAct term native does not interrupt it for.");
+            // Completed or delivered work is never explained by a condition, and no condition explains nothing.
+            foreach (var kind in new[] { MountedAttackTerminalKind.Completed, MountedAttackTerminalKind.RangedTailDelivered, MountedAttackTerminalKind.DeliveredWithoutCompletion })
+                TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(kind, MountedAttackEndCause.Unrecorded, dazed, true), kind + " was explained by a daze.");
+            TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, MountedAttackEndCause.ActorCapability, MountedActorCapabilityBlock.None, true),
+                "No condition explained a terminal.");
+            // A recorded cause wins over a replacing Run; with none recorded, ending inside one is a replacement.
+            TestRunner.Equal(MountedAttackEndCause.Cancelled, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Cancelled, true), "A recorded cause was overwritten.");
+            TestRunner.Equal(MountedAttackEndCause.Replaced, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Unrecorded, true), "A replacing Run was not recognised.");
+            TestRunner.Equal(MountedAttackEndCause.Unrecorded, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Unrecorded, false), "A cause was invented.");
+        }
+
+        private static void ApproachFailureNeedsAFailedApproach()
+        {
+            // A genuinely failed automatic approach (nothing recorded, no condition, never reached the strike).
+            TestRunner.True(MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 0, false, false, MountedAttackEndCause.Unrecorded, false),
+                "A failed automatic approach was not recorded.");
+            TestRunner.True(!MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(false, 0, false, false, MountedAttackEndCause.Unrecorded, false),
+                "A player order recorded its target unreachable.");
+            foreach (var cause in new[] { MountedAttackEndCause.ActorCapability, MountedAttackEndCause.Cancelled, MountedAttackEndCause.Replaced, MountedAttackEndCause.Fault })
+                TestRunner.True(!MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 0, false, false, cause, cause == MountedAttackEndCause.ActorCapability),
+                    cause + " recorded the target unreachable.");
+            TestRunner.True(!MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 0, false, false, MountedAttackEndCause.Unrecorded, true),
+                "Native's capability interruption recorded the target unreachable.");
+            TestRunner.True(!MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 1, false, false, MountedAttackEndCause.Unrecorded, false) &&
+                !MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 0, false, true, MountedAttackEndCause.Unrecorded, false) &&
+                !MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true, 0, true, false, MountedAttackEndCause.Unrecorded, false),
+                "A started, successful or ranged-tail terminal recorded the target unreachable.");
         }
 
         private static void UnexecutedFeedbackIsTruthful()

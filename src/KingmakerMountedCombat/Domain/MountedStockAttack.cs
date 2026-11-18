@@ -287,6 +287,15 @@ namespace KingmakerMountedCombat.Domain
             return Target != null && ReferenceEquals(Target, target) && Generation == generation;
         }
 
+        // Known issues Sprint 6 (A01). A same-target click continues this intent only while the request has not dispatched
+        // yet, or while the exact command it dispatched is still live. After that command ended, the intent is only waiting
+        // for the next Update to retire or exhaust it: a deliberate click then is a fresh player request (a new
+        // generation, its own answer), not continuation of work that already finished. Nothing here is timed or stored.
+        public bool IsFreshRequestAfterTerminal(bool dispatchedCommandLive)
+        {
+            return Target != null && hasDispatched && !dispatchedCommandLive;
+        }
+
         // A click on the target the brain already chose makes the intent the player's own.
         public void PromoteToPlayer()
         {

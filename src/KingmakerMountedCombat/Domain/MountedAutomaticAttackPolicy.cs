@@ -44,6 +44,9 @@ namespace KingmakerMountedCombat.Domain
         public bool PairCommandActive;
         public bool MountOperationLive;
         public bool NewerPlayerOperation;
+        // Known issues Sprint 6 (A04): the rider carries native UnitCondition.CanNotAttack, the condition native
+        // UnitAttack.ShouldBeInterrupted ends every attack for. Read fresh at each proposal; nothing is stored.
+        public bool RiderCannotAttack;
     }
 
     // AI-01. Installed 2.1.7b facts: AiBrainController.SelectAction proposes through UnitCommands.Run with AiAction set
@@ -80,6 +83,10 @@ namespace KingmakerMountedCombat.Domain
             if (!facts.RiderAiEnabled) return "ai-off";
             if (!facts.RiderBrainActive) return "brain-inactive";
             if (facts.StopSuppressed) return "stop-suppressed";
+            // A04: native would interrupt the attack before it starts, and the brain proposes again about every 0.3 s, so
+            // each admission would only create and retire a pair command. The next proposal after the condition clears is
+            // admitted as usual. Player orders never pass here.
+            if (facts.RiderCannotAttack) return "rider-cannot-attack";
             if (!facts.TargetValid) return "target-invalid";
             if (facts.MovementForbidden && !facts.TargetInRiderReach) return "hold-out-of-reach";
             return null;

@@ -83,6 +83,9 @@ namespace KingmakerMountedCombat.Integration
         // The action actor's native conditions when the command ended: the cause of an unexecuted terminal.
         public MountedActorCapabilityBlock ActorCapabilityBlockAtTerminal { get; set; }
         public string ActorCapabilityAtTerminal { get; set; }
+        // Known issues Sprint 6 (A02): why it ended, recorded where it was ended; the controller resolves a native replacement.
+        public MountedAttackEndCause EndCause { get; set; }
+        public string EndCauseDetail { get; set; }
 
         public bool PairRangeSatisfiedAtStart { get; set; }
 
@@ -237,6 +240,16 @@ namespace KingmakerMountedCombat.Integration
         private string ammunitionStateBefore;
         private string reloadStateBefore;
         private bool terminalReported;
+        private MountedAttackEndCause endCause;
+        private string endCauseDetail;
+
+        // Known issues Sprint 6 (A02): the first recorded cause of this command's end stands. Diagnostic text only follows it.
+        internal void RecordEndCause(MountedAttackEndCause cause, string detail)
+        {
+            if (IsFinished || endCause != MountedAttackEndCause.Unrecorded || cause == MountedAttackEndCause.Unrecorded) return;
+            endCause = cause;
+            endCauseDetail = detail;
+        }
         private bool approachRequiredAtStart;
         private MountedPairNativeAdmissionState initialNativeAdmissionState;
         private bool nativeLineOfSightRecoveryObserved;
@@ -864,6 +877,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 logger.Exception("Mounted pair attack tick", exception);
                 transaction.Fault(exception.GetType().Name + ": " + exception.Message);
+                RecordEndCause(MountedAttackEndCause.Fault, exception.GetType().Name);
                 if (IsActed)
                 {
                     ForceFinish(ResultType.Fail);
@@ -902,6 +916,7 @@ namespace KingmakerMountedCombat.Integration
                 targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
                 "target became unconscious" : "target no longer attackable";
             transaction.Cancel("Expected target invalidation: " + reason);
+            RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
             Interrupt();
             return true;
         }
@@ -1403,6 +1418,7 @@ namespace KingmakerMountedCombat.Integration
             var block = MountedActorCapabilityPolicy.ExecutionBlock(NativeActorCapability.Read(actionActor));
             if (block == MountedActorCapabilityBlock.None) return false;
             transaction.Cancel("Action actor cannot attack: " + block);
+            RecordEndCause(MountedAttackEndCause.ActorCapability, block.ToString());
             Interrupt();
             return true;
         }
@@ -1610,6 +1626,8 @@ namespace KingmakerMountedCombat.Integration
                 NativeCommandStarted = IsStarted,
                 ActionActorName = actorName,
                 ActorCapabilityBlockAtTerminal = capabilityBlock,
+                EndCause = endCause,
+                EndCauseDetail = endCauseDetail,
                 // A completed attack needs no explanation; every other terminal records what native saw of its actor.
                 ActorCapabilityAtTerminal = transaction.State == MountedCombatTransactionState.Completed
                     ? null

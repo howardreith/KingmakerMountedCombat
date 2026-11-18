@@ -45,10 +45,13 @@ public static class MountedAttackStallProbe {
  }
  sealed class Recorder:RealProxy {
   internal readonly List<string> Calls=new List<string>();
+  // Known issues Sprint 6 (A02): a logger that fails on every call.
+  internal bool Throws;
   internal Recorder(Type t):base(t){}
   public override IMessage Invoke(IMessage m){
    var call=(IMethodCallMessage)m;
    Calls.Add(call.MethodName+": "+(call.ArgCount>0&&call.GetArg(0)!=null?call.GetArg(0).ToString():""));
+   if(Throws)return new ReturnMessage(new InvalidOperationException("logger failure"),call);
    return new ReturnMessage(null,null,0,null,call);
   }
   internal int Count(string text){return Calls.Count(c=>c.IndexOf(text,StringComparison.Ordinal)>=0);}
@@ -177,16 +180,28 @@ public static class MountedAttackStallProbe {
   internal string Feedback{get{return (string)Call(Controller,"get_LastFeedback");}}
   internal long Counter(string name){return (long)Call(Controller,"get_"+name);}
   // What TryRouteMountedStockAttack records for an admitted click (automatic: an admitted brain proposal).
-  internal void Order(bool automatic){
-   Call(Intent,"Begin",Target,automatic?null:Turn,false,true,Rider,Mount,null,null,2,automatic);
+  internal void Order(bool automatic){Order(automatic,false);}
+  internal void Order(bool automatic,bool mountActor){
+   Call(Intent,"Begin",Target,automatic?null:Turn,mountActor,true,Rider,Mount,null,null,2,automatic);
+  }
+  // Known issues Sprint 6 (A01): the controller's own same-target click decision. A build from before Sprint 6 has no
+  // ContinuesStockIntent; its TryRouteMountedStockAttack asked CanContinue alone, which is what it decides here.
+  internal bool ClickContinues(bool mountActor){return ClickContinues(mountActor,false);}
+  // A real-time click carries no turn, like the brain's own (automatic) order.
+  internal bool ClickContinues(bool mountActor,bool realTime){
+   var turn=realTime?null:Turn;
+   var method=Controller.GetType().GetMethod("ContinuesStockIntent",F);
+   if(method!=null)return (bool)method.Invoke(Controller,new object[]{Target,turn,mountActor,Rider,Mount,null,null,2});
+   return (bool)Call(Intent,"CanContinue",Target,turn,mountActor,Rider,Mount,null,null,2);
   }
   // What TryDriveStockAttackIntent records for an accepted dispatch.
-  internal object Dispatch(){
+  internal object Dispatch(){return Dispatch(false);}
+  internal object Dispatch(bool mountActor){
    var command=Blank(CommandType);
-   Set(command,"action",Enum.Parse(ActionKind,"RiderRanged"));
+   Set(command,"action",Enum.Parse(ActionKind,mountActor?"MountPrimaryNatural":"RiderRanged"));
    Set(command,"<IsFinished>k__BackingField",true);
    Set(Controller,"stockIntentCommand",command);Set(Controller,"activeCommand",command);
-   Call(Intent,"ObserveDispatch",false);
+   Call(Intent,"ObserveDispatch",mountActor);
    return command;
   }
   internal object Outcome(string result,string reason,string transaction,int started,bool rule,int delivered,int planned,bool tail,string block){
@@ -206,6 +221,10 @@ public static class MountedAttackStallProbe {
   // The signature in the player's log: native Success, cancelled transaction, no sequence start, no attack rule.
   internal object Unexecuted(){return Outcome("Success","Success","Cancelled",0,false,0,3,false,"Dazed");}
   internal object Completed(int attacks){return Outcome("Success","completed","Completed",1,true,attacks,attacks,false,"None");}
+  // Known issues Sprint 6 (A02): an outcome whose end carries a recorded cause (ignored by a build without causes).
+  internal object Ended(string result,string reason,int started,string block,string cause){
+   var outcome=Outcome(result,reason,"Cancelled",started,false,0,3,false,block);Offer(outcome,"EndCause",cause);return outcome;
+  }
   internal void Terminal(object command,object outcome){Call(Controller,"HandleCommandTerminal",command,outcome);}
   // Update() ends in TryDriveStockAttackIntent, the only dispatcher of a retained order. With no order it returns at
   // its first guard; with one it goes on to read the live combat mode, which this detached process does not have.
@@ -348,6 +367,154 @@ public static class MountedAttackStallProbe {
   }
  }
 
+ // ---- Known issues Sprint 6 -----------------------------------------------------------------------------------------
+ static int sectionFailures;
+ static void Section(string name,Action body){
+  try{body();}
+  catch(Exception error){
+   var inner=error;while(inner is TargetInvocationException&&inner.InnerException!=null)inner=inner.InnerException;
+   sectionFailures++;Console.WriteLine("FAIL SECTION "+name+": "+inner.Message);
+  }
+ }
+ const string NoStandard="Royon has no Standard action left.";
+
+ // A01. A same-target click after the dispatched command ended, before the next Update.
+ static void ProbeFreshClick(Assembly mod,Assembly native){
+  foreach(var shape in new[]{"rider single attack","rider full attack","mount attack","ranged tail"}){
+   var mountActor=shape=="mount attack";
+   var f=NewFixture(mod,native);f.Order(false,mountActor);var generation=f.Generation;var command=f.Dispatch(mountActor);
+   Set(command,"<IsFinished>k__BackingField",false);
+   Check(f.ClickContinues(mountActor),shape+": a click while the command runs continues it");
+   Set(command,"<IsFinished>k__BackingField",true);
+   f.Terminal(command,shape=="ranged tail"?f.Outcome("Interrupt","Interrupt","Cancelled",1,true,2,3,true,"None"):f.Completed(shape=="rider full attack"?3:1));
+   Check(f.HasIntent&&f.Generation==generation&&Get(f.Controller,"stockIntentCommand")==null,shape+": setup, the executed routine keeps its order and releases its command");
+   Check(!f.ClickContinues(mountActor),shape+": the exact same-target click after the command ended is a fresh request, not continuation");
+   // The replacement path the controller then takes: Cancel (which clears the order) and Begin.
+   Call(f.Controller,"ClearStockAttackIntent","new stock hostile attack",true);f.Order(false,mountActor);
+   Check(f.Generation>generation&&(string)Call(f.Intent,"GetRejectionFeedback",NoStandard)==NoStandard,
+    shape+": the fresh request is a new generation with its own answer for a spent actor");
+  }
+  {
+   var f=NewFixture(mod,native);f.Order(true);var command=f.Dispatch();Set(command,"<IsFinished>k__BackingField",false);
+   Check(f.ClickContinues(false,true),"a real-time click on the brain's live command continues and promotes it");
+   Call(f.Intent,"PromoteToPlayer");Set(command,"<IsFinished>k__BackingField",true);f.Terminal(command,f.Completed(1));
+   Check(!f.ClickContinues(false,true),"once the promoted command ended, a later click is fresh");
+  }
+  {
+   var a=NewFixture(mod,native);var b=NewFixture(mod,native);
+   a.Order(false);var ca=a.Dispatch();a.Terminal(ca,a.Completed(1));
+   b.Order(false);var cb=b.Dispatch();Set(cb,"<IsFinished>k__BackingField",false);
+   Check(!a.ClickContinues(false)&&b.ClickContinues(false),"one pair's terminal never changes another pair's live continuation");
+  }
+  {
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Terminal(command,f.Completed(1));
+   Call(f.Controller,"ClearStockAttackIntent","stop or hold",true);
+   Check(!f.HasIntent&&!f.ClickContinues(false),"after a boundary clears the order nothing continues and nothing about freshness is stored");
+  }
+ }
+
+ // A02. The capability snapshot explains a terminal only where it is the cause.
+ static void ProbeTerminalCause(Assembly mod,Assembly native,Sink warnings){
+  var warned=warnings.Calls.Count;
+  Func<string,string,int,string,string,string> end=(result,reason,started,block,cause)=>{
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Terminal(command,f.Ended(result,reason,started,block,cause));
+   Check(!f.HasIntent&&Get(f.Controller,"activeCommand")==null,"the "+cause+" terminal retires its order");return f.Feedback;
+  };
+  var stop=end("Interrupt","Interrupt",1,"Dazed","Cancelled");
+  Check(stop=="Mounted pair attack cancelled.","Stop while dazed is a cancellation, not a daze: "+stop);
+  var replaced=end("Interrupt","Interrupt",1,"Stunned","Replaced");
+  Check(replaced=="Mounted pair attack replaced by a newer order.","a replacing order while stunned is a replacement: "+replaced);
+  var boundary=end("Interrupt","Interrupt",0,"Helpless","Cancelled");
+  Check(boundary=="Mounted pair attack cancelled.","a dismount, load, area or combat boundary is not described as helplessness: "+boundary);
+  var fault=end("Fail","Fail",1,"Stunned","Fault");
+  Check(fault.IndexOf("cannot act",StringComparison.Ordinal)<0,"a fault stays the cause beside a stunned actor: "+fault);
+  var target=end("Interrupt","Expected target invalidation: target died",1,"Dazed","TargetInvalid");
+  Check(target=="Mounted rider melee ended: the exact target became invalid before completion.","target invalidation stays the cause: "+target);
+  var approach=end("Interrupt","Action actor cannot attack: Dazed",0,"Dazed","ActorCapability");
+  Check(approach=="Royon cannot act right now (dazed). The attack was not performed.","a daze during the approach keeps its condition text: "+approach);
+  var banned=end("Interrupt","Interrupt",0,"CanNotAttack","Unrecorded");
+  Check(banned=="Royon cannot attack right now. The attack was not performed.","native's attack-ban interruption keeps its condition text: "+banned);
+  Check(warnings.Calls.Count==warned,"failed terminals raise no stock warning");
+ }
+
+ static void ProbeLoggerFailure(Assembly mod,Assembly native){
+  {
+   // A failing logger: the terminal still retires its order and releases its command, and nothing escapes.
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Log.Throws=true;
+   Exception escaped=null;
+   try{f.Terminal(command,f.Unexecuted());}catch(Exception e){escaped=e;}
+   f.Log.Throws=false;
+   Check(escaped==null&&!f.HasIntent&&Get(f.Controller,"activeCommand")==null&&Get(f.Controller,"stockIntentCommand")==null,
+    "a failing logger does not stop the terminal's retirement or ownership release"+(escaped!=null?": "+escaped.GetType().Name:""));
+  }
+ }
+
+ // A04. A capability-caused automatic terminal is not a failed approach; the automatic admission reads CanNotAttack.
+ static void ProbeAutomaticCapability(Assembly mod,Assembly native){
+  Func<string,int,string,string,object> marked=(result,started,block,cause)=>{
+   var f=NewFixture(mod,native);f.Order(true);var command=f.Dispatch();f.Terminal(command,f.Ended(result,"Interrupt",started,block,cause));
+   return Get(f.Controller,"automaticApproachFailedTarget");
+  };
+  Check(marked("Interrupt",0,"None","Unrecorded")!=null,"a genuinely failed automatic approach still records its target for the rider's brain");
+  Check(marked("Interrupt",0,"CanNotAttack","Unrecorded")==null,"native's attack-ban interruption of an automatic order leaves no unreachable mark");
+  Check(marked("Interrupt",0,"Dazed","ActorCapability")==null,"a daze ending an automatic approach leaves no unreachable mark");
+}
+
+ static void ProbeAutomaticAdmission(Assembly mod){
+  var policy=mod.GetType("KingmakerMountedCombat.Domain.MountedAutomaticAttackPolicy",true);
+  var factsType=mod.GetType("KingmakerMountedCombat.Domain.MountedAutomaticProposalFacts",true);
+  Func<bool,string> decide=cannotAttack=>{
+   var facts=Activator.CreateInstance(factsType);
+   foreach(var name in new[]{"AiOrigin","ExactMountedPair","OwnerIsRider","RiderDirectlyControllable","RiderAiEnabled","RiderBrainActive","TargetInRiderReach","TargetValid"})
+    factsType.GetField(name).SetValue(facts,true);
+   var field=factsType.GetField("RiderCannotAttack");if(field!=null)field.SetValue(facts,cannotAttack);
+   var args=new object[]{facts,null};var decision=policy.GetMethod("Decide").Invoke(null,args).ToString();
+   return decision+(args[1]!=null?":"+args[1]:"");
+  };
+  var admitted=0;for(var proposal=0;proposal<30;proposal++)if(decide(true)=="Admit")admitted++;
+  Check(admitted==0,"thirty brain proposals for a rider that cannot attack create no automatic intent (admitted "+admitted+")");
+  Check(decide(false)=="Admit","the next proposal after the condition clears is admitted");
+ }
+
+ // A03. The installed consumers of the condition the decoded Fascinate buffs carry (AddCondition: Dazed): the component
+ // adds its condition to the owner's UnitState, CanAct reads IsAble, and IsAble is false under Dazed. The blueprint
+ // decoding itself is recorded in the Sprint 6 handoff; this probe reads only installed IL.
+ static void ProbeFascinateCondition(Assembly native){
+  var component=native.GetType("Kingmaker.UnitLogic.FactLogic.AddCondition",true);
+  Check(component.GetField("Condition").FieldType.FullName=="Kingmaker.UnitLogic.UnitCondition"&&
+   CalledMembers(component.GetMethod("OnTurnOn",F)).Contains("AddCondition"),"A03: native AddCondition adds its UnitCondition to the owner's state when the fact turns on");
+  var state=native.GetType("Kingmaker.UnitLogic.UnitState",true);
+  Check(CalledMembers(state.GetProperty("CanAct",F).GetGetMethod(true)).Contains("get_IsAble"),"A03: native CanAct requires IsAble");
+  var able=state.GetProperty("IsAble",F).GetGetMethod(true).GetMethodBody().GetILAsByteArray();
+  var dazed=(int)Enum.Parse(native.GetType("Kingmaker.UnitLogic.UnitCondition",true),"Dazed");
+  var loadsDazed=false;
+  for(var i=0;i+1<able.Length;i++){
+   if(able[i]==0x1F&&able[i+1]==dazed)loadsDazed=true;
+   if(dazed<=8&&able[i]==(byte)(0x16+dazed))loadsDazed=true;
+  }
+  Check(loadsDazed&&CalledMembers(state.GetProperty("IsAble",F).GetGetMethod(true)).Contains("HasCondition"),"A03: native IsAble is false while the unit is Dazed");
+ }
+
+ // Wiring the decisions above rely on, read from the compiled product.
+ static void ProbeSprint6Wiring(Assembly mod){
+  var controller=mod.GetType("KingmakerMountedCombat.Integration.MountedCombatController",true);
+  Func<string,HashSet<string>> calls=n=>CalledMembers(controller.GetMethod(n,F));
+  Check(calls("TryRouteMountedStockAttack").Contains("ContinuesStockIntent")&&calls("ContinuesStockIntent").Contains("CanContinue")&&
+   calls("ContinuesStockIntent").Contains("IsFreshRequestAfterTerminal"),"A01: the click route asks the fresh-request boundary of the live dispatched command");
+  var terminal=calls("HandleCommandTerminal");
+  Check(terminal.Contains("Resolve")&&terminal.Contains("CapabilityIsCause")&&terminal.Contains("RecordsAutomaticApproachFailure"),
+   "A02/A04: the terminal resolves its cause before it reads the capability snapshot or records an unreachable target");
+  Check(calls("Cancel").Contains("InterruptOwnedCommand")&&calls("TryRetireStockIntent").Contains("InterruptOwnedCommand")&&
+   calls("SweepOrphanedAutomaticCommand").Contains("InterruptOwnedCommand")&&CalledMembers(controller.GetMethod("InterruptOwnedCommand",F)).Contains("RecordEndCause"),
+   "A02: the controller's own ends record their cause before native Interrupt");
+  var command=mod.GetType("KingmakerMountedCombat.Integration.MountedPairAttackCommand",true);
+  Check(CalledMembers(command.GetMethod("TerminateIfActionActorBlocked",F)).Contains("RecordEndCause"),"A02: the execution boundary records the capability cause");
+  var methods=mod.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true).GetNestedType("PatchMethods",F);
+  Check(CalledMembers(methods.GetMethod("UnitCommandRunPrefix",F)).Contains("OpenNativeRun")&&CalledMembers(methods.GetMethod("UnitCommandRunPostfix",F)).Contains("CloseNativeRun"),
+   "A02: a native Run on a pair actor is scoped for replacement attribution");
+  Check(calls("ObserveAutomaticProposal").Contains("Read"),"A04: the automatic admission reads the rider's native condition");
+ }
+
  public static void Run(string managed,string dll){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{
    var leaf=new AssemblyName(a.Name).Name+".dll";
@@ -367,7 +534,16 @@ public static class MountedAttackStallProbe {
   ProbeUnexecutedTerminal(mod,native,warnings);
   ProbeHealthyAndNeighbouringTerminals(mod,native,warnings);
   ProbeCapability(mod,native);
-  Console.WriteLine("MOUNTED ATTACK STALL REPAIR PASS="+passed+" FAIL=0; detached, not native gameplay qualification");
+  // Known issues Sprint 6: each section reports its own result, so an earlier build shows every one it fails.
+  Section("A01 fresh same-target click after a terminal",()=>ProbeFreshClick(mod,native));
+  Section("A02 terminal cause apart from the capability snapshot",()=>ProbeTerminalCause(mod,native,warnings));
+  Section("A02 a failing logger at the terminal",()=>ProbeLoggerFailure(mod,native));
+  Section("A04 automatic capability terminals",()=>ProbeAutomaticCapability(mod,native));
+  Section("A04 automatic admission of a rider that cannot attack",()=>ProbeAutomaticAdmission(mod));
+  Section("A03 native consumers of Fascinate's condition",()=>ProbeFascinateCondition(native));
+  Section("Sprint 6 product wiring",()=>ProbeSprint6Wiring(mod));
+  Console.WriteLine("MOUNTED ATTACK STALL REPAIR PASS="+passed+" FAIL="+sectionFailures+"; detached, not native gameplay qualification");
+  if(sectionFailures>0)throw new InvalidOperationException(sectionFailures+" Sprint 6 section(s) failed");
  }
 }
 '@

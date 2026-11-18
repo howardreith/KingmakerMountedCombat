@@ -42,7 +42,9 @@ namespace KingmakerMountedCombat.Domain
         RangeOriginMismatch,
         CommandAdmissionFailure,
         // The action actor's own native conditions forbid the attack (MountedActorCapabilityPolicy).
-        ActorCannotAct
+        ActorCannotAct,
+        // Known issues Sprint 6 (A02): the command was ended by an explicit cancellation or replacement, not by its actor.
+        CommandCancelled
     }
 
     public enum NativeSingleAttackSlotKind

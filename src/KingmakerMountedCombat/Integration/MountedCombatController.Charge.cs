@@ -92,8 +92,7 @@ namespace KingmakerMountedCombat.Integration
             activeCommand = null;
             if (replaced != null && !replaced.IsFinished)
             {
-                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
-                replaced.Interrupt();
+                InterruptOwnedCommand(replaced, MountedAttackEndCause.Replaced, "mounted charge admitted");
             }
             relationship.Mount.Commands.InterruptAll(existing => true);
         }

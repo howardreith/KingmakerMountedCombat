@@ -933,6 +933,8 @@ namespace KingmakerMountedCombat.Integration
                 // PR #8 review correction A: no ticket on any refusal or native-only path, so nothing a refused,
                 // simulated or preparation request carries can release the pair's carried approach.
                 __state = null;
+                // Known issues Sprint 6 (A02): a pair command this Run ends was replaced by it (closed by the postfix).
+                PatchBridge.CombatFor(__instance)?.OpenNativeRun(__instance, cmd);
                 // Bind a same-frame native hostile click to the exact command its own Run carries,
                 // before any refusal below, so no later command can borrow or erase that click.
                 PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
@@ -965,6 +967,7 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void UnitCommandRunPostfix(UnitCommands __instance, UnitCommand cmd, MountedCarriedRequestTicket __state)
             {
+                PatchBridge.CombatFor(__instance)?.CloseNativeRun(__instance);
                 PatchBridge.CombatFor(__instance)?.ObserveGroundOrderRun(__instance, cmd);
                 if (__state != null) PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
                 // Entrance repair: after native Run executed the rider's own UnitAreaTransition (and its own request ticket

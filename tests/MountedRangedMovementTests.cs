@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted ranged movement: Dead Shot probes and its prefix confirmation are committed weapon rolls", DeadShotShapes);
             runner.Run("mounted ranged movement: the allocation must be current for the pair's activation", AllocationCurrency);
             runner.Run("mounted ranged movement: a mid-encounter mount (PreparePartnerThisRound) charges the mounted travel, not earlier riderless travel", MidEncounterAdoption);
-            runner.Run("mounted ranged movement: retained travel survives persistence and dismount; a fresh grant resets it", Lifetime);
+            runner.Run("mounted ranged movement: retained travel survives a saved-activation rebound; a temporary applicability gate reads without consuming it; a fresh grant resets it", Lifetime);
             runner.Run("sprint 5 R01 (production authority, adoption policy, activation): under the qualified paired authority a mounted pair's mount never travels with its rider on its own initiative slot", SeparateSlotCarriedTravelNotReachable);
             runner.Run("sprint 5 R01 (production policy): a mount's own-slot record is riderless or before mounting and stays excluded; one authority per record; pair, generation and round identity hold; reading never consumes", OwnSlotRecordsStayExcluded);
             runner.Run("mounted archery publication: both KMC combat feats share one exact lease per selection array", CoordinatedLease);
@@ -451,11 +451,16 @@ namespace KingmakerMountedCombat.Tests
                 TimeStepped = traveled.State.TimeStepped, MetresStepped = traveled.State.MetresStepped };
             TestRunner.Equal(Contribution(Rider(traveled.Normal)), Contribution(Rider(MountedRangedMovementPolicy.NormalTravelSeconds(
                 restored.TimeMoved, restored.TimeForced, restored.TimeStepped))), "A restored allocation keeps its classification.");
-            // Dismount suppresses applicability (no active rider) without touching the retained travel.
-            var dismounted = Rider(traveled.Normal);
-            dismounted.ActiveRider = false;
-            TestRunner.Equal(0, Contribution(dismounted), "Dismounted, nothing applies.");
-            TestRunner.Equal(-4, Contribution(Rider(traveled.Normal)), "A legal reattachment to the same allocation still reads its travel.");
+            // A temporary applicability gate (the attacker is not an active rider for this roll) contributes nothing, and the
+            // read neither consumes nor changes the travel: the next applicable roll on the same, still-current record reads
+            // it unchanged. This is a pure-policy gate. A real dismount splits the activation and a remount creates a new
+            // activation identity, so the earlier record is no longer current (Sprint 5 R01, SeparateSlotCarriedTravelNotReachable).
+            var moved = traveled.State.TimeMoved;
+            var gated = Rider(traveled.Normal);
+            gated.ActiveRider = false;
+            TestRunner.Equal(0, Contribution(gated), "With the applicability gate closed, nothing applies.");
+            TestRunner.Equal(-4, Contribution(Rider(traveled.Normal)), "The next applicable roll on the same current record reads its travel unchanged.");
+            TestRunner.True(traveled.State.TimeMoved == moved, "An applicability read consumed or changed the movement record.");
             // BeginGrantedPreparation replaces the allocation with a new record, whose default state is no travel.
             TestRunner.Equal(0, Contribution(Rider(new MountedMovementState().TimeMoved)), "A fresh record starts at no travel.");
         }
