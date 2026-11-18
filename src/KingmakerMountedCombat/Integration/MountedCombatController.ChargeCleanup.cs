@@ -165,7 +165,12 @@ namespace KingmakerMountedCombat.Integration
             if (shell.AiAction != null || !EvaluateMountedChargeRequest(CaptureMountedChargeRequest(rider, shell.Target?.Unit), rider).IsAllowed) return false;
             CaptureNativeChargeOwner(rider, container, shell);
             try { ReleaseReplaceablePairCommands(); }
-            catch (Exception exception) { logger.Exception("Charge admission release", exception); chargeOwner.Ownership.Retire(); }
+            catch (Exception exception)
+            {
+                // Review of fa533e97 (R20): ownership retires before any diagnostic, and the diagnostic is contained.
+                chargeOwner.Ownership.Retire();
+                TryLogException("Charge admission release", exception);
+            }
             return true;
         }
 
@@ -406,7 +411,7 @@ namespace KingmakerMountedCombat.Integration
                     string.Join("|", owner.Ownership.LastAttempt.UnmetPostconditions);
                 LastChargeCompensationActiveCommandCleared = complete;
             }
-            logger.Info("Charge ownership barrier: generation=" + owner.Generation + ";trigger=" + trigger +
+            TryLog(() => "Charge ownership barrier: generation=" + owner.Generation + ";trigger=" + trigger +
                 ";committed=" + owner.Committed + ";" + owner.Ownership.LastAttempt?.Describe());
             if (!complete) return false;
             LastDrainedChargeOwnership = DescribeChargeOwner(owner);
@@ -414,7 +419,7 @@ namespace KingmakerMountedCombat.Integration
             if (ReferenceEquals(finishedCommandPendingSweep, owner.Command)) finishedCommandPendingSweep = null;
             chargeOwner = null;
             try { ChargeOwnershipDrained?.Invoke(); }
-            catch (Exception exception) { logger.Exception("Charge drain observer", exception); }
+            catch (Exception exception) { TryLogException("Charge drain observer", exception); }
             return true;
         }
 

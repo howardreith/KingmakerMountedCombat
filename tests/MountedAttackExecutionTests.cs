@@ -23,11 +23,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unexecuted feedback names the actor and the cause, never a completion", UnexecutedFeedbackIsTruthful);
             runner.Run("sprint 6 A01 (production intent): a same-target click after the dispatched command ended is a fresh request with its own answer; a click while it runs continues it", SameTargetClickAfterTerminalIsFresh);
             runner.Run("sprint 6 A01 (production intent): the fresh boundary holds for single, full, mount and ranged-tail routines, automatic promotion, retarget and boundaries", FreshBoundaryAcrossShapes);
-            runner.Run("sprint 6 A02 (production policy): the capability snapshot explains a terminal only where it is the cause; explicit ends keep their own cause", TerminalCauseSeparatesCapability);
+            runner.Run("sprint 6 A02 (production policy): a condition never explains an explicit end; explicit ends keep their own cause", TerminalCauseSeparatesCapability);
             runner.Run("sprint 6 A05 (production policy, review finding 1): only a typed, evidenced failed delegated approach records its target unreachable", ApproachFailureNeedsAFailedApproach);
             runner.Run("sprint 6 A02 (production policy, review finding 3): a recorded capability cause keeps its exact block whatever the later snapshot", RecordedCapabilityCauseIsDurable);
             runner.Run("sprint 6 A02 (production scopes, review finding 4): native Run scopes open and close exactly, nest, survive ownership changes and exceptions", NativeRunScopesAreExact);
             runner.Run("sprint 6 A01 (production intent, review finding 5): only the same request after its command ended is a fresh-after-terminal click", ClickClassificationCountsOnlyFreshness);
+            runner.Run("sprint 6 A02 (production policy, review R18): native capability is causal only on the exact native branch that took it", NativeCapabilityNeedsTheExactBranch);
+            runner.Run("sprint 6 A02 (production scopes, review R19): the innermost open Run on the ending command's container decides a replacement", NestedRunUsesTheInnermostToken);
         }
 
         private static MountedActorCapabilityFacts Healthy() => new MountedActorCapabilityFacts { Known = true };
@@ -296,32 +298,26 @@ namespace KingmakerMountedCombat.Tests
                 "A cleared order kept a stale fresh-request state.");
         }
 
+        private static readonly MountedNativeTerminalBranch[] NonCapabilityBranches =
+        {
+            MountedNativeTerminalBranch.None, MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranch.AttackTargetDead,
+            MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranch.InterruptAsSoonAsPossible,
+            MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible
+        };
+
         private static void TerminalCauseSeparatesCapability()
         {
             var dazed = MountedActorCapabilityBlock.Dazed;
             var none = MountedActorCapabilityBlock.None;
-            var failed = MountedAttackTerminalKind.Failed;
-            // Explicit ends with a blocked actor: the condition never explains them.
+            // Explicit ends with a blocked actor: the condition never explains them, whatever native branch was offered.
             foreach (var cause in new[] { MountedAttackEndCause.Cancelled, MountedAttackEndCause.Replaced, MountedAttackEndCause.Fault,
                 MountedAttackEndCause.TargetInvalid, MountedAttackEndCause.ApproachFailed })
-                foreach (var started in new[] { false, true })
-                    TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(failed, cause, none, dazed, started), cause + " was explained by a daze.");
+                foreach (var branch in new[] { MountedNativeTerminalBranch.None, MountedNativeTerminalBranch.RunningCannotAct })
+                    TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(cause, none, branch, dazed), cause + " was explained by a daze.");
             TestRunner.Equal("Mounted pair attack cancelled.", MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Cancelled), "Stop text.");
             TestRunner.Equal("Mounted pair attack replaced by a newer order.", MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Replaced), "Replacement text.");
             TestRunner.True(MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.Unrecorded) == null &&
                 MountedAttackTerminalCausePolicy.CancellationFeedback(MountedAttackEndCause.ActorCapability) == null, "A non-cancellation got cancellation text.");
-            // Native signatures with nothing recorded use the terminal snapshot: the turn-based force-finish, CanNotAttack,
-            // a CanAct term while running; an unstarted CanAct-term interruption is not native's.
-            TestRunner.Equal(dazed, MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackTerminalKind.EndedWithoutExecution,
-                MountedAttackEndCause.Unrecorded, none, dazed, false), "The native unstarted force-finish lost its condition.");
-            TestRunner.Equal(MountedActorCapabilityBlock.CanNotAttack, MountedAttackTerminalCausePolicy.CausalCapability(failed,
-                MountedAttackEndCause.Unrecorded, none, MountedActorCapabilityBlock.CanNotAttack, false), "Native's attack-ban interruption lost its condition.");
-            TestRunner.Equal(MountedActorCapabilityBlock.Stunned, MountedAttackTerminalCausePolicy.CausalCapability(failed,
-                MountedAttackEndCause.Unrecorded, none, MountedActorCapabilityBlock.Stunned, true), "Native's running-command interruption lost its condition.");
-            TestRunner.Equal(none, MountedAttackTerminalCausePolicy.CausalCapability(failed, MountedAttackEndCause.Unrecorded, none, dazed, false),
-                "An unstarted interruption was explained by a CanAct term native does not interrupt it for.");
-            foreach (var kind in new[] { MountedAttackTerminalKind.Completed, MountedAttackTerminalKind.RangedTailDelivered, MountedAttackTerminalKind.DeliveredWithoutCompletion })
-                TestRunner.True(!MountedAttackTerminalCausePolicy.CapabilityIsCause(kind, MountedAttackEndCause.Unrecorded, none, dazed, true), kind + " was explained by a daze.");
             TestRunner.Equal(MountedAttackEndCause.Cancelled, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Cancelled, true), "A recorded cause was overwritten.");
             TestRunner.Equal(MountedAttackEndCause.Replaced, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Unrecorded, true), "A replacing Run was not recognised.");
             TestRunner.Equal(MountedAttackEndCause.Unrecorded, MountedAttackTerminalCausePolicy.Resolve(MountedAttackEndCause.Unrecorded, false), "A cause was invented.");
@@ -329,32 +325,82 @@ namespace KingmakerMountedCombat.Tests
 
         private static void RecordedCapabilityCauseIsDurable()
         {
-            var failed = MountedAttackTerminalKind.Failed;
             var dazed = MountedActorCapabilityBlock.Dazed;
             var none = MountedActorCapabilityBlock.None;
             var banned = MountedActorCapabilityBlock.CanNotAttack;
-            // 1, 2: Dazed recorded at the boundary; the later snapshot clears, or changes to CanNotAttack.
-            foreach (var snapshot in new[] { none, banned })
-                foreach (var started in new[] { false, true })
-                    TestRunner.Equal(dazed, MountedAttackTerminalCausePolicy.CausalCapability(failed, MountedAttackEndCause.ActorCapability, dazed, snapshot, started),
-                        "The recorded daze was replaced by the later snapshot " + snapshot + ".");
-            // 3: CanNotAttack recorded; the snapshot clears.
-            TestRunner.Equal(banned, MountedAttackTerminalCausePolicy.CausalCapability(failed, MountedAttackEndCause.ActorCapability, banned, none, false),
-                "The recorded attack ban was lost when the snapshot cleared.");
+            // 1, 2, 3: the block recorded at the boundary is the cause; no native branch or later snapshot replaces it.
+            foreach (var branch in new[] { MountedNativeTerminalBranch.None, MountedNativeTerminalBranch.AttackBanned })
+                foreach (var other in new[] { none, banned })
+                    TestRunner.Equal(dazed, MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackEndCause.ActorCapability, dazed, branch, other),
+                        "The recorded daze was replaced by " + branch + "/" + other + ".");
+            TestRunner.Equal(banned, MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackEndCause.ActorCapability, banned,
+                MountedNativeTerminalBranch.None, none), "The recorded attack ban was lost.");
             TestRunner.Equal("Royon cannot attack right now.", MountedActorCapabilityPolicy.Feedback("Royon",
-                MountedAttackTerminalCausePolicy.CausalCapability(failed, MountedAttackEndCause.ActorCapability, banned, none, false)),
+                MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackEndCause.ActorCapability, banned, MountedNativeTerminalBranch.None, none)),
                 "The feedback did not follow the recorded block.");
-            // 4: a cancellation or a fault beside any snapshot stays non-capability, whatever block was offered.
+            // 4: a cancellation or a fault stays non-capability.
             foreach (var cause in new[] { MountedAttackEndCause.Cancelled, MountedAttackEndCause.Fault })
-                foreach (var snapshot in new[] { none, dazed, banned })
-                    TestRunner.Equal(none, MountedAttackTerminalCausePolicy.CausalCapability(failed, cause, dazed, snapshot, true), cause + " beside " + snapshot + " became capability.");
-            // 5: a native unrecorded capability terminal uses the terminal snapshot.
-            TestRunner.Equal(dazed, MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackTerminalKind.EndedWithoutExecution,
-                MountedAttackEndCause.Unrecorded, none, dazed, false), "The native terminal ignored its snapshot.");
-            // 6: no condition, no capability feedback.
-            TestRunner.Equal(none, MountedAttackTerminalCausePolicy.CausalCapability(MountedAttackTerminalKind.EndedWithoutExecution,
-                MountedAttackEndCause.Unrecorded, none, none, false), "A capability cause was invented without a condition.");
+                TestRunner.Equal(none, MountedAttackTerminalCausePolicy.CausalCapability(cause, dazed, MountedNativeTerminalBranch.RunningCannotAct, dazed),
+                    cause + " became capability.");
+            // 6: no condition, no capability text.
             TestRunner.Equal(null, MountedActorCapabilityPolicy.Feedback("Royon", none), "No condition produced capability text.");
+        }
+
+        // Review of fa533e97 (R18): native capability is causal only on the exact native branch that took it.
+        private static void NativeCapabilityNeedsTheExactBranch()
+        {
+            var none = MountedActorCapabilityBlock.None;
+            var unrecorded = MountedAttackEndCause.Unrecorded;
+            // 1: the unstarted turn-based force-finish because native's canAct read false: the block read at the branch.
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedCannotAct, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(true, false),
+                "The turn-based cannot-act branch was not identified.");
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(true, true),
+                "A missing command slot was identified as a capability branch.");
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(false, false),
+                "An uncaptured canAct was guessed to be false.");
+            foreach (var block in new[] { MountedActorCapabilityBlock.Helpless, MountedActorCapabilityBlock.Stunned, MountedActorCapabilityBlock.Dazed, MountedActorCapabilityBlock.CantAct })
+            {
+                var read = MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.TurnBasedCannotAct, With(block));
+                TestRunner.Equal(block, read, "The turn-based branch did not read the exact current block.");
+                TestRunner.Equal(block, MountedAttackTerminalCausePolicy.CausalCapability(unrecorded, none, MountedNativeTerminalBranch.TurnBasedCannotAct, read),
+                    "The turn-based capability branch was not causal.");
+            }
+            // An attack ban is not a CanAct term: a cannot-act branch beside a ban names the CanAct condition.
+            var dazedAndBanned = With(MountedActorCapabilityBlock.Dazed); dazedAndBanned.CanNotAttack = true;
+            TestRunner.Equal(MountedActorCapabilityBlock.Dazed, MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.RunningCannotAct, dazedAndBanned),
+                "The CanAct branch named the attack ban.");
+            TestRunner.Equal(none, MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.RunningCannotAct, Healthy()),
+                "A CanAct term this reader does not name was guessed.");
+            // 2: a running command interrupted because native's CanAct read false.
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningCannotAct, MountedNativeTerminalBranchPolicy.RunningSite(true, false), "The running cannot-act branch was missed.");
+            TestRunner.Equal(MountedActorCapabilityBlock.Stunned, MountedAttackTerminalCausePolicy.CausalCapability(unrecorded, none,
+                MountedNativeTerminalBranch.RunningCannotAct, MountedActorCapabilityBlock.Stunned), "The running capability branch was not causal.");
+            // 3: the attack interrupted through ShouldBeInterrupted's CanNotAttack term.
+            TestRunner.Equal(MountedNativeTerminalBranch.AttackBanned, MountedNativeTerminalBranchPolicy.StateSite(true, true, true), "The attack-ban branch was missed.");
+            TestRunner.Equal(MountedActorCapabilityBlock.CanNotAttack, MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.AttackBanned, Healthy()),
+                "The attack-ban branch did not carry its own block.");
+            // 4, 5: the target left state, became untargetable or stealthed, or died before the start, beside a blocked actor.
+            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(true, false, false), "A target branch was missed.");
+            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(false, true, true),
+                "An uncaptured ShouldBeInterrupted was guessed.");
+            TestRunner.Equal(MountedNativeTerminalBranch.AttackTargetDead, MountedNativeTerminalBranchPolicy.StateSite(true, true, false), "A dead target was called an attack ban.");
+            // 6: InterruptAsSoonAsPossible, unstarted or running, while blocked.
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(false, false),
+                "The InterruptAsSoonAsPossible short-circuit was called cannot-act.");
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(true, true),
+                "A CanAct that read true was called cannot-act.");
+            // 4-8: every non-capability branch (and no branch at all: the paused previous command, InterruptMove,
+            // InterruptAll, an unknown native end) beside every blocked block stays non-capability.
+            foreach (var branch in NonCapabilityBranches)
+            {
+                TestRunner.True(!MountedNativeTerminalBranchPolicy.IsCapability(branch), branch + " was a capability branch.");
+                foreach (var block in Blocks)
+                    TestRunner.Equal(none, MountedAttackTerminalCausePolicy.CausalCapability(unrecorded, none, branch, block),
+                        branch + " beside " + block + " became capability.");
+            }
+            TestRunner.True(MountedNativeTerminalBranchPolicy.IsTarget(MountedNativeTerminalBranch.TargetUnavailable) &&
+                MountedNativeTerminalBranchPolicy.IsTarget(MountedNativeTerminalBranch.AttackTargetDead) &&
+                !MountedNativeTerminalBranchPolicy.IsTarget(MountedNativeTerminalBranch.None), "The target branches were not named.");
         }
 
         private static void ApproachFailureNeedsAFailedApproach()
@@ -431,6 +477,53 @@ namespace KingmakerMountedCombat.Tests
             scopes.Close(later);
             scopes.Open(rider, newer); scopes.Reset();
             TestRunner.True(scopes.Depth == 0, "Reset kept a scope.");
+        }
+
+        // Review of fa533e97 (R19): only the innermost open Run on the ending command's container decides.
+        private static void NestedRunUsesTheInnermostToken()
+        {
+            var scopes = new MountedNativeRunScopes<Container, Order>();
+            var rider = new Container(); var otherPair = new Container();
+            var pair = new Order(); var a = new Order(); var b = new Order();
+            // 1: an ordinary Run of A replacing the pair command P.
+            var outer = scopes.Open(rider, a);
+            TestRunner.True(scopes.EndedInsideReplacingRun(rider, pair), "1: A did not replace P.");
+            // 2: nested A -> B, P ends inside B: replaced by B.
+            var inner = scopes.Open(rider, b);
+            TestRunner.True(scopes.EndedInsideReplacingRun(rider, pair), "2: P was not replaced inside B.");
+            // 3: B itself ends inside its own Run: not replaced by the outer A.
+            TestRunner.True(!scopes.EndedInsideReplacingRun(rider, b), "3: B was labelled replaced by the outer A.");
+            // 4: nested operations on another pair neither decide nor hide this one.
+            var foreignCommand = new Order(); var foreignPair = new Order();
+            var foreign = scopes.Open(otherPair, foreignCommand);
+            TestRunner.True(!scopes.EndedInsideReplacingRun(rider, b) && scopes.EndedInsideReplacingRun(rider, pair) &&
+                scopes.EndedInsideReplacingRun(otherPair, foreignPair) && !scopes.EndedInsideReplacingRun(otherPair, foreignCommand),
+                "4: another pair's Run changed this pair's answer, or was not its own.");
+            scopes.Close(foreign);
+            // 5: the inner token closes; the outer attribution remains (now A decides: B ending is a replacement by A).
+            scopes.Close(inner);
+            TestRunner.True(scopes.Depth == 1 && scopes.EndedInsideReplacingRun(rider, b) && !scopes.EndedInsideReplacingRun(rider, a),
+                "5: the outer attribution was lost after the inner close.");
+            // 6: an exception unwinds the inner token through its finally.
+            try
+            {
+                var thrown = scopes.Open(rider, b);
+                try { throw new System.InvalidOperationException("inner Run threw"); }
+                finally { scopes.Close(thrown); }
+            }
+            catch (System.InvalidOperationException) { }
+            TestRunner.True(scopes.Depth == 1 && !scopes.EndedInsideReplacingRun(rider, a), "6: the exception left the inner token.");
+            // 7: a stranded inner token goes with the outer close.
+            scopes.Open(rider, b);
+            scopes.Close(outer);
+            TestRunner.True(scopes.Depth == 0 && !scopes.EndedInsideReplacingRun(rider, pair), "7: a stranded token survived.");
+            // 8: reset at disable or disposal.
+            scopes.Open(rider, a); scopes.Open(rider, b); scopes.Reset();
+            TestRunner.True(scopes.Depth == 0 && !scopes.EndedInsideReplacingRun(rider, pair), "8: reset kept a token.");
+            // 9: a later replacement still works.
+            var later = scopes.Open(rider, a);
+            TestRunner.True(scopes.EndedInsideReplacingRun(rider, pair) && !scopes.EndedInsideReplacingRun(rider, a), "9: a later replacement was not classified.");
+            scopes.Close(later);
         }
 
         private static void ClickClassificationCountsOnlyFreshness()

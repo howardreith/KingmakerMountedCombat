@@ -89,6 +89,10 @@ namespace KingmakerMountedCombat.Integration
         // The exact block read at the command's own capability boundary when that was the recorded cause; the terminal
         // snapshot (ActorCapabilityBlockAtTerminal) stays a separate, later diagnostic fact.
         public MountedActorCapabilityBlock EndCauseCapabilityBlock { get; set; }
+        // Review of fa533e97 (R18): the exact native branch that ended it (None when no exact branch was observed), and the
+        // block read at that branch. Only a capability branch can make a condition the cause of a native end.
+        public MountedNativeTerminalBranch NativeTerminalBranch { get; set; }
+        public MountedActorCapabilityBlock NativeTerminalCapabilityBlock { get; set; }
 
         public bool PairRangeSatisfiedAtStart { get; set; }
 
@@ -257,6 +261,31 @@ namespace KingmakerMountedCombat.Integration
             endCauseCapabilityBlock = cause == MountedAttackEndCause.ActorCapability ? capabilityBlock : MountedActorCapabilityBlock.None;
         }
 
+        private MountedNativeTerminalBranch nativeTerminalBranch;
+        private MountedActorCapabilityBlock nativeTerminalBlock;
+
+        // Review of fa533e97 (R18): recorded by NativeCommandTerminalBranches where native takes the branch, just before it
+        // ends this command. The first branch stands.
+        internal void RecordNativeTerminal(MountedNativeTerminalBranch branch, MountedActorCapabilityBlock block)
+        {
+            if (IsFinished || nativeTerminalBranch != MountedNativeTerminalBranch.None || branch == MountedNativeTerminalBranch.None) return;
+            nativeTerminalBranch = branch;
+            nativeTerminalBlock = block;
+        }
+
+        // Review of fa533e97 (R20): diagnostics never stand before a required transition.
+        private void TryLogInfo(string line)
+        {
+            try { logger.Info(line); }
+            catch (Exception) { }
+        }
+
+        private void TryLogException(string phase, Exception exception)
+        {
+            try { logger.Exception(phase, exception); }
+            catch (Exception) { }
+        }
+
         // Review of 2ae4cc8b (finding 1): a failed approach, thrown at the exact movement boundary so the tick's catch can
         // record ApproachFailed rather than Fault.
         private sealed class ApproachFailure : InvalidOperationException
@@ -271,8 +300,7 @@ namespace KingmakerMountedCombat.Integration
             RecordEndCause(exception is ApproachFailure ? MountedAttackEndCause.ApproachFailed : MountedAttackEndCause.Fault,
                 exception.GetType().Name);
             transaction.Fault(exception.GetType().Name + ": " + exception.Message);
-            try { logger.Exception(phase, exception); }
-            catch (Exception) { }
+            TryLogException(phase, exception);
             if (IsActed) ForceFinish(ResultType.Fail);
             else Interrupt();
         }
@@ -483,10 +511,10 @@ namespace KingmakerMountedCombat.Integration
             chargeRevalidationFailurePhase = phase.ToString();
             chargeRevalidationFailureReason = outcome.Reason;
             chargeRevalidationFailureCode = outcome.RejectionCode?.ToString();
-            logger.Info("Mounted charge revalidation failed: phase=" + phase +
-                "; reason=" + outcome.Reason + "; code=" + (chargeRevalidationFailureCode ?? "<none>") + ".");
             RecordEndCause(MountedAttackEndCause.Fault, "charge revalidation at " + phase);
             transaction.Cancel("Charge revalidation at " + phase + ": " + outcome.Reason);
+            TryLogInfo("Mounted charge revalidation failed: phase=" + phase +
+                "; reason=" + outcome.Reason + "; code=" + (chargeRevalidationFailureCode ?? "<none>") + ".");
             Interrupt();
             return true;
         }
@@ -694,7 +722,7 @@ namespace KingmakerMountedCombat.Integration
                 SetNativeAttackTarget(candidate);
                 if (EvaluateCurrentNativeAdmission() != MountedPairNativeAdmissionState.Admitted) continue;
                 if (!transaction.TryContinueOnTarget(attackTarget?.UniqueId, candidate.UniqueId)) break;
-                logger.Info("Mounted pair routine continued on the next target: from=" + attackTarget?.UniqueId + "; to=" + candidate.UniqueId +
+                TryLogInfo("Mounted pair routine continued on the next target: from=" + attackTarget?.UniqueId + "; to=" + candidate.UniqueId +
                     "; attackIndex=" + GetAttackIndex() + "/" + AllAttacks.Count + "; action=" + action + ".");
                 attackTarget = candidate;
                 continuationTargetIds.Add(candidate.UniqueId);
@@ -959,15 +987,15 @@ namespace KingmakerMountedCombat.Integration
                 try
                 {
                     try { TryDrainChargeCarrier(); }
-                    catch (Exception exception) { logger.Exception("Charge carrier cleanup retained", exception); }
+                    catch (Exception exception) { TryLogException("Charge carrier cleanup retained", exception); }
                     // A delivered charge keeps its native penalty for the native round. Anything less than delivery removes it.
                     if (LastAttackRule != null && chargeLease != null)
                     {
                         try { chargeLease.HandBuffToNativeDuration(); }
-                        catch (Exception exception) { logger.Exception("Charge buff hand-off refused", exception); }
+                        catch (Exception exception) { TryLogException("Charge buff hand-off refused", exception); }
                     }
                     try { TryDischargeChargeCleanupDebt(); }
-                    catch (Exception exception) { logger.Exception("Charge lease cleanup retained", exception); }
+                    catch (Exception exception) { TryLogException("Charge lease cleanup retained", exception); }
                     if (Result == ResultType.Success && LastAttackRule != null &&
                         GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0)
                         transaction.Complete(attackTarget.UniqueId);
@@ -1002,7 +1030,7 @@ namespace KingmakerMountedCombat.Integration
                     if (!chargeLease.TryRestore())
                     {
                         chargeCleanupDebtAtEnd = chargeLease.UnresolvedCleanup;
-                        logger.Info("Mounted charge lease cleanup debt at command end: unresolved=" +
+                        TryLogInfo("Mounted charge lease cleanup debt at command end: unresolved=" +
                             chargeCleanupDebtAtEnd + "; failures=" + chargeLease.CleanupFailures + ".");
                     }
                 }
@@ -1070,12 +1098,12 @@ namespace KingmakerMountedCombat.Integration
                     chargeRevalidationFailurePhase = "CarrierRelease";
                     chargeRevalidationFailureReason =
                         "The mounted charge could not prove the mount movement slot was released.";
-                    logger.Info("Mounted charge carrier release unproven: carrier=" +
+                    RecordEndCause(MountedAttackEndCause.Fault, "charge carrier release unproven");
+                    transaction.Cancel(chargeRevalidationFailureReason);
+                    TryLogInfo("Mounted charge carrier release unproven: carrier=" +
                         (delegatedMove == null ? "<released>" : "<live>") +
                         "; moveSlot=" + (moveSlotAfterRelease == null ? "<empty>" : "<occupied>") +
                         "; queue=" + (mount.Commands == null ? -1 : mount.Commands.Queue.Count) + ".");
-                    RecordEndCause(MountedAttackEndCause.Fault, "charge carrier release unproven");
-                    transaction.Cancel(chargeRevalidationFailureReason);
                     Interrupt();
                     return;
                 }
@@ -1349,7 +1377,7 @@ namespace KingmakerMountedCombat.Integration
                         chargeLeaseRolledBackOnFailure = pending.ApplyRolledBack;
                         StopDelegatedMove(false);
                         carrierTerminatedAfterLeaseFailure = delegatedMove == null;
-                        logger.Info("Mounted charge lease application failed; carrier terminated exactly: " +
+                        TryLogInfo("Mounted charge lease application failed; carrier terminated exactly: " +
                             "step=" + (chargeLeaseApplicationFailedStep ?? "<none>") +
                             "; reason=" + chargeLeaseApplicationFailure +
                             "; rolledBack=" + chargeLeaseRolledBackOnFailure +
@@ -1563,7 +1591,7 @@ namespace KingmakerMountedCombat.Integration
                 ";move=" + Executor?.CombatState?.Cooldown.MoveAction + ";source=" +
                 string.Join(" <- ", (new System.Diagnostics.StackTrace(1, false).GetFrames() ?? new System.Diagnostics.StackFrame[0])
                     .Take(10).Select(frame => frame.GetMethod()?.DeclaringType?.FullName + "." + frame.GetMethod()?.Name).ToArray());
-            logger.Info("Mounted pre-start interruption: " + preStartInterruptBoundary);
+            TryLogInfo("Mounted pre-start interruption: " + preStartInterruptBoundary);
         }
 
         private void RequireLiveExactPair()
@@ -1645,15 +1673,13 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                try { logger.Exception("Mounted pair terminal capability reading", exception); }
-                catch (Exception) { }
+                TryLogException("Mounted pair terminal capability reading", exception);
             }
             MountedPairAttackOutcome outcome;
             try { outcome = DescribeOutcome(capabilityBlock, actorName); }
             catch (Exception exception)
             {
-                try { logger.Exception("Mounted pair terminal description", exception); }
-                catch (Exception) { }
+                TryLogException("Mounted pair terminal description", exception);
                 outcome = new MountedPairAttackOutcome
                 {
                     Action = action,
@@ -1665,14 +1691,21 @@ namespace KingmakerMountedCombat.Integration
                     EndCause = endCause,
                     EndCauseDetail = endCauseDetail,
                     EndCauseCapabilityBlock = endCauseCapabilityBlock,
+                    NativeTerminalBranch = nativeTerminalBranch,
+                    NativeTerminalCapabilityBlock = nativeTerminalBlock,
                     Result = Result.ToString(),
                     ApproachRequiredAtStart = approachRequiredAtStart,
                     DelegatedMoveStartCount = delegatedMoveStartCount,
                     TerminalReason = transaction?.TerminalReason
                 };
             }
+            // Review of fa533e97 (R20): delivery is marked once and never retried, because a partly applied handler must not
+            // run twice. The controller's handler settles ownership, retirement and the outcome before anything fallible and
+            // contains every diagnostic, so nothing is expected to escape; anything unexpected is contained here, and the
+            // controller's finished-command sweep still owns the finished command.
             terminalReported = true;
-            terminal(this, outcome);
+            try { terminal(this, outcome); }
+            catch (Exception exception) { TryLogException("Mounted pair terminal handler", exception); }
         }
 
         private MountedPairAttackOutcome DescribeOutcome(MountedActorCapabilityBlock capabilityBlock, string actorName)
@@ -1688,6 +1721,8 @@ namespace KingmakerMountedCombat.Integration
                 EndCause = endCause,
                 EndCauseDetail = endCauseDetail,
                 EndCauseCapabilityBlock = endCauseCapabilityBlock,
+                NativeTerminalBranch = nativeTerminalBranch,
+                NativeTerminalCapabilityBlock = nativeTerminalBlock,
                 // A completed attack needs no explanation; every other terminal records what native saw of its actor.
                 ActorCapabilityAtTerminal = transaction.State == MountedCombatTransactionState.Completed
                     ? null

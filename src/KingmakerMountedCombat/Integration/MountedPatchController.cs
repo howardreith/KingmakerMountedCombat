@@ -95,6 +95,15 @@ namespace KingmakerMountedCombat.Integration
                 // Known issues Sprint 6 (review of 2ae4cc8b, finding 4): its one internal Run call is scoped exception-safely.
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix),
                     nameof(PatchMethods.UnitCommandRunPostfix), nameof(PatchMethods.NativeRunScopeTranspiler));
+                // Known issues Sprint 6, review of fa533e97 (R18): native's capability terminals are captured where native
+                // takes them. Each transpiler keeps native's own calls and values; it only records which branch ended a
+                // pair command.
+                PatchExact(typeof(UnitActionController), "TickCommandTurnBased", NativeCommandTerminalBranches.TickCommandTurnBasedToken,
+                    new[] { typeof(UnitCommand) }, null, null, nameof(PatchMethods.NativeTurnBasedTerminalTranspiler));
+                PatchExact(typeof(UnitActionController), "TickCommand", NativeCommandTerminalBranches.TickCommandToken,
+                    new[] { typeof(UnitCommand), typeof(bool) }, null, null, nameof(PatchMethods.NativeTickTerminalTranspiler));
+                PatchExact(typeof(UnitAttack), "get_ShouldBeInterrupted", NativeCommandTerminalBranches.AttackShouldBeInterruptedToken,
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.NativeAttackBanTranspiler));
                 // Known issues sprint 3 continuation (M05): this overload is the one native admission both the public
                 // Run and queue promotion (RemoveFinishedAndUpdateQueue) reach; its postfix observes what was admitted.
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
@@ -1522,6 +1531,24 @@ namespace KingmakerMountedCombat.Integration
                 __result = result == MountedCombatClickResult.HandledAccepted;
                 return false;
             }
+
+            private static MethodInfo TerminalHook(string name) =>
+                typeof(NativeCommandTerminalBranches).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic);
+
+            internal static IEnumerable<CodeInstruction> NativeTurnBasedTerminalTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeCommandTerminalBranches.TurnBased(instructions, TerminalHook(nameof(NativeCommandTerminalBranches.CaptureTurnBasedCanAct)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.TurnBasedForceFinish)));
+
+            internal static IEnumerable<CodeInstruction> NativeTickTerminalTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeCommandTerminalBranches.Tick(instructions, TerminalHook(nameof(NativeCommandTerminalBranches.BeginShouldBeInterrupted)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.CaptureShouldBeInterrupted)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAtStateSite)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAsSoonAsPossible)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.CaptureRunningCanAct)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAtRunningSite)));
+
+            internal static IEnumerable<CodeInstruction> NativeAttackBanTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeCommandTerminalBranches.AttackBan(instructions, TerminalHook(nameof(NativeCommandTerminalBranches.AttackBanTerm)));
 
             internal static IEnumerable<CodeInstruction> NativeRunScopeTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 MountedNativeRunScope.Transpile(instructions, typeof(MountedNativeRunScope).GetMethod(nameof(MountedNativeRunScope.ScopedRun),

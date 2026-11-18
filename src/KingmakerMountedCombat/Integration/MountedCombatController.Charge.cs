@@ -342,7 +342,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                logger.Exception("Mounted charge admission", exception);
+                TryLogException("Mounted charge admission", exception);
                 if (command != null)
                 {
                     // Whether or not the queue admission completed, every owner the attempt may have

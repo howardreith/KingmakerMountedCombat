@@ -555,6 +555,7 @@
     <Compile Include="Domain\MountedPointerPlacementLedger.cs" />
     <Compile Include="Domain\MountedNativeRunScopes.cs" />
     <Compile Include="Integration\MountedNativeRunScope.cs" />
+    <Compile Include="Integration\NativeCommandTerminalBranches.cs" />
     <Compile Include="Domain\MountedBoundedFaultReport.cs" />
     <Compile Include="Domain\MountedContinuousDrivePolicy.cs" />
     <Compile Include="Domain\MountedCleanupCompletionPolicy.cs" />

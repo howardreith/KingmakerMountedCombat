@@ -52,6 +52,18 @@ namespace KingmakerMountedCombat.Domain
             return turnBased ? ExecutionBlock(facts) : MountedActorCapabilityBlock.None;
         }
 
+        // Review of fa533e97 (R18): the condition behind native's UnitState.CanAct being false, for a native branch that
+        // ended a command because its executor could not act. An attack ban is not a CanAct term and is never named here;
+        // a CanAct term this reader does not name (prone, a blocking animation, nausea in turn-based) reads None.
+        public static MountedActorCapabilityBlock CanActBlock(MountedActorCapabilityFacts facts)
+        {
+            if (!facts.Known) return MountedActorCapabilityBlock.None;
+            if (facts.Helpless) return MountedActorCapabilityBlock.Helpless;
+            if (facts.Stunned) return MountedActorCapabilityBlock.Stunned;
+            if (facts.Dazed) return MountedActorCapabilityBlock.Dazed;
+            return facts.CantAct ? MountedActorCapabilityBlock.CantAct : MountedActorCapabilityBlock.None;
+        }
+
         public static string Feedback(string actorName, MountedActorCapabilityBlock block)
         {
             var actor = string.IsNullOrWhiteSpace(actorName) ? "This actor" : actorName;
@@ -113,6 +125,66 @@ namespace KingmakerMountedCombat.Domain
         ApproachFailed
     }
 
+    // Review of fa533e97 (R18). The exact native branch that ended a command, captured at that branch from native's own
+    // computed values (installed 2.1.7b, UnitActionController):
+    // - TickCommandTurnBased (0600911D) force-finishes an unstarted command with Success when
+    //   !(CanAct && !HasCondition(Nauseated)) or when it has no cooldown slot; the first ForceFinishForTurnBased is that
+    //   branch, the second is the approach-time branch (not captured).
+    // - TickCommand (0600911E) interrupts at three sites: the state site (ShouldBeInterrupted, the target not in state,
+    //   untargetable or a stealthed enemy), the unstarted InterruptAsSoonAsPossible site, and the running site
+    //   ((InterruptAsSoonAsPossible && IsInterruptible) or !CanAct, in that order).
+    // - UnitAttack.ShouldBeInterrupted (0600266D) is (!IsStarted && Target.IsDead) || Executor.HasCondition(CanNotAttack).
+    // Every other native end (the paused previous command, InterruptMove, InterruptAll, a force-finish elsewhere) records
+    // None, and None is never a capability cause.
+    public enum MountedNativeTerminalBranch
+    {
+        None,
+        TurnBasedCannotAct,
+        TurnBasedNoCommandSlot,
+        AttackBanned,
+        AttackTargetDead,
+        TargetUnavailable,
+        InterruptAsSoonAsPossible,
+        RunningInterruptAsSoonAsPossible,
+        RunningCannotAct
+    }
+
+    public static class MountedNativeTerminalBranchPolicy
+    {
+        // The turn-based force-finish site: native's own canAct value, read where native branched on it.
+        public static MountedNativeTerminalBranch TurnBasedForceFinish(bool nativeCanActCaptured, bool nativeCanAct) =>
+            nativeCanActCaptured && !nativeCanAct ? MountedNativeTerminalBranch.TurnBasedCannotAct : MountedNativeTerminalBranch.TurnBasedNoCommandSlot;
+
+        // The TickCommand state site: whether native's ShouldBeInterrupted read true in this tick, and whether UnitAttack's
+        // CanNotAttack term was the one that returned it.
+        public static MountedNativeTerminalBranch StateSite(bool shouldBeInterruptedCaptured, bool shouldBeInterrupted, bool attackBanTerm)
+        {
+            if (!shouldBeInterruptedCaptured || !shouldBeInterrupted) return MountedNativeTerminalBranch.TargetUnavailable;
+            return attackBanTerm ? MountedNativeTerminalBranch.AttackBanned : MountedNativeTerminalBranch.AttackTargetDead;
+        }
+
+        // The TickCommand running site: !CanAct only when native evaluated CanAct in this tick and read false; otherwise the
+        // site was reached through InterruptAsSoonAsPossible && IsInterruptible, which short-circuits before CanAct.
+        public static MountedNativeTerminalBranch RunningSite(bool canActCaptured, bool nativeCanAct) =>
+            canActCaptured && !nativeCanAct ? MountedNativeTerminalBranch.RunningCannotAct : MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible;
+
+        public static bool IsCapability(MountedNativeTerminalBranch branch) =>
+            branch == MountedNativeTerminalBranch.TurnBasedCannotAct || branch == MountedNativeTerminalBranch.AttackBanned ||
+            branch == MountedNativeTerminalBranch.RunningCannotAct;
+
+        public static bool IsTarget(MountedNativeTerminalBranch branch) =>
+            branch == MountedNativeTerminalBranch.AttackTargetDead || branch == MountedNativeTerminalBranch.TargetUnavailable;
+
+        // The block that branch proves, read at the branch: the attack ban itself, or the condition behind CanAct.
+        public static MountedActorCapabilityBlock Block(MountedNativeTerminalBranch branch, MountedActorCapabilityFacts facts)
+        {
+            if (branch == MountedNativeTerminalBranch.AttackBanned) return MountedActorCapabilityBlock.CanNotAttack;
+            if (branch == MountedNativeTerminalBranch.TurnBasedCannotAct || branch == MountedNativeTerminalBranch.RunningCannotAct)
+                return MountedActorCapabilityPolicy.CanActBlock(facts);
+            return MountedActorCapabilityBlock.None;
+        }
+    }
+
     public static class MountedAttackTerminalCausePolicy
     {
         // A recorded cause wins; otherwise an end inside a replacing native Run on the command's own actor is a replacement.
@@ -122,28 +194,22 @@ namespace KingmakerMountedCombat.Domain
             return endedInsideReplacingNativeRun ? MountedAttackEndCause.Replaced : MountedAttackEndCause.Unrecorded;
         }
 
-        // The capability block that ended the command, or None. A recorded ActorCapability cause carries the exact block read
-        // at the command's own boundary (review of 2ae4cc8b, finding 3): that recorded block is the cause even when the
-        // later terminal snapshot differs or is clear. With no recorded cause, two installed native signatures make the
-        // terminal snapshot causal (UnitActionController): an unstarted turn-based command force-finished with Success and
-        // nothing executed, and an interruption of the executor (always the action actor) for CanNotAttack
-        // (UnitAttack.ShouldBeInterrupted, at any time) or for a UnitState.CanAct term while it was running. A condition
-        // beside any other recorded cause never explains the end.
-        public static MountedActorCapabilityBlock CausalCapability(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
-            MountedActorCapabilityBlock recordedBlock, MountedActorCapabilityBlock terminalBlock, bool nativeCommandStarted)
+        // The capability block that ended the command, or None (review of fa533e97, R18). A recorded ActorCapability cause
+        // carries the exact block read at the command's own boundary, whatever the later snapshot. With no recorded cause,
+        // only a native capability branch captured where native took it (MountedNativeTerminalBranch) is causal, with the
+        // block read at that branch. Neither the terminal result, nor whether the command started, nor the later terminal
+        // snapshot ever makes a condition the cause; that snapshot stays diagnostic.
+        public static MountedActorCapabilityBlock CausalCapability(MountedAttackEndCause cause, MountedActorCapabilityBlock recordedBlock,
+            MountedNativeTerminalBranch nativeBranch, MountedActorCapabilityBlock nativeBranchBlock)
         {
             if (cause == MountedAttackEndCause.ActorCapability) return recordedBlock;
-            if (cause != MountedAttackEndCause.Unrecorded || terminalBlock == MountedActorCapabilityBlock.None)
-                return MountedActorCapabilityBlock.None;
-            if (kind == MountedAttackTerminalKind.EndedWithoutExecution) return terminalBlock;
-            if (kind != MountedAttackTerminalKind.Failed) return MountedActorCapabilityBlock.None;
-            return terminalBlock == MountedActorCapabilityBlock.CanNotAttack || nativeCommandStarted
-                ? terminalBlock : MountedActorCapabilityBlock.None;
+            if (cause != MountedAttackEndCause.Unrecorded) return MountedActorCapabilityBlock.None;
+            return MountedNativeTerminalBranchPolicy.IsCapability(nativeBranch) ? nativeBranchBlock : MountedActorCapabilityBlock.None;
         }
 
-        public static bool CapabilityIsCause(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
-            MountedActorCapabilityBlock recordedBlock, MountedActorCapabilityBlock terminalBlock, bool nativeCommandStarted) =>
-            CausalCapability(kind, cause, recordedBlock, terminalBlock, nativeCommandStarted) != MountedActorCapabilityBlock.None;
+        public static bool CapabilityIsCause(MountedAttackEndCause cause, MountedActorCapabilityBlock recordedBlock,
+            MountedNativeTerminalBranch nativeBranch, MountedActorCapabilityBlock nativeBranchBlock) =>
+            CausalCapability(cause, recordedBlock, nativeBranch, nativeBranchBlock) != MountedActorCapabilityBlock.None;
 
         // The player text for an explicitly ended command; null when the cause has no text of its own.
         public static string CancellationFeedback(MountedAttackEndCause cause)

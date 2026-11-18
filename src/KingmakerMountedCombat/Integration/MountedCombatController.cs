@@ -2235,11 +2235,13 @@ namespace KingmakerMountedCombat.Integration
             MountedPairAttackCommand command,
             MountedPairAttackOutcome outcome)
         {
-            if (ReferenceEquals(chargeOwner?.Command, command)) chargeOwner.Ownership.Retire();
-            pairedCommandScheduler.ObserveTerminal(
+            // Review of fa533e97 (R20): every step that can fail is contained, so ownership, the finished-command sweep,
+            // the outcome and the order's retirement always settle, and the handler is applied once and completely.
+            if (ReferenceEquals(chargeOwner?.Command, command)) TryContain("Charge ownership retirement at the terminal", () => chargeOwner.Ownership.Retire());
+            TryContain("Paired scheduler terminal observation", () => pairedCommandScheduler.ObserveTerminal(
                 command,
                 outcome?.Result,
-                outcome?.TerminalReason);
+                outcome?.TerminalReason));
             var stockIntentOwned = ReferenceEquals(stockIntentCommand, command);
             if (stockIntentOwned)
             {
@@ -2266,9 +2268,10 @@ namespace KingmakerMountedCombat.Integration
             var cause = MountedAttackTerminalCausePolicy.Resolve(outcome.EndCause,
                 MountedNativeRunScope.EndedInsideReplacingRun(command.Executor?.Commands, command));
             outcome.EndCause = cause;
-            // The recorded causal block (or native's signature on the terminal snapshot); the snapshot itself stays apart.
-            var causalBlock = MountedAttackTerminalCausePolicy.CausalCapability(terminal, cause, outcome.EndCauseCapabilityBlock,
-                outcome.ActorCapabilityBlockAtTerminal, outcome.NativeCommandStarted);
+            // Review of fa533e97 (R18): the recorded causal block, or the block of a native capability branch captured where
+            // native took it. The terminal snapshot is never causal; it stays in the outcome for diagnostics.
+            var causalBlock = MountedAttackTerminalCausePolicy.CausalCapability(cause, outcome.EndCauseCapabilityBlock,
+                outcome.NativeTerminalBranch, outcome.NativeTerminalCapabilityBlock);
             var capabilityIsCause = causalBlock != MountedActorCapabilityBlock.None;
             // A05: only a typed, evidenced failed automatic approach records its target unreachable for the rider's brain.
             if (stockIntentOwned && stockIntent.Automatic && MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true,
@@ -2289,13 +2292,13 @@ namespace KingmakerMountedCombat.Integration
             // Native Run writes a successor's manual target right after this interruption, so the charge's own is released now.
             if (command.ChargeMode && ReferenceEquals(chargeOwner?.Command, command))
             {
-                try { ReleaseChargeManualTarget(chargeOwner); }
-                catch (Exception exception) { logger.Exception("Charge manual target release retained", exception); }
+                TryContain("Charge manual target release retained", () => ReleaseChargeManualTarget(chargeOwner));
             }
             TryLog(() => "Mounted combat command terminal: action=" + command.Action +
                 "; result=" + outcome.Result +
                 "; cause=" + cause + (outcome.EndCauseDetail != null ? "(" + outcome.EndCauseDetail + ")" : string.Empty) +
-                "; causalBlock=" + causalBlock + "; terminalBlock=" + outcome.ActorCapabilityBlockAtTerminal + "; capabilityIsCause=" + capabilityIsCause +
+                "; causalBlock=" + causalBlock + "; nativeBranch=" + outcome.NativeTerminalBranch + "(" + outcome.NativeTerminalCapabilityBlock + ")" +
+                "; terminalBlock=" + outcome.ActorCapabilityBlockAtTerminal + "; capabilityIsCause=" + capabilityIsCause +
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; childAttacks=" + outcome.ChildAttackStartCount +
                 "; repaths=" + outcome.RepathCount +
@@ -2359,6 +2362,19 @@ namespace KingmakerMountedCombat.Integration
         {
             try { logger.Info(line()); }
             catch (Exception) { }
+        }
+
+        private void TryLogException(string phase, Exception exception)
+        {
+            try { logger.Exception(phase, exception); }
+            catch (Exception) { }
+        }
+
+        // Review of fa533e97 (R20): a recovery step that may fail is attempted, and its failure is reported best-effort.
+        private void TryContain(string phase, Action step)
+        {
+            try { step(); }
+            catch (Exception exception) { TryLogException(phase, exception); }
         }
 
         internal long StockAttackUnexecutedRetirementCount { get; private set; }
@@ -2780,6 +2796,13 @@ namespace KingmakerMountedCombat.Integration
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.ActorCannotAct };
                 return MountedActorCapabilityPolicy.Feedback(outcome.ActionActorName, causalBlock) +
                     (outcome.NativeCompletedAttackCount > 0 ? " The remaining attacks were not performed." : " The attack was not performed.");
+            }
+            // Review of fa533e97 (R18): a target branch native took (a dead target, or one out of state, untargetable or
+            // stealthed) is named as such, whatever the actor's condition.
+            if (cause == MountedAttackEndCause.Unrecorded && MountedNativeTerminalBranchPolicy.IsTarget(outcome.NativeTerminalBranch))
+            {
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.TargetInvalid };
+                return "Mounted rider melee ended: the exact target became invalid before completion.";
             }
             var reason = outcome?.TerminalReason ?? string.Empty;
             if (reason.IndexOf("repath", StringComparison.OrdinalIgnoreCase) >= 0 ||
