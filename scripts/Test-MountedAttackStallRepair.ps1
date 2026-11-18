@@ -513,6 +513,14 @@ public static class MountedAttackStallProbe {
   Check(CalledMembers(methods.GetMethod("UnitCommandRunPrefix",F)).Contains("OpenNativeRun")&&CalledMembers(methods.GetMethod("UnitCommandRunPostfix",F)).Contains("CloseNativeRun"),
    "A02: a native Run on a pair actor is scoped for replacement attribution");
   Check(calls("ObserveAutomaticProposal").Contains("Read"),"A04: the automatic admission reads the rider's native condition");
+  // A04's refusal is automatic-only: the player's click route never reads the capability condition (real-time player
+  // orders keep their native wait, and turn-based ones their existing capability admission).
+  var route=controller.GetMethod("TryRouteMountedStockAttack",F);var il=route.GetMethodBody().GetILAsByteArray();var readsCapability=false;
+  for(var i=0;i+4<il.Length;i++){
+   if(il[i]!=0x28&&il[i]!=0x6F)continue;
+   try{var m=route.Module.ResolveMethod(BitConverter.ToInt32(il,i+1));if(m.DeclaringType.Name=="NativeActorCapability")readsCapability=true;}catch(Exception){}
+  }
+  Check(!readsCapability,"A04: the player's click route does not read the automatic-only capability refusal");
  }
 
  public static void Run(string managed,string dll){
