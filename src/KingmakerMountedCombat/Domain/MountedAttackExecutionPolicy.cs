@@ -149,24 +149,48 @@ namespace KingmakerMountedCombat.Domain
         RunningCannotAct
     }
 
+    // Review of dffd3e72 (R21). What native computed, as an exact per-invocation fact. The transpiled native method keeps
+    // each value in a local of its own invocation (dup, Observe..., stloc right after native computes it) and passes that
+    // local to its own terminal call: the facts live and die with the native frame, belong to its own command (ldarg.1),
+    // and are never stored statically, so nothing outlives the tick and no other command or nested observation can read
+    // them. NotObserved, the local's zero default, is the conservative answer: never a capability.
+    public static class MountedNativeTerminalObservation
+    {
+        public const int NotObserved = 0;
+        public const int CanActTrue = 1;
+        public const int CanActFalse = 2;
+        public const int NotInterrupted = 1;
+        public const int InterruptedByOtherTerm = 2;
+        public const int InterruptedByAttackBan = 3;
+
+        public static int ObserveCanAct(bool canAct) => canAct ? CanActTrue : CanActFalse;
+
+        // UnitAttack's CanNotAttack term counts only when it returned the true value of this very ShouldBeInterrupted call.
+        public static int ObserveShouldBeInterrupted(bool value, bool attackBanTerm) =>
+            !value ? NotInterrupted : attackBanTerm ? InterruptedByAttackBan : InterruptedByOtherTerm;
+    }
+
     public static class MountedNativeTerminalBranchPolicy
     {
-        // The turn-based force-finish site: native's own canAct value, read where native branched on it.
-        public static MountedNativeTerminalBranch TurnBasedForceFinish(bool nativeCanActCaptured, bool nativeCanAct) =>
-            nativeCanActCaptured && !nativeCanAct ? MountedNativeTerminalBranch.TurnBasedCannotAct : MountedNativeTerminalBranch.TurnBasedNoCommandSlot;
+        // The turn-based force-finish site: native's own canAct value, observed in this invocation where native branched on it.
+        public static MountedNativeTerminalBranch TurnBasedForceFinish(int canActObservation) =>
+            canActObservation == MountedNativeTerminalObservation.CanActFalse
+                ? MountedNativeTerminalBranch.TurnBasedCannotAct : MountedNativeTerminalBranch.TurnBasedNoCommandSlot;
 
-        // The TickCommand state site: whether native's ShouldBeInterrupted read true in this tick, and whether UnitAttack's
-        // CanNotAttack term was the one that returned it.
-        public static MountedNativeTerminalBranch StateSite(bool shouldBeInterruptedCaptured, bool shouldBeInterrupted, bool attackBanTerm)
+        // The TickCommand state site: this invocation's ShouldBeInterrupted value and whether UnitAttack's CanNotAttack term
+        // returned it.
+        public static MountedNativeTerminalBranch StateSite(int shouldBeInterruptedObservation)
         {
-            if (!shouldBeInterruptedCaptured || !shouldBeInterrupted) return MountedNativeTerminalBranch.TargetUnavailable;
-            return attackBanTerm ? MountedNativeTerminalBranch.AttackBanned : MountedNativeTerminalBranch.AttackTargetDead;
+            if (shouldBeInterruptedObservation == MountedNativeTerminalObservation.InterruptedByAttackBan) return MountedNativeTerminalBranch.AttackBanned;
+            if (shouldBeInterruptedObservation == MountedNativeTerminalObservation.InterruptedByOtherTerm) return MountedNativeTerminalBranch.AttackTargetDead;
+            return MountedNativeTerminalBranch.TargetUnavailable;
         }
 
-        // The TickCommand running site: !CanAct only when native evaluated CanAct in this tick and read false; otherwise the
-        // site was reached through InterruptAsSoonAsPossible && IsInterruptible, which short-circuits before CanAct.
-        public static MountedNativeTerminalBranch RunningSite(bool canActCaptured, bool nativeCanAct) =>
-            canActCaptured && !nativeCanAct ? MountedNativeTerminalBranch.RunningCannotAct : MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible;
+        // The TickCommand running site: !CanAct only when native evaluated CanAct in this invocation and read false; otherwise
+        // the site was reached through InterruptAsSoonAsPossible && IsInterruptible, which short-circuits before CanAct.
+        public static MountedNativeTerminalBranch RunningSite(int canActObservation) =>
+            canActObservation == MountedNativeTerminalObservation.CanActFalse
+                ? MountedNativeTerminalBranch.RunningCannotAct : MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible;
 
         public static bool IsCapability(MountedNativeTerminalBranch branch) =>
             branch == MountedNativeTerminalBranch.TurnBasedCannotAct || branch == MountedNativeTerminalBranch.AttackBanned ||

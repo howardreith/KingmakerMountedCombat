@@ -1535,16 +1535,16 @@ namespace KingmakerMountedCombat.Integration
             private static MethodInfo TerminalHook(string name) =>
                 typeof(NativeCommandTerminalBranches).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic);
 
-            internal static IEnumerable<CodeInstruction> NativeTurnBasedTerminalTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                NativeCommandTerminalBranches.TurnBased(instructions, TerminalHook(nameof(NativeCommandTerminalBranches.CaptureTurnBasedCanAct)),
+            internal static IEnumerable<CodeInstruction> NativeTurnBasedTerminalTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
+                NativeCommandTerminalBranches.TurnBased(instructions, generator, TerminalHook(nameof(NativeCommandTerminalBranches.CaptureCanAct)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.TurnBasedForceFinish)));
 
-            internal static IEnumerable<CodeInstruction> NativeTickTerminalTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                NativeCommandTerminalBranches.Tick(instructions, TerminalHook(nameof(NativeCommandTerminalBranches.BeginShouldBeInterrupted)),
+            internal static IEnumerable<CodeInstruction> NativeTickTerminalTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
+                NativeCommandTerminalBranches.Tick(instructions, generator, TerminalHook(nameof(NativeCommandTerminalBranches.BeginShouldBeInterrupted)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.CaptureShouldBeInterrupted)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAtStateSite)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAsSoonAsPossible)),
-                    TerminalHook(nameof(NativeCommandTerminalBranches.CaptureRunningCanAct)),
+                    TerminalHook(nameof(NativeCommandTerminalBranches.CaptureCanAct)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAtRunningSite)));
 
             internal static IEnumerable<CodeInstruction> NativeAttackBanTranspiler(IEnumerable<CodeInstruction> instructions) =>

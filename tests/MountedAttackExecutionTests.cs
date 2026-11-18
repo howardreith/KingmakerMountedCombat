@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("sprint 6 A01 (production intent, review finding 5): only the same request after its command ended is a fresh-after-terminal click", ClickClassificationCountsOnlyFreshness);
             runner.Run("sprint 6 A02 (production policy, review R18): native capability is causal only on the exact native branch that took it", NativeCapabilityNeedsTheExactBranch);
             runner.Run("sprint 6 A02 (production scopes, review R19): the innermost open Run on the ending command's container decides a replacement", NestedRunUsesTheInnermostToken);
+            runner.Run("sprint 6 A02 (production policy, review R21): native terminal facts belong to their own native invocation and default to no capability", NativeObservationsAreFrameOwned);
         }
 
         private static MountedActorCapabilityFacts Healthy() => new MountedActorCapabilityFacts { Known = true };
@@ -352,11 +353,11 @@ namespace KingmakerMountedCombat.Tests
             var none = MountedActorCapabilityBlock.None;
             var unrecorded = MountedAttackEndCause.Unrecorded;
             // 1: the unstarted turn-based force-finish because native's canAct read false: the block read at the branch.
-            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedCannotAct, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(true, false),
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedCannotAct, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(MountedNativeTerminalObservation.ObserveCanAct(false)),
                 "The turn-based cannot-act branch was not identified.");
-            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(true, true),
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(MountedNativeTerminalObservation.ObserveCanAct(true)),
                 "A missing command slot was identified as a capability branch.");
-            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(false, false),
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(MountedNativeTerminalObservation.NotObserved),
                 "An uncaptured canAct was guessed to be false.");
             foreach (var block in new[] { MountedActorCapabilityBlock.Helpless, MountedActorCapabilityBlock.Stunned, MountedActorCapabilityBlock.Dazed, MountedActorCapabilityBlock.CantAct })
             {
@@ -372,22 +373,22 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(none, MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.RunningCannotAct, Healthy()),
                 "A CanAct term this reader does not name was guessed.");
             // 2: a running command interrupted because native's CanAct read false.
-            TestRunner.Equal(MountedNativeTerminalBranch.RunningCannotAct, MountedNativeTerminalBranchPolicy.RunningSite(true, false), "The running cannot-act branch was missed.");
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningCannotAct, MountedNativeTerminalBranchPolicy.RunningSite(MountedNativeTerminalObservation.ObserveCanAct(false)), "The running cannot-act branch was missed.");
             TestRunner.Equal(MountedActorCapabilityBlock.Stunned, MountedAttackTerminalCausePolicy.CausalCapability(unrecorded, none,
                 MountedNativeTerminalBranch.RunningCannotAct, MountedActorCapabilityBlock.Stunned), "The running capability branch was not causal.");
             // 3: the attack interrupted through ShouldBeInterrupted's CanNotAttack term.
-            TestRunner.Equal(MountedNativeTerminalBranch.AttackBanned, MountedNativeTerminalBranchPolicy.StateSite(true, true, true), "The attack-ban branch was missed.");
+            TestRunner.Equal(MountedNativeTerminalBranch.AttackBanned, MountedNativeTerminalBranchPolicy.StateSite(MountedNativeTerminalObservation.ObserveShouldBeInterrupted(true, true)), "The attack-ban branch was missed.");
             TestRunner.Equal(MountedActorCapabilityBlock.CanNotAttack, MountedNativeTerminalBranchPolicy.Block(MountedNativeTerminalBranch.AttackBanned, Healthy()),
                 "The attack-ban branch did not carry its own block.");
             // 4, 5: the target left state, became untargetable or stealthed, or died before the start, beside a blocked actor.
-            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(true, false, false), "A target branch was missed.");
-            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(false, true, true),
+            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(MountedNativeTerminalObservation.ObserveShouldBeInterrupted(false, false)), "A target branch was missed.");
+            TestRunner.Equal(MountedNativeTerminalBranch.TargetUnavailable, MountedNativeTerminalBranchPolicy.StateSite(MountedNativeTerminalObservation.NotObserved),
                 "An uncaptured ShouldBeInterrupted was guessed.");
-            TestRunner.Equal(MountedNativeTerminalBranch.AttackTargetDead, MountedNativeTerminalBranchPolicy.StateSite(true, true, false), "A dead target was called an attack ban.");
+            TestRunner.Equal(MountedNativeTerminalBranch.AttackTargetDead, MountedNativeTerminalBranchPolicy.StateSite(MountedNativeTerminalObservation.ObserveShouldBeInterrupted(true, false)), "A dead target was called an attack ban.");
             // 6: InterruptAsSoonAsPossible, unstarted or running, while blocked.
-            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(false, false),
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(MountedNativeTerminalObservation.NotObserved),
                 "The InterruptAsSoonAsPossible short-circuit was called cannot-act.");
-            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(true, true),
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(MountedNativeTerminalObservation.ObserveCanAct(true)),
                 "A CanAct that read true was called cannot-act.");
             // 4-8: every non-capability branch (and no branch at all: the paused previous command, InterruptMove,
             // InterruptAll, an unknown native end) beside every blocked block stays non-capability.
@@ -477,6 +478,39 @@ namespace KingmakerMountedCombat.Tests
             scopes.Close(later);
             scopes.Open(rider, newer); scopes.Reset();
             TestRunner.True(scopes.Depth == 0, "Reset kept a scope.");
+        }
+
+        // Review of dffd3e72 (R21): each native invocation's facts are its own values, encoded where native computed them and
+        // passed to its own terminal; the zero default (not observed) is never a capability, and no fact can be shared.
+        private static void NativeObservationsAreFrameOwned()
+        {
+            var notObserved = MountedNativeTerminalObservation.NotObserved;
+            TestRunner.True(notObserved == default(int), "The not-observed fact is not the zero default of a fresh native local.");
+            // 8, 9: two nested invocations, each with its own command: each terminal reads only its own frame's value.
+            var outerCanAct = MountedNativeTerminalObservation.ObserveCanAct(false);
+            var innerCanAct = MountedNativeTerminalObservation.ObserveCanAct(true);
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible, MountedNativeTerminalBranchPolicy.RunningSite(innerCanAct),
+                "The inner command took the outer command's cannot-act fact.");
+            TestRunner.Equal(MountedNativeTerminalBranch.RunningCannotAct, MountedNativeTerminalBranchPolicy.RunningSite(outerCanAct),
+                "The outer command lost its own cannot-act fact to the inner observation.");
+            var outerHealthy = MountedNativeTerminalObservation.ObserveCanAct(true);
+            var innerBlocked = MountedNativeTerminalObservation.ObserveCanAct(false);
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedNoCommandSlot, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(outerHealthy),
+                "An inner observation made the outer command capability-caused.");
+            TestRunner.Equal(MountedNativeTerminalBranch.TurnBasedCannotAct, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(innerBlocked),
+                "The inner command lost its own fact.");
+            // 10: a terminal whose frame never observed the value (an exception, a skipped site) is never a capability.
+            TestRunner.True(!MountedNativeTerminalBranchPolicy.IsCapability(MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(notObserved)) &&
+                !MountedNativeTerminalBranchPolicy.IsCapability(MountedNativeTerminalBranchPolicy.StateSite(notObserved)) &&
+                !MountedNativeTerminalBranchPolicy.IsCapability(MountedNativeTerminalBranchPolicy.RunningSite(notObserved)),
+                "A missing observation invented a capability cause.");
+            // The ban term counts only with the true value of the same reading.
+            TestRunner.Equal(MountedNativeTerminalObservation.NotInterrupted, MountedNativeTerminalObservation.ObserveShouldBeInterrupted(false, true),
+                "A ban term beside a false reading was counted.");
+            // The three channels are independent encodings.
+            TestRunner.True(MountedNativeTerminalObservation.CanActTrue != MountedNativeTerminalObservation.CanActFalse &&
+                MountedNativeTerminalObservation.InterruptedByAttackBan != MountedNativeTerminalObservation.InterruptedByOtherTerm &&
+                MountedNativeTerminalObservation.NotInterrupted != notObserved, "Two different facts share an encoding.");
         }
 
         // Review of fa533e97 (R19): only the innermost open Run on the ending command's container decides.

@@ -13,10 +13,13 @@ namespace KingmakerMountedCombat.Integration
     // Known issues Sprint 6, review of fa533e97 (R18). Native's own capability terminals are identified where native takes
     // them, never reconstructed from a terminal result, a started flag or a later condition snapshot.
     //
-    // Every native call stays in place. Capture calls are inserted after a native value is computed and pass it through
-    // unchanged, remembering it for the exact command of this tick; the terminal hooks call the same native method the
-    // original did (ForceFinishForTurnBased, Interrupt), after recording on a pair command which branch ended it.
-    // Recording never stands between native and its own end: it is contained.
+    // Review of dffd3e72 (R21): nothing here owns a command. Every native call stays in place; right after native computes
+    // a value, the transpiled method duplicates it, encodes it (Observe...) and keeps it in a new local of that very native
+    // invocation, and it passes that local to its own terminal call. The facts therefore live and die with the native frame
+    // and belong to its own command: a healthy tick, an ordinary completion, an exception or a nested tick of another
+    // command leaves nothing behind and cannot lend its facts to anyone. The capture hooks never see a command. The only
+    // static is one scalar, the value of UnitAttack's CanNotAttack term, reset immediately before native's own
+    // get_ShouldBeInterrupted call and read and cleared immediately after it.
     //
     // Installed 2.1.7b sites:
     // - TickCommandTurnBased (0600911D): the canAct value native tests before its first ForceFinishForTurnBased
@@ -36,30 +39,9 @@ namespace KingmakerMountedCombat.Integration
         private const int CanActToken = 0x06001FAF;
         private const int HasConditionToken = 0x06001FBB;
 
-        [ThreadStatic] private static UnitCommand turnBasedCommand;
-        [ThreadStatic] private static bool turnBasedCanAct;
         [ThreadStatic] private static bool attackBanTerm;
-        [ThreadStatic] private static UnitCommand stateCommand;
-        [ThreadStatic] private static bool stateShouldBeInterrupted;
-        [ThreadStatic] private static bool stateAttackBan;
-        [ThreadStatic] private static UnitCommand runningCommand;
-        [ThreadStatic] private static bool runningCanAct;
 
-        internal static bool CaptureTurnBasedCanAct(bool canAct, UnitCommand command)
-        {
-            turnBasedCommand = command;
-            turnBasedCanAct = canAct;
-            return canAct;
-        }
-
-        internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result)
-        {
-            var captured = command != null && ReferenceEquals(turnBasedCommand, command);
-            var canAct = turnBasedCanAct;
-            turnBasedCommand = null;
-            Record(command, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(captured, canAct));
-            command.ForceFinishForTurnBased(result);
-        }
+        internal static int CaptureCanAct(bool canAct) => MountedNativeTerminalObservation.ObserveCanAct(canAct);
 
         internal static bool AttackBanTerm(bool value)
         {
@@ -73,21 +55,22 @@ namespace KingmakerMountedCombat.Integration
             attackBanTerm = false;
         }
 
-        internal static bool CaptureShouldBeInterrupted(bool value, UnitCommand command)
+        internal static int CaptureShouldBeInterrupted(bool value)
         {
-            stateCommand = command;
-            stateShouldBeInterrupted = value;
-            stateAttackBan = value && attackBanTerm;
+            var observation = MountedNativeTerminalObservation.ObserveShouldBeInterrupted(value, attackBanTerm);
             attackBanTerm = false;
-            return value;
+            return observation;
         }
 
-        internal static void InterruptAtStateSite(UnitCommand command, bool raiseEvent)
+        internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result, int canActObservation)
         {
-            var captured = command != null && ReferenceEquals(stateCommand, command);
-            var branch = MountedNativeTerminalBranchPolicy.StateSite(captured, stateShouldBeInterrupted, stateAttackBan);
-            stateCommand = null;
-            Record(command, branch);
+            Record(command, MountedNativeTerminalBranchPolicy.TurnBasedForceFinish(canActObservation));
+            command.ForceFinishForTurnBased(result);
+        }
+
+        internal static void InterruptAtStateSite(UnitCommand command, bool raiseEvent, int shouldBeInterruptedObservation)
+        {
+            Record(command, MountedNativeTerminalBranchPolicy.StateSite(shouldBeInterruptedObservation));
             command.Interrupt(raiseEvent);
         }
 
@@ -97,27 +80,15 @@ namespace KingmakerMountedCombat.Integration
             command.Interrupt(raiseEvent);
         }
 
-        internal static bool CaptureRunningCanAct(bool value, UnitCommand command)
+        internal static void InterruptAtRunningSite(UnitCommand command, bool raiseEvent, int canActObservation)
         {
-            runningCommand = command;
-            runningCanAct = value;
-            return value;
-        }
-
-        internal static void InterruptAtRunningSite(UnitCommand command, bool raiseEvent)
-        {
-            var captured = command != null && ReferenceEquals(runningCommand, command);
-            var branch = MountedNativeTerminalBranchPolicy.RunningSite(captured, runningCanAct);
-            runningCommand = null;
-            Record(command, branch);
+            Record(command, MountedNativeTerminalBranchPolicy.RunningSite(canActObservation));
             command.Interrupt(raiseEvent);
         }
 
+        // Mod disable and disposal: the one scalar returns to its idle value.
         internal static void Reset()
         {
-            turnBasedCommand = null;
-            stateCommand = null;
-            runningCommand = null;
             attackBanTerm = false;
         }
 
@@ -158,7 +129,14 @@ namespace KingmakerMountedCombat.Integration
             instruction.operand = hook;
         }
 
-        internal static IEnumerable<CodeInstruction> TurnBased(IEnumerable<CodeInstruction> source, MethodInfo capture, MethodInfo forceFinish)
+        // dup; call capture; stloc local: the value native computed stays on the stack for native's own branch.
+        private static CodeInstruction[] Keep(MethodInfo capture, LocalBuilder local) => new[]
+        {
+            new CodeInstruction(OpCodes.Dup), new CodeInstruction(OpCodes.Call, capture), new CodeInstruction(OpCodes.Stloc, local)
+        };
+
+        internal static IEnumerable<CodeInstruction> TurnBased(IEnumerable<CodeInstruction> source, ILGenerator generator, MethodInfo capture,
+            MethodInfo forceFinish)
         {
             var code = source.ToList();
             var finishes = Sites(code, ForceFinishForTurnBasedToken);
@@ -173,16 +151,18 @@ namespace KingmakerMountedCombat.Integration
             var test = tests[0];
             Require(code[test + 1].opcode == OpCodes.Ldloc_S && (code[test + 2].opcode == OpCodes.Brtrue || code[test + 2].opcode == OpCodes.Brtrue_S) &&
                 Sites(code, CanActToken).Count(i => i < test) == 1, "canAct is tested before the cooldown slot");
-            var insert = new[] { new CodeInstruction(OpCodes.Ldarg_1), new CodeInstruction(OpCodes.Call, capture) };
-            insert[0].labels.AddRange(code[test].labels);
+            var canAct = generator.DeclareLocal(typeof(int));
+            Replace(code[site], forceFinish);
+            code.Insert(site, new CodeInstruction(OpCodes.Ldloc, canAct));
+            var keep = Keep(capture, canAct);
+            keep[0].labels.AddRange(code[test].labels);
             code[test].labels.Clear();
-            code.InsertRange(test, insert);
-            Replace(code[site + insert.Length], forceFinish);
+            code.InsertRange(test, keep);
             return code;
         }
 
-        internal static IEnumerable<CodeInstruction> Tick(IEnumerable<CodeInstruction> source, MethodInfo begin, MethodInfo captureShouldBeInterrupted,
-            MethodInfo stateSite, MethodInfo asSoonAsPossible, MethodInfo captureCanAct, MethodInfo runningSite)
+        internal static IEnumerable<CodeInstruction> Tick(IEnumerable<CodeInstruction> source, ILGenerator generator, MethodInfo begin,
+            MethodInfo captureShouldBeInterrupted, MethodInfo stateSite, MethodInfo asSoonAsPossible, MethodInfo captureCanAct, MethodInfo runningSite)
         {
             var code = source.ToList();
             var should = Sites(code, ShouldBeInterruptedToken);
@@ -199,12 +179,16 @@ namespace KingmakerMountedCombat.Integration
             Require(code[should[0] + 1].operand is Label shouldTarget && stateEntry.Contains(shouldTarget), "ShouldBeInterrupted reaches the state site");
             Require((code[canAct[0] + 1].opcode == OpCodes.Brtrue_S || code[canAct[0] + 1].opcode == OpCodes.Brtrue) &&
                 code[canAct[0] + 1].labels.Count == 0, "the running CanAct branches");
-            Replace(code[interrupts[0]], stateSite);
-            Replace(code[interrupts[1]], asSoonAsPossible);
-            Replace(code[interrupts[2]], runningSite);
+            var shouldObservation = generator.DeclareLocal(typeof(int));
+            var canActObservation = generator.DeclareLocal(typeof(int));
             // Highest index first, so every earlier site keeps its index.
-            code.InsertRange(canAct[0] + 1, new[] { new CodeInstruction(OpCodes.Ldarg_1), new CodeInstruction(OpCodes.Call, captureCanAct) });
-            code.InsertRange(should[0] + 1, new[] { new CodeInstruction(OpCodes.Ldarg_1), new CodeInstruction(OpCodes.Call, captureShouldBeInterrupted) });
+            Replace(code[interrupts[2]], runningSite);
+            code.Insert(interrupts[2], new CodeInstruction(OpCodes.Ldloc, canActObservation));
+            code.InsertRange(canAct[0] + 1, Keep(captureCanAct, canActObservation));
+            Replace(code[interrupts[1]], asSoonAsPossible);
+            Replace(code[interrupts[0]], stateSite);
+            code.Insert(interrupts[0], new CodeInstruction(OpCodes.Ldloc, shouldObservation));
+            code.InsertRange(should[0] + 1, Keep(captureShouldBeInterrupted, shouldObservation));
             code.Insert(should[0], new CodeInstruction(OpCodes.Call, begin));
             return code;
         }
