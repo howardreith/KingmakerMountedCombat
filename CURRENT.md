@@ -1,3 +1,33 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 CLOSEOUT — M04 DESTINATION-MARKER OWNERSHIP: ENGINEERING COMPLETE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint3-closeout` (draft PR stacked on `codex/kmc-known-issues-sprint4`, PR #48), from
+the accepted Sprint 4 head `14f1b474`. Read the [closeout](docs/KNOWN-ISSUES-SPRINT3-CLOSEOUT.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **M04:** engineering investigation complete; all identified product marker defects repaired. The original incident
+  is not attributable; native and manual verification remain.
+- **New repairs (`c64c695f`):**
+  - The mount's door approach no longer asks for a marker (a native door click shows none).
+  - The native cannot-attack click approach a mounted rider was given (`ClickUnitHandler.OnClick`'s one `UnitMoveTo`)
+    goes to the mount through the ground-order lifecycle. Before, it stayed on the rider with its marker visible,
+    under later orders too.
+- **Audit:**
+  - The native pointer contract is pinned.
+  - All nineteen native creators of marker-capable commands are classified.
+  - The complete product inventory has seven play sites, none of which asks for a marker except through the native
+    order it reroutes.
+- **Observation:** `MountedMarkerOwnershipPolicy` classifies each pair's pointers. One observer line is written per
+  anomaly transition, contained, and cleared at boundaries.
+- **Checks:**
+  - Fast PASS 11/0 (budget `known-issues-sprint3-closeout`; the first run's failure is preserved).
+  - Components 1375/0; marker ownership contract 13/0 (accepted Sprint 4 build 7/6); physical mover pace 27/0.
+  - Kingmaker assembly contracts 815/0.
+  - Six closure mutations, each caught.
+  - Product-build commit `bae082b0`, DLL SHA-256 `b0333fe5…85db9ab7`, MVID `255b54bb-…`.
+- **Sprint 3 engineering is closed.** S01 and T04–T08 keep their dispositions. Sprint 5 was not started.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 813d00a1: R10 SCENE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
