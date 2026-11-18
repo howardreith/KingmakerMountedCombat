@@ -5,13 +5,17 @@ Branch `codex/kmc-known-issues-sprint3-closeout` (draft PR targeting `codex/kmc-
 this closeout after review.
 
 - **State:** M04 closed as engineering complete (two closeout repairs, full path inventory, bounded observation).
-  Fast PASS 11/0. Native NOT RUN.
+  Review of `b1a88b4e` (R1–R3) addressed in `cdfbe509`. Fast PASS 13/0 (0.59 min). Native NOT RUN.
 - **Rules:**
   - Every product-built `UnitMoveTo` or `UnitAreaTransition` must be in the inventory pinned by
     `Test-MarkerOwnershipContracts.ps1`. A new one that asks for a marker fails it.
   - A pair operation's delegated move asks for no marker.
   - A native order that a mounted rider cannot walk goes through the ground-order lifecycle, or is refused. It is
     never hidden or completed.
+  - Such routing is bound to the exact native call site that runs the order (a transpiler on that one `Run`), never
+    to a frame or a flag. The original command object is what the mount runs, recognised by identity
+    (`IsPairPlayerOrder`), never a copy.
+  - A pointer placement is recorded only from the `AddPointer` call itself.
   - The marker observer writes on anomaly transitions only, contained, with no strong references.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
 

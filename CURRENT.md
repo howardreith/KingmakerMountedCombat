@@ -6,24 +6,31 @@ the accepted Sprint 4 head `14f1b474`. Read the [closeout](docs/KNOWN-ISSUES-SPR
 
 - **M04:** engineering investigation complete; all identified product marker defects repaired. The original incident
   is not attributable; native and manual verification remain.
-- **New repairs (`c64c695f`):**
+- **New repairs (`c64c695f`, corrected by `cdfbe509` after the review of `b1a88b4e`):**
   - The mount's door approach no longer asks for a marker (a native door click shows none).
   - The native cannot-attack click approach a mounted rider was given (`ClickUnitHandler.OnClick`'s one `UnitMoveTo`)
     goes to the mount through the ground-order lifecycle. Before, it stayed on the rider with its marker visible,
     under later orders too.
+  - Its authority is the one native call site: a transpiler replaces only that `Run`. The first version's frame-scoped
+    flag is withdrawn: it authorised unrelated, nested, post-throw and other-pair rider moves.
+  - The mount runs the original native command, never `CreatedByPlayer`, recognised by identity in the ground order.
+    The first version's six-field copy is withdrawn: its native equivalence was never established, and it forced
+    `CreatedByPlayer` true.
+  - Placements are recorded at `AddPointer` itself. The first version's inference from a visible pointer after
+    `OnMovementStarted` is withdrawn.
 - **Audit:**
   - The native pointer contract is pinned.
   - All nineteen native creators of marker-capable commands are classified.
-  - The complete product inventory has seven play sites, none of which asks for a marker except through the native
-    order it reroutes.
+  - The complete product inventory has six play sites, none of which asks for a marker. The click-approach routing
+    builds no command.
 - **Observation:** `MountedMarkerOwnershipPolicy` classifies each pair's pointers. One observer line is written per
   anomaly transition, contained, and cleared at boundaries.
 - **Checks:**
-  - Fast PASS 11/0 (budget `known-issues-sprint3-closeout`; the first run's failure is preserved).
-  - Components 1375/0; marker ownership contract 13/0 (accepted Sprint 4 build 7/6); physical mover pace 27/0.
+  - Fast PASS 13/0 (0.59 min) (budget `known-issues-sprint3-closeout`).
+  - Components 1385/0; marker ownership contract 18/0 (reviewed `b1a88b4e` build 10/8, accepted Sprint 4 build 10/8).
   - Kingmaker assembly contracts 815/0.
-  - Six closure mutations, each caught.
-  - Product-build commit `bae082b0`, DLL SHA-256 `b0333fe5…85db9ab7`, MVID `255b54bb-…`.
+  - Six closure and eleven review mutations, each caught.
+  - Product-build commit `cdfbe509`, DLL SHA-256 `f584c1c6e0678a9447a6082552dda57c5fcc4a95e475430c20fb5a93210f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439`.
 - **Sprint 3 engineering is closed.** S01 and T04–T08 keep their dispositions. Sprint 5 was not started.
 - **Native:** NOT RUN. Nothing was launched, staged or installed.
 - **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.

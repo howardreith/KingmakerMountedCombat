@@ -4,6 +4,12 @@ This closeout completes Sprint 3's remaining item, **M04** (an extra or stale gr
 It is offline engineering work only: nothing was launched, staged or installed, and nothing here is native gameplay
 evidence. Sprint 5 was not started.
 
+**Review of `b1a88b4e` (R1–R3), same day.** The owner's review found three remaining defects in repair (4) and the
+placement record. All three are corrected (`cdfbe509`); see "Review of b1a88b4e" below. Three claims of the first
+closeout version are withdrawn there: that a frame-scoped click flag proved which command was the native cannot-attack
+approach, that the replacement order was native-equivalent, and that a visible pointer after `OnMovementStarted` proved
+a placement.
+
 ## Identity
 
 | Item | Value |
@@ -11,8 +17,9 @@ evidence. Sprint 5 was not started.
 | Base | `14f1b474c9967eb4f6d02a1541403c741ca95dbb`, the accepted Sprint 4 head (product build `03685720`) |
 | Branch and worktree | `codex/kmc-known-issues-sprint3-closeout`, `worktrees/known-issues-sprint3-closeout` |
 | Draft PR target | `codex/kmc-known-issues-sprint4` (PR #48), so the PR shows only this closeout |
-| Commits | `c64c695f`: the product correction, observation, tests and new contract. `bae082b0`: a contract pin follows the prefix's new shape (the product-build commit). Then the records commit carrying this file, which is the branch head |
-| Product DLL (clean Release build of `bae082b0`) | SHA-256 `b0333fe5e75c284c985f8e77427001816da4cf799f47f937cbe9969f85db9ab7`, MVID `255b54bb-5762-47d5-90a0-14303f51d4b9`; frozen copy `artifacts/known-issues-sprint3-closeout/head-bae082b0/` |
+| Commits | `c64c695f`: the product correction, observation, tests and new contract. `bae082b0`: a contract pin follows the prefix's new shape. `b1a88b4e`: the first records commit (reviewed head). `cdfbe509`: review of `b1a88b4e`, R1–R3 (the product-build commit). `826f5120`: the contract pins each registration's exact hooks. Then the records commit carrying this version, which is the branch head |
+| Product DLL (clean Release build of `cdfbe509`) | SHA-256 `f584c1c6e0678a9447a6082552dda57c5fcc4a95e475430c20fb5a93210f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439`; frozen copy `artifacts/known-issues-sprint3-closeout/head-cdfbe509/` |
+| Reviewed DLL (`b1a88b4e`, product build `bae082b0`) | SHA-256 `b0333fe5e75c284c985f8e77427001816da4cf799f47f937cbe9969f85db9ab7`, MVID `255b54bb-5762-47d5-90a0-14303f51d4b9`; frozen copy `artifacts/known-issues-sprint3-closeout/head-bae082b0/` |
 | Base DLL (accepted Sprint 4 build) | SHA-256 `7ce8f88a99aaa74d142e6835590d3051a9a48ce984589090b9407eb01efd59c8`, MVID `efdc12b6-0098-4027-ad49-f8c8f33851bc`; frozen as `artifacts/known-issues-sprint3-closeout/base-14f1b474/` |
 | Preserved | PRs #45–#48, their branches, the main checkout and every other worktree are untouched |
 
@@ -21,7 +28,7 @@ evidence. Sprint 5 was not started.
 | Question | Answer |
 |---|---|
 | Marker defects established by source | Four. Sprint 3 found two: (1) the carried entrance showed the rider's marker beside the mount's; (2) the scene regroup walk asked for a marker. The closeout found two more: (3) the mount's door approach asked for a marker that a native door click never shows; (4) the native cannot-attack click approach left a mounted rider holding an order it can never walk, with its marker visible until something replaced the order. |
-| Repaired | All four, offline: (1) and (2) by Sprint 3, (3) and (4) by this closeout (`c64c695f`). |
+| Repaired | All four, offline: (1) and (2) by Sprint 3, (3) and (4) by this closeout (`c64c695f`; (4) corrected after review by `cdfbe509`: call-site authority, the original native command). |
 | Another defect found by the closeout | Yes: (3) and (4) above. |
 | The original incident | **Not attributable.** Its log and context are unavailable, and none of the four paths can be tied to it. Before 0.2.5, (1) and (3) were reachable by ordinary play, and (4) requires a rider that cannot attack (for example under Serenity). |
 | Product paths left unclassified | None. Every product-built marker-capable command and every native creator that can reach a mounted rider is classified below. |
@@ -77,7 +84,8 @@ pinned.
 ## Product marker-path inventory
 
 Compiled product IL inventory, pinned. The play sites are every product-built marker-capable command outside the
-`Diagnostics` namespace. The diagnostic sites are reached only by the runtime automation host, which exists only when
+`Diagnostics` namespace: six since the review, because the click-approach routing builds no command (it runs the native
+one). The diagnostic sites are reached only by the runtime automation host, which exists only when
 the game is launched with its command line. Fifteen diagnostic sites exist and are not play paths.
 
 | Path | Command holder | Physical mover | Requested by | Marker requested | Pointer key | Ended or replaced by | Rider and mount both marker-visible? | Old pointer shown for a new command? | Correction or native behaviour |
@@ -89,7 +97,7 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
 | Trap, loot and other carried interactions | Rider (native interaction), mount (`MountedDoorApproachMove` via `MountedCarriedApproach`) | Mount | Player | No | — | The interaction | No | No | Native rule: an interaction is not marked |
 | Attack approach (pair attack) | Mount (`UnitMoveTo`) | Mount | Pair operation | No | — | The attack command | No | No | As built |
 | Spell approach | Rider (`UnitUseAbility`) | — | Player | No (not a `UnitMoveTo`) | — | The cast | No | No | Native rule |
-| Cannot-attack enemy click | Was the rider (`UnitMoveTo`, never walkable); now the mount | Mount | Player | Yes (native), now on the mount | Mount | Arrival, Stop, replacement | No | No | **Closeout repair (4)** |
+| Cannot-attack enemy click | Was the rider (`UnitMoveTo`, never walkable); now the mount, which runs the original native command | Mount | Player | Yes (native) | Mount | Arrival, Stop, replacement | No | No | **Closeout repair (4)**, authority bound to the one native call site |
 | Camp approach | Free units | Units | Native | No (`MoveParty`) | — | Native | No | No | Pairs suspended first |
 | Scene staging | Free rider (scene command) | Rider | Scene | Native (no placement in Cutscene mode) | Rider | The scene's `OnStop` | No: the pair is handed off | Native | Native |
 | Scene regroup walk | Mount | Mount | Pair restoration | No | — | Arrival or deadline | No | No | Sprint 3 repair (2) |
@@ -115,19 +123,19 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
   - A mounted rider's stock agent is off, so the rider cannot walk it, yet that agent plans it.
   - Native therefore placed and showed the rider's marker, and the order lived until something replaced it.
   - The pair's later routed orders go to the mount, so the rider's marker stayed visible under them.
-- **Correction:**
-  - A frame-bounded scope marks the native unit click: opened by its prefix when native proceeds, closed by its
-    registered postfix.
-  - Inside it, `UnitCommandRunPrefix` (after the scene check, before the pair's command gates) asks
-    `RerouteRiderClickApproach`.
-  - `MountedDestinationMarkerPolicy.RoutesRiderClickApproach` decides: mounted pair, the rider's own commands, an exact
-    `UnitMoveTo`, no AI action, inside the click, not simulated.
-  - The order then goes through the existing ground-order lifecycle: `GroundCommandPrefix` (admission and routing), a
-    player-created `UnitMoveTo` with the native move's approach radius and marker request on the routed unit, then
-    `GroundCommandPostfix` in a `finally`.
-  - The rider's copy is refused.
+- **Correction (as corrected after review, `cdfbe509`):**
+  - A transpiler replaces exactly one instruction of the installed `OnClick`: the `UnitCommands.Run` whose argument is
+    the local the `UnitMoveTo` construction is stored in. It calls `ClickApproachRun` with that call's own container and
+    command. Every other `Run`, including the loot and interact `Run`s, and every other instruction are unchanged.
+  - `MountedDestinationMarkerPolicy.RoutesRiderClickApproach` decides: a mounted pair, the rider's own commands, an
+    exact `UnitMoveTo`, no AI action, at that call site, not simulated, and no scene active or holding the rider.
+  - The hostile-click observation is bound to the command, as the rider's own `Run` would have bound it.
+  - The ground-order lifecycle runs: `GroundCommandPrefix` (admission and routing), then the open order's identity of
+    this command, then the mount's `Run` of **the original command object**, then `GroundCommandPostfix` in a
+    `finally`.
+  - The rider's `Run` of it never happens.
   - If admission refuses, nothing runs and native feedback stands. If routing keeps the order on the rider, native
-    runs it unchanged.
+    runs it unchanged. A fault falls back to native `Run` only while the command has not been given to another unit.
 
 ### What was not done
 
@@ -146,9 +154,14 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
     bound), `RiderHeldWhileMountMoves`, and `InternalMoveRequestsMarker`.
 - **Pair rule:** a mounted pair's rider never shows a marker of its own; otherwise the pair's state is the mount's.
   Unmounted units are each their own mover.
-- **Placement record:** a postfix on `OnMovementStarted` records, with a `WeakReference`, the command each placement
-  that ran was made for. The prefix reports through `__state` whether it skipped the placement; skipped and preview
-  placements are not recorded.
+- **Placement record (as corrected after review):** a postfix on native `ClickPointerManager.AddPointer`
+  (06002D62) records the command that qualifies at that placement in `MountedPointerPlacementLedger` (a
+  `ConditionalWeakTable` keyed by unit, holding a `WeakReference`). A placement native declines (`OnMovementStarted`
+  without `AddPointer`) records nothing, so a pointer still showing where an earlier command put it is
+  `PlacedForEarlierCommand` once the bound passes. A preview goes to `AddPreviewPointer` and is never recorded.
+- **Unordered moves:** a qualifying command counts as unordered only if it is not a pair player order
+  (`IsPairPlayerOrder`), so the routed native click approach, which native never marks `CreatedByPlayer`, is not
+  reported as `InternalMoveRequestsMarker`.
 - **The observer line:** `MountedExplorationObserver` evaluates each mounted pair at its existing 4 Hz, in Default mode
   (exploration and real-time combat), and writes a line only on an anomaly transition. It writes once per pair,
   generation, class and the identities of the commands keeping the pointers visible. The line holds:
@@ -174,6 +187,20 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
 
 ## Validation (budget `known-issues-sprint3-closeout`)
 
+### After the review of `b1a88b4e` (the current state)
+
+| Check | Result |
+|---|---|
+| Clean Release build of `cdfbe509` (outputs removed first) | PASS; identity above (log `12-clean-release-build-review.log`) |
+| Components | 1385/0 (1375 at `b1a88b4e`; +10 review regressions in `MountedClickApproachAuthorityTests`) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-MarkerOwnershipContracts.ps1` (18 checks) | 18/0 (log `13-marker-contracts-review.log`). Reviewed build `b1a88b4e`: 10/8, and accepted Sprint 4 build: 10/8, each failing every product check written for R1–R3 (logs `13b-`, `13c-`; with the contract before its hook pin, `09-`, `10-`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3-closeout`, focused: marker ownership, physical mover pace, continuous drive, command slot, native input semantics, post-load view readiness, persistence, world ownership, scene placement, Candlemere | PASS 13/0 (0.59 min) (log `14-fast-tier-review.log`); budget spent 2.32 of 90 minutes over 3 entries |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `15-assembly-contracts-review.log`) |
+| Review mutations, each in a disposable detached worktree with its own binaries, the contract run on each mutant DLL (logs `11b-`, `11c-`) | The first run's contract never executed (it resolved its environment from the disposable worktree), so its CAUGHT marks for X7–X13 were vacuous; that log is kept as `11-review-mutations-INVALID-contract-not-run.log`. In the valid run X12 (the record postfix also registered on `OnMovementStarted`) survived, because the contract only required the expected hook names; the contract now pins each registration's complete hook list (`826f5120`) and the same mutant binary (MVID `bf084d67…`) is caught (`11c-`). Mutations: X7 authority outside the call site. X8 the transpiler replacing another `Run`. X9 the order's identity not cleared. X10 `GroundCommandPostfix` outside a `finally`. X11 a `CreatedByPlayer` copy instead of the original. X12 and X12b the record taken after `OnMovementStarted` or inferred from a visible pointer. X13 identity not recognised. X14 the policy ignoring the call site. X15 the policy ignoring scene ownership. X16 the ledger keeping the first command. Each is caught; see the log for which test or contract part |
+
+### The first closeout version (`b1a88b4e`, preserved)
+
 | Check | Result |
 |---|---|
 | `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint3-closeout`, focused: marker ownership, physical mover pace, continuous drive, post-load view readiness, persistence, world ownership, scene placement, Candlemere | First run: FAIL at `Test-PhysicalMoverPaceContracts.ps1` (log `04-fast-tier.log`, preserved), because its pin looked up the placement prefix by its old shape. After `bae082b0`: TIER FAST PASS=11 FAIL=0, 0.74 min; budget spent 1.73 of 90 minutes over 2 entries |
@@ -192,12 +219,106 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
 
 | Kind | What |
 |---|---|
-| Production code executed offline | `MountedDestinationMarkerPolicy` (routing decision, constants), `MountedMarkerOwnershipPolicy`, `CommandRouter`, `MountedPlayerMoveWatch` and the Sprint 3 entrance policies (component tests); the compiled decisions (contract) |
-| Installed native methods executed detached | None in this closeout |
-| Installed IL inspected | The pointer manager, placement and visibility, the nineteen creators, the unit click, the scene stop, and the controllability rule (whole-assembly scans where stated) |
+| Production code executed offline | `MountedDestinationMarkerPolicy` (routing decision, constants), `MountedMarkerOwnershipPolicy`, `MountedPointerPlacementLedger`, `CommandRouter`, `MountedPlayerMoveWatch`, `ObservedPlayerAttackRequest` and the Sprint 3 entrance policies (component tests); the compiled decisions and ledger, and the product's cannot-attack transpiler run against the installed `OnClick` IL (contract) |
+| Installed native methods executed detached | The installed `UnitMoveTo(Vector3, float)` constructor (the state it leaves is the complete configured state of the cannot-attack command) |
+| Installed IL inspected | The pointer manager, placement (`AddPointer` and `AddPreviewPointer`) and visibility, the nineteen creators, the unit click and the complete setup of its cannot-attack command up to its `Run`, `UnitCommands.Run`, the scene stop, and the controllability rule (whole-assembly scans where stated); the existing native-input contract pins that native reads `CreatedByPlayer` only for movement acceleration |
 | Represented pointer and command behaviour | The marker test model (one pointer per unit, the native visibility rule, plan completion) |
-| Modelled orchestration | The click, door and routing sequences in the model |
+| Modelled orchestration | The click, door and routing sequences in the model; the call-site and frame-scope authorities, nested and throwing clicks, two pairs, the ground-order lifecycle, and `OnMovementStarted` with and without `AddPointer` (`MountedClickApproachAuthorityTests`) |
 | Native gameplay | None; not run |
+
+## Review of b1a88b4e: R1–R3
+
+### Withdrawn claims of the first version
+
+- **A frame-scoped click flag proves exact command ownership.** It does not. While it was open, any eligible
+  `UnitMoveTo` run on a mounted rider qualified, including:
+  - an unrelated synchronous move from a click subscriber or another patch;
+  - a move issued after an inner click closed the flag under an outer one;
+  - a move issued after a throwing click left the flag open for the rest of its frame;
+  - another pair's order in the same click stack.
+- **The replacement order is native-equivalent.** It was not established. It copied six values and forced
+  `CreatedByPlayer` true, which native never sets on this command. Native reads `CreatedByPlayer` only for movement
+  acceleration, so the copy was accelerated out of combat where the native order is not. The hostile-click observation
+  also stayed on the original, which never ran.
+- **`OnMovementStarted` plus a visible pointer proves `AddPointer` ran.** It does not. Native can decline the
+  placement while an older pointer stays visible, so the old record attributed that pointer to the new command and hid
+  `PlacedForEarlierCommand`.
+
+### R1 — the command-ownership mechanism
+
+The authority is the exact native call site; nothing is stored.
+
+- **Native call site:** the transpiler replaces only the `Run` of the click command's local in the installed `OnClick`.
+  Running it against the installed IL changes exactly one of 343 instructions, index 250.
+- **Exact command:** that call's own argument. In `OnClick` the local holds a `UnitMoveTo` only from its one
+  construction; its other sources are the cast and attack factories, which build only `UnitUseAbility` and `UnitAttack`.
+- **Pair owner and generation:** the owner of the call's own container. That container must be the mounted rider's.
+  The generation is captured before admission and must be unchanged, with the pair still mounted, before the mount runs.
+- **Exact rider command container:** reference equality with the rider's own `Commands`.
+- **One-time consumption:** the hook runs once per native call and acts on its own argument only.
+- **Nested clicks:** each invocation of `OnClick` has its own call and argument, so an inner click cannot reach an
+  outer one's.
+- **Exception safety and boundaries:** nothing is held, so nothing survives a throw, a world replacement or a pair
+  boundary. The ground order's identity of the command lives only between `GroundCommandPrefix` and
+  `GroundCommandPostfix` (in a `finally`), and the controller's boundary also clears it.
+
+Before and after (modelled orchestration with the production decisions; `MountedClickApproachAuthorityTests`):
+
+| Case | `b1a88b4e` (frame scope) | Corrected (call site) |
+|---|---|---|
+| Exact command C | Routed, but as a copy | C itself routed once, initialised once on the mount; the rider's `Run` never happens; one marker |
+| Unrelated synchronous U before C | U rerouted | U native on the rider; C routed once |
+| Nested clicks | The inner click closed the scope; the outer C1 stayed on the rider with its marker | C1 and C2 each routed to their own pair |
+| Throwing click | A later rider move in the frame was rerouted | Nothing routed; the thrown click's command never became live |
+| Another pair, unrelated selected unit | The other pair's order was rerouted | Untouched; the companion's own approach is native |
+| Controls (simulated, native gate before the branch, AI, subclass, unmounted, scene, ground/entrance/door/trap/loot/scene paths) | Native | Native |
+
+### R2 — the native command setup, and reuse
+
+- **Installed IL, from construction to `Run`:**
+  - `new UnitMoveTo(targetUnit.EntityData.Position, targetUnit.Corpulence * 1.1)` is stored in the click command's
+    local.
+  - Nothing reads or configures that local until `UnitCommands.Run(local)`: no field, property or call.
+  - In between, `OnAttackRequested(unit, targetUnit)` is raised from a closure that holds no command.
+  - `ManualTarget` is set after the `Run`; the transpiler leaves it unchanged.
+  - Native marks the loot and interact commands it runs elsewhere in `OnClick` `CreatedByPlayer`, never this one.
+- **Installed constructor, run detached:** the configured state is complete:
+  - a point target, `ApproachRadius` = corpulence × 1.1, `MaxApproachRadius` 1000000, cooldown ignored;
+  - `ShowTargetMarker` true, `CreatedByPlayer` false, `Type` Move;
+  - every other field at its default: `Orientation`, `MovementDelay`, `SpeedLimit`, `MovementType` Normal, `Roaming`,
+    `AiAction`, `Executor`, `ForcedPath`, `DontInterruptInTurnBasedMode`.
+- **Disposition: the original object is reused, and no copier exists.** The proofs:
+  - Nothing initialises or attaches it before the hook, because the local is untouched until the `Run`.
+  - `UnitCommands.Run` initialises it once: `Executor` is null, so it calls `Init` with the mount. The rider's `Run`
+    never happens, and the fault fallback runs native `Run` only while `Executor` is null or is the rider.
+  - The mount's `Run` cannot re-enter the routing, because only the `OnClick` call site reaches it and the command-run
+    prefix does not.
+  - Admission and completion stay balanced, because `GroundCommandPostfix` is in a `finally`.
+  - The watched ground move, the turn-based admission and the path-end bridge are this command, recognised by
+    identity, because native leaves its `CreatedByPlayer` false.
+- **Product readers of `CreatedByPlayer`:** each one that can see the mount's move asks `IsPairPlayerOrder`
+  (`CreatedByPlayer`, the open order's identity, or the watched explicit move). That covers the watch binding,
+  turn-based admission, the path-end bridge, door admission, container-order travel, the carried-request player test
+  and the marker observer.
+  - The watch was bound only for `CreatedByPlayer` moves before, so no other command changes.
+  - Group-pace classification keeps `CreatedByPlayer`, because native accelerates no cannot-attack approach.
+- **No action, budget or preparation is touched:** the mount's native `Run` spends what native spends, and the routing
+  makes no cooldown, preparation or refund call.
+
+### R3 — the placement-record seam
+
+- **Seam:** a postfix on the exact `ClickPointerManager.AddPointer(Vector3 clickEventWorldPosition, UnitEntityData
+  unit)` (06002D62). Its only caller is `OnMovementStarted`, which uses `AddPreviewPointer` for a preview.
+- **What it records:** the unit, the command that qualifies at that placement (weakly), and the frame.
+- **Before and after:**
+
+| Case | `b1a88b4e` | Corrected |
+|---|---|---|
+| `AddPointer` runs for B | Recorded B | Recorded B |
+| Native declines `AddPointer`; A's pointer stays visible for B | Recorded B; B's pointer counted as its own | Record stays A; `PlacementPending` inside 3 s, then `PlacedForEarlierCommand` |
+| Preview | Not recorded | Not recorded |
+| B placed at A's exact coordinates | Recorded B | Recorded B |
+| Missing pointer, cleanup boundary, unit or command no longer referenced | Not recorded; reset clears; nothing kept alive | The same (production ledger, collected after GC) |
 
 ## Remaining native evidence limits
 
@@ -207,5 +328,8 @@ the game is launched with its command line. Fifteen diagnostic sites exist and a
   - a mounted door click;
   - a cannot-attack enemy click while mounted.
 - The anomaly line has not been written by a real session.
+- The call-site transpiler has been run against the installed IL offline only, not applied in a running game.
+- No native session has shown the original command walking on the mount, or the turn-based admission or path-end
+  bridge accepting it.
 - The owner's original incident remains unattributed.
 - The designer `RunCommand` limitation is unexercised.
