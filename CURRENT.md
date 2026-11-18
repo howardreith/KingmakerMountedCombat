@@ -1,3 +1,25 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 5 — MOUNTED RANGED MOVEMENT: R01 NOT REPRODUCIBLE, R02 DOCUMENTED; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint5` (draft PR stacked on `codex/kmc-known-issues-sprint3-closeout`, PR #49), from
+the accepted closeout head `af5b2bc7`. Read the [Sprint 5 handoff](docs/KNOWN-ISSUES-SPRINT5-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R01:** closed as not reproducible.
+  - Under the qualified paired authority a mounted pair's mount never moves on its own initiative slot while carrying
+    its rider: the candidate is suppressed, the only split is the dismount's, a combat mount forms only on the rider's
+    turn, and a retained partner is ended.
+  - A mount's own `native:` record holds only riderless or pre-mount travel, and stays excluded.
+  - No separate-initiative authority was built (it would reintroduce the riderless-travel defect). No product change.
+- **R02:** intentional adaptation documented: the exact rule (3.25 s, −4 / −2, per roll, turn-based only, steps and
+  Charge excluded, no Run, no midpoint, no Mythic, native floor, log labels). README clarified (steps and Charge).
+- **Checks:**
+  - Fast PASS 8/0 (0.82 min) (budget `known-issues-sprint5`).
+  - Components 1387/0; ranged movement contract 5/0; Kingmaker assembly contracts 815/0.
+  - Mutations S1–S11, each caught.
+  - Product build unchanged at `cdfbe509`, DLL SHA-256 `f584c1c6e0678a9447a6082552dda57c5fcc4a95e475430c20fb5a93210f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 6 was not started.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 6.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 CLOSEOUT — M04 DESTINATION-MARKER OWNERSHIP: ENGINEERING COMPLETE; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint3-closeout` (draft PR stacked on `codex/kmc-known-issues-sprint4`, PR #48), from
