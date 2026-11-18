@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B AND FA533E97) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
+# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97 AND DFFD3E72) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the
 accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md) and the
@@ -28,13 +28,20 @@ accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-
   - R19: only the innermost open native-Run token on the ending command's container decides a replacement;
   - R20: the retired scheduler records fault state, the typed cause and the interrupt before any diagnostic; the
     terminal handler and charge cleanup are no-throw.
+- **Review of `dffd3e72` (`0e1125fa`):**
+  - R21 (review-discovered lifecycle defect): the native terminal facts live in the native invocation's own locals;
+    no static owns a command (the only static is one scalar ban term);
+  - R22: the retired scheduler's lease release is deferred, as designed. A failed terminal observation faults and
+    interrupts at once; the lease stays only while the finished command holds the mount's native slot, and the next
+    update after slot removal, relationship cleanup or disposal releases it. The earlier "always releases" wording is
+    withdrawn.
 - **Checks:**
   - Fast PASS 13/0 (budget `known-issues-sprint6`).
-  - Components 1397/0; stall-repair probe 217/0. The Sprint 5 build fails 16 Sprint 6 sections; the reviewed
-    `ce9b1383` build fails the 6 new sections.
+  - Components 1398/0; stall-repair probe 249/0. The Sprint 5 build fails 18 Sprint 6 sections; the reviewed
+    `1d0054f0` build fails the 3 R21 sections.
   - Kingmaker assembly contracts 815/0.
-  - Mutation campaign Q1–Q21: 21/21 caught (serial, isolated).
-  - Product-build commit `1d0054f0`, DLL SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`.
+  - Mutation campaign Q1–Q24: 24/24 caught (serial, isolated).
+  - Product-build commit `0e1125fa`, DLL SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`.
 - **Sprint 5 note:** the `MountedRangedMovementTests.Lifetime` wording now describes a temporary applicability gate,
   not a dismount and reattachment. Ranged-movement behaviour is unchanged.
 - **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 7 was not started.

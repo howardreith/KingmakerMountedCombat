@@ -4,8 +4,8 @@ Branch `codex/kmc-known-issues-sprint6` (draft PR targeting `codex/kmc-known-iss
 CURRENT.md, docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 7 bases on this branch
 after review.
 
-- **State:** A01, A02, A04 and A05 corrected offline; A03 settled; reviews of `2ae4cc8b` (`ce9b1383`) and
-  `fa533e97` (`1d0054f0`) corrected. Fast PASS 13/0; mutations Q1–Q21 all caught. Native NOT RUN.
+- **State:** A01, A02, A04 and A05 corrected offline; A03 settled; reviews of `2ae4cc8b` (`ce9b1383`), `fa533e97`
+  (`1d0054f0`) and `dffd3e72` (`0e1125fa`) corrected. Fast PASS 13/0; mutations Q1–Q24 all caught. Native NOT RUN.
 - **Rules:**
   - A same-target click continues a retained intent only while its request has not dispatched or its dispatched
     command is live (`IsFreshRequestAfterTerminal`). Never bind freshness to frames or timers.
@@ -21,6 +21,11 @@ after review.
     pair ownership to close a scope. Only the innermost open token on the ending command's container decides.
   - State transitions precede diagnostics, and diagnostics are contained, in the terminal handler, charge cleanup and
     the retired scheduler.
+  - Native terminal facts live in the native invocation's own locals (`dup; capture; stloc` / `ldloc` into the terminal
+    hook). Never hold a command, actor or controller in a static or thread-static field to classify a terminal.
+  - The retired scheduler's lease release is deferred: a failed terminal observation faults and interrupts but does
+    not archive; the next update after native slot removal, relationship cleanup or disposal releases it. Do not
+    describe it as always released.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 7.
 
 # Known issues remediation, Sprint 5 — review checkpoint (2026-11-17)

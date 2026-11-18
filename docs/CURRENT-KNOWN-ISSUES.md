@@ -428,8 +428,12 @@ Record: [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md). No product change: 
 
 ## Sprint 6 — attack requests and terminals (reconciled 2026-11-18)
 
-Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the reviews of `2ae4cc8b` and `fa533e97`.
-Product-build commit `1d0054f0`, clean Release DLL SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`.
+Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the reviews of `2ae4cc8b`, `fa533e97` and
+`dffd3e72`. Product-build commit `0e1125fa`, clean Release DLL SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`.
+- **Review-discovered lifecycle defect (R21), corrected:** the native terminal captures of `1d0054f0` rooted commands in
+  strong thread-static fields. The facts now live in the native invocation's own locals, and no static owns a command.
+- **R22:** the retired scheduler's lease release is deferred to an owned cleanup (next update after native slot
+  removal, relationship cleanup, disposal) and now proven; the earlier "always releases" wording was withdrawn.
 
 | ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|

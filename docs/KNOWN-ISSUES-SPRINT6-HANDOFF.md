@@ -21,6 +21,17 @@ Q1–Q21 campaign ran on the new head. Three claims of the `fa533e97` checkpoint
 - that every scheduler and terminal logger failure was contained (the scheduler logged before its fault state, cause
   and interrupt; the charge release catches and the legacy scheduler observation could still throw out of the terminal).
 
+**Corrected again after the review of `dffd3e72` (2026-11-18).** The owner review accepted A01–A05, R18's exact native
+branches, R19's innermost Run token, R20's terminal-handler containment and Q1–Q21 for that candidate. Two findings
+remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 campaign ran on the new head.
+- **R21 (a review-discovered lifecycle defect):** the native terminal captures of `1d0054f0` kept the exact command in
+  strong thread-static fields. These were cleared only when their own terminal site ran, so a healthy tick, an ordinary
+  completion or an exception left an old command (and through it its relationship, actors and controller callback)
+  rooted. Withdrawn: "captures are keyed to the exact command of this tick" as a sufficient lifetime rule.
+- **R22:** the `dffd3e72` records said the scheduler's `FailAndInterrupt` archives and "always" releases the lease.
+  That was wrong. A failed terminal observation faults and interrupts at once, and the lease release is deferred to an
+  owned cleanup. The lifecycle is unchanged; the records now state it exactly.
+
 ## Identity
 
 | Item | Value |
@@ -28,10 +39,11 @@ Q1–Q21 campaign ran on the new head. Three claims of the `fa533e97` checkpoint
 | Base | `772543e19bfbe827c175c22fb8b3c81dbb1b44e8`, the accepted Sprint 5 checkpoint (draft PR #50, unmerged; verified as the live branch head, parent not advanced). Accepted product build `cdfbe509` |
 | Branch and worktree | `codex/kmc-known-issues-sprint6`, `worktrees/known-issues-sprint6` |
 | Draft PR target and parent | `codex/kmc-known-issues-sprint5` (parent PR #50) |
-| Commits | `3472914d`: A01, A02, A04, the first A05 rule, Sprint 5 test wording, tests and the probe extension. `221d748b`: the automatic-only pin. `2ae4cc8b`: the first records (reviewed head). `ce9b1383`: review of `2ae4cc8b`, findings 1–5. `fa533e97`: its records (reviewed head). `1d0054f0`: review of `fa533e97`, R18–R20 (the product-build commit). Then the records commit carrying this version, which is the branch head |
-| Product-build commit | `1d0054f0` |
-| Product DLL (clean Release build of `1d0054f0`) | SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`; frozen copy `artifacts/known-issues-sprint6/review2/head-1d0054f0/` |
-| Reviewed DLL (`ce9b1383`, head `fa533e97`) | SHA-256 `3e20be03d913c2e7ba1a6a207b8076f018c08b0af6d54b72416d948009b666ae`, MVID `6b47a46b-8fad-40ac-824e-5a3c50f23ba1`; frozen copy `artifacts/known-issues-sprint6/review/head-ce9b1383/` |
+| Commits | `3472914d`: A01, A02, A04, the first A05 rule, Sprint 5 test wording, tests and the probe extension. `221d748b`: the automatic-only pin. `2ae4cc8b`: the first records (reviewed head). `ce9b1383`: review of `2ae4cc8b`, findings 1–5. `fa533e97`: its records. `1d0054f0`: review of `fa533e97`, R18–R20. `dffd3e72`: its records (reviewed head). `0e1125fa`: review of `dffd3e72`, R21 and the R22 proofs (the product-build commit). Then the records commit carrying this version, which is the branch head |
+| Product-build commit | `0e1125fa` |
+| Product DLL (clean Release build of `0e1125fa`) | SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`; frozen copy `artifacts/known-issues-sprint6/review3/head-0e1125fa/` |
+| Reviewed DLL (`1d0054f0`, head `dffd3e72`) | SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`; frozen copy `artifacts/known-issues-sprint6/review2/head-1d0054f0/` |
+| Earlier reviewed DLL (`ce9b1383`, head `fa533e97`) | SHA-256 `3e20be03d913c2e7ba1a6a207b8076f018c08b0af6d54b72416d948009b666ae`, MVID `6b47a46b-8fad-40ac-824e-5a3c50f23ba1`; frozen copy `artifacts/known-issues-sprint6/review/head-ce9b1383/` |
 | First reviewed DLL (`2ae4cc8b`) | SHA-256 `27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`; frozen copy `artifacts/known-issues-sprint6/head/` |
 | Budget | `known-issues-sprint6` |
 | Preserved | PRs #45–#50, their branches, the main checkout and every other worktree |
@@ -181,19 +193,19 @@ Q1–Q21 campaign ran on the new head. Three claims of the `fa533e97` checkpoint
   - player real-time orders keep their native wait;
   - a player `CanNotAttack` order follows native's interruption, unchanged.
 
-## Validation (budget `known-issues-sprint6`), head after the review of `fa533e97`
+## Validation (budget `known-issues-sprint6`), head after the review of `dffd3e72`
 
 | Check | Result |
 |---|---|
-| Clean Release build of `1d0054f0` | PASS; identity above (log `review2/05-clean-release-build.log`). The Fast tier's own rebuild is byte-identical |
-| Components | 1397/0 (1387 at the base). Sprint 6 tests cover A01 freshness, shapes and counter; A02 causes and the durable block; R18 native branches; A04 admission; the A05 rule; native Run scopes and the R19 innermost rule |
+| Clean Release build of `0e1125fa` | PASS; identity above (log `review3/05-clean-release-build.log`). The Fast tier's own rebuild is byte-identical |
+| Components | 1398/0 (1387 at the base); adds the R21 frame-owned observation test |
 | `Validate-Source.ps1` | 151/0 |
-| `Test-MountedAttackStallRepair.ps1` (compiled controller, detached) | **217/0** on the candidate (log `review2/02-stall-probe-head-1d0054f0.log`) |
-| The same probe on the reviewed `ce9b1383` build | the 6 new sections fail: R18 ×3, R19, R20 ×2 (log `review2/04-stall-probe-reviewed-ce9b1383.log`) |
-| The same probe on the accepted Sprint 5 build | 16 Sprint 6 sections fail (log `review2/04b-stall-probe-sprint5-cdfbe509.log`) |
-| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint6` | PASS 13/0 (0.57 min; budget 1.75 of 90 min over 3 entries) (log `review2/06-fast-tier.log`) |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `review2/07-assembly-contracts.log`) |
-| Mutation campaign Q1–Q21 | **21/21 caught** (log `review2/03-mutation-campaign.log`; see "Review of fa533e97") |
+| `Test-MountedAttackStallRepair.ps1` (compiled controller, detached) | **249/0** on the candidate (log `review3/02-stall-probe-head-0e1125fa.log`); includes the native-terminal structural and in-process Harmony12 patch-construction checks |
+| The same probe on the reviewed `1d0054f0` build | 3 sections fail: the R21 structural contract (`turnBasedCommand:UnitCommand`), the frame-local transpiler check, and the hook chain. R22 passes, because its lifecycle is unchanged (log `review3/04-stall-probe-reviewed-1d0054f0.log`) |
+| The same probe on the accepted Sprint 5 build | 18 Sprint 6 sections fail (log `review3/04b-stall-probe-sprint5-cdfbe509.log`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint6` | PASS 13/0 (0.56 min; budget 2.32 of 90 min over 4 entries) (log `review3/06-fast-tier.log`) |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `review3/07-assembly-contracts.log`) |
+| Mutation campaign Q1–Q24 | **24/24 caught** (log `review3/03-mutation-campaign.log`; see "Review of dffd3e72") |
 
 - **Fast tier coverage:** stall repair, command slot, native input semantics, turn-completion wrappers, paired
   activation (including its 40 detached patch constructions), marker ownership, ranged movement, continuous drive,
@@ -202,8 +214,10 @@ Q1–Q21 campaign ran on the new head. Three claims of the `fa533e97` checkpoint
 - **Stale harnesses, identical at the base:**
   - `Test-OrdinaryAttackControls.ps1` needs a live deployment helper that is absent here;
   - `Test-Finalize6CompletionReevaluation.ps1` needs a native run ID.
-- **The `ce9b1383` validation:** components 1395/0, probe 136/0, Fast 13/0, contracts 815/0, Q1–Q17 17/17. It is
-  preserved under `artifacts/known-issues-sprint6/review/`.
+- **Earlier validation, preserved:**
+  - `1d0054f0` (under `artifacts/known-issues-sprint6/review2/`): components 1397/0, probe 217/0, Fast 13/0, contracts
+    815/0, Q1–Q21 21/21;
+  - `ce9b1383` (under `review/`): components 1395/0, probe 136/0, Q1–Q17 17/17.
 
 ## Evidence kinds
 
@@ -406,9 +420,10 @@ delegatedMoveStarts)` is true only when all of these hold:
   - the value of the running `get_CanAct`.
 - **Wrapped terminal calls:** the first `ForceFinishForTurnBased` and the three `Interrupt` sites are replaced by hooks.
   Each hook records a typed `MountedNativeTerminalBranch` on a pair command, then calls the same native method.
-- **Captures are keyed to the exact command of this tick;** a capture for another command never applies.
+- **Capture lifetime (corrected by R21, below):** the captured facts live in locals of the native invocation itself. At
+  `1d0054f0` they were strong thread-static fields keyed to the command, which is the R21 defect.
 - **Recording is contained** and never stands between native and its own end.
-- **Reset:** the captures are reset at mod disable and disposal.
+- **Reset:** the one remaining static scalar is reset at mod disable and disposal.
 
 **Branches, and the block read at the branch:**
 
@@ -476,14 +491,15 @@ delegatedMoveStarts)` is true only when all of these hold:
 
 ### No-throw scheduler and terminal (R20)
 
-- **Scheduler `FailAndInterrupt`:** in order:
+- **Scheduler `FailAndInterrupt`** (corrected wording, review of `dffd3e72`), in order:
   1. it records the scheduler's fault state;
   2. `InterruptExactCommand` records the exact command's typed `Fault` cause and interrupts it;
-  3. `FailInterruptAndDispose` archives;
-  4. only then a best-effort log.
+  3. then a best-effort log.
 
-  The lease is held locally across the re-entrant terminal. A re-entrant `Complete` is refused on the faulted lease.
-- **Scheduler `ArchiveAndDispose`:** contains its final observation and its snapshot, and always releases the lease.
+  It does not archive. `FailInterruptAndDispose` is `FailAndInterrupt` followed by `ArchiveAndDispose`. The lease is held
+  locally across the re-entrant terminal, and a re-entrant `Complete` is refused on the faulted lease.
+- **Scheduler `ArchiveAndDispose`:** contains its final observation and its snapshot, and releases the lease whenever it
+  runs. When it runs is the lease lifecycle under R22.
 - **Other scheduler logging:** registration logging and the exact-command interrupt catch are contained. No scheduler
   method calls the logger directly.
 - **`HandleCommandTerminal`:**
@@ -500,8 +516,8 @@ delegatedMoveStarts)` is true only when all of these hold:
   owns the finished command.
 - **Probe, with a logger that throws on every call:**
   - **scheduler paths that run:** `Update` exception, terminal-observation exception, `AbandonRegistration`, `Dispose`
-    and relationship cleanup. Each records `Fault` or `Cancelled` on the exact command, interrupts it and archives;
-    nothing escapes.
+    and relationship cleanup. Each records `Fault` or `Cancelled` on the exact command and interrupts it, and nothing
+    escapes. Every path except the terminal-observation failure also archives; that one defers its release (R22).
   - **scheduler paths pinned on compiled IL instead:** `ConfirmAdmission` and `TryExtendNativeEligibility` read the
     Unity frame clock, which a detached process cannot run. Their IL routes to the fault boundary with no direct
     logger call, and the boundary's call order is fault, typed interrupt, then a contained diagnostic.
@@ -520,7 +536,7 @@ delegatedMoveStarts)` is true only when all of these hold:
 | Reviewed `ce9b1383` (head `fa533e97`) | the 6 new sections fail, 144 pass. Examples: case 4 reads "Royon cannot act right now (dazed)"; R19 case 3 is labelled replaced; a throwing logger escapes `Update` and the charge terminal |
 | Accepted Sprint 5 `cdfbe509` | 16 Sprint 6 sections fail |
 
-### Mutation campaign Q1–Q21 (serial; log `review2/03-mutation-campaign.log`)
+### Mutation campaign Q1–Q21 for `1d0054f0` (serial; log `review2/03-mutation-campaign.log`; superseded by Q1–Q24 below)
 
 - **Setup:** the candidate DLL is frozen separately. Each mutant gets its own disposable worktree and its own
   `MSBuild /m:1 /nodeReuse:false /p:UseSharedCompilation=false`, both removed before the next mutant. The probe
@@ -552,6 +568,135 @@ delegatedMoveStarts)` is true only when all of these hold:
 | Q20 | a scheduler logger failure before its cause and interrupt | probe (R20 scheduler) |
 | Q21 | an uncontained charge release log in the terminal | probe (R20 terminal) |
 
+## Review of dffd3e72: R21 and R22 (corrected)
+
+### R21 — native terminal facts own no command (review-discovered lifecycle defect)
+
+**Defect at `1d0054f0`.**
+- `NativeCommandTerminalBranches` held `turnBasedCommand`, `stateCommand` and `runningCommand` as strong
+  `[ThreadStatic] UnitCommand` fields.
+- Each was cleared only by its own wrapped terminal site, so a healthy tick, an ordinary completion, the untouched
+  second force-finish or an exception left the command rooted. Through the command, its relationship, actors, target
+  and controller callback were rooted too.
+
+**Architecture (frame-owned facts; stronger than a weak table).**
+- **No static command references at all.** Every native call stays in place.
+- **Capture:** right after native computes a value, the transpiled method duplicates it, encodes it with a
+  command-free capture call (`CaptureCanAct`, `CaptureShouldBeInterrupted`) and stores the code in a new local of that
+  native invocation (`dup; call; stloc`). Native's own branch then consumes the original value unchanged.
+- **Terminal:** the wrapped terminal call receives that local (`ldloc`; `TurnBasedForceFinish`,
+  `InterruptAtStateSite`, `InterruptAtRunningSite`).
+- **Lifetime:** the facts live and die with the native frame, are owned by its own command (`ldarg.1`), and cannot be
+  read by another command, a nested invocation or a later tick.
+- **Channels:** three independent locals:
+  - the turn-based `canAct` in `TickCommandTurnBased`;
+  - the `ShouldBeInterrupted` observation in `TickCommand`;
+  - the running `CanAct` observation in `TickCommand`.
+- **The only static** is one `[ThreadStatic] bool`, the value of `UnitAttack`'s CanNotAttack term. It is reset by
+  `BeginShouldBeInterrupted` immediately before native's own `get_ShouldBeInterrupted`, and read and cleared by
+  `CaptureShouldBeInterrupted` immediately after. `Reset` clears it at mod disable and disposal.
+- **Domain:** `MountedNativeTerminalObservation` holds the codes. `NotObserved` (0) is the zero default of a fresh native
+  local and is never a capability. `MountedNativeTerminalBranchPolicy` decides each site from the code.
+- **Nothing else added:** no saved state, gameplay state, action mutation, timer or frame-based ownership.
+
+**Structural proof (compiled contract in the probe).**
+- **The rule:** every declared static or thread-static field of `NativeCommandTerminalBranches` is checked. A field type
+  owns a command if it is or can hold a `UnitCommand` directly, or through any instance field, array element, generic
+  argument, delegate, interface or abstract type.
+- **Weak references are non-owning.**
+- **Result:** the only static is `attackBanTerm:Boolean`. The rule is checked against strong holders (`List<UnitCommand>`,
+  `object`, `Action`) and non-owners (`WeakReference`, `bool`).
+- **Capture hooks:** none of the four (`CaptureCanAct`, `CaptureShouldBeInterrupted`, `BeginShouldBeInterrupted`,
+  `AttackBanTerm`) takes or returns a command.
+- **Transpiled IL:** run on the installed IL, it keeps each value in its own local (the two `TickCommand` locals are
+  distinct) and loads only that local before its own terminal site.
+
+**Required cases** (components: production policy; probe: compiled hooks, real objects, GC):
+
+| # | Case | Result |
+|---|---|---|
+| 1–3 | Healthy turn-based capture with no force-finish; `ShouldBeInterrupted == false`; running `CanAct == true` | command and controller collectable after references drop |
+| 4 | Ordinary completion without a wrapped terminal | collectable |
+| 5 | Exact turn-based capability terminal | `TurnBasedCannotAct` with the exact block |
+| 6 | Exact state-site attack ban (through the patched native getter) | `AttackBanned` |
+| 7 | Exact running cannot-act | `RunningCannotAct` |
+| 8 | A value another invocation captured | never applied (`TurnBasedNoCommandSlot`) |
+| 9 | Nested same-command and different-command observations | each terminal reads only its own frame's value; an inner observation cannot make an outer command capability-caused |
+| 10 | Exception between capture and terminal | collectable; a later terminal without its own observation is not a capability |
+| 11 | A terminal followed by no later command | command and controller collectable |
+| 12 | Disable or disposal | every static returns to its idle value |
+
+- **Stale ban term:** a ban term left by an unrelated reading of the native getter never counts for a later command's
+  dead-target reading.
+- **GC control:** a command deliberately held by a static list stays alive, so the collection check is not vacuous.
+
+### R22 — the retired scheduler's lease lifecycle (deferred release, intentional)
+
+- **Rule (deferred release, as designed; unchanged by this review):**
+  - **`ObserveTerminal` (success or failure) never archives.** The finished command still holds the mount's native slot
+    when its terminal is observed. A failed observation runs `FailAndInterrupt`: the fault state, the exact command's
+    typed `Fault` (it is already finished on this path), the interrupt bookkeeping, and a contained log.
+  - **The lease stays only while its exact finished command still holds the mount's native slot.** While it stays, the
+    registration gate refuses ("another scheduler lease is active").
+  - **The next `Update` releases it,** once native (or the controller's own finished-command sweep, which runs between
+    the controller's two scheduler updates in the same frame) has removed the command from the slot. An `Update` whose
+    own observation fails releases it through its fault boundary (`FailInterruptAndDispose`).
+  - **Relationship cleanup releases it** (the `Dismounting` subscriber, for every trigger including `LoadRequested` and
+    `AreaUnloading`), and so does disposal (mod disable, pair or world disposal).
+  - **Immediate release** applies only to `FailInterruptAndDispose` paths: admission and eligibility invariants, an
+    update failure, an abandoned registration. Disposal and relationship cleanup interrupt and archive.
+
+**Why deferred is the design:**
+- `ObserveTerminal` runs inside the command's own end, when native still holds it in the mount's slot.
+- The success path never archives there either.
+- The controller's `Update` runs the scheduler `Update`, then its own finished-command sweep
+  (`RemoveFinishedAndUpdateQueue` for that exact command), then the scheduler `Update` again. That second update archives
+  on slot removal.
+
+Changing it to immediate release was not justified.
+
+**Evidence** (probe, compiled scheduler; a logger that throws on every call throughout):
+
+| # | Case | Result |
+|---|---|---|
+| 1 | A failed terminal observation | the lease is faulted and kept while the finished command holds the slot; it is never retained permanently, because an update that cannot observe releases it through its fault boundary |
+| 2 | Update while the slot is held; update after native slot removal | kept; then archived and released (state `Disposed`), with the scheduler still usable |
+| 3 | Relationship cleanup (`LoadRequested`, `AreaUnloading`, `Manual`) | released |
+| 4 | Disable or world/pair disposal | released |
+| 5 | A later legal registration | the gate reads the lease exactly once and refuses only while it is set (IL), and the lease is null after every release above. Full registration needs the live turn-based game and is not executed detached |
+| 6 | Foreign commands (observe, abandon, interrupt) | the lease and its state are untouched |
+| 7 | A throwing logger | nothing escapes and every result above holds |
+| 8 | A load or world boundary | released by relationship cleanup (load and area triggers) and disposal, its declared cleanup owners |
+
+- **Engine substitution:** the scheduler's own resource and frame observation (`RefreshLifecycleAndResources`) reads
+  the Unity frame clock and cannot be compiled outside Unity, so it cannot be patched either.
+  - A probe-scoped Harmony12 transpiler on its callers (`Update`, `ObserveTerminal`, `ArchiveAndDispose`) replaces that
+    one call with a substitute that does nothing, or fails on demand; the substitute is removed afterwards.
+  - The rest of those methods is the product's own.
+
+### Before and after
+
+| Build | Probe |
+|---|---|
+| Candidate `0e1125fa` | 249/0 |
+| Reviewed `1d0054f0` (head `dffd3e72`) | 3 sections fail (R21 structural, frame-local transpiler, hook chain); R22 passes (lifecycle unchanged) |
+| Accepted Sprint 5 `cdfbe509` | 18 Sprint 6 sections fail |
+
+### Mutation campaign Q1–Q24 (serial; log `review3/03-mutation-campaign.log`)
+
+- **Setup:** as before. The candidate is frozen separately. Each mutant gets its own disposable worktree and
+  `MSBuild /m:1 /nodeReuse:false /p:UseSharedCompilation=false`, removed before the next. Each probe run prints the
+  mutant's path and MVID.
+- **Anchors:** all 26 anchors occur exactly once in `0e1125fa`.
+- **Q1–Q21:** as in the table above, all caught again. Components caught Q1–Q5, Q7, Q10, Q11, Q13, Q15 and Q19; the
+  probe caught the rest.
+
+| ID | Mutation | Caught by |
+|---|---|---|
+| Q22 | a native terminal capture holds a strong thread-static `UnitCommand` | probe (R21 structural contract) |
+| Q23 | a healthy reading leaves a stale ban term that affects a later command | probe (R21 stale ban term) |
+| Q24 | the deferred release on native slot removal removed | probe (R22 case 2) |
+
 ## Remaining native evidence limits
 
 - **Not observed in play:**
@@ -564,8 +709,11 @@ delegatedMoveStarts)` is true only when all of these hold:
 - **Native branch values:** native `UnitState.CanAct` and native `ForceFinish` cannot run detached. The running
   cannot-act and turn-based branches are exercised from the value native would pass and from the recorded branch.
   The attack-ban term was exercised through the patched native getter.
-- **Retired scheduler:** `ConfirmAdmission` and eligibility failures are pinned on compiled IL only, not executed.
+- **Retired scheduler:**
+  - `ConfirmAdmission` and eligibility failures are pinned on compiled IL only, not executed.
+  - The R22 lifecycle ran with the scheduler's own observation substituted.
+  - A full later registration needs the live turn-based game.
 - **Not changed:** `NativeMountedControlService` falls back to the combat controller's last feedback for a rejected
   mounted-control dispatch that has no refusal of its own. That shared surface is not a Sprint 6 terminal path.
 
-Sprint 7 was not started. This is the corrected Sprint 6 review checkpoint after the review of `fa533e97`.
+Sprint 7 was not started. This is the corrected Sprint 6 review checkpoint after the review of `dffd3e72`.
