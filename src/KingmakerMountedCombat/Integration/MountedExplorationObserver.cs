@@ -25,6 +25,11 @@ namespace KingmakerMountedCombat.Integration
     // order and the ordinary party members' orders were accelerated at any sample, their highest limits, the mount's
     // limit and gait at the end, and the selection the order came from. Times are unscaled seconds (pauses included).
     // It reads only; it writes no command, position, agent, marker or native state.
+    // Known issues M04 closeout: in Default mode (exploration and real-time combat) each mounted pair's destination
+    // pointers are classified (MountedMarkerOwnershipPolicy) at the same 4 Hz, and only an anomaly transition is written:
+    // once per pair, generation, class and the identities of the commands that keep the pointers visible. Every
+    // pointer-table entry of the rider and the mount is in that line, with the commands and the last recorded placement.
+    // A failing observation or logger of one pair never stops another, and nothing is retained across a boundary.
     internal sealed class MountedExplorationObserver
     {
         private const float StallSeconds = 2.5f;
@@ -47,9 +52,17 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception error)
             {
                 // A diagnostic must never affect play; drop its state and stay quiet.
-                legs.Clear(); reported.Clear(); started.Clear();
-                logger.Exception("Mounted exploration observer stopped one sample", error);
+                legs.Clear(); reported.Clear(); started.Clear(); ClearMarkers();
+                try { logger.Exception("Mounted exploration observer stopped one sample", error); } catch (Exception) { }
             }
+        }
+
+        // Disable and disposal: no unit, command or placement survives.
+        internal void Reset()
+        {
+            legs.Clear(); reported.Clear(); started.Clear(); ClearMarkers();
+            MountedDestinationMarkers.ResetPlacements();
+            MountedNativeUnitClickScope.Close();
         }
 
         private void Observe()
@@ -58,24 +71,134 @@ namespace KingmakerMountedCombat.Integration
             var now = Time.unscaledTime;
             if (now < nextSample) return;
             nextSample = now + SampleSeconds;
-            if (game?.Player == null || game.CurrentMode != GameModeType.Default || game.Player.IsInCombat ||
+            if (game?.Player == null || game.CurrentMode != GameModeType.Default ||
                 LoadingProcess.Instance == null || LoadingProcess.Instance.IsLoadingInProcess)
             {
                 // Review finding 7: no command or unit reference outlives ordinary play of this world.
-                legs.Clear(); reported.Clear(); started.Clear();
+                legs.Clear(); reported.Clear(); started.Clear(); ClearMarkers();
                 return;
             }
+            var exploration = !game.Player.IsInCombat;
+            if (!exploration) { legs.Clear(); reported.Clear(); started.Clear(); }
             var live = new HashSet<GameMountedRelationshipService>();
+            var qualifying = new HashSet<UnitCommand>();
             foreach (var pair in world.Pairs)
             {
                 var relationship = pair.Relationship;
                 if (relationship.State != RelationshipState.Mounted || relationship.Rider == null || relationship.Mount == null) continue;
                 live.Add(relationship);
+                try { ObserveMarkers(relationship, game, now, qualifying); }
+                catch (Exception error)
+                {
+                    markerReported.Remove(relationship);
+                    try { logger.Exception("Mounted marker observation skipped one pair", error); } catch (Exception) { }
+                }
+                if (!exploration) continue;
                 ObserveRiderCommands(relationship.Rider, relationship.Mount, now);
                 ObserveMountLeg(relationship, game, now);
             }
             foreach (var stale in legs.Keys.Where(k => !live.Contains(k)).ToArray()) legs.Remove(stale);
+            foreach (var stale in markerReported.Keys.Where(k => !live.Contains(k)).ToArray()) markerReported.Remove(stale);
+            foreach (var gone in markerSeen.Keys.Where(c => !qualifying.Contains(c)).ToArray()) markerSeen.Remove(gone);
             if (reported.Count > 256) reported.Clear();
+        }
+
+        // ---- known issues M04 closeout: destination-marker ownership --------------------------------------------------
+        private readonly Dictionary<UnitCommand, float> markerSeen = new Dictionary<UnitCommand, float>();
+        private readonly Dictionary<GameMountedRelationshipService, string> markerReported = new Dictionary<GameMountedRelationshipService, string>();
+        internal long MarkerAnomalyReportCount { get; private set; }
+
+        private void ClearMarkers()
+        {
+            markerSeen.Clear();
+            markerReported.Clear();
+        }
+
+        private void ObserveMarkers(GameMountedRelationshipService relationship, Game game, float now, HashSet<UnitCommand> qualifying)
+        {
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var moving = mount.View?.MovementAgent != null && mount.View.MovementAgent.IsReallyMoving;
+            var riderCommand = MountedDestinationMarkers.QualifyingCommand(rider);
+            var mountCommand = MountedDestinationMarkers.QualifyingCommand(mount);
+            var riderFacts = Facts(rider, riderCommand, now, moving, qualifying, out var riderText);
+            var mountFacts = Facts(mount, mountCommand, now, moving, qualifying, out var mountText);
+            var pairClass = MountedMarkerOwnershipPolicy.ClassifyPair(true, riderFacts, mountFacts);
+            if (!MountedMarkerOwnershipPolicy.IsAnomaly(pairClass))
+            {
+                markerReported.Remove(relationship);
+                return;
+            }
+            var key = relationship.MountedPairGeneration + ":" + pairClass + ":" + Identity(riderCommand) + ":" + Identity(mountCommand);
+            if (markerReported.TryGetValue(relationship, out var last) && last == key) return;
+            markerReported[relationship] = key;
+            MarkerAnomalyReportCount++;
+            var selected = game.UI?.SelectionManager?.SelectedUnits;
+            try
+            {
+                logger.Info("Mounted marker observation: " + pairClass + "; disposition=" + Disposition(pairClass, riderCommand) +
+                    "; riderId=" + rider.UniqueId + "; mountId=" + mount.UniqueId + "; generation=" + relationship.MountedPairGeneration +
+                    "; rider={" + riderText + ";class=" + MountedMarkerOwnershipPolicy.ClassifyUnit(riderFacts) + "}; mount={" + mountText +
+                    ";class=" + MountedMarkerOwnershipPolicy.ClassifyUnit(mountFacts) + "}; area=" + (game.CurrentlyLoadedArea?.name ?? "none") +
+                    "; mode=" + game.CurrentMode + "; combat=" + game.Player.IsInCombat + "; selected=" +
+                    (selected == null ? "unknown" : (selected.Contains(rider) ? "rider" : "") + (selected.Contains(mount) ? "+mount" : "") + "/" + selected.Count) +
+                    "; mountMoving=" + moving + ".");
+            }
+            catch (Exception) { }
+        }
+
+        // One unit: its pointer-table entry, the command the native rule shows it for, and the last placement recorded.
+        private MountedMarkerFacts Facts(UnitEntityData unit, UnitCommand command, float now, bool moving, HashSet<UnitCommand> qualifying, out string text)
+        {
+            var marks = Kingmaker.UI.ClickPointerManager.Instance?.UnitMarks;
+            Kingmaker.UI.ClickPointerPrefab pointer = null;
+            var entry = marks != null && marks.TryGetValue(unit, out pointer);
+            var alive = entry && pointer != null;
+            if (command != null)
+            {
+                qualifying.Add(command);
+                if (!markerSeen.ContainsKey(command)) markerSeen[command] = now;
+            }
+            var seen = command != null ? now - markerSeen[command] : 0f;
+            var placed = MountedDestinationMarkers.PlacedFor(unit, command, out var frame);
+            var move = command as UnitMoveTo;
+            var facts = new MountedMarkerFacts
+            {
+                PointerExists = alive,
+                PointerVisible = alive && pointer.IsVisible,
+                QualifyingCommandLive = command != null,
+                QualifyingCommandUnordered = command != null && !command.CreatedByPlayer && command.AiAction == null && !command.Cutscene,
+                PlacedForCurrentCommand = placed,
+                SecondsSinceCommandSeen = seen,
+                Moving = moving
+            };
+            text = "entry=" + entry + ";destroyed=" + (entry && !alive) + ";visible=" + facts.PointerVisible +
+                ";at=" + (alive ? Format(pointer.transform.position) : "none") + ";command=" + (command == null ? "none" :
+                command.GetType().Name + "#" + Identity(command) + ";executor=" + command.Executor?.UniqueId + ";target=" +
+                Format(command.Target?.Point ?? Vector3.zero) + ";finished=" + command.IsFinished + ";createdByPlayer=" + command.CreatedByPlayer +
+                ";marker=" + (move?.ShowTargetMarker ?? true) + ";queued=" + unit.Commands.Queue.Contains(command) + ";cutscene=" + command.Cutscene +
+                ";ai=" + (command.AiAction != null)) + ";placedForCommand=" + placed + ";placementFrame=" + frame + ";seenSeconds=" + Metres(seen);
+            return facts;
+        }
+
+        private static string Identity(UnitCommand command) =>
+            command == null ? "none" : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(command).ToString("x", CultureInfo.InvariantCulture);
+
+        // Where each anomalous class stands after the closeout (the classification is diagnostic; it changes nothing).
+        private static string Disposition(MountedMarkerClass value, UnitCommand riderCommand)
+        {
+            switch (value)
+            {
+                case MountedMarkerClass.DuplicatePairMarkers:
+                case MountedMarkerClass.RiderHeldWhileMountMoves:
+                    return riderCommand != null && riderCommand.Cutscene ? "native: a scene's own command on the seated rider (C01 limit)" :
+                        riderCommand is UnitAreaTransition ? "repaired path expected (carried entrance); unresolved if seen" :
+                        "unresolved: a rider-held order outside the repaired paths";
+                case MountedMarkerClass.InternalMoveRequestsMarker:
+                    return "unresolved: a move no player ordered asks for a marker";
+                default:
+                    return "unresolved";
+            }
         }
 
         private void ObserveRiderCommands(UnitEntityData rider, UnitEntityData mount, float now)
