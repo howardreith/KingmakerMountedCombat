@@ -1124,9 +1124,11 @@ namespace KingmakerMountedCombat.Integration
             var actionContext = ownerIsMount ? MountedCombatActionKind.MountPrimaryNatural : ResolveRiderPrimaryAction();
             var weaponContext = principal.GetFirstWeapon();
             var mountWeaponContext = mount.GetFirstWeapon();
-            if (target != null && target.IsInState && target.Descriptor?.State != null &&
-                target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead && principal.IsEnemy(target) &&
-                ContinuesStockIntent(target, turn, ownerIsMount, rider, mount, weaponContext, mountWeaponContext, (int)actionContext))
+            var click = target != null && target.IsInState && target.Descriptor?.State != null &&
+                target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead && principal.IsEnemy(target)
+                ? ObserveStockClick(target, turn, ownerIsMount, rider, mount, weaponContext, mountWeaponContext, (int)actionContext)
+                : MountedStockClick.NewRequest;
+            if (click == MountedStockClick.Continue)
             {
                 // Consume this exact pair request before UnitCommands.Run can replace its windup/approach.
                 // The stock pointer loop still dispatches every unrelated selected party member.
@@ -1138,7 +1140,6 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
             // Known issues Sprint 6 (A01): a same-target click after the dispatched command ended is a fresh request as well.
-            if (stockIntent.IsFreshRequestAfterTerminal(StockIntentCommandLive)) StockAttackFreshAfterTerminalCount++;
             Cancel("new stock hostile attack");
             stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat(),
                 rider, mount, weaponContext, mountWeaponContext, (int)actionContext);
@@ -1161,11 +1162,13 @@ namespace KingmakerMountedCombat.Integration
 
         // Known issues Sprint 6 (A01): an exact same-target click continues the retained intent only while its request has
         // not dispatched or its dispatched command is still live; otherwise it is a fresh request through the replacement path.
-        private bool ContinuesStockIntent(UnitEntityData target, TurnController turn, bool ownerIsMount, UnitEntityData rider,
+        // Review of 2ae4cc8b (finding 5): only that same request after its command ended is counted as fresh.
+        private MountedStockClick ObserveStockClick(UnitEntityData target, TurnController turn, bool ownerIsMount, UnitEntityData rider,
             UnitEntityData mount, object weapon, object mountWeapon, int action)
         {
-            return stockIntent.CanContinue(target, turn, ownerIsMount, rider, mount, weapon, mountWeapon, action) &&
-                !stockIntent.IsFreshRequestAfterTerminal(StockIntentCommandLive);
+            var click = stockIntent.ClassifyClick(target, turn, ownerIsMount, rider, mount, weapon, mountWeapon, action, StockIntentCommandLive);
+            if (click == MountedStockClick.FreshAfterTerminal) StockAttackFreshAfterTerminalCount++;
+            return click;
         }
 
         // AI-01: the first mounted/unmounted divergence was this boundary. An unmounted unit's brain proposal runs
@@ -1728,19 +1731,27 @@ namespace KingmakerMountedCombat.Integration
             if (decision == MountedQueuedAutomaticRun.RefuseStale)
             {
                 AutomaticQueuedRefusedCount++;
-                command.Interrupt();
+                EndQueuedCommand(command, "stale queued automatic command");
                 return false;
             }
             var rider = relationship.Rider;
             if (TryRetireStockIntent(rider, relationship.Mount, CombatController.IsInTurnBasedCombat()))
             {
                 AutomaticQueuedRefusedCount++;
-                if (!command.IsFinished) command.Interrupt();
+                if (!command.IsFinished) EndQueuedCommand(command, "queued automatic command retired");
                 return false;
             }
             if (AutomaticMovementForbidden(rider)) (command as MountedPairAttackCommand)?.ForbidApproach();
             AutomaticQueuedRunCount++;
             return true;
+        }
+
+        // A queued pair command the controller refuses records its cause like every other owned end.
+        private void EndQueuedCommand(MountedPairSingleAttack command, string reason)
+        {
+            var pair = command as MountedPairAttackCommand;
+            if (pair != null) InterruptOwnedCommand(pair, MountedAttackEndCause.Cancelled, reason);
+            else command.Interrupt();
         }
 
         private void SweepOrphanedAutomaticCommand()
@@ -2252,14 +2263,18 @@ namespace KingmakerMountedCombat.Integration
             });
             // Known issues Sprint 6 (A02): the recorded cause, or a replacement by the native Run it ended inside, decides
             // whether the capability snapshot explains this end. The snapshot itself stays in the outcome for diagnostics.
-            var cause = MountedAttackTerminalCausePolicy.Resolve(outcome.EndCause, EndedInsideReplacingNativeRun(command));
+            var cause = MountedAttackTerminalCausePolicy.Resolve(outcome.EndCause,
+                MountedNativeRunScope.EndedInsideReplacingRun(command.Executor?.Commands, command));
             outcome.EndCause = cause;
-            var capabilityIsCause = MountedAttackTerminalCausePolicy.CapabilityIsCause(terminal, cause,
+            // The recorded causal block (or native's signature on the terminal snapshot); the snapshot itself stays apart.
+            var causalBlock = MountedAttackTerminalCausePolicy.CausalCapability(terminal, cause, outcome.EndCauseCapabilityBlock,
                 outcome.ActorCapabilityBlockAtTerminal, outcome.NativeCommandStarted);
-            // A04: only a genuinely failed automatic approach records its target unreachable for the rider's brain.
+            var capabilityIsCause = causalBlock != MountedActorCapabilityBlock.None;
+            // A05: only a typed, evidenced failed automatic approach records its target unreachable for the rider's brain.
             if (stockIntentOwned && stockIntent.Automatic && MountedAttackTerminalCausePolicy.RecordsAutomaticApproachFailure(true,
                     outcome.ChildAttackStartCount, outcome.NativeRangedTailTermination,
-                    string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal), cause, capabilityIsCause))
+                    string.Equals(outcome.Result, UnitCommand.ResultType.Success.ToString(), StringComparison.Ordinal), cause,
+                    outcome.ApproachRequiredAtStart, outcome.DelegatedMoveStartCount))
             {
                 automaticApproachFailedTarget = stockIntentTarget;
             }
@@ -2269,8 +2284,8 @@ namespace KingmakerMountedCombat.Integration
                 : terminal == MountedAttackTerminalKind.RangedTailDelivered
                     ? "Ranged attacks completed; remaining melee attacks are out of reach."
                 : terminal == MountedAttackTerminalKind.EndedWithoutExecution
-                    ? DescribeUnexecutedTerminal(outcome, cause, capabilityIsCause)
-                : DescribeTerminalFailure(outcome, cause, capabilityIsCause);
+                    ? DescribeUnexecutedTerminal(outcome, cause, causalBlock)
+                : DescribeTerminalFailure(outcome, cause, causalBlock);
             // Native Run writes a successor's manual target right after this interruption, so the charge's own is released now.
             if (command.ChargeMode && ReferenceEquals(chargeOwner?.Command, command))
             {
@@ -2280,7 +2295,7 @@ namespace KingmakerMountedCombat.Integration
             TryLog(() => "Mounted combat command terminal: action=" + command.Action +
                 "; result=" + outcome.Result +
                 "; cause=" + cause + (outcome.EndCauseDetail != null ? "(" + outcome.EndCauseDetail + ")" : string.Empty) +
-                "; capabilityBlock=" + outcome.ActorCapabilityBlockAtTerminal + "; capabilityIsCause=" + capabilityIsCause +
+                "; causalBlock=" + causalBlock + "; terminalBlock=" + outcome.ActorCapabilityBlockAtTerminal + "; capabilityIsCause=" + capabilityIsCause +
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; childAttacks=" + outcome.ChildAttackStartCount +
                 "; repaths=" + outcome.RepathCount +
@@ -2338,35 +2353,6 @@ namespace KingmakerMountedCombat.Integration
             command.Interrupt();
         }
 
-        // The native UnitCommands.Run in progress on one of this pair's actors (opened by its prefix, closed by its
-        // postfix). A pair command that ends inside it, on its own actor, for another command, was replaced by that order.
-        private UnitCommands nativeRunContainer;
-        private UnitCommand nativeRunCommand;
-        private int nativeRunFrame = -1;
-
-        internal void OpenNativeRun(UnitCommands commands, UnitCommand command)
-        {
-            if (disposed || commands == null || nativeRunContainer != null) return;
-            if (commands != relationship.Rider?.Commands && commands != relationship.Mount?.Commands) return;
-            nativeRunContainer = commands;
-            nativeRunCommand = command;
-            nativeRunFrame = Time.frameCount;
-        }
-
-        internal void CloseNativeRun(UnitCommands commands)
-        {
-            if (ReferenceEquals(nativeRunContainer, commands)) { nativeRunContainer = null; nativeRunCommand = null; nativeRunFrame = -1; }
-        }
-
-        private bool EndedInsideReplacingNativeRun(MountedPairAttackCommand command)
-        {
-            return nativeRunContainer != null && command != null && nativeRunFrame == NativeRunFrameNow() &&
-                ReferenceEquals(command.Executor?.Commands, nativeRunContainer) && !ReferenceEquals(nativeRunCommand, command);
-        }
-
-        // Kept apart so the terminal handler never needs the engine clock unless a native Run is open.
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        private static int NativeRunFrameNow() => Time.frameCount;
 
         // Diagnostics never decide a terminal: a failing logger leaves retirement and ownership as they are.
         private void TryLog(Func<string> line)
@@ -2779,7 +2765,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private string DescribeTerminalFailure(MountedPairAttackOutcome outcome, MountedAttackEndCause cause, bool capabilityIsCause)
+        private string DescribeTerminalFailure(MountedPairAttackOutcome outcome, MountedAttackEndCause cause, MountedActorCapabilityBlock causalBlock)
         {
             // Known issues Sprint 6 (A02): an explicit cancellation or replacement is named as such, whatever the actor's
             // state was when it happened; the capability text needs the capability to be the cause.
@@ -2789,10 +2775,10 @@ namespace KingmakerMountedCombat.Integration
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandCancelled };
                 return cancelled;
             }
-            if (capabilityIsCause)
+            if (causalBlock != MountedActorCapabilityBlock.None)
             {
                 LastRejectionCodes = new[] { MountedCombatRejectionCode.ActorCannotAct };
-                return MountedActorCapabilityPolicy.Feedback(outcome.ActionActorName, outcome.ActorCapabilityBlockAtTerminal) +
+                return MountedActorCapabilityPolicy.Feedback(outcome.ActionActorName, causalBlock) +
                     (outcome.NativeCompletedAttackCount > 0 ? " The remaining attacks were not performed." : " The attack was not performed.");
             }
             var reason = outcome?.TerminalReason ?? string.Empty;
@@ -2824,7 +2810,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Native reported Success for a command that executed nothing.
-        private string DescribeUnexecutedTerminal(MountedPairAttackOutcome outcome, MountedAttackEndCause cause, bool capabilityIsCause)
+        private string DescribeUnexecutedTerminal(MountedPairAttackOutcome outcome, MountedAttackEndCause cause, MountedActorCapabilityBlock causalBlock)
         {
             var cancelled = MountedAttackTerminalCausePolicy.CancellationFeedback(cause);
             if (cancelled != null)
@@ -2834,10 +2820,9 @@ namespace KingmakerMountedCombat.Integration
             }
             LastRejectionCodes = new[]
             {
-                capabilityIsCause ? MountedCombatRejectionCode.ActorCannotAct : MountedCombatRejectionCode.WrongActionState
+                causalBlock != MountedActorCapabilityBlock.None ? MountedCombatRejectionCode.ActorCannotAct : MountedCombatRejectionCode.WrongActionState
             };
-            return MountedAttackTerminalPolicy.UnexecutedFeedback(outcome.ActionActorName,
-                capabilityIsCause ? outcome.ActorCapabilityBlockAtTerminal : MountedActorCapabilityBlock.None);
+            return MountedAttackTerminalPolicy.UnexecutedFeedback(outcome.ActionActorName, causalBlock);
         }
 
         private bool TrySuppressPropagatedOverlayWorldClick()

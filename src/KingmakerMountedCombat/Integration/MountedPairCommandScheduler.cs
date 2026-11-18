@@ -488,7 +488,7 @@ namespace KingmakerMountedCombat.Integration
             relationship.Dismounting -= HandleDismounting;
             if (lease != null)
             {
-                InterruptExactCommand("scheduler disposal");
+                InterruptExactCommand("scheduler disposal", MountedAttackEndCause.Cancelled);
                 ArchiveAndDispose("scheduler disposal");
             }
             disposed = true;
@@ -618,7 +618,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 logger.Exception("Paired scheduler faulted closed: " + reason, exception);
             }
-            InterruptExactCommand(reason);
+            InterruptExactCommand(reason, MountedAttackEndCause.Fault);
             lease?.StateMachine.Fault(reason);
         }
 
@@ -633,7 +633,7 @@ namespace KingmakerMountedCombat.Integration
             ArchiveAndDispose(reason);
         }
 
-        private void InterruptExactCommand(string reason)
+        private void InterruptExactCommand(string reason, MountedAttackEndCause cause)
         {
             if (lease == null || interruptingExactCommand)
             {
@@ -650,6 +650,7 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 interruptingExactCommand = true;
+                command.RecordEndCause(cause, reason);
                 command.Interrupt();
             }
             catch (Exception exception)
@@ -814,7 +815,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            InterruptExactCommand("relationship cleanup " + trigger);
+            InterruptExactCommand("relationship cleanup " + trigger, MountedAttackEndCause.Cancelled);
             ArchiveAndDispose("relationship cleanup " + trigger);
         }
 

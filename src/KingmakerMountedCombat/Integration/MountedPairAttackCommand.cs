@@ -86,6 +86,9 @@ namespace KingmakerMountedCombat.Integration
         // Known issues Sprint 6 (A02): why it ended, recorded where it was ended; the controller resolves a native replacement.
         public MountedAttackEndCause EndCause { get; set; }
         public string EndCauseDetail { get; set; }
+        // The exact block read at the command's own capability boundary when that was the recorded cause; the terminal
+        // snapshot (ActorCapabilityBlockAtTerminal) stays a separate, later diagnostic fact.
+        public MountedActorCapabilityBlock EndCauseCapabilityBlock { get; set; }
 
         public bool PairRangeSatisfiedAtStart { get; set; }
 
@@ -242,13 +245,36 @@ namespace KingmakerMountedCombat.Integration
         private bool terminalReported;
         private MountedAttackEndCause endCause;
         private string endCauseDetail;
+        private MountedActorCapabilityBlock endCauseCapabilityBlock;
 
         // Known issues Sprint 6 (A02): the first recorded cause of this command's end stands. Diagnostic text only follows it.
-        internal void RecordEndCause(MountedAttackEndCause cause, string detail)
+        internal void RecordEndCause(MountedAttackEndCause cause, string detail,
+            MountedActorCapabilityBlock capabilityBlock = MountedActorCapabilityBlock.None)
         {
             if (IsFinished || endCause != MountedAttackEndCause.Unrecorded || cause == MountedAttackEndCause.Unrecorded) return;
             endCause = cause;
             endCauseDetail = detail;
+            endCauseCapabilityBlock = cause == MountedAttackEndCause.ActorCapability ? capabilityBlock : MountedActorCapabilityBlock.None;
+        }
+
+        // Review of 2ae4cc8b (finding 1): a failed approach, thrown at the exact movement boundary so the tick's catch can
+        // record ApproachFailed rather than Fault.
+        private sealed class ApproachFailure : InvalidOperationException
+        {
+            internal ApproachFailure(string message) : base(message) { }
+        }
+
+        // Review of 2ae4cc8b (finding 2): the cause and the transaction fault are recorded before any diagnostic, the
+        // logger is contained, and the command still ends.
+        private void EndAfterFault(Exception exception, string phase)
+        {
+            RecordEndCause(exception is ApproachFailure ? MountedAttackEndCause.ApproachFailed : MountedAttackEndCause.Fault,
+                exception.GetType().Name);
+            transaction.Fault(exception.GetType().Name + ": " + exception.Message);
+            try { logger.Exception(phase, exception); }
+            catch (Exception) { }
+            if (IsActed) ForceFinish(ResultType.Fail);
+            else Interrupt();
         }
         private bool approachRequiredAtStart;
         private MountedPairNativeAdmissionState initialNativeAdmissionState;
@@ -459,6 +485,7 @@ namespace KingmakerMountedCombat.Integration
             chargeRevalidationFailureCode = outcome.RejectionCode?.ToString();
             logger.Info("Mounted charge revalidation failed: phase=" + phase +
                 "; reason=" + outcome.Reason + "; code=" + (chargeRevalidationFailureCode ?? "<none>") + ".");
+            RecordEndCause(MountedAttackEndCause.Fault, "charge revalidation at " + phase);
             transaction.Cancel("Charge revalidation at " + phase + ": " + outcome.Reason);
             Interrupt();
             return true;
@@ -506,6 +533,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!chargeMode) return;
             chargeCleanupRequested = true;
+            RecordEndCause(MountedAttackEndCause.Cancelled, "charge cleanup requested");
             if (!transaction.IsTerminal) transaction.Cancel("Charge ownership cleanup requested");
         }
 
@@ -583,7 +611,9 @@ namespace KingmakerMountedCombat.Integration
             chargeRevalidationFailed = true;
             chargeRevalidationFailurePhase = step.ToString();
             chargeRevalidationFailureReason = "Charge transaction order violated: " + chargeSequence.Describe();
-            logger.Info("Mounted charge transaction order violated: " + chargeSequence.Describe());
+            RecordEndCause(MountedAttackEndCause.Fault, "charge transaction order violated");
+            try { logger.Info("Mounted charge transaction order violated: " + chargeSequence.Describe()); }
+            catch (Exception) { }
             if (!transaction.IsTerminal)
             {
                 transaction.Cancel(chargeRevalidationFailureReason);
@@ -823,9 +853,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                logger.Exception("Mounted pair attack start", exception);
-                transaction.Fault(exception.GetType().Name + ": " + exception.Message);
-                Interrupt();
+                EndAfterFault(exception, "Mounted pair attack start");
             }
         }
 
@@ -841,7 +869,12 @@ namespace KingmakerMountedCombat.Integration
                 }
                 if (TimeSinceStart > MaximumElapsedSeconds + approachAllowanceSeconds)
                 {
-                    throw new InvalidOperationException("Mounted pair command exceeded its bounded execution time.");
+                    const string bounded = "Mounted pair command exceeded its bounded execution time.";
+                    // Still approaching after a delegated move began: the approach failed. Any other overrun is a fault.
+                    if (transaction.State == MountedCombatTransactionState.Approaching && delegatedMoveStartCount > 0 &&
+                        transaction.ChildAttackStartCount == 0)
+                        throw new ApproachFailure(bounded);
+                    throw new InvalidOperationException(bounded);
                 }
 
                 if (childAttack == null)
@@ -875,17 +908,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                logger.Exception("Mounted pair attack tick", exception);
-                transaction.Fault(exception.GetType().Name + ": " + exception.Message);
-                RecordEndCause(MountedAttackEndCause.Fault, exception.GetType().Name);
-                if (IsActed)
-                {
-                    ForceFinish(ResultType.Fail);
-                }
-                else
-                {
-                    Interrupt();
-                }
+                EndAfterFault(exception, "Mounted pair attack tick");
             }
         }
 
@@ -984,8 +1007,9 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
 
-                base.OnEnded(raiseEvent);
-                ReportTerminalOnce();
+                // Review of 2ae4cc8b (finding 2): the terminal is delivered even if the native end throws.
+                try { base.OnEnded(raiseEvent); }
+                finally { ReportTerminalOnce(); }
             }
         }
 
@@ -1050,6 +1074,7 @@ namespace KingmakerMountedCombat.Integration
                         (delegatedMove == null ? "<released>" : "<live>") +
                         "; moveSlot=" + (moveSlotAfterRelease == null ? "<empty>" : "<occupied>") +
                         "; queue=" + (mount.Commands == null ? -1 : mount.Commands.Queue.Count) + ".");
+                    RecordEndCause(MountedAttackEndCause.Fault, "charge carrier release unproven");
                     transaction.Cancel(chargeRevalidationFailureReason);
                     Interrupt();
                     return;
@@ -1202,7 +1227,7 @@ namespace KingmakerMountedCombat.Integration
             repathObservations.Add(DescribeRepath(cause) + ";progressing=" + progressing);
             if (!transaction.TryRepath(attackTarget.UniqueId, progressing))
             {
-                throw new InvalidOperationException("Mounted pair command exhausted its bounded repath allowance.");
+                throw new ApproachFailure("Mounted pair command exhausted its bounded repath allowance.");
             }
             StopDelegatedMove(false);
             // A repath release is not the attack release: ownership ends and the approach cycle may
@@ -1418,7 +1443,7 @@ namespace KingmakerMountedCombat.Integration
             var block = MountedActorCapabilityPolicy.ExecutionBlock(NativeActorCapability.Read(actionActor));
             if (block == MountedActorCapabilityBlock.None) return false;
             transaction.Cancel("Action actor cannot attack: " + block);
-            RecordEndCause(MountedAttackEndCause.ActorCapability, block.ToString());
+            RecordEndCause(MountedAttackEndCause.ActorCapability, block.ToString(), block);
             Interrupt();
             return true;
         }
@@ -1603,13 +1628,14 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Runtime.PoseFrameApplied;
         }
 
+        // Review of 2ae4cc8b (finding 2): the terminal callback is always delivered once. A capability reading that fails, a
+        // logger that throws, or an outcome that cannot be fully described leaves a minimal outcome, never no terminal.
         private void ReportTerminalOnce()
         {
             if (terminalReported)
             {
                 return;
             }
-            terminalReported = true;
             var capabilityBlock = MountedActorCapabilityBlock.None;
             string actorName = null;
             try
@@ -1617,8 +1643,41 @@ namespace KingmakerMountedCombat.Integration
                 capabilityBlock = MountedActorCapabilityPolicy.ExecutionBlock(NativeActorCapability.Read(actionActor));
                 actorName = actionActor.CharacterName;
             }
-            catch (Exception exception) { logger.Exception("Mounted pair terminal capability reading", exception); }
-            terminal(this, new MountedPairAttackOutcome
+            catch (Exception exception)
+            {
+                try { logger.Exception("Mounted pair terminal capability reading", exception); }
+                catch (Exception) { }
+            }
+            MountedPairAttackOutcome outcome;
+            try { outcome = DescribeOutcome(capabilityBlock, actorName); }
+            catch (Exception exception)
+            {
+                try { logger.Exception("Mounted pair terminal description", exception); }
+                catch (Exception) { }
+                outcome = new MountedPairAttackOutcome
+                {
+                    Action = action,
+                    TransactionState = transaction?.State.ToString(),
+                    TransactionCompleted = transaction != null && transaction.State == MountedCombatTransactionState.Completed,
+                    NativeCommandStarted = IsStarted,
+                    ActionActorName = actorName,
+                    ActorCapabilityBlockAtTerminal = capabilityBlock,
+                    EndCause = endCause,
+                    EndCauseDetail = endCauseDetail,
+                    EndCauseCapabilityBlock = endCauseCapabilityBlock,
+                    Result = Result.ToString(),
+                    ApproachRequiredAtStart = approachRequiredAtStart,
+                    DelegatedMoveStartCount = delegatedMoveStartCount,
+                    TerminalReason = transaction?.TerminalReason
+                };
+            }
+            terminalReported = true;
+            terminal(this, outcome);
+        }
+
+        private MountedPairAttackOutcome DescribeOutcome(MountedActorCapabilityBlock capabilityBlock, string actorName)
+        {
+            return new MountedPairAttackOutcome
             {
                 Action = action,
                 TransactionState = transaction.State.ToString(),
@@ -1628,6 +1687,7 @@ namespace KingmakerMountedCombat.Integration
                 ActorCapabilityBlockAtTerminal = capabilityBlock,
                 EndCause = endCause,
                 EndCauseDetail = endCauseDetail,
+                EndCauseCapabilityBlock = endCauseCapabilityBlock,
                 // A completed attack needs no explanation; every other terminal records what native saw of its actor.
                 ActorCapabilityAtTerminal = transaction.State == MountedCombatTransactionState.Completed
                     ? null
@@ -1722,7 +1782,7 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
                 AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
-            });
+            };
         }
 
         private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)

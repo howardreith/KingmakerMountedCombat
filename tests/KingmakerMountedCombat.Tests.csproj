@@ -364,6 +364,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroupPacePolicy.cs"><Link>Shared\Domain\MountedGroupPacePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDestinationMarkerPolicy.cs"><Link>Shared\Domain\MountedDestinationMarkerPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPointerPlacementLedger.cs"><Link>Shared\Domain\MountedPointerPlacementLedger.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedNativeRunScopes.cs"><Link>Shared\Domain\MountedNativeRunScopes.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedBoundedFaultReport.cs"><Link>Shared\Domain\MountedBoundedFaultReport.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedContinuousDrivePolicy.cs"><Link>Shared\Domain\MountedContinuousDrivePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCleanupCompletionPolicy.cs"><Link>Shared\Domain\MountedCleanupCompletionPolicy.cs</Link></Compile>

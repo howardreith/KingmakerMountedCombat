@@ -107,7 +107,10 @@ namespace KingmakerMountedCombat.Domain
         // The command faulted.
         Fault,
         // Its target became invalid (died, despawned, changed hostility, became unattackable).
-        TargetInvalid
+        TargetInvalid,
+        // Review of 2ae4cc8b (finding 1): its delegated approach failed at the exact movement boundary (the bounded repath
+        // allowance exhausted, or the bounded time exceeded while still approaching after a delegated move began).
+        ApproachFailed
     }
 
     public static class MountedAttackTerminalCausePolicy
@@ -119,21 +122,28 @@ namespace KingmakerMountedCombat.Domain
             return endedInsideReplacingNativeRun ? MountedAttackEndCause.Replaced : MountedAttackEndCause.Unrecorded;
         }
 
-        // Whether the actor's capability, read when the command ended, is what ended it. Only the command's own boundary
-        // says so outright. With no recorded cause, two installed native signatures do (UnitActionController): an
-        // unstarted turn-based command force-finished with Success and nothing executed, and an interruption of the
-        // executor (always the action actor) for CanNotAttack (UnitAttack.ShouldBeInterrupted, at any time) or for an
-        // UnitState.CanAct term while it was running. A condition present beside any other cause never explains the end.
-        public static bool CapabilityIsCause(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
-            MountedActorCapabilityBlock block, bool nativeCommandStarted)
+        // The capability block that ended the command, or None. A recorded ActorCapability cause carries the exact block read
+        // at the command's own boundary (review of 2ae4cc8b, finding 3): that recorded block is the cause even when the
+        // later terminal snapshot differs or is clear. With no recorded cause, two installed native signatures make the
+        // terminal snapshot causal (UnitActionController): an unstarted turn-based command force-finished with Success and
+        // nothing executed, and an interruption of the executor (always the action actor) for CanNotAttack
+        // (UnitAttack.ShouldBeInterrupted, at any time) or for a UnitState.CanAct term while it was running. A condition
+        // beside any other recorded cause never explains the end.
+        public static MountedActorCapabilityBlock CausalCapability(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
+            MountedActorCapabilityBlock recordedBlock, MountedActorCapabilityBlock terminalBlock, bool nativeCommandStarted)
         {
-            if (block == MountedActorCapabilityBlock.None) return false;
-            if (cause == MountedAttackEndCause.ActorCapability) return true;
-            if (cause != MountedAttackEndCause.Unrecorded) return false;
-            if (kind == MountedAttackTerminalKind.EndedWithoutExecution) return true;
-            if (kind != MountedAttackTerminalKind.Failed) return false;
-            return block == MountedActorCapabilityBlock.CanNotAttack || nativeCommandStarted;
+            if (cause == MountedAttackEndCause.ActorCapability) return recordedBlock;
+            if (cause != MountedAttackEndCause.Unrecorded || terminalBlock == MountedActorCapabilityBlock.None)
+                return MountedActorCapabilityBlock.None;
+            if (kind == MountedAttackTerminalKind.EndedWithoutExecution) return terminalBlock;
+            if (kind != MountedAttackTerminalKind.Failed) return MountedActorCapabilityBlock.None;
+            return terminalBlock == MountedActorCapabilityBlock.CanNotAttack || nativeCommandStarted
+                ? terminalBlock : MountedActorCapabilityBlock.None;
         }
+
+        public static bool CapabilityIsCause(MountedAttackTerminalKind kind, MountedAttackEndCause cause,
+            MountedActorCapabilityBlock recordedBlock, MountedActorCapabilityBlock terminalBlock, bool nativeCommandStarted) =>
+            CausalCapability(kind, cause, recordedBlock, terminalBlock, nativeCommandStarted) != MountedActorCapabilityBlock.None;
 
         // The player text for an explicitly ended command; null when the cause has no text of its own.
         public static string CancellationFeedback(MountedAttackEndCause cause)
@@ -146,14 +156,16 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
-        // AI-01's reach-only marking is for an automatic approach that failed. A command its actor's capability, a
-        // cancellation, a replacement or a fault ended did not fail to reach its target, and a transient condition must
-        // not leave a lasting unreachable mark (known issues Sprint 6, A04).
+        // AI-01's reach-only marking is for an automatic approach that failed (known issues Sprint 6, A05, as corrected by the
+        // review of 2ae4cc8b). Only the typed ApproachFailed cause, recorded at the exact movement boundary, counts, and only
+        // with the approach's own evidence: an approach was required at start, a delegated move began, no attack started,
+        // and the terminal was neither a success nor a ranged tail. Unrecorded is never evidence of a failed approach;
+        // target invalidation, capability, cancellation, replacement and faults never mark a target unreachable.
         public static bool RecordsAutomaticApproachFailure(bool automatic, int childAttackStarts, bool rangedTail, bool nativeSuccess,
-            MountedAttackEndCause cause, bool capabilityIsCause)
+            MountedAttackEndCause cause, bool approachRequiredAtStart, int delegatedMoveStarts)
         {
-            return automatic && childAttackStarts == 0 && !rangedTail && !nativeSuccess && !capabilityIsCause &&
-                (cause == MountedAttackEndCause.Unrecorded || cause == MountedAttackEndCause.TargetInvalid);
+            return automatic && cause == MountedAttackEndCause.ApproachFailed && approachRequiredAtStart && delegatedMoveStarts > 0 &&
+                childAttackStarts == 0 && !rangedTail && !nativeSuccess;
         }
     }
 

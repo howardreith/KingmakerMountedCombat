@@ -190,6 +190,8 @@ public static class MountedAttackStallProbe {
   // A real-time click carries no turn, like the brain's own (automatic) order.
   internal bool ClickContinues(bool mountActor,bool realTime){
    var turn=realTime?null:Turn;
+   var observe=Controller.GetType().GetMethod("ObserveStockClick",F);
+   if(observe!=null)return observe.Invoke(Controller,new object[]{Target,turn,mountActor,Rider,Mount,null,null,2}).ToString()=="Continue";
    var method=Controller.GetType().GetMethod("ContinuesStockIntent",F);
    if(method!=null)return (bool)method.Invoke(Controller,new object[]{Target,turn,mountActor,Rider,Mount,null,null,2});
    return (bool)Call(Intent,"CanContinue",Target,turn,mountActor,Rider,Mount,null,null,2);
@@ -224,6 +226,13 @@ public static class MountedAttackStallProbe {
   // Known issues Sprint 6 (A02): an outcome whose end carries a recorded cause (ignored by a build without causes).
   internal object Ended(string result,string reason,int started,string block,string cause){
    var outcome=Outcome(result,reason,"Cancelled",started,false,0,3,false,block);Offer(outcome,"EndCause",cause);return outcome;
+  }
+  // Review of 2ae4cc8b: the approach's own evidence, and the block recorded at the capability boundary.
+  internal object Approached(string result,string reason,string block,string cause,bool required,int moves){
+   var outcome=Ended(result,reason,0,block,cause);Offer(outcome,"ApproachRequiredAtStart",required);Offer(outcome,"DelegatedMoveStartCount",moves);return outcome;
+  }
+  internal object Caused(string recorded,string snapshot){
+   var outcome=Ended("Interrupt","Action actor cannot attack: "+recorded,0,snapshot,"ActorCapability");Offer(outcome,"EndCauseCapabilityBlock",recorded);return outcome;
   }
   internal void Terminal(object command,object outcome){Call(Controller,"HandleCommandTerminal",command,outcome);}
   // Update() ends in TryDriveStockAttackIntent, the only dispatcher of a retained order. With no order it returns at
@@ -417,7 +426,10 @@ public static class MountedAttackStallProbe {
  static void ProbeTerminalCause(Assembly mod,Assembly native,Sink warnings){
   var warned=warnings.Calls.Count;
   Func<string,string,int,string,string,string> end=(result,reason,started,block,cause)=>{
-   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Terminal(command,f.Ended(result,reason,started,block,cause));
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();
+   var recorded=cause.Contains(":")?cause.Split(':')[1]:null;cause=cause.Split(':')[0];
+   var outcome=f.Ended(result,reason,started,block,cause);if(recorded!=null)Offer(outcome,"EndCauseCapabilityBlock",recorded);
+   f.Terminal(command,outcome);
    Check(!f.HasIntent&&Get(f.Controller,"activeCommand")==null,"the "+cause+" terminal retires its order");return f.Feedback;
   };
   var stop=end("Interrupt","Interrupt",1,"Dazed","Cancelled");
@@ -430,7 +442,8 @@ public static class MountedAttackStallProbe {
   Check(fault.IndexOf("cannot act",StringComparison.Ordinal)<0,"a fault stays the cause beside a stunned actor: "+fault);
   var target=end("Interrupt","Expected target invalidation: target died",1,"Dazed","TargetInvalid");
   Check(target=="Mounted rider melee ended: the exact target became invalid before completion.","target invalidation stays the cause: "+target);
-  var approach=end("Interrupt","Action actor cannot attack: Dazed",0,"Dazed","ActorCapability");
+  // The capability boundary always records the exact block it read (review of 2ae4cc8b, finding 3).
+  var approach=end("Interrupt","Action actor cannot attack: Dazed",0,"Dazed","ActorCapability:Dazed");
   Check(approach=="Royon cannot act right now (dazed). The attack was not performed.","a daze during the approach keeps its condition text: "+approach);
   var banned=end("Interrupt","Interrupt",0,"CanNotAttack","Unrecorded");
   Check(banned=="Royon cannot attack right now. The attack was not performed.","native's attack-ban interruption keeps its condition text: "+banned);
@@ -450,15 +463,101 @@ public static class MountedAttackStallProbe {
  }
 
  // A04. A capability-caused automatic terminal is not a failed approach; the automatic admission reads CanNotAttack.
+ // A05 (review of 2ae4cc8b, finding 1): only a typed, evidenced failed delegated approach records the target.
  static void ProbeAutomaticCapability(Assembly mod,Assembly native){
-  Func<string,int,string,string,object> marked=(result,started,block,cause)=>{
-   var f=NewFixture(mod,native);f.Order(true);var command=f.Dispatch();f.Terminal(command,f.Ended(result,"Interrupt",started,block,cause));
+  Func<object,object> marked=outcome=>{
+   var f=NewFixture(mod,native);f.Order(true);var command=f.Dispatch();f.Terminal(command,outcome);
    return Get(f.Controller,"automaticApproachFailedTarget");
   };
-  Check(marked("Interrupt",0,"None","Unrecorded")!=null,"a genuinely failed automatic approach still records its target for the rider's brain");
-  Check(marked("Interrupt",0,"CanNotAttack","Unrecorded")==null,"native's attack-ban interruption of an automatic order leaves no unreachable mark");
-  Check(marked("Interrupt",0,"Dazed","ActorCapability")==null,"a daze ending an automatic approach leaves no unreachable mark");
-}
+  var any=NewFixture(mod,native);
+  foreach(var reason in new[]{"target died","target became unconscious","target despawned","target hostility changed","target no longer attackable"})
+   Check(marked(any.Approached("Interrupt","Expected target invalidation: "+reason,"None","TargetInvalid",true,1))==null,"2-6: "+reason+" records no unreachable mark");
+  Check(marked(any.Approached("Interrupt","Interrupt","None","Unrecorded",false,0))==null,"7: an in-range unrecorded interruption with no delegated move records nothing");
+  Check(marked(any.Approached("Interrupt","Interrupt","None","Unrecorded",true,1))==null,"7: an unrecorded end after an approach is not evidence of a failed approach");
+  Check(marked(any.Approached("Interrupt","Action actor cannot attack: Dazed","Dazed","ActorCapability",true,1))==null,"8: a capability end records nothing");
+  Check(marked(any.Approached("Interrupt","Interrupt","None","Cancelled",true,1))==null,"9: a cancellation records nothing");
+  Check(marked(any.Approached("Interrupt","Interrupt","None","Replaced",true,1))==null,"10: a replacement records nothing");
+  Check(marked(any.Approached("Fail","InvalidOperationException: fault","None","Fault",true,1))==null,"11: a fault records nothing");
+  Check(marked(any.Completed(1))==null&&marked(any.Outcome("Interrupt","Interrupt","Cancelled",1,true,2,3,true,"None"))==null,
+   "12: a successful attack and a ranged tail record nothing");
+  Check(marked(any.Approached("Interrupt","InvalidOperationException: Mounted pair command exhausted its bounded repath allowance.","None","ApproachFailed",true,2))!=null,
+   "1: a genuine failed delegated approach records its target for the rider's brain");
+ }
+
+ // A02 (review of 2ae4cc8b, finding 3): the block recorded at the capability boundary stays the cause.
+ static void ProbeCausalBlock(Assembly mod,Assembly native){
+  Func<object,string> feedback=outcome=>{var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Terminal(command,outcome);return f.Feedback;};
+  var any=NewFixture(mod,native);
+  var cleared=feedback(any.Caused("Dazed","None"));
+  Check(cleared=="Royon cannot act right now (dazed). The attack was not performed.","1: a recorded daze stays the cause when the snapshot clears: "+cleared);
+  var changed=feedback(any.Caused("Dazed","CanNotAttack"));
+  Check(changed=="Royon cannot act right now (dazed). The attack was not performed.","2: a recorded daze is not replaced by a later attack ban: "+changed);
+  var banned=feedback(any.Caused("CanNotAttack","None"));
+  Check(banned=="Royon cannot attack right now. The attack was not performed.","3: a recorded attack ban stays the cause when the snapshot clears: "+banned);
+ }
+
+ // Review of 2ae4cc8b, finding 2: a start or tick fault records Fault before any diagnostic, a throwing logger and a
+ // failing capability reading cannot stop the command's end, and the terminal is delivered once.
+ static void ProbeFaultDelivery(Assembly mod,Assembly native){
+  foreach(var phase in new[]{"OnStart","OnTick"}){
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();Set(command,"<IsFinished>k__BackingField",false);
+   Set(command,"logger",f.Log.GetTransparentProxy());
+   Set(command,"transaction",Activator.CreateInstance(mod.GetType("KingmakerMountedCombat.Domain.MountedCombatTransaction",true),true));
+   var terminalField=Field(f.CommandType,"terminal");
+   Set(command,"terminal",Delegate.CreateDelegate(terminalField.FieldType,f.Controller,f.Controller.GetType().GetMethod("HandleCommandTerminal",F)));
+   Set(f.Controller,"<LastOutcome>k__BackingField",null);
+   f.Log.Throws=true;
+   try{f.CommandType.GetMethod(phase,F).Invoke(command,null);}catch(Exception){}
+   f.Log.Throws=false;
+   var outcome=Get(f.Controller,"<LastOutcome>k__BackingField");
+   Check(outcome!=null,phase+": a fault with a throwing logger and an unreadable actor still delivers the terminal");
+   var cause=outcome.GetType().GetProperty("EndCause",F);
+   Check(cause!=null&&cause.GetValue(outcome,null).ToString()=="Fault",phase+": the fault is recorded as the cause before any diagnostic");
+   Check(!f.HasIntent&&Get(f.Controller,"activeCommand")==null,phase+": the faulted command's order retires and its ownership is released");
+  }
+ }
+
+ // Review of 2ae4cc8b, finding 5: only the same request after its command ended counts as fresh.
+ static void ProbeFreshCounter(Assembly mod,Assembly native){
+  var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();f.Terminal(command,f.Completed(1));
+  var observe=f.Controller.GetType().GetMethod("ObserveStockClick",F);
+  Check(observe!=null,"the controller classifies each same-actor click once");
+  Func<object,int,object,string> click=(target,action,weapon)=>observe.Invoke(f.Controller,new object[]{target,f.Turn,false,f.Rider,f.Mount,weapon,null,action}).ToString();
+  Check(click(f.Target,2,null)=="FreshAfterTerminal"&&f.Counter("StockAttackFreshAfterTerminalCount")==1,"the same request after its command ended counts once");
+  Check(click(Actor(),2,null)=="NewRequest"&&click(f.Target,9,null)=="NewRequest"&&click(f.Target,2,new object())=="NewRequest"&&
+   f.Counter("StockAttackFreshAfterTerminalCount")==1,"a retarget, another action or another weapon is a new request and is not counted");
+ }
+
+ // Review of 2ae4cc8b, finding 4: the product transpiler, run against the installed public UnitCommands.Run, replaces its
+ // one internal Run call with the scoped hook and nothing else.
+ static void ProbeNativeRunScope(Assembly mod,Assembly native,string managed){
+  MethodInfo read=null;
+  foreach(var m in Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony.dll")).GetType("HarmonyLib.PatchProcessor",true).GetMethods(BindingFlags.Public|BindingFlags.Static))
+   if(m.Name=="GetOriginalInstructions"&&m.GetParameters().Length==2&&!m.GetParameters()[1].ParameterType.IsByRef)read=m;
+  var commandsType=native.GetType("Kingmaker.UnitLogic.Commands.UnitCommands",true);
+  var run=commandsType.GetMethod("Run",F,null,new[]{native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true)},null);
+  var instruction=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll")).GetType("Harmony12.CodeInstruction",true);
+  var before=(System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(instruction));
+  var snapshot=new List<object[]>();
+  foreach(var raw in (System.Collections.IEnumerable)read.Invoke(null,new object[]{run,null})){
+   var op=raw.GetType().GetField("opcode").GetValue(raw);var operand=raw.GetType().GetField("operand").GetValue(raw);
+   before.Add(Activator.CreateInstance(instruction,new[]{op,operand}));snapshot.Add(new[]{op,operand});
+  }
+  var methods=mod.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true).GetNestedType("PatchMethods",F);
+  var transpiler=methods.GetMethod("NativeRunScopeTranspiler",F);
+  Check(transpiler!=null,"the public Run has a scope transpiler");
+  var after=((System.Collections.IEnumerable)transpiler.Invoke(null,new object[]{before})).Cast<object>().ToList();
+  var changed=new List<int>();
+  for(var i=0;i<after.Count;i++)if(!Equals(instruction.GetField("operand").GetValue(after[i]),snapshot[i][1]))changed.Add(i);
+  var hook=instruction.GetField("operand").GetValue(after[changed.Single()]) as MethodInfo;
+  Check(after.Count==snapshot.Count&&changed.Count==1&&hook!=null&&hook.Name=="ScopedRun"&&hook.DeclaringType.Name=="MountedNativeRunScope"&&
+   ((MethodBase)snapshot[changed[0]][1]).GetParameters().Length==3,"the transpiler replaces exactly the one internal Run call with the scoped hook");
+  var scoped=CalledMembers(hook);
+  Check(scoped.Contains("Open")&&scoped.Contains("Close")&&hook.GetMethodBody().ExceptionHandlingClauses.Any(c=>c.Flags==ExceptionHandlingClauseOptions.Finally),
+   "the hook opens its own token and closes it in a finally");
+  Check(CalledMembers(methods.GetMethod("UnitCommandRunPrefix",F)).All(n=>n!="OpenNativeRun")&&CalledMembers(methods.GetMethod("UnitCommandRunPostfix",F)).All(n=>n!="CloseNativeRun"),
+   "no scope is opened or closed through pair ownership in the prefix or postfix");
+ }
 
  static void ProbeAutomaticAdmission(Assembly mod){
   var policy=mod.GetType("KingmakerMountedCombat.Domain.MountedAutomaticAttackPolicy",true);
@@ -499,19 +598,18 @@ public static class MountedAttackStallProbe {
  static void ProbeSprint6Wiring(Assembly mod){
   var controller=mod.GetType("KingmakerMountedCombat.Integration.MountedCombatController",true);
   Func<string,HashSet<string>> calls=n=>CalledMembers(controller.GetMethod(n,F));
-  Check(calls("TryRouteMountedStockAttack").Contains("ContinuesStockIntent")&&calls("ContinuesStockIntent").Contains("CanContinue")&&
-   calls("ContinuesStockIntent").Contains("IsFreshRequestAfterTerminal"),"A01: the click route asks the fresh-request boundary of the live dispatched command");
+  Check(calls("TryRouteMountedStockAttack").Contains("ObserveStockClick")&&calls("ObserveStockClick").Contains("ClassifyClick"),
+   "A01: the click route classifies the click against the live dispatched command");
   var terminal=calls("HandleCommandTerminal");
-  Check(terminal.Contains("Resolve")&&terminal.Contains("CapabilityIsCause")&&terminal.Contains("RecordsAutomaticApproachFailure"),
+  Check(terminal.Contains("Resolve")&&terminal.Contains("CausalCapability")&&terminal.Contains("RecordsAutomaticApproachFailure")&&terminal.Contains("EndedInsideReplacingRun"),
    "A02/A04: the terminal resolves its cause before it reads the capability snapshot or records an unreachable target");
   Check(calls("Cancel").Contains("InterruptOwnedCommand")&&calls("TryRetireStockIntent").Contains("InterruptOwnedCommand")&&
    calls("SweepOrphanedAutomaticCommand").Contains("InterruptOwnedCommand")&&CalledMembers(controller.GetMethod("InterruptOwnedCommand",F)).Contains("RecordEndCause"),
    "A02: the controller's own ends record their cause before native Interrupt");
   var command=mod.GetType("KingmakerMountedCombat.Integration.MountedPairAttackCommand",true);
   Check(CalledMembers(command.GetMethod("TerminateIfActionActorBlocked",F)).Contains("RecordEndCause"),"A02: the execution boundary records the capability cause");
-  var methods=mod.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true).GetNestedType("PatchMethods",F);
-  Check(CalledMembers(methods.GetMethod("UnitCommandRunPrefix",F)).Contains("OpenNativeRun")&&CalledMembers(methods.GetMethod("UnitCommandRunPostfix",F)).Contains("CloseNativeRun"),
-   "A02: a native Run on a pair actor is scoped for replacement attribution");
+  Check(CalledMembers(command.GetMethod("OnStart",F)).Contains("EndAfterFault")&&CalledMembers(command.GetMethod("OnTick",F)).Contains("EndAfterFault"),
+   "Finding 2: start and tick faults end through the cause-recording fault boundary");
   Check(calls("ObserveAutomaticProposal").Contains("Read"),"A04: the automatic admission reads the rider's native condition");
   // A04's refusal is automatic-only: the player's click route never reads the capability condition (real-time player
   // orders keep their native wait, and turn-based ones their existing capability admission).
@@ -546,7 +644,11 @@ public static class MountedAttackStallProbe {
   Section("A01 fresh same-target click after a terminal",()=>ProbeFreshClick(mod,native));
   Section("A02 terminal cause apart from the capability snapshot",()=>ProbeTerminalCause(mod,native,warnings));
   Section("A02 a failing logger at the terminal",()=>ProbeLoggerFailure(mod,native));
-  Section("A04 automatic capability terminals",()=>ProbeAutomaticCapability(mod,native));
+  Section("A05 only a failed delegated approach marks a target",()=>ProbeAutomaticCapability(mod,native));
+  Section("A02 the recorded causal capability block",()=>ProbeCausalBlock(mod,native));
+  Section("Fault recording and terminal delivery",()=>ProbeFaultDelivery(mod,native));
+  Section("A01 fresh-after-terminal counter",()=>ProbeFreshCounter(mod,native));
+  Section("Exact native Run scope",()=>ProbeNativeRunScope(mod,native,managed));
   Section("A04 automatic admission of a rider that cannot attack",()=>ProbeAutomaticAdmission(mod));
   Section("A03 native consumers of Fascinate's condition",()=>ProbeFascinateCondition(native));
   Section("Sprint 6 product wiring",()=>ProbeSprint6Wiring(mod));

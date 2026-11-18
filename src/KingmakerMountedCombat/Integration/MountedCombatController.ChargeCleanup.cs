@@ -373,6 +373,7 @@ namespace KingmakerMountedCombat.Integration
             if (command != null && !command.IsFinished)
             {
                 MountedChargeAdmissionFault.FireCleanup(command is MountedPairAttackCommand ? "rider-interrupt" : "shell-interrupt");
+                (command as MountedPairAttackCommand)?.RecordEndCause(MountedAttackEndCause.Cancelled, "charge cleanup");
                 command.Interrupt(false);
             }
         }

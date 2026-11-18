@@ -92,7 +92,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Game), "ResetToMainMenu", 0x06000CDD,
                     new[] { typeof(string), typeof(Kingmaker.Blueprints.Area.BlueprintAreaPreset) },
                     nameof(PatchMethods.ResetToMainMenuPrefix));
-                PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix), nameof(PatchMethods.UnitCommandRunPostfix));
+                // Known issues Sprint 6 (review of 2ae4cc8b, finding 4): its one internal Run call is scoped exception-safely.
+                PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix),
+                    nameof(PatchMethods.UnitCommandRunPostfix), nameof(PatchMethods.NativeRunScopeTranspiler));
                 // Known issues sprint 3 continuation (M05): this overload is the one native admission both the public
                 // Run and queue promotion (RemoveFinishedAndUpdateQueue) reach; its postfix observes what was admitted.
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
@@ -645,6 +647,7 @@ namespace KingmakerMountedCombat.Integration
                 if (automatic == null || !automatic.IsAutomaticOrigin) return true;
                 var combat = PatchBridge.CombatFor(__instance);
                 if (combat != null) return combat.AdmitQueuedAutomaticRun(automatic);
+                (automatic as MountedPairAttackCommand)?.RecordEndCause(MountedAttackEndCause.Cancelled, "queued automatic command without its pair");
                 automatic.Interrupt();
                 return false;
             }
@@ -933,8 +936,6 @@ namespace KingmakerMountedCombat.Integration
                 // PR #8 review correction A: no ticket on any refusal or native-only path, so nothing a refused,
                 // simulated or preparation request carries can release the pair's carried approach.
                 __state = null;
-                // Known issues Sprint 6 (A02): a pair command this Run ends was replaced by it (closed by the postfix).
-                PatchBridge.CombatFor(__instance)?.OpenNativeRun(__instance, cmd);
                 // Bind a same-frame native hostile click to the exact command its own Run carries,
                 // before any refusal below, so no later command can borrow or erase that click.
                 PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
@@ -967,7 +968,6 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void UnitCommandRunPostfix(UnitCommands __instance, UnitCommand cmd, MountedCarriedRequestTicket __state)
             {
-                PatchBridge.CombatFor(__instance)?.CloseNativeRun(__instance);
                 PatchBridge.CombatFor(__instance)?.ObserveGroundOrderRun(__instance, cmd);
                 if (__state != null) PatchBridge.CombatFor(__instance)?.CompletePairCommandRun(__state, cmd);
                 // Entrance repair: after native Run executed the rider's own UnitAreaTransition (and its own request ticket
@@ -1522,6 +1522,10 @@ namespace KingmakerMountedCombat.Integration
                 __result = result == MountedCombatClickResult.HandledAccepted;
                 return false;
             }
+
+            internal static IEnumerable<CodeInstruction> NativeRunScopeTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                MountedNativeRunScope.Transpile(instructions, typeof(MountedNativeRunScope).GetMethod(nameof(MountedNativeRunScope.ScopedRun),
+                    BindingFlags.Static | BindingFlags.NonPublic));
 
             internal static IEnumerable<CodeInstruction> CannotAttackApproachTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 MountedClickApproachTranspiler.CannotAttackApproachRun(instructions, Hook(nameof(ClickApproachRun)));
