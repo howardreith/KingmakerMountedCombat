@@ -1,5 +1,15 @@
 # Attack completion warnings — source fix refined, Fast PASS on genuine references, native BLOCKED (2026-11-12)
 
+## Sprint 6 (2026-11-18), superseding
+
+Read with the [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md); nothing below this section is rewritten.
+
+- **A01:** the quiet answer after accepted work is still the rule for routine continuation. But an exact same-target
+  click after the dispatched command ended (before the next Update retires the retained intent) is now a fresh
+  request, with a new generation and its own answer. Before, it continued the finished work and stayed silent.
+- **A02:** terminal feedback no longer describes a cancellation, replacement, boundary or fault as "cannot act". The
+  capability text needs the capability to be the recorded or native-signature cause.
+
 Branch: `codex/kmc-attack-completion-warnings`, draft PR #33.
 Base: main `680d02cb2cae62bbf646f2064b42014d145b3e71` (0.2.5, including PR #31).
 Scope: the owner's report of a no-Standard warning after Royon's full attack, and related ordinary attack warnings.

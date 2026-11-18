@@ -1,3 +1,30 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 6 — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
+
+Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the
+accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **A01:** a same-target click after the dispatched command ended is a fresh request (a new generation and its own
+  answer). A click while it runs still continues.
+- **A02:** a typed end cause decides whether the capability snapshot explains a terminal: Stop, replacement,
+  boundaries and faults are no longer "cannot act". Terminal logging and warning delivery are contained.
+- **A03:** settled from decoded assets. Fascinate is `FascinateEffectCombatBuff` (Dazed) from the Lady of Shallows'
+  aura, read by the current reader. Serenity adds no condition. No product change; live state not observed.
+- **A04:** automatic churn for a `CanNotAttack` rider established and refused (stateless, automatic only). The
+  player's real-time wait is unchanged.
+- **A05 (new):** a capability-, cancellation- or fault-ended automatic command no longer marks its target unreachable.
+- **Checks:**
+  - Fast PASS 13/0 (0.66 min) (budget `known-issues-sprint6`).
+  - Components 1392/0; stall-repair probe 110/0 (accepted Sprint 5 build fails its 6 Sprint 6 sections).
+  - Kingmaker assembly contracts 815/0.
+  - Mutations incomplete: Q1-Q4 of twelve ran and were caught; the run was stopped for low system memory before
+    Q5, and Q5-Q12 await the owner's go-ahead.
+  - Product-build commit `3472914d (product sources; built at 221d748b)`, DLL SHA-256 `27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`.
+- **Sprint 5 note:** the `MountedRangedMovementTests.Lifetime` wording now describes a temporary applicability gate,
+  not a dismount and reattachment. Ranged-movement behaviour is unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 7 was not started.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 7.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 5 — MOUNTED RANGED MOVEMENT: R01 NOT REPRODUCIBLE, R02 DOCUMENTED; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint5` (draft PR stacked on `codex/kmc-known-issues-sprint3-closeout`, PR #49), from

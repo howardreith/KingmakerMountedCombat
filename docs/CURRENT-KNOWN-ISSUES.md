@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
+- **Last updated:** 2026-11-18, Sprint 6 (A01, A02 and A04 corrected; A03 settled; new A05 corrected), after 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
   entry: a live background cutscene's commands and a TranslocateUnit inside a cutscene's scope), after the review of
   `e1c0c7ad` (R7 C02 standalone rider turn, R8 C02 whole-pair writes from
   CommandTeleportParty's proven target set, R9 contained success logging in the C02 and C04 loops), after the review
@@ -23,7 +23,12 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
   [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md),
-  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md), [Sprint 5](KNOWN-ISSUES-SPRINT5-HANDOFF.md).
+  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md), [Sprint 5](KNOWN-ISSUES-SPRINT5-HANDOFF.md),
+  [Sprint 6](KNOWN-ISSUES-SPRINT6-HANDOFF.md).
+- **Sprint 6 (2026-11-18):** A01 and A02 implemented and verified offline; A03 settled (Fascinate is Dazed, read by
+  the current reader; Serenity adds no condition); A04 established and corrected for automatic proposals; new A05 (a
+  capability-ended automatic command marked its target unreachable) corrected. Branch `codex/kmc-known-issues-sprint6`,
+  stacked on Sprint 5 (PR #50).
 - **Sprint 5 (2026-11-17):** R01 closed as not reproducible at the accepted base: under the qualified paired authority
   a mounted pair's mount never moves on its own initiative slot, so a mount's own record only ever holds riderless or
   pre-mount travel. No product change. R02 closed as intentional adaptation documented. Branch
@@ -36,7 +41,7 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
 - **Sprint 3 accepted (owner, 2026-11-16, at `e5b92474`):** a review checkpoint of offline work. M01–M03 and M05 are
   implemented and verified offline, and their native acceptance is still not run. M04's original report stays
   unresolved; S01 and T04–T08 keep their dispositions. The acceptance does not mark every Sprint 3 report resolved.
-- **Reconciled so far:** T01–T08, S01, S02, M01–M05, C01–C04, R01 and R02. Every row of Sprints 6–8 is a *carried-forward planning
+- **Reconciled so far:** T01–T08, S01, S02, M01–M05, C01–C04, R01, R02 and A01–A05. Every row of Sprints 7–8 is a *carried-forward planning
   finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
   A sprint reconciles its own rows when it starts.
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 4.
@@ -421,16 +426,25 @@ Record: [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md). No product change: 
 | R01 | Carried travel in a separate initiative slot gives no ranged-movement contribution. | Planned omission, not reproduced | **Closed: not reproducible; no reachable instance; no product change** | Under the qualified authority the mount's candidate is suppressed while the pair's unsplit activation exists. The only split is the dismount's, which never leaves the pair Mounted. A combat mount forms only on the rider's turn, and a retained partner is ended. A mount's own `native:` record is therefore always riderless or pre-mount, and stays excluded. `95fd7120`: 2 production-executed tests; `Test-MountedRangedMovementContracts.ps1` 5/0; S1–S11 mutations caught | Not run |
 | R02 | The accepted ranged rules need precise documentation. | Intentional adaptations | **Intentional adaptation documented** | Exact rule in the Sprint 5 handoff and the Mounted Archery handoff's superseding section. README: steps and Charge do not count. Feat text unchanged | Not run |
 
-## Sprints 6–8 — carried forward, pending reconciliation
+## Sprint 6 — attack requests and terminals (reconciled 2026-11-18)
+
+Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Product-build commit `3472914d (product sources; built at 221d748b)`, clean Release DLL SHA-256
+`27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`.
+
+| ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|
+| A01 | A fresh same-target click just after attack completion gets inconsistent feedback. | Request-lifecycle defect | **Implemented and verified offline** | `MountedAttackIntent.IsFreshRequestAfterTerminal`: a click after the dispatched command ended is a fresh request (a new generation and its own answer); a live command still continues. Probe section A01: the accepted Sprint 5 build fails, this build passes | Not run |
+| A02 | Terminal feedback can describe a player cancellation as "cannot act". | Diagnostic and feedback defect | **Implemented and verified offline** | Typed `MountedAttackEndCause` recorded at each end; `CapabilityIsCause` decides. Logging and warning delivery contained. Probe sections A02: the base fails (Stop while dazed read "cannot act"; a failing logger stopped retirement); this build passes | Not run |
+| A03 | The Serenity or Fascinate condition that stopped the rider is unidentified. | Open explanation | **Settled explanation; no product change** | Decoded assets: Fascinate = `FascinateEffectCombatBuff` (`8a59ee05…`, AddCondition Dazed) from the Lady of Shallows' beguiling aura; Serenity (`SerenityBuff`) adds no condition. Dazed → `CanAct` false (installed IL), read by `NativeActorCapability`. Live state not observed | Not run |
+| A04 | Real-time blocked orders wait natively (intended); automatic proposal churn was a hypothesis. | Intended behaviour plus established churn | **Intentional wait documented; churn established and corrected (automatic only)** | Installed brain and AI: no `CanNotAttack` exclusion; a re-proposal every 0.3–0.4 s; native interrupts. `Decide` now refuses with `RiderCannotAttack`, which is stateless. Probe A04: base 30/30 admitted, now 0/30 | Not run |
+| A05 | An automatic command ended by its rider's capability, a cancellation, a replacement or a fault marks its target unreachable for the rider's brain. | Product defect (found in A04) | **Implemented and verified offline** | `RecordsAutomaticApproachFailure`: only a genuinely failed approach records it. Probe A04 terminals: the base marks it, this build does not | Not run |
+
+## Sprints 7–8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 6 | A01 | A fresh same-target click just after attack completion gets inconsistent feedback. | One-frame feedback edge | Open correction | Implemented and verified offline | [ATTACK-COMPLETION handoff](ATTACK-COMPLETION-WARNINGS-HANDOFF.md) |
-| 6 | A02 | Terminal feedback can describe a player cancellation as "cannot act". | Diagnostic ambiguity | Open correction | Implemented and verified offline | [ATTACK-STALL handoff](MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md) |
-| 6 | A03 | The Serenity or Fascinate condition that stopped the rider is unidentified. | Open explanation | Open investigation | Investigation complete; explanation open unless evidence settles it | [ATTACK-STALL handoff](MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md) |
-| 6 | A04 | Real-time blocked orders wait natively (intended). Automatic proposal churn is a hypothesis. | Intended behaviour plus unconfirmed hypothesis | Open investigation | Intentional limit documented; fix only if churn is established | [ATTACK-STALL handoff](MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md) |
 | 7 | U01 | After Charge the Move slot is unavailable but still shows usable distance. | UI defect | Open correction | Implemented and verified offline | [F3 handoff](FINALIZE-F3-REVIEW-HANDOFF.md) |
 | 7 | U02 | The public action slot shows no selection glow while its delivery ability targets. | UI defect | Open correction | Implemented and verified offline | [F2 handoff](FINALIZE-F2-REVIEW-HANDOFF.md) |
 | 7 | U03 | The Paladin class panel promises Weapon Bond upgrades to Divine Mount characters. | UI defect | Open correction | Implemented and verified offline | [SPRINT8-PALADIN-MOUNT](SPRINT8-PALADIN-MOUNT.md) |
