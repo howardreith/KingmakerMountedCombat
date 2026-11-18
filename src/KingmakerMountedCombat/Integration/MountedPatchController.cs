@@ -109,7 +109,10 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.NativeGroupAccelerationPrefix), nameof(PatchMethods.NativeGroupAccelerationPostfix));
                 // Known issues sprint 3 (M04): the whole body of this method places the unit's destination pointer.
                 PatchExact(typeof(UnitEntityView), "OnMovementStarted", 0x0600184E, new[] { typeof(UnityEngine.Vector3), typeof(bool) },
-                    nameof(PatchMethods.CarriedRiderPointerPrefix), nameof(PatchMethods.MarkerPlacementPostfix));
+                    nameof(PatchMethods.CarriedRiderPointerPrefix));
+                // Known issues M04 closeout (review of b1a88b4e, R3): a pointer placement is recorded where it happens.
+                PatchExact(typeof(Kingmaker.UI.ClickPointerManager), "AddPointer", 0x06002D62, new[] { typeof(UnityEngine.Vector3), typeof(UnitEntityData) },
+                    null, nameof(PatchMethods.PointerPlacedPostfix));
                 // Known issues sprint 3 (M02): the gamepad's follower acceleration pass walks selected units only.
                 // Continuation (M05): the same method's one driven-unit read is answered with the pair's physical mover.
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.InputLayers.InGameLayer.InGameInputLayer), "UpdateMovement", 0x06005D0C,
@@ -227,7 +230,9 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.FamiliarFollowPrefix));
                 PatchExact(typeof(Kingmaker.Visual.Critters.Familiar), "TeleportToMaster", 0x060013C5, new[] { typeof(bool) },
                     null, nameof(PatchMethods.FamiliarTeleportPostfix));
-                PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix), nameof(PatchMethods.UnitClickPostfix));
+                // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own Run is replaced.
+                PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix),
+                    null, nameof(PatchMethods.CannotAttackApproachTranspiler));
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
@@ -819,23 +824,21 @@ namespace KingmakerMountedCombat.Integration
 
             // Known issues sprint 3 (M04). A carried rider's own plan for its entrance member command places no second
             // marker beside the mount's. A fault leaves the native placement.
-            internal static bool CarriedRiderPointerPrefix(UnitEntityView __instance, out bool __state)
+            internal static bool CarriedRiderPointerPrefix(UnitEntityView __instance)
             {
-                __state = false;
                 try
                 {
                     var unit = __instance != null ? __instance.EntityData : null;
-                    __state = PatchBridge.CombatFor(unit)?.SkipCarriedRiderPointer(unit) == true;
-                    return !__state;
+                    return PatchBridge.CombatFor(unit)?.SkipCarriedRiderPointer(unit) != true;
                 }
                 catch (Exception error) { ReportGroupPaceFault("Mounted entrance approach: the rider's pointer placement was left native", error); return true; }
             }
 
-            // Known issues M04 closeout: a placement that ran is recorded for the command it was made for (diagnostics).
-            internal static void MarkerPlacementPostfix(UnitEntityView __instance, bool preview, bool __state)
+            // Known issues M04 closeout (review of b1a88b4e, R3): native AddPointer ran for this unit; the placement is
+            // recorded for the command it was made for (diagnostics). A fault leaves the native placement unrecorded.
+            internal static void PointerPlacedPostfix(UnitEntityData unit)
             {
-                if (__state || preview) return;
-                try { MountedDestinationMarkers.RecordPlacement(__instance != null ? __instance.EntityData : null, UnityEngine.Time.frameCount); }
+                try { MountedDestinationMarkers.RecordPlacement(unit, UnityEngine.Time.frameCount); }
                 catch (Exception error) { ReportMarkerFault("Mounted marker observation: a pointer placement was not recorded", error); }
             }
 
@@ -953,9 +956,6 @@ namespace KingmakerMountedCombat.Integration
                 // A scripted scene operation runs as the scene authored it: the door, stock-attack and carried-approach
                 // gates below exist for the player's own orders and would refuse or reroute it, stalling the scene.
                 if (sceneOperation) return true;
-                // Known issues M04 closeout: a mounted rider's native cannot-attack click approach is the pair's ground order.
-                try { if (RerouteRiderClickApproach(__instance, cmd)) return false; }
-                catch (Exception error) { ReportMarkerFault("Mounted click approach: the rider's order was left native", error); }
                 var combat = PatchBridge.CombatFor(__instance);
                 if (combat == null) return true;
                 // The door, stock-attack and stock-command gates in their existing order. The carried approach is
@@ -1514,45 +1514,58 @@ namespace KingmakerMountedCombat.Integration
                 }
                 if (result == MountedCombatClickResult.NotHandled)
                 {
-                    // Known issues M04 closeout: native handles the click; commands it runs this frame are inside it.
-                    MountedNativeUnitClickScope.Open();
                     return true;
                 }
                 __result = result == MountedCombatClickResult.HandledAccepted;
                 return false;
             }
 
-            internal static void UnitClickPostfix() => MountedNativeUnitClickScope.Close();
+            internal static IEnumerable<CodeInstruction> CannotAttackApproachTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                MountedClickApproachTranspiler.CannotAttackApproachRun(instructions, Hook(nameof(ClickApproachRun)));
 
-            // Known issues M04 closeout. Inside the native unit click, the cannot-attack approach (ClickUnitHandler.OnClick's
-            // one UnitMoveTo) given to a mounted rider is the pair's ground order: it goes through the ground-order
-            // lifecycle (GroundCommandPrefix: admission and routing to the mount; native-equivalent order on the mount;
-            // GroundCommandPostfix: completion), and the rider's own copy is not run. True: handled, the rider's Run refused.
-            internal static bool RerouteRiderClickApproach(UnitCommands container, UnitCommand cmd)
+            // Known issues M04 closeout, review of b1a88b4e (R1, R2). Replaces the one UnitCommands.Run in native
+            // ClickUnitHandler.OnClick that runs the click command's local. The cannot-attack approach a mounted rider was
+            // given is run, as the original command object, by the mount through the ground-order lifecycle; anything else
+            // is native Run on the same container. A fault leaves native Run.
+            internal static void ClickApproachRun(UnitCommands commands, UnitCommand cmd)
             {
-                var move = cmd as UnitMoveTo;
-                if (move == null) return false;
-                var owner = PatchBridge.Owner(container);
+                bool handled;
+                try { handled = RouteRiderClickApproach(commands, cmd); }
+                catch (Exception error) { ReportMarkerFault("Mounted click approach: the rider's order was left native", error); handled = false; }
+                // Native Run, unless a fault came after the command was already given to another unit (initialised once).
+                if (!handled && (cmd == null || cmd.Executor == null || ReferenceEquals(cmd.Executor.Commands, commands))) commands.Run(cmd);
+            }
+
+            // True: handled here (routed, or refused by the ground-order admission); the rider's Run of it never happens.
+            private static bool RouteRiderClickApproach(UnitCommands commands, UnitCommand cmd)
+            {
+                var owner = PatchBridge.Owner(commands);
                 var rider = owner?.Rider;
+                var game = Kingmaker.Game.Instance;
+                var sceneMayOwnRider = rider != null && (NativeSceneControl.IsUnderLiveSceneControl(rider) || game != null &&
+                    MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock, game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog),
+                        game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene)));
                 if (!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(owner != null && owner.State == RelationshipState.Mounted,
-                        rider != null && ReferenceEquals(container, rider.Commands), cmd.GetType() == typeof(UnitMoveTo), cmd.AiAction != null,
-                        MountedNativeUnitClickScope.IsOpen, PointerController.SimulatingClick)) return false;
+                        rider != null && ReferenceEquals(commands, rider.Commands), cmd != null && cmd.GetType() == typeof(UnitMoveTo),
+                        cmd?.AiAction != null, true, PointerController.SimulatingClick, sceneMayOwnRider)) return false;
+                var generation = owner.MountedPairGeneration;
+                var mount = owner.Mount;
+                // The hostile-click observation binds to the command the clicked unit's own Run carries (native order:
+                // the click's request, then that Run). The rider's Run is not reached, so it is bound here, to this command.
+                PatchBridge.CombatFor(commands)?.BindObservedStockRequest(commands, cmd);
                 var unit = rider;
-                var runsNatively = GroundCommandPrefix(ref unit);
+                var admitted = GroundCommandPrefix(ref unit);
                 try
                 {
-                    if (runsNatively && ReferenceEquals(unit, rider)) return false;
-                    if (runsNatively && unit != null)
+                    if (!admitted) { }
+                    else if (ReferenceEquals(unit, rider)) commands.Run(cmd);
+                    else if (unit != null && ReferenceEquals(unit, mount) && owner.State == RelationshipState.Mounted &&
+                        owner.MountedPairGeneration == generation)
                     {
-                        var routed = new UnitMoveTo(move.Target, move.ApproachRadius)
-                        {
-                            CreatedByPlayer = true,
-                            ShowTargetMarker = move.ShowTargetMarker,
-                            Orientation = move.Orientation,
-                            MovementDelay = move.MovementDelay,
-                            SpeedLimit = move.SpeedLimit
-                        };
-                        unit.Commands.Run(routed);
+                        // The original command: the open ground order recognises it by identity (native leaves its
+                        // CreatedByPlayer false), so the watched move and the turn-based admission are this command.
+                        PatchBridge.CombatFor(unit)?.BindGroundOrderClickApproach(cmd);
+                        unit.Commands.Run(cmd);
                     }
                 }
                 finally { GroundCommandPostfix(unit); }
@@ -1560,7 +1573,7 @@ namespace KingmakerMountedCombat.Integration
                 try
                 {
                     PatchBridge.Logger?.Info("Mounted cannot-attack click approach given to the pair: rider=" + rider.UniqueId + "; executor=" +
-                        (unit?.UniqueId ?? "none") + "; admitted=" + runsNatively + "; target=" + move.Target + "; approachRadius=" + move.ApproachRadius + ".");
+                        (cmd.Executor?.UniqueId ?? "none") + "; admitted=" + admitted + "; live=" + (cmd.Executor != null && !cmd.IsFinished) + ".");
                 }
                 catch (Exception) { }
                 return true;

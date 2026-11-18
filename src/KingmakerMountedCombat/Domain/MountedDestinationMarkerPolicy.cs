@@ -47,13 +47,19 @@ namespace KingmakerMountedCombat.Domain
         // attack a UnitMoveTo toward the clicked unit, its one UnitMoveTo, outside the ground-click routing. A mounted
         // rider cannot walk it (its stock agent is off), yet its own stock agent plans it, so native places and shows the
         // rider's marker for as long as the order lives, and it lives until something else replaces it. That order is
-        // the pair's approach: it is given to the mount through the existing ground-order lifecycle (admission, routing,
-        // the watched player move) and the rider's own copy is not run. Only inside the native unit click, only an exact
-        // UnitMoveTo on the mounted pair's rider, never an AI or simulated one.
+        // the pair's approach: the original command object is run by the mount through the existing ground-order
+        // lifecycle, and the rider's Run of it never happens.
+        // Review of b1a88b4e (R1): the authority is the exact native call site, not a frame. Only the one
+        // UnitCommands.Run in OnClick whose argument is that UnitMoveTo's local reaches the decision (a transpiler
+        // replaces that single call), with that call's own command and container: an exact UnitMoveTo, on the mounted
+        // pair's rider, never an AI or simulated one. Nothing is stored, so nothing can be borrowed, outlive the call,
+        // or be consumed twice. While a scene is active or holds the rider, scene staging keeps its precedence: native
+        // Run reaches the rider, where staging decides, as before this repair.
         public static bool RoutesRiderClickApproach(bool pairMounted, bool containerIsRider, bool exactUnitMoveTo, bool aiAction,
-            bool insideNativeUnitClick, bool simulatingClick)
+            bool atNativeCannotAttackRunSite, bool simulatingClick, bool sceneMayOwnRider)
         {
-            return pairMounted && containerIsRider && exactUnitMoveTo && !aiAction && insideNativeUnitClick && !simulatingClick;
+            return pairMounted && containerIsRider && exactUnitMoveTo && !aiAction && atNativeCannotAttackRunSite && !simulatingClick &&
+                !sceneMayOwnRider;
         }
     }
 

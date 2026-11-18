@@ -283,13 +283,13 @@ namespace KingmakerMountedCombat.Tests
 
         private static void ClickApproachRoutingControls()
         {
-            TestRunner.True(MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, false), "The exact click approach was not routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(false, true, true, false, true, false), "An unmounted rider's approach was routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, false, true, false, true, false), "Another unit's approach was routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, false, false, true, false), "A UnitMoveTo subclass or another command was routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, true, true, false), "An AI order was routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, false, false), "An order outside the native click was routed.");
-            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, true), "A simulated click was routed.");
+            TestRunner.True(MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, false, false), "The exact click approach was not routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(false, true, true, false, true, false, false), "An unmounted rider's approach was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, false, true, false, true, false, false), "Another unit's approach was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, false, false, true, false, false), "A UnitMoveTo subclass or another command was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, true, true, false, false), "An AI order was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, false, false, false), "An order outside the native click was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, true, false), "A simulated click was routed.");
             // Outside the click the rider-held order keeps what native gives it (BypassedRiderOrderKeepsNativeMarker).
             var world = new World();
             world.RunOnRiderUnrouted(60f);
@@ -518,7 +518,7 @@ namespace KingmakerMountedCombat.Tests
                 var ran = new List<ModelUnit>();
                 foreach (var unit in selected)
                 {
-                    var routes = CloseOut && MountedDestinationMarkerPolicy.RoutesRiderClickApproach(Mounted, ReferenceEquals(unit, Rider), true, false, true, false);
+                    var routes = CloseOut && MountedDestinationMarkerPolicy.RoutesRiderClickApproach(Mounted, ReferenceEquals(unit, Rider), true, false, true, false, false);
                     if (routes)
                     {
                         var route = CommandRouter.RouteGroundMove(new MountedPair(Rider.Name, Mount.Name), unit.Name);

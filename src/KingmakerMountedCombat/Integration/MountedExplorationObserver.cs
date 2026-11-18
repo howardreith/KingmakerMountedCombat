@@ -62,7 +62,6 @@ namespace KingmakerMountedCombat.Integration
         {
             legs.Clear(); reported.Clear(); started.Clear(); ClearMarkers();
             MountedDestinationMarkers.ResetPlacements();
-            MountedNativeUnitClickScope.Close();
         }
 
         private void Observe()
@@ -121,8 +120,8 @@ namespace KingmakerMountedCombat.Integration
             var moving = mount.View?.MovementAgent != null && mount.View.MovementAgent.IsReallyMoving;
             var riderCommand = MountedDestinationMarkers.QualifyingCommand(rider);
             var mountCommand = MountedDestinationMarkers.QualifyingCommand(mount);
-            var riderFacts = Facts(rider, riderCommand, now, moving, qualifying, out var riderText);
-            var mountFacts = Facts(mount, mountCommand, now, moving, qualifying, out var mountText);
+            var riderFacts = Facts(rider, riderCommand, relationship.CombatOwner, now, moving, qualifying, out var riderText);
+            var mountFacts = Facts(mount, mountCommand, relationship.CombatOwner, now, moving, qualifying, out var mountText);
             var pairClass = MountedMarkerOwnershipPolicy.ClassifyPair(true, riderFacts, mountFacts);
             if (!MountedMarkerOwnershipPolicy.IsAnomaly(pairClass))
             {
@@ -148,7 +147,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // One unit: its pointer-table entry, the command the native rule shows it for, and the last placement recorded.
-        private MountedMarkerFacts Facts(UnitEntityData unit, UnitCommand command, float now, bool moving, HashSet<UnitCommand> qualifying, out string text)
+        private MountedMarkerFacts Facts(UnitEntityData unit, UnitCommand command, MountedCombatController combat, float now, bool moving, HashSet<UnitCommand> qualifying, out string text)
         {
             var marks = Kingmaker.UI.ClickPointerManager.Instance?.UnitMarks;
             Kingmaker.UI.ClickPointerPrefab pointer = null;
@@ -167,7 +166,8 @@ namespace KingmakerMountedCombat.Integration
                 PointerExists = alive,
                 PointerVisible = alive && pointer.IsVisible,
                 QualifyingCommandLive = command != null,
-                QualifyingCommandUnordered = command != null && !command.CreatedByPlayer && command.AiAction == null && !command.Cutscene,
+                QualifyingCommandUnordered = command != null && !command.CreatedByPlayer && command.AiAction == null && !command.Cutscene &&
+                    combat?.IsPairPlayerOrder(command) != true,
                 PlacedForCurrentCommand = placed,
                 SecondsSinceCommandSeen = seen,
                 Moving = moving
