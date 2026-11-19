@@ -363,8 +363,13 @@ public static class MountedPresentationProbe {
   Click(control,mountShell);var throwing=NewSlot(a.Rider,Ability(Charge));Click(throwing,chargeShell,true,true);
   Check(!Glows(control)&&!Glows(throwing),"U02 case 10: a throwing click leaves no mapping, old or new");
   // 11. A recycled row: the same slot object now holds another ability.
+  var publicData=Get(control,"Ability");
   Click(control,mountShell);Set(control,"Ability",Ability("recycled"));
   Check(!Glows(control),"U02 case 11: a slot recycled for another ability does not glow");
+  Set(control,"Ability",publicData);Click(control,mountShell);
+  Check(Glows(control),"U02 case 11: the restored public slot records again");
+  Set(control,"Ability",Ability(Public));
+  Check(!Glows(control),"U02 case 11: a slot rebound to another ability object of the same blueprint (a rebuilt fact) does not glow");
   // Lifetime: the mapping keeps no destroyed slot alive.
   if(seam){
    var weak=RecordAndDrop(a.Rider,Public,mountShell);GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();
@@ -608,8 +613,13 @@ public static class MountedPresentationProbe {
    "U04: the hover changes no scheduler or tracker-filter state");
   var second=Tracker(Unit("enemy"),b.Rider,a.Rider);Hover(second,b.Mount);
   Check(Hovered(second)==EntryOf(second,b.Rider)&&!IsHover(EntryOf(second,a.Rider)),"U04 case 10: pair B's folded mount reaches only rider B");
+  Func<Pair,bool> folded=pp=>{foreach(var f in (IList)Call(presentation,"Facts"))if((string)Get(f,"MountId")==Id(pp.Mount))return (bool)Get(f,"MountEntryFolded");throw new InvalidOperationException("no fact");};
+  Check(folded(a)&&folded(b),"U04 case 14: a shared activation's mount is reported folded, as the tracker filter omits it");
   // 13. An independently acting mount keeps its own native entry and hover.
   Fold(a,true);Set(combat,"<RoundNumber>k__BackingField",5);
+  Check(!folded(a)&&folded(b),"U04 case 13: an independently acting mount is not reported folded (the tracker filter keeps its entry)");
+  var partial=Tracker(a.Rider,Unit("other"));Hover(partial,a.Mount);
+  Check(Hovered(partial)==null,"U04 case 13: an independent mount is never redirected, even where its own entry is out of view");
   var independent=Tracker(a.Rider,a.Mount);Hover(independent,a.Mount);
   Check(Hovered(independent)==null&&!IsHover(EntryOf(independent,a.Rider)),"U04 case 13: an independently acting mount is never redirected");
   Set(combat,"<RoundNumber>k__BackingField",3);Fold(a,false);

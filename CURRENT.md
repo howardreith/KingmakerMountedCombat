@@ -1,3 +1,33 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 7 — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
+
+Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the
+accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Presentation only:** every change projects current authoritative state onto native UI. No action, cost, cooldown,
+  `TimeMoved`, allocation, command, routing, initiative, scheduling, activation, saved identity, GUID, fact, grant,
+  progression, save format, selection or combat participation changes.
+- **U01:** after forced (charge) travel recorded on the mount's allocation for the exact live activation, the mount's
+  Move and Standard prediction actions show 0 usable distance and no five-foot step is promised. Native's Unable state
+  and every cost are unchanged; the next activation is native again.
+- **U02:** the exact public slot whose click handed native target selection to a hidden delivery ability is drawn with
+  native's own selected mark, through a weakly held value-identity mapping that ends with the selection operation and at
+  every lifecycle boundary.
+- **U03:** the Paladin class panel omits the weapon-bond upgrades for a Divine Mount character or a bond not yet chosen,
+  from projected copies of the shown descriptor's progression data. Grants and data unchanged.
+- **U04:** a mounted rider's party portrait carries the embedded saddle badge; a folded mount's tracker hover
+  highlights its own rider's existing entry. No entry, order, scheduler or selection change.
+- **T09 (new):** `Test-Finalize2UpgradeReaders.ps1` needs retained r05 native evidence absent from this lab; identical
+  at the base.
+- **Checks:**
+  - Fast PASS 21/0 (0.85 min) (budget `known-issues-sprint7`).
+  - Components 1410/0; presentation contracts 112/0. The accepted Sprint 6 build fails every Sprint 7 section.
+  - Kingmaker assembly contracts 815/0; Validate-Source 151/0.
+  - Mutation campaign P1-P20: 20/20 caught (serial, isolated).
+  - Product-build commit `ee5c20dc`, DLL SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`.
+- **Native:** NOT RUN, and no screen was viewed. Nothing was launched, staged or installed. Sprint 8 was not started.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 8.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97, DFFD3E72 AND 95AE0B30) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the

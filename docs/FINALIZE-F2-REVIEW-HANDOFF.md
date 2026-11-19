@@ -164,3 +164,14 @@ None found a blocker, and every should-fix was applied. Neither of the first two
 - **Not changed:** no time increase, reset or new budget id.
 - **Push:** audited ordinary fast-forward push. The guarded helper does not admit this branch and was not changed.
 - **Left intact:** the rejected local draft branch and the failed runs.
+
+## Superseding note, 2026-11-19 (Known issues Sprint 7, U02)
+
+The cosmetic limitation above, "The selected-slot glow does not show while a swapped shell is in target selection", is
+addressed offline by Sprint 7 (U02). The exact public slot whose click handed native target selection to its hidden
+delivery shell is now drawn with native's own selected mark, through an exact value-identity mapping (slot, its
+ability data, pair owner, generation and state, owner, public and delivery abilities, delivery data and the native
+selection operation) that ends with the selection and at every lifecycle boundary. The slot keeps its public canonical
+ability, so the saved rows and every result above are unchanged. Not viewed on screen and not run natively; see
+[the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md). The other cosmetic item (hidden shell names in combat text) is
+unchanged.

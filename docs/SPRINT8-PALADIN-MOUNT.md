@@ -201,3 +201,14 @@ Live installation at closeout: Mods tree empty, the same as each run's captured 
 9. Take a Ranger with a pet to Paladin 5: the choice should offer only the existing companion.
 10. Reach level 11 with your mount's levels not yet taken: it should show the low protections, then step up at 5 and 11 Hit Dice as you level it. Use Celestial Smite, level the mount: the use should not come back.
 11. With two mounts in the party, smite one enemy with one mount: the other should get no bonus until it uses its own smite.
+
+## Superseding note, 2026-11-19 (Known issues Sprint 7, U03)
+
+The limit "Class table" above is addressed offline for the character screen's class panel. The panel now builds its
+rows from projected copies of the shown character's progression data: a Divine Mount character, or one whose bond is
+not yet chosen, is not promised the six weapon-bond upgrades; a Weapon Bond character, a stock character and a
+character outside the party keep the native rows. The descriptor read is whichever native shows (the committed unit
+or the level-up/respec preview), afresh each time, so a cancelled preview leaves nothing behind. Grants, the stock
+blueprints, the unit's progression data and the Divine Bond text are unchanged. Still not changed: the per-level
+tooltips and the console/gamepad character screen, which read the blueprint's level entries. Not viewed on screen; see
+[the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md).

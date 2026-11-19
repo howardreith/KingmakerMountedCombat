@@ -1,3 +1,24 @@
+# Known issues remediation, Sprint 7 — review checkpoint (2026-11-19)
+
+Branch `codex/kmc-known-issues-sprint7` (draft PR targeting `codex/kmc-known-issues-sprint6`), from `f835c503`. Read
+CURRENT.md, docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 8 bases on this branch
+after review.
+
+- **State:** U01-U04 implemented and verified offline as presentation projections; T09 recorded. Fast PASS 21/0;
+  mutations P1-P20 20/20 caught. Native NOT RUN; no screen viewed.
+- **Rules:**
+  - Presentation reads authority; it never writes gameplay state to make native UI show something.
+  - U01 reads only `MountedMovementState.ForcedTravelRecorded` on the mount allocation whose grant is the live
+    activation's identity (`MountedMovementDisplayPolicy`). Never clear `TimeMoved`/`TimeForced` or a cooldown for display.
+  - U02's mapping is one value identity plus a weak slot reference on the control service. Never match a slot by name,
+    title, icon, blueprint alone or index; every target-selection start or end, and every lifecycle boundary, ends it.
+  - U03 projects copies of the progression data native returns, afresh per panel build. Never edit the stock
+    progression, a unit's `ProgressionData`/`LevelEntry` lists or the grant filter for display.
+  - U04 derives the badge and hover from the live relationships each native call. Keep no tracker entry, view, unit or
+    pair; badge objects only weakly and bounded; the badge never takes pointer events.
+  - Presentation seams are contained and report a fault once per seam.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 8.
+
 # Known issues remediation, Sprint 6 — review checkpoint (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR targeting `codex/kmc-known-issues-sprint5`), from `772543e1`. Read
