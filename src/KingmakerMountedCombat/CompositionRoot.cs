@@ -84,6 +84,7 @@ namespace KingmakerMountedCombat
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 var badgeSource = horseCompanion;
                 pairPresentation = new MountedPairPresentation(world, () => badgeSource.MountSaddleIcon, logger);
+                world.BindPresentation(pairPresentation);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion, pairPresentation);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
                 DivineMountSmiteLogic.ReportLateRefusal = actor => world.ForActor(actor)?.Combat.ReportMountedSmiteRefusal(null, true);
@@ -254,7 +255,7 @@ namespace KingmakerMountedCombat
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
             pairPresentation.Enabled = false;
-            pairPresentation.Reset();
+            pairPresentation.ReleaseAtWorldBoundary("disabled");
             persistence.Enabled = false;
             persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);

@@ -376,8 +376,14 @@ namespace KingmakerMountedCombat.Integration
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
                 // Known issues Sprint 7 (U04): the folded mount's hover and the rider's mounted badge.
-                PatchExact(trackerType, "HandleHoverChange", 0x06004F16, new[] { typeof(UnitEntityView), typeof(bool) }, null, nameof(PatchMethods.FoldedMountHoverPostfix));
-                PatchExact(typeof(Kingmaker.UI.Group.GroupCharacterPortraitController), "HealthUpdate", 0x06003F01, Type.EmptyTypes, null, nameof(PatchMethods.MountedBadgePostfix));
+                // Review of 292cd23c (R1): the tracker's IUnitDirectHoverUIHandler, which the world hover of a unit view raises
+                // (false to the old view, then true to the new); KMC's owned redirect is released before native's pass.
+                PatchExact(trackerType, "HandleHoverChange", 0x06004F16, new[] { typeof(UnitEntityView), typeof(bool) },
+                    nameof(PatchMethods.FoldedMountHoverPrefix), nameof(PatchMethods.FoldedMountHoverPostfix));
+                // (R2): the portrait's per-frame refresh (CharacterBase.Update calls UpdateCrippled for every bound portrait
+                // outside loading; HealthUpdate runs only on a hit-point change) and its bind or rebind to a unit.
+                PatchExact(typeof(Kingmaker.UI.Group.GroupCharacterPortraitController), "UpdateCrippled", 0x06003F02, Type.EmptyTypes, null, nameof(PatchMethods.MountedBadgePostfix));
+                PatchExact(typeof(Kingmaker.UI.Group.GroupCharacterPortraitController), "Initialize", 0x06003EF6, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.MountedBadgePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix), nameof(PatchMethods.PairedEligibilityTranspiler));
                 logger.Info("Installed exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
@@ -686,6 +692,13 @@ namespace KingmakerMountedCombat.Integration
                 return list;
             }
 
+            // Review of 292cd23c (R1): before native's hover pass, KMC's owned redirect is released exactly.
+            internal static void FoldedMountHoverPrefix(object __instance, UnitEntityView unitEntityView, bool isHover)
+            {
+                try { PatchBridge.Presentation?.BeforeTrackerHover(__instance, unitEntityView, isHover); }
+                catch (Exception exception) { ReportPresentationFault("folded mount hover release", exception); }
+            }
+
             // Known issues Sprint 7 (U04): after native's hover pass, a folded mount's hover highlights its rider's entry.
             internal static void FoldedMountHoverPostfix(object __instance, UnitEntityView unitEntityView, bool isHover)
             {
@@ -693,7 +706,7 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception exception) { ReportPresentationFault("folded mount hover", exception); }
             }
 
-            // Known issues Sprint 7 (U04): every native portrait refresh shows or hides the rider's mounted badge.
+            // Known issues Sprint 7 (U04): every native portrait refresh and bind shows or hides the rider's mounted badge.
             internal static void MountedBadgePostfix(Kingmaker.UI.Group.GroupCharacterPortraitController __instance)
             {
                 try { PatchBridge.Presentation?.RefreshPortrait(__instance); }
@@ -1486,6 +1499,9 @@ namespace KingmakerMountedCombat.Integration
             internal static void TrackerUpdatePostfix(bool __state)
             {
                 PatchBridge.UnifiedTurn?.EndTrackerProjection(__state);
+                // Review of 292cd23c (R1): a rebuilt tracker keeps KMC's redirect only while its exact entry and pair hold.
+                try { PatchBridge.Presentation?.ValidateHoverLease("tracker-rebuilt"); }
+                catch (Exception exception) { ReportPresentationFault("folded mount hover validation", exception); }
             }
 
             internal static void TickCommandTurnBasedPostfix(UnitCommand command, ref bool __result)

@@ -32,6 +32,8 @@ public static class MountedPresentationProbe {
  const BindingFlags F=BindingFlags.Instance|BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
  static int passed,sectionFailures;
  static void Check(bool ok,string text){if(!ok)throw new InvalidOperationException("FAIL "+text);passed++;Console.WriteLine("PASS "+text);}
+ // A lifecycle case that reports and continues, so an earlier build shows every case it fails.
+ static void Case(bool ok,string text){if(ok){passed++;Console.WriteLine("PASS "+text);}else{sectionFailures++;Console.WriteLine("FAIL CASE "+text);}}
  static void Section(string name,Action body){
   try{body();}
   catch(Exception error){
@@ -67,10 +69,13 @@ public static class MountedPresentationProbe {
  static bool Has(Type t,string n){return t!=null&&t.GetMethods(F).Any(m=>m.Name==n);}
  sealed class Recorder:RealProxy {
   internal readonly List<string> Calls=new List<string>();
+  internal bool Throws;
   internal Recorder(Type t):base(t){}
   public override IMessage Invoke(IMessage m){var call=(IMethodCallMessage)m;var text=call.MethodName+": "+(call.ArgCount>0?Convert.ToString(call.GetArg(0)):"");
    if(call.ArgCount>1)text+=" "+Convert.ToString(call.GetArg(1));Calls.Add(text);
-   if(call.MethodName!="GetType")Console.WriteLine("product log "+text);return new ReturnMessage(null,null,0,null,call);}
+   if(call.MethodName!="GetType")Console.WriteLine("product log "+text);
+   if(Throws&&call.MethodName!="GetType")return new ReturnMessage(new InvalidOperationException("logger failure"),call);
+   return new ReturnMessage(null,null,0,null,call);}
  }
  static List<string> Calls(MethodBase method){
   var il=method.GetMethodBody().GetILAsByteArray();var names=new List<string>();
@@ -538,62 +543,86 @@ public static class MountedPresentationProbe {
  }
 
  // ---- U04: the mounted badge and the folded mount's tracker hover ---------------------------------------------------
- static object presentation;
+ static object presentation;static Type presentationType;
+ static readonly Dictionary<object,object> views=new Dictionary<object,object>();
+ // A unit's live view, as native's hover pass compares it (the unit's own View and the view's EntityData).
+ static object ViewOf(object unit){
+  object view;if(views.TryGetValue(unit,out view))return view;
+  view=Blank(native.GetType("Kingmaker.View.UnitEntityView",true));
+  for(var t=view.GetType();t!=null;t=t.BaseType){var f=t.GetFields(F|BindingFlags.DeclaredOnly).FirstOrDefault(x=>x.FieldType.Name=="EntityDataBase");if(f!=null){f.SetValue(view,unit);break;}}
+  // A live view as Unity's own null test reads it: a nonzero native object pointer.
+  Set(view,"m_CachedPtr",new IntPtr(1));
+  Set(unit,"<View>k__BackingField",view);views[unit]=view;
+  return view;
+ }
  static object TrackerEntry(object unit){
   var entryType=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerUnitVM",true);
-  var entry=Blank(entryType);Set(entry,"Unit",unit);
+  var entry=Blank(entryType);Set(entry,"Unit",unit);ViewOf(unit);
   Set(entry,"IsHover",Activator.CreateInstance(Field(entryType,"IsHover").FieldType,new object[]{false}));
   return entry;
  }
  static object Tracker(params object[] units){
   var trackerType=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",true);
   var tracker=Blank(trackerType);
-  var list=(IList)Activator.CreateInstance(Field(trackerType,"Units").FieldType);foreach(var u in units)list.Add(TrackerEntry(u));
-  Set(tracker,"Units",list);Set(tracker,"HoveredUnit",Activator.CreateInstance(Field(trackerType,"HoveredUnit").FieldType));
+  Set(tracker,"HoveredUnit",Activator.CreateInstance(Field(trackerType,"HoveredUnit").FieldType));
+  Rebuild(tracker,units);
   return tracker;
+ }
+ // A tracker rebuild: a new rows list of new entry objects, as native's UpdateUnits produces for a changed order.
+ static void Rebuild(object tracker,params object[] units){
+  var list=(IList)Activator.CreateInstance(Field(tracker.GetType(),"Units").FieldType);foreach(var u in units)list.Add(TrackerEntry(u));
+  Set(tracker,"Units",list);
  }
  static object Hovered(object tracker){var p=Get(tracker,"HoveredUnit");return p.GetType().GetProperty("Value").GetValue(p,null);}
  static bool IsHover(object entry){var p=Get(entry,"IsHover");return (bool)p.GetType().GetProperty("Value").GetValue(p,null);}
- static object View(object unit){
-  var view=Blank(native.GetType("Kingmaker.View.UnitEntityView",true));
-  var data=view.GetType().BaseType;
-  for(var t=view.GetType();t!=null;t=t.BaseType){var f=t.GetFields(F|BindingFlags.DeclaredOnly).FirstOrDefault(x=>x.FieldType.Name=="EntityDataBase");if(f!=null){f.SetValue(view,unit);break;}}
-  // A live view as Unity's own null test reads it: a nonzero native object pointer.
-  Set(view,"m_CachedPtr",new IntPtr(1));
-  return view;
+ static MethodInfo nativeHover;static bool hoverPatched;
+ // Native's own InitiativeTrackerVM.HandleHoverChange, through the product's real Harmony12 prefix and postfix.
+ static void NativeHover(object tracker,object unit,bool isHover){
+  if(!hoverPatched){
+   hoverPatched=true;
+   var prefix=patchMethods.GetMethod("FoldedMountHoverPrefix",F);var postfix=patchMethods.GetMethod("FoldedMountHoverPostfix",F);
+   harmonyPatch.Invoke(harmony,new object[]{nativeHover,prefix==null?null:Activator.CreateInstance(harmonyMethod,new object[]{prefix}),
+    postfix==null?null:Activator.CreateInstance(harmonyMethod,new object[]{postfix}),null});
+   Console.WriteLine("U04 native hover patched with "+(prefix==null?"no product prefix":"the product prefix")+" and "+(postfix==null?"no product postfix":"the product postfix"));
+  }
+  try{nativeHover.Invoke(tracker,new object[]{ViewOf(unit),isHover});}
+  catch(TargetInvocationException e){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw();}
  }
- // Native's hover pass found no entry of the hovered unit's own (the folded mount has none); then the product postfix.
- static void Hover(object tracker,object unit){
-  var postfix=patchMethods.GetMethod("FoldedMountHoverPostfix",F);
-  if(postfix!=null)postfix.Invoke(null,new object[]{tracker,View(unit),true});
- }
+ static void Hover(object tracker,object unit){NativeHover(tracker,unit,true);}
  static object EntryOf(object tracker,object unit){foreach(var e in (IList)Get(tracker,"Units"))if(Get(e,"Unit")==unit)return e;return null;}
  static string Order(object tracker){return string.Join(",",((IList)Get(tracker,"Units")).Cast<object>().Select(e=>Id(Get(e,"Unit"))).ToArray());}
  static void Fold(Pair p,bool split){Set(p.Activation,"<Split>k__BackingField",split);Set(p.Participant,"splitReleaseRound",split?1:-1);}
- static void ProbeTrackerAndBadge(){
-  pairs.Clear();Set(world,"pairSnapshot",null);((IDictionary)Get(registry,"actors")).Clear();
-  var a=NewPair("u04a",1,Mounted());var b=NewPair("u04b",6,Mounted());
-  var type=mod.GetType("KingmakerMountedCombat.Integration.MountedPairPresentation");
-  if(type==null){Check(false,"U04: the product has no mounted-pair presentation (no badge, no folded-mount hover)");return;}
+ static bool Lease(){var q=presentationType.GetProperty("HasHoverLease",F);return q!=null&&(bool)q.GetValue(presentation,null);}
+ static string Lit(object tracker){return string.Join(",",((IList)Get(tracker,"Units")).Cast<object>().Where(IsHover).Select(e=>Id(Get(e,"Unit"))).ToArray());}
+ static void NewPresentation(){
+  presentationType=mod.GetType("KingmakerMountedCombat.Integration.MountedPairPresentation");
+  if(presentationType==null)throw new InvalidOperationException("FAIL U04: the product has no mounted-pair presentation (no badge, no folded-mount hover)");
   var logger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));
-  Func<UnityEngine.Sprite> sprite=()=>null;
-  presentation=Activator.CreateInstance(type,F,null,new object[]{world,sprite,logger.GetTransparentProxy()},null);
-  presentation.GetType().GetProperty("Enabled",F).SetValue(presentation,true,null);
+  Func<UnityEngine.Sprite> sprite=()=>(UnityEngine.Sprite)badgeSprite;
+  presentation=Activator.CreateInstance(presentationType,F,null,new object[]{world,sprite,logger.GetTransparentProxy()},null);
+  presentationType.GetProperty("Enabled",F).SetValue(presentation,true,null);
   SetStatic(patchBridge,"Presentation",presentation);
+ }
+ static object badgeSprite;
+ static Pair pa,pb;
+ static void FreshPairs(){
+  pairs.Clear();Set(world,"pairSnapshot",null);((IDictionary)Get(registry,"actors")).Clear();
+  pa=NewPair("u04a",1,Mounted());pb=NewPair("u04b",6,Mounted());Fold(pa,false);Fold(pb,false);
+  Set(combat,"<RoundNumber>k__BackingField",3);
+ }
+ static void ProbeTrackerAndBadge(){
+  FreshPairs();var a=pa;var b=pb;NewPresentation();var type=presentationType;
   Func<object,object> badge=unit=>Call(presentation,"PortraitBadge",unit);
   Func<object,string> mountOf=unit=>{var i=badge(unit);return i==null?null:(string)Get(i,"MountId");};
   // 1, 10. Mount: the badge appears for the exact rider, and two pairs never cross.
   Check(mountOf(a.Rider)==Id(a.Mount)&&mountOf(b.Rider)==Id(b.Mount),"U04 cases 1 and 10: each rider's badge names its own exact mount");
   Check(badge(a.Mount)==null&&badge(Unit("stranger"))==null,"U04: a mount's own portrait and an unmounted actor carry no badge");
-  // 2. Dismount; 3. remount with a new generation; 4-5. death and 8. disposal leave the relationship unmounted.
-  SetState(a,Unmounted());Check(badge(a.Rider)==null,"U04 cases 2, 4, 5 and 8: a dismount (death, disposal) clears the badge");
+  SetState(a,Unmounted());Check(badge(a.Rider)==null,"U04 cases 2, 4, 5 and 8: a dismount (death, disposal) clears the badge identity");
   SetState(a,Mounted());Set(a.Relationship,"mountedPairGeneration",2L);
   Check(badge(a.Rider)!=null&&(long)Get(badge(a.Rider),"Generation")==2L,"U04 case 3: a remount maps its new generation");
-  // 6-7. Load and area: a world with no pairs shows nothing.
   var saved=new ArrayList(pairs);pairs.Clear();Set(world,"pairSnapshot",null);
   Check(badge(a.Rider)==null&&badge(b.Rider)==null,"U04 cases 6-7: a load or area boundary before the pairs return shows no badge");
   foreach(var s in saved)pairs.Add(s);Set(world,"pairSnapshot",null);
-  // 9. Pair replacement and 11-12: the same rider with another mount, the same mount with another rider.
   pairs.Remove(a.Services);Set(world,"pairSnapshot",null);
   var c=NewPair("u04c",1,Mounted());Set(Get(c.Relationship,"runtime"),"rider",a.Rider);
   var ownerType=c.Owner.GetType();Func<bool> yes=()=>true;
@@ -601,73 +630,298 @@ public static class MountedPresentationProbe {
   Set(c.Relationship,"<PairOwner>k__BackingField",c.Owner);
   Check(mountOf(a.Rider)==Id(c.Mount),"U04 cases 9 and 11: a replaced pair or another mount moves the badge to the new mount");
   pairs.Remove(c.Services);pairs.Add(a.Services);Set(world,"pairSnapshot",null);
-  // Hover. Native tracker entries: the folded mounts have none of their own.
-  Fold(a,false);Fold(b,false);
+  // Hover through native's own pass. Native tracker entries: the folded mounts have none of their own.
   var tracker=Tracker(Unit("enemy"),b.Rider,a.Rider,Unit("ally"));var before=Order(tracker);
   var counters=new[]{"TrackerMountFilterCount","RedundantMountTurnSkipCount"}.Select(n=>Prop(a.Participant,n)).ToArray();
   Hover(tracker,a.Mount);
   Check(Hovered(tracker)==EntryOf(tracker,a.Rider)&&IsHover(EntryOf(tracker,a.Rider))&&!IsHover(EntryOf(tracker,b.Rider)),
-   "U04 case 14: hovering pair A's folded mount highlights rider A's existing entry, not pair B's");
+   "U04 case 14: hovering pair A's folded mount (native pass, then the product) highlights rider A's existing entry, not pair B's");
   Check(Order(tracker)==before&&((IList)Get(tracker,"Units")).Count==4,"U04: the hover adds no entry and keeps the tracker's order");
   Check(new[]{"TrackerMountFilterCount","RedundantMountTurnSkipCount"}.Select(n=>Prop(a.Participant,n)).SequenceEqual(counters),
    "U04: the hover changes no scheduler or tracker-filter state");
+  NativeHover(tracker,a.Mount,false);
   var second=Tracker(Unit("enemy"),b.Rider,a.Rider);Hover(second,b.Mount);
   Check(Hovered(second)==EntryOf(second,b.Rider)&&!IsHover(EntryOf(second,a.Rider)),"U04 case 10: pair B's folded mount reaches only rider B");
+  NativeHover(second,b.Mount,false);
   Func<Pair,bool> folded=pp=>{foreach(var f in (IList)Call(presentation,"Facts"))if((string)Get(f,"MountId")==Id(pp.Mount))return (bool)Get(f,"MountEntryFolded");throw new InvalidOperationException("no fact");};
   Check(folded(a)&&folded(b),"U04 case 14: a shared activation's mount is reported folded, as the tracker filter omits it");
-  // 13. An independently acting mount keeps its own native entry and hover.
   Fold(a,true);Set(combat,"<RoundNumber>k__BackingField",5);
   Check(!folded(a)&&folded(b),"U04 case 13: an independently acting mount is not reported folded (the tracker filter keeps its entry)");
   var partial=Tracker(a.Rider,Unit("other"));Hover(partial,a.Mount);
-  Check(Hovered(partial)==null,"U04 case 13: an independent mount is never redirected, even where its own entry is out of view");
+  Check(Hovered(partial)==null&&!Lease(),"U04 case 13: an independent mount is never redirected and acquires no lease, even where its own entry is out of view");
   var independent=Tracker(a.Rider,a.Mount);Hover(independent,a.Mount);
-  Check(Hovered(independent)==null&&!IsHover(EntryOf(independent,a.Rider)),"U04 case 13: an independently acting mount is never redirected");
+  Check(Hovered(independent)==EntryOf(independent,a.Mount)&&!IsHover(EntryOf(independent,a.Rider))&&!Lease(),
+   "U04 case 13: an independently acting mount keeps native's own entry and hover");
+  NativeHover(independent,a.Mount,false);
   Set(combat,"<RoundNumber>k__BackingField",3);Fold(a,false);
-  // 15. A rebuilt tracker: the hover reads the entries as they are now, holding none.
-  var rebuilt=Tracker(a.Rider,Unit("x"));Hover(rebuilt,a.Mount);
-  Check(Hovered(rebuilt)==EntryOf(rebuilt,a.Rider),"U04 case 15: a rebuilt tracker maps through its own current entries");
-  Check(type.GetFields(F).All(f=>f.IsLiteral||f.IsStatic&&(typeof(MemberInfo).IsAssignableFrom(f.FieldType)||f.FieldType==typeof(Type))||!f.IsStatic&&
+  var lifetime=type.GetFields(F).All(f=>f.IsLiteral||f.IsStatic&&(typeof(MemberInfo).IsAssignableFrom(f.FieldType)||f.FieldType==typeof(Type))||!f.IsStatic&&
    (f.FieldType.IsValueType||f.FieldType==typeof(string)||f.FieldType.Name.StartsWith("List`1")&&f.FieldType.GetGenericArguments()[0]==typeof(WeakReference)||
-    f.FieldType.Name.Contains("Func")||f.FieldType.Name.Contains("Logger")||f.FieldType.Name=="MountedWorldService")),
-   "U04 case 15 and lifetime: the presentation keeps no tracker entry, view, unit or pair (badge objects only weakly, bounded)");
+    f.FieldType.Name.Contains("Func")||f.FieldType.Name.Contains("Logger")||f.FieldType.Name=="MountedWorldService"||f.FieldType.Name=="HoverLease"||f.FieldType.Name=="MountedBadgeSurface"));
+  var lease=type.GetNestedType("HoverLease",F);
+  Check(lifetime&&(lease==null||lease.GetFields(F).All(f=>f.FieldType==typeof(WeakReference)||f.FieldType==typeof(string)||f.FieldType.Name=="MountedPairPresentationIdentity")),
+   "U04 case 15 and lifetime: the presentation keeps no tracker, entry, view, unit or pair strongly (the lease only weakly, badge objects only weakly and bounded)");
   Check((int)type.GetField("BadgeCapacity",F).GetValue(null)==32,"U04: the badge objects are bounded");
-  // 16. Selection: the presentation reads no selection and selects nothing.
   var all=type.GetMethods(F|BindingFlags.DeclaredOnly).SelectMany(m=>m.GetMethodBody()==null?new List<string>():Calls(m)).ToList();
   Check(!all.Any(cl=>cl.StartsWith("SelectionManager")||cl.Contains("SelectUnit")),"U04 case 16: the presentation never reads or changes the selection");
-  // 17. Disable and re-enable.
   presentation.GetType().GetProperty("Enabled",F).SetValue(presentation,false,null);
   var off=Tracker(a.Rider);Hover(off,a.Mount);
   Check(badge(a.Rider)==null&&Hovered(off)==null,"U04 case 17: disabled, no badge and no redirect");
   presentation.GetType().GetProperty("Enabled",F).SetValue(presentation,true,null);
   Check(badge(a.Rider)!=null,"U04 case 17: re-enabled, the badge is derived afresh");
-  // 18. A presentation failure is contained.
-  Set(world,"pairs",null);Exception thrown=null;
-  try{Hover(Tracker(a.Rider),a.Mount);}catch(Exception e){thrown=e;}
-  Set(world,"pairs",pairs);
-  Check(thrown==null,"U04 case 18: a presentation failure never escapes the native hover");
-  // 12. The same mount with another rider.
   Set(Get(b.Relationship,"runtime"),"mount",a.Mount);
   Check(mountOf(a.Rider)==Id(a.Mount)&&mountOf(b.Rider)==null,"U04 case 12: one mount claimed by two relationships shows no badge on the inconsistent pair");
   Set(Get(b.Relationship,"runtime"),"mount",b.Mount);
-  // The seams.
-  var trackerType=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",true);
-  var hover=trackerType.GetMethods(F).First(m=>m.Name=="HandleHoverChange"&&m.GetParameters().Length==2);
-  var health=native.GetType("Kingmaker.UI.Group.GroupCharacterPortraitController",true).GetMethod("HealthUpdate",F);
-  Check(hover.MetadataToken==0x06004F16&&health.MetadataToken==0x06003F01,"native hover and portrait refresh are the pinned seams");
-  foreach(var pair in new[]{Tuple.Create((MethodBase)hover,"FoldedMountHoverPostfix"),Tuple.Create((MethodBase)health,"MountedBadgePostfix")}){
-   harmonyPatch.Invoke(harmony,new object[]{pair.Item1,null,Activator.CreateInstance(harmonyMethod,new object[]{patchMethods.GetMethod(pair.Item2,F)}),null});
-   Check(true,"U04: a real Harmony12 patch of "+pair.Item1.Name+" with "+pair.Item2+" is constructed");
+ }
+
+ // ---- R1: the folded-mount hover redirect lifecycle, native pass included -----------------------------------------
+ static void ProbeHoverLifecycle(){
+  FreshPairs();var a=pa;var b=pb;NewPresentation();
+  var ally=Unit("ally");var t=Tracker(Unit("enemy"),b.Rider,a.Rider,ally);
+  // true -> false for one folded mount.
+  NativeHover(t,a.Mount,true);
+  Case(Lit(t)==Id(a.Rider)&&Hovered(t)==EntryOf(t,a.Rider),"R1 true: the folded mount's hover highlights its rider's exact entry");
+  Case(Lease(),"R1 true: KMC owns that redirect (an exact lease)");
+  NativeHover(t,a.Mount,false);
+  Case(Lit(t)==""&&Hovered(t)==null&&!Lease(),"R1 true->false: the mount's false releases the redirected rider entry, HoveredUnit and the lease");
+  // Pair A true -> pair B true on the same tracker, with and without native's intervening false.
+  NativeHover(t,a.Mount,true);NativeHover(t,b.Mount,true);
+  Case(Lit(t)==Id(b.Rider)&&Hovered(t)==EntryOf(t,b.Rider),"R1 A->B without a false: pair A is no longer highlighted and pair B's exact rider is");
+  Case(Lease(),"R1 A->B: KMC's lease is now pair B's");
+  NativeHover(t,b.Mount,false);NativeHover(t,a.Mount,true);
+  Case(Lit(t)==Id(a.Rider)&&Hovered(t)==EntryOf(t,a.Rider),"R1 B false then A true: pair A's exact redirect");
+  // Folded mount -> ordinary native entry, and back.
+  NativeHover(t,a.Mount,false);NativeHover(t,ally,true);
+  Case(Lit(t)==Id(ally)&&Hovered(t)==EntryOf(t,ally)&&!Lease(),"R1 folded mount -> ordinary entry: native is authoritative, no KMC redirect remains");
+  NativeHover(t,ally,true);NativeHover(t,a.Mount,true);
+  Case(Lit(t)==Id(a.Rider)&&Hovered(t)==EntryOf(t,a.Rider),"R1 ordinary entry -> folded mount: the redirect replaces native's earlier entry");
+  // A native true for an ordinary entry while a redirect is held (no false between) releases it before native's pass.
+  NativeHover(t,ally,true);
+  Case(Lit(t)==Id(ally)&&!Lease(),"R1 a direct native hover while redirected leaves native authoritative");
+  NativeHover(t,ally,false);
+  // Tracker rebuild during hover: the old entry is never touched again; the lease ends.
+  NativeHover(t,a.Mount,true);var oldEntry=EntryOf(t,a.Rider);
+  Rebuild(t,b.Rider,a.Rider,ally);patchMethods.GetMethod("TrackerUpdatePostfix",F).Invoke(null,new object[]{false});
+  Case(!Lease()&&Hovered(t)==null&&IsHover(oldEntry)&&Lit(t)=="","R1 tracker rebuilt during hover: the lease ends, HoveredUnit is cleared, the old entry object is never touched again, the new rows are untouched");
+  // Pair generation replacement during hover.
+  NativeHover(t,a.Mount,true);Set(a.Relationship,"mountedPairGeneration",9L);
+  patchMethods.GetMethod("TrackerUpdatePostfix",F).Invoke(null,new object[]{false});
+  Case(!Lease()&&Lit(t)==""&&Hovered(t)==null,"R1 a pair-generation change during hover releases the redirect");
+  Set(a.Relationship,"mountedPairGeneration",1L);
+  // Dismount during hover: the pair's cleanup releases it.
+  NativeHover(t,a.Mount,true);
+  var trigger=Enum.Parse(mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true),"Manual",true);
+  RaiseDismounting(a,trigger);
+  Case(!Lease()&&Lit(t)==""&&Hovered(t)==null,"R1 a dismount (pair cleanup) during hover releases the redirect");
+  // Death, load, area and world boundaries.
+  foreach(var boundary in new[]{"load","area-unloading","world-discarded"}){
+   NativeHover(t,a.Mount,true);Boundary(boundary);
+   Case(!Lease()&&Lit(t)=="","R1 boundary "+boundary+" releases the redirect");
   }
-  var refresh=Calls(type.GetMethod("RefreshPortrait",F));
-  Check(refresh.Contains("MountedPairPresentation.PortraitBadge")&&refresh.Contains("Transform.Find"),"U04: every portrait refresh derives the badge from the live relationship");
-  Check(Calls(type.GetMethod("CreateBadge",F)).Count(cl=>cl.EndsWith("SetValue"))>=2,"U04: the badge image takes no pointer event (portrait clicks and hover stay native)");
+  NativeHover(t,a.Mount,true);RaiseDismounting(a,Enum.Parse(trigger.GetType(),"Death",true));
+  Case(!Lease()&&Lit(t)=="","R1 a death (pair cleanup) releases the redirect");
+  // Disable and disposal.
+  NativeHover(t,a.Mount,true);presentationType.GetProperty("Enabled",F).SetValue(presentation,false,null);
+  Boundary("disabled");
+  Case(!Lease()&&Lit(t)=="","R1 disable releases the redirect");
+  presentationType.GetProperty("Enabled",F).SetValue(presentation,true,null);
+  NativeHover(t,a.Mount,true);Call(presentation,"Dispose");
+  Case(!Lease()&&Lit(t)=="","R1 disposal releases the redirect");
+  NewPresentation();
+  // Another pair on another tracker: one lease, exact.
+  var t2=Tracker(b.Rider);NativeHover(t,a.Mount,true);NativeHover(t2,b.Mount,true);
+  Case(Lit(t)==""&&Lit(t2)==Id(b.Rider)&&Lease(),"R1 another pair on another tracker: pair A's redirect is released, pair B's applied");
+  NativeHover(t2,b.Mount,false);
+  // Nested native hover inside KMC's own apply: native's nested pass stands; nothing escapes; the next pass clears.
+  var unitHover=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerUnitVM",true).GetMethod("HandleHoverChange",F);
+  harmonyPatch.Invoke(harmony,new object[]{unitHover,null,Activator.CreateInstance(harmonyMethod,new object[]{typeof(MountedPresentationProbe).GetMethod("EntryHoverPostfix")}),null});
+  nested=()=>NativeHover(t,ally,true);
+  Exception thrown=null;try{NativeHover(t,a.Mount,true);}catch(Exception e){thrown=e;}
+  nested=null;
+  Case(thrown==null&&Hovered(t)==EntryOf(t,ally)&&IsHover(EntryOf(t,ally)),"R1 a nested native hover inside KMC's apply is native's alone and stands");
+  NativeHover(t,ally,false);
+  Case(Lit(t)==""&&Hovered(t)==null&&!Lease(),"R1 after the nested pass, the next false leaves nothing highlighted and no lease");
+  // A native callback that throws during KMC's apply, and a logger that throws too.
+  throwOnTrue=true;var badLogger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));badLogger.Throws=true;
+  var oldLogger=Get(null,patchBridge,"Logger");SetStatic(patchBridge,"Logger",badLogger.GetTransparentProxy());
+  thrown=null;try{NativeHover(t,a.Mount,true);}catch(Exception e){thrown=e;}
+  throwOnTrue=false;SetStatic(patchBridge,"Logger",oldLogger);
+  Case(thrown==null&&!Lease()&&Lit(t)==""&&Hovered(t)==null,"R1 a throwing native callback and a throwing logger leave no entry stuck, no lease, and nothing escapes");
+  // Stale or collected references.
+  var weak=HoverAndDrop(a);GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();
+  Case(!weak.IsAlive,"R1 the lease holds its tracker only weakly (a dropped tracker is collected)");
+  thrown=null;try{patchMethods.GetMethod("TrackerUpdatePostfix",F).Invoke(null,new object[]{false});NativeHover(t,b.Mount,true);}catch(Exception e){thrown=e;}
+  Case(thrown==null&&Lit(t)==Id(b.Rider),"R1 a collected tracker's lease is released without touching anything, and later hovers work");
+  NativeHover(t,b.Mount,false);
+  Case(hoverPatched&&patchMethods.GetMethod("FoldedMountHoverPrefix",F)!=null,"R1: a real Harmony12 patch of InitiativeTrackerVM.HandleHoverChange with the product's prefix and postfix is constructed and executed");
+  Case(new[]{"TrackerMountFilterCount","RedundantMountTurnSkipCount"}.All(n=>Prop(a.Participant,n)==null||Convert.ToInt64(Prop(a.Participant,n))==0),
+   "R1 no hover changed tracker filtering or scheduling counters");
+ }
+ public static Action nested;public static bool throwOnTrue;
+ // The world's own pair-cleanup event (dismount, death, load, area unload, disable, teardown), as the relationship raises it.
+ static void RaiseDismounting(Pair p,object trigger){
+  var handler=Field(world.GetType(),"PairDismounting").GetValue(world) as Delegate;
+  if(handler!=null)handler.DynamicInvoke(p.Relationship,trigger);
+ }
+ // A world boundary as the product's load, area-unload and world-discard sites deliver it (absent in an earlier build).
+ static void Boundary(string reason){if(Has(presentationType,"ReleaseAtWorldBoundary"))Call(presentation,"ReleaseAtWorldBoundary",reason);}
+ public static void EntryHoverPostfix(bool isHover){
+  if(isHover&&throwOnTrue)throw new InvalidOperationException("native callback failure");
+  var n=nested;if(isHover&&n!=null){nested=null;n();}
+ }
+ static WeakReference HoverAndDrop(Pair p){var t=Tracker(p.Rider);NativeHover(t,p.Mount,true);return new WeakReference(t);}
+ static object Get(object o,Type t,string n){return Field(t,n).GetValue(o);}
+
+ // ---- R2: the badge lifecycle through the product, with the engine's badge object substituted ---------------------
+ sealed class FakeBadge{internal object Portrait;internal bool Active=true,Alive=true;}
+ static readonly List<FakeBadge> fakeBadges=new List<FakeBadge>();
+ static bool failDestroy,failCreate;
+ public static object FindBadge(object portrait){return fakeBadges.FirstOrDefault(x=>x.Alive&&x.Portrait==portrait);}
+ public static object CreateBadge(object portrait,object sprite){if(failCreate)throw new InvalidOperationException("ui construction failure");var x=new FakeBadge{Portrait=portrait};fakeBadges.Add(x);return x;}
+ public static bool BadgeAlive(object badge){return ((FakeBadge)badge).Alive;}
+ public static bool BadgeActive(object badge){return ((FakeBadge)badge).Active;}
+ public static void BadgeSetActive(object badge,bool active){((FakeBadge)badge).Active=active;}
+ public static void BadgeDestroy(object badge){if(failDestroy&&fakeBadges.IndexOf((FakeBadge)badge)%2==0)throw new InvalidOperationException("ui destruction failure");((FakeBadge)badge).Alive=false;}
+ static object Portrait(object unit){
+  var portrait=Blank(native.GetType("Kingmaker.UI.Group.GroupCharacterPortraitController",true));Alive(portrait);Set(portrait,"m_Unit",unit);return portrait;
+ }
+ static FakeBadge BadgeOn(object portrait){return (FakeBadge)FindBadge(portrait);}
+ static bool Shown(object portrait){var x=BadgeOn(portrait);return x!=null&&x.Active;}
+ static void Refresh(object portrait){patchMethods.GetMethod("MountedBadgePostfix",F).Invoke(null,new[]{portrait});}
+ static void ProbeBadgeLifecycle(){
+  FreshPairs();var a=pa;var b=pb;NewPresentation();
+  var surfaceProperty=presentationType.GetProperty("BadgeSurface",F);
+  if(surfaceProperty==null){Check(false,"R2: the product's badge has no lifecycle seam beyond the hit-point refresh (no substitutable badge surface)");return;}
+  var surface=surfaceProperty.GetValue(presentation,null);
+  foreach(var pair in new[]{Tuple.Create("Find","FindBadge"),Tuple.Create("Create","CreateBadge"),Tuple.Create("IsAlive","BadgeAlive"),
+    Tuple.Create("IsActive","BadgeActive"),Tuple.Create("SetActive","BadgeSetActive"),Tuple.Create("Destroy","BadgeDestroy")})
+   Set(surface,pair.Item1,Delegate.CreateDelegate(Field(surface.GetType(),pair.Item1).FieldType,typeof(MountedPresentationProbe).GetMethod(pair.Item2)));
+  fakeBadges.Clear();badgeSprite=null;
+  var pr=Portrait(a.Rider);var pB=Portrait(b.Rider);
+  // 11. No sprite: the native portrait stays unchanged.
+  Refresh(pr);Check(BadgeOn(pr)==null&&fakeBadges.Count==0,"R2 case 11: with no sprite no badge object is made and the portrait is unchanged");
+  badgeSprite=Blank(typeof(UnityEngine.Sprite));Alive(badgeSprite);
+  // 1, 10. Mounted rider, two pairs.
+  Refresh(pr);Refresh(pB);
+  Case(Shown(pr)&&Shown(pB)&&BadgeOn(pr)!=BadgeOn(pB),"R2 cases 1 and 10: each mounted rider's portrait has its own active badge object");
+  // 2. Dismount: the next native refresh deactivates it.
+  SetState(a,Unmounted());Refresh(pr);
+  Case(!Shown(pr)&&Shown(pB),"R2 case 2: a dismount deactivates that rider's badge at the next refresh; the other pair keeps its own");
+  // 3. Remount with a new generation: the same object returns, derived afresh.
+  SetState(a,Mounted());Set(a.Relationship,"mountedPairGeneration",4L);Refresh(pr);
+  Case(Shown(pr)&&fakeBadges.Count(x=>x.Portrait==pr)==1,"R2 case 3: a remount shows the badge again without a duplicate");
+  // 4. Death (the relationship's cleanup leaves it unmounted).
+  SetState(a,Unmounted());Refresh(pr);Check(!Shown(pr),"R2 case 4: rider or mount death clears the badge");SetState(a,Mounted());
+  // 5. Pair replacement: still exactly one badge for the rider.
+  Refresh(pr);Check(Shown(pr),"R2 case 5: a replaced pair keeps one badge on its rider");
+  // 6. The portrait rebound to another unit (native Initialize): the old unit's badge does not follow.
+  Set(pr,"m_Unit",Unit("companion"));Refresh(pr);
+  Case(!Shown(pr),"R2 case 6: a portrait rebound to another unit hides the badge at the bind");
+  Set(pr,"m_Unit",a.Rider);Refresh(pr);
+  // 7. Load, area and world replacement: every badge object is removed and none counts against the bound.
+  foreach(var boundary in new[]{"load","area-unloading","world-discarded"}){
+   Refresh(pr);Refresh(pB);Boundary(boundary);
+   Case(fakeBadges.All(x=>!x.Alive)&&(int)Prop(presentation,"TrackedBadgeCount")==0,"R2 case 7: "+boundary+" removes every badge object and empties the bound");
+  }
+  // The bound: dead objects never count; at most 32 live.
+  fakeBadges.Clear();var many=new List<object>();
+  for(var i=0;i<40;i++){var rider=NewPair("bound"+i,1,Mounted());var p=Portrait(rider.Rider);many.Add(p);Refresh(p);}
+  Case(fakeBadges.Count(x=>x.Alive)==32&&(int)Prop(presentation,"TrackedBadgeCount")==32,"R2: at most 32 live badge objects are made");
+  foreach(var x in fakeBadges)x.Alive=false;Refresh(pr);
+  Case((int)Prop(presentation,"TrackedBadgeCount")==1&&Shown(pr),"R2 case 7: objects the engine destroyed never count against the bound");
+  foreach(var x in fakeBadges)x.Alive=false;
+  // 8, 9. Disable removes every badge; re-enable derives it afresh.
+  Refresh(pr);Refresh(pB);presentationType.GetProperty("Enabled",F).SetValue(presentation,false,null);Call(presentation,"Reset");Refresh(pr);
+  Case(fakeBadges.All(x=>!x.Alive)&&!Shown(pr),"R2 case 8: disable removes every badge object");
+  presentationType.GetProperty("Enabled",F).SetValue(presentation,true,null);Refresh(pr);
+  Case(Shown(pr),"R2 case 9: re-enabled, the badge is derived afresh");
+  // 12. UI construction or destruction failure, with a throwing logger: cleanup continues for every remaining badge.
+  Refresh(pB);var badLogger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));badLogger.Throws=true;
+  Set(presentation,"logger",badLogger.GetTransparentProxy());
+  Call(presentation,"Reset");fakeBadges.Clear();
+  for(var i=0;i<4;i++){var rider=NewPair("fail"+i,1,Mounted());Refresh(Portrait(rider.Rider));}
+  failDestroy=true;Exception thrown=null;try{Call(presentation,"Reset");}catch(Exception e){thrown=e;}failDestroy=false;
+  Case(thrown==null&&fakeBadges.Count==4&&(int)Prop(presentation,"TrackedBadgeCount")==0&&!fakeBadges[1].Alive&&!fakeBadges[3].Alive&&fakeBadges[0].Alive&&fakeBadges[2].Alive,
+   "R2 case 12: a failing removal and a throwing logger never stop the other removals, never escape, and the bound empties");
+  failCreate=true;thrown=null;var fresh=Portrait(NewPair("create",1,Mounted()).Rider);
+  try{Refresh(fresh);}catch(Exception e){thrown=e;}failCreate=false;
+  Case(thrown==null&&BadgeOn(fresh)==null,"R2 case 12: a failing badge construction is contained and leaves no badge");
+  thrown=null;try{Call(presentation,"Dispose");}catch(Exception e){thrown=e;}
+  Case(thrown==null&&(int)Prop(presentation,"TrackedBadgeCount")==0,"R2 case 8: disposal completes and removes every badge with a throwing logger");
+  NewPresentation();
+ }
+
+ // ---- R1/R2: the installed native hover and portrait contracts -----------------------------------------------------
+ static List<string> ReferencesTo(MethodBase target){
+  var found=new List<string>();Type[] all;
+  try{all=native.GetTypes();}catch(ReflectionTypeLoadException e){all=e.Types.Where(x=>x!=null).ToArray();}
+  foreach(var t in all)foreach(var m in t.GetMethods(F|BindingFlags.DeclaredOnly).Cast<MethodBase>().Concat(t.GetConstructors(F|BindingFlags.DeclaredOnly))){
+   byte[] il;try{var body=m.GetMethodBody();if(body==null)continue;il=body.GetILAsByteArray();}catch(Exception){continue;}
+   for(var i=0;i+4<il.Length;i++){
+    if(il[i]!=0x28&&il[i]!=0x6F)continue;
+    if(BitConverter.ToInt32(il,i+1)==target.MetadataToken&&m.Module==target.Module){found.Add(t.FullName+"."+m.Name);break;}
+   }
+  }
+  return found;
+ }
+ static void ProbeNativeContracts(){
+  var direct=native.GetType("Kingmaker.PubSubSystem.IUnitDirectHoverUIHandler",true).GetMethod("HandleHoverChange");
+  var detect=native.GetType("Kingmaker.Controllers.Clicks.IDetectHover",true).GetMethod("HandleHoverChange");
+  var viewType=native.GetType("Kingmaker.View.UnitEntityView",true);
+  var trackerType=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",true);
+  var raisers=ReferencesTo(direct);
+  Check(raisers.Count==1&&raisers[0].StartsWith("Kingmaker.View.UnitEntityView+")&&raisers[0].EndsWith("<HandleHoverChange>b__0"),
+   "native: IUnitDirectHoverUIHandler.HandleHoverChange is raised only by UnitEntityView.HandleHoverChange's event ("+string.Join(",",raisers.ToArray())+")");
+  var viewHover=viewType.GetMethod("HandleHoverChange",F);var map=viewType.GetInterfaceMap(detect.DeclaringType);
+  Check(viewHover.MetadataToken==0x0600185A&&map.TargetMethods.Contains(viewHover),"native: UnitEntityView.HandleHoverChange(bool) is its IDetectHover implementation");
+  var detectors=ReferencesTo(detect);
+  Check(detectors.Contains("Kingmaker.Controllers.Clicks.PointerController.OnHoverChanged"),"native: PointerController.OnHoverChanged calls IDetectHover.HandleHoverChange ("+string.Join(",",detectors.ToArray())+")");
+  var pointer=native.GetType("Kingmaker.Controllers.Clicks.PointerController",true).GetMethod("OnHoverChanged",F);
+  var il=pointer.GetMethodBody().GetILAsByteArray();var order=new List<int>();
+  for(var i=1;i+4<il.Length;i++)if(il[i]==0x6F&&BitConverter.ToInt32(il,i+1)==detect.MetadataToken)order.Add(il[i-1]==0x16?0:il[i-1]==0x17?1:-1);
+  Check(order.SequenceEqual(new[]{0,1}),"native: a hover change delivers false to the old object's detectors before true to the new one's");
+  var trackerHover=trackerType.GetInterfaceMap(direct.DeclaringType).TargetMethods.Single();
+  Check(trackerHover.MetadataToken==0x06004F16,"native: InitiativeTrackerVM.HandleHoverChange (0x06004F16) is the tracker's subscriber to the view hover event");
+  var portraitType=native.GetType("Kingmaker.UI.Group.GroupCharacterPortraitController",true);
+  var portraitHover=Calls(portraitType.GetMethod("set_IsMouseOver",F));
+  var portraitEvent=native.GetType("Kingmaker.PubSubSystem.IUnitPortraitHighlightChangedHandler",true);
+  Check(!portraitHover.Contains("UnitEntityView.HandleHoverChange")&&ReferencesTo(direct).All(r=>!r.Contains("GroupCharacterPortraitController"))&&!portraitEvent.IsAssignableFrom(trackerType),
+   "native: a party-portrait hover raises IUnitPortraitHighlightChangedHandler (not implemented by the tracker) and never reaches the tracker's hover handler");
+  // Native's own hover pass, executed: true picks the hovered unit's entry or none and recomputes every entry; false clears all.
+  var ally=Unit("native-ally");var other=Unit("native-other");var t=Tracker(ally,other);
+  var hoverMethod=trackerType.GetMethod("HandleHoverChange",F);
+  hoverMethod.Invoke(t,new object[]{ViewOf(ally),true});
+  Check(Hovered(t)==EntryOf(t,ally)&&Lit(t)==Id(ally),"native executed: true selects the hovered unit's own entry and highlights only it");
+  hoverMethod.Invoke(t,new object[]{ViewOf(other),true});
+  Check(Hovered(t)==EntryOf(t,other)&&Lit(t)==Id(other),"native executed: true for another unit recomputes every entry");
+  hoverMethod.Invoke(t,new object[]{ViewOf(Unit("unmatched")),true});
+  Check(Hovered(t)==null&&Lit(t)=="","native executed: an unmatched unit's true leaves no hovered entry and no highlight");
+  hoverMethod.Invoke(t,new object[]{ViewOf(ally),true});hoverMethod.Invoke(t,new object[]{ViewOf(ally),false});
+  Check(Hovered(t)==null&&Lit(t)=="","native executed: false clears HoveredUnit and every entry");
+  // Portrait refresh: CharacterBase.Update refreshes UpdateCrippled every frame and HealthUpdate only after a hit-point change.
+  var update=Calls(native.GetType("Kingmaker.UI.Group.CharacterBase",true).GetMethod("Update",F));
+  var crippled=update.IndexOf("GroupCharacterPortraitController.UpdateCrippled");var health=update.IndexOf("GroupCharacterPortraitController.HealthUpdate");
+  Check(crippled>=0&&health>crippled&&update.IndexOf("LoadingProcess.get_IsLoadingInProcess")<crippled&&update.IndexOf("UnitEntityData.get_HPLeft")<health,
+   "native: CharacterBase.Update calls UpdateCrippled for every bound portrait outside loading, and HealthUpdate only after the hit-point check");
+  var binders=ReferencesTo(portraitType.GetMethod("Initialize",F));
+  Check(binders.Contains("Kingmaker.UI.Group.CharacterBase.Initialize")&&binders.Contains("Kingmaker.UI.Group.GroupCharacter.HandlePortraitChanged"),
+   "native: the portrait's unit is bound and rebound through Initialize ("+string.Join(",",binders.ToArray())+")");
+  Check(portraitType.GetMethod("UpdateCrippled",F).MetadataToken==0x06003F02&&portraitType.GetMethod("Initialize",F).MetadataToken==0x06003EF6,
+   "native portrait seams are the pinned UpdateCrippled 0x06003F02 and Initialize 0x06003EF6");
+  // Real Harmony12 construction of every changed U04 seam.
+  foreach(var pair in new[]{Tuple.Create((MethodBase)portraitType.GetMethod("UpdateCrippled",F),"MountedBadgePostfix"),Tuple.Create((MethodBase)portraitType.GetMethod("Initialize",F),"MountedBadgePostfix")}){
+   var post=patchMethods.GetMethod(pair.Item2,F);Exception failure=null;
+   try{harmonyPatch.Invoke(harmony,new object[]{pair.Item1,null,Activator.CreateInstance(harmonyMethod,new object[]{post}),null});}
+   catch(TargetInvocationException e){failure=e.InnerException;}
+   Console.WriteLine("R2 detached Harmony12 construction of "+pair.Item1.Name+": "+(failure==null?"constructed":"not constructible outside the engine ("+failure.Message+")"));
+  }
  }
 
  // ---- Registration of every new seam in the product -----------------------------------------------------------------
  static void ProbeRegistration(){
   var ctor=controller.GetConstructors(F)[0];var tokens=Int32Operands(ctor);
   foreach(var pair in new[]{Tuple.Create(0x0600704F,"PairedMoveDistancePrefix"),Tuple.Create(0x06002F68,"PublicSlotSelectionPostfix"),
-    Tuple.Create(0x06004A32,"DivineBondClassRowsTranspiler"),Tuple.Create(0x06004F16,"FoldedMountHoverPostfix"),Tuple.Create(0x06003F01,"MountedBadgePostfix")})
+    Tuple.Create(0x06004A32,"DivineBondClassRowsTranspiler"),Tuple.Create(0x06004F16,"FoldedMountHoverPostfix"),Tuple.Create(0x06004F16,"FoldedMountHoverPrefix"),
+    Tuple.Create(0x06003F02,"MountedBadgePostfix"),Tuple.Create(0x06003EF6,"MountedBadgePostfix")})
    Check(tokens.Contains(pair.Item1)&&patchMethods.GetMethod(pair.Item2,F)!=null,"the product registers "+pair.Item2+" at exact token 0x"+pair.Item1.ToString("X8"));
   // Native UpdateSlotInternal draws through Unity internal calls, so its patched replacement cannot be compiled outside the
   // engine. Its binding is checked instead: the exact method, and a postfix whose parameters native's names and types bind.
@@ -677,11 +931,21 @@ public static class MountedPresentationProbe {
    sp[1].Name==np[0].Name&&sp[1].ParameterType==np[0].ParameterType&&selection.ReturnType==typeof(void),
    "U02: PublicSlotSelectionPostfix binds native UpdateSlotInternal(ActionBarSlot slot) by name and type (the patched body itself needs the engine to compile)");
   Exception failure=null;
+  // R2: the portrait seams draw through Unity internal calls too; the badge postfix binds both by instance type.
+  var portraitType=native.GetType("Kingmaker.UI.Group.GroupCharacterPortraitController",true);
+  var badgePost=patchMethods.GetMethod("MountedBadgePostfix",F);var bp=badgePost.GetParameters();
+  Check(bp.Length==1&&bp[0].Name=="__instance"&&bp[0].ParameterType==portraitType&&badgePost.ReturnType==typeof(void)&&
+   portraitType.GetMethod("UpdateCrippled",F).GetParameters().Length==0&&portraitType.GetMethod("Initialize",F).GetParameters().Length==1,
+   "R2: MountedBadgePostfix binds native UpdateCrippled() and Initialize(UnitEntityData) by instance (the patched bodies need the engine to compile)");
+  var hoverPre=patchMethods.GetMethod("FoldedMountHoverPrefix",F);var hp=hoverPre==null?new ParameterInfo[0]:hoverPre.GetParameters();
+  var nhp=nativeHover.GetParameters();
+  Check(hp.Length==3&&hp[0].Name=="__instance"&&hp[1].Name==nhp[0].Name&&hp[1].ParameterType==nhp[0].ParameterType&&hp[2].Name==nhp[1].Name&&hoverPre.ReturnType==typeof(void),
+   "R1: FoldedMountHoverPrefix binds native HandleHoverChange(UnitEntityView unitEntityView, bool isHover) and never skips native");
   try{harmonyPatch.Invoke(harmony,new object[]{slot,null,Activator.CreateInstance(harmonyMethod,new object[]{selection}),null});}
   catch(TargetInvocationException e){failure=e.InnerException;}
   Console.WriteLine("U02 detached Harmony12 construction of UpdateSlotInternal: "+(failure==null?"constructed":"not constructible outside the engine ("+failure.Message+")"));
   // No new seam touches a gameplay member.
-  foreach(var name in new[]{"PairedMoveDistancePrefix","PublicSlotSelectionPostfix","FoldedMountHoverPostfix","MountedBadgePostfix","DivineBondClassRows"})
+  foreach(var name in new[]{"PairedMoveDistancePrefix","PublicSlotSelectionPostfix","FoldedMountHoverPrefix","FoldedMountHoverPostfix","MountedBadgePostfix","DivineBondClassRows"})
    Check(!Calls(patchMethods.GetMethod(name,F)).Any(c=>c.Contains("Cooldown")||c.Contains("Spend")||c.Contains("Commands.")||c.Contains("Run(")||c.Contains("AddFact")||c.Contains("RemoveFact")),
     "presentation seam "+name+" calls no action, cost, command or fact member");
  }
@@ -708,7 +972,11 @@ public static class MountedPresentationProbe {
    Section("U01 unusable movement distance after Charge",ProbeMovementDisplay);
    Section("U02 the public slot while its delivery targets",ProbeTargetingSlot);
    Section("U03 the class panel's bond rows",ProbeClassRows);
+   nativeHover=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",true).GetMethods(F).First(m=>m.Name=="HandleHoverChange"&&m.GetParameters().Length==2);
+   Section("R1/R2 installed native hover and portrait contracts",ProbeNativeContracts);
    Section("U04 mounted badge and folded mount hover",ProbeTrackerAndBadge);
+   Section("R1 folded-mount hover redirect lifecycle",ProbeHoverLifecycle);
+   Section("R2 mounted badge lifecycle",ProbeBadgeLifecycle);
    Section("Sprint 7 seam registration",ProbeRegistration);
   }
   finally{harmony.GetType().GetMethod("UnpatchAll",new[]{typeof(string)}).Invoke(harmony,new object[]{"KingmakerMountedCombat.PresentationProbe"});}

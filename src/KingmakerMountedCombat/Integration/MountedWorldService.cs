@@ -182,6 +182,14 @@ namespace KingmakerMountedCombat.Integration
                     NativeControls?.HasUnsettledShellFor(pair.Relationship) != true);
         }
 
+        // Known issues Sprint 7 (U04, review of 292cd23c): transient pair presentation, released at each world boundary.
+        internal MountedPairPresentation Presentation { get; private set; }
+        internal void BindPresentation(MountedPairPresentation presentation)
+        {
+            if (Presentation != null || presentation == null) throw new InvalidOperationException("World presentation binds once.");
+            Presentation = presentation;
+        }
+
         internal void BindControls(NativeMountedControlService controls)
         {
             if (NativeControls != null || controls == null) throw new InvalidOperationException("World controls bind once.");
@@ -296,6 +304,7 @@ namespace KingmakerMountedCombat.Integration
             if (SerializationBusy || !Registry.SettledForAdmissionDiscard())
                 throw new InvalidOperationException("Old-world custody has not settled before admission discard.");
             NativeControls?.RetireWorldControlBindings();
+            Presentation?.ReleaseAtWorldBoundary("world-discarded");
             ReleaseSettledAdmissions();
         }
 

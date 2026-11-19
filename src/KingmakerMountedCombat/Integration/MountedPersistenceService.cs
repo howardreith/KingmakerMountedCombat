@@ -729,6 +729,7 @@ namespace KingmakerMountedCombat.Integration
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();
                 controls?.BeginLoadedWorld();
+                relationship?.World?.Presentation?.ReleaseAtWorldBoundary("load");
                 SelectLoad(save);
             }, () =>
             {
