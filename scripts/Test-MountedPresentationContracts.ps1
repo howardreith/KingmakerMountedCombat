@@ -654,12 +654,12 @@ public static class MountedPresentationProbe {
    "U04 case 13: an independently acting mount keeps native's own entry and hover");
   NativeHover(independent,a.Mount,false);
   Set(combat,"<RoundNumber>k__BackingField",3);Fold(a,false);
+  Func<Type,bool> record=rt=>rt.DeclaringType==type&&rt.GetFields(F).All(f=>f.FieldType==typeof(WeakReference)||f.FieldType==typeof(string)||f.FieldType==typeof(bool)||f.FieldType.Name=="MountedPairPresentationIdentity");
   var lifetime=type.GetFields(F).All(f=>f.IsLiteral||f.IsStatic&&(typeof(MemberInfo).IsAssignableFrom(f.FieldType)||f.FieldType==typeof(Type))||!f.IsStatic&&
-   (f.FieldType.IsValueType||f.FieldType==typeof(string)||f.FieldType.Name.StartsWith("List`1")&&f.FieldType.GetGenericArguments()[0]==typeof(WeakReference)||
-    f.FieldType.Name.Contains("Func")||f.FieldType.Name.Contains("Logger")||f.FieldType.Name=="MountedWorldService"||f.FieldType.Name=="HoverLease"||f.FieldType.Name=="MountedBadgeSurface"));
-  var lease=type.GetNestedType("HoverLease",F);
-  Check(lifetime&&(lease==null||lease.GetFields(F).All(f=>f.FieldType==typeof(WeakReference)||f.FieldType==typeof(string)||f.FieldType.Name=="MountedPairPresentationIdentity")),
-   "U04 case 15 and lifetime: the presentation keeps no tracker, entry, view, unit or pair strongly (the lease only weakly, badge objects only weakly and bounded)");
+   (f.FieldType.IsValueType||f.FieldType==typeof(string)||f.FieldType.Name.StartsWith("List`1")&&(f.FieldType.GetGenericArguments()[0]==typeof(WeakReference)||record(f.FieldType.GetGenericArguments()[0]))||
+    f.FieldType.Name.Contains("Func")||f.FieldType.Name.Contains("Logger")||f.FieldType.Name=="MountedWorldService"||f.FieldType.Name=="HoverLease"&&record(f.FieldType)||f.FieldType.Name=="MountedBadgeSurface"));
+  Check(lifetime&&type.GetNestedTypes(F).Where(n=>n.Name=="HoverLease"||n.Name=="BadgeRecord").All(record),
+   "U04 case 15 and lifetime: the presentation keeps no tracker, entry, view, unit or pair strongly (the lease and cleanup records only weakly, badge objects only weakly and bounded)");
   Check((int)type.GetField("BadgeCapacity",F).GetValue(null)==32,"U04: the badge objects are bounded");
   var all=type.GetMethods(F|BindingFlags.DeclaredOnly).SelectMany(m=>m.GetMethodBody()==null?new List<string>():Calls(m)).ToList();
   Check(!all.Any(cl=>cl.StartsWith("SelectionManager")||cl.Contains("SelectUnit")),"U04 case 16: the presentation never reads or changes the selection");
@@ -732,8 +732,7 @@ public static class MountedPresentationProbe {
   Case(Lit(t)==""&&Lit(t2)==Id(b.Rider)&&Lease(),"R1 another pair on another tracker: pair A's redirect is released, pair B's applied");
   NativeHover(t2,b.Mount,false);
   // Nested native hover inside KMC's own apply: native's nested pass stands; nothing escapes; the next pass clears.
-  var unitHover=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerUnitVM",true).GetMethod("HandleHoverChange",F);
-  harmonyPatch.Invoke(harmony,new object[]{unitHover,null,Activator.CreateInstance(harmonyMethod,new object[]{typeof(MountedPresentationProbe).GetMethod("EntryHoverPostfix")}),null});
+  EntryPatches();
   nested=()=>NativeHover(t,ally,true);
   Exception thrown=null;try{NativeHover(t,a.Mount,true);}catch(Exception e){thrown=e;}
   nested=null;
@@ -772,29 +771,45 @@ public static class MountedPresentationProbe {
  static object Get(object o,Type t,string n){return Field(t,n).GetValue(o);}
 
  // ---- R2: the badge lifecycle through the product, with the engine's badge object substituted ---------------------
- sealed class FakeBadge{internal object Portrait;internal bool Active=true,Alive=true;}
+ sealed class FakeBadge{internal object Portrait;internal bool Active=true,Alive=true,FailHide,FailDestroy;}
  static readonly List<FakeBadge> fakeBadges=new List<FakeBadge>();
- static bool failDestroy,failCreate;
+ static bool failCreate,failBuild,failNewDestroy;
  public static object FindBadge(object portrait){return fakeBadges.FirstOrDefault(x=>x.Alive&&x.Portrait==portrait);}
- public static object CreateBadge(object portrait,object sprite){if(failCreate)throw new InvalidOperationException("ui construction failure");var x=new FakeBadge{Portrait=portrait};fakeBadges.Add(x);return x;}
+ public static object FindUsableBadge(object portrait,Func<object,bool> usable){return fakeBadges.FirstOrDefault(x=>x.Alive&&x.Portrait==portrait&&usable(x));}
+ public static object CreateBareBadge(object portrait){if(failCreate)throw new InvalidOperationException("ui construction failure");var x=new FakeBadge{Portrait=portrait,FailDestroy=failNewDestroy};fakeBadges.Add(x);return x;}
+ public static void BuildBadge(object badge,object portrait,object sprite){if(failBuild)throw new InvalidOperationException("ui construction failure after the object exists");}
+ // The earlier surface's one-step Create, modelled on its Unity body: a part-built object is destroyed, then the failure rethrown.
+ public static object CreateBuiltBadge(object portrait,object sprite){
+  var x=(FakeBadge)CreateBareBadge(portrait);
+  if(failBuild){try{BadgeDestroy(x);}catch(Exception){}throw new InvalidOperationException("ui construction failure after the object exists");}
+  return x;
+ }
  public static bool BadgeAlive(object badge){return ((FakeBadge)badge).Alive;}
  public static bool BadgeActive(object badge){return ((FakeBadge)badge).Active;}
- public static void BadgeSetActive(object badge,bool active){((FakeBadge)badge).Active=active;}
- public static void BadgeDestroy(object badge){if(failDestroy&&fakeBadges.IndexOf((FakeBadge)badge)%2==0)throw new InvalidOperationException("ui destruction failure");((FakeBadge)badge).Alive=false;}
+ public static void BadgeSetActive(object badge,bool active){var x=(FakeBadge)badge;if(x.FailHide&&!active)throw new InvalidOperationException("ui deactivation failure");x.Active=active;}
+ public static void BadgeDestroy(object badge){var x=(FakeBadge)badge;if(x.FailDestroy)throw new InvalidOperationException("ui destruction failure");x.Alive=false;}
+ // The product's badge surface bound to the fakes, in whichever shape the build declares (one-step, or owned-from-birth creation).
+ static bool BindSurface(){
+  var q=presentationType.GetProperty("BadgeSurface",F);if(q==null)return false;
+  var surface=q.GetValue(presentation,null);
+  foreach(var f in surface.GetType().GetFields(F).Where(x=>!x.IsStatic)){
+   var n=f.FieldType.GetMethod("Invoke").GetParameters().Length;
+   var name=f.Name=="Find"?(n==1?"FindBadge":"FindUsableBadge"):f.Name=="Create"?(n==2?"CreateBuiltBadge":"CreateBareBadge"):f.Name=="Build"?"BuildBadge":
+    f.Name=="IsAlive"?"BadgeAlive":f.Name=="IsActive"?"BadgeActive":f.Name=="SetActive"?"BadgeSetActive":f.Name=="Destroy"?"BadgeDestroy":null;
+   if(name==null)throw new InvalidOperationException("unknown badge surface operation "+f.Name);
+   Set(surface,f.Name,Delegate.CreateDelegate(f.FieldType,typeof(MountedPresentationProbe).GetMethod(name)));
+  }
+  return true;
+ }
  static object Portrait(object unit){
   var portrait=Blank(native.GetType("Kingmaker.UI.Group.GroupCharacterPortraitController",true));Alive(portrait);Set(portrait,"m_Unit",unit);return portrait;
  }
  static FakeBadge BadgeOn(object portrait){return (FakeBadge)FindBadge(portrait);}
- static bool Shown(object portrait){var x=BadgeOn(portrait);return x!=null&&x.Active;}
+ static bool Shown(object portrait){return fakeBadges.Any(x=>x.Alive&&x.Active&&x.Portrait==portrait);}
  static void Refresh(object portrait){patchMethods.GetMethod("MountedBadgePostfix",F).Invoke(null,new[]{portrait});}
  static void ProbeBadgeLifecycle(){
   FreshPairs();var a=pa;var b=pb;NewPresentation();
-  var surfaceProperty=presentationType.GetProperty("BadgeSurface",F);
-  if(surfaceProperty==null){Check(false,"R2: the product's badge has no lifecycle seam beyond the hit-point refresh (no substitutable badge surface)");return;}
-  var surface=surfaceProperty.GetValue(presentation,null);
-  foreach(var pair in new[]{Tuple.Create("Find","FindBadge"),Tuple.Create("Create","CreateBadge"),Tuple.Create("IsAlive","BadgeAlive"),
-    Tuple.Create("IsActive","BadgeActive"),Tuple.Create("SetActive","BadgeSetActive"),Tuple.Create("Destroy","BadgeDestroy")})
-   Set(surface,pair.Item1,Delegate.CreateDelegate(Field(surface.GetType(),pair.Item1).FieldType,typeof(MountedPresentationProbe).GetMethod(pair.Item2)));
+  if(!BindSurface()){Check(false,"R2: the product's badge has no lifecycle seam beyond the hit-point refresh (no substitutable badge surface)");return;}
   fakeBadges.Clear();badgeSprite=null;
   var pr=Portrait(a.Rider);var pB=Portrait(b.Rider);
   // 11. No sprite: the native portrait stays unchanged.
@@ -839,15 +854,267 @@ public static class MountedPresentationProbe {
   Set(presentation,"logger",badLogger.GetTransparentProxy());
   Call(presentation,"Reset");fakeBadges.Clear();
   for(var i=0;i<4;i++){var rider=NewPair("fail"+i,1,Mounted());Refresh(Portrait(rider.Rider));}
-  failDestroy=true;Exception thrown=null;try{Call(presentation,"Reset");}catch(Exception e){thrown=e;}failDestroy=false;
-  Case(thrown==null&&fakeBadges.Count==4&&(int)Prop(presentation,"TrackedBadgeCount")==0&&!fakeBadges[1].Alive&&!fakeBadges[3].Alive&&fakeBadges[0].Alive&&fakeBadges[2].Alive,
-   "R2 case 12: a failing removal and a throwing logger never stop the other removals, never escape, and the bound empties");
+  for(var i=0;i<4;i+=2)fakeBadges[i].FailDestroy=true;
+  Exception thrown=null;try{Call(presentation,"Reset");}catch(Exception e){thrown=e;}
+  Case(thrown==null&&fakeBadges.Count==4&&!fakeBadges[1].Alive&&!fakeBadges[3].Alive&&fakeBadges[0].Alive&&fakeBadges[2].Alive&&!fakeBadges[0].Active&&!fakeBadges[2].Active&&
+   (int)Prop(presentation,"TrackedBadgeCount")==2,
+   "R2 case 12: a failing removal and a throwing logger never stop the other removals or escape; each badge whose destruction failed is hidden and stays owned under the bound");
+  foreach(var x in fakeBadges)x.FailDestroy=false;
   failCreate=true;thrown=null;var fresh=Portrait(NewPair("create",1,Mounted()).Rider);
   try{Refresh(fresh);}catch(Exception e){thrown=e;}failCreate=false;
   Case(thrown==null&&BadgeOn(fresh)==null,"R2 case 12: a failing badge construction is contained and leaves no badge");
   thrown=null;try{Call(presentation,"Dispose");}catch(Exception e){thrown=e;}
-  Case(thrown==null&&(int)Prop(presentation,"TrackedBadgeCount")==0,"R2 case 8: disposal completes and removes every badge with a throwing logger");
+  Case(thrown==null&&(int)Prop(presentation,"TrackedBadgeCount")==0&&fakeBadges.All(x=>!x.Alive),"R2 case 8: disposal completes and removes every badge with a throwing logger");
   NewPresentation();
+ }
+
+ // ---- R3: the hover cleanup obligation, with native tracker objects and native failure paths ---------------------
+ // A rider entry whose own hover false throws (a prefix, before native's body, so the row stays lit), armed weakly per entry.
+ public static readonly List<WeakReference> failRows=new List<WeakReference>();
+ static void ArmRow(object entry){failRows.Add(new WeakReference(entry));}
+ public static void EntryHoverPrefix(object __instance,bool isHover){
+  if(!isHover&&failRows.Any(w=>w.Target==__instance))throw new InvalidOperationException("rider entry false callback failure");
+ }
+ static bool entryPatched;
+ static void EntryPatches(){
+  if(entryPatched)return;entryPatched=true;
+  var unitHover=native.GetType("Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerUnitVM",true).GetMethod("HandleHoverChange",F);
+  harmonyPatch.Invoke(harmony,new object[]{unitHover,Activator.CreateInstance(harmonyMethod,new object[]{typeof(MountedPresentationProbe).GetMethod("EntryHoverPrefix")}),
+   Activator.CreateInstance(harmonyMethod,new object[]{typeof(MountedPresentationProbe).GetMethod("EntryHoverPostfix")}),null});
+ }
+ // A subscriber of the tracker's HoveredUnit (UniRx ReactiveProperty) that throws when it is cleared: native's setter failure.
+ public static bool failHoveredClear;
+ public sealed class ThrowingObserver<T>:IObserver<T>{
+  public void OnNext(T value){if(failHoveredClear&&(object)value==null)throw new InvalidOperationException("HoveredUnit subscriber failure");}
+  public void OnError(Exception error){}
+  public void OnCompleted(){}
+ }
+ static void Armable(object tracker){
+  var property=Get(tracker,"HoveredUnit");var entryType=property.GetType().GetGenericArguments()[0];
+  var observer=Activator.CreateInstance(typeof(ThrowingObserver<>).MakeGenericType(entryType));
+  property.GetType().GetMethod("Subscribe",new[]{typeof(IObserver<>).MakeGenericType(entryType)}).Invoke(property,new[]{observer});
+ }
+ static int Pending(){var q=presentationType.GetProperty("PendingHoverCleanupCount",F);return q==null?-1:(int)q.GetValue(presentation,null);}
+ static string LeaseMount(){
+  var f=presentationType.GetField("hoverLease",F);var lease=f==null?null:f.GetValue(presentation);
+  return lease==null?null:(string)Get(Get(lease,"Pair"),"MountId");
+ }
+ static bool CleanupWeak(){
+  var f=presentationType.GetField("hoverCleanup",F);if(f==null)return false;var list=(IList)f.GetValue(presentation);
+  return list.Count>0&&list.Cast<object>().All(c=>c.GetType().GetFields(F).All(x=>x.FieldType==typeof(WeakReference)||x.FieldType==typeof(string)||x.FieldType==typeof(bool)||x.FieldType.Name=="MountedPairPresentationIdentity"));
+ }
+ static Exception Try(Action act){try{act();return null;}catch(Exception e){return e;}}
+ static void SetEnabled(bool on){presentationType.GetProperty("Enabled",F).SetValue(presentation,on,null);}
+ static void Validate(){patchMethods.GetMethod("TrackerUpdatePostfix",F).Invoke(null,new object[]{false});}
+ static WeakReference PendingOnDropped(Pair p,object trigger){
+  var t=Tracker(p.Rider);NativeHover(t,p.Mount,true);ArmRow(EntryOf(t,p.Rider));RaiseDismounting(p,trigger);return new WeakReference(t);
+ }
+ static void ProbeHoverCustody(){
+  FreshPairs();var a=pa;var b=pb;NewPresentation();EntryPatches();failRows.Clear();failHoveredClear=false;
+  var badLogger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));badLogger.Throws=true;
+  Set(presentation,"logger",badLogger.GetTransparentProxy());
+  var oldLogger=Get(null,patchBridge,"Logger");SetStatic(patchBridge,"Logger",badLogger.GetTransparentProxy());
+  try{
+   var triggers=mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+   var manual=Enum.Parse(triggers,"Manual");var death=Enum.Parse(triggers,"Death");
+   var ally=Unit("ally");var t=Tracker(Unit("enemy"),b.Rider,a.Rider,ally);Armable(t);
+   Exception thrown;object rider;
+   // 1. HoveredUnit's write throws during release.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);
+   failHoveredClear=true;thrown=Try(()=>RaiseDismounting(a,manual));failHoveredClear=false;
+   Case(thrown==null&&!IsHover(rider)&&!Lease()&&Pending()==1,
+    "R3 case 1: HoveredUnit's write throws at release; the rider entry's false is still attempted (the row is off) and the failed operation stays owned");
+   thrown=Try(Validate);
+   Case(thrown==null&&Pending()<=0&&Hovered(t)==null&&Lit(t)=="","R3 case 1: a later retry (tracker rebuild validation) settles it");
+   // 2. The rider entry's false throws during release.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);
+   thrown=Try(()=>RaiseDismounting(a,manual));
+   Case(thrown==null&&Hovered(t)==null&&IsHover(rider)&&!Lease()&&Pending()==1,
+    "R3 case 2: the rider entry's false throws at release; HoveredUnit is still cleared and the row's cleanup stays owned");
+   thrown=Try(()=>Boundary("area-unloading"));
+   Case(thrown==null&&IsHover(rider)&&Pending()==1,"R3 case 2: while the callback still fails, a retry keeps the obligation");
+   failRows.Clear();thrown=Try(Validate);
+   Case(thrown==null&&!IsHover(rider)&&Pending()<=0&&Lit(t)=="","R3 case 2: a later retry (tracker rebuild validation) settles the row");
+   // 3. Both operations throw.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);failHoveredClear=true;
+   thrown=Try(()=>RaiseDismounting(a,manual));
+   Case(thrown==null&&IsHover(rider)&&!Lease()&&Pending()==1,"R3 case 3: both cleanup operations throw; nothing escapes and the exact obligation remains");
+   Case(CleanupWeak(),"R3 case 3: the obligation is weak tracker, entry and rows references, value identities and the operations still owed");
+   failHoveredClear=false;failRows.Clear();thrown=Try(()=>Boundary("world-discarded"));
+   Case(thrown==null&&Hovered(t)==null&&Lit(t)==""&&Pending()<=0,"R3 case 3: a later successful world boundary settles it");
+   // 4. A dismount with a failing false, retried at the next pair cleanup.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);
+   thrown=Try(()=>RaiseDismounting(a,manual));
+   Case(thrown==null&&IsHover(rider)&&Pending()==1,"R3 case 4: a dismount's release with a failing false keeps the obligation");
+   failRows.Clear();thrown=Try(()=>RaiseDismounting(b,death));
+   Case(thrown==null&&!IsHover(rider)&&Pending()<=0,"R3 case 4: the next pair cleanup (another pair's death) settles it");
+   // 5. Load and world boundaries with a failing false.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);
+   thrown=Try(()=>Boundary("load"));
+   Case(thrown==null&&IsHover(rider)&&Pending()==1&&!Lease(),"R3 case 5: a load boundary with a failing false keeps the obligation");
+   thrown=Try(()=>Boundary("world-discarded"));
+   Case(thrown==null&&IsHover(rider)&&Pending()==1,"R3 case 5: a world boundary while it still fails keeps it");
+   failRows.Clear();thrown=Try(()=>Boundary("load"));
+   Case(thrown==null&&!IsHover(rider)&&Pending()<=0,"R3 case 5: a later load boundary settles it");
+   // 6. Disable and disposal with a failing false.
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);SetEnabled(false);
+   thrown=Try(()=>Boundary("disabled"));
+   Case(thrown==null&&IsHover(rider)&&Pending()==1&&!Lease(),"R3 case 6: disable with a failing false completes and keeps the obligation");
+   failRows.Clear();thrown=Try(()=>Call(presentation,"Dispose"));
+   Case(thrown==null&&!IsHover(rider)&&Pending()<=0,"R3 case 6: disposal settles it");
+   NewPresentation();Set(presentation,"logger",badLogger.GetTransparentProxy());
+   NativeHover(t,a.Mount,true);rider=EntryOf(t,a.Rider);ArmRow(rider);
+   thrown=Try(()=>Call(presentation,"Dispose"));
+   Case(thrown==null&&!Lease(),"R3 case 6: disposal with a failing false completes; nothing escapes");
+   failRows.Clear();NewPresentation();Set(presentation,"logger",badLogger.GetTransparentProxy());
+   NativeHover(t,ally,false);
+   Case(Lit(t)==""&&Hovered(t)==null,"R3 case 6: after a disposal whose false failed, native's own next pass on that tracker recomputes the row");
+   // 7. A tracker rebuild while cleanup is pending.
+   NativeHover(t,a.Mount,true);var oldEntry=EntryOf(t,a.Rider);ArmRow(oldEntry);
+   RaiseDismounting(a,manual);
+   Rebuild(t,b.Rider,a.Rider,ally);var newEntry=EntryOf(t,a.Rider);ArmRow(newEntry);
+   thrown=Try(Validate);
+   Case(thrown==null&&Pending()<=0&&IsHover(oldEntry)&&!IsHover(newEntry)&&Lit(t)==""&&Hovered(t)==null,
+    "R3 case 7: a rebuild while cleanup is pending: the old entry (no longer a row) is never touched, the new rider row is never confused with it, and custody settles");
+   failRows.Clear();
+   // 8. Pair A's cleanup pending, then pair B.
+   NativeHover(t,a.Mount,true);var aEntry=EntryOf(t,a.Rider);ArmRow(aEntry);RaiseDismounting(a,manual);
+   var t2=Tracker(b.Rider,Unit("enemy2"));
+   thrown=Try(()=>NativeHover(t2,b.Mount,true));
+   Case(thrown==null&&IsHover(aEntry)&&Pending()==1&&Lit(t2)==Id(b.Rider)&&LeaseMount()==Id(b.Mount)&&!IsHover(EntryOf(t,b.Rider)),
+    "R3 case 8: pair A's unfinished cleanup is retained separately; pair B's redirect applies on its own tracker under pair B's identity");
+   failRows.Clear();thrown=Try(()=>NativeHover(t2,b.Mount,false));
+   Case(thrown==null&&!IsHover(aEntry)&&Lit(t)==""&&Lit(t2)==""&&Pending()<=0&&!Lease(),
+    "R3 case 8: the next hover prefix settles pair A's cleanup on its own tracker and releases pair B exactly; identities never cross");
+   NativeHover(t,a.Mount,true);aEntry=EntryOf(t,a.Rider);ArmRow(aEntry);RaiseDismounting(a,manual);failRows.Clear();
+   NativeHover(t,b.Mount,true);
+   Case(!IsHover(aEntry)&&Lit(t)==Id(b.Rider)&&LeaseMount()==Id(b.Mount)&&Pending()<=0,
+    "R3 case 8: on the same tracker, pair B is applied only after pair A's cleanup is settled");
+   NativeHover(t,b.Mount,false);
+   // The bound: at most four unfinished obligations; at the bound a further redirect is not applied and native's result stands.
+   var held=new List<object>();
+   for(var i=0;i<4;i++){var ti=Tracker(a.Rider);held.Add(ti);NativeHover(ti,a.Mount,true);ArmRow(EntryOf(ti,a.Rider));RaiseDismounting(a,manual);}
+   var t5=Tracker(a.Rider);NativeHover(t5,a.Mount,true);
+   Case(Pending()==4&&!Lease()&&Hovered(t5)==null&&Lit(t5)=="",
+    "R3: unfinished cleanup is bounded (4); at the bound a further redirect is not applied and native's own result stands");
+   failRows.Clear();Boundary("load");
+   Case(Pending()<=0&&held.All(x=>Lit(x)==""),"R3: the bounded obligations all settle once the callback succeeds");
+   // 9. A collected tracker and entry.
+   NativeHover(t,ally,true);
+   var weak=PendingOnDropped(a,manual);
+   Case(Pending()==1,"R3 case 9: an obligation is held for a tracker that is then dropped");
+   GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();
+   Case(!weak.IsAlive,"R3 case 9: the obligation holds its tracker only weakly (collected)");
+   thrown=Try(()=>Boundary("area-unloading"));
+   Case(thrown==null&&Pending()<=0&&Lit(t)==Id(ally)&&Hovered(t)==EntryOf(t,ally),
+    "R3 case 9: a collected tracker's obligation settles without touching anything else (native's own hover on another tracker stands)");
+   NativeHover(t,ally,false);failRows.Clear();
+   // 10. Healthy behaviour unchanged.
+   NativeHover(t,a.Mount,true);NativeHover(t,a.Mount,false);NativeHover(t,a.Mount,true);NativeHover(t,b.Mount,true);
+   Case(Lit(t)==Id(b.Rider)&&LeaseMount()==Id(b.Mount)&&Pending()<=0,"R3 case 10: healthy true, false and A-to-B behaviour is unchanged (the R1 section runs in full)");
+   NativeHover(t,b.Mount,false);
+   Case(Lit(t)==""&&!Lease()&&Pending()<=0,"R3 case 10: a healthy false leaves nothing owed");
+   Case(badLogger.Calls.Any(c=>c.StartsWith("Exception")),"R3: every cleanup failure went to a logger that itself throws, and nothing escaped");
+  }
+  finally{failRows.Clear();failHoveredClear=false;SetStatic(patchBridge,"Logger",oldLogger);NewPresentation();}
+ }
+
+ // ---- R4: badge cleanup residues ----------------------------------------------------------------------------------
+ static int Tracked(){var v=Prop(presentation,"TrackedBadgeCount");return v==null?-1:(int)v;}
+ static int Residues(){var v=Prop(presentation,"BadgeResidueCount");return v==null?-1:(int)v;}
+ static WeakReference ResidueAndDrop(){
+  var p=Portrait(NewPair("r4drop",1,Mounted()).Rider);Refresh(p);var x=BadgeOn(p);x.FailDestroy=true;Boundary("load");
+  fakeBadges.Remove(x);return new WeakReference(x);
+ }
+ static void ProbeBadgeCustody(){
+  FreshPairs();NewPresentation();
+  if(!BindSurface()){Check(false,"R4: the product has no substitutable badge surface");return;}
+  var badLogger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));badLogger.Throws=true;
+  Set(presentation,"logger",badLogger.GetTransparentProxy());
+  fakeBadges.Clear();failCreate=failBuild=failNewDestroy=false;
+  badgeSprite=Blank(typeof(UnityEngine.Sprite));Alive(badgeSprite);
+  Func<string,object> mp=label=>Portrait(NewPair(label,1,Mounted()).Rider);
+  var bystander=Portrait(Unit("bystander"));
+  Exception thrown;
+  try{
+   // 1-3. One failed destruction among three.
+   var pA=mp("r4a");var pB=mp("r4b");var pC=mp("r4c");Refresh(pA);Refresh(pB);Refresh(pC);
+   var A=BadgeOn(pA);var B=BadgeOn(pB);var C=BadgeOn(pC);A.FailDestroy=true;
+   thrown=Try(()=>Boundary("load"));
+   Case(thrown==null&&!B.Alive&&!C.Alive,"R4 case 1: badge A's destruction throws; badges B and C are still removed");
+   Case(A.Alive&&!A.Active,"R4 case 2: badge A is inactive after the boundary although its destruction failed");
+   Case(Tracked()==1&&Residues()==1,"R4 case 2: badge A stays owned as one cleanup residue under the bound");
+   A.FailDestroy=false;Refresh(bystander);
+   Case(!A.Alive&&Tracked()==0&&Residues()<=0,"R4 case 3: a later retry (the next portrait refresh) destroys A and clears the residue");
+   // 4. Deactivation and destruction both fail at first.
+   var pD=mp("r4d");Refresh(pD);var D=BadgeOn(pD);D.FailHide=true;D.FailDestroy=true;
+   thrown=Try(()=>Boundary("area-unloading"));
+   Case(thrown==null&&D.Alive&&Residues()==1&&Tracked()==1,"R4 case 4: deactivation and destruction both throw; nothing escapes and D stays owned, still needing hiding");
+   D.FailHide=false;D.FailDestroy=false;thrown=Try(()=>Boundary("world-discarded"));
+   Case(thrown==null&&!D.Alive&&!D.Active&&Residues()<=0&&Tracked()==0,"R4 case 4: a later boundary hides and destroys D and settles the residue");
+   // 6. Disable; a residue is never reused, and its retry never acts on the portrait's new badge of the same name.
+   var pE=mp("r4e");var pF=mp("r4f");Refresh(pE);Refresh(pF);var E=BadgeOn(pE);var Fb=BadgeOn(pF);E.FailDestroy=true;
+   SetEnabled(false);thrown=Try(()=>Boundary("disabled"));
+   Case(thrown==null&&!Fb.Alive&&E.Alive&&!E.Active&&Residues()==1,"R4 case 6: disable completes; the badge whose destruction failed is hidden and owned, the other removed");
+   Refresh(pE);
+   Case(!E.Active&&!Shown(pE),"R4: a refresh while disabled never shows a residue");
+   SetEnabled(true);Refresh(pE);
+   Case(E.Alive&&!E.Active&&fakeBadges.Count(x=>x.Portrait==pE&&x.Alive&&x.Active)==1,
+    "R4: re-enabled, a residue is never reused or reactivated; the portrait gets its own new badge object of the same name");
+   E.FailDestroy=false;Refresh(pE);var E2=fakeBadges.Last(x=>x.Portrait==pE);
+   Case(!E.Alive&&E2!=E&&E2.Alive&&E2.Active&&Residues()<=0,"R4: the residue's retry acts only on its own object, never on the portrait's new badge");
+   // 7. Disposal.
+   var pG=mp("r4g");Refresh(pG);var G=BadgeOn(pG);G.FailDestroy=true;
+   thrown=Try(()=>Call(presentation,"Dispose"));
+   Case(thrown==null&&G.Alive&&!G.Active&&!E2.Alive,"R4 case 7: disposal completes with a throwing logger; a badge whose destruction fails is left hidden, every other removed");
+   G.FailDestroy=false;G.Alive=false;
+   NewPresentation();BindSurface();Set(presentation,"logger",badLogger.GetTransparentProxy());
+   // 8. Load and world replacement while every removal fails.
+   var p8=new[]{mp("r4h1"),mp("r4h2"),mp("r4h3")};foreach(var p in p8)Refresh(p);
+   var h8=p8.Select(p=>BadgeOn(p)).ToList();foreach(var x in h8)x.FailDestroy=true;
+   thrown=Try(()=>Boundary("load"));
+   Case(thrown==null&&h8.All(x=>x.Alive&&!x.Active)&&Residues()==3,"R4 case 8: a load whose removals all fail leaves no visible badge; every one stays owned");
+   thrown=Try(()=>Boundary("world-discarded"));
+   Case(thrown==null&&h8.All(x=>!x.Active)&&Residues()==3,"R4 case 8: a world replacement while removal still fails leaves none visible");
+   foreach(var x in h8)x.FailDestroy=false;Boundary("load");
+   Case(h8.All(x=>!x.Alive)&&Tracked()==0,"R4 case 8: the next boundary removes them all");
+   // 9. Construction fails after the object exists, and its destruction fails too.
+   failBuild=true;failNewDestroy=true;var pI=mp("r4i");thrown=Try(()=>Refresh(pI));failBuild=false;
+   var I=fakeBadges.Last();
+   Case(thrown==null&&I.Portrait==pI&&I.Alive&&!I.Active&&Residues()==1,
+    "R4 case 9: construction fails after the object exists and its destruction fails too; the part-built object is hidden and owned, never an active orphan");
+   I.FailDestroy=false;failNewDestroy=false;Refresh(pI);
+   Case(!I.Alive&&Residues()<=0&&Shown(pI),"R4 case 9: a later refresh destroys the part-built object and the portrait obtains a complete badge");
+   Boundary("load");
+   // 10. Repeated failures stay within the bound.
+   failBuild=true;failNewDestroy=true;
+   for(var i=0;i<40;i++){var p=mp("r4bound"+i);Try(()=>Refresh(p));Try(()=>Refresh(p));}
+   var alive=fakeBadges.Where(x=>x.Alive).ToList();
+   Case(alive.Count<=32&&Tracked()<=32&&alive.All(x=>!x.Active),"R4 case 10: repeated construction and removal failures never exceed the bound of 32 owned objects, and none is visible");
+   Case(Tracked()==32&&Residues()==32,"R4 case 10: the failed objects are all still owned at the bound (counted with badges in use)");
+   failBuild=false;
+   // 12. A later valid portrait once capacity is available.
+   var pV=mp("r4valid");Refresh(pV);
+   Case(!Shown(pV)&&Tracked()==32,"R4 case 12: at the bound a valid portrait waits (the residues are still owned)");
+   foreach(var x in fakeBadges)x.FailDestroy=false;failNewDestroy=false;
+   Refresh(pV);
+   Case(Shown(pV)&&Tracked()==1&&Residues()<=0&&fakeBadges.Count(x=>x.Alive)==1,
+    "R4 case 12: once the residues are destroyed, capacity returns and the valid portrait obtains its badge");
+   Boundary("load");
+   // 11. Destroyed and collected residues prune normally.
+   var pK=mp("r4k");Refresh(pK);var K=BadgeOn(pK);K.FailDestroy=true;Boundary("load");
+   K.Alive=false;Refresh(bystander);
+   Case(Residues()<=0&&Tracked()==0,"R4 case 11: a residue whose object the engine destroyed is pruned");
+   var weak=ResidueAndDrop();
+   Case(Residues()==1,"R4 case 11: a residue is held for an object the probe then drops");
+   GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();
+   Case(!weak.IsAlive,"R4 case 11: a residue holds its object only weakly (collected)");
+   Refresh(bystander);
+   Case(Residues()<=0&&Tracked()==0,"R4 case 11: a collected residue is pruned");
+   // 5. The logger threw throughout.
+   Case(badLogger.Calls.Any(c=>c.StartsWith("Exception")),"R4 case 5: every failure above went to a logger that itself throws; nothing escaped");
+  }
+  finally{failBuild=failNewDestroy=failCreate=false;NewPresentation();}
  }
 
  // ---- R1/R2: the installed native hover and portrait contracts -----------------------------------------------------
@@ -977,6 +1244,8 @@ public static class MountedPresentationProbe {
    Section("U04 mounted badge and folded mount hover",ProbeTrackerAndBadge);
    Section("R1 folded-mount hover redirect lifecycle",ProbeHoverLifecycle);
    Section("R2 mounted badge lifecycle",ProbeBadgeLifecycle);
+   Section("R3 hover cleanup custody",ProbeHoverCustody);
+   Section("R4 badge cleanup residues",ProbeBadgeCustody);
    Section("Sprint 7 seam registration",ProbeRegistration);
   }
   finally{harmony.GetType().GetMethod("UnpatchAll",new[]{typeof(string)}).Invoke(harmony,new object[]{"KingmakerMountedCombat.PresentationProbe"});}
