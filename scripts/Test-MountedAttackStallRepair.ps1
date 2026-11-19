@@ -640,15 +640,24 @@ public static class MountedAttackStallProbe {
    "turn-based: native's canAct is captured where it branches and only the first (capability) force-finish is wrapped; the approach-time force-finish and the paired rewrite stay");
   var tickOriginal=Harmony12Instructions(tick,managed,instruction);
   var t=Transpile(transpiler("NativeTickTerminalTranspiler"),tickOriginal,instruction);
-  var hooks=Calls(t,instruction).Where(n=>new[]{"BeginShouldBeInterrupted","CaptureShouldBeInterrupted","InterruptAtStateSite","InterruptAsSoonAsPossible","CaptureCanAct",
+  var hooks=Calls(t,instruction).Where(n=>new[]{"ObserveShouldBeInterrupted","InterruptAtStateSite","InterruptAsSoonAsPossible","CaptureCanAct",
    "InterruptAtRunningSite","get_ShouldBeInterrupted","Interrupt","get_CanAct"}.Contains(n)).ToArray();
-  var stateLocal=StoredAfter(t,instruction,"CaptureShouldBeInterrupted");var runningLocal=StoredAfter(t,instruction,"CaptureCanAct");
+  // R23: the getter call becomes ObserveShouldBeInterrupted(command, out local); the local's address is loaded right before it.
+  var stateLocal=LoadedBefore(t,instruction,"ObserveShouldBeInterrupted");var runningLocal=StoredAfter(t,instruction,"CaptureCanAct");
   Check(stateLocal!=null&&runningLocal!=null&&!ReferenceEquals(stateLocal,runningLocal)&&
    ReferenceEquals(stateLocal,LoadedBefore(t,instruction,"InterruptAtStateSite"))&&ReferenceEquals(runningLocal,LoadedBefore(t,instruction,"InterruptAtRunningSite")),
    "R21 tick: each captured value is kept in its own local of the native invocation and passed only to its own terminal site");
-  Check(t.Count==tickOriginal.Count+9&&string.Join(",",hooks)==
-   "BeginShouldBeInterrupted,get_ShouldBeInterrupted,CaptureShouldBeInterrupted,InterruptAtStateSite,InterruptAsSoonAsPossible,get_CanAct,CaptureCanAct,InterruptAtRunningSite",
-   "tick: native's ShouldBeInterrupted and running CanAct calls stay and their values are captured; the three interrupt sites are wrapped in native order: "+string.Join(",",hooks));
+  Check(t.Count==tickOriginal.Count+6&&string.Join(",",hooks)==
+   "ObserveShouldBeInterrupted,InterruptAtStateSite,InterruptAsSoonAsPossible,get_CanAct,CaptureCanAct,InterruptAtRunningSite",
+   "tick: the one ShouldBeInterrupted call goes through its observing wrapper, the running CanAct call stays and is captured, and the three interrupt sites are wrapped in native order: "+string.Join(",",hooks));
+  // R23: the wrapper calls native's getter exactly once, closes its scalar frame in a real finally, and returns the
+  // getter's own value.
+  var wrapper=mod.GetType("KingmakerMountedCombat.Integration.NativeCommandTerminalBranches",true).GetMethod("ObserveShouldBeInterrupted",F);
+  var wrapperCalls=CallOrder(wrapper);
+  Check(wrapper.ReturnType==typeof(bool)&&wrapper.GetParameters().Length==2&&wrapper.GetParameters()[1].ParameterType==typeof(int).MakeByRefType()&&
+   wrapperCalls.Count(n=>n=="UnitCommand.get_ShouldBeInterrupted")==1&&wrapperCalls.Contains("MountedNativeTermFrames.Open")&&wrapperCalls.Contains("MountedNativeTermFrames.Close")&&
+   wrapper.GetMethodBody().ExceptionHandlingClauses.Count(c=>c.Flags==ExceptionHandlingClauseOptions.Finally)==1,
+   "R23: the wrapper calls native's getter exactly once and closes its scalar frame in a finally: "+string.Join(",",wrapperCalls.ToArray()));
   var banOriginal=Harmony12Instructions(attackBan,managed,instruction);
   var ban=Transpile(transpiler("NativeAttackBanTranspiler"),banOriginal,instruction);
   var banCalls=Calls(ban,instruction);
@@ -710,10 +719,10 @@ public static class MountedAttackStallProbe {
    "5: the target branch of the state site beside a stunned actor is the target's end: "+state.Item2);
   var banned=run("CanNotAttack",(f,c)=>{
    Set(c,"<IsStarted>k__BackingField",true);
-   hook("BeginShouldBeInterrupted",new object[0]);
-   var value=(bool)c.GetType().GetProperty("ShouldBeInterrupted",F).GetValue(c,null);
-   var observed=hook("CaptureShouldBeInterrupted",new object[]{value});
-   Check(value&&(int)observed==3,"the patched native UnitAttack.ShouldBeInterrupted reads true for the genuinely attack-banned executor, through its ban term");
+   var args=new object[]{c,0};
+   var value=(bool)hook("ObserveShouldBeInterrupted",args);var observed=args[1];
+   Check(value&&(int)observed==3&&value==(bool)c.GetType().GetProperty("ShouldBeInterrupted",F).GetValue(c,null),
+    "the patched native UnitAttack.ShouldBeInterrupted reads true for the genuinely attack-banned executor, through its ban term, and the wrapper returns that value");
    hook("InterruptAtStateSite",new[]{c,(object)true,observed});
   });
   Check(read(banned.Item1,"NativeTerminalBranch")=="AttackBanned"&&read(banned.Item1,"NativeTerminalCapabilityBlock")=="CanNotAttack"&&
@@ -733,10 +742,6 @@ public static class MountedAttackStallProbe {
    "the force-finish native took for a missing command slot is not a daze: "+slot.Item2);
   var stray=run("Dazed",(f,c)=>{hook("CaptureCanAct",new object[]{false});finish(f,c,0);});
   Check(read(stray.Item1,"NativeTerminalBranch")=="TurnBasedNoCommandSlot","8: a value another invocation captured is never applied to this one");
-  // R21: a ban term left by an unrelated reading of the native getter (no terminal followed) never counts for a later command.
-  hook("AttackBanTerm",new object[]{true});
-  hook("BeginShouldBeInterrupted",new object[0]);
-  Check((int)hook("CaptureShouldBeInterrupted",new object[]{true})==2,"R21: a stale ban term from an earlier healthy reading cannot make a later dead-target reading an attack ban");
   if(nativeBranchHarmony!=null)nativeBranchHarmony.GetType().GetMethod("UnpatchAll",new[]{typeof(string)}).Invoke(nativeBranchHarmony,new object[]{"KingmakerMountedCombat.StallProbe.R18"});
  }
 
@@ -763,13 +768,13 @@ public static class MountedAttackStallProbe {
  static WeakReference[] Exercise(Assembly mod,Assembly native,Func<string,object[],object> hook,int scenario){
   var f=NewFixture(mod,native);f.Order(false);var command=LiveCommand(f,mod);
   if(scenario==1)hook("CaptureCanAct",new object[]{true});
-  if(scenario==2){hook("BeginShouldBeInterrupted",new object[0]);hook("CaptureShouldBeInterrupted",new object[]{false});}
+  if(scenario==2){Set(command,"<IsStarted>k__BackingField",true);hook("ObserveShouldBeInterrupted",new object[]{command,0});}
   if(scenario==3)hook("CaptureCanAct",new object[]{true});
   if(scenario==4){Set(command,"<Result>k__BackingField",Enum.Parse(native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand+ResultType",true),"Success"));
    try{Call(command,"ReportTerminalOnce");}catch(Exception){}}
   if(scenario==10){hook("CaptureCanAct",new object[]{false});try{throw new InvalidOperationException("between capture and terminal");}catch(InvalidOperationException){}}
-  if(scenario==11){hook("BeginShouldBeInterrupted",new object[0]);hook("CaptureShouldBeInterrupted",new object[]{true});
-   try{hook("InterruptAtStateSite",new[]{command,(object)true,(object)2});}catch(Exception){}}
+  if(scenario==11){Set(command,"<IsStarted>k__BackingField",true);var args=new object[]{command,0};hook("ObserveShouldBeInterrupted",args);
+   try{hook("InterruptAtStateSite",new[]{command,(object)true,args[1]});}catch(Exception){}}
   if(scenario==99)strongHolder.Add(command);
   return new[]{new WeakReference(command),new WeakReference(f.Controller)};
  }
@@ -788,9 +793,13 @@ public static class MountedAttackStallProbe {
    Owns(typeof(Action),command,new HashSet<Type>())&&!Owns(typeof(WeakReference),command,new HashSet<Type>())&&!Owns(typeof(bool),command,new HashSet<Type>()),
    "R21 structural: the ownership rule recognises strong holders and treats weak references and scalars as non-owning");
   var captures=type.GetMethods(BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.DeclaredOnly)
-   .Where(m=>m.Name.StartsWith("Capture",StringComparison.Ordinal)||m.Name.StartsWith("Begin",StringComparison.Ordinal)||m.Name=="AttackBanTerm").ToArray();
-  Check(captures.Length==4&&captures.All(m=>m.GetParameters().All(a=>!Owns(a.ParameterType,command,new HashSet<Type>()))&&!Owns(m.ReturnType,command,new HashSet<Type>())),
+   .Where(m=>m.Name.StartsWith("Capture",StringComparison.Ordinal)||m.Name=="AttackBanTerm").ToArray();
+  Check(captures.Length==2&&captures.All(m=>m.GetParameters().All(a=>!Owns(a.ParameterType,command,new HashSet<Type>()))&&!Owns(m.ReturnType,command,new HashSet<Type>())),
    "R21 structural: the capture hooks never receive a command; the facts travel in the native invocation's own locals");
+  var observeIl=type.GetMethod("ObserveShouldBeInterrupted",F).GetMethodBody().GetILAsByteArray();var storesStatic=false;
+  for(var i=0;i+4<observeIl.Length;i++)if(observeIl[i]==0x80){try{var field=type.Module.ResolveField(BitConverter.ToInt32(observeIl,i+1));
+   if(Owns(field.FieldType,command,new HashSet<Type>()))storesStatic=true;}catch(Exception){}}
+  Check(!storesStatic,"R23 structural: the wrapper receives the command only on the native stack and stores it in no static");
   Func<string,object[],object> hook=(name,args)=>{
    try{return type.GetMethod(name,F).Invoke(null,args);}
    catch(TargetInvocationException e){if(e.InnerException is NullReferenceException||e.InnerException is MissingMethodException)return null;throw;}
@@ -852,8 +861,8 @@ public static class MountedAttackStallProbe {
     refreshThrows=true;
     logged("1: a terminal observation that fails",f,()=>Call(scheduler,"ObserveTerminal",command,"Interrupt","observed"));
     refreshThrows=false;
-    Check(ReferenceEquals(Get(scheduler,"lease"),lease)&&state(x.Item2)=="Faulted",
-     "1: a failed terminal observation faults the lease and keeps it only while its exact finished command still holds the mount's native slot");
+    Check(ReferenceEquals(Get(scheduler,"lease"),lease)&&state(x.Item2)=="Faulted"&&Get(command,"endCause").ToString()=="Unrecorded",
+     "1: a failed terminal observation faults the lease, leaves the finished command's cause as it was, and keeps the lease only while that command still holds the mount's native slot");
     logged("2: an update while the slot is still held",f,()=>Call(scheduler,"Update"));
     Check(ReferenceEquals(Get(scheduler,"lease"),lease),"2: the update keeps the lease while native still holds the finished command");
     ((Array)x.Item3).SetValue(null,Convert.ToInt32(command.GetType().GetProperty("Type",F).GetValue(command,null)));
@@ -900,6 +909,106 @@ public static class MountedAttackStallProbe {
   }
  }
 
+ // ---- Review of 95ae0b30 ----------------------------------------------------------------------------------------
+ // R23: nested observations through the compiled wrapper and the patched native getter. A probe postfix on the getter,
+ // after native's own term was recorded, runs the nested observation, which is the clobbering order the review describes.
+ static Action nestedObservation;
+ static void NestedAfterGetter(){var nested=nestedObservation;nestedObservation=null;if(nested!=null)nested();}
+ static void ProbeNestedAttackBan(Assembly mod,Assembly native,string managed){
+  var type=mod.GetType("KingmakerMountedCombat.Integration.NativeCommandTerminalBranches",true);
+  if(type.GetMethod("ObserveShouldBeInterrupted",F)==null&&type.GetMethod("BeginShouldBeInterrupted",F)!=null){
+   // A build with the single thread-static term (0e1125fa): its compiled seam, driven in the order a nested observation
+   // runs (outer begin, outer getter term, inner begin, inner capture, outer capture).
+   Call(null,type,"BeginShouldBeInterrupted");Call(null,type,"AttackBanTerm",true);
+   Call(null,type,"BeginShouldBeInterrupted");Call(null,type,"CaptureShouldBeInterrupted",false);
+   var outerCode=(int)Call(null,type,"CaptureShouldBeInterrupted",true);
+   Check(outerCode==3,"1: an inner observation nested in an outer attack-ban reading must leave the outer one AttackBanned; this build's outer reads "+
+    (outerCode==2?"AttackTargetDead":outerCode.ToString()));
+  }
+  var harmony12=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll"));
+  var harmonyMethod=harmony12.GetType("Harmony12.HarmonyMethod",true);
+  var instance=harmony12.GetType("Harmony12.HarmonyInstance",true).GetMethod("Create").Invoke(null,new object[]{"KingmakerMountedCombat.StallProbe.R23"});
+  var getter=native.ManifestModule.ResolveMethod(0x0600266D);
+  var methods=mod.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true).GetNestedType("PatchMethods",F);
+  instance.GetType().GetMethod("Patch").Invoke(instance,new object[]{getter,null,
+   Activator.CreateInstance(harmonyMethod,new object[]{typeof(MountedAttackStallProbe).GetMethod("NestedAfterGetter",F)}),
+   Activator.CreateInstance(harmonyMethod,new object[]{methods.GetMethod("NativeAttackBanTranspiler",F)})});
+  try{
+   var f=NewFixture(mod,native);
+   var unitAttack=native.GetType("Kingmaker.UnitLogic.Commands.UnitAttack",true);
+   var wrapperType=native.GetType("Kingmaker.Utility.TargetWrapper",true);
+   Func<string,object> command=kind=>{
+    var c=f.Dispatch();var executor=Actor();Set(c,"<Executor>k__BackingField",executor);
+    if(kind=="banned"){Condition(executor,"CanNotAttack",true);Set(c,"<IsStarted>k__BackingField",true);}
+    else if(kind=="healthy")Set(c,"<IsStarted>k__BackingField",true);
+    else if(kind=="dead"){var dead=Actor();stateType.GetProperty("LifeState",F).SetValue(State(dead),Enum.Parse(native.GetType("Kingmaker.UnitLogic.UnitLifeState",true),"Dead"),null);
+     var target=Blank(wrapperType);Set(target,"Unit",dead);Set(c,"<Target>k__BackingField",target);Set(c,"<IsStarted>k__BackingField",false);}
+    else Set(c,"<IsStarted>k__BackingField",false); // "throws": an unstarted attack with no target
+    return c;
+   };
+   Func<object,Tuple<bool,int>> observe=c=>{var args=new object[]{c,0};var value=(bool)Call(null,type,"ObserveShouldBeInterrupted",args);return Tuple.Create(value,(int)args[1]);};
+   Func<int> depth=()=>{var frames=Field(type,"attackBanFrames").GetValue(null);return frames==null?0:(int)frames.GetType().GetProperty("Depth").GetValue(frames,null);};
+   Func<object,bool> direct=c=>(bool)unitAttack.GetProperty("ShouldBeInterrupted").GetValue(c,null);
+   Action<string> clean=label=>{
+    var healthy=observe(command("healthy"));var banned=observe(command("banned"));var dead=observe(command("dead"));
+    Check(depth()==0&&healthy.Item2==1&&banned.Item2==3&&dead.Item2==2&&!healthy.Item1&&banned.Item1&&dead.Item1,
+     "9: after "+label+", later ordinary observations start clean (healthy, ban, dead target) and no frame remains");
+   };
+   var outerBan=command("banned");var innerHealthy=command("healthy");Tuple<bool,int> inner=null;
+   nestedObservation=()=>inner=observe(innerHealthy);
+   var outer=observe(outerBan);
+   Check(outer.Item1&&outer.Item2==3&&!inner.Item1&&inner.Item2==1,"1: an inner healthy observation leaves the outer attack ban AttackBanned ("+outer.Item2+"/"+inner.Item2+")");
+   clean("case 1");
+   var innerDead=command("dead");
+   nestedObservation=()=>inner=observe(innerDead);
+   outer=observe(command("banned"));
+   Check(outer.Item2==3&&inner.Item1&&inner.Item2==2,"2: outer attack ban stays AttackBanned and the inner dead target is AttackTargetDead ("+outer.Item2+"/"+inner.Item2+")");
+   clean("case 2");
+   var innerBan=command("banned");
+   nestedObservation=()=>inner=observe(innerBan);
+   outer=observe(command("dead"));
+   Check(outer.Item1&&outer.Item2==2&&inner.Item2==3,"3: outer dead target stays AttackTargetDead and the inner attack ban is AttackBanned ("+outer.Item2+"/"+inner.Item2+")");
+   clean("case 3");
+   var same=command("banned");var sameExecutor=Get(same,"<Executor>k__BackingField");
+   nestedObservation=()=>{Condition(sameExecutor,"CanNotAttack",false);inner=observe(same);};
+   outer=observe(same);
+   Check(outer.Item2==3&&!inner.Item1&&inner.Item2==1,"4: a recursive observation of the same command receives its own term and leaves the outer one ("+outer.Item2+"/"+inner.Item2+")");
+   clean("case 4");
+   var otherPair=NewFixture(mod,native);var foreign=otherPair.Dispatch();var foreignExecutor=Actor();Condition(foreignExecutor,"CanNotAttack",true);
+   Set(foreign,"<Executor>k__BackingField",foreignExecutor);Set(foreign,"<IsStarted>k__BackingField",true);
+   nestedObservation=()=>inner=observe(foreign);
+   outer=observe(command("healthy"));
+   Check(!outer.Item1&&outer.Item2==1&&inner.Item2==3,"5: another pair's attack ban nested in this command's healthy reading crosses in neither direction ("+outer.Item2+"/"+inner.Item2+")");
+   clean("case 5");
+   var thrower=command("throws");var innerDepth=-1;Exception innerFailure=null;
+   nestedObservation=()=>{try{observe(thrower);}catch(Exception e){innerFailure=e;}innerDepth=depth();};
+   outer=observe(command("banned"));
+   Check(innerFailure!=null&&innerDepth==1&&outer.Item2==3,"6: an inner getter that throws removes its own frame and the outer frame stays exact (depth "+innerDepth+")");
+   clean("case 6");
+   Exception outerFailure=null;
+   try{observe(command("throws"));}catch(Exception e){outerFailure=e;}
+   Check(outerFailure!=null&&depth()==0,"7: an outer getter that throws leaves no frame for a later command");
+   clean("case 7");
+   var outside=command("banned");
+   Check(direct(outside)&&depth()==0,"8: the native getter read outside the wrapped seam returns its own value and opens or changes no frame");
+   Check(observe(command("dead")).Item2==2,"8: a getter reading outside the seam cannot make a later dead-target reading an attack ban");
+   clean("case 8");
+   foreach(var kind in new[]{"banned","healthy","dead"}){var c=command(kind);var expected=direct(c);
+    Check(observe(c).Item1==expected,"the wrapper returns native's own Boolean unchanged ("+kind+": "+expected+")");}
+   observe(command("banned"));
+   Call(null,type,"Reset");
+   Check(Field(type,"attackBanFrames").GetValue(null)==null,"10: disable or disposal empties the scalar frame storage");
+  }
+  finally{
+   nestedObservation=null;
+   instance.GetType().GetMethod("UnpatchAll",new[]{typeof(string)}).Invoke(instance,new object[]{"KingmakerMountedCombat.StallProbe.R23"});
+  }
+ }
+ static object Call(object o,Type t,string n,params object[] args){
+  try{return t.GetMethod(n,F).Invoke(o,args);}
+  catch(TargetInvocationException e){System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(e.InnerException).Throw();throw;}
+ }
+
  // R19: the innermost open Run on the ending command's container decides (production scopes, compiled).
  static void ProbeInnermostRun(Assembly mod){
   var type=mod.GetType("KingmakerMountedCombat.Domain.MountedNativeRunScopes"+(char)96+"2",true).MakeGenericType(typeof(object),typeof(object));
@@ -934,7 +1043,8 @@ public static class MountedAttackStallProbe {
   var leaseType=type.GetNestedType("SchedulerLease",F);
   var machineType=mod.GetType("KingmakerMountedCombat.Domain.PairedCommandSchedulerLeaseStateMachine",true);
   var trigger=Enum.GetValues(type.GetMethod("HandleDismounting",F).GetParameters()[0].ParameterType).GetValue(0);
-  foreach(var path in new[]{"Update","ObserveTerminal","AbandonRegistration","Dispose","HandleDismounting"}){
+  // Live-command fault paths (the command has not ended): each records its typed cause before the interruption.
+  foreach(var path in new[]{"Update","AbandonRegistration","Dispose","HandleDismounting"}){
    var f=NewFixture(mod,native);f.Order(false);var command=LiveCommand(f,mod);
    var scheduler=Blank(type);Set(scheduler,"logger",f.Log.GetTransparentProxy());Set(scheduler,"relationship",Blank(Field(type,"relationship").FieldType));
    var machine=Activator.CreateInstance(machineType);machineType.GetMethod("Register").Invoke(machine,new object[]{"rider","mount",1L,"turn","command"});
@@ -942,7 +1052,6 @@ public static class MountedAttackStallProbe {
    f.Log.Throws=true;Exception escaped=null;
    try{
     if(path=="Update")Call(scheduler,"Update");
-    else if(path=="ObserveTerminal")Call(scheduler,"ObserveTerminal",command,"Interrupt","observed");
     else if(path=="AbandonRegistration")Call(scheduler,"AbandonRegistration",command,"abandoned");
     else if(path=="Dispose")Call(scheduler,"Dispose");
     else Call(scheduler,"HandleDismounting",trigger);
@@ -953,8 +1062,34 @@ public static class MountedAttackStallProbe {
    Check((bool)Get(command,"<IsFinished>k__BackingField")&&Get(command,"endCause").ToString()==expected,path+": the exact command records "+expected+" and is interrupted");
    var state=machineType.GetProperty("State").GetValue(machine,null).ToString();
    if(expected=="Fault")Check(machineType.GetProperty("FaultReason").GetValue(machine,null)!=null&&(state=="Faulted"||state=="Disposed"),path+": the scheduler's fault state is recorded");
-   if(path!="ObserveTerminal")Check(Get(scheduler,"lease")==null&&state=="Disposed",path+": the lease is archived and released");
+   Check(Get(scheduler,"lease")==null&&state=="Disposed",path+": the lease is archived and released");
   }
+  // R24: the production-shaped terminal observation. ObserveTerminal runs from the command's own terminal, so its command
+  // has already finished with its own cause: a failed observation faults the lease and records the scheduler's interrupt
+  // bookkeeping, but neither re-ends the command nor replaces its cause, and the lease is not archived here.
+  {
+   var f=NewFixture(mod,native);f.Order(false);var command=f.Dispatch();
+   var success=Enum.Parse(native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand+ResultType",true),"Success");
+   Set(command,"endCause",Enum.Parse(Field(command.GetType(),"endCause").FieldType,"ActorCapability"));Set(command,"<Result>k__BackingField",success);
+   Set(f.Controller,"<LastOutcome>k__BackingField",null);
+   var scheduler=Blank(type);Set(scheduler,"logger",f.Log.GetTransparentProxy());Set(scheduler,"relationship",Blank(Field(type,"relationship").FieldType));
+   var machine=Activator.CreateInstance(machineType);machineType.GetMethod("Register").Invoke(machine,new object[]{"rider","mount",1L,"turn","command"});
+   var lease=Activator.CreateInstance(leaseType,true);Set(lease,"StateMachine",machine);Set(lease,"Command",command);Set(scheduler,"lease",lease);
+   f.Log.Throws=true;Exception escaped=null;
+   try{Call(scheduler,"ObserveTerminal",command,"Success","observed");}catch(Exception e){escaped=e;}
+   f.Log.Throws=false;
+   Check(escaped==null,"R24: a failed terminal observation with a throwing logger lets nothing escape");
+   Check(Get(command,"endCause").ToString()=="ActorCapability"&&Get(command,"<Result>k__BackingField").Equals(success)&&
+    Get(f.Controller,"<LastOutcome>k__BackingField")==null,"R24: the finished command keeps its own cause and result and is not ended or reported again");
+   Check(machineType.GetProperty("State").GetValue(machine,null).ToString()=="Faulted"&&(int)machineType.GetProperty("InterruptCount").GetValue(machine,null)==1&&
+    machineType.GetProperty("CleanupReason").GetValue(machine,null)!=null,"R24: the scheduler records its fault state and its interrupt bookkeeping");
+   Check(ReferenceEquals(Get(scheduler,"lease"),lease),"R24: the lease is not archived by the failed observation (its release is deferred, R22)");
+  }
+  var exact=CallOrder(type.GetMethod("InterruptExactCommand",F));
+  Func<string,int> pos=name=>exact.FindIndex(n=>n.EndsWith(name,StringComparison.Ordinal));
+  Check(pos("LeaseStateMachine.Interrupt")>=0&&pos("LeaseStateMachine.Interrupt")<pos(".get_IsFinished")&&pos(".get_IsFinished")<pos(".RecordEndCause")&&
+   pos(".get_IsFinished")<pos("UnitCommand.Interrupt"),
+   "R24: the exact-command interrupt records the scheduler's interrupt bookkeeping, then returns for a finished command before it could record a cause or interrupt again: "+string.Join(",",exact.ToArray()));
   // Admission and eligibility read the Unity frame clock, which a detached process cannot run; their failure routes are
   // pinned on the compiled IL: no diagnostic precedes the fault boundary, and the boundary orders its steps.
   var fail=CallOrder(type.GetMethod("FailAndInterrupt",F));
@@ -1165,6 +1300,7 @@ public static class MountedAttackStallProbe {
   Section("R18 native branch hooks end to end",()=>ProbeNativeBranchHooks(mod,native));
   Section("R19 the innermost native Run token decides",()=>ProbeInnermostRun(mod));
   Section("R21 native terminal captures own no command",()=>ProbeCaptureOwnership(mod,native));
+  Section("R23 nested CanNotAttack observations are invocation-exact",()=>ProbeNestedAttackBan(mod,native,managed));
   Section("R22 the retired scheduler's deferred lease release",()=>ProbeSchedulerLease(mod,native,managed));
   Section("R20 scheduler fault containment",()=>ProbeSchedulerContainment(mod,native));
   Section("R20 terminal handler containment",()=>ProbeTerminalContainment(mod,native,warnings));

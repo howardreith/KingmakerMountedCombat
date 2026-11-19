@@ -17,14 +17,18 @@ namespace KingmakerMountedCombat.Integration
     // a value, the transpiled method duplicates it, encodes it (Observe...) and keeps it in a new local of that very native
     // invocation, and it passes that local to its own terminal call. The facts therefore live and die with the native frame
     // and belong to its own command: a healthy tick, an ordinary completion, an exception or a nested tick of another
-    // command leaves nothing behind and cannot lend its facts to anyone. The capture hooks never see a command. The only
-    // static is one scalar, the value of UnitAttack's CanNotAttack term, reset immediately before native's own
-    // get_ShouldBeInterrupted call and read and cleared immediately after it.
+    // command leaves nothing behind and cannot lend its facts to anyone. The capture hooks never see a command.
+    //
+    // Review of 95ae0b30 (R23): the ShouldBeInterrupted observation is made by ObserveShouldBeInterrupted, which replaces
+    // TickCommand's one call of the getter. It opens one scalar frame, calls native's getter exactly once, lets the
+    // getter's CanNotAttack term write only that innermost frame, writes the encoded observation to TickCommand's own local
+    // (out) and returns native's Boolean unchanged, closing its frame in a finally. The frames are scalars only
+    // (MountedNativeTermFrames), so nested or exceptional calls cannot exchange terms and nothing owns a command.
     //
     // Installed 2.1.7b sites:
     // - TickCommandTurnBased (0600911D): the canAct value native tests before its first ForceFinishForTurnBased
     //   (CanAct && !HasCondition(Nauseated)), and that force-finish. The second force-finish (approach time) is untouched.
-    // - TickCommand (0600911E): the value of get_ShouldBeInterrupted, the state-site Interrupt, the unstarted
+    // - TickCommand (0600911E): its one get_ShouldBeInterrupted call (wrapped), the state-site Interrupt, the unstarted
     //   InterruptAsSoonAsPossible Interrupt, the value of the running get_CanAct and the running-site Interrupt.
     // - UnitAttack.get_ShouldBeInterrupted (0600266D): the value of its one HasCondition(CanNotAttack) term.
     internal static class NativeCommandTerminalBranches
@@ -39,27 +43,34 @@ namespace KingmakerMountedCombat.Integration
         private const int CanActToken = 0x06001FAF;
         private const int HasConditionToken = 0x06001FBB;
 
-        [ThreadStatic] private static bool attackBanTerm;
+        [ThreadStatic] private static MountedNativeTermFrames attackBanFrames;
 
         internal static int CaptureCanAct(bool canAct) => MountedNativeTerminalObservation.ObserveCanAct(canAct);
 
+        // The transpiled UnitAttack.get_ShouldBeInterrupted passes its CanNotAttack term here; only the innermost open frame
+        // (the wrapped call this getter runs inside) takes it. Outside any wrapped call it changes nothing.
         internal static bool AttackBanTerm(bool value)
         {
-            attackBanTerm = value;
+            attackBanFrames?.SetInnermost(value);
             return value;
         }
 
-        // Immediately before native's own get_ShouldBeInterrupted: a ban term from any earlier reading never counts.
-        internal static void BeginShouldBeInterrupted()
+        // Replaces TickCommand's command.ShouldBeInterrupted: native's getter runs exactly once and its value is returned.
+        internal static bool ObserveShouldBeInterrupted(UnitCommand command, out int observation)
         {
-            attackBanTerm = false;
-        }
-
-        internal static int CaptureShouldBeInterrupted(bool value)
-        {
-            var observation = MountedNativeTerminalObservation.ObserveShouldBeInterrupted(value, attackBanTerm);
-            attackBanTerm = false;
-            return observation;
+            observation = MountedNativeTerminalObservation.NotObserved;
+            var frames = attackBanFrames ?? (attackBanFrames = new MountedNativeTermFrames());
+            var frame = frames.Open();
+            try
+            {
+                var value = command.ShouldBeInterrupted;
+                observation = MountedNativeTerminalObservation.ObserveShouldBeInterrupted(value, frames.Term(frame));
+                return value;
+            }
+            finally
+            {
+                frames.Close(frame);
+            }
         }
 
         internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result, int canActObservation)
@@ -86,10 +97,10 @@ namespace KingmakerMountedCombat.Integration
             command.Interrupt(raiseEvent);
         }
 
-        // Mod disable and disposal: the one scalar returns to its idle value.
+        // Mod disable and disposal: no scalar frame survives.
         internal static void Reset()
         {
-            attackBanTerm = false;
+            attackBanFrames = null;
         }
 
         // Only a pair command records a branch, and only while it can still end. The block is read at the branch.
@@ -161,8 +172,8 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
-        internal static IEnumerable<CodeInstruction> Tick(IEnumerable<CodeInstruction> source, ILGenerator generator, MethodInfo begin,
-            MethodInfo captureShouldBeInterrupted, MethodInfo stateSite, MethodInfo asSoonAsPossible, MethodInfo captureCanAct, MethodInfo runningSite)
+        internal static IEnumerable<CodeInstruction> Tick(IEnumerable<CodeInstruction> source, ILGenerator generator, MethodInfo observeShouldBeInterrupted,
+            MethodInfo stateSite, MethodInfo asSoonAsPossible, MethodInfo captureCanAct, MethodInfo runningSite)
         {
             var code = source.ToList();
             var should = Sites(code, ShouldBeInterruptedToken);
@@ -188,8 +199,10 @@ namespace KingmakerMountedCombat.Integration
             Replace(code[interrupts[1]], asSoonAsPossible);
             Replace(code[interrupts[0]], stateSite);
             code.Insert(interrupts[0], new CodeInstruction(OpCodes.Ldloc, shouldObservation));
-            code.InsertRange(should[0] + 1, Keep(captureShouldBeInterrupted, shouldObservation));
-            code.Insert(should[0], new CodeInstruction(OpCodes.Call, begin));
+            // command.ShouldBeInterrupted becomes ObserveShouldBeInterrupted(command, out shouldObservation): the same
+            // Boolean reaches native's branch, and the observation goes to this invocation's own local.
+            Replace(code[should[0]], observeShouldBeInterrupted);
+            code.Insert(should[0], new CodeInstruction(OpCodes.Ldloca, shouldObservation));
             return code;
         }
 

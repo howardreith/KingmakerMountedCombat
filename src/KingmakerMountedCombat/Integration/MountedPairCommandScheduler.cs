@@ -605,7 +605,9 @@ namespace KingmakerMountedCombat.Integration
 
         // Review of fa533e97 (R20): the scheduler's fault state, the exact command's typed Fault cause and its interruption
         // (and, through FailInterruptAndDispose, the archive) all precede the diagnostic, which is best-effort. The lease is
-        // held locally because the interruption re-enters the terminal path.
+        // held locally because the interruption re-enters the terminal path. Review of 95ae0b30 (R24): a command that has
+        // already finished (a failed terminal observation) is neither re-ended nor given another cause; only the scheduler's
+        // fault state and interrupt bookkeeping are recorded, and the lease release stays deferred.
         private void FailAndInterrupt(string reason, Exception exception)
         {
             var current = lease;

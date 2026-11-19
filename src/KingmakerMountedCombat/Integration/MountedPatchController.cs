@@ -1540,8 +1540,7 @@ namespace KingmakerMountedCombat.Integration
                     TerminalHook(nameof(NativeCommandTerminalBranches.TurnBasedForceFinish)));
 
             internal static IEnumerable<CodeInstruction> NativeTickTerminalTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
-                NativeCommandTerminalBranches.Tick(instructions, generator, TerminalHook(nameof(NativeCommandTerminalBranches.BeginShouldBeInterrupted)),
-                    TerminalHook(nameof(NativeCommandTerminalBranches.CaptureShouldBeInterrupted)),
+                NativeCommandTerminalBranches.Tick(instructions, generator, TerminalHook(nameof(NativeCommandTerminalBranches.ObserveShouldBeInterrupted)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAtStateSite)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.InterruptAsSoonAsPossible)),
                     TerminalHook(nameof(NativeCommandTerminalBranches.CaptureCanAct)),

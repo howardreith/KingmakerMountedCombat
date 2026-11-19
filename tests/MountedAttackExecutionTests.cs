@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("sprint 6 A02 (production policy, review R18): native capability is causal only on the exact native branch that took it", NativeCapabilityNeedsTheExactBranch);
             runner.Run("sprint 6 A02 (production scopes, review R19): the innermost open Run on the ending command's container decides a replacement", NestedRunUsesTheInnermostToken);
             runner.Run("sprint 6 A02 (production policy, review R21): native terminal facts belong to their own native invocation and default to no capability", NativeObservationsAreFrameOwned);
+            runner.Run("sprint 6 A02 (production frames, review R23): each wrapped ShouldBeInterrupted call owns its CanNotAttack term; nesting and exceptions cannot exchange terms", AttackBanTermsAreFrameExact);
         }
 
         private static MountedActorCapabilityFacts Healthy() => new MountedActorCapabilityFacts { Known = true };
@@ -511,6 +512,57 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedNativeTerminalObservation.CanActTrue != MountedNativeTerminalObservation.CanActFalse &&
                 MountedNativeTerminalObservation.InterruptedByAttackBan != MountedNativeTerminalObservation.InterruptedByOtherTerm &&
                 MountedNativeTerminalObservation.NotInterrupted != notObserved, "Two different facts share an encoding.");
+        }
+
+        // Review of 95ae0b30 (R23): each wrapped ShouldBeInterrupted call owns one scalar frame; a getter term writes only the
+        // innermost open frame, and nothing outlives a call, normal or exceptional.
+        private static void AttackBanTermsAreFrameExact()
+        {
+            var frames = new MountedNativeTermFrames();
+            // 1: outer attack ban, inner healthy reading.
+            var outer = frames.Open(); frames.SetInnermost(true);
+            var inner = frames.Open(); frames.SetInnermost(false);
+            TestRunner.True(!frames.Term(inner), "1: the inner healthy reading took the outer ban.");
+            frames.Close(inner);
+            TestRunner.True(frames.Term(outer), "1: the inner reading cleared the outer attack ban.");
+            frames.Close(outer);
+            // 2, 3: outer ban with an inner dead target (no term); outer dead target with an inner ban.
+            outer = frames.Open(); frames.SetInnermost(true);
+            inner = frames.Open();
+            TestRunner.True(!frames.Term(inner), "2: the inner dead-target reading took the outer ban.");
+            frames.Close(inner);
+            TestRunner.True(frames.Term(outer), "2: the outer ban was lost to the inner dead target.");
+            frames.Close(outer);
+            outer = frames.Open();
+            inner = frames.Open(); frames.SetInnermost(true);
+            TestRunner.True(frames.Term(inner), "3: the inner ban was lost.");
+            frames.Close(inner);
+            TestRunner.True(!frames.Term(outer), "3: the inner ban made the outer dead target an attack ban.");
+            frames.Close(outer);
+            // 6: an inner call that throws closes its frame in its finally; the outer frame stays exact.
+            outer = frames.Open(); frames.SetInnermost(true);
+            try
+            {
+                var thrown = frames.Open();
+                try { throw new System.InvalidOperationException("inner getter"); }
+                finally { frames.Close(thrown); }
+            }
+            catch (System.InvalidOperationException) { }
+            TestRunner.True(frames.Depth == 1 && frames.Term(outer), "6: an inner exception left a frame or disturbed the outer term.");
+            frames.Close(outer);
+            // A frame stranded above a closing call goes with it; 8: a term outside any frame changes nothing.
+            outer = frames.Open(); frames.Open(); frames.Close(outer);
+            frames.SetInnermost(true);
+            TestRunner.True(frames.Depth == 0, "8: a stranded frame survived, or a term outside any call opened one.");
+            // 9: a later ordinary call starts clean, even after deep nesting grew the storage.
+            for (var k = 0; k < 9; k++) { frames.Open(); frames.SetInnermost(true); }
+            frames.Close(0);
+            var later = frames.Open();
+            TestRunner.True(frames.Depth == 1 && !frames.Term(later), "9: a later call inherited an earlier term.");
+            frames.Close(later);
+            // 10: reset.
+            frames.Open(); frames.Reset();
+            TestRunner.True(frames.Depth == 0 && !frames.Term(0), "10: reset kept a frame.");
         }
 
         // Review of fa533e97 (R19): only the innermost open Run on the ending command's container decides.

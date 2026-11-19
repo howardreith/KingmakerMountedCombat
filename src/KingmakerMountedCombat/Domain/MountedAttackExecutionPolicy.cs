@@ -170,6 +170,40 @@ namespace KingmakerMountedCombat.Domain
             !value ? NotInterrupted : attackBanTerm ? InterruptedByAttackBan : InterruptedByOtherTerm;
     }
 
+    // Review of 95ae0b30 (R23). The CanNotAttack term of each wrapped ShouldBeInterrupted call, one scalar frame per call,
+    // innermost last. A call opens its own frame before native's getter runs, the getter's term writes only the innermost
+    // open frame, the call reads its own frame by index and closes it (and anything stranded above it) in a finally. So a
+    // nested call on the same or another command never touches an outer call's term, an exception leaves no frame, and a
+    // getter reading outside any wrapped call changes nothing. Scalars only: no command, actor or delegate is held.
+    public sealed class MountedNativeTermFrames
+    {
+        private bool[] terms = new bool[4];
+        private int depth;
+
+        public int Depth => depth;
+
+        public int Open()
+        {
+            if (depth == terms.Length) System.Array.Resize(ref terms, terms.Length * 2);
+            terms[depth] = false;
+            return depth++;
+        }
+
+        public void SetInnermost(bool term)
+        {
+            if (depth > 0) terms[depth - 1] = term;
+        }
+
+        public bool Term(int frame) => frame >= 0 && frame < depth && terms[frame];
+
+        public void Close(int frame)
+        {
+            if (frame >= 0 && frame < depth) depth = frame;
+        }
+
+        public void Reset() => depth = 0;
+    }
+
     public static class MountedNativeTerminalBranchPolicy
     {
         // The turn-based force-finish site: native's own canAct value, observed in this invocation where native branched on it.
