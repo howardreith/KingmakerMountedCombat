@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 7 — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
+# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEW OF 292CD23C) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the
 accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md) and the
@@ -17,14 +17,23 @@ accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-
   from projected copies of the shown descriptor's progression data. Grants and data unchanged.
 - **U04:** a mounted rider's party portrait carries the embedded saddle badge; a folded mount's tracker hover
   highlights its own rider's existing entry. No entry, order, scheduler or selection change.
+- **Review of `292cd23c` (`92310c52`):**
+  - R1: the hover is the world hover of the mount's view (a portrait hover never reaches the tracker, installed IL).
+    KMC's redirect is one owned lease of weak references and identities, released exactly before every native hover
+    pass and at a tracker rebuild, pair cleanup, generation change, load, area unload, world discard, disable and
+    disposal. Native's own pass already clears an ordinary true-then-false; it ran detached under the real patches.
+  - R2: the badge follows the native per-frame portrait refresh (`UpdateCrippled`) and bind (`Initialize`), not
+    `HealthUpdate` (hit-point changes only, withdrawn), and is removed at load, area, world discard, disable and
+    disposal; failed removals and a throwing logger never stop cleanup.
 - **T09 (new):** `Test-Finalize2UpgradeReaders.ps1` needs retained r05 native evidence absent from this lab; identical
   at the base.
 - **Checks:**
-  - Fast PASS 21/0 (0.85 min) (budget `known-issues-sprint7`).
-  - Components 1410/0; presentation contracts 112/0. The accepted Sprint 6 build fails every Sprint 7 section.
-  - Kingmaker assembly contracts 815/0; Validate-Source 151/0.
-  - Mutation campaign P1-P20: 20/20 caught (serial, isolated).
-  - Product-build commit `ee5c20dc`, DLL SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`.
+  - Fast PASS 21/0 (0.9 min) (budget `known-issues-sprint7`, 2.8 of 90 min).
+  - Components 1410/0; presentation contracts 166/0. The reviewed `ee5c20dc` fails the R1/R2 lifecycle; the accepted
+    Sprint 6 build fails every Sprint 7 section.
+  - Kingmaker assembly contracts 815/0; Validate-Source 151/0; harness 277/4, identical to the Sprint 6 base.
+  - Mutation campaign P1-P27: 27/27 caught (serial, isolated).
+  - Product-build commit `92310c52`, DLL SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`.
 - **Native:** NOT RUN, and no screen was viewed. Nothing was launched, staged or installed. Sprint 8 was not started.
 - **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 8.
 

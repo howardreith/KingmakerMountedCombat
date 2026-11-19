@@ -135,6 +135,9 @@ Two of the owner-facing observations above are addressed offline by Sprint 7; th
 - **No mount badge, and no tracker entry for a hovered mount (U04).** A mounted rider's party portrait now carries the
   embedded saddle badge, and hovering a mount whose tracker entry is folded into its pair's paired activation
   highlights its own rider's existing entry. Tracker order, entries and scheduling are unchanged; an independently
-  acting mount keeps its own entry and hover.
+  acting mount keeps its own entry and hover. Corrected after the review of `292cd23c`: the badge follows the portrait's
+  native per-frame refresh and bind and is removed at every world boundary, disable and disposal; the hover redirect
+  is one owned lease released before every native hover pass and at every boundary. The hover covers the mount's world
+  hover; a party-portrait hover never reaches the tracker.
 
 Neither was viewed on screen or run natively; see [the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md).

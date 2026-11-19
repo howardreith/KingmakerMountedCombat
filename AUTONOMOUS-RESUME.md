@@ -4,8 +4,9 @@ Branch `codex/kmc-known-issues-sprint7` (draft PR targeting `codex/kmc-known-iss
 CURRENT.md, docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 8 bases on this branch
 after review.
 
-- **State:** U01-U04 implemented and verified offline as presentation projections; T09 recorded. Fast PASS 21/0;
-  mutations P1-P20 20/20 caught. Native NOT RUN; no screen viewed.
+- **State:** U01-U04 implemented and verified offline as presentation projections; U04's native delivery and
+  lifecycle corrected after the review of `292cd23c` (`92310c52`); T09 recorded. Fast PASS 21/0; mutations P1-P27
+  27/27 caught. Native NOT RUN; no screen viewed.
 - **Rules:**
   - Presentation reads authority; it never writes gameplay state to make native UI show something.
   - U01 reads only `MountedMovementState.ForcedTravelRecorded` on the mount allocation whose grant is the live
@@ -15,7 +16,11 @@ after review.
   - U03 projects copies of the progression data native returns, afresh per panel build. Never edit the stock
     progression, a unit's `ProgressionData`/`LevelEntry` lists or the grant filter for display.
   - U04 derives the badge and hover from the live relationships each native call. Keep no tracker entry, view, unit or
-    pair; badge objects only weakly and bounded; the badge never takes pointer events.
+    pair strongly; badge objects only weakly and bounded; the badge never takes pointer events.
+  - The badge refresh seam is `UpdateCrippled` plus `Initialize`; never `HealthUpdate` (hit-point changes only), never
+    polling or an object scan. Every world boundary, disable and disposal removes every badge with contained cleanup.
+  - The folded-mount hover redirect is one lease released before every native hover pass and at every boundary; native
+    owns its own true/false pass. A party-portrait hover does not reach the tracker; do not invent one.
   - Presentation seams are contained and report a fault once per seam.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 8.
 

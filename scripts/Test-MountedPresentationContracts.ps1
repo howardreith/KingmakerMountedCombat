@@ -798,7 +798,7 @@ public static class MountedPresentationProbe {
   fakeBadges.Clear();badgeSprite=null;
   var pr=Portrait(a.Rider);var pB=Portrait(b.Rider);
   // 11. No sprite: the native portrait stays unchanged.
-  Refresh(pr);Check(BadgeOn(pr)==null&&fakeBadges.Count==0,"R2 case 11: with no sprite no badge object is made and the portrait is unchanged");
+  Refresh(pr);Case(BadgeOn(pr)==null&&fakeBadges.Count==0,"R2 case 11: with no sprite no badge object is made and the portrait is unchanged");
   badgeSprite=Blank(typeof(UnityEngine.Sprite));Alive(badgeSprite);
   // 1, 10. Mounted rider, two pairs.
   Refresh(pr);Refresh(pB);
@@ -810,9 +810,9 @@ public static class MountedPresentationProbe {
   SetState(a,Mounted());Set(a.Relationship,"mountedPairGeneration",4L);Refresh(pr);
   Case(Shown(pr)&&fakeBadges.Count(x=>x.Portrait==pr)==1,"R2 case 3: a remount shows the badge again without a duplicate");
   // 4. Death (the relationship's cleanup leaves it unmounted).
-  SetState(a,Unmounted());Refresh(pr);Check(!Shown(pr),"R2 case 4: rider or mount death clears the badge");SetState(a,Mounted());
+  SetState(a,Unmounted());Refresh(pr);Case(!Shown(pr),"R2 case 4: rider or mount death clears the badge");SetState(a,Mounted());
   // 5. Pair replacement: still exactly one badge for the rider.
-  Refresh(pr);Check(Shown(pr),"R2 case 5: a replaced pair keeps one badge on its rider");
+  Refresh(pr);Case(Shown(pr),"R2 case 5: a replaced pair keeps one badge on its rider");
   // 6. The portrait rebound to another unit (native Initialize): the old unit's badge does not follow.
   Set(pr,"m_Unit",Unit("companion"));Refresh(pr);
   Case(!Shown(pr),"R2 case 6: a portrait rebound to another unit hides the badge at the bind");

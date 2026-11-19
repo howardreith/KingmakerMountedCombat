@@ -4,6 +4,17 @@ Sprint 7 of the Mounted Combat Known Issues Remediation Epic: U01–U04. A prese
 only: nothing was launched, staged or installed, no screen was viewed, and nothing here is native gameplay or visual
 evidence. Sprint 8 was not started.
 
+**Corrected after the owner review of `292cd23c` (2026-11-19).** The review accepted U01's forced-travel projection,
+U02's weak slot/delivery targeting identity, U03's read-fresh copy-only projection, U04's pure pair, badge and hover
+identity policies, and T09. It found U04's native delivery and cleanup lifecycle incomplete (R1, R2). Both are
+corrected below (see "Review of 292cd23c"), and the full P1–P27 campaign ran on the new head. Withdrawn from the
+`292cd23c` records:
+- that the badge was refreshed every frame through `HealthUpdate` (native calls it only after a hit-point change);
+- that U04's hover needed no owned lifetime (native's own pass recomputes every entry, but nothing released KMC's
+  redirect at a tracker rebuild, a pair cleanup, a generation change, load, area, world discard, disable or disposal);
+- that badge objects were removed at world boundaries (only disable and disposal removed them);
+- the open question whether a party-portrait hover reaches the tracker: it does not (installed IL).
+
 ## Identity
 
 | Item | Value |
@@ -11,9 +22,10 @@ evidence. Sprint 8 was not started.
 | Base | `f835c503515fcc80ff1033bf50f4f771e34de15c`, the accepted Sprint 6 checkpoint. PR #51 is unmerged; the base was verified as the live head of `codex/kmc-known-issues-sprint6` (the parent has not advanced). Accepted Sprint 6 product build `7898b1a4` |
 | Branch and worktree | `codex/kmc-known-issues-sprint7`, `worktrees/known-issues-sprint7` |
 | Draft PR target and parent | `codex/kmc-known-issues-sprint6` (parent PR #51) |
-| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script (the product-build commit). Then the records commit carrying this document and the strengthened presentation probe (script only; the product bytes are unchanged), which is the branch head |
-| Product-build commit | `ee5c20dc` |
-| Product DLL (clean Release rebuild of `ee5c20dc`) | SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`; frozen copy `artifacts/known-issues-sprint7/candidate/head-ee5c20dc/`. The Fast tier's own build is byte-identical |
+| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script. `292cd23c`: the first records and the strengthened probe (reviewed head). `92310c52`: review of `292cd23c`, R1 and R2 (the product-build commit). Then the records commit carrying this version, which is the branch head |
+| Product-build commit | `92310c52` |
+| Product DLL (clean Release rebuild of `92310c52`) | SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`; frozen copy `artifacts/known-issues-sprint7/review1/head-92310c52/`. The Fast tier's own build is byte-identical |
+| Reviewed DLL (`ee5c20dc`, head `292cd23c`) | SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`; frozen copy `artifacts/known-issues-sprint7/candidate/head-ee5c20dc/` |
 | Base DLL used for before-evidence | Sprint 6 `7898b1a4`: SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` (frozen at `artifacts/known-issues-sprint6/review4/head-7898b1a4/`, hash re-verified) |
 | Workflow budget | `known-issues-sprint7` |
 
@@ -24,7 +36,7 @@ evidence. Sprint 8 was not started.
 | U01 | **Implemented and verified offline** | The mount's Move and Standard prediction actions show zero usable distance, and the rider-selected fill promises no five-foot step, once the mount's allocation for the exact live activation has recorded forced (charge) travel. Native Move unavailability, cooldowns, `TimeMoved`, the allocation and the path are unchanged |
 | U02 | **Implemented and verified offline** | The exact public slot whose click handed native target selection to a hidden delivery ability is drawn with native's own selected mark, through an exact value-identity mapping that ends with the selection operation |
 | U03 | **Implemented and verified offline** | The Paladin class panel builds its rows from projected copies of the shown character's progression data: a Divine Mount character, or one whose bond is not yet chosen, is not promised the weapon-bond-only upgrades. Grants, blueprints and the unit's data are unchanged |
-| U04 | **Implemented and verified offline** | A mounted rider's party portrait carries the project's saddle badge, derived each refresh from the live relationship. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry |
+| U04 | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`)** | A mounted rider's party portrait carries the project's saddle badge, reconciled at the portrait's native per-frame refresh and bind and removed at every world boundary, disable and disposal. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry, as one owned lease released exactly before every native hover pass and at every boundary that ends it |
 | T09 (new) | **Open investigation: retained evidence absent** | `Test-Finalize2UpgradeReaders.ps1` reads run r05's retained receipts from the lab's `runtime-evidence`, which this machine does not hold. It fails identically at the Sprint 6 base. Not a product failure; see "New independent findings" |
 
 ## Sprint-wide presentation boundary
@@ -100,15 +112,19 @@ Read from source and the installed 2.1.7b IL (`Assembly-CSharp` SHA `3b6450ff…
 
 ### Portrait and turn tracker (U04)
 
-- **Portraits:** `GroupCharacterPortraitController` (one per party portrait) is refreshed each frame through
-  `HealthUpdate` (0x06003F01, from `CharacterBase.Update`). The mod had no portrait seam.
+- **Portraits:** `GroupCharacterPortraitController` (one per party portrait). `CharacterBase.Update` returns during
+  loading and for an unbound portrait; otherwise it calls `UpdateCrippled` (0x06003F02) every frame and `HealthUpdate`
+  (0x06003F01) only after the hit-point check finds a change. The unit is bound and rebound through `Initialize`
+  (0x06003EF6, from `CharacterBase.Initialize`, `HandleLevelUpComplete` and `HandlePortraitChanged`). The mod had no
+  portrait seam. (Corrected after the review of `292cd23c`: the first records said `HealthUpdate` ran every frame.)
 - **Tracker:** `InitiativeTrackerVM.UpdateUnits` runs inside the mod's projection scope; `FilterTrackerSortedUnits`
   omits a mount whose entry is folded into its pair's live paired activation (`HidesPairedTrackerEntry`, or the legacy
   `ShouldSuppressMount`). A mount keeps its own entry when paired activation is off, after a dismount split from the
   release round, after its rider is removed, or while it is native `CurrentTurn.Unit`.
-- **Hover:** native `InitiativeTrackerVM.HandleHoverChange(UnitEntityView, bool)` (0x06004F16, the
-  `IUnitDirectHoverUIHandler` the world and portrait hovers raise) highlights the entry whose unit's view is the hovered
-  view. A folded mount has none, so nothing highlights.
+- **Hover:** native `InitiativeTrackerVM.HandleHoverChange(UnitEntityView, bool)` (0x06004F16, the tracker's
+  `IUnitDirectHoverUIHandler`) highlights the entry whose unit's view is the hovered view. Only the world hover of a unit
+  view raises it; a party-portrait hover does not (see "Review of 292cd23c"). A folded mount has no entry, so nothing
+  highlights.
 - **Relationship identity:** `MountedPairOwner` (id, rider, mount, generation), `GameMountedRelationshipService`
   (`State`, `MountedPairGeneration`, `Rider`, `Mount`), reached through `MountedWorldService.Pairs` / `ForActor`.
 
@@ -204,12 +220,14 @@ Invariants: native grants, companion progression, blueprints, GUIDs, facts and s
   (the owner's and the relationship's actors must agree), mounted state, and whether the mount's own tracker entry is
   folded right now (`FoldsTrackerEntry`, the tracker filter's own predicate without its bookkeeping).
 - **Badge:** `MountedPairPresentationPolicy.Badge` names the one live mounted relationship whose rider is exactly the
-  portrait's unit. A postfix on `HealthUpdate` shows or hides a child image under the portrait art using the embedded
-  saddle icon. The image never takes a pointer event, so portrait clicks, hover and selection stay native. No tooltip
-  was added (one would need the badge to receive pointer events, which would take them from the portrait).
-- **Hover:** after native's hover pass, a postfix asks `FoldedMountHoverEntry`: only when native found no entry of the
-  hovered unit's own, exactly one live mounted relationship folds that mount, and exactly one entry is its rider's,
-  native's own `HoveredUnit` and the entry's `HandleHoverChange(true)` are set. Native's un-hover clears both.
+  portrait's unit. Postfixes on the portrait's native per-frame refresh (`UpdateCrippled`) and bind (`Initialize`) show
+  or hide a child image under the portrait art using the embedded saddle icon (corrected from `HealthUpdate` after the
+  review of `292cd23c`). The image never takes a pointer event, so portrait clicks, hover and selection stay native. No
+  tooltip was added (one would need the badge to receive pointer events, which would take them from the portrait).
+- **Hover:** a prefix releases KMC's owned redirect before native's pass; after it, a postfix asks
+  `FoldedMountHoverEntry`: only when native's own pass found no entry of exactly the hovered unit, exactly one live
+  mounted relationship folds that mount, and exactly one entry is its rider's, native's own `HoveredUnit` and the
+  entry's `HandleHoverChange(true)` are set, under a lease (see "Review of 292cd23c").
 
 | Case | Result |
 |---|---|
@@ -235,14 +253,17 @@ Invariants: no initiative entry, order, scheduler, turn-ownership, selection or 
 - **U02:** one mapping per service instance (not static): an immutable value identity plus one `WeakReference` to the
   slot; object serials come from a `ConditionalWeakTable`, which keeps no key alive. Cleared at every selection
   operation and every lifecycle boundary listed above.
-- **U04:** the presentation keeps the world service, the sprite source and the logger, and the badge objects only as
-  `WeakReference`s, bounded at 32. Badge objects are children of the portrait art and die with it; disable and disposal
-  destroy them. No tracker entry, view, unit or pair is held.
+- **U04:** the presentation keeps the world service, the sprite source, the logger, the badge surface, at most one
+  hover lease (weak tracker, entry and rows references, the pair identity and the hovering unit's id) and the badge
+  objects only as `WeakReference`s, bounded at 32 live objects. Badge objects are children of the portrait art and die
+  with it; load, area unload, world discard, disable and disposal destroy them. No tracker entry, view, unit or pair is
+  held strongly.
 - **Statics:** the patch bridge's `Presentation` reference is set and cleared with the patch controller, as every
   other bridge member. The once-per-seam fault set holds only the fixed seam names.
-- **Checks:** the U02 GC check (a dropped slot is collected), and structural field checks on both new state holders.
+- **Checks:** the U02 and R1 GC checks (a dropped slot, a dropped tracker are collected), and structural field checks
+  on both state holders and the lease.
 
-## Validation (budget `known-issues-sprint7`)
+## Validation (budget `known-issues-sprint7`), the reviewed `ee5c20dc`
 
 | Check | Result |
 |---|---|
@@ -265,7 +286,7 @@ Invariants: no initiative entry, order, scheduler, turn-ownership, selection or 
 - **Not run:** Full, Candidate, historical campaigns, release qualification, native gameplay, physical UI acceptance,
   the resolution/input-device matrix, and the stale harnesses recorded elsewhere.
 
-## Mutation campaign P1–P20 (serial; log `candidate/03-mutation-campaign.log`)
+## Mutation campaign P1–P20 on `ee5c20dc` (serial; log `candidate/03-mutation-campaign.log`)
 
 Each mutant: one disposable `git worktree add --detach` of `ee5c20dc`, its own `MSBuild /t:Rebuild /p:Configuration=Release
 /m:1 /nodeReuse:false /p:UseSharedCompilation=false`, the components, then the presentation probe reading that DLL by
@@ -302,6 +323,150 @@ policy's second guard (a unit with its own entry is never redirected) masked the
 (the rebound case restores the public slot first; the projected fold fact and an out-of-view independent mount are
 checked directly), the mutant was fixed, and the whole campaign was rerun on the corrected probe: 20/20.
 
+## Review of 292cd23c: R1–R3 (U04 native delivery and lifecycle, corrected)
+
+### Native hover contract (installed 2.1.7b IL; executed where noted)
+
+- **Raiser:** `IUnitDirectHoverUIHandler.HandleHoverChange` is called by exactly one method in the assembly, the event
+  closure of `UnitEntityView.HandleHoverChange(bool)` (0x0600185A), which first sets the view's `MouseHighlighted`.
+- **Source:** `UnitEntityView.HandleHoverChange` is the view's `IDetectHover` implementation. `PointerController.OnHoverChanged
+  (oldHover, newHover)` calls `IDetectHover.HandleHoverChange(false)` on the old object's detectors and then
+  `HandleHoverChange(true)` on the new object's (order pinned from the IL). `PointerController2D` (the kingdom map) does
+  the same.
+- **Subscribers:** the tracker's `InitiativeTrackerVM.HandleHoverChange` (0x06004F16), `InspectController` and
+  `ActionBarInspectVm`.
+- **Party portrait:** `GroupCharacterPortraitController.OnPointerEnter/Exit` set `IsMouseOver`, which sets the unit view's
+  `MouseHighlighted` and, in turn-based combat, raises `IUnitPortraitHighlightChangedHandler`, implemented only by
+  `TurnController` and `PathVisualizer`. It never calls `UnitEntityView.HandleHoverChange`, so a portrait hover never
+  reaches the tracker. The redirect therefore stays on the tracker's own seam, for the mount's world hover.
+- **Native pass, executed detached on genuine tracker view models:**
+  - a true sets `HoveredUnit` to the entry whose unit's view is the hovered view, or to none, and sets every entry's hover
+    to whether it is that entry;
+  - a true for another unit recomputes every entry;
+  - an unmatched unit leaves no hovered entry and no highlight;
+  - a false sets `HoveredUnit` to none and every entry's hover to false.
+- **Consequence:** native's own true and false passes already clear any entry KMC highlighted. What native does not do
+  is end KMC's redirect when the tracker rebuilds, the pair changes, or a world boundary passes while the pointer
+  stays on the mount.
+- **Inference, not IL:** a folded mount (no tracker row) still produces both events, because the view raises them
+  regardless of the tracker's rows; which collider the pointer picks over a mounted pair was not observed.
+
+### R1 — the hover redirect lease
+
+- **Prefix** (`FoldedMountHoverPrefix` → `BeforeTrackerHover`): before every native hover pass, true or false, any unit,
+  any tracker, KMC's lease is released exactly. A pass nested inside KMC's own apply or release is native's alone.
+- **Postfix** (`RedirectFoldedMountHover`): only for a true, only when native's pass found no entry of exactly the hovered
+  unit (`HoveredUnit`'s own unit is compared, not just its presence), only for a mount folded into its live mounted
+  pair, and only onto the one existing entry of that pair's rider. The lease is taken before the first write, so a
+  failure part-way is released exactly and rethrown into the patch's containment.
+- **Lease:** weak references to the tracker, the entry and the tracker's rows list; the pair identity (owner,
+  generation, rider, mount); the hovering unit's id.
+- **Release:** `false` on the exact entry, only while it is still a row of the same rows list (an entry of a rebuilt
+  tracker is never touched again); `HoveredUnit` cleared only if it is still that entry; the lease cleared first.
+- **Ends:** every native hover pass; a tracker rebuild (`UpdateUnits` postfix validates the rows list, the entry, the pair's
+  owner, generation, mounted and folded state); every pair cleanup the world raises (dismount, death, load, area
+  unload, disable, teardown); load start; area unload; world discard; disable; disposal.
+
+| Case (native pass executed under the product's real Harmony12 prefix and postfix) | `ee5c20dc` | `92310c52` |
+|---|---|---|
+| true then false for one folded mount | behaviour passes (native's false clears); no lease to release | passes; lease released |
+| pair A true then pair B true, no false between | behaviour passes (native's true recomputes); no lease | passes; the lease is pair B's |
+| folded mount, then an ordinary native entry, and back | passes | passes |
+| tracker rebuilt during hover | **fails** (nothing ends the redirect at the rebuild) | passes; the old entry is never touched again |
+| pair-generation change during hover | **fails** (rider stays highlighted) | passes |
+| dismount, death (pair cleanup) during hover | **fail** | pass |
+| load, area unload, world discard | **fail** | pass |
+| disable; disposal | **fails**; disposal cannot run detached | pass |
+| independent mount | no redirect | no redirect, no lease |
+| another pair on another tracker | — | A released, B applied |
+| nested native hover inside KMC's apply | — | native's nested pass stands; the next false leaves nothing |
+| throwing native callback and throwing logger | — | no entry stuck, no lease, nothing escapes |
+| collected tracker | — | collected (weak); later hovers work |
+
+The reviewed build is not wrong for an ordinary true-then-false: native's own pass owns that cleanup, now pinned by
+executing it. It is wrong at every boundary that ends the redirect while the pointer stays.
+
+### R2 — the badge lifecycle
+
+- **Refresh:** postfixes on `UpdateCrippled` (every frame for every bound portrait outside loading) and `Initialize`
+  (bind and rebind, including to no unit). Not `HealthUpdate`. No polling and no object scan: each call reconciles
+  only its own portrait.
+- **Reconcile:** the badge is active exactly while the portrait's unit is the rider of a live mounted relationship;
+  otherwise an existing badge is deactivated. A dismount, death, generation change, pair replacement or rebind
+  therefore shows within one frame of the next native refresh.
+- **Create:** only with a sprite and under the 32-object bound; dead objects never count (the engine's destroyed objects are pruned before
+  counting). A badge that cannot be completed is destroyed before the failure propagates; the failure is contained.
+- **Remove:** load start, area unload and world discard (`ReleaseAtWorldBoundary`, wired at the persistence load,
+  area-suspension and world-discard sites), disable (`ReleaseAtWorldBoundary("disabled")`) and disposal remove every
+  badge object. Each removal is tried on its own; the logger's own failure is contained; the bound always empties.
+  Badges remain transient and are never saved.
+- **Engine surface:** the six engine operations of a badge object (find, create, alive, active, set active, destroy) are
+  one `MountedBadgeSurface`; production uses Unity, and the detached probe substitutes it to run the lifecycle.
+
+| Case | `ee5c20dc` | `92310c52` |
+|---|---|---|
+| seam | `HealthUpdate` only (hit-point changes): **fails** registration and has no lifecycle seam | `UpdateCrippled` + `Initialize` |
+| 1 mounted rider; 10 two pairs | — | one active badge each, never crossed |
+| 2 dismount; 4 death | — | inactive at the next refresh; the other pair keeps its own |
+| 3 remount, new generation | — | active again, no duplicate |
+| 5 pair replacement | — | one badge on the rider |
+| 6 portrait rebound | — | hidden at the bind |
+| 7 load, area, world | removed only at disable/disposal | every object removed, bound empty; destroyed objects never count |
+| 8 disable, disposal; 9 re-enable | — | removed; derived afresh |
+| 11 no sprite | — | no object; the portrait unchanged |
+| 12 construction or destruction failure, throwing logger | `Reset` called the logger uncontained | contained; every other removal runs; the bound empties |
+
+### R3 — records
+
+U04 was not described as fully implemented until R1 and R2 passed; it is now recorded as implemented and verified
+offline with its native delivery and lifecycle corrected. The no-screen and no-native limits stand. The mount-name
+tooltip stays omitted. T09 is unchanged.
+
+### Validation for `92310c52` (budget `known-issues-sprint7`; logs `artifacts/known-issues-sprint7/review1/`)
+
+| Check | Result |
+|---|---|
+| Clean Release rebuild of `92310c52` | PASS; identity above (log `05-clean-release-build.log`); byte-identical to the Fast tier's build; references unchanged |
+| Components | 1410/0 (log `01-components.log`) |
+| `Validate-Source.ps1` | 151/0 |
+| `Test-MountedPresentationContracts.ps1` (extended: native contracts, native hover executed, R1 and R2 lifecycles) | **166/0** (log `02-presentation-probe-head-92310c52.log`) |
+| The same probe on the reviewed `ee5c20dc` | 13 failures: the R1 lease and every boundary release, R2 (no lifecycle seam), registration (log `04-presentation-probe-reviewed-ee5c20dc.log`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint7` (18 focused) | **PASS 21/0** (0.9 min; budget 2.8 of 90 min, 3 entries) (log `06-fast-tier.log`) |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `07-assembly-contracts.log`) |
+| `Test-Harness.ps1` (turn-tracker projection pins and the wider harness) | 277 pass, 4 fail, and the same failing set on the Sprint 6 base `f835c503` under matched conditions (logs `08-harness.log`, `08b-harness-base-f835c503.log`): two need a historical package zip absent from the lab, one pins a source string absent at the base, one is the package validator's size check. Pre-existing; none involves Sprint 7. The tracker filter pins pass |
+| Mutation campaign P1–P27 | **27/27 caught** (log `03-mutation-campaign.log`) |
+
+- **Harmony12 construction:** the hover prefix and postfix were constructed and executed on native
+  `HandleHoverChange`; `UpdateCrippled`, `Initialize` and `UpdateSlotInternal` reference engine internal calls and
+  cannot be compiled detached (their postfix bindings are checked by name and type).
+- **Neighbours inside the Fast tier:** paired activation (40 constructions), world ownership, persistence, post-load view
+  readiness, command slot (action-bar controls), F3 economy readers (movement display), Sprint 8 Paladin readers,
+  marker ownership, native input, stall repair, Charge, ranged movement, continuous drive.
+- **Not run:** Full, Candidate, historical campaigns, release qualification, native gameplay, physical visual
+  acceptance, resolution/input matrices, unrelated stale harnesses.
+
+### Mutation campaign P1–P27 (serial; log `review1/03-mutation-campaign.log`)
+
+Each mutant: one disposable `git worktree add --detach` of `92310c52`, its own `MSBuild /t:Rebuild /p:Configuration=Release
+/m:1 /nodeReuse:false /p:UseSharedCompilation=false`, the components, then the presentation probe reading that DLL by
+path and printing its MVID; the worktree is removed before the next. All 34 anchors were checked to occur exactly once.
+The candidate DLL is the separate frozen copy. **27/27 caught.**
+
+| ID | Mutation | Caught by |
+|---|---|---|
+| P1–P20 | as listed for `ee5c20dc` above, rerun on `92310c52` | each caught again, for the same reason |
+| P21 | a folded mount's false does not release the redirected rider (the lease survives the false) | probe R1 true->false (the lease remains) and the nested-pass follow-up |
+| P22 | hovering pair B leaves pair A's lease in place and refuses B's redirect | probe R1 A->B (B's rider not highlighted) and the direct native hover case |
+| P23 | a tracker rebuild keeps the lease on a stale entry and rows reference | probe R1 tracker rebuilt during hover |
+| P24 | a dismount or generation change leaves the badge active | probe R2 cases 2 and 4 |
+| P25 | a load or world replacement leaves old badge objects tracked and active | probe R2 case 7 (load, area, world) |
+| P26 | a throwing badge-removal logger stops later cleanup and escapes | probe R2 case 12 |
+| P27 | the hover redirect registered on another subscriber of the view hover event (`InspectController`) | probe registration (the tracker's 0x06004F16) |
+
+After the campaign, one probe check in the badge section that still aborted its section (it followed a `;`) was made a
+reporting case like its neighbours; no verdict changed (the frozen candidate 166/0, `ee5c20dc` 13 failures, logs
+refreshed).
+
 ## Evidence kinds
 
 | Kind | What |
@@ -334,6 +499,10 @@ checked directly), the mutant was fixed, and the whole campaign was rerun on the
 - The native click, `SetAbility`/`DropAbility` event order and hover pass were modelled from IL, not run.
 - U03 covers the character screen's class block only. The per-level tooltips and the console/gamepad character screen
   still read the blueprint's level entries and may still list the upgrades for a Divine Mount character.
-- U04's tracker hover covers the hovers native routes through `IUnitDirectHoverUIHandler`; whether a party-portrait
-  hover of the mount raises it was not observed.
+- U04's tracker hover covers the world hover of the mount's view, the only source native routes to the tracker's hover
+  handler. A party-portrait hover never reaches it (installed IL); this was not changed, as no exact portrait-to-tracker
+  seam exists. Which collider the pointer picks over a mounted pair was not observed.
+- The portrait seams (`UpdateCrippled`, `Initialize`) and `UpdateSlotInternal` cannot be patched detached; their
+  postfix bindings are checked by name and type, and the badge lifecycle ran with the badge object's engine operations
+  substituted.
 - Native gameplay: NOT RUN for every package.
