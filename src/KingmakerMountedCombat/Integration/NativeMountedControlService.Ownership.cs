@@ -55,6 +55,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void RetireWorldControlBindings()
         {
+            ClearTargetingPresentation("world-discarded");
             foreach (var reference in admittedControlCommands)
             {
                 UnitUseAbility command;

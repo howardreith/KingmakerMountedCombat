@@ -284,6 +284,12 @@ namespace KingmakerMountedCombat.Integration
         }
         internal void FillPairedMountStates(Kingmaker.TurnBasedMode.PathVisualizer path, Kingmaker.TurnBasedMode.ActionsState states)
         { foreach (var participant in SnapshotParticipants) participant.FillPairedMountStates(path, states); }
+        // Known issues Sprint 7 (U01): the one pair whose mount owns this prediction action projects its usable distance.
+        internal void ProjectUsableMoveDistance(CombatAction action, ref float? remaining)
+        {
+            foreach (var participant in SnapshotParticipants)
+                if (participant.ProjectUsableMoveDistance(action, ref remaining)) return;
+        }
         internal CombatAction PairedSlotAction(CombatAction native)
         {
             foreach (var participant in SnapshotParticipants)

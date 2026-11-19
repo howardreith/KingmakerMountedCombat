@@ -43,7 +43,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger, MountedCombatDefenseService defense, HorseCompanionBlueprintService horseCompanion)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger, MountedCombatDefenseService defense, HorseCompanionBlueprintService horseCompanion, MountedPairPresentation presentation)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
@@ -59,6 +59,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Logger = logger ?? throw new ArgumentNullException(nameof(logger));
             PatchBridge.Defense = defense ?? throw new ArgumentNullException(nameof(defense));
             PatchBridge.HorseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
+            PatchBridge.Presentation = presentation ?? throw new ArgumentNullException(nameof(presentation));
             harmony = HarmonyInstance.Create(HarmonyId);
             try
             {
@@ -154,6 +155,12 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "OnClick", 0x06002F5D,
                     Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
+                // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
+                PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
+                // Known issues Sprint 7 (U02): the selected mark of the exact public slot whose delivery is targeting.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "UpdateSlotInternal", 0x06002F68,
+                    new[] { typeof(Kingmaker.UI.ActionBar.ActionBarSlot) }, null, nameof(PatchMethods.PublicSlotSelectionPostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
                 PatchExact(typeof(SelectionManager), "MultiSelect", 0x060034F5, new[] { typeof(IEnumerable<UnitEntityView>), typeof(bool) }, nameof(PatchMethods.MultiSelectPrefix));
                 PatchExact(typeof(ClickMapObjectHandler), "TryInteract", 0x060093E5,
@@ -328,6 +335,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(pathPreview, "CurrentPathForUnit", 0x0600700F, null, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
                 PatchExact(pathPreview, "UpdateActionStatesFromPath", 0x06007021, null, null, nameof(PatchMethods.PairedPathStatesPostfix), nameof(PatchMethods.PairedPathStatesTranspiler));
                 PatchExact(typeof(Kingmaker.TurnBasedMode.ActionsState), "UpdateMoveDistance", 0x06007009, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedActionsStateOwnerTranspiler));
+                // Known issues Sprint 7 (U01): every write of a prediction action's remaining distance (native's
+                // UpdateMoveDistance and the path's UpdateActionStatesFromPath) passes through this one native method.
+                PatchExact(typeof(Kingmaker.TurnBasedMode.Controllers.CombatAction), "UpdateRemainingDistance", 0x0600704F,
+                    new[] { typeof(float?), typeof(bool) }, nameof(PatchMethods.PairedMoveDistancePrefix));
                 // Movement-facing prediction slots: the mount's actions during a rider-selected ground preview.
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelMoveActionVM), "get_CombatAction", 0x06004E0B, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
                 PatchExact(typeof(Kingmaker.UI._ConsoleUI.TurnBasedMode.PredictionPanelFiveFeetActionVM), "get_CombatAction", 0x06004DE4, Type.EmptyTypes, null, nameof(PatchMethods.PairedSlotActionPostfix));
@@ -364,6 +375,9 @@ namespace KingmakerMountedCombat.Integration
                     "Kingmaker.UI._ConsoleUI.TurnBasedMode.InitiativeTrackerVM",
                     true);
                 PatchExact(trackerType, "UpdateUnits", 0x06004F0E, Type.EmptyTypes, nameof(PatchMethods.TrackerUpdatePrefix), nameof(PatchMethods.TrackerUpdatePostfix));
+                // Known issues Sprint 7 (U04): the folded mount's hover and the rider's mounted badge.
+                PatchExact(trackerType, "HandleHoverChange", 0x06004F16, new[] { typeof(UnitEntityView), typeof(bool) }, null, nameof(PatchMethods.FoldedMountHoverPostfix));
+                PatchExact(typeof(Kingmaker.UI.Group.GroupCharacterPortraitController), "HealthUpdate", 0x06003F01, Type.EmptyTypes, null, nameof(PatchMethods.MountedBadgePostfix));
                 PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D, new[] { typeof(UnitCommand) }, null, nameof(PatchMethods.TickCommandTurnBasedPostfix), nameof(PatchMethods.PairedEligibilityTranspiler));
                 logger.Info("Installed exact-token Harmony12 active-pair guards, unified-turn adapters, and bounded probes.");
             }
@@ -389,6 +403,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Logger = null;
                     PatchBridge.Defense = null;
             PatchBridge.HorseCompanion = null;
+            PatchBridge.Presentation = null;
             DivineMountCallLogic.IsMountedPairMember = null;
             DivineMountSmiteLogic.IsMountedMount = null;
             DivineMountSmiteLogic.ReportLateRefusal = null;
@@ -418,6 +433,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.LifecycleLedger = null;
             PatchBridge.Logger = null;
             PatchBridge.Defense = null;
+            PatchBridge.Presentation = null;
             disposed = true;
         }
 
@@ -493,6 +509,7 @@ namespace KingmakerMountedCombat.Integration
             internal static MountedPairServices[] Pairs => World?.Pairs;
             internal static MountedCombatDefenseService Defense;
             internal static HorseCompanionBlueprintService HorseCompanion;
+            internal static MountedPairPresentation Presentation;
         }
 
         private static class PatchMethods
@@ -603,6 +620,7 @@ namespace KingmakerMountedCombat.Integration
                 out Kingmaker.UnitLogic.Abilities.AbilityData __state)
             {
                 __state = null;
+                PatchBridge.NativeControls?.BeginPublicSlotClick();
                 var delivery = PatchBridge.NativeControls?.ResolvePublicSlotDelivery(__instance,
                     PatchBridge.ChargeSafety?.Route(__instance.Ability) == MountedChargeRoute.Mounted);
                 if (delivery == null) return;
@@ -613,7 +631,87 @@ namespace KingmakerMountedCombat.Integration
             internal static void PublicSlotClickPostfix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance,
                 Kingmaker.UnitLogic.Abilities.AbilityData __state)
             {
-                if (__state != null) __instance.Ability = __state;
+                if (__state == null) return;
+                var delivery = __instance.Ability;
+                __instance.Ability = __state;
+                // Known issues Sprint 7 (U02): the exact slot that handed native selection to its delivery is remembered
+                // for drawing only. A presentation failure never reaches the click.
+                try { PatchBridge.NativeControls?.RecordPublicSlotTargeting(__instance, __state, delivery); }
+                catch (Exception exception) { ReportPresentationFault("public-slot targeting record", exception); }
+            }
+
+            // Known issues Sprint 7 (U02): after native draws the slot, the exact public slot whose delivery owns native
+            // target selection gets native's own selected mark. Every other slot keeps native's drawing.
+            internal static void PublicSlotSelectionPostfix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance,
+                Kingmaker.UI.ActionBar.ActionBarSlot slot)
+            {
+                var controls = PatchBridge.NativeControls;
+                if (controls == null || slot == null) return;
+                try { if (controls.PresentsTargetingSelection(__instance)) NativeMountedControlService.ShowTargetingSelection(__instance, slot); }
+                catch (Exception exception) { ReportPresentationFault("public-slot selection mark", exception); }
+            }
+
+            // Known issues Sprint 7 (U01): the distance a mount's Move or Standard prediction action is about to show reads
+            // zero once forced travel has closed the pair's activation locomotion. Before native stores and announces it.
+            internal static void PairedMoveDistancePrefix(Kingmaker.TurnBasedMode.Controllers.CombatAction __instance, ref float? remainingDistance)
+            {
+                try { PatchBridge.UnifiedTurn?.ProjectUsableMoveDistance(__instance, ref remainingDistance); }
+                catch (Exception exception) { ReportPresentationFault("paired move distance", exception); }
+            }
+
+            // Known issues Sprint 7 (U03): the class panel's one progression read, replaced by the projected copy.
+            internal static Kingmaker.UnitLogic.ProgressionData[] DivineBondClassRows(Kingmaker.UnitLogic.UnitProgressionData progression,
+                Kingmaker.Blueprints.Classes.BlueprintCharacterClass characterClass)
+            {
+                var service = PatchBridge.HorseCompanion;
+                return service != null ? service.ProjectClassProgressions(progression, characterClass) : progression.GetClassProgressions(characterClass);
+            }
+
+            internal static IEnumerable<CodeInstruction> DivineBondClassRowsTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var native = typeof(Kingmaker.UnitLogic.UnitProgressionData).GetMethod("GetClassProgressions",
+                    new[] { typeof(Kingmaker.Blueprints.Classes.BlueprintCharacterClass) });
+                var hook = typeof(PatchMethods).GetMethod(nameof(DivineBondClassRows), BindingFlags.Static | BindingFlags.NonPublic);
+                var list = instructions.ToList();
+                var replaced = 0;
+                foreach (var instruction in list)
+                {
+                    if (instruction.opcode != OpCodes.Callvirt || !Equals(instruction.operand, native)) continue;
+                    instruction.opcode = OpCodes.Call;
+                    instruction.operand = hook;
+                    replaced++;
+                }
+                if (native == null || hook == null || replaced != 1)
+                    throw new InvalidOperationException("The class progression layout no longer reads GetClassProgressions exactly once.");
+                return list;
+            }
+
+            // Known issues Sprint 7 (U04): after native's hover pass, a folded mount's hover highlights its rider's entry.
+            internal static void FoldedMountHoverPostfix(object __instance, UnitEntityView unitEntityView, bool isHover)
+            {
+                try { PatchBridge.Presentation?.RedirectFoldedMountHover(__instance, unitEntityView, isHover); }
+                catch (Exception exception) { ReportPresentationFault("folded mount hover", exception); }
+            }
+
+            // Known issues Sprint 7 (U04): every native portrait refresh shows or hides the rider's mounted badge.
+            internal static void MountedBadgePostfix(Kingmaker.UI.Group.GroupCharacterPortraitController __instance)
+            {
+                try { PatchBridge.Presentation?.RefreshPortrait(__instance); }
+                catch (Exception exception) { ReportPresentationFault("mounted badge", exception); }
+            }
+
+            // Presentation is never allowed to fail a native UI call. Each seam (a fixed set of names) reports its first
+            // failure only, since some run every frame; logging itself is contained.
+            private static readonly HashSet<string> ReportedPresentationSeams = new HashSet<string>(StringComparer.Ordinal);
+            private static void ReportPresentationFault(string seam, Exception exception)
+            {
+                try
+                {
+                    if (ReportedPresentationSeams.Add(seam))
+                        PatchBridge.Logger?.Error("Mounted presentation " + seam + " failed and was skipped (reported once): " +
+                            exception.GetType().Name + ": " + exception.Message);
+                }
+                catch { }
             }
 
             internal static bool ChargeClickPrefix(ClickWithSelectedAbilityHandler __instance, UnityEngine.GameObject gameObject, int button,
