@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEW OF 292CD23C) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
+# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C AND E7720F39) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the
 accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md) and the
@@ -25,15 +25,21 @@ accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-
   - R2: the badge follows the native per-frame portrait refresh (`UpdateCrippled`) and bind (`Initialize`), not
     `HealthUpdate` (hit-point changes only, withdrawn), and is removed at load, area, world discard, disable and
     disposal; failed removals and a throwing logger never stop cleanup.
+- **Review of `e7720f39` (`6ff46a2a`):**
+  - R3: releasing the hover redirect is a bounded, weak cleanup obligation. Clearing `HoveredUnit` and the rider row's
+    false run independently; the obligation is kept until each completes, its target is gone or replaced, or native's
+    own completed pass recomputes that tracker, and is retried at every hover prefix, rebuild, pair cleanup, boundary,
+    disable and disposal.
+  - R4: a badge whose removal fails is hidden and stays owned as a residue under the same bound of 32, retried at every
+    portrait refresh and boundary, never reused as a portrait's badge; a part-built badge is owned from birth.
 - **T09 (new):** `Test-Finalize2UpgradeReaders.ps1` needs retained r05 native evidence absent from this lab; identical
   at the base.
 - **Checks:**
-  - Fast PASS 21/0 (0.9 min) (budget `known-issues-sprint7`, 2.8 of 90 min).
-  - Components 1410/0; presentation contracts 166/0. The reviewed `ee5c20dc` fails the R1/R2 lifecycle; the accepted
-    Sprint 6 build fails every Sprint 7 section.
+  - Fast PASS 21/0 (0.95 min) (budget `known-issues-sprint7`, 3.73 of 90 min).
+  - Components 1410/0; presentation contracts 220/0. The reviewed `92310c52` fails 41 R3/R4 cases.
   - Kingmaker assembly contracts 815/0; Validate-Source 151/0; harness 277/4, identical to the Sprint 6 base.
-  - Mutation campaign P1-P27: 27/27 caught (serial, isolated).
-  - Product-build commit `92310c52`, DLL SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`.
+  - Mutation campaign P1-P32: 32/32 caught (serial, isolated).
+  - Product-build commit `6ff46a2a`, DLL SHA-256 `b28652182b6f1a937d9e3f25b597adca23c5873f2abddcdb1c70421124f13aa0`, MVID `bd10f3e4-16c4-445b-9202-d4605e4b50ef`.
 - **Native:** NOT RUN, and no screen was viewed. Nothing was launched, staged or installed. Sprint 8 was not started.
 - **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 8.
 

@@ -15,6 +15,16 @@ corrected below (see "Review of 292cd23c"), and the full P1–P27 campaign ran o
 - that badge objects were removed at world boundaries (only disable and disposal removed them);
 - the open question whether a party-portrait hover reaches the tracker: it does not (installed IL).
 
+**Corrected again after the owner review of `e7720f39` (2026-11-19).** The review accepted U01 and U02 completely at the
+offline engineering checkpoint, U03 for the character-screen class panel, U04's pair identity policies, its native
+hover-source contract, the `UpdateCrippled`/`Initialize` portrait seams and the existing lifecycle wiring, and T09
+unchanged. It found two failure-containment defects (R3, R4), corrected in `6ff46a2a` (see "Review of e7720f39"), and the
+full P1–P32 campaign ran on it. Withdrawn from the `e7720f39` records:
+- that every badge object is removed at a boundary, disable or disposal and that the bound always empties: a failed
+  destruction left the badge alive and active while its only ownership was cleared;
+- that the hover redirect was released exactly: the lease was discarded before either cleanup step, so a failing
+  `HoveredUnit` write skipped the row's false, and a failing row false left a highlighted row nobody retried.
+
 ## Identity
 
 | Item | Value |
@@ -22,10 +32,11 @@ corrected below (see "Review of 292cd23c"), and the full P1–P27 campaign ran o
 | Base | `f835c503515fcc80ff1033bf50f4f771e34de15c`, the accepted Sprint 6 checkpoint. PR #51 is unmerged; the base was verified as the live head of `codex/kmc-known-issues-sprint6` (the parent has not advanced). Accepted Sprint 6 product build `7898b1a4` |
 | Branch and worktree | `codex/kmc-known-issues-sprint7`, `worktrees/known-issues-sprint7` |
 | Draft PR target and parent | `codex/kmc-known-issues-sprint6` (parent PR #51) |
-| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script. `292cd23c`: the first records and the strengthened probe (reviewed head). `92310c52`: review of `292cd23c`, R1 and R2 (the product-build commit). Then the records commit carrying this version, which is the branch head |
-| Product-build commit | `92310c52` |
-| Product DLL (clean Release rebuild of `92310c52`) | SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`; frozen copy `artifacts/known-issues-sprint7/review1/head-92310c52/`. The Fast tier's own build is byte-identical |
-| Reviewed DLL (`ee5c20dc`, head `292cd23c`) | SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`; frozen copy `artifacts/known-issues-sprint7/candidate/head-ee5c20dc/` |
+| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script. `292cd23c`: the first records and the strengthened probe. `92310c52`: review of `292cd23c`, R1 and R2. `e7720f39`: its records (reviewed head). `6ff46a2a`: review of `e7720f39`, R3 and R4, with the extended probe (the product-build commit). Then the records commit carrying this version, which is the branch head |
+| Product-build commit | `6ff46a2a` |
+| Product DLL (clean Release rebuild of `6ff46a2a`) | SHA-256 `b28652182b6f1a937d9e3f25b597adca23c5873f2abddcdb1c70421124f13aa0`, MVID `bd10f3e4-16c4-445b-9202-d4605e4b50ef`; frozen copy `artifacts/known-issues-sprint7/review2/head-6ff46a2a/`. The Fast tier's own build is byte-identical; assembly references unchanged from `92310c52` (12) |
+| Reviewed DLL (`92310c52`, head `e7720f39`) | SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`; frozen copy `artifacts/known-issues-sprint7/review1/head-92310c52/` (hash re-verified) |
+| First reviewed DLL (`ee5c20dc`, head `292cd23c`) | SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`; frozen copy `artifacts/known-issues-sprint7/candidate/head-ee5c20dc/` |
 | Base DLL used for before-evidence | Sprint 6 `7898b1a4`: SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` (frozen at `artifacts/known-issues-sprint6/review4/head-7898b1a4/`, hash re-verified) |
 | Workflow budget | `known-issues-sprint7` |
 
@@ -36,7 +47,7 @@ corrected below (see "Review of 292cd23c"), and the full P1–P27 campaign ran o
 | U01 | **Implemented and verified offline** | The mount's Move and Standard prediction actions show zero usable distance, and the rider-selected fill promises no five-foot step, once the mount's allocation for the exact live activation has recorded forced (charge) travel. Native Move unavailability, cooldowns, `TimeMoved`, the allocation and the path are unchanged |
 | U02 | **Implemented and verified offline** | The exact public slot whose click handed native target selection to a hidden delivery ability is drawn with native's own selected mark, through an exact value-identity mapping that ends with the selection operation |
 | U03 | **Implemented and verified offline** | The Paladin class panel builds its rows from projected copies of the shown character's progression data: a Divine Mount character, or one whose bond is not yet chosen, is not promised the weapon-bond-only upgrades. Grants, blueprints and the unit's data are unchanged |
-| U04 | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`)** | A mounted rider's party portrait carries the project's saddle badge, reconciled at the portrait's native per-frame refresh and bind and removed at every world boundary, disable and disposal. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry, as one owned lease released exactly before every native hover pass and at every boundary that ends it |
+| U04 | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`; failure containment corrected after the review of `e7720f39`)** | A mounted rider's party portrait carries the project's saddle badge, reconciled at the portrait's native per-frame refresh and bind; every world boundary, disable and disposal hides and destroys every badge, and one whose removal fails stays owned as a hidden residue that is retried. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry under one owned lease; its release is a bounded, weak cleanup obligation kept until each cleanup step has completed or native's own pass has recomputed the tracker |
 | T09 (new) | **Open investigation: retained evidence absent** | `Test-Finalize2UpgradeReaders.ps1` reads run r05's retained receipts from the lab's `runtime-evidence`, which this machine does not hold. It fails identically at the Sprint 6 base. Not a product failure; see "New independent findings" |
 
 ## Sprint-wide presentation boundary
@@ -222,7 +233,7 @@ Invariants: native grants, companion progression, blueprints, GUIDs, facts and s
 - **Badge:** `MountedPairPresentationPolicy.Badge` names the one live mounted relationship whose rider is exactly the
   portrait's unit. Postfixes on the portrait's native per-frame refresh (`UpdateCrippled`) and bind (`Initialize`) show
   or hide a child image under the portrait art using the embedded saddle icon (corrected from `HealthUpdate` after the
-  review of `292cd23c`). The image never takes a pointer event, so portrait clicks, hover and selection stay native. No
+  review of `292cd23c`). A badge whose removal fails stays owned as a hidden cleanup residue (review of `e7720f39`). The image never takes a pointer event, so portrait clicks, hover and selection stay native. No
   tooltip was added (one would need the badge to receive pointer events, which would take them from the portrait).
 - **Hover:** a prefix releases KMC's owned redirect before native's pass; after it, a postfix asks
   `FoldedMountHoverEntry`: only when native's own pass found no entry of exactly the hovered unit, exactly one live
@@ -254,10 +265,12 @@ Invariants: no initiative entry, order, scheduler, turn-ownership, selection or 
   slot; object serials come from a `ConditionalWeakTable`, which keeps no key alive. Cleared at every selection
   operation and every lifecycle boundary listed above.
 - **U04:** the presentation keeps the world service, the sprite source, the logger, the badge surface, at most one
-  hover lease (weak tracker, entry and rows references, the pair identity and the hovering unit's id) and the badge
-  objects only as `WeakReference`s, bounded at 32 live objects. Badge objects are children of the portrait art and die
-  with it; load, area unload, world discard, disable and disposal destroy them. No tracker entry, view, unit or pair is
-  held strongly.
+  hover lease and at most four unfinished hover cleanup records (each: weak tracker, entry and rows references, the
+  pair identity, the hovering unit's id and the operations still owed) and the badge records (a `WeakReference` to the
+  object and flags), badges in use and cleanup residues together bounded at 32. Badge objects are children of the
+  portrait art and die with it; load, area unload, world discard, disable and disposal hide and destroy them, and a
+  record is dropped only once its object is no longer alive or has been collected. No tracker entry, view, unit or pair
+  is held strongly.
 - **Statics:** the patch bridge's `Presentation` reference is set and cleared with the patch controller, as every
   other bridge member. The once-per-seam fault set holds only the fixed seam names.
 - **Checks:** the U02 and R1 GC checks (a dropped slot, a dropped tracker are collected), and structural field checks
@@ -363,6 +376,8 @@ checked directly), the mutant was fixed, and the whole campaign was rerun on the
   generation, rider, mount); the hovering unit's id.
 - **Release:** `false` on the exact entry, only while it is still a row of the same rows list (an entry of a rebuilt
   tracker is never touched again); `HoveredUnit` cleared only if it is still that entry; the lease cleared first.
+  *Superseded by R3 (review of `e7720f39`): clearing the lease first lost the cleanup when a step threw; release is now
+  a retained cleanup obligation.*
 - **Ends:** every native hover pass; a tracker rebuild (`UpdateUnits` postfix validates the rows list, the entry, the pair's
   owner, generation, mounted and folded state); every pair cleanup the world raises (dismount, death, load, area
   unload, disable, teardown); load start; area unload; world discard; disable; disposal.
@@ -399,6 +414,8 @@ executing it. It is wrong at every boundary that ends the redirect while the poi
 - **Remove:** load start, area unload and world discard (`ReleaseAtWorldBoundary`, wired at the persistence load,
   area-suspension and world-discard sites), disable (`ReleaseAtWorldBoundary("disabled")`) and disposal remove every
   badge object. Each removal is tried on its own; the logger's own failure is contained; the bound always empties.
+  *Superseded by R4 (review of `e7720f39`): emptying the bound after a failed removal left that badge alive, active and
+  unowned; a failed removal now stays owned as a hidden residue.*
   Badges remain transient and are never saved.
 - **Engine surface:** the six engine operations of a badge object (find, create, alive, active, set active, destroy) are
   one `MountedBadgeSurface`; production uses Unity, and the detached probe substitutes it to run the lifecycle.
@@ -414,7 +431,7 @@ executing it. It is wrong at every boundary that ends the redirect while the poi
 | 7 load, area, world | removed only at disable/disposal | every object removed, bound empty; destroyed objects never count |
 | 8 disable, disposal; 9 re-enable | — | removed; derived afresh |
 | 11 no sprite | — | no object; the portrait unchanged |
-| 12 construction or destruction failure, throwing logger | `Reset` called the logger uncontained | contained; every other removal runs; the bound empties |
+| 12 construction or destruction failure, throwing logger | `Reset` called the logger uncontained | contained; every other removal runs; the bound empties (*superseded by R4: the failed badge stayed live and active*) |
 
 ### R3 — records
 
@@ -467,6 +484,144 @@ After the campaign, one probe check in the badge section that still aborted its 
 reporting case like its neighbours; no verdict changed (the frozen candidate 166/0, `ee5c20dc` 13 failures, logs
 refreshed).
 
+## Review of e7720f39: R3–R4 (U04 failure containment, corrected)
+
+The review accepted U01 and U02 completely at the offline engineering checkpoint, U03 for the character-screen class
+panel, U04's pair identity policies, its installed native hover-source contract, the `UpdateCrippled` and `Initialize`
+portrait seams and the lifecycle wiring (load, area unload, world discard, disable, disposal), and T09 unchanged. It
+found two failure-containment defects. Both are corrected in `6ff46a2a`.
+
+### Native facts the design rests on (installed IL; executed detached)
+
+- `InitiativeTrackerVM.HandleHoverChange` (0x06004F16) writes `HoveredUnit.Value` first and then calls
+  `InitiativeTrackerUnitVM.HandleHoverChange(bool)` (0x06004ECF) on **every** current row (true for the found row,
+  false for the rest; false for all on a false). A completed native pass therefore recomputes the whole tracker.
+- `HoveredUnit` is a UniRx `ReactiveProperty`: its setter stores the value and then notifies its subscribers, so a
+  throwing subscriber is the realistic failure of the `HoveredUnit` write. The row callback sets the row's own
+  `IsHover` property, whose subscribers can fail the same way.
+- Harmony runs no postfix after the original throws, so the product's hover postfix runs only after a completed pass.
+
+### R3 — the hover cleanup obligation
+
+- **Release is custody, not discard.** Releasing the lease (`ReleaseHover`) turns it into a cleanup record owing two
+  operations: clear `HoveredUnit` if it is still KMC's entry, and false on the exact entry KMC lit while it is still a
+  row of the same rows list. The record is the lease itself: weak tracker, entry and rows references; pair owner,
+  generation, rider and mount; the hovering unit's id; the two owed flags; a once-only report flag.
+- **Independent operations.** Each is attempted in its own `try`; a failure of one never prevents the other; each
+  failure is reported once per record through a logger whose own failure is contained.
+- **Settled when, and only when:** each owed operation has completed; or its target no longer exists (tracker or entry
+  collected) or is no longer KMC's (`HoveredUnit` holds something else; the entry is no longer a row of the same rows
+  list, so a rebuilt tracker's old entry is never touched and its new rows are never confused with it); or native's
+  own completed hover pass on that same tracker has recomputed every row (the postfix observes completion).
+- **Retried at:** the next tracker hover prefix (before native's pass, which is never skipped), tracker rebuild
+  validation (`UpdateUnits` postfix), every pair cleanup (dismount, death, load, area, disable, teardown), load start,
+  area unload, world discard, disable and disposal.
+- **New redirects never overwrite unfinished cleanup.** The live lease and the unfinished records are separate; the
+  records are bounded at four. On the same tracker, native's completed pass settles any record before the postfix may
+  redirect; on another tracker a new redirect is applied beside the retained record with its own identity; at the
+  bound a redirect is not applied and native's own result stands (`HoverRedirectRefusedCount`).
+- **Unchanged:** no gameplay, tracker order, entry creation, initiative, scheduler, selection or relationship state.
+  A disposal whose cleanup still fails leaves the row as native left it; native's own next pass on that tracker
+  recomputes it (executed).
+
+| Case (production adapter, native tracker objects, native hover pass under the real Harmony12 patches) | `92310c52` | `6ff46a2a` |
+|---|---|---|
+| 1 `HoveredUnit` write throws (its subscriber) at release | **fails**: the row's false is never attempted; the rider stays lit; nothing owed | the row's false still runs; the failed write stays owed; tracker-rebuild validation settles it |
+| 2 the rider row's false throws at release | **fails**: `HoveredUnit` cleared, the row stays lit, the lease is gone, no retry can settle it | `HoveredUnit` cleared; the row stays owed through a still-failing retry; a later retry settles it |
+| 3 both throw | **fails** | nothing escapes; one weak record remains; a later world boundary settles it |
+| 4 dismount with a failing false | **fails** | owed; the next pair cleanup settles it |
+| 5 load and world boundaries with a failing false | **fail** | owed through both; a later load settles it |
+| 6 disable, then disposal, with a failing false | **fail** | disable keeps it; disposal settles it; a disposal that still fails completes and native's next pass recomputes the row |
+| 7 tracker rebuild while cleanup is pending | passes (it never retries anything) | the old entry is never touched, the new rider row never confused with it; custody settles |
+| 8 pair A's cleanup pending, then pair B | **fails** on another tracker (A's row stays lit forever) | B applied beside A's retained record, identities never cross; the next prefix settles A and releases B exactly; on the same tracker B follows A's settlement |
+| bound: four unfinished records | **fails** (no bound, no custody) | a fifth redirect is not applied; native's result stands; all settle once the callback succeeds |
+| 9 collected tracker and entry | no record to hold | weak record; the tracker is collected; settles without touching another tracker's native hover |
+| 10 healthy true/false, A-to-B | passes | passes (and the full R1 section) |
+| logger throws throughout | — | every failure is reported to it; nothing escapes |
+
+### R4 — badge cleanup residues
+
+- **Record:** each badge object this presentation made is a `BadgeRecord`: a weak reference to the object, and flags
+  (residue, hidden, destroy requested, reported). Badges in use and residues share the one bound of 32. No portrait,
+  GameObject, component, unit, pair or world reference is held strongly.
+- **Cleanup** (load start, area unload, world discard, disable, disposal): every record becomes a residue; each is first
+  deactivated, then destroyed, each operation in its own `try` and reported once. A record is removed only when its
+  object is collected or the engine reports it no longer alive; otherwise it stays, hidden where deactivation worked
+  and still needing hiding where it did not.
+- **Retry:** every portrait refresh and bind (the same postfix), every boundary, disable and disposal settle residues
+  and prune records whose objects the engine destroyed or the collector reclaimed, so a later valid portrait obtains its
+  badge once capacity returns.
+- **Never reused:** a residue is never found as a portrait's badge (`Find` takes the presentation's predicate), so a
+  portrait whose old badge could not be destroyed gets a new object of the same name, and the residue's retry acts
+  only on its own weak object.
+- **Creation:** `Create` makes the bare object, which is recorded at once; `Build` completes it. A failure part-way makes
+  the part-built object a residue (deactivated, destroyed, kept if destruction fails) and rethrows into the patch's
+  once-per-seam containment.
+- **Unowned objects:** a badge object found under a portrait that this presentation does not own is adopted under the
+  bound, or deactivated when the bound is full.
+
+| Case (production adapter; the badge's engine operations substituted) | `92310c52` | `6ff46a2a` |
+|---|---|---|
+| 1 A's destroy throws; B and C | B and C removed | B and C removed |
+| 2 A after the boundary | **fails**: alive, active, untracked (bound reported empty) | inactive, one owned residue |
+| 3 later retry | **fails**: nothing retries | the next portrait refresh destroys A; the residue clears |
+| 4 deactivation and destruction both throw | **fails** | nothing escapes; owned, still needing hiding; a later boundary hides and destroys it |
+| 5 logger throws throughout | contained | contained; every failure reported to it |
+| 6 disable with a failed destroy | **fails** (left active) | completes; hidden and owned; not shown while disabled |
+| residue under a re-enabled portrait | **fails** (the failed object is reactivated) | never reused; the portrait gets its own new badge; the retry destroys only the residue |
+| 7 disposal with a failed destroy | **fails** (left active) | completes; the failed object hidden, every other removed |
+| 8 load and world replacement, every removal failing | **fails** (all visible) | none visible, all owned; the next boundary removes them |
+| 9 construction fails after the object exists, destruction fails | **fails**: an active orphan | hidden and owned; a later refresh destroys it and the portrait gets a complete badge |
+| 10 forty failing constructions | **fails**: forty active orphans | at most 32 owned, none visible |
+| 11 destroyed and collected residues | — | pruned |
+| 12 a valid portrait once capacity returns | **fails** | waits at the bound; obtains its badge once the residues are destroyed |
+| R2 case 12 (replaced assertion) | **fails**: the failed badges stay live and active while `TrackedBadgeCount` is 0 | hidden and counted |
+
+### Before and after against `92310c52`
+
+`Test-MountedPresentationContracts.ps1` (220 checks in all) on the frozen `92310c52` DLL (MVID `e9bda246…`):
+**179 pass, 41 fail**: 20 of the 29 R3 checks, 19 of the 25 R4 checks, R2 case 12 and the disposal check after it.
+The R3 checks it passes are those where nothing needs retrying (case 7, the same-tracker case 8, case 9's collected
+tracker, case 10, the completion of a failing disposal, the logger); the R4 checks it passes are cases 1, 5 and 11 and
+the disabled refresh. Everything before (U01–U03, the native contracts, R1, the rest of R2 and registration) passes. On `6ff46a2a`: ****220/0**** (log `review2/02-presentation-probe-head-6ff46a2a.log`;
+the old run `review2/04-presentation-probe-reviewed-92310c52.log`).
+
+### Validation for `6ff46a2a` (budget `known-issues-sprint7`; logs `artifacts/known-issues-sprint7/review2/`)
+
+| Check | Result |
+|---|---|
+| Clean Release rebuild of `6ff46a2a` (`/m:1 /nodeReuse:false /p:UseSharedCompilation=false`) | PASS; identity above (log `05-clean-release-build.log`); byte-identical to the Fast tier's build; references unchanged |
+| Components | 1410/0 (log `01-components.log`) |
+| `Validate-Source.ps1` | 151/0 (log `01b-validate-source.log`) |
+| `Test-MountedPresentationContracts.ps1` (native contracts, native hover pass executed under the product's real Harmony12 prefix and postfix, portrait seam bindings, R1-R4) | **220/0** on the frozen DLL (log `02-presentation-probe-head-6ff46a2a.log`) |
+| The same probe on the reviewed `92310c52` | 179/41 (log `04-presentation-probe-reviewed-92310c52.log`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint7` (18 focused) | **PASS 21/0** (0.95 min; budget 3.73 of 90 min, 4 entries) (log `06-fast-tier.log`) |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `07-assembly-contracts.log`) |
+| `Test-Harness.ps1` (turn-tracker projection pins and the wider harness) | 277 pass, 4 fail: the same four as at the Sprint 6 base `f835c503` (`review1/08b-harness-base-f835c503.log`): two need a historical package zip absent from the lab, one pins a source string absent at the base, one is the package validator's size check. The tracker filter pins pass (log `08-harness.log`) |
+| Mutation campaign P1-P32 | **32/32 caught** (log `03-mutation-campaign.log`) |
+
+- **Neighbours inside the Fast tier:** paired activation (40 Harmony12 patch constructions), world ownership, persistence and load boundaries, post-load view readiness, command slot (action-bar controls), F3 economy readers (movement display), Sprint 8 Paladin readers (class-panel projection), marker ownership, native input, stall repair, Charge, ranged movement, continuous drive.
+- **Harmony12:** the hover prefix and postfix were constructed and executed on native `HandleHoverChange`; `UpdateCrippled`, `Initialize` and `UpdateSlotInternal` reference engine internal calls and cannot be compiled detached (their postfix bindings are checked by name and type).
+- **Not run:** Full, Candidate, historical campaigns, release qualification, native gameplay, physical visual acceptance, resolution/input matrices, unrelated stale harnesses.
+
+
+### Mutation campaign P1–P32 (serial; log `review2/03-mutation-campaign.log`)
+
+Each mutant: one disposable `git worktree add --detach` of `6ff46a2a`, its own `MSBuild /t:Rebuild /p:Configuration=Release
+/m:1 /nodeReuse:false /p:UseSharedCompilation=false`, the components, then the presentation probe reading that DLL by
+path and printing its MVID; the worktree is removed before the next. All 39 anchors were checked to occur exactly once
+(P22 and P23 re-anchored where R3 moved their lines; the mutations are unchanged). The candidate DLL is the separate
+frozen copy `review2/head-6ff46a2a/`. **32/32 caught.**
+
+| ID | Mutation | Caught by |
+|---|---|---|
+| P1–P27 | as listed above, rerun on `6ff46a2a` | each caught again; P21 by R1 true->false (4 failures), P22 by R1 A->B (4), P23 by R1 rebuild (1), P24 by R2 cases 2, 4 and 6 (3), P25 by R2 case 7 and the R3/R4 boundary cases (23), P26 by the R3 failure cases whose logger throws (8), P27 by registration |
+| P28 | clearing `HoveredUnit` throws and prevents the row's false | probe R3 case 1 (the row stays lit; 1 failure) |
+| P29 | the row's false throws and the obligation is discarded | probe R3 case 2 and the cases that need a retried false (16 failures) |
+| P30 | a failed badge destroy leaves an active badge untracked (the old `Reset`) | probe R2 case 12, its disposal check and R4 case 2 onward (17 failures) |
+| P31 | a failed partial badge creation leaves an active orphan (the old creation catch) | probe R4 cases 9 and 10 (5 failures) |
+| P32 | failed badge cleanup permanently consumes capacity (a settled residue is never pruned) | probe R2 case 7 and the R4 retry and capacity cases (18 failures) |
+
 ## Evidence kinds
 
 | Kind | What |
@@ -503,6 +658,11 @@ refreshed).
   handler. A party-portrait hover never reaches it (installed IL); this was not changed, as no exact portrait-to-tracker
   seam exists. Which collider the pointer picks over a mounted pair was not observed.
 - The portrait seams (`UpdateCrippled`, `Initialize`) and `UpdateSlotInternal` cannot be patched detached; their
-  postfix bindings are checked by name and type, and the badge lifecycle ran with the badge object's engine operations
-  substituted.
+  postfix bindings are checked by name and type, and the badge lifecycle and its residues ran with the badge object's
+  engine operations substituted (Unity's deferred `Object.Destroy` keeps a destroyed object alive until the end of
+  its frame; a residue then stays owned until the next retry sees it gone, which was not observed in the engine).
+- The R3 failures were produced through native failure paths (a throwing `HoveredUnit` subscriber, a throwing prefix on
+  the row's own hover callback); which failures occur in the running game was not observed.
+- Disposal is final: an obligation or residue whose cleanup still fails at disposal is left as the engine leaves it
+  (hidden where deactivation worked; a tracker row is recomputed by native's next hover pass on that tracker).
 - Native gameplay: NOT RUN for every package.

@@ -5,8 +5,8 @@ CURRENT.md, docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.m
 after review.
 
 - **State:** U01-U04 implemented and verified offline as presentation projections; U04's native delivery and
-  lifecycle corrected after the review of `292cd23c` (`92310c52`); T09 recorded. Fast PASS 21/0; mutations P1-P27
-  27/27 caught. Native NOT RUN; no screen viewed.
+  lifecycle corrected after the review of `292cd23c` (`92310c52`) and its failure containment after the review of
+  `e7720f39` (`6ff46a2a`); T09 recorded. Fast PASS 21/0; mutations P1-P32 32/32 caught. Native NOT RUN; no screen viewed.
 - **Rules:**
   - Presentation reads authority; it never writes gameplay state to make native UI show something.
   - U01 reads only `MountedMovementState.ForcedTravelRecorded` on the mount allocation whose grant is the live
@@ -18,9 +18,14 @@ after review.
   - U04 derives the badge and hover from the live relationships each native call. Keep no tracker entry, view, unit or
     pair strongly; badge objects only weakly and bounded; the badge never takes pointer events.
   - The badge refresh seam is `UpdateCrippled` plus `Initialize`; never `HealthUpdate` (hit-point changes only), never
-    polling or an object scan. Every world boundary, disable and disposal removes every badge with contained cleanup.
+    polling or an object scan. Every world boundary, disable and disposal hides and destroys every badge; a badge whose
+    removal fails stays owned (weak, bounded with the badges in use) and is retried; never clear ownership of a live
+    badge, never reuse a residue as a portrait's badge.
   - The folded-mount hover redirect is one lease released before every native hover pass and at every boundary; native
     owns its own true/false pass. A party-portrait hover does not reach the tracker; do not invent one.
+  - Releasing the redirect is a cleanup obligation: its two steps run independently and it is kept (weak, bounded at
+    four) until each completes, its target is gone or replaced, or native's completed pass recomputes that tracker.
+    A new redirect never overwrites unfinished cleanup.
   - Presentation seams are contained and report a fault once per seam.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 8.
 

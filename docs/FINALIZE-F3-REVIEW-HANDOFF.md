@@ -138,6 +138,8 @@ Two of the owner-facing observations above are addressed offline by Sprint 7; th
   acting mount keeps its own entry and hover. Corrected after the review of `292cd23c`: the badge follows the portrait's
   native per-frame refresh and bind and is removed at every world boundary, disable and disposal; the hover redirect
   is one owned lease released before every native hover pass and at every boundary. The hover covers the mount's world
-  hover; a party-portrait hover never reaches the tracker.
+  hover; a party-portrait hover never reaches the tracker. Corrected again after the review of `e7720f39`: a badge
+  whose removal fails is hidden and stays owned until a retry removes it, and the hover's cleanup is kept as an
+  obligation until it has actually completed.
 
 Neither was viewed on screen or run natively; see [the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md).
