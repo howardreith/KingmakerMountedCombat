@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97 AND DFFD3E72) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
+# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97, DFFD3E72 AND 95AE0B30) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the
 accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md) and the
@@ -30,18 +30,21 @@ accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-
     terminal handler and charge cleanup are no-throw.
 - **Review of `dffd3e72` (`0e1125fa`):**
   - R21 (review-discovered lifecycle defect): the native terminal facts live in the native invocation's own locals;
-    no static owns a command (the only static is one scalar ban term);
-  - R22: the retired scheduler's lease release is deferred, as designed. A failed terminal observation faults and
-    interrupts at once; the lease stays only while the finished command holds the mount's native slot, and the next
-    update after slot removal, relationship cleanup or disposal releases it. The earlier "always releases" wording is
-    withdrawn.
+    no static owns a command;
+  - R22: the retired scheduler's lease release is deferred, as designed: the lease stays only while the finished
+    command holds the mount's native slot, and the next update after slot removal, relationship cleanup or disposal
+    releases it. The earlier "always releases" wording is withdrawn.
+- **Review of `95ae0b30` (`7898b1a4`):**
+  - R23: the CanNotAttack term of each wrapped `ShouldBeInterrupted` call has its own scalar frame (opened and closed in
+    a `finally` around native's one getter call), so nested and exceptional observations cannot exchange terms;
+  - R24: a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause.
 - **Checks:**
   - Fast PASS 13/0 (budget `known-issues-sprint6`).
-  - Components 1398/0; stall-repair probe 249/0. The Sprint 5 build fails 18 Sprint 6 sections; the reviewed
-    `1d0054f0` build fails the 3 R21 sections.
+  - Components 1399/0; stall-repair probe 273/0. The Sprint 5 build fails 19 Sprint 6 sections; the reviewed
+    `0e1125fa` build fails 4 (R23 behaviourally).
   - Kingmaker assembly contracts 815/0.
-  - Mutation campaign Q1–Q24: 24/24 caught (serial, isolated).
-  - Product-build commit `0e1125fa`, DLL SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`.
+  - Mutation campaign Q1–Q26: 26/26 caught (serial, isolated).
+  - Product-build commit `7898b1a4`, DLL SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4`.
 - **Sprint 5 note:** the `MountedRangedMovementTests.Lifetime` wording now describes a temporary applicability gate,
   not a dismount and reattachment. Ranged-movement behaviour is unchanged.
 - **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 7 was not started.

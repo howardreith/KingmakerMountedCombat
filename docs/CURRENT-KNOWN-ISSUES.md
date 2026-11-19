@@ -428,12 +428,15 @@ Record: [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md). No product change: 
 
 ## Sprint 6 — attack requests and terminals (reconciled 2026-11-18)
 
-Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the reviews of `2ae4cc8b`, `fa533e97` and
-`dffd3e72`. Product-build commit `0e1125fa`, clean Release DLL SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`.
+Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the reviews of `2ae4cc8b`, `fa533e97`,
+`dffd3e72` and `95ae0b30`. Product-build commit `7898b1a4`, clean Release DLL SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4`.
 - **Review-discovered lifecycle defect (R21), corrected:** the native terminal captures of `1d0054f0` rooted commands in
   strong thread-static fields. The facts now live in the native invocation's own locals, and no static owns a command.
 - **R22:** the retired scheduler's lease release is deferred to an owned cleanup (next update after native slot
   removal, relationship cleanup, disposal) and now proven; the earlier "always releases" wording was withdrawn.
+- **R23, corrected:** the CanNotAttack term of each wrapped `ShouldBeInterrupted` call has its own scalar frame, so nested
+  and exceptional observations cannot exchange terms.
+- **R24, records corrected:** a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause.
 
 | ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
 |---|---|---|---|---|---|

@@ -29,8 +29,20 @@ remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 c
   completion or an exception left an old command (and through it its relationship, actors and controller callback)
   rooted. Withdrawn: "captures are keyed to the exact command of this tick" as a sufficient lifetime rule.
 - **R22:** the `dffd3e72` records said the scheduler's `FailAndInterrupt` archives and "always" releases the lease.
-  That was wrong. A failed terminal observation faults and interrupts at once, and the lease release is deferred to an
-  owned cleanup. The lifecycle is unchanged; the records now state it exactly.
+  That was wrong; the lease release is deferred to an owned cleanup. The lifecycle is unchanged. (The `dffd3e72`
+  wording that a failed terminal observation "faults and interrupts" its command is itself corrected under R24 below.)
+
+**Corrected again after the review of `95ae0b30` (2026-11-19).** The owner review accepted A01–A05 and R18–R20. It also
+accepted R21's removal of every static command reference and its invocation-local final observations, and R22's
+deferred lease lifecycle. Two findings remained and are corrected below (see "Review of 95ae0b30"); the full Q1–Q26
+campaign ran on the new head.
+- **R23:** the CanNotAttack sub-observation was still one `[ThreadStatic] bool` per thread, so a nested observation
+  could overwrite an outer one. The reviewed build's compiled seam, driven in nested order, turns an outer attack ban
+  into `AttackTargetDead`. Withdrawn: the `95ae0b30` claim that nested observations were isolated.
+- **R24 (records and evidence):** the `95ae0b30` records said a failed terminal observation records a typed `Fault` on
+  the exact command. Production cannot do that: the command has already finished, `RecordEndCause` ignores a finished
+  command, and `InterruptExactCommand` returns for it after the scheduler's own bookkeeping. The correct rule: a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause.
+  The lease stays owned until native slot removal, relationship cleanup or disposal.
 
 ## Identity
 
@@ -39,10 +51,11 @@ remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 c
 | Base | `772543e19bfbe827c175c22fb8b3c81dbb1b44e8`, the accepted Sprint 5 checkpoint (draft PR #50, unmerged; verified as the live branch head, parent not advanced). Accepted product build `cdfbe509` |
 | Branch and worktree | `codex/kmc-known-issues-sprint6`, `worktrees/known-issues-sprint6` |
 | Draft PR target and parent | `codex/kmc-known-issues-sprint5` (parent PR #50) |
-| Commits | `3472914d`: A01, A02, A04, the first A05 rule, Sprint 5 test wording, tests and the probe extension. `221d748b`: the automatic-only pin. `2ae4cc8b`: the first records (reviewed head). `ce9b1383`: review of `2ae4cc8b`, findings 1–5. `fa533e97`: its records. `1d0054f0`: review of `fa533e97`, R18–R20. `dffd3e72`: its records (reviewed head). `0e1125fa`: review of `dffd3e72`, R21 and the R22 proofs (the product-build commit). Then the records commit carrying this version, which is the branch head |
-| Product-build commit | `0e1125fa` |
-| Product DLL (clean Release build of `0e1125fa`) | SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`; frozen copy `artifacts/known-issues-sprint6/review3/head-0e1125fa/` |
-| Reviewed DLL (`1d0054f0`, head `dffd3e72`) | SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`; frozen copy `artifacts/known-issues-sprint6/review2/head-1d0054f0/` |
+| Commits | `3472914d`: A01, A02, A04, the first A05 rule, Sprint 5 test wording, tests and the probe extension. `221d748b`: the automatic-only pin. `2ae4cc8b`: the first records (reviewed head). `ce9b1383`: review of `2ae4cc8b`, findings 1–5. `fa533e97`: its records. `1d0054f0`: review of `fa533e97`, R18–R20. `dffd3e72`: its records. `0e1125fa`: review of `dffd3e72`, R21 and the R22 proofs. `95ae0b30`: its records (reviewed head). `7898b1a4`: review of `95ae0b30`, R23 and R24 (the product-build commit). Then the records commit carrying this version, which is the branch head |
+| Product-build commit | `7898b1a4` |
+| Product DLL (clean Release build of `7898b1a4`) | SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4`; frozen copy `artifacts/known-issues-sprint6/review4/head-7898b1a4/` |
+| Reviewed DLL (`0e1125fa`, head `95ae0b30`) | SHA-256 `6164efde26ee5363c53ea6fa0438e9c7806e3e30f131a42c8f040f32578a6c6b`, MVID `dad7522b-1887-4c02-96a6-052dfa6fbc1a`; frozen copy `artifacts/known-issues-sprint6/review3/head-0e1125fa/` |
+| Earlier reviewed DLL (`1d0054f0`, head `dffd3e72`) | SHA-256 `db954ffb1824b5e30941bc53d0beb60dc9a4904572d511aaf82bf2e0413b68e8`, MVID `55db6f6c-15aa-4310-b4f5-0646b1b8479c`; frozen copy `artifacts/known-issues-sprint6/review2/head-1d0054f0/` |
 | Earlier reviewed DLL (`ce9b1383`, head `fa533e97`) | SHA-256 `3e20be03d913c2e7ba1a6a207b8076f018c08b0af6d54b72416d948009b666ae`, MVID `6b47a46b-8fad-40ac-824e-5a3c50f23ba1`; frozen copy `artifacts/known-issues-sprint6/review/head-ce9b1383/` |
 | First reviewed DLL (`2ae4cc8b`) | SHA-256 `27579ff8870c5961663c860cdcf60fa8349069de05746bf43d028488db312936`, MVID `e8d32009-c6c5-4aba-908b-11dae9954a31`; frozen copy `artifacts/known-issues-sprint6/head/` |
 | Budget | `known-issues-sprint6` |
@@ -193,19 +206,19 @@ remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 c
   - player real-time orders keep their native wait;
   - a player `CanNotAttack` order follows native's interruption, unchanged.
 
-## Validation (budget `known-issues-sprint6`), head after the review of `dffd3e72`
+## Validation (budget `known-issues-sprint6`), head after the review of `95ae0b30`
 
 | Check | Result |
 |---|---|
-| Clean Release build of `0e1125fa` | PASS; identity above (log `review3/05-clean-release-build.log`). The Fast tier's own rebuild is byte-identical |
-| Components | 1398/0 (1387 at the base); adds the R21 frame-owned observation test |
+| Clean Release build of `7898b1a4` | PASS; identity above (log `review4/05-clean-release-build.log`). The Fast tier's own rebuild is byte-identical |
+| Components | 1399/0 (1387 at the base); adds the R23 frame test |
 | `Validate-Source.ps1` | 151/0 |
-| `Test-MountedAttackStallRepair.ps1` (compiled controller, detached) | **249/0** on the candidate (log `review3/02-stall-probe-head-0e1125fa.log`); includes the native-terminal structural and in-process Harmony12 patch-construction checks |
-| The same probe on the reviewed `1d0054f0` build | 3 sections fail: the R21 structural contract (`turnBasedCommand:UnitCommand`), the frame-local transpiler check, and the hook chain. R22 passes, because its lifecycle is unchanged (log `review3/04-stall-probe-reviewed-1d0054f0.log`) |
-| The same probe on the accepted Sprint 5 build | 18 Sprint 6 sections fail (log `review3/04b-stall-probe-sprint5-cdfbe509.log`) |
-| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint6` | PASS 13/0 (0.56 min; budget 2.32 of 90 min over 4 entries) (log `review3/06-fast-tier.log`) |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `review3/07-assembly-contracts.log`) |
-| Mutation campaign Q1–Q24 | **24/24 caught** (log `review3/03-mutation-campaign.log`; see "Review of dffd3e72") |
+| `Test-MountedAttackStallRepair.ps1` (compiled controller, detached) | **273/0** on the candidate (log `review4/02-stall-probe-head-7898b1a4.log`). Includes the native-terminal IL structural checks, real Harmony12 patch construction, the R23 nested cases and the R24 split |
+| The same probe on the reviewed `0e1125fa` build | 4 sections fail: the wrapper transpiler check, the hook chain, the capture-hook contract, and R23 (its own compiled seam, driven in nested order, reads the outer attack ban as `AttackTargetDead`) (log `review4/04-stall-probe-reviewed-0e1125fa.log`) |
+| The same probe on the accepted Sprint 5 build | 19 Sprint 6 sections fail (log `review4/04b-stall-probe-sprint5-cdfbe509.log`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint6` | PASS 13/0 (0.55 min; budget 2.87 of 90 min over 5 entries) (log `review4/06-fast-tier.log`) |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `review4/07-assembly-contracts.log`) |
+| Mutation campaign Q1–Q26 | **26/26 caught** (log `review4/03-mutation-campaign.log`; see "Review of 95ae0b30") |
 
 - **Fast tier coverage:** stall repair, command slot, native input semantics, turn-completion wrappers, paired
   activation (including its 40 detached patch constructions), marker ownership, ranged movement, continuous drive,
@@ -215,9 +228,9 @@ remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 c
   - `Test-OrdinaryAttackControls.ps1` needs a live deployment helper that is absent here;
   - `Test-Finalize6CompletionReevaluation.ps1` needs a native run ID.
 - **Earlier validation, preserved:**
-  - `1d0054f0` (under `artifacts/known-issues-sprint6/review2/`): components 1397/0, probe 217/0, Fast 13/0, contracts
-    815/0, Q1–Q21 21/21;
-  - `ce9b1383` (under `review/`): components 1395/0, probe 136/0, Q1–Q17 17/17.
+  - `0e1125fa` (`review3/`): components 1398/0, probe 249/0, Q1–Q24 24/24;
+  - `1d0054f0` (`review2/`): probe 217/0, Q1–Q21 21/21;
+  - `ce9b1383` (`review/`): probe 136/0, Q1–Q17 17/17.
 
 ## Evidence kinds
 
@@ -251,7 +264,8 @@ remained and are corrected below (see "Review of dffd3e72"); the full Q1–Q24 c
 | Bounded time otherwise; a lost child attack; a transaction that cannot arrive; the admission bridge; other invariants | `Fault` |
 | `TryEndExpectedTargetInvalidation` (died, unconscious, despawned, hostility, unattackable) | `TargetInvalid` |
 | `TerminateIfActionActorBlocked` | `ActorCapability`, with the exact block |
-| Legacy paired command scheduler (not the production authority): fail (admission, eligibility, update, terminal observation, abandoned registration); disposal or relationship cleanup | `Fault`, after its fault state and before any diagnostic (review of `fa533e97`); `Cancelled` |
+| Legacy paired command scheduler (not the production authority): fail (admission, eligibility, update, abandoned registration) of a live command; disposal or relationship cleanup | `Fault`, after its fault state and before any diagnostic (review of `fa533e97`); `Cancelled` |
+| Legacy scheduler terminal observation that fails | none: the command has already ended with its own cause. The scheduler's lease is faulted and its interrupt bookkeeping recorded (R24) |
 | Native only (genuinely Unrecorded) | `Unrecorded`. The review of `fa533e97` adds a typed native branch, recorded where native takes it, for the `TickCommandTurnBased` capability force-finish and the three `TickCommand` interrupt sites. See "Native capability-terminal contract". Covers: `TickCommandTurnBased` force-finish; `UnitActionController` interruption (`ShouldBeInterrupted`, `!CanAct` while running, a target out of state, untargetable or stealthed, `InterruptAsSoonAsPossible`); the paused `PreviousCommand`; native `InterruptMove`/`InterruptAll` reached without a KMC cancel. KMC's Stop/Hold prefix and the Dismounting subscribers cancel first. The runtime's own `InterruptMove` runs only after them, or on plain moves. The retired unified turn's `PrepareExactMountLedger` (not production) also stays Unrecorded |
 
 No path parses a reason string for its cause. The first recorded cause stands, and `RecordEndCause` ignores a finished
@@ -515,9 +529,11 @@ delegatedMoveStarts)` is true only when all of these hold:
   contains an escaping handler. The handler itself is deterministic, and the controller's finished-command sweep still
   owns the finished command.
 - **Probe, with a logger that throws on every call:**
-  - **scheduler paths that run:** `Update` exception, terminal-observation exception, `AbandonRegistration`, `Dispose`
-    and relationship cleanup. Each records `Fault` or `Cancelled` on the exact command and interrupts it, and nothing
-    escapes. Every path except the terminal-observation failure also archives; that one defers its release (R22).
+  - **live-command paths that run:** `Update` exception, `AbandonRegistration`, `Dispose` and relationship cleanup.
+    Each records `Fault` or `Cancelled` on the exact command, interrupts it and archives; nothing escapes.
+  - **terminal observation (R24, production-shaped):** the command has already finished. Its cause and result are kept,
+    no second terminal is delivered, the lease is faulted, the scheduler's interrupt bookkeeping is recorded, and the
+    lease's release is deferred (R22).
   - **scheduler paths pinned on compiled IL instead:** `ConfirmAdmission` and `TryExtendNativeEligibility` read the
     Unity frame clock, which a detached process cannot run. Their IL routes to the fault boundary with no direct
     logger call, and the boundary's call order is fault, typed interrupt, then a contained diagnostic.
@@ -592,9 +608,9 @@ delegatedMoveStarts)` is true only when all of these hold:
   - the turn-based `canAct` in `TickCommandTurnBased`;
   - the `ShouldBeInterrupted` observation in `TickCommand`;
   - the running `CanAct` observation in `TickCommand`.
-- **The only static** is one `[ThreadStatic] bool`, the value of `UnitAttack`'s CanNotAttack term. It is reset by
-  `BeginShouldBeInterrupted` immediately before native's own `get_ShouldBeInterrupted`, and read and cleared by
-  `CaptureShouldBeInterrupted` immediately after. `Reset` clears it at mod disable and disposal.
+- **The only static** was one `[ThreadStatic] bool`, the value of `UnitAttack`'s CanNotAttack term, reset before native's
+  getter and read after it. R23 (below) replaced it with invocation-exact scalar frames, because one slot per thread is
+  not one slot per invocation.
 - **Domain:** `MountedNativeTerminalObservation` holds the codes. `NotObserved` (0) is the zero default of a fresh native
   local and is never a capability. `MountedNativeTerminalBranchPolicy` decides each site from the code.
 - **Nothing else added:** no saved state, gameplay state, action mutation, timer or frame-based ownership.
@@ -604,10 +620,10 @@ delegatedMoveStarts)` is true only when all of these hold:
   owns a command if it is or can hold a `UnitCommand` directly, or through any instance field, array element, generic
   argument, delegate, interface or abstract type.
 - **Weak references are non-owning.**
-- **Result:** the only static is `attackBanTerm:Boolean`. The rule is checked against strong holders (`List<UnitCommand>`,
+- **Result at `0e1125fa`:** the only static was `attackBanTerm:Boolean`. Since R23 it is `attackBanFrames` (scalar frames:
+  `bool[]` and `int`), which the same rule accepts. The rule is checked against strong holders (`List<UnitCommand>`,
   `object`, `Action`) and non-owners (`WeakReference`, `bool`).
-- **Capture hooks:** none of the four (`CaptureCanAct`, `CaptureShouldBeInterrupted`, `BeginShouldBeInterrupted`,
-  `AttackBanTerm`) takes or returns a command.
+- **Capture hooks:** none takes or returns a command (since R23: `CaptureCanAct` and `AttackBanTerm`).
 - **Transpiled IL:** run on the installed IL, it keeps each value in its own local (the two `TickCommand` locals are
   distinct) and loads only that local before its own terminal site.
 
@@ -634,8 +650,9 @@ delegatedMoveStarts)` is true only when all of these hold:
 
 - **Rule (deferred release, as designed; unchanged by this review):**
   - **`ObserveTerminal` (success or failure) never archives.** The finished command still holds the mount's native slot
-    when its terminal is observed. A failed observation runs `FailAndInterrupt`: the fault state, the exact command's
-    typed `Fault` (it is already finished on this path), the interrupt bookkeeping, and a contained log.
+    when its terminal is observed. A failed observation runs `FailAndInterrupt`: it records the scheduler's fault state
+    and interrupt bookkeeping, then a contained log. It does not re-end the finished command, interrupt it again or
+    replace its cause (corrected wording, R24).
   - **The lease stays only while its exact finished command still holds the mount's native slot.** While it stays, the
     registration gate refuses ("another scheduler lease is active").
   - **The next `Update` releases it,** once native (or the controller's own finished-command sweep, which runs between
@@ -697,6 +714,111 @@ Changing it to immediate release was not justified.
 | Q23 | a healthy reading leaves a stale ban term that affects a later command | probe (R21 stale ban term) |
 | Q24 | the deferred release on native slot removal removed | probe (R22 case 2) |
 
+## Review of 95ae0b30: R23 and R24 (corrected)
+
+### R23 — the CanNotAttack term is invocation-exact and reentrant-safe
+
+**Defect at `0e1125fa`.**
+- The term lived in one `[ThreadStatic] bool`, reset by `BeginShouldBeInterrupted`, written by `AttackBanTerm` and read
+  and cleared by `CaptureShouldBeInterrupted`. That is one slot per thread, not one per native invocation.
+- An inner observation nested after an outer getter recorded its ban reset and cleared that slot. The outer capture then
+  read `AttackTargetDead`.
+- **Before evidence:** the probe drives that build's own compiled seam in nested order (outer begin, outer term, inner
+  begin, inner capture, outer capture), and the outer reads `AttackTargetDead`.
+
+**Architecture (scalar frames).**
+- **The wrapper.** `TickCommand`'s one `command.ShouldBeInterrupted` call is replaced by
+  `ObserveShouldBeInterrupted(UnitCommand command, out int observation)`. It:
+  1. opens one scalar frame;
+  2. calls native's getter exactly once;
+  3. reads its own frame by index;
+  4. writes the encoded observation to `TickCommand`'s own local (the transpiler loads that local's address,
+     `ldloca`, right before the call);
+  5. returns native's Boolean unchanged;
+  6. closes its frame, and anything stranded above it, in a `finally`.
+- **The getter's term:** the transpiled `UnitAttack.get_ShouldBeInterrupted` passes its CanNotAttack term to
+  `AttackBanTerm`, which writes only the innermost open frame. Outside any wrapped call it writes nothing.
+- **Storage:** `MountedNativeTermFrames` (Domain) holds a `bool[]` of terms and an `int` depth, and nothing else. It is
+  held in one `[ThreadStatic]` field, allocated lazily. Its depth returns to its previous value after every completed or
+  exceptional call, so it does not grow. `Reset` drops it at mod disable and disposal.
+- **Ownership:** no static holds a command, actor, controller, relationship, target or delegate. The R21 structural
+  contract accepts `MountedNativeTermFrames` as non-owning, and the wrapper stores the command in no static.
+
+**Proof that native's getter runs once and its Boolean is unchanged.**
+- **The wrapper's compiled IL:** exactly one `UnitCommand.get_ShouldBeInterrupted` call, with
+  `MountedNativeTermFrames.Open` before it and `Close` in its single `finally` clause. Its signature is
+  `bool (UnitCommand, out int)`.
+- **`TickCommand` as transpiled on the installed IL:**
+  - no direct getter call remains, and exactly one `ObserveShouldBeInterrupted` call;
+  - the `ldloca` before it and the `ldloc` before `InterruptAtStateSite` are the same local, distinct from the running
+    `CanAct` local;
+  - the instruction count is +6.
+- **Return value:** for genuinely banned, healthy and dead-target commands, the wrapper's value equals a direct native
+  getter call on the same command.
+- **Construction:** real Harmony12 patches of all four transpilers are constructed in the probe process.
+
+**Required cases** (compiled wrapper, the transpiled native getter and a probe postfix on that getter that runs the
+nested observation after native's own term was recorded, the exact clobbering order; components cover the frame stack):
+
+| # | Case | Result |
+|---|---|---|
+| 1 | Outer attack ban; inner healthy | outer `AttackBanned` (3), inner not interrupted (1) |
+| 2 | Outer attack ban; inner dead target | outer `AttackBanned`, inner `AttackTargetDead` (2) |
+| 3 | Outer dead target; inner attack ban | outer `AttackTargetDead`, inner `AttackBanned` |
+| 4 | Same command, recursive (its ban lifted before the inner reading) | each invocation receives its own term |
+| 5 | Nested observation of another pair's banned command inside a healthy reading | neither term crosses |
+| 6 | Inner getter throws | its frame is removed (depth 1 inside the outer), the outer stays exact |
+| 7 | Outer getter throws | no frame remains |
+| 8 | Native getter read outside the wrapped seam | returns its own value, opens or changes no frame; a later dead-target reading is not a ban |
+| 9 | Later ordinary observations after every case | healthy, ban and dead target read clean; no frame remains |
+| 10 | Disable or disposal | the frame storage is empty |
+
+Unchanged: the R21 GC cases (now including the wrapper) and the static-ownership contract.
+
+### R24 — the scheduler's terminal-observation record
+
+- **Rule:** a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause.
+- **Release:** the lease remains owned until native slot removal, relationship cleanup or disposal (R22). The lifecycle
+  is unchanged; only the source comment and the records changed.
+- **Probe split:**
+  - **live-command fault paths** (`Update` exception, `AbandonRegistration`, `Dispose`, relationship cleanup) still
+    assert the typed cause before the interruption.
+  - **the production-shaped terminal observation** uses an already finished command with its own cause
+    (`ActorCapability`) and result (`Success`), under a throwing logger. It checks that:
+    - nothing escapes;
+    - the cause and result are unchanged, and no second terminal is delivered;
+    - the scheduler is `Faulted` with interrupt count 1 and a cleanup reason;
+    - the lease remains.
+  - **the R22 lifecycle case** also asserts that the finished command's cause is unchanged.
+  - **compiled IL of `InterruptExactCommand`:** the scheduler's `Interrupt` bookkeeping comes first, then
+    `get_IsFinished`, which precedes any `RecordEndCause` or `UnitCommand.Interrupt`.
+
+### Before and after
+
+| Build | Probe |
+|---|---|
+| Candidate `7898b1a4` | 273/0 |
+| Reviewed `0e1125fa` (head `95ae0b30`) | 4 sections fail; R23 behaviourally: the outer attack ban reads `AttackTargetDead` |
+| Accepted Sprint 5 `cdfbe509` | 19 Sprint 6 sections fail |
+
+### Mutation campaign Q1–Q26 (serial; log `review4/03-mutation-campaign.log`)
+
+- **Setup:** as before. Each mutant gets its own disposable worktree and `MSBuild /m:1 /nodeReuse:false
+  /p:UseSharedCompilation=false`, removed before the next. The candidate is frozen separately. Each probe run prints the
+  mutant's path and MVID.
+- **Anchors:** all 28 anchors occur exactly once in `7898b1a4`. Q22 and Q23 were re-anchored to the frame design.
+- **Results:** all 26 caught.
+  - Caught by components: Q1–Q5, Q7, Q10, Q11, Q13, Q15, Q19, Q23, Q25.
+  - Caught by the probe: Q6, Q8, Q9, Q12, Q14, Q16–Q18, Q20–Q22, Q24, Q26.
+
+| ID | Mutation | Caught by |
+|---|---|---|
+| Q22 | a strong thread-static `UnitCommand` beside the frames | probe (R21 structural contract) |
+| Q23 | a new frame keeps an earlier term (stale facts reach a later command) | components (R23 frames) and probe (R23 case 9) |
+| Q24 | the slot-removal lease release removed | probe (R22 case 2) |
+| Q25 | an inner observation overwrites the outer attack-ban term | components (R23 frames) and probe (R23 case 1) |
+| Q26 | the frame closed only on a normal return | probe (the wrapper's `finally`, and R23 cases 6, 7) |
+
 ## Remaining native evidence limits
 
 - **Not observed in play:**
@@ -716,4 +838,4 @@ Changing it to immediate release was not justified.
 - **Not changed:** `NativeMountedControlService` falls back to the combat controller's last feedback for a rejected
   mounted-control dispatch that has no refusal of its own. That shared surface is not a Sprint 6 terminal path.
 
-Sprint 7 was not started. This is the corrected Sprint 6 review checkpoint after the review of `dffd3e72`.
+Sprint 7 was not started. This is the corrected Sprint 6 review checkpoint after the review of `95ae0b30`.

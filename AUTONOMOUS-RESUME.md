@@ -5,7 +5,8 @@ CURRENT.md, docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.m
 after review.
 
 - **State:** A01, A02, A04 and A05 corrected offline; A03 settled; reviews of `2ae4cc8b` (`ce9b1383`), `fa533e97`
-  (`1d0054f0`) and `dffd3e72` (`0e1125fa`) corrected. Fast PASS 13/0; mutations Q1–Q24 all caught. Native NOT RUN.
+  (`1d0054f0`), `dffd3e72` (`0e1125fa`) and `95ae0b30` (`7898b1a4`) corrected. Fast PASS 13/0; mutations Q1–Q26 all
+  caught. Native NOT RUN.
 - **Rules:**
   - A same-target click continues a retained intent only while its request has not dispatched or its dispatched
     command is live (`IsFreshRequestAfterTerminal`). Never bind freshness to frames or timers.
@@ -23,9 +24,11 @@ after review.
     the retired scheduler.
   - Native terminal facts live in the native invocation's own locals (`dup; capture; stloc` / `ldloc` into the terminal
     hook). Never hold a command, actor or controller in a static or thread-static field to classify a terminal.
-  - The retired scheduler's lease release is deferred: a failed terminal observation faults and interrupts but does
-    not archive; the next update after native slot removal, relationship cleanup or disposal releases it. Do not
-    describe it as always released.
+  - The retired scheduler's lease release is deferred: a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause, and it does not archive; the next update
+    after native slot removal, relationship cleanup or disposal releases the lease. Do not describe it as always
+    released.
+  - The CanNotAttack term reaches its own observation only through `ObserveShouldBeInterrupted`'s scalar frame (one per
+    wrapped call, closed in a `finally`). Never reintroduce a single per-thread slot for it.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 7.
 
 # Known issues remediation, Sprint 5 — review checkpoint (2026-11-17)
