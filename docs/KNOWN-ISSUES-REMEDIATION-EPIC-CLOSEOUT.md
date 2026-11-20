@@ -46,9 +46,9 @@ carry every earlier sprint with it. No sprint was rebased; each was built on its
 
 ## Package accounting
 
-Final disposition of every work package, in the epic's order, with the IDs found during the epic. "Native" is the
-game run for that package by this epic; "not run" throughout. The ledger holds the canonical status fields and the
-detail; the handoff holds the evidence.
+Final disposition of every work package, in the epic's order, with the IDs found during the epic. No package was
+run in the game by this epic; whether native execution applies to a package at all is the ledger's per-ID native
+field. The ledger holds the canonical status fields and the detail; the handoff holds the evidence.
 
 | ID | Final disposition | Result for the player or developer | Cause or conclusion | Evidence | Remaining uncertainty |
 |---|---|---|---|---|---|
@@ -145,6 +145,31 @@ its log at `artifacts/known-issues-sprint8/03-documentation-consistency-final.lo
 `02-validate-source.log`. No repository script was added: these checks serve this one reconciliation, and a durable
 documentation checker was not asked for by a concrete risk.
 
+### Owner review of `feacf154` (2026-11-19)
+
+Three documentation findings, corrected; product source, tests and scripts unchanged.
+
+| Finding | Correction |
+|---|---|
+| R1 (P2): the support contract stated as fact that a save with KMC content will not load without KMC, while also saying that load was never tested | [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md#which-campaigns-need-kmc) now says KMC treats such a save as dependent, the removal preparation refuses to certify it, removal is unsupported while the references remain, and loading it without KMC was not tested (outcome unknown). README's equivalent absolute headline was corrected to match. The hand-edit warning, cleanup save, written-save scan, historical clean-removal evidence and the absence of any migration are unchanged |
+| R2 (P2): "both initiative arrangements (shared and separate) are respected" contradicted R01 | The [turn-based section](CURRENT-SUPPORT.md#turn-based-combat) now says the paired authority supports actors that entered combat at the same or different native initiative positions; while mounted, the mount's independent turn candidate is suppressed and the pair acts through one shared activation, so carried movement on a separate mount slot does not occur. The Mounted Archery section uses the same terms |
+| R3 (P3): the conclusion required native and manual qualification for all implemented packages, including ones where native execution does not apply | The [final conclusion](#final-engineering-conclusion) and "Missing native evidence" now scope native/manual qualification to the gameplay and presentation corrections, and name D01–D03, T01, T03, R02, R01 and A03 as native not applicable. The ledger's native field for T03, R01 and A03 now says "Not applicable" to agree |
+
+Found while checking the same findings: CURRENT-SUPPORT.md and README.md did not name the full unresolved set; both now
+do (S01, M04's original incident, C01, T04–T08, T09).
+
+The scratch checker gained 62 semantic assertions (no cannot-load claim beside an unknown outcome; the initiative
+terms in both sections; native not applicable for test, documentation and no-change packages; the same unresolved set
+in all six current documents; release 0.2.11 versus stack builds also labelled 0.2.11, with no release claim).
+
+| Check | Result |
+|---|---|
+| Scratch checker on this head | 507/0 (log `05-documentation-consistency-review1.log`) |
+| The same checker on the reviewed `feacf154` (negative control, temporary detached worktree, removed) | 16 failures, covering R1, R2, R3 and the unresolved-set gap (log `06-negative-control-reviewed-feacf154.log`) |
+| `git diff --check` against `1ba1841a` | clean |
+| `Validate-Source.ps1` | 151/0 (log `07-validate-source-review1.log`) |
+| Links and heading anchors; table columns; CRLF without BOM; PRs #45–#53 heads, targets, draft state, #53 without reviewers | 249 links resolve; all pass (inside the 507) |
+
 ## Unresolved and excluded work
 
 ### Unresolved product reports
@@ -167,8 +192,10 @@ documentation checker was not asked for by a concrete risk.
 
 ### Missing native evidence
 
-Every package above. No sprint of this epic ran the game. In particular: S02's arrival ordering, M01–M05 (no gamepad
-session ever run), C02 and C04 (the owner's Candlemere log is absent), A01–A05, and U01–U04 (no screen viewed).
+Every gameplay and presentation correction (no sprint of this epic ran the game): S02's arrival ordering, M01–M05
+(no gamepad session ever run), C02, C03's notice and C04 (the owner's Candlemere log is absent), A01, A02, A04, A05,
+and U01–U04 (no screen viewed). T02's repeated-world producer and C01's bounded fallback have no native run either.
+Native execution is not applicable to D01–D03, T01, T03, R02, R01 and A03 (see the ledger's native field).
 
 ### Manual acceptance only (excluded from the epic)
 
@@ -190,7 +217,12 @@ commitment.
   verified offline; M04 engineering investigation complete with all identified marker defects repaired; C03's notice
   repaired.
 - **Unresolved:** S01 (saving report) and M04's original incident; T04–T08 open corrections; T09 open investigation.
-- **Native and manual qualification:** every implemented package; no sprint ran the game.
+- **Native and manual qualification:** every gameplay and presentation correction in the stack (S02, M01–M05, C02,
+  C03's notice, C04, A01, A02, A04, A05, U01–U04) remains native/manual-unqualified; no genuine historical native
+  evidence for them is identified, and no sprint ran the game. Native execution is not applicable to the
+  documentation-only D01–D03, the detached test and harness corrections (T01, T03), R02's documentation-only
+  adaptation, or investigation conclusions that made no gameplay change (R01, A03). The per-ID native field in the
+  [ledger](CURRENT-KNOWN-ISSUES.md#every-id) is authoritative.
 - **Intentionally retained:** C03's safe bounds; R02's ranged rule; A04's real-time native wait; R01's conservative
   authority (closed as not reproducible); A03's explanation settled without product change.
 - **Unsupported:** C01 and the designer `RunCommand` path.

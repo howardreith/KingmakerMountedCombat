@@ -68,8 +68,12 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 
 - **Paired activation (F3):** the mount owns the pair's movement. With the rider selected, the action panel's
   five-foot, Move, Standard and full-round slots show the mount's actions. The rider can full-attack while the mount
-  still moves legally in the same turn. Both initiative arrangements (shared and separate) are respected; the game owns
-  every action budget, preparation, initiative and turn ([0.2.0](RELEASE-NOTES-0.2.0.md)).
+  still moves legally in the same turn.
+- **Initiative:** The paired authority supports rider and mount actors that entered combat at the same or different native
+  initiative positions. While mounted, the mount's independent turn candidate is suppressed and the pair acts
+  through one shared activation; carried movement on a separate mount slot does not occur. A pair formed during an
+  encounter forms only on the rider's turn ([Sprint 5 R01](KNOWN-ISSUES-SPRINT5-HANDOFF.md#r01--why-the-separate-initiative-case-has-no-reachable-instance)).
+  The game owns every action budget, preparation, initiative and turn ([0.2.0](RELEASE-NOTES-0.2.0.md)).
 - **Attacks:** ordinary clicks, native attacks and Haste, retargeting on a kill, Stop and Hold. A turn-based attack
   order the game ends before it starts is dropped once with a message and is not retried; an actor that cannot act is
   refused up front, and only that actor is judged ([0.2.11](RELEASE-NOTES-0.2.11.md)).
@@ -159,8 +163,9 @@ The final rule ([Sprint 5 R02](KNOWN-ISSUES-SPRINT5-HANDOFF.md#the-final-ranged-
   window.
 - **Native attack floor:** the game's difficulty-based floor on player attack rolls can absorb part of the penalty
   for a low-bonus rider.
-- **Separate initiative (R01):** under the qualified paired authority a carried mount never moves on its own initiative
-  slot, so there is no separate-slot travel to count. Closed as not reproducible; no product change.
+- **Initiative (R01):** as in [Turn-based combat](#turn-based-combat): while mounted, the mount's independent turn
+  candidate is suppressed and the pair acts through one shared activation, so there is no separate-slot carried
+  travel to count. Closed as not reproducible; no product change.
 
 ### Presentation (stack only, no screen viewed)
 
@@ -188,8 +193,10 @@ selection ([Sprint 7](KNOWN-ISSUES-SPRINT7-HANDOFF.md)). No screen was viewed an
 
 ### Which campaigns need KMC
 
-A save cannot be loaded without KMC once it references KMC content. The removal preparation refuses, naming each
-reference, when any of these is present (`MountedRemovalPreparation`):
+KMC treats a save containing registered KMC content as dependent on KMC. Removing KMC from that campaign is
+unsupported while those references remain. Loading such a save without KMC was not tested; its exact outcome is
+unknown. The removal preparation refuses to certify the campaign, naming each reference, when any of these is
+present (`MountedRemovalPreparation`):
 
 - a KMC Horse or Riding Dog unit, or a character with the KMC Horse or Riding Dog companion or advancement feature;
 - the KMC Divine Bond choice (whether Weapon Bond or Divine Mount was taken through it), the Divine Mount bond, Divine
@@ -210,7 +217,7 @@ refuses if one remains.
   tested in game ([0.2.2 notes](RELEASE-NOTES-0.2.2.md)).
 - **A campaign still containing KMC content:** removing KMC is **not supported**. KMC does not remove its features,
   feats, companions or bond choices, and no tool strips them. Never edit a save to strip mod data. Loading such a save
-  without KMC was not tested; the outcome is unknown.
+  without KMC was not tested; its exact outcome is unknown, so keep KMC installed for that campaign.
 - **Disabling in UMM** dismounts every pair but writes and checks nothing. It is not removal.
 
 ### No migration exists for removal
@@ -238,6 +245,18 @@ assembly version 0.1.0.0, and stack builds also say 0.2.11.
 
 A current reader that meets a newer `kmc-mounted-state` schema reports "Mounted metadata uses an unsupported schema;
 original data is preserved." and restores no pair from it (`MountedArchiveCodec`).
+
+## Still unresolved
+
+The same set as the [ledger](CURRENT-KNOWN-ISSUES.md#every-id):
+
+- **S01:** the saving failure reported after the Ratnook door in 0.2.4; cause not established.
+- **M04's original incident:** the reported extra green marker is not attributable, though every identified marker
+  defect is repaired (stack only).
+- **C01:** in-combat scripted movement of a seated rider, an unsupported path (see
+  [Cutscenes](#cutscenes-dialogues-and-scene-staging)).
+- **T04–T08:** stale developer test harnesses (open correction). **T09:** a harness that needs retained native
+  evidence (open investigation). Neither affects play.
 
 ## Not supported, and excluded from the epic
 
