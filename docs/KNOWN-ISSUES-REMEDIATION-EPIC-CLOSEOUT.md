@@ -7,42 +7,63 @@ revised 2026-11-16), written by Sprint 8 (D01–D03). This record also serves as
   each sprint handoff instead of repeating their detail.
 - **Current support, removal and rollback contract:** [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
 - **Native gameplay:** not run by any known-issues sprint. No Sprint 7 screen was viewed.
-- **Release:** nothing in this epic is released. Every sprint is an unmerged draft PR. The current release is still
-  0.2.11.
+- **Release:** nothing in this epic is released. PRs #45–#52 were merged into main on 2026-11-19 and PR #53 carries
+  this record; main is unreleased and not release-qualified. The latest release is still `v0.2.11` (historical
+  release merge `7a5cd2c3`).
 
 ## Identity
 
 ### Baseline and stack
 
-- **Epic planning baseline:** main `7a5cd2c393fad80fe09700ecbc40949245335449`, release 0.2.11. Main has not
-  advanced since; every PR in the stack is open, draft and unmerged, with no reviewers.
+- **Epic planning baseline:** main `7a5cd2c393fad80fe09700ecbc40949245335449`, release `v0.2.11`. Main did not
+  advance during the epic; the stack was integrated afterwards (see [Integration into main](#integration-into-main-completed-2026-11-19)).
 - **Sprint 8 base:** `1ba1841a3fdcbb9f56a94e55713311d38928b12c`, the accepted Sprint 7 checkpoint (head of PR #52).
-- **Sprint 8 branch:** `codex/kmc-known-issues-sprint8`, worktree `worktrees/known-issues-sprint8` in the lab, draft PR
-  [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) targeting `codex/kmc-known-issues-sprint7`. Product source unchanged.
-- **Version:** every branch still declares 0.2.11, assembly version 0.1.0.0. A build of any sprint is a different binary
-  from the released 0.2.11.
+- **Sprint 8 branch:** `codex/kmc-known-issues-sprint8`, worktree `worktrees/known-issues-sprint8` in the lab, PR
+  [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53), first targeting `codex/kmc-known-issues-sprint7`,
+  retargeted to `main` after #52 merged. Product source unchanged.
+- **Version:** every branch, and main after integration, still declares 0.2.11, assembly version 0.1.0.0. A build of
+  any sprint or of main is a different binary from the released `v0.2.11` package.
 
-| Sprint | Packages | PR | Branch | Targets | Accepted head | Product-build commit | Product DLL (clean Release) | Kind |
-|---|---|---|---|---|---|---|---|---|
-| 1 | T01–T03 | [#45](https://github.com/howardreith/KingmakerMountedCombat/pull/45) | `codex/kmc-known-issues-sprint1` | `main` | `b62c59a8` | `3c64128a` (T02 diagnostic code) | not recorded in the handoff | validation tooling; diagnostic evidence code only |
-| 2 | S01, S02 | [#46](https://github.com/howardreith/KingmakerMountedCombat/pull/46) | `codex/kmc-known-issues-sprint2` | sprint 1 | `1dffc3e0` | `5d62a289` | not recorded in the handoff | product |
-| 3 | M01–M05 | [#47](https://github.com/howardreith/KingmakerMountedCombat/pull/47) | `codex/kmc-known-issues-sprint3` | sprint 2 | `e5b92474` | `f6e86858` | SHA-256 `FCBBA76E…4C57`, MVID `16c76ae9-7416-4e49-8de5-937b61be2926` | product |
-| 4 | C04, C01–C03 | [#48](https://github.com/howardreith/KingmakerMountedCombat/pull/48) | `codex/kmc-known-issues-sprint4` | sprint 3 | `14f1b474` | `03685720` | SHA-256 `7ce8f88a…01efd59c8`, MVID `efdc12b6-0098-4027-ad49-f8c8f33851bc` | product |
-| 3 closeout | M04 | [#49](https://github.com/howardreith/KingmakerMountedCombat/pull/49) | `codex/kmc-known-issues-sprint3-closeout` | sprint 4 | `af5b2bc7` | `cdfbe509` | SHA-256 `f584c1c6…f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439` | product |
-| 5 | R01, R02 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | sprint 3 closeout | `772543e1` | none (unchanged `cdfbe509`) | as Sprint 3 closeout | tests and documentation only |
-| 6 | A01–A05 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | sprint 5 | `f835c503` | `7898b1a4` | SHA-256 `7da6d2c0…dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` | product |
-| 7 | U01–U04 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | sprint 6 | `1ba1841a` | `e54009e9` | SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2` | product |
-| 8 | D01–D03 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | sprint 7 | this branch's head | none | as Sprint 7 | documentation only |
+| Sprint | Packages | PR | Branch | Original target | Accepted head | Product-build commit | Product DLL (clean Release) | Kind | Merge into main |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | T01–T03 | [#45](https://github.com/howardreith/KingmakerMountedCombat/pull/45) | `codex/kmc-known-issues-sprint1` | `main` | `b62c59a8` | `3c64128a` (T02 diagnostic code) | not recorded in the handoff | validation tooling; diagnostic evidence code only | `faf1195d` |
+| 2 | S01, S02 | [#46](https://github.com/howardreith/KingmakerMountedCombat/pull/46) | `codex/kmc-known-issues-sprint2` | sprint 1 | `1dffc3e0` | `5d62a289` | not recorded in the handoff | product | `1fb225a1` |
+| 3 | M01–M05 | [#47](https://github.com/howardreith/KingmakerMountedCombat/pull/47) | `codex/kmc-known-issues-sprint3` | sprint 2 | `e5b92474` | `f6e86858` | SHA-256 `FCBBA76E…4C57`, MVID `16c76ae9-7416-4e49-8de5-937b61be2926` | product | `3d51199e` |
+| 4 | C04, C01–C03 | [#48](https://github.com/howardreith/KingmakerMountedCombat/pull/48) | `codex/kmc-known-issues-sprint4` | sprint 3 | `14f1b474` | `03685720` | SHA-256 `7ce8f88a…01efd59c8`, MVID `efdc12b6-0098-4027-ad49-f8c8f33851bc` | product | `c458042d` |
+| 3 closeout | M04 | [#49](https://github.com/howardreith/KingmakerMountedCombat/pull/49) | `codex/kmc-known-issues-sprint3-closeout` | sprint 4 | `af5b2bc7` | `cdfbe509` | SHA-256 `f584c1c6…f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439` | product | `4342596e` |
+| 5 | R01, R02 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | sprint 3 closeout | `772543e1` | none (unchanged `cdfbe509`) | as Sprint 3 closeout | tests and documentation only | `1c88d070` |
+| 6 | A01–A05 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | sprint 5 | `f835c503` | `7898b1a4` | SHA-256 `7da6d2c0…dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` | product | `dd52f359` |
+| 7 | U01–U04 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | sprint 6 | `1ba1841a` | `e54009e9` | SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2` | product | `4b2c0a52` |
+| 8 | D01–D03 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | sprint 7, then `main` | the final head of #53 | none | as Sprint 7 | documentation only | lands after #52 |
 
 Full identities, reviewed builds and frozen artifacts are in each handoff's identity section. Accepted heads are the
 heads the owner accepted as the next sprint's base; the Sprint 7 head was accepted as an offline engineering
 checkpoint.
 
-### Merge order
+### Integration into main (completed 2026-11-19)
 
-The stack is linear. If the owner merges it, the order is #45, #46, #47, #48, #49, #50, #51, #52, then #53, each
-into its target or with its target retargeted to `main` after the previous one lands. Merging a later PR alone would
-carry every earlier sprint with it. No sprint was rebased; each was built on its predecessor's accepted head.
+By owner order after the final Sprint 8 review, the linear stack was merged into main in order, without release:
+
+| PR | Accepted head | Merge commit | First parent (main before) |
+|---|---|---|---|
+| #45 | `b62c59a8` | `faf1195d1bb7afa2d808175f82385a77536e96fc` | `7a5cd2c3` |
+| #46 | `1dffc3e0` | `1fb225a1a0083758c0da085281be348b10a67a31` | `faf1195d` |
+| #47 | `e5b92474` | `3d51199e22f9b77530beff538836afa04bac9870` | `1fb225a1` |
+| #48 | `14f1b474` | `c458042da48d5b043008faa45aafc6a8294aac1e` | `3d51199e` |
+| #49 | `af5b2bc7` | `4342596e53d4136f7508098a5f9fd485444bcbc5` | `c458042d` |
+| #50 | `772543e1` | `1c88d070cff02ddfb976614bb0fa53b17ac41d85` | `4342596e` |
+| #51 | `f835c503` | `dd52f359e252ca7b5afd310cb0b5dd1082bf1739` | `1c88d070` |
+| #52 | `1ba1841a` | `4b2c0a5204904cec653908b42cf216e7f9582bff` | `dd52f359` |
+| #53 | the final head of #53 | lands after #52 | `4b2c0a52` |
+
+- Each PR was checked at its accepted head, retargeted to `main` after its predecessor landed, compared (its diff equal
+  to the sprint's accepted delta, and main's tree equal to the accepted parent's), marked ready for review (required to
+  merge a draft) and merged with an ordinary merge commit pinned to the accepted head. No reviewer was requested.
+- No conflict arose. Each merge commit's second parent is the accepted head and its tree equals that head's tree, so
+  no accepted correction was lost; main's product source equals the accepted Sprint 7 product build `e54009e9`.
+- Nothing was squashed, rebased or force-pushed, and no branch was deleted.
+- Merging to main is not a release: no tag, version, package or release was made, and `v0.2.11` still targets
+  `7a5cd2c3`.
 
 ## Package accounting
 
@@ -95,9 +116,9 @@ Review-discovered defects that became part of an accepted correction are listed 
 - **Migration:** none added. No uninstall migration, no save stripping.
 - **Loader and game:** engine 2.1.7b, Kingmaker assembly MVID `07fa1e4d…` checked by the assembly contracts (815/0 at
   Sprint 7). UMM API compatible offline with genuine 0.33.0 and 0.33.2; declared minimum 0.28.2 unassessed.
-- **Downgrade:** see [Rollback and downgrade](CURRENT-SUPPORT.md#rollback-and-downgrade). Because every stack build
+- **Downgrade:** see [Rollback and downgrade](CURRENT-SUPPORT.md#rollback-and-downgrade). Because every build of main since `v0.2.11`
   says 0.2.11, a downgrade must be matched by DLL hash, not by version.
-- **Stacking:** see [Merge order](#merge-order). The draft stack is not a release and implies none.
+- **Integration:** see [Integration into main](#integration-into-main-completed-2026-11-19). Merged is not released.
 
 ## Validation summary
 
@@ -128,7 +149,8 @@ Only checks actually run. Each handoff has the commands, durations and logs.
 
 ### Sprint 8 checks
 
-Documentation only, so no product rebuild, component run or mutation campaign.
+Documentation only, so no product rebuild, component run or mutation campaign. These rows were run before the
+integration (at `d1eff342` and `feacf154`); "unmerged" was then true.
 
 | Check | Result |
 |---|---|
@@ -231,7 +253,7 @@ commitment.
   verified offline; M04 engineering investigation complete with all identified marker defects repaired; C03's notice
   repaired.
 - **Unresolved:** S01 (saving report) and M04's original incident; T04–T08 open corrections; T09 open investigation.
-- **Native and manual qualification:** every gameplay and presentation correction in the stack (S02, M01–M05, C02,
+- **Native and manual qualification:** every gameplay and presentation correction on main (S02, M01–M05, C02,
   C03's notice, C04, A01, A02, A04, A05, U01–U04) remains native/manual-unqualified; no genuine historical native
   evidence for them is identified, and no sprint ran the game. Native execution is not applicable to the
   documentation-only D01–D03, the detached test and harness corrections (T01, T03), R02's documentation-only
@@ -245,7 +267,7 @@ commitment.
 The epic has completed its scheduled engineering pass. It has not fixed every reported defect: S01 and M04's original
 incident remain unresolved. Nothing here is released or release-ready: the repository's release workflow (owner order,
 version change, package build and validation, release notes) was not started, and no native acceptance exists for
-the stack.
+the merged epic. Main is merged but unreleased.
 
 ## Sprint 8 scope record
 
@@ -254,5 +276,6 @@ the stack.
   superseding notes at the top of the [0.2.0 notes](RELEASE-NOTES-0.2.0.md) and the two Chunk 7 guides.
 - **Not changed:** product source, tests, scripts, historical handoffs and their verdicts, totals and identities.
 - **Budget:** `known-issues-sprint8` was not opened: no tier, build or launch ran.
-- **Not done:** merge, release, tag, version bump, install, staging, loader replacement, reviewer request, native or
-  visual runs, another sprint.
+- **Not done during Sprint 8:** merge, release, tag, version bump, install, staging, loader replacement, reviewer
+  request, native or visual runs, another sprint. The later integration merged the stack by owner order; it made no
+  release, tag, version bump, package, install, staging, loader replacement or reviewer request.

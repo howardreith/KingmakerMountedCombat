@@ -7,8 +7,9 @@ Current material comes first; the detail and the reconciliation history follow i
 - **Last updated:** 2026-11-19, Sprint 8 (D01–D03): every ID reconciled to one current disposition; the epic is closed
   out in [KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md); the support, removal
   and rollback contract is [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
-- **Released versus draft:** the current release is 0.2.11. Every correction in this ledger is in an **unmerged draft
-  PR** of the stack #45–#53, not in any release. The four shipped fixes the epic inherited are listed
+- **Released versus main:** the latest release is still `v0.2.11` (historical release merge `7a5cd2c3`). Every
+  correction in this ledger is **merged into main but unreleased** (PRs #45–#53, integrated 2026-11-19); none is in
+  any release. The four shipped fixes the epic inherited are listed
   under [Superseded by an identified fix](#superseded-by-an-identified-fix-carried-forward).
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 8, and no Sprint 7
   screen was viewed. "Implemented and verified offline" never means a player scenario passed.
@@ -23,20 +24,21 @@ Current material comes first; the detail and the reconciliation history follow i
 
 ### Owners
 
-| Owner | PR | Branch | Accepted head | Product-build commit |
-|---|---|---|---|---|
-| Sprint 1 | [#45](https://github.com/howardreith/KingmakerMountedCombat/pull/45) | `codex/kmc-known-issues-sprint1` | `b62c59a8` | `3c64128a` (diagnostic evidence code) |
-| Sprint 2 | [#46](https://github.com/howardreith/KingmakerMountedCombat/pull/46) | `codex/kmc-known-issues-sprint2` | `1dffc3e0` | `5d62a289` |
-| Sprint 3 | [#47](https://github.com/howardreith/KingmakerMountedCombat/pull/47) | `codex/kmc-known-issues-sprint3` | `e5b92474` | `f6e86858` |
-| Sprint 4 | [#48](https://github.com/howardreith/KingmakerMountedCombat/pull/48) | `codex/kmc-known-issues-sprint4` | `14f1b474` | `03685720` |
-| Sprint 3 closeout | [#49](https://github.com/howardreith/KingmakerMountedCombat/pull/49) | `codex/kmc-known-issues-sprint3-closeout` | `af5b2bc7` | `cdfbe509` |
-| Sprint 5 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | `772543e1` | none (`cdfbe509` unchanged) |
-| Sprint 6 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | `f835c503` | `7898b1a4` |
-| Sprint 7 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | `1ba1841a` | `e54009e9` |
-| Sprint 8 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | its head (the records commit naming #53) | none (documentation only) |
+| Owner | PR | Branch | Accepted head | Product-build commit | Merge into main |
+|---|---|---|---|---|---|
+| Sprint 1 | [#45](https://github.com/howardreith/KingmakerMountedCombat/pull/45) | `codex/kmc-known-issues-sprint1` | `b62c59a8` | `3c64128a` (diagnostic evidence code) | `faf1195d` |
+| Sprint 2 | [#46](https://github.com/howardreith/KingmakerMountedCombat/pull/46) | `codex/kmc-known-issues-sprint2` | `1dffc3e0` | `5d62a289` | `1fb225a1` |
+| Sprint 3 | [#47](https://github.com/howardreith/KingmakerMountedCombat/pull/47) | `codex/kmc-known-issues-sprint3` | `e5b92474` | `f6e86858` | `3d51199e` |
+| Sprint 4 | [#48](https://github.com/howardreith/KingmakerMountedCombat/pull/48) | `codex/kmc-known-issues-sprint4` | `14f1b474` | `03685720` | `c458042d` |
+| Sprint 3 closeout | [#49](https://github.com/howardreith/KingmakerMountedCombat/pull/49) | `codex/kmc-known-issues-sprint3-closeout` | `af5b2bc7` | `cdfbe509` | `4342596e` |
+| Sprint 5 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | `772543e1` | none (`cdfbe509` unchanged) | `1c88d070` |
+| Sprint 6 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | `f835c503` | `7898b1a4` | `dd52f359` |
+| Sprint 7 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | `1ba1841a` | `e54009e9` | `4b2c0a52` |
+| Sprint 8 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | the final head of #53 | none (documentation only) | lands after #52 |
 
-All are open drafts, stacked in that order on main `7a5cd2c3`. DLL identities are in the
-[epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md#baseline-and-stack).
+Merged into main in that order on 2026-11-19 with ordinary merge commits, each merged tree equal to the accepted
+head; #53 carries this documentation and lands last. Merged is not released. DLL identities and the integration
+record are in the [epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md#baseline-and-stack).
 
 ### Closure categories
 
