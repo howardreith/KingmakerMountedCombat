@@ -1,3 +1,22 @@
+# Tabletop Rules Expansion startup conflict — review branch (2026-11-20)
+
+Branch `codex/gunslinger-click-approach-compat` (draft PR, no reviewers) from `12527350` (`v0.2.12`). Read CURRENT.md
+(its first section) and docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md.
+
+- **State:** the 0.2.12 `ClickUnitHandler.OnClick` transpiler no longer replaces the click command's submission; it
+  guards it, so it composes with Tabletop Rules Expansion's rewrite of the same submissions in either order. Offline
+  composition and executed-slice regression pass; runtime status is in the handoff. Unreleased.
+- **Rules:**
+  - Never make the click approach consume, replace or duplicate a submission another mod may rewrite. The router
+    decides; the method's own submission runs or is skipped.
+  - Recognise foreign submission shapes exactly (type and signature), never by arity alone. An unknown shape is a
+    structural mismatch with diagnostics, not a fallback.
+  - The foreign type name lives in exactly one constant (`Validate-Source.ps1` asserts it); no reference, namespace,
+    `using` or saved identity of that mod.
+  - `scripts/Test-GunslingerClickComposition.ps1` needs the released 0.0.191 DLL at
+    `<lab>/compatibility-binaries/KingmakerGunslinger-0.0.191/` (SHA-256 pinned); never commit it.
+- **Not authorized:** merge, release, tag, version bump, permanent install, loader replacement, reviewer request.
+
 # Release 0.2.12 (owner order, 2026-11-19)
 
 Release 0.2.12 ships the merged Known Issues Remediation Epic (PRs #45–#53). Read CURRENT.md (its first section),

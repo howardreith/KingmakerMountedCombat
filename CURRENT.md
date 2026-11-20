@@ -1,6 +1,23 @@
-# CURRENT STATE — RELEASE 0.2.12 (OWNER ORDER, 2026-11-19): THE KNOWN ISSUES REMEDIATION EPIC, RELEASED; NATIVE NOT RUN
+# CURRENT STATE — 0.2.12 STARTUP CONFLICT WITH TABLETOP RULES EXPANSION: REPAIRED ON A REVIEW BRANCH, UNRELEASED (2026-11-20)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Defect (release-blocking, in released 0.2.12):** with Tabletop Rules Expansion (mod id `KingmakerGunslinger`)
+  installed, 0.2.12 is `Not loaded`: both mods transpile `ClickUnitHandler.OnClick`'s command submissions and
+  whichever runs second throws. A save that references Mounted Combat content (toggle
+  `3c81f5a02be74d96a4e07d1c92b6f385`) then fails to load in that session. Reproduced offline with the released 0.2.12
+  DLL and Tabletop Rules Expansion 0.0.191 (and 0.0.140). 0.2.11 and earlier are not affected (prefix only).
+- **Repair:** branch `codex/gunslinger-click-approach-compat` from `12527350` (`v0.2.12`), draft PR for owner review.
+  The transpiler guards the submission instead of replacing it; both submission shapes are recognised exactly; both
+  Harmony orders compose to the same method. Read the
+  [repair handoff](docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md).
+- **Owner decision requested:** `Validate-Source.ps1`'s foreign-identity rule now allows exactly one constant line
+  naming the other mod's type (asserted unique).
+- **Evidence:** new `Test-GunslingerClickComposition.ps1` (real transpilers of both mods through the installed loader,
+  all four orders, executed composed slice): released 0.2.12 fails with the incident's exception; the repair passes
+  20/0. Fast tier PASS 5/0. Runtime results and remaining checks: see the handoff.
+- **Not done:** no merge, release, version bump or permanent installation. The owner's affected save was not
+  available; save recovery is not verified.
 
 - **Release:** 0.2.12, by owner order on 2026-11-19, from the merged Known Issues Remediation Epic (PRs #45–#53, merged
   into main as `446985b7`). Notes: [docs/RELEASE-NOTES-0.2.12.md](docs/RELEASE-NOTES-0.2.12.md). The package identity
