@@ -1,4 +1,4 @@
-# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C AND E7720F39) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
+# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C, E7720F39 AND 89ACE80F) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the
 accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md) and the
@@ -20,8 +20,8 @@ accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-
 - **Review of `292cd23c` (`92310c52`):**
   - R1: the hover is the world hover of the mount's view (a portrait hover never reaches the tracker, installed IL).
     KMC's redirect is one owned lease of weak references and identities, released exactly before every native hover
-    pass and at a tracker rebuild, pair cleanup, generation change, load, area unload, world discard, disable and
-    disposal. Native's own pass already clears an ordinary true-then-false; it ran detached under the real patches.
+    pass and at a tracker rebuild, its own pair's cleanup (R5), generation change, load, area unload, world discard,
+    disable and disposal. Native's own pass already clears an ordinary true-then-false; it ran detached under the real patches.
   - R2: the badge follows the native per-frame portrait refresh (`UpdateCrippled`) and bind (`Initialize`), not
     `HealthUpdate` (hit-point changes only, withdrawn), and is removed at load, area, world discard, disable and
     disposal; failed removals and a throwing logger never stop cleanup.
@@ -32,14 +32,18 @@ accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-
     disable and disposal.
   - R4: a badge whose removal fails is hidden and stays owned as a residue under the same bound of 32, retried at every
     portrait refresh and boundary, never reused as a portrait's badge; a part-built badge is owned from birth.
+- **Review of `89ace80f` (`e54009e9`):**
+  - R5: a pair's cleanup ends the active hover redirect only when it is exactly the redirect's pair (owner, generation,
+    rider, mount, read from the relationship); any other pair's cleanup, or one whose identity cannot be read, only
+    retries owed cleanup. Load, area unload, world discard, disable and disposal still release it whatever its pair.
 - **T09 (new):** `Test-Finalize2UpgradeReaders.ps1` needs retained r05 native evidence absent from this lab; identical
   at the base.
 - **Checks:**
-  - Fast PASS 21/0 (0.95 min) (budget `known-issues-sprint7`, 3.73 of 90 min).
-  - Components 1410/0; presentation contracts 220/0. The reviewed `92310c52` fails 41 R3/R4 cases.
+  - Fast PASS 21/0 (0.91 min) (budget `known-issues-sprint7`, 4.63 of 90 min).
+  - Components 1411/0; presentation contracts 239/0. The reviewed `6ff46a2a` fails the 7 unrelated-pair R5 cases.
   - Kingmaker assembly contracts 815/0; Validate-Source 151/0; harness 277/4, identical to the Sprint 6 base.
-  - Mutation campaign P1-P32: 32/32 caught (serial, isolated).
-  - Product-build commit `6ff46a2a`, DLL SHA-256 `b28652182b6f1a937d9e3f25b597adca23c5873f2abddcdb1c70421124f13aa0`, MVID `bd10f3e4-16c4-445b-9202-d4605e4b50ef`.
+  - Mutation campaign P1-P34: 34/34 caught (serial, isolated).
+  - Product-build commit `e54009e9`, DLL SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2`.
 - **Native:** NOT RUN, and no screen was viewed. Nothing was launched, staged or installed. Sprint 8 was not started.
 - **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 8.
 

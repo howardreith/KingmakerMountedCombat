@@ -25,6 +25,12 @@ full P1–P32 campaign ran on it. Withdrawn from the `e7720f39` records:
 - that the hover redirect was released exactly: the lease was discarded before either cleanup step, so a failing
   `HoveredUnit` write skipped the row's false, and a failing row false left a highlighted row nobody retried.
 
+**Corrected again after the owner review of `89ace80f` (2026-11-19).** The review accepted R3 and R4 and P1–P32 as
+evidence for `6ff46a2a`, and found one cross-pair defect (R5), corrected in `e54009e9` (see "Review of 89ace80f"); the
+P1–P34 campaign ran on it. Withdrawn from the earlier records: that every pair cleanup the world raises ends the active
+hover redirect. Only the exact owning pair's cleanup ends it; an unrelated pair's cleanup only retries the cleanup still
+owed; load, area unload, world discard, disable and disposal release it whatever its pair.
+
 ## Identity
 
 | Item | Value |
@@ -32,10 +38,11 @@ full P1–P32 campaign ran on it. Withdrawn from the `e7720f39` records:
 | Base | `f835c503515fcc80ff1033bf50f4f771e34de15c`, the accepted Sprint 6 checkpoint. PR #51 is unmerged; the base was verified as the live head of `codex/kmc-known-issues-sprint6` (the parent has not advanced). Accepted Sprint 6 product build `7898b1a4` |
 | Branch and worktree | `codex/kmc-known-issues-sprint7`, `worktrees/known-issues-sprint7` |
 | Draft PR target and parent | `codex/kmc-known-issues-sprint6` (parent PR #51) |
-| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script. `292cd23c`: the first records and the strengthened probe. `92310c52`: review of `292cd23c`, R1 and R2. `e7720f39`: its records (reviewed head). `6ff46a2a`: review of `e7720f39`, R3 and R4, with the extended probe (the product-build commit). Then the records commit carrying this version, which is the branch head |
-| Product-build commit | `6ff46a2a` |
-| Product DLL (clean Release rebuild of `6ff46a2a`) | SHA-256 `b28652182b6f1a937d9e3f25b597adca23c5873f2abddcdb1c70421124f13aa0`, MVID `bd10f3e4-16c4-445b-9202-d4605e4b50ef`; frozen copy `artifacts/known-issues-sprint7/review2/head-6ff46a2a/`. The Fast tier's own build is byte-identical; assembly references unchanged from `92310c52` (12) |
-| Reviewed DLL (`92310c52`, head `e7720f39`) | SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`; frozen copy `artifacts/known-issues-sprint7/review1/head-92310c52/` (hash re-verified) |
+| Commits | `ee5c20dc`: U01–U04, the Domain policies, component tests and the presentation contract script. `292cd23c`: the first records and the strengthened probe. `92310c52`: review of `292cd23c`, R1 and R2. `e7720f39`: its records (reviewed head). `6ff46a2a`: review of `e7720f39`, R3 and R4, with the extended probe. `89ace80f`: its records (reviewed head). `e54009e9`: review of `89ace80f`, R5, with the predicate's component test and the probe's R5 section (the product-build commit). Then the records commit carrying this version, which is the branch head |
+| Product-build commit | `e54009e9` |
+| Product DLL (clean Release rebuild of `e54009e9`) | SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2`; frozen copy `artifacts/known-issues-sprint7/review3/head-e54009e9/`. The Fast tier's own build is byte-identical; assembly references unchanged from `6ff46a2a` (12) |
+| Reviewed DLL (`6ff46a2a`, head `89ace80f`) | SHA-256 `b28652182b6f1a937d9e3f25b597adca23c5873f2abddcdb1c70421124f13aa0`, MVID `bd10f3e4-16c4-445b-9202-d4605e4b50ef`; frozen copy `artifacts/known-issues-sprint7/review2/head-6ff46a2a/` |
+| Earlier reviewed DLL (`92310c52`, head `e7720f39`) | SHA-256 `f9f4e71e921d70f2402f71b4a87515a05d1ca7db5413501a2265d81e592d0271`, MVID `e9bda246-9e40-48c1-af73-98caef770a58`; frozen copy `artifacts/known-issues-sprint7/review1/head-92310c52/` (hash re-verified) |
 | First reviewed DLL (`ee5c20dc`, head `292cd23c`) | SHA-256 `16b446fd5590990f3fec918f0705b31650199f0275de421f3cf9ab005b9f7a7f`, MVID `3b7cc9f0-9d90-42b7-907c-75a10a461855`; frozen copy `artifacts/known-issues-sprint7/candidate/head-ee5c20dc/` |
 | Base DLL used for before-evidence | Sprint 6 `7898b1a4`: SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` (frozen at `artifacts/known-issues-sprint6/review4/head-7898b1a4/`, hash re-verified) |
 | Workflow budget | `known-issues-sprint7` |
@@ -47,7 +54,7 @@ full P1–P32 campaign ran on it. Withdrawn from the `e7720f39` records:
 | U01 | **Implemented and verified offline** | The mount's Move and Standard prediction actions show zero usable distance, and the rider-selected fill promises no five-foot step, once the mount's allocation for the exact live activation has recorded forced (charge) travel. Native Move unavailability, cooldowns, `TimeMoved`, the allocation and the path are unchanged |
 | U02 | **Implemented and verified offline** | The exact public slot whose click handed native target selection to a hidden delivery ability is drawn with native's own selected mark, through an exact value-identity mapping that ends with the selection operation |
 | U03 | **Implemented and verified offline** | The Paladin class panel builds its rows from projected copies of the shown character's progression data: a Divine Mount character, or one whose bond is not yet chosen, is not promised the weapon-bond-only upgrades. Grants, blueprints and the unit's data are unchanged |
-| U04 | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`; failure containment corrected after the review of `e7720f39`)** | A mounted rider's party portrait carries the project's saddle badge, reconciled at the portrait's native per-frame refresh and bind; every world boundary, disable and disposal hides and destroys every badge, and one whose removal fails stays owned as a hidden residue that is retried. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry under one owned lease; its release is a bounded, weak cleanup obligation kept until each cleanup step has completed or native's own pass has recomputed the tracker |
+| U04 | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`; failure containment corrected after the review of `e7720f39`)** | A mounted rider's party portrait carries the project's saddle badge, reconciled at the portrait's native per-frame refresh and bind; every world boundary, disable and disposal hides and destroys every badge, and one whose removal fails stays owned as a hidden residue that is retried. Hovering a mount whose tracker entry is folded into its pair's paired activation highlights its own rider's existing entry under one owned lease, ended by its own pair's cleanup (never another pair's) and by every world boundary; its release is a bounded, weak cleanup obligation kept until each cleanup step has completed or native's own pass has recomputed the tracker |
 | T09 (new) | **Open investigation: retained evidence absent** | `Test-Finalize2UpgradeReaders.ps1` reads run r05's retained receipts from the lab's `runtime-evidence`, which this machine does not hold. It fails identically at the Sprint 6 base. Not a product failure; see "New independent findings" |
 
 ## Sprint-wide presentation boundary
@@ -380,7 +387,9 @@ checked directly), the mutant was fixed, and the whole campaign was rerun on the
   a retained cleanup obligation.*
 - **Ends:** every native hover pass; a tracker rebuild (`UpdateUnits` postfix validates the rows list, the entry, the pair's
   owner, generation, mounted and folded state); every pair cleanup the world raises (dismount, death, load, area
-  unload, disable, teardown); load start; area unload; world discard; disable; disposal.
+  unload, disable, teardown); load start; area unload; world discard; disable; disposal. *Corrected by R5 (review of
+  `89ace80f`): a pair cleanup ends the redirect only when it is the redirect's own pair; another pair's cleanup only
+  retries owed cleanup.*
 
 | Case (native pass executed under the product's real Harmony12 prefix and postfix) | `ee5c20dc` | `92310c52` |
 |---|---|---|
@@ -514,7 +523,8 @@ found two failure-containment defects. Both are corrected in `6ff46a2a`.
   list, so a rebuilt tracker's old entry is never touched and its new rows are never confused with it); or native's
   own completed hover pass on that same tracker has recomputed every row (the postfix observes completion).
 - **Retried at:** the next tracker hover prefix (before native's pass, which is never skipped), tracker rebuild
-  validation (`UpdateUnits` postfix), every pair cleanup (dismount, death, load, area, disable, teardown), load start,
+  validation (`UpdateUnits` postfix), every pair cleanup (dismount, death, load, area, disable, teardown; any pair's
+  cleanup retries owed obligations, only the owning pair's ends the live lease, R5), load start,
   area unload, world discard, disable and disposal.
 - **New redirects never overwrite unfinished cleanup.** The live lease and the unfinished records are separate; the
   records are bounded at four. On the same tracker, native's completed pass settles any record before the postfix may
@@ -621,6 +631,85 @@ frozen copy `review2/head-6ff46a2a/`. **32/32 caught.**
 | P30 | a failed badge destroy leaves an active badge untracked (the old `Reset`) | probe R2 case 12, its disposal check and R4 case 2 onward (17 failures) |
 | P31 | a failed partial badge creation leaves an active orphan (the old creation catch) | probe R4 cases 9 and 10 (5 failures) |
 | P32 | failed badge cleanup permanently consumes capacity (a settled residue is never pruned) | probe R2 case 7 and the R4 retry and capacity cases (18 failures) |
+
+## Review of 89ace80f: R5 (one pair's cleanup and another pair's hover redirect)
+
+The review accepted U01, U02, U03 for the character-screen class panel, U04's native hover and portrait seams, R3's
+bounded weak hover-cleanup obligations, R4's bounded weak badge-cleanup residues, P1–P32 as evidence for `6ff46a2a`,
+and T09 unchanged. It found one cross-pair defect, corrected in `e54009e9`.
+
+- **Defect (in `6ff46a2a`):** the world raises `PairDismounting(relationship, trigger)` once per pair, before that pair's
+  state changes. `HandlePairCleanup` ignored the relationship and released whichever redirect was live, so pair A's
+  dismount or death cleared pair B's tracker highlight while the pointer stayed on pair B's mount, with no hover
+  transition to re-apply it.
+- **Owning-pair predicate:** `MountedPairPresentationPolicy.CleanupOwnsRedirect(cleanupPair, redirectPair)` is true only
+  when both identities exist, the cleanup's pair owner is set, its rider and mount ids are non-empty, and the pair owner
+  id, mounted-pair generation, rider id and mount id are all equal (`MountedPairPresentationIdentity.Equals`, ordinal).
+  `cleanupPair` is read from the event's relationship exactly as `Facts()` reads every pair: `PairOwner`, `Rider` and
+  `Mount`, which must agree with the owner's own actors, and `MountedPairGeneration`; otherwise it is null. The
+  redirect's identity is the one the lease captured when it was taken. Nothing reads names, selection, tracker
+  position or the last active pair.
+- **Handler:** if a lease is live and the predicate holds, the lease becomes its retained cleanup obligation and settles
+  (R3, unchanged). Otherwise, for an unrelated pair, a mismatched generation or owner, or an identity that cannot be
+  read, the active lease and its visible redirect are untouched and only the obligations already owed are retried, without
+  reinterpreting their identities. An identity read that throws is reported once to a logger whose own failure is
+  contained; the handler never throws.
+- **Global boundaries stay global:** load start, area unload, world discard, disable and disposal still release the
+  active lease whatever its pair (`ReleaseAtWorldBoundary`, `Dispose`).
+- **Unchanged:** the cleanup bound (4), the badge, tracker order, selection, initiative, scheduler, relationship state
+  and the native hover pass.
+
+| Case (production adapter, native tracker objects, native hover pass under the real Harmony12 patches; logger throws throughout) | `6ff46a2a` | `e54009e9` |
+|---|---|---|
+| 1 pair B live; pair A manual dismount | **fails**: pair B's row, `HoveredUnit` and lease cleared | pair B's rider highlighted, `HoveredUnit` pair B's rider, lease live |
+| 2 pair B live; pair A death | **fails** | unchanged |
+| 8 two unrelated cleanups in succession (A, then a third pair) | **fails** | pair B active |
+| 7 a cleanup whose identity read throws (even naming pair B's owner) | **fails** (releases pair B) | pair B active; nothing escapes |
+| 5 the same actors under another mounted-pair generation | **fails** | cannot release the current lease |
+| 10 no hover event after the unrelated cleanups (and an unchanged tracker's validation) | **fails** | highlight remains; no release counted |
+| 6 pair A owes a failed cleanup while pair B is live; pair A's cleanup | **fails** (pair B released too) | A's residue retried and settled; pair B live |
+| 3 pair B's own manual dismount | passes | released; cleanup settles |
+| 4 pair B's own death | passes | released |
+| pair B's own cleanup with a failing false | passes | the lease becomes its retained obligation; an unrelated cleanup then settles it |
+| 9 load, area unload, world discard, disable, disposal | pass | each releases pair B |
+| 11, 12 R3 false-callback, setter-failure and capacity cases; healthy true/false, A-to-B, rebuild, independent mount | pass | pass (the R1, R3 and U04 sections unchanged) |
+
+`Test-MountedPresentationContracts.ps1` on the frozen `6ff46a2a` DLL (MVID `bd10f3e4…`): **232 pass, 7 fail**: exactly
+cases 1, 2, 5, 6, 7, 8 and 10 (log `review3/04-presentation-probe-reviewed-6ff46a2a.log`). On `e54009e9`: **239/0**
+(log `review3/02-presentation-probe-head-e54009e9.log`). Components gain one test of the predicate (owner, generation,
+rider, mount and unestablished identities): 1411/0.
+
+### Validation for `e54009e9` (budget `known-issues-sprint7`; logs `artifacts/known-issues-sprint7/review3/`)
+
+| Check | Result |
+|---|---|
+| Clean Release rebuild of `e54009e9` (`/m:1 /nodeReuse:false /p:UseSharedCompilation=false`) | PASS; identity above (log `05-clean-release-build.log`); byte-identical to the Fast tier's build; references unchanged |
+| Components | 1411/0, one new test of the owning-pair predicate (log `01-components.log`) |
+| `Validate-Source.ps1` | 151/0 (log `01b-validate-source.log`) |
+| `Test-MountedPresentationContracts.ps1` (native contracts, native hover pass under the product's real Harmony12 prefix and postfix, portrait seam bindings, R1-R5) | **239/0** on the frozen DLL (log `02-presentation-probe-head-e54009e9.log`) |
+| The same probe on the reviewed `6ff46a2a` | 232/7, the unrelated-pair cases (log `04-presentation-probe-reviewed-6ff46a2a.log`) |
+| `Test-Tiers.ps1 -Tier Fast -BudgetId known-issues-sprint7` (18 focused) | **PASS 21/0** (0.91 min; budget 4.63 of 90 min, 5 entries) (log `06-fast-tier.log`) |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` | 815/0 (log `07-assembly-contracts.log`) |
+| `Test-Harness.ps1` (turn-tracker projection pins and the wider harness) | 277 pass, 4 fail: the same four as at the Sprint 6 base (`review1/08b-harness-base-f835c503.log`); the tracker filter pins pass (log `08-harness.log`) |
+| Mutation campaign P1-P34 | **34/34 caught** (log `03-mutation-campaign.log`) |
+
+- **Neighbours inside the Fast tier:** paired activation (40 Harmony12 patch constructions), world ownership, persistence and load boundaries, post-load view readiness, command slot (action-bar controls), F3 economy readers (movement display), Sprint 8 Paladin readers (class-panel projection), marker ownership, native input, stall repair, Charge, ranged movement, continuous drive.
+- **Harmony12:** the hover prefix and postfix were constructed and executed on native `HandleHoverChange`; `UpdateCrippled`, `Initialize` and `UpdateSlotInternal` cannot be compiled detached (their postfix bindings are checked by name and type).
+- **Not run:** Full, Candidate, historical campaigns, release qualification, native gameplay, physical visual acceptance, resolution/input matrices, unrelated stale harnesses.
+
+
+### Mutation campaign P1–P34 (serial; log `review3/03-mutation-campaign.log`)
+
+Each mutant: one disposable `git worktree add --detach` of `e54009e9`, its own `MSBuild /t:Rebuild /p:Configuration=Release
+/m:1 /nodeReuse:false /p:UseSharedCompilation=false`, the components, then the presentation probe reading that DLL by
+path and printing its MVID; the worktree is removed before the next. All 41 anchors were checked to occur exactly once.
+The candidate DLL is the separate frozen copy `review3/head-e54009e9/`. **34/34 caught.**
+
+| ID | Mutation | Caught by |
+|---|---|---|
+| P1–P32 | as listed above, rerun on `e54009e9` | each caught again (P28 by R3 case 1; P29 by R3 case 2 onward, 20 failures; P30 by R2 case 12 and R4, 17; P31 by R4 cases 9 and 10, 5; P32 by R2 case 7 and the R4 retry and capacity cases, 18) |
+| P33 | an unrelated pair cleanup releases the current pair's active redirect (the old handler) | probe R5 cases 1, 2, 5, 6, 7, 8 and 10 (7 failures) |
+| P34 | the owning pair's cleanup fails to release its own redirect | probe R5 cases 3 and 4, the R1 dismount and death cases and the R3 cases released by the pair's own cleanup (14 failures) |
 
 ## Evidence kinds
 

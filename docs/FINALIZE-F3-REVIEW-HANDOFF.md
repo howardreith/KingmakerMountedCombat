@@ -140,6 +140,7 @@ Two of the owner-facing observations above are addressed offline by Sprint 7; th
   is one owned lease released before every native hover pass and at every boundary. The hover covers the mount's world
   hover; a party-portrait hover never reaches the tracker. Corrected again after the review of `e7720f39`: a badge
   whose removal fails is hidden and stays owned until a retry removes it, and the hover's cleanup is kept as an
-  obligation until it has actually completed.
+  obligation until it has actually completed. Corrected again after the review of `89ace80f`: another pair's dismount
+  or death never clears the hovered pair's highlight; only that pair's own cleanup or a world boundary ends it.
 
 Neither was viewed on screen or run natively; see [the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md).

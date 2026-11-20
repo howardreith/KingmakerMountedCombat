@@ -6,7 +6,8 @@ after review.
 
 - **State:** U01-U04 implemented and verified offline as presentation projections; U04's native delivery and
   lifecycle corrected after the review of `292cd23c` (`92310c52`) and its failure containment after the review of
-  `e7720f39` (`6ff46a2a`); T09 recorded. Fast PASS 21/0; mutations P1-P32 32/32 caught. Native NOT RUN; no screen viewed.
+  `e7720f39` (`6ff46a2a`), and its pair cleanup made exact after the review of `89ace80f` (`e54009e9`); T09 recorded.
+  Fast PASS 21/0; mutations P1-P34 34/34 caught. Native NOT RUN; no screen viewed.
 - **Rules:**
   - Presentation reads authority; it never writes gameplay state to make native UI show something.
   - U01 reads only `MountedMovementState.ForcedTravelRecorded` on the mount allocation whose grant is the live
@@ -26,6 +27,8 @@ after review.
   - Releasing the redirect is a cleanup obligation: its two steps run independently and it is kept (weak, bounded at
     four) until each completes, its target is gone or replaced, or native's completed pass recomputes that tracker.
     A new redirect never overwrites unfinished cleanup.
+  - A pair's cleanup ends the active redirect only when it is exactly the redirect's pair (owner, generation, rider,
+    mount); any other pair's cleanup only retries owed cleanup. World boundaries, disable and disposal release it always.
   - Presentation seams are contained and report a fault once per seam.
 - **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 8.
 
