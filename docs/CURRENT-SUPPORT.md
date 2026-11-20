@@ -11,14 +11,14 @@ dispositions are in the [current issue ledger](CURRENT-KNOWN-ISSUES.md). The epi
 
 ## Two builds to keep apart
 
-| | Released `v0.2.11` | Main after `v0.2.11` (unreleased) |
+| | Current release `v0.2.12` | Earlier releases (`v0.2.11` and before) |
 |---|---|---|
-| What | The current public release, tag `v0.2.11`, at historical release merge `7a5cd2c3` on 2026-11-15. The package was built from release-source commit `86ad9cc1`; the mounted-attack-stall repair was merged earlier at `22945394`. [Notes](RELEASE-NOTES-0.2.11.md). | The Known Issues Remediation Epic, PRs #45 to #53, merged into main on 2026-11-19 after `v0.2.11`. Unreleased and not release-qualified; no new version or package exists. |
-| Version label | 0.2.11; assembly version 0.1.0.0 | **Also 0.2.11**, assembly version 0.1.0.0: `Info.json`, `version.json` and `BuildIdentity.cs` were not changed. A build of main is a different binary from the release. |
+| What | Released 2026-11-19 by owner order, from the Known Issues Remediation Epic (PRs #45 to #53, merged into main as `446985b7`). Its package identity (zip and DLL SHA-256, MVID, release-source commit, tagged merge) is on its GitHub release. [Notes](RELEASE-NOTES-0.2.12.md). | `v0.2.11`: tag at historical release merge `7a5cd2c3` on 2026-11-15, built from release-source commit `86ad9cc1`; the mounted-attack-stall repair was merged earlier at `22945394`. [Notes](RELEASE-NOTES-0.2.11.md). |
+| Version label | 0.2.12; assembly version 0.1.0.0 | 0.2.0–0.2.11; assembly version 0.1.0.0. Development builds of main between `v0.2.11` and `v0.2.12` **also said 0.2.11** but are different binaries from the `v0.2.11` package. |
 | Native gameplay evidence | Not run in the game before release ([0.2.11 notes](RELEASE-NOTES-0.2.11.md)) | Not run for any known-issues sprint |
 
-Wherever this document says **main only**, the behaviour is on main after `v0.2.11` (merged from the Known Issues
-Remediation Epic) and in no release. Tell the
+Wherever this document says **since 0.2.12**, the behaviour is new in 0.2.12 (from the Known Issues Remediation
+Epic) and is not in 0.2.11 or earlier. Tell the
 two apart by the DLL's SHA-256 (the release package identity is on the GitHub release), never by the version label.
 
 ## Supported play
@@ -59,7 +59,7 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
   cost ([0.2.4](RELEASE-NOTES-0.2.4.md)).
 - World map: pairs travel across it and remount on arrival in the next area ([0.2.3](RELEASE-NOTES-0.2.3.md)).
   Capital and similar areas dismount companion pairs on arrival.
-- **Main only:** entrance and exit orders, the gamepad follower pass and group pace use the horse as the mover
+- **Since 0.2.12:** entrance and exit orders, the gamepad follower pass and group pace use the horse as the mover
   (M01–M03); a gamepad stick drives a mounted pair's mount (M05); extra destination markers from the entrance carry,
   scene regroup, door approach and cannot-attack click approach are removed (M04); a mounted party crosses the
   Candlemere Tower wade-through (C04).
@@ -82,7 +82,7 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
   rider charges; the mount pays its travel along a clear straight line; the game's Charge requirements apply.
 - **Rider falls:** a ridden mount that dies, collapses or falls prone throws its rider once (Mobility DC 15; failure
   1d6 and prone) ([0.2.0](RELEASE-NOTES-0.2.0.md)).
-- **Main only:** a same-target click after a finished attack is a fresh request with its own answer (A01); terminal
+- **Since 0.2.12:** a same-target click after a finished attack is a fresh request with its own answer (A01); terminal
   messages describe the actual end, so a Stop beside a dazed rider is no longer "cannot act" (A02).
 
 ### Real-time combat
@@ -90,7 +90,7 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 - A rider's attack order that the rider cannot carry out **waits natively** until the rider can act; the mount does not
   attack in the rider's place for that order. Native interrupts the attacks of a `CanNotAttack` actor. This is intended
   and unchanged ([0.2.11](RELEASE-NOTES-0.2.11.md), [Sprint 6 A04](KNOWN-ISSUES-SPRINT6-HANDOFF.md#a04--automatic-proposal-churn-established-corrected)).
-- **Main only:** with AI on, the party brain's automatic attack proposals for a rider that cannot attack are refused
+- **Since 0.2.12:** with AI on, the party brain's automatic attack proposals for a rider that cannot attack are refused
   instead of being admitted and interrupted every 0.3–0.4 s (A04); only a genuine approach failure marks an automatic
   target unreachable (A05).
 - The mounted ranged-movement penalty does not apply in real time.
@@ -102,7 +102,7 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
   finishing a charge ([0.2.5](RELEASE-NOTES-0.2.5.md)).
 - A pair waiting to remount (during an event, camp or world-map travel) is saved in the `kmc-retained-intent` member
   and restored after loading ([0.2.3](RELEASE-NOTES-0.2.3.md)).
-- **Main only:** after an area arrival whose views are not yet active (a world-map arrival), the pair waits unattached
+- **Since 0.2.12:** after an area arrival whose views are not yet active (a world-map arrival), the pair waits unattached
   and remounts once ordinary play has settled, instead of being dismounted (S02). Its arrival placement survives a save
   and load through retained-intent version 2 (see [Rollback](#rollback-and-downgrade)).
 - **Unresolved:** a saving failure reported after the Ratnook door in 0.2.4 has no established cause (S01). Diagnostics
@@ -129,11 +129,11 @@ Final accepted behaviour ([0.2.8 notes](RELEASE-NOTES-0.2.8.md), [Sprint 4](KNOW
   resumes. A hostile dialogue into combat enters the fight mounted.
 - Only a scene that actually moves, hides, teleports or animates the rider temporarily dismounts that one pair; the
   scene's placement stands and the pair remounts afterwards without a Mount action.
-- **Main only (C02):** a scene's rider-only placement of 3 m or less is honoured when it is attributable to the exact
+- **Since 0.2.12 (C02):** a scene's rider-only placement of 3 m or less is honoured when it is attributable to the exact
   scene operation. Before, it could leave the rider on the horse (a limit listed in the 0.2.8 notes). An action run by
   another handler inside a cutscene's open scope counts as the cutscene's.
 - **Safe limits kept (C03):** a pair still staged when combat starts fights unmounted and remounts after combat, with
-  one notice per custody and encounter (the notice is main only). Restore needs the rider within 2 m of the mount;
+  one notice per custody and encounter (the notice is since 0.2.12). Restore needs the rider within 2 m of the mount;
   regrouping walks the mount at most twice, 20 s of game time each, up to 30 m, in the same navigation area, out of
   combat only; a scene that keeps control for 60 s of settled play drops the pair with one message. Nothing teleports
   across a navigation boundary.
@@ -168,7 +168,7 @@ The final rule ([Sprint 5 R02](KNOWN-ISSUES-SPRINT5-HANDOFF.md#the-final-ranged-
   candidate is suppressed and the pair acts through one shared activation, so there is no separate-slot carried
   travel to count. Closed as not reproducible; no product change.
 
-### Presentation (main only, no screen viewed)
+### Presentation (since 0.2.12, no screen viewed)
 
 All four are projections of current state onto native UI. None changes an action, cost, grant, save, initiative or
 selection ([Sprint 7](KNOWN-ISSUES-SPRINT7-HANDOFF.md)). No screen was viewed and no physical input was used.
@@ -232,17 +232,17 @@ refuses if one remains.
 **Before any upgrade, back up** `%USERPROFILE%\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games`.
 Rollback means that pre-upgrade backup plus the matching older package and its dependencies
 ([0.2.0 notes](RELEASE-NOTES-0.2.0.md#upgrade-rollback-and-removal)). Match the older package by its recorded SHA-256
-(on its GitHub release), not by its version label: every release from 0.2.0 to 0.2.11, and every build of main, has
-assembly version 0.1.0.0, and builds of main after `v0.2.11` also say 0.2.11.
+(on its GitHub release), not by its version label: every release from 0.2.0 to 0.2.12 has assembly version
+0.1.0.0, and development builds of main between `v0.2.11` and `v0.2.12` also said 0.2.11.
 
 | Downgrade | What happens | Source |
 |---|---|---|
 | Any save with Mounted Archery, to 0.2.9 or earlier | Unsafe: the save needs 0.2.10 or later | [0.2.10 notes](RELEASE-NOTES-0.2.10.md) |
 | Any save with other KMC content, to a build without it (or to no KMC) | Unsafe and untested | [Removal](#which-campaigns-need-kmc) |
-| A save written by a build of main after `v0.2.11` holding a pair deferred at arrival (`KMC-RETAINED-INTENT 2`), to released 0.2.3–0.2.11 | The older reader refuses the version 2 text by its header; every pair in it loads dismounted. Nothing else in the save is affected by this member. | `MountedRetainedIntentRecord`; [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md) |
+| A save written by 0.2.12 (or a development build of main after `v0.2.11`) holding a pair deferred at arrival (`KMC-RETAINED-INTENT 2`), to released 0.2.3–0.2.11 | The older reader refuses the version 2 text by its header; every pair in it loads dismounted. Nothing else in the save is affected by this member. | `MountedRetainedIntentRecord`; [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md) |
 | A save holding retained intent (any version), to 0.2.0–0.2.2 | The member is ignored; the waiting pair loads dismounted | [0.2.3 notes](RELEASE-NOTES-0.2.3.md) |
 | A save written by 0.2.0 or later (schema 3), to a build before Chunk 7 (preview.211 or earlier) | Not supported. Such a reader classifies schema 3 as future data and restores no pair | [0.2.0 notes](RELEASE-NOTES-0.2.0.md), [Chunk 7 guide](CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md) |
-| Between 0.2.0 and 0.2.11 otherwise | The `kmc-mounted-state` format is unchanged across these releases | Each release's notes |
+| Between 0.2.0 and 0.2.12 otherwise | The `kmc-mounted-state` format is unchanged across these releases | Each release's notes |
 
 A current reader that meets a newer `kmc-mounted-state` schema reports "Mounted metadata uses an unsupported schema;
 original data is preserved." and restores no pair from it (`MountedArchiveCodec`).
@@ -253,7 +253,7 @@ The same set as the [ledger](CURRENT-KNOWN-ISSUES.md#every-id):
 
 - **S01:** the saving failure reported after the Ratnook door in 0.2.4; cause not established.
 - **M04's original incident:** the reported extra green marker is not attributable, though every identified marker
-  defect is repaired (main only).
+  defect is repaired (since 0.2.12).
 - **C01:** in-combat scripted movement of a seated rider, an unsupported path (see
   [Cutscenes](#cutscenes-dialogues-and-scene-staging)).
 - **T04–T08:** stale developer test harnesses (open correction). **T09:** a harness that needs retained native

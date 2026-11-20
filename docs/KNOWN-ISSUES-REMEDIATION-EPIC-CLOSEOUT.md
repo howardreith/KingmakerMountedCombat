@@ -7,9 +7,9 @@ revised 2026-11-16), written by Sprint 8 (D01–D03). This record also serves as
   each sprint handoff instead of repeating their detail.
 - **Current support, removal and rollback contract:** [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
 - **Native gameplay:** not run by any known-issues sprint. No Sprint 7 screen was viewed.
-- **Release:** nothing in this epic is released. PRs #45–#52 were merged into main on 2026-11-19 and PR #53 carries
-  this record; main is unreleased and not release-qualified. The latest release is still `v0.2.11` (historical
-  release merge `7a5cd2c3`).
+- **Release:** the epic was merged into main on 2026-11-19 (PRs #45–#53) and then **released as 0.2.12** the same day
+  by owner order ([notes](RELEASE-NOTES-0.2.12.md); package identity on the GitHub release). The previous release,
+  `v0.2.11`, stays at its historical release merge `7a5cd2c3`. The release was not native-qualified.
 
 ## Identity
 
@@ -21,8 +21,8 @@ revised 2026-11-16), written by Sprint 8 (D01–D03). This record also serves as
 - **Sprint 8 branch:** `codex/kmc-known-issues-sprint8`, worktree `worktrees/known-issues-sprint8` in the lab, PR
   [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53), first targeting `codex/kmc-known-issues-sprint7`,
   retargeted to `main` after #52 merged. Product source unchanged.
-- **Version:** every branch, and main after integration, still declares 0.2.11, assembly version 0.1.0.0. A build of
-  any sprint or of main is a different binary from the released `v0.2.11` package.
+- **Version:** every sprint branch, and main after integration, declared 0.2.11 (assembly version 0.1.0.0) and built a
+  different binary from the `v0.2.11` package; release 0.2.12 changed the version label to 0.2.12.
 
 | Sprint | Packages | PR | Branch | Original target | Accepted head | Product-build commit | Product DLL (clean Release) | Kind | Merge into main |
 |---|---|---|---|---|---|---|---|---|---|
@@ -116,8 +116,8 @@ Review-discovered defects that became part of an accepted correction are listed 
 - **Migration:** none added. No uninstall migration, no save stripping.
 - **Loader and game:** engine 2.1.7b, Kingmaker assembly MVID `07fa1e4d…` checked by the assembly contracts (815/0 at
   Sprint 7). UMM API compatible offline with genuine 0.33.0 and 0.33.2; declared minimum 0.28.2 unassessed.
-- **Downgrade:** see [Rollback and downgrade](CURRENT-SUPPORT.md#rollback-and-downgrade). Because every build of main since `v0.2.11`
-  says 0.2.11, a downgrade must be matched by DLL hash, not by version.
+- **Downgrade:** see [Rollback and downgrade](CURRENT-SUPPORT.md#rollback-and-downgrade). Because development builds between `v0.2.11`
+  and `v0.2.12` said 0.2.11, a downgrade must be matched by DLL hash, not by version.
 - **Integration:** see [Integration into main](#integration-into-main-completed-2026-11-19). Merged is not released.
 
 ## Validation summary
@@ -265,9 +265,13 @@ commitment.
 - **Excluded:** the manual/native acceptance list and the feature expansions above.
 
 The epic has completed its scheduled engineering pass. It has not fixed every reported defect: S01 and M04's original
-incident remain unresolved. Nothing here is released or release-ready: the repository's release workflow (owner order,
+incident remain unresolved. At closeout, nothing was released or release-ready: the repository's release workflow (owner order,
 version change, package build and validation, release notes) was not started, and no native acceptance exists for
-the merged epic. Main is merged but unreleased.
+the merged epic.
+
+**Release 0.2.12 (added 2026-11-19).** After the integration the owner ordered a release. 0.2.12 ships the merged
+epic with the version label changed and nothing else; it was not run in the game and no release-qualification
+campaign was run. See [the release notes](RELEASE-NOTES-0.2.12.md) and the GitHub release for its identity.
 
 ## Sprint 8 scope record
 

@@ -4,7 +4,8 @@ A Unity Mod Manager (UMM) mod for Pathfinder: Kingmaker (engine build 2.1.7b) th
 companion: a Horse or Riding Dog added by the mod, or a supported stock Mammoth. Rider and mount keep their own actions,
 health and defenses. No other mod is required.
 
-Release notes: [0.2.11](docs/RELEASE-NOTES-0.2.11.md) (current), [0.2.10](docs/RELEASE-NOTES-0.2.10.md),
+Release notes: [0.2.12](docs/RELEASE-NOTES-0.2.12.md) (current), [0.2.11](docs/RELEASE-NOTES-0.2.11.md),
+[0.2.10](docs/RELEASE-NOTES-0.2.10.md),
 [0.2.9](docs/RELEASE-NOTES-0.2.9.md), [0.2.8](docs/RELEASE-NOTES-0.2.8.md), [0.2.7](docs/RELEASE-NOTES-0.2.7.md),
 [0.2.6](docs/RELEASE-NOTES-0.2.6.md), [0.2.5](docs/RELEASE-NOTES-0.2.5.md), [0.2.4](docs/RELEASE-NOTES-0.2.4.md),
 [0.2.3](docs/RELEASE-NOTES-0.2.3.md), [0.2.2](docs/RELEASE-NOTES-0.2.2.md), [0.2.0](docs/RELEASE-NOTES-0.2.0.md)
@@ -12,12 +13,12 @@ and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 
 ## Current status
 
-- **Release:** 0.2.11 is the current release.
+- **Release:** 0.2.12 is the current release.
 - **What is supported, the retained limits, removal and rollback:** [docs/CURRENT-SUPPORT.md](docs/CURRENT-SUPPORT.md).
   It replaces the 0.2.0 notes' known-limits list for current status.
 - **Known issues:** [docs/CURRENT-KNOWN-ISSUES.md](docs/CURRENT-KNOWN-ISSUES.md), one current disposition per issue.
-  The Known Issues Remediation Epic's corrections are merged into main (pull requests #45 to #53) but are not in any
-  release: 0.2.11 does not contain them, no new version exists, and none was run in the game. Its final accounting:
+  The Known Issues Remediation Epic's corrections are released in 0.2.12 (not in 0.2.11 or earlier); none was run in
+  the game before release. Its final accounting:
   [docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md).
 - **Still open:** a saving failure reported after the Ratnook door in 0.2.4 has no established cause; the original
   extra-green-marker report is not attributed; a scripted scene that moves a seated rider during combat waits for the

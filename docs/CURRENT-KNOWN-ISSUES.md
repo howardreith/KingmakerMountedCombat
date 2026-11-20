@@ -7,9 +7,8 @@ Current material comes first; the detail and the reconciliation history follow i
 - **Last updated:** 2026-11-19, Sprint 8 (D01–D03): every ID reconciled to one current disposition; the epic is closed
   out in [KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md); the support, removal
   and rollback contract is [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
-- **Released versus main:** the latest release is still `v0.2.11` (historical release merge `7a5cd2c3`). Every
-  correction in this ledger is **merged into main but unreleased** (PRs #45–#53, integrated 2026-11-19); none is in
-  any release. The four shipped fixes the epic inherited are listed
+- **Released:** every correction in this ledger is **released in 0.2.12** (2026-11-19, [notes](RELEASE-NOTES-0.2.12.md)),
+  after PRs #45–#53 were merged into main; 0.2.11 and earlier releases do not contain them. The four shipped fixes the epic inherited are listed
   under [Superseded by an identified fix](#superseded-by-an-identified-fix-carried-forward).
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 8, and no Sprint 7
   screen was viewed. "Implemented and verified offline" never means a player scenario passed.
@@ -37,7 +36,7 @@ Current material comes first; the detail and the reconciliation history follow i
 | Sprint 8 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | the final head of #53 | none (documentation only) | lands after #52 |
 
 Merged into main in that order on 2026-11-19 with ordinary merge commits, each merged tree equal to the accepted
-head; #53 carries this documentation and lands last. Merged is not released. DLL identities and the integration
+head; #53 carries this documentation and lands last. Released in 0.2.12. DLL identities and the integration
 record are in the [epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md#baseline-and-stack).
 
 ### Closure categories

@@ -1,4 +1,21 @@
-# Known issues remediation — merged into main, unreleased (2026-11-19)
+# Release 0.2.12 (owner order, 2026-11-19)
+
+Release 0.2.12 ships the merged Known Issues Remediation Epic (PRs #45–#53). Read CURRENT.md (its first section),
+docs/RELEASE-NOTES-0.2.12.md, docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md, docs/CURRENT-KNOWN-ISSUES.md and
+docs/CURRENT-SUPPORT.md.
+
+- **State:** 0.2.12 is the current release. Every ID has one disposition. Unresolved: S01, M04's original incident,
+  C01, T04–T08, T09. Native NOT RUN before release. No further sprint is planned by the epic.
+- **Rules:**
+  - The ledger's "Current status" section is canonical. A later change updates its row there first, then its sprint
+    section; dated handoffs and release notes are not rewritten.
+  - Never call an offline result native-verified or an unresolved report fixed.
+  - A release's identity is its tag, tagged merge and recorded package hashes, never its version label alone.
+  - Support, removal and rollback statements live in docs/CURRENT-SUPPORT.md and cite source, a handoff or a release
+    note. Never infer rollback safety from the version label: every release since 0.2.0 has assembly version 0.1.0.0.
+- **Not authorized:** install, staging, loader replacement, reviewer request or a further sprint.
+
+# Known issues remediation — merged into main, before release 0.2.12 (2026-11-19, history)
 
 The accepted stack #45–#52 is merged into main (ordinary merge commits, in order); PR #53 (Sprint 8's documentation and
 closeout) lands after it. Read CURRENT.md (its first section), docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md,
