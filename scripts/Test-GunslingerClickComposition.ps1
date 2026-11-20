@@ -235,6 +235,25 @@ public static class KmcGunslingerProbe
         if (i.operand is Label) return i.opcode + " label";
         return i.opcode + (i.operand == null ? "" : " " + i.operand);
     }
+    // A listing that also carries branch wiring and exception blocks: every label is numbered by first appearance (as an
+    // instruction's label or as an operand), so two listings are equal only when every branch reaches the same place.
+    static List<string> Canonical(IEnumerable<HarmonyLib.CodeInstruction> code)
+    {
+        var numbers = new Dictionary<Label, int>();
+        Func<Label, string> number = l => { int n; if (!numbers.TryGetValue(l, out n)) numbers[l] = n = numbers.Count; return "L" + n; };
+        var lines = new List<string>();
+        foreach (var i in code)
+        {
+            var name = i.opcode.Name; if (name.EndsWith(".s")) name = name.Substring(0, name.Length - 2);
+            var text = string.Join("", i.labels.Select(l => number(l) + ": ").ToArray()) +
+                string.Join("", i.blocks.Select(b => "[" + b.blockType + "] ").ToArray()) + name;
+            if (i.operand is Label) text += " " + number((Label)i.operand);
+            else if (i.operand is Label[]) text += " " + string.Join(",", ((Label[])i.operand).Select(number).ToArray());
+            else { var shown = Show(i); text += shown.Substring(i.opcode.Name.Length); }
+            lines.Add(text);
+        }
+        return lines;
+    }
     static bool IsCall(HarmonyLib.CodeInstruction i, string type, string name)
     { var m = i.operand as MethodBase; return m != null && m.Name == name && m.DeclaringType.FullName == type; }
     static int Count(List<HarmonyLib.CodeInstruction> code, string type, string name) { return code.Count(i => IsCall(i, type, name)); }
@@ -392,15 +411,25 @@ public static class KmcGunslingerProbe
             Check("COMPOSITION Mounted Combat alone: registers through PatchUnitClick; the click command's one native Run is guarded by the router and kept; the loot and interact Runs are unchanged; nothing else changes",
                 () => {
                     var site = composed(M) ? FindSite(M.Composed) : null;
-                    // Harmony writes every branch in long form when it emits a transpiled method; compare forms, not encodings.
-                    Func<HarmonyLib.CodeInstruction, string> norm = i => { var t = Show(i); var n = i.opcode.Name; return n.EndsWith(".s") ? n.Substring(0, n.Length - 2) + t.Substring(n.Length) : t; };
-                    var originalShown = original.Select(norm).ToList(); var shown = M.Composed.Select(norm).ToList();
-                    var unchanged = site != null && originalShown.Take(site.Start).SequenceEqual(shown.Take(site.Start)) &&
-                        originalShown.Skip(site.Start).Take(2).SequenceEqual(new[] { shown[site.Start + 4], shown[site.Start + 5] }) &&
-                        originalShown.Skip(site.Start + 2).SequenceEqual(shown.Skip(site.Join + 1));
-                    if (site != null && !unchanged)
-                        for (var i = 0; i < originalShown.Count; i++) { var j = i < site.Start ? i : i < site.Start + 2 ? i + 4 : i + 7;
-                            if (j >= shown.Count || originalShown[i] != shown[j]) { Console.WriteLine("INFO first difference: original " + i + " " + originalShown[i] + " / composed " + j + " " + (j < shown.Count ? shown[j] : "-")); break; } }
+                    // Remove the seven guard instructions, give the guard's labels back to the load, and the rest must equal the
+                    // original exactly, branch wiring and exception blocks included (Harmony writes branches in long form,
+                    // so forms are compared, not encodings).
+                    var unchanged = false;
+                    if (site != null)
+                    {
+                        var stripped = new List<HarmonyLib.CodeInstruction>();
+                        for (var i = 0; i < M.Composed.Count; i++)
+                        {
+                            if (i == site.Start || i == site.Start + 1 || i == site.Router || i == site.Router + 1 || i > site.TailEnd && i <= site.Join) continue;
+                            var copy = new HarmonyLib.CodeInstruction(M.Composed[i].opcode, M.Composed[i].operand); // Clone() drops labels and blocks
+                            copy.labels.AddRange(M.Composed[i].labels); copy.blocks.AddRange(M.Composed[i].blocks);
+                            if (i == site.TailStart) copy.labels.AddRange(M.Composed[site.Start].labels);
+                            stripped.Add(copy);
+                        }
+                        var a1 = Canonical(original); var a2 = Canonical(stripped);
+                        unchanged = a1.SequenceEqual(a2);
+                        if (!unchanged) for (var i = 0; i < Math.Min(a1.Count, a2.Count); i++) if (a1[i] != a2[i]) { Console.WriteLine("INFO first difference at " + i + ": [" + a1[i] + "] (" + a1[i].Length + ", " + original[i].operand.GetType().Name + ") / [" + a2[i] + "] (" + a2[i].Length + ", " + stripped[i].operand.GetType().Name + ")"); break; }
+                    }
                     return Every("M", M.Mounted == "registered", M.Owners.SequenceEqual(new[] { MountedOwner }), site != null,
                         site != null && site.TailEnd == site.TailStart + 1 && IsCall(M.Composed[site.TailEnd], NativeCommands, "Run"),
                         Count(M.Composed, NativeCommands, "Run") == 3, unchanged, M.Composed.Count == original.Count + 7);
@@ -421,7 +450,7 @@ public static class KmcGunslingerProbe
                 () => {
                     var chain = MG.Transpilers.OrderByDescending(p => p.priority).ThenBy(p => p.index).Select(p => p.owner).ToArray();
                     return Every("MG", MG.Mounted == "registered", MG.Other == "registered", chain.SequenceEqual(new[] { MountedOwner, OtherOwner }),
-                        composed(MG) && FindSite(MG.Composed) != null, composed(MG) && composed(GM) && MG.Composed.Select(Show).SequenceEqual(GM.Composed.Select(Show)));
+                        composed(MG) && FindSite(MG.Composed) != null, composed(MG) && composed(GM) && Canonical(MG.Composed).SequenceEqual(Canonical(GM.Composed)));
                 });
             Check("COMPOSITION each registration builds the replacement through HarmonyLib (the detour into the live original is the only step skipped, once per build)",
                 () => KmcGunslingerBoundary.DetoursSkipped >= 6);
@@ -451,9 +480,10 @@ public static class KmcGunslingerProbe
                     probes.Patch(methods.GetMethod("GroundCommandPostfix", All), new Harmony12.HarmonyMethod(typeof(KmcGunslingerBoundary).GetMethod("AdmissionCompleted")), null, null);
                     productLog = new KmcGunslingerLog(product.GetType("KingmakerMountedCombat.Logging.IModLogger", true));
                     bridge.GetField("Logger", All).SetValue(null, productLog.GetTransparentProxy());
-                    var both = EmitSlice(siteGM); var alone = EmitSlice(siteM);
+                    var both = EmitSlice(siteGM); var alone = EmitSlice(siteM); var reverse = EmitSlice(FindSite(MG.Composed));
                     Action<UnitEntityData, UnitCommand, object> combined = (unit, command, invocation) => both.DynamicInvoke(unit.Commands, command, invocation);
                     Action<UnitEntityData, UnitCommand> mountedOnly = (unit, command) => alone.DynamicInvoke(unit.Commands, command, null);
+                    Action<UnitEntityData, UnitCommand, object> reverseOrder = (unit, command, invocation) => reverse.DynamicInvoke(unit.Commands, command, invocation);
                     var a = NewPair("Mounted", 7); var b = NewPair("Mounted", 9); var resting = NewPair("Unmounted", 3); var stranger = Unit();
 
                     Check("EXECUTED both mods, mounted cannot-attack approach: the rider's original UnitMoveTo is run once by its own pair's mount; the other mod's Submit is skipped; no second submission; the admission completes once; nothing is recorded on the invocation",
@@ -467,6 +497,11 @@ public static class KmcGunslingerProbe
                     Check("EXECUTED Mounted Combat alone, mounted cannot-attack approach: the same command is run once by the mount and the native Run is skipped",
                         () => { Reset(); InstallWorld(a, b); var move = Move(); mountedOnly(a.Rider, move); var log = KmcGunslingerBoundary.Log;
                             return Every("E3", log.Count == 1, log.Count == 1 && ReferenceEquals(log[0].Container, a.Mount.Commands) && ReferenceEquals(log[0].Command, move), !Faulted()); });
+                    Check("EXECUTED Mounted Combat registered first (the reverse chain's own composed slice): the mounted approach goes to the mount once with no Submit; an unmounted unit's UnitMoveTo reaches the other mod's Submit and one native run",
+                        () => { Reset(); InstallWorld(a, resting); var move = Move(); reverseOrder(a.Rider, move, NewInvocation(false)); var routedLog = KmcGunslingerBoundary.Log.ToList();
+                            var routedOk = routedLog.Count == 1 && ReferenceEquals(routedLog[0].Container, a.Mount.Commands) && ReferenceEquals(routedLog[0].Command, move) && !Faulted();
+                            Reset(); InstallWorld(a, resting); var invocation = NewInvocation(false); var restingMove = Move(); reverseOrder(resting.Rider, restingMove, invocation); var log = KmcGunslingerBoundary.Log;
+                            return Every("E3r", routedOk, log.Count == 2 && log[0].Via == "Submit" && ReferenceEquals(log[0].Invocation, invocation) && ReferenceEquals(log[1].Container, resting.Rider.Commands), !Faulted()); });
                     foreach (var unmounted in new[] { "unmounted pair", "unit outside every pair", "no mounted world" })
                     {
                         var label = unmounted;

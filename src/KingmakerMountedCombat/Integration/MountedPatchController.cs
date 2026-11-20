@@ -486,7 +486,8 @@ namespace KingmakerMountedCombat.Integration
                 var cause = error;
                 while (cause is TargetInvocationException && cause.InnerException != null) cause = cause.InnerException;
                 throw new InvalidOperationException("Harmony could not patch " + type.FullName + "." + name + " (token " + expectedToken.ToString("X8") +
-                    ", " + HarmonyId + " " + (transpilerName ?? prefixName ?? postfixName) + "): " + cause.Message + " Patches already on the method: " +
+                    ", " + HarmonyId + " prefix " + (prefixName ?? "none") + ", postfix " + (postfixName ?? "none") + ", transpiler " + (transpilerName ?? "none") +
+                    "): " + cause.Message + " Patches already on the method: " +
                     DescribePatches(original) + ".", error);
             }
         }
