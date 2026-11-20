@@ -155,5 +155,12 @@ namespace KingmakerMountedCombat.Domain
             }
             return index;
         }
+
+        // Review of 89ace80f (R5): a pair's cleanup ends the active hover redirect only when it is exactly the pair the
+        // redirect was taken for: the same pair owner, mounted-pair generation, rider and mount. An unestablished identity
+        // (null, or an owner that is not set) ends nothing.
+        public static bool CleanupOwnsRedirect(MountedPairPresentationIdentity cleanupPair, MountedPairPresentationIdentity redirectPair) =>
+            cleanupPair != null && redirectPair != null && cleanupPair.Owner != Guid.Empty &&
+            !string.IsNullOrEmpty(cleanupPair.RiderId) && !string.IsNullOrEmpty(cleanupPair.MountId) && cleanupPair.Equals(redirectPair);
     }
 }

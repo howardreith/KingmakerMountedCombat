@@ -1117,6 +1117,85 @@ public static class MountedPresentationProbe {
   finally{failBuild=failNewDestroy=failCreate=false;NewPresentation();}
  }
 
+ // ---- R5: one pair's cleanup never ends another pair's active hover redirect -------------------------------------
+ static void RaiseCleanupOf(object relationship,object trigger){
+  var handler=Field(world.GetType(),"PairDismounting").GetValue(world) as Delegate;
+  if(handler!=null)handler.DynamicInvoke(relationship,trigger);
+ }
+ static bool PairLive(object t,Pair p){return Lit(t)==Id(p.Rider)&&Hovered(t)==EntryOf(t,p.Rider)&&Lease()&&LeaseMount()==Id(p.Mount);}
+ static int Releases(){var v=Prop(presentation,"HoverReleaseCount");return v==null?-1:(int)v;}
+ static void ProbeCrossPairCleanup(){
+  FreshPairs();var a=pa;var b=pb;NewPresentation();EntryPatches();failRows.Clear();failHoveredClear=false;
+  var badLogger=new Recorder(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true));badLogger.Throws=true;
+  Set(presentation,"logger",badLogger.GetTransparentProxy());
+  var oldLogger=Get(null,patchBridge,"Logger");SetStatic(patchBridge,"Logger",badLogger.GetTransparentProxy());
+  try{
+   var triggers=mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+   var manual=Enum.Parse(triggers,"Manual");var death=Enum.Parse(triggers,"Death");
+   var t=Tracker(Unit("enemy"),a.Rider,b.Rider);Exception thrown;
+   Action ensureB=()=>NativeHover(t,b.Mount,true);
+   // Setup: pair B's folded mount is hovered and KMC owns a live redirect to pair B's rider.
+   ensureB();var releases=Releases();
+   Case(PairLive(t,b),"R5 setup: pair B's folded mount hover owns a live redirect to pair B's exact rider entry");
+   // 1, 2. Unrelated pair A's manual dismount and death.
+   thrown=Try(()=>RaiseDismounting(a,manual));
+   Case(thrown==null&&PairLive(t,b)&&!IsHover(EntryOf(t,a.Rider)),
+    "R5 case 1: pair A's manual dismount leaves pair B's rider highlighted, HoveredUnit on pair B's rider and pair B's lease live");
+   thrown=Try(()=>RaiseDismounting(a,death));
+   Case(thrown==null&&PairLive(t,b),"R5 case 2: pair A's death leaves pair B unchanged");
+   // 8. Two unrelated cleanups in succession (pair A, then a third pair C).
+   var c=NewPair("r5c",3,Mounted());
+   thrown=Try(()=>{RaiseDismounting(a,manual);RaiseDismounting(c,death);});
+   Case(thrown==null&&PairLive(t,b),"R5 case 8: two unrelated pair cleanups in succession leave pair B active");
+   // 7. A cleanup whose pair identity cannot be read (its rider read throws), with a throwing logger.
+   var broken=Blank(mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true));
+   Set(broken,"<PairOwner>k__BackingField",b.Owner);
+   thrown=Try(()=>RaiseCleanupOf(broken,manual));
+   Case(thrown==null&&PairLive(t,b),
+    "R5 case 7: a cleanup whose identity read throws (even one naming pair B's owner) with a throwing logger leaves pair B active; nothing escapes");
+   // 5. The same actors under another mounted-pair generation.
+   Set(b.Relationship,"mountedPairGeneration",7L);
+   thrown=Try(()=>RaiseDismounting(b,manual));
+   Set(b.Relationship,"mountedPairGeneration",6L);
+   Case(thrown==null&&PairLive(t,b),"R5 case 5: the same actors under another mounted-pair generation cannot release the current lease");
+   // 10. No hover event since the setup: the highlight never depended on a later pointer transition.
+   thrown=Try(Validate);
+   Case(thrown==null&&PairLive(t,b)&&Releases()==releases,
+    "R5 case 10: with no further hover event pair B's highlight remains and nothing was released (an unchanged tracker's validation keeps it too)");
+   // 6. Pair A owes a failed cleanup while pair B's redirect is live.
+   NativeHover(t,b.Mount,false);
+   var tA=Tracker(a.Rider);NativeHover(tA,a.Mount,true);var aEntry=EntryOf(tA,a.Rider);ArmRow(aEntry);RaiseDismounting(a,manual);
+   ensureB();
+   Case(Pending()==1&&IsHover(aEntry)&&PairLive(t,b),"R5 case 6 setup: pair A's failed cleanup is owed while pair B's redirect is live");
+   failRows.Clear();thrown=Try(()=>RaiseDismounting(a,death));
+   Case(thrown==null&&Pending()<=0&&!IsHover(aEntry)&&PairLive(t,b),
+    "R5 case 6: pair A's cleanup retries and settles A's own residue; pair B's redirect stays live");
+   // 3, 4. Pair B's own cleanup releases its redirect.
+   ensureB();thrown=Try(()=>RaiseDismounting(b,manual));
+   Case(thrown==null&&!Lease()&&Lit(t)==""&&Hovered(t)==null&&Pending()<=0,"R5 case 3: pair B's own manual dismount releases its redirect and the cleanup settles");
+   ensureB();thrown=Try(()=>RaiseDismounting(b,death));
+   Case(thrown==null&&!Lease()&&Lit(t)==""&&Hovered(t)==null&&Pending()<=0,"R5 case 4: pair B's own death releases its redirect");
+   // The owning pair's cleanup with a failing false: the lease becomes its retained obligation (R3), which any cleanup retries.
+   ensureB();ArmRow(EntryOf(t,b.Rider));thrown=Try(()=>RaiseDismounting(b,manual));
+   Case(thrown==null&&!Lease()&&Pending()==1&&IsHover(EntryOf(t,b.Rider)),
+    "R5: pair B's own cleanup with a failing false converts its lease into the retained cleanup obligation");
+   failRows.Clear();thrown=Try(()=>RaiseDismounting(a,manual));
+   Case(thrown==null&&Pending()<=0&&Lit(t)=="","R5: an unrelated pair's cleanup then retries and settles that obligation");
+   // 9. Global boundaries release pair B whatever its pair.
+   foreach(var boundary in new[]{"load","area-unloading","world-discarded"}){
+    ensureB();thrown=Try(()=>Boundary(boundary));
+    Case(thrown==null&&!Lease()&&Lit(t)=="","R5 case 9: "+boundary+" is global and releases pair B");
+   }
+   ensureB();SetEnabled(false);thrown=Try(()=>Boundary("disabled"));
+   Case(thrown==null&&!Lease()&&Lit(t)=="","R5 case 9: disable is global and releases pair B");
+   SetEnabled(true);ensureB();thrown=Try(()=>Call(presentation,"Dispose"));
+   Case(thrown==null&&!Lease()&&Lit(t)=="","R5 case 9: disposal is global and releases pair B");
+   Case(new[]{"TrackerMountFilterCount","RedundantMountTurnSkipCount"}.All(n=>Prop(b.Participant,n)==null||Convert.ToInt64(Prop(b.Participant,n))==0),
+    "R5: no cleanup changed tracker filtering or scheduling counters");
+  }
+  finally{failRows.Clear();failHoveredClear=false;SetStatic(patchBridge,"Logger",oldLogger);NewPresentation();}
+ }
+
  // ---- R1/R2: the installed native hover and portrait contracts -----------------------------------------------------
  static List<string> ReferencesTo(MethodBase target){
   var found=new List<string>();Type[] all;
@@ -1246,6 +1325,7 @@ public static class MountedPresentationProbe {
    Section("R2 mounted badge lifecycle",ProbeBadgeLifecycle);
    Section("R3 hover cleanup custody",ProbeHoverCustody);
    Section("R4 badge cleanup residues",ProbeBadgeCustody);
+   Section("R5 one pair's cleanup and another pair's hover redirect",ProbeCrossPairCleanup);
    Section("Sprint 7 seam registration",ProbeRegistration);
   }
   finally{harmony.GetType().GetMethod("UnpatchAll",new[]{typeof(string)}).Invoke(harmony,new object[]{"KingmakerMountedCombat.PresentationProbe"});}

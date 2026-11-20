@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("U04 the badge belongs to the exact rider of one live mounted relationship", BadgeIsExact);
             runner.Run("U04 a folded mount's hover highlights only its own rider's existing entry", FoldedHoverIsExact);
             runner.Run("U04 an independent mount and native-found hovers stay native", IndependentMountStaysNative);
+            runner.Run("U04 only the exact owning pair's cleanup ends the active hover redirect", CleanupOwnsOnlyItsRedirect);
         }
 
         private static void ChargeTravelClosesDisplay()
@@ -196,6 +197,29 @@ namespace KingmakerMountedCombat.Tests
                 "A mount with its own entry is never redirected.");
             TestRunner.Equal(-1, MountedPairPresentationPolicy.FoldedMountHoverEntry("mountA", true, TwoPairs(), new List<string> { "riderA" }),
                 "A hover native resolved stays native.");
+        }
+
+        private static void CleanupOwnsOnlyItsRedirect()
+        {
+            var owner = Guid.NewGuid();
+            var redirect = new MountedPairPresentationIdentity(owner, 6, "riderB", "mountB");
+            TestRunner.True(MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(owner, 6, "riderB", "mountB"), redirect),
+                "The exact owning pair's cleanup ends its redirect.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(Guid.NewGuid(), 1, "riderA", "mountA"), redirect),
+                "An unrelated pair's cleanup ends nothing.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(owner, 7, "riderB", "mountB"), redirect),
+                "The same actors under another generation end nothing.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(Guid.NewGuid(), 6, "riderB", "mountB"), redirect),
+                "The same actors under another owner end nothing.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(owner, 6, "riderB", "mountA"), redirect),
+                "Another mount ends nothing.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(owner, 6, "riderA", "mountB"), redirect),
+                "Another rider ends nothing.");
+            TestRunner.True(!MountedPairPresentationPolicy.CleanupOwnsRedirect(null, redirect) &&
+                !MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(Guid.Empty, 6, "riderB", "mountB"),
+                    new MountedPairPresentationIdentity(Guid.Empty, 6, "riderB", "mountB")) &&
+                !MountedPairPresentationPolicy.CleanupOwnsRedirect(new MountedPairPresentationIdentity(owner, 6, "riderB", "mountB"), null),
+                "An unestablished identity ends nothing.");
         }
     }
 }

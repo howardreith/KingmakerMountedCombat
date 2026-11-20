@@ -28,6 +28,11 @@ namespace KingmakerMountedCombat.Integration
     // rows list) are attempted independently, and the obligation is kept (weakly, bounded) until each has completed, its
     // target is gone or replaced, or native's own completed hover pass on that tracker has recomputed every row. (R4): a
     // badge whose removal fails stays owned as a hidden cleanup residue under the same bound, and is retried.
+    //
+    // Review of 89ace80f (R5): a pair's cleanup event ends the active redirect only when that relationship is exactly the
+    // pair the redirect was taken for (owner, generation, rider, mount, read from the relationship as Facts() reads it). Any
+    // other pair's cleanup only retries the cleanup still owed. Load, area unload, world discard, disable and disposal
+    // remain global and end the active redirect whatever its pair.
     internal sealed class MountedPairPresentation : IDisposable
     {
         internal const string BadgeName = "KMC_MountedBadge";
@@ -293,11 +298,36 @@ namespace KingmakerMountedCombat.Integration
             Report(context, Unwrap(exception));
         }
 
+        // One pair's dismount, death, load, area unload, disable or teardown cleanup, raised before its state changes. Only
+        // the exact pair that owns the active redirect ends it; every pair's cleanup retries the cleanup still owed. An
+        // identity that cannot be read ends nothing. Never throws.
         private void HandlePairCleanup(GameMountedRelationshipService relationship, CleanupTrigger trigger)
         {
-            // Dismount, death, load, area unload, disable and teardown all arrive here, possibly before the state changes.
-            try { ReleaseHover("pair-cleanup:" + trigger); }
+            try
+            {
+                var owns = false;
+                var lease = hoverLease;
+                if (lease != null)
+                {
+                    try { owns = MountedPairPresentationPolicy.CleanupOwnsRedirect(CleanupPair(relationship), lease.Pair); }
+                    catch (Exception exception) { Report("Mounted hover pair cleanup identity", exception); }
+                }
+                if (owns) ReleaseHover("pair-cleanup:" + trigger);
+                else SettleHoverCleanup();
+            }
             catch (Exception exception) { Report("Mounted hover release at pair cleanup", exception); }
+        }
+
+        // The pair identity of a relationship whose cleanup began, read as Facts() reads every pair: the owner's actors and
+        // the relationship's must agree. Null when it cannot be established.
+        internal static MountedPairPresentationIdentity CleanupPair(GameMountedRelationshipService relationship)
+        {
+            var owner = relationship?.PairOwner;
+            var rider = relationship?.Rider;
+            var mount = relationship?.Mount;
+            if (owner == null || rider == null || mount == null || !ReferenceEquals(owner.Rider, rider) ||
+                !ReferenceEquals(owner.Mount, mount)) return null;
+            return new MountedPairPresentationIdentity(owner.Id, relationship.MountedPairGeneration, rider.UniqueId, mount.UniqueId);
         }
 
         private static object HoveredEntry(object tracker)
