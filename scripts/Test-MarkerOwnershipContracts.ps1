@@ -349,7 +349,7 @@ public static class KmcMarkerProbe
                     sites.Exists(s=>s.StartsWith("KingmakerMountedCombat.Integration.MountedDoorOccupancySettlement.")&&s.EndsWith(":false")) &&
                     sites.Exists(s=>s.StartsWith("KingmakerMountedCombat.Integration.MountedPairAttackCommand.")&&s.EndsWith(":false"));
             });
-        Check("PRODUCT-EXECUTED the click-approach authority is the exact native call site (review of b1a88b4e, R1): the product's transpiler, run against the installed ClickUnitHandler.OnClick IL, changes exactly one instruction, the UnitCommands.Run of the local the UnitMoveTo construction is stored in, into a call of ClickApproachRun with the same (container, command); the loot and interact Runs and every other instruction are unchanged; OnClick is registered with the unit-click prefix and this transpiler, and no frame scope or click postfix exists",
+        Check("PRODUCT-EXECUTED the click-approach authority is the exact native call site (review of b1a88b4e, R1; Tabletop Rules Expansion startup repair): the product's transpiler, run against the installed ClickUnitHandler.OnClick IL, keeps the UnitCommands.Run of the local the UnitMoveTo construction is stored in and guards it: dup; the same local; a call of ClickApproachRouted (static bool, same container and command); brtrue to a pop that skips the Run; br to a join after it. The loot and interact Runs and every other instruction are unchanged; OnClick is registered with the unit-click prefix and this transpiler, and no frame scope or click postfix exists. Test-GunslingerClickComposition.ps1 composes it with the other mod through the loader",
             ()=>{
                 var harmony12=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony12.dll"));
                 var instruction=harmony12.GetType("Harmony12.CodeInstruction",true);
@@ -361,33 +361,40 @@ public static class KmcMarkerProbe
                     before.Add(made);
                 }
                 var snapshot=new List<object[]>(); foreach(var i in before) snapshot.Add(new[]{instruction.GetField("opcode").GetValue(i),instruction.GetField("operand").GetValue(i)});
-                var after=((IEnumerable)methods.GetMethod("CannotAttackApproachTranspiler",Any).Invoke(null,new object[]{before})).Cast<object>().ToList();
-                var changed=new List<int>();
-                for(var i=0;i<after.Count && i<snapshot.Count;i++) if(!Equals(instruction.GetField("opcode").GetValue(after[i]),snapshot[i][0]) || !Equals(instruction.GetField("operand").GetValue(after[i]),snapshot[i][1])) changed.Add(i);
-                var b=Body(onClick); var hook=methods.GetMethod("ClickApproachRun",Any);
+                var generator=new DynamicMethod("KmcMarkerProbeLabels",typeof(void),Type.EmptyTypes).GetILGenerator();
+                var after=((IEnumerable)methods.GetMethod("CannotAttackApproachTranspiler",Any).Invoke(null,new object[]{before,generator})).Cast<object>().ToList();
+                Func<int,object> op=i=>instruction.GetField("opcode").GetValue(after[i]); Func<int,object> arg=i=>instruction.GetField("operand").GetValue(after[i]);
+                Func<int,IList> lab=i=>(IList)instruction.GetField("labels").GetValue(after[i]);
+                var b=Body(onClick); var hook=methods.GetMethod("ClickApproachRouted",Any);
                 var ctor=-1; for(var i=0;i<b.Count;i++) if(b[i].Op==OpCodes.Newobj && b[i].Call!=null && b[i].Call.DeclaringType==move) ctor=i;
                 var local=LocalIndex(b[ctor+1]);
-                var c=changed.Count==1 ? changed[0] : -1;
+                var run=hook.GetParameters()[0].ParameterType.GetMethod("Run",new[]{hook.GetParameters()[1].ParameterType});
+                var r=-1; for(var i=ctor+2;i<b.Count;i++) if(Equals(snapshot[i][1],run) && IsLoad(b[i-1]) && LocalIndex(b[i-1])==local) r=i;
+                Func<int,int,bool> same=(a,s)=>Equals(op(a),snapshot[s][0]) && Equals(arg(a),snapshot[s][1]);
+                var prefix=r>0 && Enumerable.Range(0,r-1).All(i=>same(i,i)); var suffix=r>0 && Enumerable.Range(r+1,snapshot.Count-r-1).All(i=>same(i+7,i));
                 var hookParameters=hook.GetParameters().Select(x=>x.ParameterType.Name).ToArray();
-                Console.WriteLine("INFO transpiler: "+snapshot.Count+" instructions, changed at "+string.Join(",",changed.Select(x=>x.ToString()).ToArray())+"; hook ("+string.Join(",",hookParameters)+")");
-                return Every("C3",after.Count==snapshot.Count,
-                    c>0,
-                    Equals(snapshot[c][1],hook.GetParameters()[0].ParameterType.GetMethod("Run",new[]{hook.GetParameters()[1].ParameterType})),
-                    IsLoad(b[c-1]),
-                    LocalIndex(b[c-1])==local,
-                    Equals(instruction.GetField("operand").GetValue(after[c]),hook),
-                    Equals(instruction.GetField("opcode").GetValue(after[c]),OpCodes.Call),
-                    hook.IsStatic,
-                    hookParameters.Length==2,
-                    hookParameters[0]=="UnitCommands",
-                    hookParameters[1]=="UnitCommand",
+                Console.WriteLine("INFO transpiler: "+snapshot.Count+" -> "+after.Count+" instructions; guarded Run at "+r+"; hook "+hook.ReturnType.Name+" ("+string.Join(",",hookParameters)+")");
+                return Every("C3",after.Count==snapshot.Count+7,
+                    r>0,
+                    prefix,
+                    Equals(op(r-1),OpCodes.Dup),
+                    Equals(op(r),snapshot[r-1][0]) && Equals(arg(r),snapshot[r-1][1]),
+                    Equals(op(r+1),OpCodes.Call) && Equals(arg(r+1),hook),
+                    Equals(op(r+2),OpCodes.Brtrue),
+                    same(r+3,r-1) && same(r+4,r),
+                    Equals(op(r+5),OpCodes.Br),
+                    Equals(op(r+6),OpCodes.Pop) && lab(r+6).Count==1 && lab(r+6)[0].Equals(arg(r+2)),
+                    Equals(op(r+7),OpCodes.Nop) && lab(r+7).Count==1 && lab(r+7)[0].Equals(arg(r+5)),
+                    suffix,
+                    hook.IsStatic && hook.ReturnType==typeof(bool),
+                    hookParameters.Length==2 && hookParameters[0]=="UnitCommands" && hookParameters[1]=="UnitCommand",
                     string.Join(",",(Hooks(controller,"Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler",0x060093ED)??new List<string>()).ToArray())=="UnitClickPrefix,CannotAttackApproachTranspiler",
                     product.GetType("KingmakerMountedCombat.Integration.MountedNativeUnitClickScope")==null,
                     methods.GetMethod("UnitClickPostfix",Any)==null);
             });
-        Check("PRODUCT-IL the click-approach routing (review of b1a88b4e, R1, R2): only the call-site hook reaches it (the command-run prefix does not); it decides through the production policy, scene precedence included, binds the hostile-click observation, then the ground-order lifecycle (GroundCommandPrefix; the open order's identity of this command; the mount's Run; GroundCommandPostfix in a finally); every Run it makes runs the original command parameter; it builds no command and sets no CreatedByPlayer; a fault falls back to native Run only while the command is not given to another unit",
+        Check("PRODUCT-IL the click-approach routing (review of b1a88b4e, R1, R2): only the call-site hook reaches it (the command-run prefix does not); it decides through the production policy, scene precedence included, binds the hostile-click observation, then the ground-order lifecycle (GroundCommandPrefix; the open order's identity of this command; the mount's Run; GroundCommandPostfix in a finally); every Run it makes runs the original command parameter; it builds no command and sets no CreatedByPlayer; a fault leaves the call site's own submission to run only while the command is not given to another unit; the call-site hook submits nothing itself (the method keeps its submission, Tabletop Rules Expansion startup repair)",
             ()=>{
-                var route=methods.GetMethod("RouteRiderClickApproach",Any); var hook=methods.GetMethod("ClickApproachRun",Any);
+                var route=methods.GetMethod("RouteRiderClickApproach",Any); var hook=methods.GetMethod("ClickApproachRouted",Any);
                 var r=Body(route); var h=Body(hook); var run=Body(methods.GetMethod("UnitCommandRunPrefix",Any));
                 var callers=Uses(product,new[]{route.MetadataToken},0x28,0x6F).Count;
                 var decision=Find(r,"MountedDestinationMarkerPolicy","RoutesRiderClickApproach"); var observe=Find(r,null,"BindObservedStockRequest");
@@ -400,7 +407,7 @@ public static class KmcMarkerProbe
                 return Every("C4",callers==1,
                     Find(h,null,"RouteRiderClickApproach").Count==1,
                     Find(run,null,"RouteRiderClickApproach").Count==0,
-                    Find(run,null,"ClickApproachRun").Count==0,
+                    Find(run,null,"ClickApproachRouted").Count==0,
                     decision.Count==1,
                     observe.Count==1,
                     admission.Count==1,
@@ -417,7 +424,7 @@ public static class KmcMarkerProbe
                     !marks,
                     original,
                     InFinally(route,postfix.MetadataToken),
-                    Find(h,"UnitCommands","Run").Count==1,
+                    Find(h,"UnitCommands","Run").Count==0,
                     Find(h,null,"get_Executor").Count>=1);
             });
         Check("PRODUCT-IL the ground order recognises the native command by identity (review of b1a88b4e, R2): BindGroundOrderClickApproach holds it only while the order is open; CompleteGroundCommandAdmission (the turn-based admission) accepts it by reference and clears it, and the controller's boundary clears it; IsPairPlayerOrder is CreatedByPlayer, that identity, or the watched explicit move; the watch binding, the turn-based path-end bridge, door admission, the container-order travel, the carried-request player test and the marker observer ask it; the group-pace order classification keeps CreatedByPlayer (native accelerates no cannot-attack approach)",
@@ -491,7 +498,7 @@ public static class KmcMarkerProbe
                 var observer=product.GetType("KingmakerMountedCombat.Integration.MountedExplorationObserver",true);
                 var observe=observer.GetMethod("Observe",Any); var markers=observer.GetMethod("ObserveMarkers",Any);
                 var info=product.GetType("KingmakerMountedCombat.Logging.IModLogger",true).GetMethod("Info");
-                var run=methods.GetMethod("ClickApproachRun",Any); var reroute=methods.GetMethod("RouteRiderClickApproach",Any);
+                var run=methods.GetMethod("ClickApproachRouted",Any); var reroute=methods.GetMethod("RouteRiderClickApproach",Any);
                 var post=methods.GetMethod("PointerPlacedPostfix",Any);
                 var record=product.GetType("KingmakerMountedCombat.Integration.MountedDestinationMarkers",true).GetMethod("RecordPlacement",Any);
                 return Caught(observe,markers.MetadataToken) && Caught(markers,info.MetadataToken) && Caught(run,reroute.MetadataToken) && Caught(post,record.MetadataToken);

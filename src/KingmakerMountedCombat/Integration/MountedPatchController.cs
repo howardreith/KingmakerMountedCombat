@@ -248,9 +248,7 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.FamiliarFollowPrefix));
                 PatchExact(typeof(Kingmaker.Visual.Critters.Familiar), "TeleportToMaster", 0x060013C5, new[] { typeof(bool) },
                     null, nameof(PatchMethods.FamiliarTeleportPostfix));
-                // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own Run is replaced.
-                PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix),
-                    null, nameof(PatchMethods.CannotAttackApproachTranspiler));
+                PatchUnitClick();
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
@@ -443,6 +441,12 @@ namespace KingmakerMountedCombat.Integration
             disposed = true;
         }
 
+        // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own submission is guarded.
+        // Its own method so the composition regression (Test-GunslingerClickComposition.ps1) runs this exact registration.
+        private void PatchUnitClick() =>
+            PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix),
+                null, nameof(PatchMethods.CannotAttackApproachTranspiler));
+
         private void PatchExact(Type type, string name, int expectedToken, Type[] parameters, string prefixName, string postfixName = null, string transpilerName = null)
         {
             MethodBase original;
@@ -469,11 +473,37 @@ namespace KingmakerMountedCombat.Integration
             var prefix = prefixName == null ? null : typeof(PatchMethods).GetMethod(prefixName, BindingFlags.Static | BindingFlags.NonPublic);
             var postfix = postfixName == null ? null : typeof(PatchMethods).GetMethod(postfixName, BindingFlags.Static | BindingFlags.NonPublic);
             var transpiler = transpilerName == null ? null : typeof(PatchMethods).GetMethod(transpilerName, BindingFlags.Static | BindingFlags.NonPublic);
-            harmony.Patch(
-                original,
-                prefix == null ? null : new HarmonyMethod(prefix),
-                postfix == null ? null : new HarmonyMethod(postfix),
-                transpiler == null ? null : new HarmonyMethod(transpiler));
+            try
+            {
+                harmony.Patch(
+                    original,
+                    prefix == null ? null : new HarmonyMethod(prefix),
+                    postfix == null ? null : new HarmonyMethod(postfix),
+                    transpiler == null ? null : new HarmonyMethod(transpiler));
+            }
+            catch (Exception error)
+            {
+                var cause = error;
+                while (cause is TargetInvocationException && cause.InnerException != null) cause = cause.InnerException;
+                throw new InvalidOperationException("Harmony could not patch " + type.FullName + "." + name + " (token " + expectedToken.ToString("X8") +
+                    ", " + HarmonyId + " " + (transpilerName ?? prefixName ?? postfixName) + "): " + cause.Message + " Patches already on the method: " +
+                    DescribePatches(original) + ".", error);
+            }
+        }
+
+        // Diagnostic only: the owners Harmony already records on the method (the failed patch is not recorded) and, for
+        // transpilers, their order inputs, so a structural mismatch names the other mods that changed the method first.
+        private string DescribePatches(MethodBase original)
+        {
+            try
+            {
+                var info = harmony.GetPatchInfo(original);
+                if (info == null || info.Owners.Count == 0) return "none";
+                return "owners " + string.Join(", ", info.Owners.ToArray()) + "; transpilers " + (info.Transpilers.Count == 0 ? "none" :
+                    string.Join(", ", info.Transpilers.Select(patch => patch.owner + " " + patch.patch?.DeclaringType?.FullName + "." + patch.patch?.Name +
+                        " (priority " + patch.priority + ", index " + patch.index + ")").ToArray()));
+            }
+            catch (Exception error) { return "unavailable (" + error.GetType().Name + ")"; }
         }
 
         internal static void ReportFailedSave(Exception exception, object operation) =>
@@ -1667,20 +1697,25 @@ namespace KingmakerMountedCombat.Integration
                 MountedNativeRunScope.Transpile(instructions, typeof(MountedNativeRunScope).GetMethod(nameof(MountedNativeRunScope.ScopedRun),
                     BindingFlags.Static | BindingFlags.NonPublic));
 
-            internal static IEnumerable<CodeInstruction> CannotAttackApproachTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                MountedClickApproachTranspiler.CannotAttackApproachRun(instructions, Hook(nameof(ClickApproachRun)));
+            internal static IEnumerable<CodeInstruction> CannotAttackApproachTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator) =>
+                MountedClickApproachTranspiler.CannotAttackApproachRun(instructions, generator, Hook(nameof(ClickApproachRouted)));
 
-            // Known issues M04 closeout, review of b1a88b4e (R1, R2). Replaces the one UnitCommands.Run in native
-            // ClickUnitHandler.OnClick that runs the click command's local. The cannot-attack approach a mounted rider was
-            // given is run, as the original command object, by the mount through the ground-order lifecycle; anything else
-            // is native Run on the same container. A fault leaves native Run.
-            internal static void ClickApproachRun(UnitCommands commands, UnitCommand cmd)
+            // Known issues M04 closeout, review of b1a88b4e (R1, R2); Tabletop Rules Expansion startup repair. Guards the one
+            // submission of the click command's local in native ClickUnitHandler.OnClick (MountedClickApproachTranspiler).
+            // The cannot-attack approach a mounted rider was given is run, as the original command object, by the mount
+            // through the ground-order lifecycle, and true is returned so the method's own submission is skipped. False
+            // leaves that submission to run unchanged on the same container and command: native Run, or the Tabletop Rules
+            // Expansion's firearm-order Submit with its input invocation when that mod has rewritten it. A fault leaves the
+            // submission, unless it came after the command was already given to another unit (initialised once).
+            // Routed commands are only an exact UnitMoveTo outside simulation; for one of those that mod's Submit carries no
+            // firearm order and runs native Run on the container it is given, so the router's own native Run on the rider or
+            // mount is the same submission that mod would have made there.
+            internal static bool ClickApproachRouted(UnitCommands commands, UnitCommand cmd)
             {
                 bool handled;
                 try { handled = RouteRiderClickApproach(commands, cmd); }
                 catch (Exception error) { ReportMarkerFault("Mounted click approach: the rider's order was left native", error); handled = false; }
-                // Native Run, unless a fault came after the command was already given to another unit (initialised once).
-                if (!handled && (cmd == null || cmd.Executor == null || ReferenceEquals(cmd.Executor.Commands, commands))) commands.Run(cmd);
+                return handled || !(cmd == null || cmd.Executor == null || ReferenceEquals(cmd.Executor.Commands, commands));
             }
 
             // True: handled here (routed, or refused by the ground-order admission); the rider's Run of it never happens.
