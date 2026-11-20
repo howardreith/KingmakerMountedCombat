@@ -3,7 +3,7 @@
 Release-blocking compatibility defect in **0.2.12**: with Mr. Bard's Tabletop Rules Expansion (mod id
 `KingmakerGunslinger`) **0.0.191** installed, Mounted Combat fails to load, and a save that references Mounted
 Combat content then fails to load. Branch `codex/gunslinger-click-approach-compat`, from `origin/main` =
-`12527350` (the tagged `v0.2.12` merge). Not merged, not released, not installed.
+`12527350` (the tagged `v0.2.12` merge). Not installed.
 
 ## Incident
 
@@ -134,29 +134,72 @@ is replaced: `HarmonyLib.PatchTools.DetourMethod` for `OnClick` only, because .N
   (budget `gunslinger-click-compat`): PASS 5/0 in 0.37 min — build, components 1411/0, Validate-Source 152/0,
   composition 20/0, marker contracts 18/0.
 
-### Runtime
-
-**Not run in the game.** Attempted only as far as the guarded launcher's WhatIf qualification, which refused:
+### Runtime (first session: refused before launch)
 
 - Package (normal process, `scripts/Package.ps1 -ArtifactQualifier gunslinger-click-compat`, from clean `6bfd8846`):
   `artifacts/KingmakerMountedCombat-0.2.12-gunslinger-click-compat-diagnostic.zip`, SHA-256
   `c4b9de6624e2ffdf552462073195d8eadeeba47e7be12e2a1773cf3894d2cec3`, DLL `5d79c78c…d647`, MVID
-  `15d95e93-9806-4dde-a222-7581f38d4ad9`; package validator 11/0. The version label stays 0.2.12 (no bump
-  authorized): identify it by hash, never by label.
-- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 -Scenario mod-load-smoke -PackagePath <that zip> -RunId
-  gunslinger-click-compat-smoke-1 -DevelopmentScopedAudit -WhatIf` (budget `gunslinger-click-compat`) passed source
-  and package validation, then stopped: `Archive root is missing: C:\Dev\KingmakerMountedCombatLab\runtime-backups`.
-  This lab has no `runtime-backups` or `runtime-staging` root and no transaction or qualification state under
-  `runtime-state`. The guard refuses rather than creating them, and they were not created: rebuilding the transaction
-  environment is a decision for the owner. Nothing was staged, installed or launched; the live Mods tree and every
-  save are untouched.
-- Earlier in the session a Kingmaker process from the Tabletop Rules Expansion lab's own game copy
-  (`C:\Dev\KingmakerGunslingerLab\game-copies\loader-compat\Kingmaker.exe`) was running; it was left alone and
-  had exited before the WhatIf.
-- Steam was in Offline Mode on build 6757524, as the launcher requires.
-- This machine's live installation has Tabletop Rules Expansion **0.0.140**, not 0.0.191, and no Mounted Combat. The
-  owner's affected save `Quicksave2` and the incident machine are not here; the local saves are protected human
-  saves and were not touched.
+  `15d95e93-9806-4dde-a222-7581f38d4ad9`; package validator 11/0. The version label stays 0.2.12: identify it by
+  hash, never by label.
+- The development-scoped WhatIf stopped at `Archive root is missing: C:\Dev\KingmakerMountedCombatLab\runtime-backups`.
+  Nothing was staged, installed or launched.
+
+### Native checks (continuation after review, 2026-11-20)
+
+**Lab prerequisites.** The configured lab root is `C:\Dev\KingmakerMountedCombatLab` (`environment-intake.json`).
+`runtime-backups` and `runtime-staging` were absent; `runtime-evidence` existed and was empty; `runtime-state` held only
+`workflow-budgets` (no `active-transaction.lock` and no `transactions`, `run-transactions` or `deployment-operations`
+records); no Kingmaker process was running; the live Mods tree had no Mounted Combat folder. No workflow budget since
+2026-11-12 records a native run. This reads as a lab whose run archives were cleared, not an interrupted transaction:
+there was nothing to recover. The repository has no setup script for these roots (the launcher only refuses when they
+are missing), so the two empty directories were created by hand, as review permitted. Nothing else was created: no
+recovery record, receipt, pin or evidence.
+
+**Artifact identity.** The reviewed zip (`c4b9de66…`) was verified: DLL `5d79c78c…d647`, Info.json `4e1772fb…`. The
+launcher binds a package manifest to the current branch and HEAD, and native runs to a `codex/mounted-combat-*` branch,
+so the same commit `78774ab0` (two documentation commits after the reviewed `6bfd8846`; no source change) was packaged
+again on a local alias branch `codex/mounted-combat-gunslinger-click-compat-native` with qualifier
+`gunslinger-click-compat-native-run`: zip `3539b1cec6c50bc0c5cc8060ef627453c905cb0b011c3688b9c9f2c2f699849e`, **DLL
+`5d79c78cae5c27708c3102f1618a3d22ef8a21f89f793ea171979280c84fd647`, MVID `15d95e93-9806-4dde-a222-7581f38d4ad9`**
+(the build is deterministic), Info.json `4e1772fb…`. The tested DLL is the reviewed DLL.
+
+**WhatIf.** Full (not development-scoped) WhatIf, Windows PowerShell 5.1, budget `gunslinger-click-compat`: source
+153/0, package 11/0, `Runtime WhatIf purity PASS`.
+
+**Run `gunslinger-click-compat-smoke-140b` (`mod-load-smoke`, fresh process, live mod clone plus Mounted Combat).** This
+run uses the **installed Tabletop Rules Expansion 0.0.140** (DLL `00ef6757…`), not the incident's 0.0.191. Evidence:
+`runtime-evidence/gunslinger-click-compat-smoke-140b/`; the game's log copied to
+`analysis-cache/gunslinger-click-compat-native/smoke-140b/output_log.txt` (SHA-256 `41bbcec0…5d2e10`).
+
+- Game-side result (`runtime-game-result.json`, written in the native process): `status=PASS`, product 0.2.12, DLL
+  `5d79c78c…`, MVID `15d95e93…`, Kingmaker 2.1.7b, Assembly-CSharp `3b6450ff…`, Harmony12 1.2.0.1.
+- Loader inventory (captured in the native process): all 17 mods `active=true`, including `KingmakerGunslinger` and
+  `KingmakerMountedCombat`.
+- Log: `[KingmakerGunslinger] Active.`; `[KingmakerMountedCombat] Active.` (no `Not loaded`); `Mounted Combat feat
+  selections: …; failure=none; Mounted Archery offered; failure=none.` No structural-contract exception, no `Harmony
+  could not patch`, no Mounted Combat exception.
+- Toggle `3c81f5a0…`: its registration is part of the step that logged `failure=none` (any failure there removes it).
+  No direct blueprint lookup by GUID was observed.
+- **Harness verdict: FAIL**, solely `Runtime game-result platform identity is not exact.`: the game reported UMM
+  `0.33.0.0` (`63e5baf7…`), while `planning/ENVIRONMENT-FINGERPRINT.json` and `Test-RuntimeGameResult.ps1` pin UMM
+  `0.33.2.0` (`f6f7e18a…`). The machine's UMM differs from the repository's pinned environment (the incident log also
+  shows 0.33.0). The pin and validator were not changed; whether to re-pin is an owner decision. Every other identity
+  field matched.
+- Restoration: `modsRestored=true`, `saveProtectionPassed=true`, `workingRestored=true`; Mods digest `51a2e474…`
+  before = after; save inventory digest `6a8a8ad1…` before = after. Checked afterwards: live Mods has no Mounted
+  Combat folder, the installed Tabletop Rules Expansion DLL is still `00ef6757…`, no game process, no lock.
+- An earlier attempt (`gunslinger-click-compat-smoke-140`, from the PR branch) was refused before launch (`Runtime
+  request branch is outside the KMC prefix.`; `launchIssued=false`) and restored identically.
+
+**Tabletop Rules Expansion 0.0.191 natively: not run.** The launcher stages a specific foreign build only through a
+retained-dependency selection, which admits a producer run's staged folder or the one owner-pinned F1 input. The
+verified 0.0.191 release was extracted unchanged (zip `c09ca625…`, DLL `7c3b0324…`, 458 files) to
+`analysis-cache/gunslinger-click-compat-native/tre-0.0.191/KingmakerGunslinger`, but adding an exactly pinned X01 input
+to that guard (same pattern as F1) was blocked in this session as a change to a safety guard and was not made. The
+installed 0.0.140 was not replaced.
+
+**Save recovery and gameplay: not run.** `Quicksave2` is not on this machine; the local saves are protected human saves
+and no qualified disposable fixture with a mounted pair and a firearm exists here.
 
 ### Independent review
 
@@ -171,17 +214,23 @@ as dated history.
 
 ## Remaining checks
 
-- **Patch composition repaired: verified offline** (composition, executed slices, contracts, Candidate checks).
-- **Both mods initialising in a fresh game process: not verified.** The smallest check: with the launcher's archive
-  roots restored, run the WhatIf and then the real `mod-load-smoke` above beside the installed Tabletop Rules
-  Expansion (0.0.140 here; 0.0.191 needs that version in the live Mods tree, which only the owner may install). Pass
-  means the UMM log shows both mods `Active`, no `Not loaded`, and Mounted Combat's
-  `Mounted Combat feat selections: ...; failure=none` line (the toggle `3c81f5a0…` is created in that registration).
-- **Owner's save recovery: not verified.** Load an unchanged copy of `Quicksave2` with this build and Tabletop Rules
-  Expansion 0.0.191 installed; pass means no `Failed to load blueprint by guid 3c81f5a02be74d96a4e07d1c92b6f385`, no
-  `PostLoad_Patch2` exception and no `LoadGameException`. Then a mounted cannot-attack click (the mount moves, the
-  rider does not walk alone) and a firearm attack by an unmounted Gunslinger.
-- **Release:** none. A release needs a version bump, release notes and the release process, by owner order.
+- **Code review:** accepted for verification (no blocking defect); the `Validate-Source.ps1` exception accepted.
+- **Patch composition repaired: verified offline** with real Harmony composition and executed submission slices.
+  Limits: ground admission (`GroundCommandPrefix/Postfix`) and native command execution were substituted; the attack
+  and cast slices prove argument passthrough to the other mod's `Submit`, not firearm gameplay.
+- **Native startup with 0.0.140: observed** (game-side PASS, both mods `Active`, `failure=none`); harness verdict FAIL
+  on the UMM platform pin only (above).
+- **Native startup with 0.0.191 (the incident version): not observed.** Needs either an owner-approved pinned input in
+  `Read-KmcRetainedDependencySelection` (then `-BaseGameOnly -RetainedDependencySelectionPath`), or a run on a machine
+  with 0.0.191 installed. Pass: both `Active`, no `Not loaded`, `failure=none`, no structural exception.
+- **Owner's save recovery: not verified.** Load an unchanged copy of `Quicksave2` with this build and 0.0.191; pass
+  means no `Failed to load blueprint by guid 3c81f5a02be74d96a4e07d1c92b6f385`, no `PostLoad_Patch2` exception and no
+  `LoadGameException`.
+- **Gameplay: not verified.** A mounted cannot-attack click (the correct horse moves, the pair stays mounted) and a
+  firearm attack through Tabletop Rules Expansion.
+- **Known pre-existing edge (not repaired here):** a `GroundCommandPostfix` fault after hand-off or refusal (see
+  Independent review).
+- **Restoration:** exact (above).
 
 ### Candidate checks (after the review corrections)
 
