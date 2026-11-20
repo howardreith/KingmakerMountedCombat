@@ -13,7 +13,7 @@ dispositions are in the [current issue ledger](CURRENT-KNOWN-ISSUES.md). The epi
 
 | | Released 0.2.11 | Known-issues stack (unreleased) |
 |---|---|---|
-| What | The current public release (merge `22945394`, 2026-11-15). [Notes](RELEASE-NOTES-0.2.11.md). | Draft PRs #45 to #53, stacked on main `7a5cd2c3`. None is merged. |
+| What | The current public release, tag `v0.2.11`, at merge `7a5cd2c3` on 2026-11-15 (main is still `7a5cd2c3`). The package was built from release-source commit `86ad9cc1`; the mounted-attack-stall repair was merged earlier at `22945394`. [Notes](RELEASE-NOTES-0.2.11.md). | Draft PRs #45 to #53, stacked on main `7a5cd2c3`. None is merged. |
 | Version label | 0.2.11; assembly version 0.1.0.0 | **Also 0.2.11**, assembly version 0.1.0.0: `Info.json`, `version.json` and `BuildIdentity.cs` were not changed. A build of the stack is a different binary from the release. |
 | Native gameplay evidence | Not run in the game before release ([0.2.11 notes](RELEASE-NOTES-0.2.11.md)) | Not run for any known-issues sprint |
 

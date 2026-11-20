@@ -170,6 +170,20 @@ in all six current documents; release 0.2.11 versus stack builds also labelled 0
 | `Validate-Source.ps1` | 151/0 (log `07-validate-source-review1.log`) |
 | Links and heading anchors; table columns; CRLF without BOM; PRs #45–#53 heads, targets, draft state, #53 without reviewers | 249 links resolve; all pass (inside the 507) |
 
+### Owner re-review of `9a84d8a6` (2026-11-19)
+
+| Finding | Correction |
+|---|---|
+| R4 (P2): CURRENT-SUPPORT.md gave the PR #43 mounted-attack-stall repair merge, `22945394`, as the 0.2.11 release identity | [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md#two-builds-to-keep-apart) now says: tag `v0.2.11` at merge `7a5cd2c3` on 2026-11-15, built from release-source commit `86ad9cc1`; the mounted-attack-stall repair (PR #43) was merged earlier at `22945394`. CURRENT.md's current section had the same error and is corrected the same way. The dated "RELEASE 0.2.11" section of CURRENT.md and the ledger's PR #43 row describe `22945394` accurately and are unchanged |
+
+| Check | Result |
+|---|---|
+| GitHub's latest release; origin `main` | tag `v0.2.11`, target `7a5cd2c393fad80fe09700ecbc40949245335449`; `main` is the same commit; its parents are `86ad9cc1` (release source) and `22945394` (the PR #43 mounted-attack-stall repair merge) |
+| Scratch checker on this head (20 release-identity assertions) | 530/0 (log `08-documentation-consistency-review2.log`) |
+| The same checker on the reviewed `9a84d8a6` (negative control, temporary detached worktree, removed) | 6 failures, all release identity, in CURRENT-SUPPORT.md and CURRENT.md (log `09-negative-control-reviewed-9a84d8a6.log`) |
+| `git diff --check` against `1ba1841a`; `Validate-Source.ps1` | clean; 151/0 (log `10-validate-source-review2.log`) |
+| Links and anchors, table columns, CRLF without BOM, PRs #45–#53 | 250 links resolve; all pass (inside the 530) |
+
 ## Unresolved and excluded work
 
 ### Unresolved product reports
