@@ -298,8 +298,7 @@ namespace KingmakerMountedCombat.Integration
             anchorLocalOffset = offset;
             localEulerRotation = eulerRotation;
             configured = true;
-            pendingScenePlacement = null;
-            correctNextWithoutSceneDetection = false;
+            sceneHold.Reset();
             lastWrittenEntityPosition = null;
             lastNativeUpdateFrame = -1;
             NativeMovementControllerUpdateCount = 0L;
@@ -313,8 +312,7 @@ namespace KingmakerMountedCombat.Integration
         public void Deconfigure()
         {
             configured = false;
-            pendingScenePlacement = null;
-            correctNextWithoutSceneDetection = false;
+            sceneHold.Reset();
             lastWrittenEntityPosition = null;
             mount = null;
             anchor = null;
@@ -441,56 +439,52 @@ namespace KingmakerMountedCombat.Integration
                 postCorrectionEntityRotationResidual));
         }
 
-        // A frame budget for the owner's decision; past it, synchronization resumes (the rider returns to the saddle).
-        private const int ScenePlacementDecisionFrames = 30;
-        private Vector3? pendingScenePlacement;
-        private float pendingSceneOrientation;
-        private int pendingScenePlacementFrame;
-        private bool correctNextWithoutSceneDetection;
+        // The scene's pending placement of this rider, held for the pair's owner (MountedScenePlacementHold: one placement,
+        // always the scene's latest; a frame budget for the owner's decision, past which the rider returns to the saddle).
+        private readonly MountedScenePlacementHold sceneHold = new MountedScenePlacementHold();
         // The rider position this synchronizer last wrote. Only a write by someone else moves the rider away from it; a
         // mount the scene moved (or teleported) moves the saddle instead, and the rider follows as always.
         private Vector3? lastWrittenEntityPosition;
 
-        internal Vector3? PendingScenePlacement => pendingScenePlacement;
+        internal Vector3? PendingScenePlacement => sceneHold.Pending ? new Vector3(sceneHold.X, sceneHold.Y, sceneHold.Z) : (Vector3?)null;
 
-        internal float PendingSceneOrientation => pendingSceneOrientation;
+        internal float PendingSceneOrientation => sceneHold.Orientation;
 
-        internal long ScenePlacementObservedCount { get; private set; }
+        internal long ScenePlacementObservedCount => sceneHold.ObservedCount;
+
+        internal long ScenePlacementAttributedCount => sceneHold.AttributedCount;
+
+        internal long ScenePlacementSupersededCount => sceneHold.SupersededCount;
+
+        // Known issues C02: the hold a native scene placement operation's attribution acts on
+        // (MountedScenePlacementAttributionCore: a rider placement or turn is held, a later one supersedes it, a whole-pair
+        // placement clears it). Only while this synchronizer is configured for its mounting.
+        internal MountedScenePlacementHold ConfiguredSceneHold => configured ? sceneHold : null;
 
         // The owner refused the handoff (combat, an owned boundary): the next sample corrects the rider back onto the saddle.
-        internal void ReleaseScenePlacement()
+        internal void ReleaseScenePlacement() => sceneHold.Release();
+
+        // Review R2: the held placement as it stands when the owner polls (a far write since it was held supersedes it).
+        internal Vector3? CurrentScenePlacement()
         {
-            pendingScenePlacement = null;
-            correctNextWithoutSceneDetection = true;
+            if (!sceneHold.Pending || !configured || Unit == null || Unit.EntityData == null || anchor == null) return PendingScenePlacement;
+            var saddle = anchor.TransformPoint(anchorLocalOffset);
+            var rider = Unit.EntityData.Position;
+            var game = Kingmaker.Game.Instance;
+            var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
+                game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog), game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene));
+            sceneHold.Refresh(Time.frameCount, sceneActive, rider.x, rider.y, rider.z, Unit.EntityData.Orientation, saddle.x, saddle.z);
+            return PendingScenePlacement;
         }
 
         private bool HoldForScenePlacement(Vector3 entityPosition, Vector3 expectedPosition)
         {
-            if (pendingScenePlacement.HasValue)
-            {
-                if (Time.frameCount - pendingScenePlacementFrame <= ScenePlacementDecisionFrames) return true;
-                ReleaseScenePlacement();
-                return false;
-            }
-            if (correctNextWithoutSceneDetection)
-            {
-                correctNextWithoutSceneDetection = false;
-                return false;
-            }
-            var deviation = new Vector2(entityPosition.x - expectedPosition.x, entityPosition.z - expectedPosition.z).magnitude;
-            if (deviation <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres || !lastWrittenEntityPosition.HasValue) return false;
-            var written = lastWrittenEntityPosition.Value;
-            var externalMove = new Vector2(entityPosition.x - written.x, entityPosition.z - written.z).magnitude;
-            if (externalMove <= MountedSceneContinuityPolicy.ScenePlacementMinimumMetres) return false;
             var game = Kingmaker.Game.Instance;
             var sceneActive = game != null && MountedSceneContinuityPolicy.SceneActive(game.CutsceneLock,
                 game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog), game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene));
-            if (!MountedSceneContinuityPolicy.IsScenePlacement(sceneActive, deviation)) return false;
-            pendingScenePlacement = entityPosition;
-            pendingSceneOrientation = Unit.EntityData.Orientation;
-            pendingScenePlacementFrame = Time.frameCount;
-            ScenePlacementObservedCount++;
-            return true;
+            var written = lastWrittenEntityPosition ?? Vector3.zero;
+            return sceneHold.Sample(Time.frameCount, sceneActive, entityPosition.x, entityPosition.y, entityPosition.z, Unit.EntityData.Orientation,
+                expectedPosition.x, expectedPosition.z, lastWrittenEntityPosition.HasValue, written.x, written.z);
         }
 
         private void ResetVelocity()

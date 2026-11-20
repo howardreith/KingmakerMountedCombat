@@ -185,7 +185,7 @@ namespace KingmakerMountedCombat.Integration
             foreach (var owner in WorldRelationships)
             {
                 var agent = owner.State == RelationshipState.Mounted ? owner.Runtime?.MovementAgent : null;
-                var placement = agent?.PendingScenePlacement;
+                var placement = agent?.CurrentScenePlacement();
                 if (placement == null) continue;
                 var orientation = agent.PendingSceneOrientation;
                 var handedOff = false;
@@ -341,21 +341,19 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A fight that began while a pair was still staged: the intent is kept through it (never adopted into
                 // the encounter), and a regroup walk in progress stops so it spends nothing of the mount's turn.
-                if (player?.IsInCombat == true)
-                {
-                    InterruptRegroups(custody, game, "an encounter began");
-                    if (!retainedCombatHoldLogged)
-                    {
-                        retainedCombatHoldLogged = true;
-                        logger.Info("Retained mounted intent held through the encounter for " + custody.Pairs.Length + " staged pair" +
-                            (custody.Pairs.Length == 1 ? "" : "s") + "; the pair" + (custody.Pairs.Length == 1 ? " remounts" : "s remount") +
-                            " after combat without Mount, preparation or refund.");
-                    }
-                }
+                var encounter = player?.IsInCombat == true;
+                if (encounter) InterruptRegroups(custody, game, "an encounter began");
+                // Known issues C03: the player is told once per custody and encounter, through the native warning
+                // notification (review R3 of b30c24f8: a persistence Report reaches no player-facing display). Review R4
+                // of 263ac3ea: never during a load, and spent only when a warning receiver was reached.
+                combatHoldNotifier.Evaluate(custody, encounter, LoadingProcess.Instance != null && LoadingProcess.Instance.IsLoadingInProcess,
+                    () => custody.Pairs.Select(p => DescribePair(ResolveUnique(game, p.RiderId), ResolveUnique(game, p.MountId), p)).ToArray(),
+                    () => "pairs=" + string.Join(", ", custody.Pairs.Select(p => p.RiderId + "/" + p.MountId).ToArray()) +
+                        "; held through the encounter without Mount, preparation or refund; restoration after combat keeps its eligibility checks");
                 ResetRetainedSettle();
                 return;
             }
-            retainedCombatHoldLogged = false;
+            combatHoldNotifier.Evaluate(custody, false, false, null, null);
             var now = UnityEngine.Time.unscaledTime;
             if (retainedSettledSince < 0f) retainedSettledSince = now;
             if (!MountedRetainedIntentPolicy.Settled(++retainedSettledFrames, now - retainedSettledSince)) return;
@@ -565,7 +563,8 @@ namespace KingmakerMountedCombat.Integration
                 runtime != null && !runtime.HasPresentationAttachmentResidue);
         }
 
-        private bool retainedCombatHoldLogged;
+        private MountedCombatHoldNotifier combatHoldNotifierInstance;
+        private MountedCombatHoldNotifier combatHoldNotifier => combatHoldNotifierInstance ?? (combatHoldNotifierInstance = new MountedCombatHoldNotifier(logger));
 
         // Cutscene continuity repair: the scene left the mount behind within reach. The mount walks to its rider with an
         // ordinary native move (native pathfinding; never a teleport, never a player order). Out of combat only, at most

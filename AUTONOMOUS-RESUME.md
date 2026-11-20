@@ -1,3 +1,91 @@
+# Known issues remediation, Sprint 4 — review of 813d00a1 checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `813d00a1`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R10 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R10 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Rule:**
+  - Scene ownership of a C02 operation is decided at its prefix (`NativeSceneOperationOwnership`,
+    `MountedSceneOperationOwnership.Decide`) and carried in the typed capture.
+  - Never recompute it from the global mode at the postfix.
+  - Commands use their own `CutscenePlayerData`: a live player with this exact command current.
+  - `TranslocateUnit` uses the cutscene parameter scope.
+  - Do not treat every patched invocation as scene-owned.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
+# Known issues remediation, Sprint 4 — review of e1c0c7ad checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `e1c0c7ad`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R7–R9 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R7, R8 and R9 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Seams added:**
+  - `MountedScenePlacementAttributionCore.Apply` (Domain) is the only place one operation is applied to the captured
+    pairs' holds. Log only through its report delegate.
+  - `MountedScenePlacementSource` names the operation; never use a display string as authority.
+  - The `CommandTeleportParty` prefix records the proven target set. `TranslocateUnit` and `CommandMoveUnit` stay
+    single-unit unless installed IL proves otherwise.
+  - `MountedScriptZoneChecks.CheckEach` (Domain) is the C04 zone pass.
+  - `MountedScenePlacementHold.Reorient` holds a standalone rider turn at the rider's position.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
+# Known issues remediation, Sprint 4 — review of 263ac3ea checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `263ac3ea`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (R4–R6 section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R4, R5 and R6 corrected offline. Fast PASS 10/0. Native NOT RUN.
+- **Rules the review established:**
+  - **Combat-hold notice:**
+    - Never spend it before a receiver was reached. A returning `EventBus.RaiseEvent` proves nothing.
+    - Count receivers inside the action native invokes per subscriber.
+    - Never attempt it during a load.
+  - **Scene placements:** classify moves and turns of both units (`ClassifyOperationWrite`, six inputs, wrapped angle
+    comparison).
+    - A rider-only turn reorients a pending placement; with nothing pending it is held at the rider's position (R7).
+    - Keep attribution limited to the three patched operations.
+  - **Fault reports:** each hook family keeps its own `MountedBoundedFaultReport`.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
+# Known issues remediation, Sprint 4 — review repair checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `b30c24f8`. Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md (review section first) and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** R1, R2 and R3 corrected offline; C01 still explicitly unsupported (wording narrowed). Fast PASS 10/0.
+  Native NOT RUN.
+- **Seams added by the repair:**
+  - `MountedScriptZoneObservations<TUnit>` (Domain): zone observations per mounting instance (`MountedPair`). Never
+    key them by the rider alone, and never depend on cleanup reaching them.
+  - `MountedScenePlacementHold` (Domain): the rider synchronizer's only pending-placement state; always the scene's
+    latest. The owner's poll reads `RiderMovementAgent.CurrentScenePlacement()`, not the raw pending value.
+  - `MountedCombatHoldNotifier` (Integration): the only path for the combat-hold notice, through the native
+    `IWarningNotificationUIHandler`. Do not make other persistence Reports visible through it.
+- **Do not:** lift the encounter refusal or the settled-participation guard for C01.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
+# Known issues remediation, Sprint 4 — review checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4`; parent `e5b92474`, the accepted head of `codex/kmc-known-issues-sprint3`
+(draft PR #47, open), which the Sprint 4 draft PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md and
+docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** C04 and C02 implemented and verified offline; C01 explicitly unsupported with its blocker; C03
+  intentional limit documented, with one separate repair (the combat-hold notice). Fast PASS 10/0. Native NOT RUN.
+- **Seams added:**
+  - `MountedScriptZonePolicy` (Domain) and `MountedScriptZoneAdapter` (Integration), from a postfix of
+    `ScriptZoneController.Tick` (060092A0). They only call native `ScriptZone.CheckUnit`; never write a position here.
+  - `MountedScenePlacementAttribution`, around `TranslocateUnit.RunAction` (06008FA2), `CommandMoveUnit.IsFinished`
+    (06009E4E) and `CommandTeleportParty.OnRun` (06009E90). The decision is
+    `MountedSceneContinuityPolicy.AttributesRiderPlacement`; the unattributed rule is `HoldsUnattributedPlacement`
+    (keep its 3 m threshold).
+  - `MountedRetainedIntentPolicy.CombatHoldNotice`, asked on every restore-loop evaluation.
+- **Do not:** lift the encounter refusal or the settled-participation guard to support C01; that needs an owner
+  decision on a native participation contract.
+- **Contract scripts:** `Test-CandlemereCrossingContracts.ps1` and `Test-ScenePlacementAttributionContracts.ps1`. Both
+  take `-ProductDll` for base comparisons and read installed files in place.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 3 and its continuation — review checkpoint (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`

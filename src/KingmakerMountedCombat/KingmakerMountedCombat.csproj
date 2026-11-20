@@ -555,6 +555,13 @@
     <Compile Include="Domain\MountedBoundedFaultReport.cs" />
     <Compile Include="Domain\MountedContinuousDrivePolicy.cs" />
     <Compile Include="Domain\MountedCleanupCompletionPolicy.cs" />
+    <Compile Include="Domain\MountedScriptZonePolicy.cs" />
+    <Compile Include="Domain\MountedScenePlacementHold.cs" />
+    <Compile Include="Domain\MountedScenePlacementAttributionCore.cs" />
+    <Compile Include="Integration\MountedScriptZoneAdapter.cs" />
+    <Compile Include="Integration\MountedScenePlacementAttribution.cs" />
+    <Compile Include="Integration\MountedCombatHoldNotifier.cs" />
+    <Compile Include="Integration\NativeSceneOperationOwnership.cs" />
     <Compile Include="Domain\PoseVector3.cs" />
     <Compile Include="Domain\CompanionNamePolicy.cs" />
     <Compile Include="Domain\RidingDogTackGeometry.cs" />

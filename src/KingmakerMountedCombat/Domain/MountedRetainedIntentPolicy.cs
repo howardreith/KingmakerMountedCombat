@@ -96,6 +96,35 @@ namespace KingmakerMountedCombat.Domain
             return settledFrames >= SettleFrames && settledSeconds >= SettleSeconds;
         }
 
+        // Known issues C03: the notice that pairs still staged when an encounter began stay dismounted through it is
+        // given once per custody and encounter. An evaluation outside combat ends the encounter, and a different custody
+        // (a later suspension after the earlier intent was dropped, restored or released) gets its own notice; nothing
+        // carries over from an intent that no longer exists.
+        // Review R4 of 263ac3ea: owing a notice and spending it are separate. Nothing is spent by asking: a notice is
+        // attempted only outside a load, and spent only by the caller once a receiver was actually reached (or the
+        // attempt failed boundedly). Until then the same custody stays owed.
+        public sealed class CombatHoldNotice
+        {
+            private object spentCustody;
+
+            // Whether this custody's notice is still owed in the current encounter.
+            public bool IsOwed(object custody, bool heldThroughEncounter)
+            {
+                if (!heldThroughEncounter || custody == null) { spentCustody = null; return false; }
+                return !ReferenceEquals(spentCustody, custody);
+            }
+
+            // Whether to attempt delivery now: owed, and no load in progress (the presentation that shows warnings is
+            // replaced during a load).
+            public bool ShouldAttempt(object custody, bool heldThroughEncounter, bool loading) =>
+                IsOwed(custody, heldThroughEncounter) && !loading;
+
+            public void Spend(object custody)
+            {
+                if (custody != null) spentCustody = custody;
+            }
+        }
+
         // Patience counts from the first settled evaluation in which the pair was neither staged nor regrouping
         // (a negative start means it is not counting).
         public static bool PatienceExpired(float eligibleSince, float now)

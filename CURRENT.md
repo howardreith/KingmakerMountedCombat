@@ -1,3 +1,143 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 813d00a1: R10 SCENE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `813d00a1`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R10 section
+first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `813d00a1`:** R4, R7 (when scene-owned), R8, R9, C04's observations and C01.
+- **R10, C02 (`03685720`):** scene ownership was the global mode read after the operation, so a live background
+  cutscene's operations in Default play were swallowed.
+  - The commands' prefixes now take the original `CutscenePlayerData player`.
+  - `NativeSceneOperationOwnership` decides at entry whether a live player has this exact command current on an
+    unfinished started track.
+  - For `TranslocateUnit`, it decides whether the action runs inside a cutscene's parameter scope.
+  - The typed capture stores the decision, and the core consumes it.
+  - Background move, rider-only teleport and standalone turn are now each held and handed off once.
+  - Null, finished, replaced and unrelated players are not owned.
+- **Checks:**
+  - Fast PASS 10/0: components 1370/0, Validate-Source 151/0, scene placement 24/0 (reviewed build 21/3), Candlemere
+    11/0, and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Three targeted mutations, each caught.
+  - Product-build commit `03685720`, DLL SHA-256 `7ce8f88a…01efd59c8`, MVID `efdc12b6-…`.
+- **Remaining limit:** an action run by a non-cutscene handler inside a cutscene's open scope counts as the
+  cutscene's.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08; accepted Sprint 3 behaviour; C01's guards.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF e1c0c7ad: R7, R8, R9 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `e1c0c7ad`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R7–R9
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `e1c0c7ad`:**
+  - R4: owed versus spent, the no-receiver retry and the loading gate;
+  - R5's supersession while a placement is pending;
+  - R6;
+  - C04's observations;
+  - C01.
+- **R7, C02 (`ed83339c`):** an exact rider-only turn with nothing pending was discarded. It is now held at the rider's
+  position with the authored orientation and handed off once. In combat: one refusal and one return to the saddle.
+- **R8, C02:** the installed `CommandTeleportParty.OnRun` writes `Position` and `Orientation` to every unit of
+  `Player.GetCharactersList(m_UnitsList)`, unconditionally.
+  - Its prefix now records whether the exact rider and mount are in that set.
+  - A proven write of both is whole-pair even when one actor was already at its authored transform.
+  - Single-unit operations are unchanged.
+- **R9:** the C02 attribution and the C04 zone pass now run through Domain loops. Their success logging cannot
+  truncate the remaining pairs or zones.
+- **Records:** `DeliveredCount` counts notice deliveries with at least one successful receiver. R5 is complete only
+  with R7 and R8.
+- **Checks:**
+  - Fast PASS 10/0: components 1367/0, Validate-Source 151/0, scene placement 19/0 (reviewed build 12/7), Candlemere
+    11/0 (reviewed build 9/2), and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Four targeted mutations, each caught.
+  - Product-build commit `ed83339c`, DLL SHA-256 `e3448787…a390c95bc5`, MVID `c94292d4-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08; accepted Sprint 3 behaviour; C01's guards.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW OF 263ac3ea: R4, R5, R6 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `263ac3ea`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its R4–R6
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `263ac3ea`:** C04's mounting-instance observations, C02's different-endpoint supersession and
+  whole-pair clear, C03's deduplication and native warning interface, and C01's unsupported disposition.
+- **R4, C03 (`e62cad39`):** the notice was spent before any receiver existed.
+  - Native `EventBus.RaiseEvent` returns nothing and invokes the action once per subscribed receiver.
+  - The warning UI subscribes only on `OnAreaDidLoad`, in the last loading step.
+  - The notice is now never attempted during a load, and spent only once a receiver was reached.
+  - `DeliveredCount` counts notice deliveries with at least one successful receiver.
+- **R5, C02 (`e62cad39`):** the installed `TranslocateUnit` (copy rotation) and `CommandTeleportParty` write
+  `Orientation` without any position comparison.
+  - The capture and classification now see turns, and a same-endpoint placement's final orientation stands.
+  - A rider-only turn alone started nothing (swallowed; corrected by R7 of the review of `e1c0c7ad`).
+- **R6 (`e62cad39`):** C04 and C02 hooks have separate bounded fault reports.
+- **Checks:**
+  - Fast PASS 10/0 under budget `known-issues-sprint4`: components 1362/0, Validate-Source 151/0, scene placement
+    contracts 14/0 (reviewed build 8/6), Candlemere 9/0, and five neighbours.
+  - Kingmaker assembly contracts 815/0.
+  - Three targeted mutations, each caught.
+  - Product-build commit `e62cad39`, DLL SHA-256 `c1bec351…1dfa4728`, MVID `9b5abe93-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08 keep their dispositions; accepted Sprint 3 behaviour and C01's guards are
+  untouched.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — REVIEW REPAIR OF b30c24f8: R1, R2, R3 CORRECTED OFFLINE; C01 STILL UNSUPPORTED; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR #48, stacked on `codex/kmc-known-issues-sprint3` at `e5b92474`),
+continued from the reviewed head `b30c24f8`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md), its review
+section first, and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R1, C04 (`60ba91ae`):** zone observations were keyed by the rider and outlived a normal dismount, whose cleanup
+  clears the references the adapter read first. A remount at the place last checked kept the stale membership. They
+  now belong to the mounting instance (`MountedScriptZoneObservations`, the coordinator's `MountedPair`).
+- **R2, C02 (`3cbdf077`):** the first of two placements before the poll won. `MountedScenePlacementHold` now keeps the
+  scene's latest placement (endpoint and orientation), clears a rider-only one on a whole-pair placement, and applies
+  the unchanged 3 m rule to unattributed writes since the hold, at sample and poll.
+- **R3, C03 (`fb7f048d`, `b80534f9`):** the notice went to a Report nothing displays. `MountedCombatHoldNotifier` now
+  delivers it through the native warning notification. Executed through the installed native `EventBus` to a
+  subscribed sink: once per custody and encounter, and contained on failure.
+- **C01:** still explicitly unsupported. The wording is narrowed: the staging lifecycle cannot take an actively
+  participating pair out of combat with its restoration intent under its present contract, and other designs are not
+  excluded.
+- **Checks:** Fast PASS 10/0 under budget `known-issues-sprint4` (components 1356/0, Validate-Source 151/0, both
+  Sprint 4 contract scripts 9/0 and the five neighbours). Kingmaker assembly contracts 815/0. Six targeted mutations
+  each caught. Product-build commit `b80534f9`, DLL SHA-256 `70bbe6f7…a15099`, MVID `fc4bb6b3-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Unchanged:** S01, M04 and T04–T08 keep their dispositions; accepted Sprint 3 behaviour is untouched.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 4 — SCENE CONTINUITY: C04, C02 IMPLEMENTED OFFLINE; C01 UNSUPPORTED WITH ITS BLOCKER; C03 LIMITS DOCUMENTED; NATIVE NOT RUN (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint4` (draft PR stacked on `codex/kmc-known-issues-sprint3`, PR #47, open), created
+from the accepted Sprint 3 head `e5b92474`. Read the [handoff](docs/KNOWN-ISSUES-SPRINT4-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Sprint 3 accepted at `e5b92474`:** a review checkpoint of offline work. Native is not run. M04's original report,
+  S01 and T04–T08 keep their dispositions.
+- **C04 (`ef264ff3`), implemented and verified offline:** the crossing's Conditional reads the rider's script-zone
+  membership, which native updates only for units with native motion. A seated rider's membership is now rechecked
+  with native `ScriptZone.CheckUnit` (postfix of `ScriptZoneController.Tick`). The owner's `output_log(9).txt` is not
+  on this machine and was not read.
+- **C01, explicitly unsupported:** in combat the only lifecycle that keeps restoration intent refuses behind the
+  settled-participation guard. The scene's command still waits for its own timeout; the rider then returns to the
+  saddle once.
+- **C02 (`eabbd8c8`), implemented and verified offline:** `TranslocateUnit`, a timed-out `CommandMoveUnit` and
+  `CommandTeleportParty` attribute a rider-only write to the scene, so out of combat 0.5, 2 and 3 m placements keep
+  their endpoint. The 3 m rule for unattributed writes is unchanged.
+- **C03 (`9a371910`), intentional limit documented:** limits unchanged. Separate repair: the combat-hold notice is
+  now once per custody and encounter, and reaches the player.
+- **Checks:** Fast PASS 10/0 under budget `known-issues-sprint4` (components 1349/0, Validate-Source 151/0, seven
+  focused scripts). Kingmaker assembly contracts 815/0. Product DLL SHA-256 `3ef14c3a…0558968`, MVID `495b82b0-…`.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 5.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 119088ed: ARRIVAL OVERRIDE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `119088ed`, still on the

@@ -44,6 +44,9 @@ namespace KingmakerMountedCombat.Integration
 
         public UnitEntityData Rider => runtime.Rider;
 
+        // Known issues C04 review R1: the current mounting instance (new at every Attach, cleared by a clean cleanup).
+        internal MountedPair MountingInstance => coordinator.ActivePair;
+
         public UnitEntityData Mount => runtime.Mount;
 
         internal long MountedPairGeneration => mountedPairGeneration;
