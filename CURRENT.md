@@ -1,6 +1,38 @@
-# CURRENT STATE — KNOWN ISSUES REMEDIATION EPIC MERGED INTO MAIN, UNRELEASED (2026-11-19); LATEST RELEASE v0.2.11; NATIVE NOT RUN
+# CURRENT STATE — RELEASE 0.2.12 (OWNER ORDER, 2026-11-19): THE KNOWN ISSUES REMEDIATION EPIC, RELEASED; NATIVE NOT RUN
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.12, by owner order on 2026-11-19, from the merged Known Issues Remediation Epic (PRs #45–#53, merged
+  into main as `446985b7`). Notes: [docs/RELEASE-NOTES-0.2.12.md](docs/RELEASE-NOTES-0.2.12.md). The package identity
+  (zip and DLL SHA-256, MVID, release-source commit, tagged merge) is recorded on the GitHub release.
+- **Version:** 0.2.12 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0. UMM's
+  `ParseVersion` compares integer parts, so 0.2.12 reads newer than 0.2.11.
+- **Previous release:** `v0.2.11`, historical release merge `7a5cd2c3`, built from `86ad9cc1`. (`22945394` is the
+  earlier merge of the mounted-attack-stall repair, PR #43.)
+- **Save change:** a save made while a pair waits to remount after a world-map arrival writes `kmc-retained-intent`
+  version 2; 0.2.3–0.2.11 load that pair dismounted. Every other save is written as before.
+- **Read:** the [epic closeout](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md), the
+  [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md) and [current support, removal and rollback](docs/CURRENT-SUPPORT.md).
+- **Engineering complete offline, now released:** T01–T03, S02, M01–M03, M05, C02, C04, A01, A02, A04 (automatic
+  churn), A05 and U01–U04; M04's investigation (all identified marker defects repaired); R01 (not reproducible), A03
+  (explanation settled); D01–D03.
+- **Documented intentional behaviour:** C03's safe bounds (its notice repaired), R02's ranged rule, A04's real-time wait.
+- **Unresolved:** S01 (saving report after the Ratnook door, cause not established); M04's original incident (not
+  attributable); C01 (in-combat scripted rider movement, unsupported with its blocker); T04–T08 (stale harnesses, open
+  correction); T09 (needs retained native evidence, open investigation).
+- **Excluded:** the epic's manual/native acceptance list and feature expansions (Cavalier, barding, enemy mounted AI,
+  exotic mounts, full celestial template, Run, Mythic Mounted Archery, real-time ranged rule, general content removal,
+  six-pair combat).
+- **Not run in the game before release.** No known-issues fix, gamepad session or interface screen was checked
+  natively. Owner/HUMAN PLAY acceptance remains pending.
+- **Package limit (owner decision):** packaging first failed: the DLL (9,488,896 bytes) exceeded the validator's 9 MiB
+  DLL entry bound, which the epic's growth had crossed (0.2.11 was 9,352,704). The owner raised the bound to 10 MiB in
+  `scripts/Validate-Package.ps1` and its harness guard; the 5 MiB ZIP bound, allowlist and hashes are unchanged.
+- **Not done:** no install, staging or loader replacement.
+
+# KNOWN ISSUES REMEDIATION EPIC MERGED INTO MAIN, BEFORE RELEASE 0.2.12 (2026-11-19); RELEASE THEN v0.2.11; NATIVE NOT RUN
+
+Dated history: the state after the integration and before release 0.2.12.
 
 - **Release:** the latest release is still `v0.2.11`: historical release merge `7a5cd2c3` (2026-11-15), package built
   from release-source commit `86ad9cc1`. (`22945394` is the earlier merge of the mounted-attack-stall repair, PR #43.)

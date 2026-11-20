@@ -29,10 +29,12 @@ try {
     foreach ($entry in $archive.Entries) {
         $normalizedEntry = $entry.FullName.Replace('\','/')
         # The diagnostic assembly carries every qualification scenario and observer until the
-        # development-only qualification assembly separates them; 9 MiB bounds that growth (Sprint 3,
-        # 2026-10-31: raised once from 8 MiB for the carried-approach product code and its native rows; the
-        # compressed 5 MiB ZIP bound, the allowlist, hashes and the other entry bound are unchanged).
-        $entryLimit = if ($normalizedEntry -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll') { 9MB } else { 4MB }
+        # development-only qualification assembly separates them; 10 MiB bounds that growth (Sprint 3,
+        # 2026-10-31: raised once from 8 MiB to 9 MiB for the carried-approach product code and its native rows;
+        # release 0.2.12, 2026-11-19: raised from 9 MiB to 10 MiB by explicit owner decision, because the Known
+        # Issues Remediation Epic took the DLL from 9,352,704 bytes (0.2.11) to 9,488,896 bytes; the compressed
+        # 5 MiB ZIP bound, the allowlist, hashes and the other entry bound are unchanged).
+        $entryLimit = if ($normalizedEntry -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll') { 10MB } else { 4MB }
         if ($normalizedEntry -match '(^|/)\.\.(/|$)|^/|^[A-Za-z]:' -or $entry.Length -le 0 -or $entry.Length -gt $entryLimit) {
             throw "Package entry is unsafe, empty, or oversized: $($entry.FullName)"
         }
