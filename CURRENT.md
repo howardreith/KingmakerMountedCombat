@@ -3,7 +3,7 @@
 Start here. The sections below this one are dated history, newest first.
 
 - **Release:** 0.2.11 (merge `22945394`, 2026-11-15) is the current release. Main is `7a5cd2c3`.
-- **Epic stack:** draft PRs #45–#52 and Sprint 8's draft PR (`codex/kmc-known-issues-sprint8`, targeting
+- **Epic stack:** draft PRs #45–#52 and #53, Sprint 8's (`codex/kmc-known-issues-sprint8`, targeting
   `codex/kmc-known-issues-sprint7`, from the accepted Sprint 7 checkpoint `1ba1841a`). All open and unmerged, no
   reviewers. Every build of the stack still says 0.2.11 and is a different binary from the release.
 - **Read:** the [epic closeout](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md) (identity, package accounting,

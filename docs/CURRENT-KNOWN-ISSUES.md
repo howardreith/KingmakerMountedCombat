@@ -8,7 +8,7 @@ Current material comes first; the detail and the reconciliation history follow i
   out in [KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md); the support, removal
   and rollback contract is [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
 - **Released versus draft:** the current release is 0.2.11. Every correction in this ledger is in an **unmerged draft
-  PR** of the stack #45–#52 and Sprint 8's PR, not in any release. The four shipped fixes the epic inherited are listed
+  PR** of the stack #45–#53, not in any release. The four shipped fixes the epic inherited are listed
   under [Superseded by an identified fix](#superseded-by-an-identified-fix-carried-forward).
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 8, and no Sprint 7
   screen was viewed. "Implemented and verified offline" never means a player scenario passed.
@@ -33,7 +33,7 @@ Current material comes first; the detail and the reconciliation history follow i
 | Sprint 5 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | `772543e1` | none (`cdfbe509` unchanged) |
 | Sprint 6 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | `f835c503` | `7898b1a4` |
 | Sprint 7 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | `1ba1841a` | `e54009e9` |
-| Sprint 8 | Sprint 8 draft PR | `codex/kmc-known-issues-sprint8` | its head | none (documentation only) |
+| Sprint 8 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | its head (the records commit naming #53) | none (documentation only) |
 
 All are open drafts, stacked in that order on main `7a5cd2c3`. DLL identities are in the
 [epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md#baseline-and-stack).

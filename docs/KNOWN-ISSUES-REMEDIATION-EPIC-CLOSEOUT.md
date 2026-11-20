@@ -18,7 +18,7 @@ revised 2026-11-16), written by Sprint 8 (D01–D03). This record also serves as
   advanced since; every PR in the stack is open, draft and unmerged, with no reviewers.
 - **Sprint 8 base:** `1ba1841a3fdcbb9f56a94e55713311d38928b12c`, the accepted Sprint 7 checkpoint (head of PR #52).
 - **Sprint 8 branch:** `codex/kmc-known-issues-sprint8`, worktree `worktrees/known-issues-sprint8` in the lab, draft PR
-  targeting `codex/kmc-known-issues-sprint7`. Product source unchanged.
+  [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) targeting `codex/kmc-known-issues-sprint7`. Product source unchanged.
 - **Version:** every branch still declares 0.2.11, assembly version 0.1.0.0. A build of any sprint is a different binary
   from the released 0.2.11.
 
@@ -32,7 +32,7 @@ revised 2026-11-16), written by Sprint 8 (D01–D03). This record also serves as
 | 5 | R01, R02 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | sprint 3 closeout | `772543e1` | none (unchanged `cdfbe509`) | as Sprint 3 closeout | tests and documentation only |
 | 6 | A01–A05 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | sprint 5 | `f835c503` | `7898b1a4` | SHA-256 `7da6d2c0…dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4` | product |
 | 7 | U01–U04 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | sprint 6 | `1ba1841a` | `e54009e9` | SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2` | product |
-| 8 | D01–D03 | Sprint 8 draft PR | `codex/kmc-known-issues-sprint8` | sprint 7 | this branch's head | none | as Sprint 7 | documentation only |
+| 8 | D01–D03 | [#53](https://github.com/howardreith/KingmakerMountedCombat/pull/53) | `codex/kmc-known-issues-sprint8` | sprint 7 | this branch's head | none | as Sprint 7 | documentation only |
 
 Full identities, reviewed builds and frozen artifacts are in each handoff's identity section. Accepted heads are the
 heads the owner accepted as the next sprint's base; the Sprint 7 head was accepted as an offline engineering
@@ -40,7 +40,7 @@ checkpoint.
 
 ### Merge order
 
-The stack is linear. If the owner merges it, the order is #45, #46, #47, #48, #49, #50, #51, #52, then Sprint 8, each
+The stack is linear. If the owner merges it, the order is #45, #46, #47, #48, #49, #50, #51, #52, then #53, each
 into its target or with its target retargeted to `main` after the previous one lands. Merging a later PR alone would
 carry every earlier sprint with it. No sprint was rebased; each was built on its predecessor's accepted head.
 
@@ -134,14 +134,14 @@ Documentation only, so no product rebuild, component run or mutation campaign.
 |---|---|
 | `git diff --check` against the Sprint 7 head | clean |
 | `scripts/Validate-Source.ps1` (source-only, no build; 20 s) | 151/0 |
-| Every local link in each changed or new Markdown file, resolved against the tree, with heading anchors; PR links counted | 238 links, all resolve |
+| Every local link in each changed or new Markdown file, resolved against the tree, with heading anchors; PR links counted | 241 links, all resolve |
 | Ledger coverage: one canonical row for each of the 26 epic packages and the 8 later IDs, every canonical field filled, no other package-style ID in the ledger; the 34 coverage-map rows equal the epic's rows (item, owner, epic disposition) and each has a current disposition | pass |
 | Current-status agreement: CURRENT.md's and AUTONOMOUS-RESUME.md's first sections, README.md, the ledger and this record name the same unresolved set, the current release and an unmerged stack; none calls an item native-verified | pass |
 | PR and commit identity: PRs #45–#52 open, draft, unmerged, at the recorded heads and targets; origin `main` still `7a5cd2c3`; each product-build commit is in the accepted history | pass |
 | Changed files are Markdown only, CRLF without BOM; every table row has its header's column count | pass |
 
-The ledger, link and identity checks were one scratch script (432 checks, 0 failures), kept outside the repository with
-its log at `artifacts/known-issues-sprint8/01-documentation-consistency.log` in the lab; `Validate-Source` at
+The ledger, link and identity checks were one scratch script (435 checks, 0 failures; PR #53 included), kept outside the repository with
+its log at `artifacts/known-issues-sprint8/03-documentation-consistency-final.log` in the lab; `Validate-Source` at
 `02-validate-source.log`. No repository script was added: these checks serve this one reconciliation, and a durable
 documentation checker was not asked for by a concrete risk.
 

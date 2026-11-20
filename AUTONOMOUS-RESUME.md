@@ -1,12 +1,12 @@
 # Known issues remediation, Sprint 8 — epic closeout checkpoint (2026-11-19)
 
-Branch `codex/kmc-known-issues-sprint8` (draft PR targeting `codex/kmc-known-issues-sprint7`), from `1ba1841a`.
+Branch `codex/kmc-known-issues-sprint8` (draft PR #53 targeting `codex/kmc-known-issues-sprint7`), from `1ba1841a`.
 Read CURRENT.md (its first section), docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md, docs/CURRENT-KNOWN-ISSUES.md and
 docs/CURRENT-SUPPORT.md.
 
 - **State:** the epic's scheduled engineering pass is complete and closed out. Every ID has one disposition.
-  Unresolved: S01, M04's original incident, C01, T04–T08, T09. Release 0.2.11 is current; the stack #45–#52 plus
-  Sprint 8 is unmerged. Native NOT RUN. No further sprint is planned by the epic.
+  Unresolved: S01, M04's original incident, C01, T04–T08, T09. Release 0.2.11 is current; the stack #45–#53 is
+  unmerged. Native NOT RUN. No further sprint is planned by the epic.
 - **Rules:**
   - The ledger's "Current status" section is canonical. A later change updates its row there first, then its sprint
     section; dated handoffs are not rewritten.
