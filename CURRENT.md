@@ -1,6 +1,32 @@
-# CURRENT STATE — RELEASE 0.2.12 (OWNER ORDER, 2026-11-19): THE KNOWN ISSUES REMEDIATION EPIC, RELEASED; NATIVE NOT RUN
+# CURRENT STATE — 0.2.12 STARTUP CONFLICT WITH TABLETOP RULES EXPANSION: REPAIRED ON A REVIEW BRANCH, UNRELEASED (2026-11-20)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Defect (release-blocking, in released 0.2.12):** with Tabletop Rules Expansion (mod id `KingmakerGunslinger`)
+  installed, 0.2.12 is `Not loaded`: both mods transpile `ClickUnitHandler.OnClick`'s command submissions and
+  whichever runs second throws. A save that references Mounted Combat content (toggle
+  `3c81f5a02be74d96a4e07d1c92b6f385`) then fails to load in that session. Reproduced offline with the released 0.2.12
+  DLL and Tabletop Rules Expansion 0.0.191 (and 0.0.140). 0.2.11 and earlier are not affected (prefix only).
+- **Repair:** branch `codex/gunslinger-click-approach-compat` from `12527350` (`v0.2.12`), draft PR for owner review.
+  The transpiler guards the submission instead of replacing it; both submission shapes are recognised exactly; both
+  Harmony orders compose to the same method. Read the
+  [repair handoff](docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md).
+- **Review:** accepted for verification, no blocking defect; the `Validate-Source.ps1` exception (exactly one
+  constant line naming the other mod's type, asserted unique and confined) is accepted.
+- **Evidence:** new `Test-GunslingerClickComposition.ps1` (real transpilers of both mods through the installed loader,
+  all four orders, executed composed slice): released 0.2.12 fails with the incident's exception; the repair passes
+  21/0 after one independent review (no blocking findings; corrections in `80dc8f78`). Fast 5/0; Candidate checks
+  pass apart from baseline-identical or evidence-absent failures (Test-Harness 278/3 = baseline). Package
+  `KingmakerMountedCombat-0.2.12-gunslinger-click-compat-diagnostic.zip` (SHA-256 `c4b9de66…2cec3`, DLL `5d79c78c…`).
+- **Native startup (installed Tabletop Rules Expansion 0.0.140, not the incident's 0.0.191):** run
+  `gunslinger-click-compat-smoke-140b` with the reviewed DLL `5d79c78c…`: game-side PASS, both mods `Active`,
+  `failure=none`, no structural exception. Harness verdict FAIL only on the platform pin: this machine runs UMM 0.33.0,
+  the fingerprint pins 0.33.2 (not changed; owner decision). Restoration exact. The empty `runtime-backups` and
+  `runtime-staging` roots were created first (cleared lab, no interrupted transaction).
+- **Not verified:** native startup with 0.0.191 (staging it needs an owner-approved pinned input in the launcher's
+  retained-dependency guard), the owner's `Quicksave2` recovery (save not available), mounted click and firearm
+  gameplay. The composition evidence substitutes ground admission and native command execution.
+- **Not done:** no permanent installation.
 
 - **Release:** 0.2.12, by owner order on 2026-11-19, from the merged Known Issues Remediation Epic (PRs #45–#53, merged
   into main as `446985b7`). Notes: [docs/RELEASE-NOTES-0.2.12.md](docs/RELEASE-NOTES-0.2.12.md). The package identity

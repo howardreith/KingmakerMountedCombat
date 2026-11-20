@@ -101,7 +101,23 @@ Assert-Kmc ($trackedGenerated.Count -eq 0) 'Git contains no generated/runtime ev
 $productionFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src') -Recurse -File -Filter '*.cs' | Where-Object { $_.FullName -notmatch '[\\/](bin|obj)[\\/]' })
 $productionText = ($productionFiles | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
 Assert-Kmc ($productionText -notmatch '(?i)HarmonyLib|UnitPartRider|UnitPartSaddled|SaddledUnitController') 'production source has no Wrath-only or Harmony2 API use'
-Assert-Kmc ($productionText -notmatch '(?i)KingmakerBuffPlanner|TabletopAddedRules|KingmakerGunslinger|CallOfTheWild') 'production source has independent namespace and persistence identity'
+# Tabletop Rules Expansion click-approach compatibility (startup repair after 0.2.12): the one recognizer of that mod's
+# exact firearm-order submission shape names its type in this single constant, for read-only matching of an instruction
+# operand. Nothing else may name it: no namespace, using, reference, saved identity or second mention anywhere.
+$foreignShapeFile = Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedClickApproachTranspiler.cs'
+$foreignShapeLine = '        internal const string GunslingerOrderType = "KingmakerGunslinger.Firing.NativeFirearmAttackOrder";'
+$foreignShapeHits = @($productionFiles | ForEach-Object {
+    $file = $_.FullName
+    @(Get-Content -LiteralPath $file | Where-Object { $_ -ceq $foreignShapeLine }) | ForEach-Object { $file }
+})
+Assert-Kmc ($foreignShapeHits.Count -eq 1 -and [string]::Equals($foreignShapeHits[0], $foreignShapeFile, [StringComparison]::OrdinalIgnoreCase)) 'the foreign submission shape is named by exactly one constant, in the click-approach recognizer'
+# The constant's symbols are used only by that recognizer, where they are compared with instruction operands' type
+# names; no other file may use them (for example to resolve or bind into that mod).
+$foreignSymbolFiles = @($productionFiles | Where-Object { (Get-Content -Raw -LiteralPath $_.FullName) -cmatch '\bGunslinger(OrderType|InvocationType)\b' } | ForEach-Object { $_.FullName })
+Assert-Kmc ($foreignSymbolFiles.Count -eq 1 -and [string]::Equals($foreignSymbolFiles[0], $foreignShapeFile, [StringComparison]::OrdinalIgnoreCase) -and
+    (Get-Content -Raw -LiteralPath $foreignShapeFile) -cnotmatch '(?i)Type\.GetType|Assembly\.(Load|GetType)|AppDomain|Activator') 'the foreign submission shape constant is used only by the click-approach recognizer, which resolves no foreign type'
+$identityText = ($productionFiles | ForEach-Object { (Get-Content -LiteralPath $_.FullName | Where-Object { $_ -cne $foreignShapeLine }) -join "`n" }) -join "`n"
+Assert-Kmc ($identityText -notmatch '(?i)KingmakerBuffPlanner|TabletopAddedRules|KingmakerGunslinger|CallOfTheWild') 'production source has independent namespace and persistence identity'
 Assert-Kmc ($productionText -notmatch '[A-Za-z]:\\') 'production source contains no absolute machine path'
 
 # Disabling runs a full mounted cleanup over live graphs a native archive
