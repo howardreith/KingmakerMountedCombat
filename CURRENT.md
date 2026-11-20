@@ -1,3 +1,30 @@
+# CURRENT STATE — KNOWN ISSUES REMEDIATION EPIC CLOSED OUT (SPRINT 8, 2026-11-19); RELEASE 0.2.11 CURRENT; EPIC STACK UNMERGED; NATIVE NOT RUN
+
+Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.11 (merge `22945394`, 2026-11-15) is the current release. Main is `7a5cd2c3`.
+- **Epic stack:** draft PRs #45–#52 and Sprint 8's draft PR (`codex/kmc-known-issues-sprint8`, targeting
+  `codex/kmc-known-issues-sprint7`, from the accepted Sprint 7 checkpoint `1ba1841a`). All open and unmerged, no
+  reviewers. Every build of the stack still says 0.2.11 and is a different binary from the release.
+- **Read:** the [epic closeout](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md) (identity, package accounting,
+  validation, unresolved and excluded work), the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md) (one disposition
+  per ID) and [current support, removal and rollback](docs/CURRENT-SUPPORT.md).
+- **Engineering complete offline:** T01–T03, S02, M01–M03, M05, C02, C04, A01, A02, A04 (automatic churn), A05 and
+  U01–U04; M04's investigation (all identified marker defects repaired); R01 (not reproducible), A03 (explanation
+  settled); D01–D03.
+- **Documented intentional behaviour:** C03's safe bounds (its notice repaired), R02's ranged rule, A04's real-time wait.
+- **Unresolved:** S01 (saving report after the Ratnook door, cause not established); M04's original incident (not
+  attributable); C01 (in-combat scripted rider movement, unsupported with its blocker); T04–T08 (stale harnesses, open
+  correction); T09 (needs retained native evidence, open investigation).
+- **Excluded:** the epic's manual/native acceptance list and feature expansions (Cavalier, barding, enemy mounted AI,
+  exotic mounts, full celestial template, Run, Mythic Mounted Archery, real-time ranged rule, general content removal,
+  six-pair combat).
+- **Native:** NOT RUN by any known-issues sprint; no Sprint 7 screen viewed. Owner/HUMAN PLAY acceptance of the
+  releases remains pending.
+- **Sprint 8:** documentation only; product source unchanged (last product build `e54009e9`).
+- **Not authorized:** merge, release, tag, version bump, install, staging, loader replacement, reviewer request or a
+  further sprint.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C, E7720F39 AND 89ACE80F) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the

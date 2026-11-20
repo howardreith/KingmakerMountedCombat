@@ -1,3 +1,22 @@
+# Known issues remediation, Sprint 8 — epic closeout checkpoint (2026-11-19)
+
+Branch `codex/kmc-known-issues-sprint8` (draft PR targeting `codex/kmc-known-issues-sprint7`), from `1ba1841a`.
+Read CURRENT.md (its first section), docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md, docs/CURRENT-KNOWN-ISSUES.md and
+docs/CURRENT-SUPPORT.md.
+
+- **State:** the epic's scheduled engineering pass is complete and closed out. Every ID has one disposition.
+  Unresolved: S01, M04's original incident, C01, T04–T08, T09. Release 0.2.11 is current; the stack #45–#52 plus
+  Sprint 8 is unmerged. Native NOT RUN. No further sprint is planned by the epic.
+- **Rules:**
+  - The ledger's "Current status" section is canonical. A later change updates its row there first, then its sprint
+    section; dated handoffs are not rewritten.
+  - Never call a stack item released, an offline result native-verified, or an unresolved report fixed.
+  - Support, removal and rollback statements live in docs/CURRENT-SUPPORT.md and cite source, a handoff or a release
+    note. Never infer rollback safety from the version label: releases since 0.2.0 and every stack build share
+    assembly version 0.1.0.0, and stack builds also say 0.2.11.
+- **Not authorized:** merge, release, tag, version bump, install, staging, loader replacement, reviewer request or a
+  further sprint.
+
 # Known issues remediation, Sprint 7 — review checkpoint (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR targeting `codex/kmc-known-issues-sprint6`), from `f835c503`. Read

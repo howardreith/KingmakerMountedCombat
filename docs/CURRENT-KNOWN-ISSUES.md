@@ -1,7 +1,177 @@
 # Current known issues
 
-The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
-Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
+The canonical current issue ledger for Mr. Bard's Kingmaker Mounted Combat, kept by the Mounted Combat Known Issues
+Remediation Epic (owner document of 2026-11-15, revised 2026-11-16, prepared against main `7a5cd2c3`, release 0.2.11).
+Current material comes first; the detail and the reconciliation history follow it.
+
+- **Last updated:** 2026-11-19, Sprint 8 (D01–D03): every ID reconciled to one current disposition; the epic is closed
+  out in [KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md); the support, removal
+  and rollback contract is [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md).
+- **Released versus draft:** the current release is 0.2.11. Every correction in this ledger is in an **unmerged draft
+  PR** of the stack #45–#52 and Sprint 8's PR, not in any release. The four shipped fixes the epic inherited are listed
+  under [Superseded by an identified fix](#superseded-by-an-identified-fix-carried-forward).
+- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 8, and no Sprint 7
+  screen was viewed. "Implemented and verified offline" never means a player scenario passed.
+- **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
+  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md),
+  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md), [Sprint 5](KNOWN-ISSUES-SPRINT5-HANDOFF.md),
+  [Sprint 6](KNOWN-ISSUES-SPRINT6-HANDOFF.md), [Sprint 7](KNOWN-ISSUES-SPRINT7-HANDOFF.md),
+  [Sprint 8 and epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md).
+- Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
+
+## Current status (Sprint 8, 2026-11-19)
+
+### Owners
+
+| Owner | PR | Branch | Accepted head | Product-build commit |
+|---|---|---|---|---|
+| Sprint 1 | [#45](https://github.com/howardreith/KingmakerMountedCombat/pull/45) | `codex/kmc-known-issues-sprint1` | `b62c59a8` | `3c64128a` (diagnostic evidence code) |
+| Sprint 2 | [#46](https://github.com/howardreith/KingmakerMountedCombat/pull/46) | `codex/kmc-known-issues-sprint2` | `1dffc3e0` | `5d62a289` |
+| Sprint 3 | [#47](https://github.com/howardreith/KingmakerMountedCombat/pull/47) | `codex/kmc-known-issues-sprint3` | `e5b92474` | `f6e86858` |
+| Sprint 4 | [#48](https://github.com/howardreith/KingmakerMountedCombat/pull/48) | `codex/kmc-known-issues-sprint4` | `14f1b474` | `03685720` |
+| Sprint 3 closeout | [#49](https://github.com/howardreith/KingmakerMountedCombat/pull/49) | `codex/kmc-known-issues-sprint3-closeout` | `af5b2bc7` | `cdfbe509` |
+| Sprint 5 | [#50](https://github.com/howardreith/KingmakerMountedCombat/pull/50) | `codex/kmc-known-issues-sprint5` | `772543e1` | none (`cdfbe509` unchanged) |
+| Sprint 6 | [#51](https://github.com/howardreith/KingmakerMountedCombat/pull/51) | `codex/kmc-known-issues-sprint6` | `f835c503` | `7898b1a4` |
+| Sprint 7 | [#52](https://github.com/howardreith/KingmakerMountedCombat/pull/52) | `codex/kmc-known-issues-sprint7` | `1ba1841a` | `e54009e9` |
+| Sprint 8 | Sprint 8 draft PR | `codex/kmc-known-issues-sprint8` | its head | none (documentation only) |
+
+All are open drafts, stacked in that order on main `7a5cd2c3`. DLL identities are in the
+[epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md#baseline-and-stack).
+
+### Closure categories
+
+| Category | Meaning |
+|---|---|
+| Engineering complete | The package's engineering work is done offline: a correction with a meaningful regression, a settled investigation, or delivered documentation. Native gameplay stays a separate field. |
+| Unresolved | A report, unsupported path or stale tool that remains open, with its precise gap. |
+| Documented intentional behaviour | An existing design or safety boundary is kept and explained. |
+| Excluded | Outside the epic; kept visible, no sprint task. |
+
+### Every ID
+
+"Affected versions" lists only what is verified. "By source" means read from code, not observed in play. Detail for
+each ID is in its sprint section below and in its handoff.
+
+| ID | Symptom or question | Classification | Verified affected versions | Current disposition | Closure | Owner (PR) | Native | Physical UI | Remaining uncertainty |
+|---|---|---|---|---|---|---|---|---|---|
+| T01 | Charge probe asserted two pairs against six-pair production | Test/harness defect | The probe at `7a5cd2c3` (stale since `af08a59d`, 2026-10-22); no product version | Implemented and verified offline | Engineering complete | Sprint 1 (#45) | Not applicable (detached probe) | — | The script still exits 1 at T04 |
+| T02 | Repeated-world reader and producer check expected the chunk7b subscriber set | Test/harness defect | Reader and producer check at `7a5cd2c3`; by source the 0.2.0–0.2.11 producer cannot pass its own check (diagnostic path only) | Implemented and verified offline | Engineering complete | Sprint 1 (#45) | Not run (no repeated-world native run) | — | Live subscribers at a settled repeated world not observed on a current build |
+| T03 | UMM identity pins conflated with API compatibility | Test/harness defect | The validator at `7a5cd2c3`; no product version | Implemented and verified offline | Engineering complete | Sprint 1 (#45) | Not run on any loader | — | Declared minimum 0.28.2 unassessed |
+| T04 | Charge probe calls members whose shapes changed on 2026-11-03 | Test/harness defect | The probe at `7a5cd2c3` and every stack head (drift since `93d925e2`) | Open correction | Unresolved | Sprint 1 (#45), not repaired | Not applicable | — | Checks after the second drift point not assessed |
+| T05 | Six-pair native ownership harness does not compile | Test/harness defect | Fails identically at `7a5cd2c3` (since `56b07ff0`, 2026-11-05) | Open correction | Unresolved | Sprint 1 (#45), not repaired | Not applicable | — | Three session-reading wrappers have no behavioural test |
+| T06 | Repeated-world protocol script stops at an undefined variable | Test/harness defect | Fails identically at `7a5cd2c3` (since `3a7f8a84`, 2026-11-05) | Open correction | Unresolved | Sprint 1 (#45), not repaired | Not applicable | — | Checks after that line did not run |
+| T07 | Area restore preflight adapter harness does not compile | Test/harness defect | Fails identically at `b62c59a8`; breaking commits not traced | Open correction | Unresolved | Sprint 2 (#46), not repaired | Not applicable | — | Facade also lacks `AreaPair.CarriedCopy` |
+| T08 | Six-pair archive adapter harness does not compile | Test/harness defect | Fails identically at `b62c59a8`; breaking commits not traced | Open correction | Unresolved | Sprint 2 (#46), not repaired | Not applicable | — | — |
+| T09 | `Test-Finalize2UpgradeReaders.ps1` stops at `PathNotFound` | Missing native/manual evidence (harness needs retained evidence) | Observed at `f835c503` and the Sprint 7 head; main not checked | Open investigation | Unresolved | Sprint 7 (#52), not repaired | Not applicable | — | Whether the r05 evidence can be recovered |
+| S01 | Saving reported broken after the Ratnook door | Investigation | 0.2.4 report (cause unknown). The 0.2.3 occurrence had a different, explained cause fixed in 0.2.4. Later releases unknown | Investigation complete, issue unresolved | Unresolved | Sprint 2 (#46) | Not run | — | Whether, how and with what gate state a save was attempted in that session |
+| S02 | After an area arrival the inactive-view check dismounts the pair | Product defect | Owner logs reporting 0.2.3 (Ratnook Hill) and 0.2.11 (Candlemere); neither DLL byte-matched; others unknown | Implemented and verified offline | Engineering complete | Sprint 2 (#46) | Not run | — | Integration order read from IL, not executed; native load placement within 0.1 m assumed |
+| M01 | Entrance and exit orders miss the native acceleration offer | Product defect | 0.2.11 by source (the entrance carry exists since 0.2.5); not observed | Implemented and verified offline | Engineering complete | Sprint 3 (#47) | Not run | — | Harmony installation not run natively |
+| M02 | Gamepad acceleration does not reach the mounted mover | Product defect | 0.2.11 by source; the 0.2.7 notes list gamepad running as unchanged; not observed | Implemented and verified offline | Engineering complete | Sprint 3 (#47) | Not run (no gamepad session ever) | — | — |
+| M03 | Group pace uses the rider's speed | Product defect | 0.2.11 by source; the 0.2.7 notes list the rider-based walking pace; not observed | Implemented and verified offline | Engineering complete | Sprint 3 (#47) | Not run | — | — |
+| M04 | An extra or stale green movement marker | Investigation | Reported before 0.2.3 (0.2.3 notes); exact version unknown | Engineering investigation complete; all identified product marker defects repaired | Engineering complete; original incident unresolved | Sprint 3 (#47) and closeout (#49) | Not run | Not viewed | The original incident is not attributable |
+| M05 | Stick input for a mounted rider moves nothing, dismounts the pair and blocks remounting | Product defect (found 2026-11-16) | Sprint 3 base `1dffc3e0` (0.2.11 code) by source; never observed | Implemented and verified offline | Engineering complete | Sprint 3 (#47) | Not run (no gamepad session ever) | — | Native still faults on a command its `Run` did not admit; followers' speed cap reads the selected rider |
+| C04 | Candlemere "wade through" fades but does not cross while mounted | Product defect | Owner report and a log reporting 0.2.11 (not byte-matched); others unknown | Implemented and verified offline | Engineering complete | Sprint 4 (#48) | Not run (owner's log absent) | — | The awake order in the owner's game |
+| C01 | Scripted movement of a seated rider during combat waits for the scene timeout | Unsupported path | 0.2.8–0.2.11 (0.2.8 notes) | Explicitly unsupported, with its blocker | Unresolved (unsupported path documented) | Sprint 4 (#48) | Not run | — | Another design would need its own investigation |
+| C02 | Rider-only scene placements of 3 m or less can be swallowed | Product defect | 0.2.8–0.2.11 (0.2.8 notes) | Implemented and verified offline | Engineering complete | Sprint 4 (#48) | Not run | — | Another handler inside a cutscene's open scope counts as the cutscene's |
+| C03 | Restoration fallbacks need truthful feedback and clean retirement | Intentional limitation; one product defect (notice latch) | Bounds since 0.2.8; the notice latch at `e5b92474` by source | Intentional limit documented; one separate repair | Documented intentional behaviour; repair engineering complete | Sprint 4 (#48) | Not run | Not viewed (native warning) | — |
+| R01 | Carried travel in a separate initiative slot gives no ranged contribution | Investigation | None established | Closed: not reproducible; no product change | Engineering complete | Sprint 5 (#50) | Not run | — | — |
+| R02 | The accepted ranged rules need precise documentation | Intentional limitation | Rule effective in 0.2.10–0.2.11 (0.2.9 never applied it) | Intentional adaptation documented | Documented intentional behaviour | Sprint 5 (#50) | Not applicable | — | The native attack floor can absorb part of the penalty |
+| A01 | A fresh same-target click just after attack completion gets inconsistent feedback | Product defect | Documented at 0.2.6; 0.2.11 by source; not observed | Implemented and verified offline | Engineering complete | Sprint 6 (#51) | Not run | — | — |
+| A02 | Terminal feedback can describe a cancellation as "cannot act" | Product defect | 0.2.11 by source; not observed | Implemented and verified offline | Engineering complete | Sprint 6 (#51) | Not run | — | — |
+| A03 | Which Serenity or Fascinate condition stopped the rider | Investigation | Report against 0.2.10 | Settled explanation; no product change | Engineering complete (explanation settled) | Sprint 6 (#51) | Not run | — | Royon's live buffs, saves and original log not observed |
+| A04 | Real-time blocked orders wait; automatic proposals may churn | Intentional limitation (wait) and product defect (churn) | Churn: Sprint 5 base `772543e1` by source; the wait is native behaviour | Intentional wait documented; churn established and corrected (automatic only) | Documented intentional behaviour (wait); engineering complete (churn) | Sprint 6 (#51) | Not run | — | — |
+| A05 | Any non-success automatic end marked its target unreachable | Product defect (found in A04) | Sprint 5 base by source; released versions not assessed | Implemented and verified offline | Engineering complete | Sprint 6 (#51) | Not run | — | — |
+| U01 | After Charge the Move slot still shows usable distance | Product defect (UI) | 0.2.0–0.2.11 (0.2.0 notes) | Implemented and verified offline | Engineering complete | Sprint 7 (#52) | Not run | **Not viewed** | — |
+| U02 | No selection glow on the public slot while its delivery ability targets | Product defect (UI) | 0.2.0–0.2.11 (0.2.0 notes) | Implemented and verified offline | Engineering complete | Sprint 7 (#52) | Not run | **Not viewed** | — |
+| U03 | The Paladin class panel promises Weapon Bond upgrades to Divine Mount characters | Product defect (UI) | Documented in the [Divine Mount record](SPRINT8-PALADIN-MOUNT.md) before 0.2.0; releases not individually checked | Implemented and verified offline (character-screen class panel only) | Engineering complete | Sprint 7 (#52) | Not run | **Not viewed** | Per-level tooltips and the console screen unchanged |
+| U04 | No mounted badge on the rider portrait; a folded mount's hover highlights nothing | Product defect (UI omission) | 0.2.0–0.2.11 (0.2.0 notes) | Implemented and verified offline | Engineering complete | Sprint 7 (#52) | Not run | **Not viewed** | Which collider the pointer picks over a pair; badge engine calls substituted offline |
+| D01 | Current status fragmented across dated handoffs and stale entry points | Documentation | Records at `7a5cd2c3` | Implemented (documentation) | Engineering complete | Sprint 8 | Not applicable | — | — |
+| D02 | Support, removal and rollback limits need one current description | Documentation | Records at `7a5cd2c3` | Implemented: [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md) | Engineering complete | Sprint 8 | Not applicable | — | — |
+| D03 | Final handoff and completion accounting | Documentation | — | Delivered: [epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md) | Engineering complete | Sprint 8 | Not applicable | — | — |
+
+Counts: 26 epic work packages (T01–T03, S01–S02, M01–M04, C01–C04, R01–R02, A01–A04, U01–U04, D01–D03) and eight IDs
+found during the epic (T04–T09, M05, A05). Unresolved: S01, M04's original incident, C01, T04–T08, T09.
+
+### Coverage map (the epic's audit rows)
+
+| Audit item | Owner | Epic disposition | Current disposition |
+|---|---|---|---|
+| Saving failure after the door | S01 | Investigate then repair if established | Investigation complete, issue unresolved |
+| Arrival restore followed by inactive-view dismount | S02 | Fix | Implemented and verified offline |
+| Extra or stale green movement marker | M04 | Investigate then repair if established | Engineering investigation complete; identified marker defects repaired; incident unattributed |
+| Exit and entrance acceleration omission | M01 | Fix | Implemented and verified offline |
+| Gamepad acceleration omission | M02 | Fix | Implemented and verified offline |
+| Rider speed used for group pace | M03 | Fix with native floor preserved | Implemented and verified offline; native 30 ft floor unchanged |
+| Candlemere wade-through fails while mounted | C04 | Investigate then repair the native interaction path | Implemented and verified offline |
+| Scripted rider movement during combat | C01 | Implement safe supported command handling | Explicitly unsupported, with its blocker (no safe adapter exists under the present contract) |
+| Short rider-only scene placement | C02 | Fix attributable placements | Implemented and verified offline |
+| Combat begins while already staged | C03 | Retain post-combat restoration fallback | Intentional limit documented; notice repaired |
+| Distance navigation and regroup bounds | C03 | Retain safe bounds and truthful cleanup | Intentional limit documented |
+| Separate-initiative carried travel omitted | R01 | Correct attribution without riderless travel | Closed: not reproducible; no product change |
+| Quarter-second movement tolerance | R02 | Retain and explain | Intentional adaptation documented |
+| Native difficulty attack floor | R02 | Retain and explain | Intentional adaptation documented |
+| Turn-based-only per-roll rule and no Run branch | R02 | Retain scope and timing | Intentional adaptation documented |
+| One-frame same-target click feedback | A01 | Fix explicit new-click handling | Implemented and verified offline |
+| Cancellation described as cannot act | A02 | Fix diagnostic cause selection | Implemented and verified offline |
+| Unidentified Serenity or Fascinate trigger | A03 | Investigate available evidence | Settled explanation; no product change; live state unobserved |
+| Healthy transient unstarted order retirement | A03 | Preserve one-drop behavior; investigate proven anomalies | One-drop behaviour preserved (an unstarted native Success still retires once, Sprint 6 A02 table); no proven anomaly was presented, so none was investigated |
+| Blocked real-time rider command waiting | A04 | Retain native waiting and actor independence | Intentional wait documented |
+| Possible automatic real-time proposal churn | A04 | Investigate; fix only if established | Established and corrected (automatic only) |
+| Post-Charge unusable distance display | U01 | Fix presentation | Implemented and verified offline; not viewed |
+| Missing targeting slot glow | U02 | Fix presentation | Implemented and verified offline; not viewed |
+| Misleading Paladin upgrade panel | U03 | Fix presentation | Implemented and verified offline (class panel); not viewed |
+| Missing mounted badge and hover affordance | U04 | Implement scoped UI feedback | Implemented and verified offline; not viewed |
+| Two-pair charge probe against six-pair product | T01 | Fix stale test | Implemented and verified offline; T04 exposed |
+| Old repeated-world subscriber expectations | T02 | Version reader; preserve old evidence | Implemented and verified offline |
+| UMM identity and compatibility conflation | T03 | Separate profile and API results | Implemented and verified offline |
+| Stale resume and fragmented known issues | D01 | Consolidate current state | Implemented (this ledger, the entry points) |
+| Removal and rollback limitations | D02 | Document existing restrictions | Implemented ([CURRENT-SUPPORT.md](CURRENT-SUPPORT.md#removal-and-save-dependencies)) |
+| Mount breadth and two versus six pair support | D02 | Document; no expanded feature support | Implemented ([CURRENT-SUPPORT.md](CURRENT-SUPPORT.md#riders-mounts-and-pairs)) |
+| Cavalier barding enemy riders exotic mounts | D02 | Excluded feature expansion | Excluded; documented ([CURRENT-SUPPORT.md](CURRENT-SUPPORT.md#not-supported-and-excluded-from-the-epic)) |
+| Already shipped major repair code | D01, D02 | Record identified fixes; no duplicate repair | Recorded below as superseded by identified fixes |
+| Manual and native acceptance-only backlog | D01, D03 | Excluded from sprint commitments | Excluded; listed below and in the closeout |
+
+### Review-discovered defects folded into accepted corrections
+
+Defects found by a review of a sprint's own head, each corrected before that sprint was accepted. They belong to the
+parent ID and have no row of their own.
+
+| Parent | Review | Defect found | Corrected in |
+|---|---|---|---|
+| T02, T03 | Independent review of Sprint 1 | Five: inaccessible loader members still bound; the sweep read a build not under test; a local profile applied to any reference; culture-sensitive name comparison; unlabelled unsupported refusals | `a80a28b0` |
+| T03 | Owner review of `fdd93249` | The umbrella did not forward its configuration; the loader matrix showed an incomplete inspection as a finished row | `e52a59f0` |
+| S02 | Owner review R1 of `f71fabe7` | A deferred pair's arrival placement was lost across a save and load | `5d62a289` |
+| M05 | Owner review of `5e27c9bd` (R1, R2) | Retiring the owned command could clear a foreign override; queue promotion bypassed the observer | `e98eac31` |
+| M05 | Owner review of `25cbdbe2` | The dismount reported complete cleanup while a retirement was still owed | `f4369506`, `899fe393` |
+| M05 | Owner review of `fe22563a` | World boundaries after the guard refused the pair's retained owner | `7fa9f74e`, `ee8cca11`, `56cae55f`, `1ad306ce` |
+| M05 | Owner review of `119088ed` | The arrival's override exception accepted a foreign agent | `7a657838`, `29f987b8`, `f6e86858` |
+| M01–M03 | Sprint 3 continuation | A throwing logger in the group-pace fault report escaped the hook | `b65977d8` |
+| C04, C02, C03 | Review of `b30c24f8` (R1–R3) | Zone observations outlived the dismount; the first of two placements kept; the notice reached no player | `60ba91ae`, `3cbdf077`, `fb7f048d`, `b80534f9` |
+| C03, C02 | Review of `263ac3ea` (R4–R6) | The notice was spent before a receiver existed; orientation-only placements; one fault latch for two hooks | `e62cad39` |
+| C02, C04 | Review of `e1c0c7ad` (R7–R9) | A standalone rider turn swallowed; whole-pair writes missed; a throwing success logger truncated the loops | `ed83339c` |
+| C02 | Review of `813d00a1` (R10) | Scene ownership read the global mode after the operation | `03685720` |
+| M04 | Review of `b1a88b4e` (R1–R3) | Frame-scoped authority, a copied command and an inferred placement record | `cdfbe509` |
+| A01, A02, A05 | Review of `2ae4cc8b` (findings 1–5) | Untyped command ends, fault ordering, durable capability cause, Run-token scope, the A01 counter | `ce9b1383` |
+| A02 | Review of `fa533e97` (R18–R20) | Capability ends not tied to the exact native branch; the innermost Run token; a throwing scheduler | `1d0054f0` |
+| A02 | Review of `dffd3e72` (R21, R22) | R21: native terminal captures rooted commands in thread-static fields (lifecycle defect). R22: "always releases" wording withdrawn | `0e1125fa` |
+| A02 | Review of `95ae0b30` (R23, R24) | The CanNotAttack term could cross nested observations; the terminal-observation record | `7898b1a4` |
+| U04 | Owner review of `292cd23c` (R1, R2) | The hover and badge used the wrong native seams and lifecycle | `92310c52` |
+| U04 | Owner review of `e7720f39` (R3, R4) | A failed hover release or badge removal was lost | `6ff46a2a` |
+| U04 | Owner review of `89ace80f` (R5) | One pair's cleanup cleared another pair's active hover redirect | `e54009e9` |
+
+### Other recorded observations (no ID)
+
+- **Designer `RunCommand`:** moving a seated rider outside any scene cannot complete while mounted. An unsupported
+  path in the same class as C01, found by the Sprint 3 closeout's marker audit; unexercised.
+- **Baseline-identical failures:** `Test-Harness.ps1` fails 4 of 281 at Sprint 7 and at the Sprint 6 base (two need a
+  historical package zip, one source pin absent at the base, one package-size check);
+  `Test-Chunk7CapitalArrivalEvidence.ps1` fails 3 of 165, which need native evidence for batches 196–198. Not
+  harness defects established by this epic; not investigated.
+
+## Reconciliation history (superseded by the current status above)
+
+The bullets below are the ledger header as it stood at the end of Sprint 7, kept for history. "Every row of Sprint 8
+is a carried-forward planning finding" was true until Sprint 8 reconciled D01–D03.
 
 - **Last updated:** 2026-11-19, Sprint 7 (U01-U04 implemented and verified offline as presentation projections; new T09 recorded), after 2026-11-18, Sprint 6 (A01, A02 and A04 corrected; A03 settled; new A05 corrected), after 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
   entry: a live background cutscene's commands and a TranslocateUnit inside a cutscene's scope), after the review of
@@ -468,7 +638,17 @@ changes. No screen was viewed.
 | U04 | No mounted badge on the rider portrait; hovering a folded mount highlights nothing. | UI omission | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`; failure containment corrected after the review of `e7720f39`; exact pair cleanup after the review of `89ace80f`)** | Identity policies as accepted. The badge is reconciled at the portrait's native per-frame refresh (`UpdateCrippled`; `HealthUpdate` runs only on a hit-point change) and bind (`Initialize`), and hidden and destroyed at load, area unload, world discard, disable and disposal; a badge whose removal fails stays owned as a hidden residue under the same bound of 32 and is retried at every refresh and boundary (R4). The folded mount's world hover (the only source native routes to the tracker; a portrait hover does not reach it) highlights its rider's existing entry under one owned lease (weak tracker, entry and rows; pair identity; hovering unit), released before every native hover pass and at a tracker rebuild, its own pair's cleanup (another pair's cleanup only retries owed cleanup, R5), a generation change and every world boundary; the release is a bounded (4), weak cleanup obligation whose two steps run independently and which is kept until each completes, its target is gone or replaced, or native's own completed pass recomputes that tracker (R3). Native's own hover pass ran detached under the product's real Harmony12 patches. The reviewed `92310c52` fails 41 of the R3/R4 cases; the reviewed `6ff46a2a` fails the 7 unrelated-pair cases of R5 | Not run; not viewed |
 | T09 | `scripts/Test-Finalize2UpgradeReaders.ps1` stops at `PathNotFound`. | Harness needing retained native evidence | **Open investigation** | Its last section reads run r05's `runtime-request.json` from the lab's `runtime-evidence`, absent on this machine. Identical on the Sprint 6 worktree. Found as a U02 neighbour on 2026-11-19 | Not applicable |
 
-## Sprint 8 — carried forward, pending reconciliation
+## Sprint 8 — documentation (reconciled 2026-11-19)
+
+Record: [epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md). No product change.
+
+| ID | Symptom or purpose | Classification | Status | Delivered | Native |
+|---|---|---|---|---|---|
+| D01 | Current status is fragmented across dated handoffs and stale entry points. | Documentation | **Implemented** | The [current status](#current-status-sprint-8-2026-11-19) section above: one row per ID with the canonical fields, the coverage map, the review-discovered defects; `CURRENT.md`, `AUTONOMOUS-RESUME.md` and `README.md` now open with the same current summary | Not applicable |
+| D02 | Support, removal and rollback limits need one current description. | Documentation | **Implemented** | [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md); `README.md` points to it; dated superseding notes on the 0.2.0 notes and the two Chunk 7 guides | Not applicable |
+| D03 | Final sprint handoff and completion accounting. | Documentation | **Delivered** | [KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md) | Not applicable |
+
+### As planned on 2026-11-15 (kept for history)
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
@@ -499,7 +679,8 @@ Recorded from the owner's amendment. Nothing below was investigated or reproduce
   cause.
 
 This table is a scaffold. D01–D03 are not done because their rows exist: the full reconciliation of current
-documentation is Sprint 8's work.
+documentation is Sprint 8's work. (Superseded 2026-11-19: Sprint 8 did that
+reconciliation; see the Sprint 8 section above.)
 
 ## Superseded by an identified fix (carried forward)
 
