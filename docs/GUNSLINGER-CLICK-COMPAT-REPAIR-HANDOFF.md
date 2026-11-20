@@ -3,7 +3,8 @@
 Release-blocking compatibility defect in **0.2.12**: with Mr. Bard's Tabletop Rules Expansion (mod id
 `KingmakerGunslinger`) **0.0.191** installed, Mounted Combat fails to load, and a save that references Mounted
 Combat content then fails to load. Branch `codex/gunslinger-click-approach-compat`, from `origin/main` =
-`12527350` (the tagged `v0.2.12` merge). Not installed.
+`12527350` (the tagged `v0.2.12` merge). PR #55, merged into main as `a4d25e45`; released in 0.2.13 by owner order
+([notes](RELEASE-NOTES-0.2.13.md)). Not installed.
 
 ## Incident
 
@@ -190,6 +191,15 @@ run uses the **installed Tabletop Rules Expansion 0.0.140** (DLL `00ef6757…`),
   Combat folder, the installed Tabletop Rules Expansion DLL is still `00ef6757…`, no game process, no lock.
 - An earlier attempt (`gunslinger-click-compat-smoke-140`, from the PR branch) was refused before launch (`Runtime
   request branch is outside the KMC prefix.`; `launchIssued=false`) and restored identically.
+
+**Release binary, run `release-0.2.13-smoke-140` (same procedure, after the 0.2.13 version bump).** Release commit
+`141ab3de` packaged on the alias branch `codex/mounted-combat-release-0.2.13-native` (zip `572912e8…`), DLL
+`197053e34eaf80d4ae8f86c630f5a91f89aa7fd4dd796831e2cfc4df39af050a`, MVID `401084a4-f247-435c-a2cc-ba14247fe947`, the
+release DLL. Full WhatIf purity PASS. Game side: `status=PASS`, product 0.2.13, all 17 mods `active=true`,
+`[KingmakerGunslinger] Active.`, `[KingmakerMountedCombat] Active.`, `failure=none` twice, no structural exception.
+Harness verdict FAIL only on the same UMM platform pin. Restoration exact (same Mods and save digests as above). Log
+copy `analysis-cache/gunslinger-click-compat-native/release-0.2.13-smoke-140/output_log.txt` (`7ba450a8…`). Installed
+0.0.140 again.
 
 **Tabletop Rules Expansion 0.0.191 natively: not run.** The launcher stages a specific foreign build only through a
 retained-dependency selection, which admits a producer run's staged folder or the one owner-pinned F1 input. The

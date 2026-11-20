@@ -18,7 +18,7 @@ Current material comes first; the detail and the reconciliation history follow i
   [Sprint 6](KNOWN-ISSUES-SPRINT6-HANDOFF.md), [Sprint 7](KNOWN-ISSUES-SPRINT7-HANDOFF.md),
   [Sprint 8 and epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md).
 - **After release (2026-11-20):** X01, the 0.2.12 startup conflict with Tabletop Rules Expansion, is recorded under
-  [After release 0.2.12](#after-release-0212); repaired on a review branch, unreleased.
+  [After release 0.2.12](#after-release-0212); repaired and released in 0.2.13.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Current status (Sprint 8, 2026-11-19)
@@ -177,7 +177,7 @@ parent ID and have no row of their own.
 
 | ID | Report | Disposition | Native |
 |---|---|---|---|
-| X01 | 0.2.12 is `Not loaded` beside Tabletop Rules Expansion (`KingmakerGunslinger`) 0.0.191; a save using the Mounted Combat toggle `3c81f5a02be74d96a4e07d1c92b6f385` then fails to load (owner log `output_log(20261120-043652).txt`) | **Repaired on review branch `codex/gunslinger-click-approach-compat`, unreleased.** Cause: the M04 closeout's `ClickUnitHandler.OnClick` transpiler (`cdfbe509`) replaced a native `Run` that the other mod also rewrites; whichever ran second threw. The transpiler now guards the submission instead. Composition repaired and verified offline with both released binaries ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md)) | Native `mod-load-smoke` beside the installed 0.0.140: game-side PASS, both `Active`, `failure=none` (harness FAIL only on the UMM 0.33.0/0.33.2 platform pin). Not run with 0.0.191; the owner's save recovery and gameplay are not verified |
+| X01 | 0.2.12 is `Not loaded` beside Tabletop Rules Expansion (`KingmakerGunslinger`) 0.0.191; a save using the Mounted Combat toggle `3c81f5a02be74d96a4e07d1c92b6f385` then fails to load (owner log `output_log(20261120-043652).txt`) | **Repaired; released in 0.2.13** (PR #55, merged as `a4d25e45`). Cause: the M04 closeout's `ClickUnitHandler.OnClick` transpiler (`cdfbe509`) replaced a native `Run` that the other mod also rewrites; whichever ran second threw. The transpiler now guards the submission instead. Composition repaired and verified offline with both released binaries ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md)) | Native `mod-load-smoke` beside the installed 0.0.140: game-side PASS, both `Active`, `failure=none` (harness FAIL only on the UMM 0.33.0/0.33.2 platform pin). Not run with 0.0.191; the owner's save recovery and gameplay are not verified |
 
 ## Reconciliation history (superseded by the current status above)
 
