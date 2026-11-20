@@ -8,7 +8,24 @@ Release notes: [0.2.11](docs/RELEASE-NOTES-0.2.11.md) (current), [0.2.10](docs/R
 [0.2.9](docs/RELEASE-NOTES-0.2.9.md), [0.2.8](docs/RELEASE-NOTES-0.2.8.md), [0.2.7](docs/RELEASE-NOTES-0.2.7.md),
 [0.2.6](docs/RELEASE-NOTES-0.2.6.md), [0.2.5](docs/RELEASE-NOTES-0.2.5.md), [0.2.4](docs/RELEASE-NOTES-0.2.4.md),
 [0.2.3](docs/RELEASE-NOTES-0.2.3.md), [0.2.2](docs/RELEASE-NOTES-0.2.2.md), [0.2.0](docs/RELEASE-NOTES-0.2.0.md)
-(what is supported and the known limits) and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
+and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
+
+## Current status
+
+- **Release:** 0.2.11 is the current release.
+- **What is supported, the retained limits, removal and rollback:** [docs/CURRENT-SUPPORT.md](docs/CURRENT-SUPPORT.md).
+  It replaces the 0.2.0 notes' known-limits list for current status.
+- **Known issues:** [docs/CURRENT-KNOWN-ISSUES.md](docs/CURRENT-KNOWN-ISSUES.md), one current disposition per issue.
+  The Known Issues Remediation Epic's corrections are merged into main (pull requests #45 to #53) but are not in any
+  release: 0.2.11 does not contain them, no new version exists, and none was run in the game. Its final accounting:
+  [docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md).
+- **Still open:** a saving failure reported after the Ratnook door in 0.2.4 has no established cause; the original
+  extra-green-marker report is not attributed; a scripted scene that moves a seated rider during combat waits for the
+  scene's own timeout (unsupported). Five developer test harnesses are stale and one needs missing evidence (T04–T09);
+  they do not affect play.
+- **Not supported:** Cavalier, barding, enemy mounted AI, borrowed, summoned, flying or exotic mounts, Run, Mythic
+  Mounted Archery, a real-time mounted ranged penalty, and six-pair combat (two pairs are tested in combat; six in
+  exploration and saving).
 
 ## Install
 
@@ -39,14 +56,19 @@ The mod has no options page. Its UMM entry offers only UMM's own controls (enabl
 
 ## Before removing the mod
 
-**Some campaigns cannot be loaded without the mod.** A save still needs it if any character has:
+**Some campaigns depend on the mod.** The mod treats a save as dependent, and will not prepare it for removal, if
+any character has:
 
 - a Horse or Riding Dog from this mod;
 - the Mounted Combat feat;
 - the Mounted Archery feat;
-- Divine Bond taken through this mod's Paladin level-five choice (Weapon Bond included).
+- Divine Bond taken through this mod's Paladin level-five choice, whichever bond was chosen (Weapon Bond or Divine
+  Mount);
+- a Celestial Smite mark still active on any creature.
 
-Never edit a save to strip mod data. Removing the mod from such a campaign is not supported.
+Never edit a save to strip mod data. Removing the mod from such a campaign is not supported: the mod has no tool that
+removes its content from a campaign and no migration that does. Loading such a save without the mod has not been
+tested, so what would happen is unknown; keep the mod installed for that campaign.
 
 For any other campaign, prepare a clean save first:
 
@@ -58,8 +80,15 @@ For any other campaign, prepare a clean save first:
    - **"Not prepared: …"** or **"Preparation unconfirmed: …"** — do **not** remove the mod. The message names the
      cause, for example a companion or feat from this mod. Fix it if you can, then try again.
 
+The check also refuses if the written save still names anything from this mod.
+
 Turning the mod off in UMM also dismounts every pair, but it does not write or check a save. Use the steps above
 before deleting the mod.
+
+**Going back to an older version** needs the backup you made before upgrading and the matching older package.
+Every release since 0.2.0 has the same assembly version, so the version number does not show whether an older build
+can read a save. A campaign with Mounted Archery needs 0.2.10 or later. Details:
+[docs/CURRENT-SUPPORT.md](docs/CURRENT-SUPPORT.md#rollback-and-downgrade).
 
 ## Logs and problems
 

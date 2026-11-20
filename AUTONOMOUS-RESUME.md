@@ -1,3 +1,25 @@
+# Known issues remediation — merged into main, unreleased (2026-11-19)
+
+The accepted stack #45–#52 is merged into main (ordinary merge commits, in order); PR #53 (Sprint 8's documentation and
+closeout) lands after it. Read CURRENT.md (its first section), docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md,
+docs/CURRENT-KNOWN-ISSUES.md and docs/CURRENT-SUPPORT.md.
+
+- **State:** the epic's scheduled engineering pass is complete, closed out and integrated. Every ID has one
+  disposition. Unresolved: S01, M04's original incident, C01, T04–T08, T09. The latest release is still `v0.2.11`
+  (historical release merge `7a5cd2c3`); main holds the epic after it, unreleased and not release-qualified. Native NOT
+  RUN. No further sprint is planned by the epic.
+- **Rules:**
+  - The ledger's "Current status" section is canonical. A later change updates its row there first, then its sprint
+    section; dated handoffs are not rewritten.
+  - Never call a main-only item released, an offline result native-verified, or an unresolved report fixed. Merged to
+    main is not released.
+  - Never confuse current main with the release commit: `v0.2.11` stays at `7a5cd2c3`.
+  - Support, removal and rollback statements live in docs/CURRENT-SUPPORT.md and cite source, a handoff or a release
+    note. Never infer rollback safety from the version label: releases since 0.2.0 and every build of main share
+    assembly version 0.1.0.0, and builds of main since `v0.2.11` also say 0.2.11.
+- **Not authorized:** release, tag, version bump, package, install, staging, loader replacement, reviewer request or a
+  further sprint.
+
 # Known issues remediation, Sprint 7 — review checkpoint (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR targeting `codex/kmc-known-issues-sprint6`), from `f835c503`. Read

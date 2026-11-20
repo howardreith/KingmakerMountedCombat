@@ -1,3 +1,33 @@
+# CURRENT STATE — KNOWN ISSUES REMEDIATION EPIC MERGED INTO MAIN, UNRELEASED (2026-11-19); LATEST RELEASE v0.2.11; NATIVE NOT RUN
+
+Start here. The sections below this one are dated history, newest first.
+
+- **Release:** the latest release is still `v0.2.11`: historical release merge `7a5cd2c3` (2026-11-15), package built
+  from release-source commit `86ad9cc1`. (`22945394` is the earlier merge of the mounted-attack-stall repair, PR #43.)
+- **Main:** contains the merged Known Issues Remediation Epic after `v0.2.11`. PRs #45–#52 were merged in order on
+  2026-11-19 with ordinary merge commits (#45 `faf1195d`, #46 `1fb225a1`, #47 `3d51199e`, #48 `c458042d`, #49 `4342596e`, #50 `1c88d070`, #51 `dd52f359`, #52 `4b2c0a52`); PR #53 delivers this documentation and closeout and lands after them.
+  No new version or release was made: main still declares 0.2.11 and assembly version 0.1.0.0, and a build of main is
+  a different binary from the `v0.2.11` package. Main's product source is the accepted Sprint 7 product build
+  `e54009e9`.
+- **Release status of main:** unreleased, not release-qualified, native acceptance absent.
+- **Read:** the [epic closeout](docs/KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md) (identity, package accounting,
+  integration, validation, unresolved and excluded work), the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md) (one
+  disposition per ID) and [current support, removal and rollback](docs/CURRENT-SUPPORT.md).
+- **Engineering complete offline:** T01–T03, S02, M01–M03, M05, C02, C04, A01, A02, A04 (automatic churn), A05 and
+  U01–U04; M04's investigation (all identified marker defects repaired); R01 (not reproducible), A03 (explanation
+  settled); D01–D03.
+- **Documented intentional behaviour:** C03's safe bounds (its notice repaired), R02's ranged rule, A04's real-time wait.
+- **Unresolved:** S01 (saving report after the Ratnook door, cause not established); M04's original incident (not
+  attributable); C01 (in-combat scripted rider movement, unsupported with its blocker); T04–T08 (stale harnesses, open
+  correction); T09 (needs retained native evidence, open investigation).
+- **Excluded:** the epic's manual/native acceptance list and feature expansions (Cavalier, barding, enemy mounted AI,
+  exotic mounts, full celestial template, Run, Mythic Mounted Archery, real-time ranged rule, general content removal,
+  six-pair combat).
+- **Native:** NOT RUN by any known-issues sprint or by the integration; no Sprint 7 screen viewed. Owner/HUMAN PLAY
+  acceptance of the releases remains pending.
+- **Not authorized:** release, tag, version bump, package, install, staging, loader replacement, reviewer request or a
+  further sprint.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C, E7720F39 AND 89ACE80F) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
 
 Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the

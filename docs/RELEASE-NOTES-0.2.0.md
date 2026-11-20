@@ -1,5 +1,7 @@
 # Kingmaker Mounted Combat 0.2.0: first full version
 
+> **Superseded for current status (2026-11-19, Known Issues Sprint 8).** This is a historical record and is not rewritten. Current support, retained limits, removal and rollback: [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md). Current issue dispositions: [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
+
 Released by owner order on 2026-11-07, after the six finalization sprints (F1–F6) were accepted and merged. This version follows the alpha series that ended with Sprint 9 (`0.1.0-chunk7b-preview.103`). Unity Mod Manager reads every alpha label as `0.1.x`, at most 0.1.7.103, so it reads `0.2.0` as newer than all of them.
 
 The package and its hashes are on the GitHub release. The engineering record is [the F6 handoff](FINALIZE-F6-REVIEW-HANDOFF.md), top section, which links F1–F5.

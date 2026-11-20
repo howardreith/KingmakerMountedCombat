@@ -1,5 +1,7 @@
 # Kingmaker Mounted Combat: support and configuration (Chunk 7)
 
+> **Superseded for current status (2026-11-19, Known Issues Sprint 8).** This is a historical record and is not rewritten. Current support, retained limits, removal and rollback: [CURRENT-SUPPORT.md](CURRENT-SUPPORT.md). Current issue dispositions: [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).
+
 > **Written for Chunk 7.** Its settings, Charge and rider limits predate Sprints 1 to 9. For the current candidate read [the Sprint 9 release notes](SPRINT9-RELEASE-NOTES.md) first.
 
 Status: private engineering qualification PASS. It is not a public release, and it does not
