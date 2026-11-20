@@ -59,5 +59,29 @@ namespace KingmakerMountedCombat.Domain
 
         // A class-levelled character outside the party has no one to make the choice, and keeps the stock bond.
         internal static bool SubstitutesStockBond(bool isPlayerFaction) => !isPlayerFaction;
+
+        // Known issues Sprint 7 (U03): which bond the class progression panel describes for the character it shows (the
+        // committed unit or the level-up/respec preview, whichever descriptor native passes). Read afresh each time.
+        internal static DivineBondDisplayPath ProgressionDisplayPath(bool choiceApplied, bool substitutesStockBond,
+            bool hasDivineMount, bool hasWeaponBond)
+        {
+            // The grant filter drops the upgrades for a mount owner whether or not the choice is currently applied.
+            if (hasDivineMount) return DivineBondDisplayPath.DivineMount;
+            if (!choiceApplied || substitutesStockBond) return DivineBondDisplayPath.Stock;
+            return hasWeaponBond ? DivineBondDisplayPath.WeaponBond : DivineBondDisplayPath.Undecided;
+        }
+
+        // A weapon-bond upgrade row is promised only on a path that receives it: the stock class and a chosen Weapon Bond.
+        // An undecided bond promises neither path's upgrades; the level-5 Divine Bond row names both choices.
+        internal static bool ShowsProgressionRow(bool isWeaponBondUpgrade, DivineBondDisplayPath path) =>
+            !isWeaponBondUpgrade || path == DivineBondDisplayPath.Stock || path == DivineBondDisplayPath.WeaponBond;
+    }
+
+    internal enum DivineBondDisplayPath
+    {
+        Stock,
+        WeaponBond,
+        DivineMount,
+        Undecided
     }
 }

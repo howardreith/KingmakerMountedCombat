@@ -1,3 +1,52 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 7 (CORRECTED AFTER THE REVIEWS OF 292CD23C, E7720F39 AND 89ACE80F) — MOUNTED PRESENTATION: U01-U04 IMPLEMENTED AND VERIFIED OFFLINE; NATIVE NOT RUN, NO SCREEN VIEWED (2026-11-19)
+
+Branch `codex/kmc-known-issues-sprint7` (draft PR stacked on `codex/kmc-known-issues-sprint6`, PR #51), from the
+accepted Sprint 6 checkpoint `f835c503`. Read the [Sprint 7 handoff](docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Presentation only:** every change projects current authoritative state onto native UI. No action, cost, cooldown,
+  `TimeMoved`, allocation, command, routing, initiative, scheduling, activation, saved identity, GUID, fact, grant,
+  progression, save format, selection or combat participation changes.
+- **U01:** after forced (charge) travel recorded on the mount's allocation for the exact live activation, the mount's
+  Move and Standard prediction actions show 0 usable distance and no five-foot step is promised. Native's Unable state
+  and every cost are unchanged; the next activation is native again.
+- **U02:** the exact public slot whose click handed native target selection to a hidden delivery ability is drawn with
+  native's own selected mark, through a weakly held value-identity mapping that ends with the selection operation and at
+  every lifecycle boundary.
+- **U03:** the Paladin class panel omits the weapon-bond upgrades for a Divine Mount character or a bond not yet chosen,
+  from projected copies of the shown descriptor's progression data. Grants and data unchanged.
+- **U04:** a mounted rider's party portrait carries the embedded saddle badge; a folded mount's tracker hover
+  highlights its own rider's existing entry. No entry, order, scheduler or selection change.
+- **Review of `292cd23c` (`92310c52`):**
+  - R1: the hover is the world hover of the mount's view (a portrait hover never reaches the tracker, installed IL).
+    KMC's redirect is one owned lease of weak references and identities, released exactly before every native hover
+    pass and at a tracker rebuild, its own pair's cleanup (R5), generation change, load, area unload, world discard,
+    disable and disposal. Native's own pass already clears an ordinary true-then-false; it ran detached under the real patches.
+  - R2: the badge follows the native per-frame portrait refresh (`UpdateCrippled`) and bind (`Initialize`), not
+    `HealthUpdate` (hit-point changes only, withdrawn), and is removed at load, area, world discard, disable and
+    disposal; failed removals and a throwing logger never stop cleanup.
+- **Review of `e7720f39` (`6ff46a2a`):**
+  - R3: releasing the hover redirect is a bounded, weak cleanup obligation. Clearing `HoveredUnit` and the rider row's
+    false run independently; the obligation is kept until each completes, its target is gone or replaced, or native's
+    own completed pass recomputes that tracker, and is retried at every hover prefix, rebuild, pair cleanup, boundary,
+    disable and disposal.
+  - R4: a badge whose removal fails is hidden and stays owned as a residue under the same bound of 32, retried at every
+    portrait refresh and boundary, never reused as a portrait's badge; a part-built badge is owned from birth.
+- **Review of `89ace80f` (`e54009e9`):**
+  - R5: a pair's cleanup ends the active hover redirect only when it is exactly the redirect's pair (owner, generation,
+    rider, mount, read from the relationship); any other pair's cleanup, or one whose identity cannot be read, only
+    retries owed cleanup. Load, area unload, world discard, disable and disposal still release it whatever its pair.
+- **T09 (new):** `Test-Finalize2UpgradeReaders.ps1` needs retained r05 native evidence absent from this lab; identical
+  at the base.
+- **Checks:**
+  - Fast PASS 21/0 (0.91 min) (budget `known-issues-sprint7`, 4.63 of 90 min).
+  - Components 1411/0; presentation contracts 239/0. The reviewed `6ff46a2a` fails the 7 unrelated-pair R5 cases.
+  - Kingmaker assembly contracts 815/0; Validate-Source 151/0; harness 277/4, identical to the Sprint 6 base.
+  - Mutation campaign P1-P34: 34/34 caught (serial, isolated).
+  - Product-build commit `e54009e9`, DLL SHA-256 `851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2`.
+- **Native:** NOT RUN, and no screen was viewed. Nothing was launched, staged or installed. Sprint 8 was not started.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 8.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97, DFFD3E72 AND 95AE0B30) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the

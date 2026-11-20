@@ -873,6 +873,7 @@ namespace KingmakerMountedCombat.Integration
             }
             else
             {
+                ClearTargetingPresentation("disabled");
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -886,6 +887,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
             areaSuspended = true;
+            ClearTargetingPresentation("area-unloading");
             RemoveAllManagedFacts(true);
         }
         internal void ResumeAreaControls()
@@ -1281,6 +1283,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleAbilityTargetSelectionStart(AbilityData ability)
         {
+            NoteTargetSelectionOperation("target-selection-start");
             var kind = ResolveKind(ability?.Blueprint);
             if (kind == NativeMountedControlKind.None)
             {
@@ -1303,6 +1306,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleAbilityTargetSelectionEnd(AbilityData ability)
         {
+            NoteTargetSelectionOperation("target-selection-end");
             var kind = ResolveKind(ability?.Blueprint);
             if (kind == NativeMountedControlKind.None)
             {
@@ -1412,6 +1416,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            ClearTargetingPresentation("disposed");
             RemoveAllManagedFacts(true);
             ClearSerializationHotbarLeases(false);
             EnsureUnsubscribed();
@@ -1678,6 +1683,7 @@ namespace KingmakerMountedCombat.Integration
         // A new native load begins: the previous world's placement records do not belong to it.
         internal void BeginLoadedWorld()
         {
+            ClearTargetingPresentation("load");
             placementRecorded.Clear();
             initialPlacements.Clear();
         }

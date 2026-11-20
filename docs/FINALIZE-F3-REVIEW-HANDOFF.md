@@ -121,3 +121,26 @@ Path lines in captures are controlled setup: native `CalculatePathForCommand` wa
   - One TB launch.
 - **Not run:** the Full tier and cold or persistence campaigns. No schema or persisted-state change was made; D4 still reads the existing `TimeForced`. RT was not rerun: its path is untouched and r04 stands.
 - **State:** no merge, tag, release, install or F4.
+
+## Superseding note, 2026-11-19 (Known issues Sprint 7, U01 and U04)
+
+Two of the owner-facing observations above are addressed offline by Sprint 7; the records above stay as observed.
+
+- **Slider detail after a Charge (U01).** The mount's Move (and Standard) prediction action now shows 0 usable distance,
+  not its remaining Move time (the 32/50 ft above), once the mount's allocation for the exact live activation records
+  forced travel; the rider-selected fill promises no five-foot step then. The projection is applied to the distance
+  native is about to write in `CombatAction.UpdateRemainingDistance`; Unable states, cooldowns, `TimeMoved` and the
+  allocation are unchanged. D4 (a Charge that travelled and was cancelled) shows the same. The F3 r05 c2 capture and
+  its reader record the earlier behaviour.
+- **No mount badge, and no tracker entry for a hovered mount (U04).** A mounted rider's party portrait now carries the
+  embedded saddle badge, and hovering a mount whose tracker entry is folded into its pair's paired activation
+  highlights its own rider's existing entry. Tracker order, entries and scheduling are unchanged; an independently
+  acting mount keeps its own entry and hover. Corrected after the review of `292cd23c`: the badge follows the portrait's
+  native per-frame refresh and bind and is removed at every world boundary, disable and disposal; the hover redirect
+  is one owned lease released before every native hover pass and at every boundary. The hover covers the mount's world
+  hover; a party-portrait hover never reaches the tracker. Corrected again after the review of `e7720f39`: a badge
+  whose removal fails is hidden and stays owned until a retry removes it, and the hover's cleanup is kept as an
+  obligation until it has actually completed. Corrected again after the review of `89ace80f`: another pair's dismount
+  or death never clears the hovered pair's highlight; only that pair's own cleanup or a world boundary ends it.
+
+Neither was viewed on screen or run natively; see [the Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md).

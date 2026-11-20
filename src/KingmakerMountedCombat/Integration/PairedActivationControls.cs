@@ -141,7 +141,9 @@ namespace KingmakerMountedCombat.Integration
                 if (PairedMovementInputPolicy.ConversionTravelRemains(moveCooldown, mount.UsedStandardAction(), restricted, standardFeet))
                     Rebase(mountStates.Standard, CombatAction.ActivityState.Available, CombatAction.ActivityState.Lost, CombatAction.ActivityState.Lost);
                 else Rebase(mountStates.Standard, fresh.Standard);
-                if (partnerContext.HasFiveFootStep()) Rebase(mountStates.FiveFootStep, fresh.FiveFootStep);
+                // Known issues Sprint 7 (U01): a step is never promised once forced travel closed the activation's locomotion.
+                if (MountedMovementDisplayPolicy.PromisesFiveFootStep(LocomotionClosedForActivation(), partnerContext.HasFiveFootStep()))
+                    Rebase(mountStates.FiveFootStep, fresh.FiveFootStep);
                 else Rebase(mountStates.FiveFootStep, CombatAction.ActivityState.Unable, null, null);
                 mountStates.Clear();
                 mountStates.UpdateMoveDistance();
@@ -150,6 +152,23 @@ namespace KingmakerMountedCombat.Integration
             }
             finally { fillingMountStates = false; }
         }
+
+        // Known issues Sprint 7 (U01): the mount's Move and Standard prediction actions show no usable distance once the
+        // mount's allocation for this exact activation has recorded forced travel (a delivered Charge, or one that travelled
+        // and was cancelled). A presentation projection on the distance native is about to write, before native announces
+        // it: native's Unable state, cooldowns, TimeMoved, the allocation and the path are untouched. Returns whether the
+        // action is this pair's mount's.
+        internal bool ProjectUsableMoveDistance(CombatAction action, ref float? remaining)
+        {
+            if (action == null || partnerContext == null || activation == null) return false;
+            var states = partnerContext.ActionsStates;
+            if (states == null || !ReferenceEquals(action, states.Move) && !ReferenceEquals(action, states.Standard)) return false;
+            remaining = MountedMovementDisplayPolicy.UsableDistanceFeet(LocomotionClosedForActivation(), remaining);
+            return true;
+        }
+
+        private bool LocomotionClosedForActivation() => PairedLifecycleEnabled && partnerContext != null && activation != null &&
+            movementState.ForcedTravelClosesActivation(partnerContext.Unit, activation.Identity);
 
         // Native's own action objects are kept (their subscriptions, turn-start slider ranges, absent activities and
         // identity). Native current-state setters only advance (Available is the lowest state), as the mount's entitlement

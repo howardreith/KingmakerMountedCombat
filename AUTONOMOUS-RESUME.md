@@ -1,3 +1,37 @@
+# Known issues remediation, Sprint 7 — review checkpoint (2026-11-19)
+
+Branch `codex/kmc-known-issues-sprint7` (draft PR targeting `codex/kmc-known-issues-sprint6`), from `f835c503`. Read
+CURRENT.md, docs/KNOWN-ISSUES-SPRINT7-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 8 bases on this branch
+after review.
+
+- **State:** U01-U04 implemented and verified offline as presentation projections; U04's native delivery and
+  lifecycle corrected after the review of `292cd23c` (`92310c52`) and its failure containment after the review of
+  `e7720f39` (`6ff46a2a`), and its pair cleanup made exact after the review of `89ace80f` (`e54009e9`); T09 recorded.
+  Fast PASS 21/0; mutations P1-P34 34/34 caught. Native NOT RUN; no screen viewed.
+- **Rules:**
+  - Presentation reads authority; it never writes gameplay state to make native UI show something.
+  - U01 reads only `MountedMovementState.ForcedTravelRecorded` on the mount allocation whose grant is the live
+    activation's identity (`MountedMovementDisplayPolicy`). Never clear `TimeMoved`/`TimeForced` or a cooldown for display.
+  - U02's mapping is one value identity plus a weak slot reference on the control service. Never match a slot by name,
+    title, icon, blueprint alone or index; every target-selection start or end, and every lifecycle boundary, ends it.
+  - U03 projects copies of the progression data native returns, afresh per panel build. Never edit the stock
+    progression, a unit's `ProgressionData`/`LevelEntry` lists or the grant filter for display.
+  - U04 derives the badge and hover from the live relationships each native call. Keep no tracker entry, view, unit or
+    pair strongly; badge objects only weakly and bounded; the badge never takes pointer events.
+  - The badge refresh seam is `UpdateCrippled` plus `Initialize`; never `HealthUpdate` (hit-point changes only), never
+    polling or an object scan. Every world boundary, disable and disposal hides and destroys every badge; a badge whose
+    removal fails stays owned (weak, bounded with the badges in use) and is retried; never clear ownership of a live
+    badge, never reuse a residue as a portrait's badge.
+  - The folded-mount hover redirect is one lease released before every native hover pass and at every boundary; native
+    owns its own true/false pass. A party-portrait hover does not reach the tracker; do not invent one.
+  - Releasing the redirect is a cleanup obligation: its two steps run independently and it is kept (weak, bounded at
+    four) until each completes, its target is gone or replaced, or native's completed pass recomputes that tracker.
+    A new redirect never overwrites unfinished cleanup.
+  - A pair's cleanup ends the active redirect only when it is exactly the redirect's pair (owner, generation, rider,
+    mount); any other pair's cleanup only retries owed cleanup. World boundaries, disable and disposal release it always.
+  - Presentation seams are contained and report a fault once per seam.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 8.
+
 # Known issues remediation, Sprint 6 — review checkpoint (2026-11-18)
 
 Branch `codex/kmc-known-issues-sprint6` (draft PR targeting `codex/kmc-known-issues-sprint5`), from `772543e1`. Read

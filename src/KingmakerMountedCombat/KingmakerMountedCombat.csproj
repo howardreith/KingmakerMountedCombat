@@ -640,6 +640,11 @@
     <Compile Include="Integration\GameMountedRelationshipService.ContinuousDrive.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
+    <Compile Include="Domain\MountedPresentationPolicy.cs" />
+    <Compile Include="Integration\MountedMovementStateAdapter.Presentation.cs" />
+    <Compile Include="Integration\NativeMountedControlService.TargetingPresentation.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.ProgressionPresentation.cs" />
+    <Compile Include="Integration\MountedPairPresentation.cs" />
     <Compile Include="Integration\NativeMountedControlService.Ownership.cs" />
     <Compile Include="Integration\NativeMountedApproachInterruption.cs" />
     <Compile Include="Integration\MountedRiderPoseAdapter.cs" />

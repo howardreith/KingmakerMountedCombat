@@ -499,6 +499,16 @@ namespace KingmakerMountedCombat.Integration
             TrackerMountFilterCount += original.Length - filtered.Length;
         }
 
+        // Known issues Sprint 7 (U04): the tracker filter's own predicate for one unit, without its bookkeeping: whether the
+        // tracker omits this unit's own entry right now. Presentation reads it; nothing is filtered or counted here.
+        internal bool FoldsTrackerEntry(UnitEntityData unit)
+        {
+            if (disposed || unit == null || !Enabled && !PairedLifecycleEnabled || !CombatController.IsInTurnBasedCombat()) return false;
+            var controller = Game.Instance?.TurnBasedCombatController;
+            return ShouldSuppressMount(unit, controller?.RoundNumber ?? 0) ||
+                unit != controller?.CurrentTurn?.Unit && HidesPairedTrackerEntry(unit);
+        }
+
         internal void AdmitExactMountCommand(UnitCommand command, ref bool result)
         {
             if (PairedLifecycleEnabled)

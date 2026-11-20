@@ -235,6 +235,7 @@ namespace KingmakerMountedCombat.Integration
                 // actor allocation ledger. Native encounter/actor lifetime owns
                 // its retirement; attachment cleanup cannot erase expenditure.
                 controls.SuspendAreaControls();
+                relationship?.World?.Presentation?.ReleaseAtWorldBoundary("area-unloading");
                 var errors = new List<Exception>();
                 foreach (var owner in WorldRelationships)
                     try

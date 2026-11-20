@@ -34,6 +34,8 @@ namespace KingmakerMountedCombat
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
         private readonly MountedRangedMovementService mountedRangedMovement;
+        // Known issues Sprint 7 (U04): the mounted badge and the folded mount's tracker hover; presentation only.
+        private readonly MountedPairPresentation pairPresentation;
         private readonly MountedRiderFallService riderFalls;
         private readonly MountedExplorationObserver explorationObserver;
         private readonly CompanionNameService companionNames;
@@ -80,7 +82,10 @@ namespace KingmakerMountedCombat
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion);
+                var badgeSource = horseCompanion;
+                pairPresentation = new MountedPairPresentation(world, () => badgeSource.MountSaddleIcon, logger);
+                world.BindPresentation(pairPresentation);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger, mountedCombatDefense, horseCompanion, pairPresentation);
                 DivineMountCallLogic.IsMountedPairMember = actor => world.ForActor(actor) != null;
                 DivineMountSmiteLogic.ReportLateRefusal = actor => world.ForActor(actor)?.Combat.ReportMountedSmiteRefusal(null, true);
                 DivineMountSmiteLogic.IsMountedMount = actor => { var pair = world.ForActor(actor); return pair != null && pair.Relationship.State == RelationshipState.Mounted && pair.Relationship.Mount == actor; };
@@ -135,6 +140,7 @@ namespace KingmakerMountedCombat
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedRangedMovement?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { pairPresentation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { riderFalls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { companionNames?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -198,6 +204,7 @@ namespace KingmakerMountedCombat
                 IsEnabled = true;
                 mountedCombatDefense.Enabled = true;
                 mountedRangedMovement.Enabled = true;
+                pairPresentation.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
@@ -247,6 +254,8 @@ namespace KingmakerMountedCombat
             IsEnabled = false;
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
+            pairPresentation.Enabled = false;
+            pairPresentation.ReleaseAtWorldBoundary("disabled");
             persistence.Enabled = false;
             persistence.ReleaseRetainedPendingReentry();
             nativeControls.SetEnabled(false);
@@ -435,6 +444,7 @@ namespace KingmakerMountedCombat
             Integration.NativeCommandTerminalBranches.Reset();
             mountedCombatDefense.Dispose();
             mountedRangedMovement.Dispose();
+            pairPresentation.Dispose();
             riderFalls.Dispose();
             ridingDogTack.Dispose();
             companionNames.Dispose();

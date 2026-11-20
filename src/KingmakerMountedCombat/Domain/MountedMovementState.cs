@@ -14,6 +14,10 @@ namespace KingmakerMountedCombat.Domain
         public bool AiStep;
         public bool AutoStopPending;
 
+        // Forced (charge) travel closes ordinary locomotion for the rest of the allocation's activation. Known issues
+        // Sprint 7 (U01): the movement slots' presentation reads this same fact.
+        public bool ForcedTravelRecorded => TimeForced > 0f;
+
         public float Advance(float requested, float speed, float stepRange, float moveUsed,
             bool standardUsed, bool moveRestricted, bool step, bool singleMove, bool forced,
             bool nearEnd, bool autoStop, out float moveDebit)
@@ -60,7 +64,7 @@ namespace KingmakerMountedCombat.Domain
                 if (TimeMoved > TimeStepped || speed <= 0f || speed * 3f <= stepRange) return 0f;
                 return Math.Max(0f, stepRange - MetresStepped) / speed;
             }
-            if ((!AiStep && MetresStepped > 0f) || TimeForced > 0f) return 0f;
+            if ((!AiStep && MetresStepped > 0f) || ForcedTravelRecorded) return 0f;
             // Exact Kingmaker GetRemainingTime/GetRemainingMovementTime formula.
             // MoveAction > 3 is native Standard conversion, not a second grant.
             var remaining = Math.Max(0f, Math.Min(6f,

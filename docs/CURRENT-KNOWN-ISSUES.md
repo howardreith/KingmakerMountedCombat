@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-18, Sprint 6 (A01, A02 and A04 corrected; A03 settled; new A05 corrected), after 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
+- **Last updated:** 2026-11-19, Sprint 7 (U01-U04 implemented and verified offline as presentation projections; new T09 recorded), after 2026-11-18, Sprint 6 (A01, A02 and A04 corrected; A03 settled; new A05 corrected), after 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
   entry: a live background cutscene's commands and a TranslocateUnit inside a cutscene's scope), after the review of
   `e1c0c7ad` (R7 C02 standalone rider turn, R8 C02 whole-pair writes from
   CommandTeleportParty's proven target set, R9 contained success logging in the C02 and C04 loops), after the review
@@ -24,7 +24,12 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
   [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md),
   [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md), [Sprint 5](KNOWN-ISSUES-SPRINT5-HANDOFF.md),
-  [Sprint 6](KNOWN-ISSUES-SPRINT6-HANDOFF.md).
+  [Sprint 6](KNOWN-ISSUES-SPRINT6-HANDOFF.md), [Sprint 7](KNOWN-ISSUES-SPRINT7-HANDOFF.md).
+- **Sprint 7 (2026-11-19):** U01 (no usable distance or step shown after forced charge travel), U02 (the exact public
+  slot drawn selected while its delivery targets), U03 (the class panel omits weapon-bond upgrades a character's bond
+  never receives) and U04 (a mounted badge on the rider's portrait; a folded mount's hover highlights its rider's
+  entry) implemented and verified offline as presentation projections. New T09 (a reader harness needs retained native
+  evidence absent here). Branch `codex/kmc-known-issues-sprint7`, stacked on Sprint 6 (PR #51).
 - **Sprint 6 (2026-11-18):** A01 and A02 implemented and verified offline; A03 settled (Fascinate is Dazed, read by
   the current reader; Serenity adds no condition); A04 established and corrected for automatic proposals; new A05 (a
   capability-ended automatic command marked its target unreachable) corrected. Branch `codex/kmc-known-issues-sprint6`,
@@ -41,10 +46,10 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
 - **Sprint 3 accepted (owner, 2026-11-16, at `e5b92474`):** a review checkpoint of offline work. M01–M03 and M05 are
   implemented and verified offline, and their native acceptance is still not run. M04's original report stays
   unresolved; S01 and T04–T08 keep their dispositions. The acceptance does not mark every Sprint 3 report resolved.
-- **Reconciled so far:** T01–T08, S01, S02, M01–M05, C01–C04, R01, R02 and A01–A05. Every row of Sprints 7–8 is a *carried-forward planning
+- **Reconciled so far:** T01–T09, S01, S02, M01–M05, C01–C04, R01, R02, A01–A05 and U01–U04. Every row of Sprint 8 is a *carried-forward planning
   finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
   A sprint reconciles its own rows when it starts.
-- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 4.
+- **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 7, and no Sprint 7 screen was viewed.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Dispositions
@@ -446,16 +451,29 @@ Record: [Sprint 6 handoff](KNOWN-ISSUES-SPRINT6-HANDOFF.md). Corrected after the
 | A04 | Real-time blocked orders wait natively (intended); automatic proposal churn was a hypothesis. | Intended behaviour plus established churn | **Intentional wait documented; churn established and corrected (automatic only)** | Installed brain and AI: no `CanNotAttack` exclusion; a re-proposal every 0.3–0.4 s; native interrupts. `Decide` now refuses with `RiderCannotAttack`, which is stateless. Probe A04: base 30/30 admitted, now 0/30 | Not run |
 | A05 | Any non-success automatic end with no strike (target death, capability, cancellation, an in-range interruption) marks its target unreachable for the rider's brain. | Product defect (found in A04) | **Implemented and verified offline** | Only the typed `ApproachFailed` cause, thrown at the repath-exhaustion or approach-time boundary, with approach evidence (approach required, delegated move started, no strike, no success or tail), records it. Probe A05 (12 cases): the Sprint 5 build and the reviewed `2ae4cc8b` build mark target death; this build marks only case 1 | Not run |
 
-## Sprints 7–8 — carried forward, pending reconciliation
+## Sprint 7 — mounted presentation (reconciled 2026-11-19)
+
+Record: [Sprint 7 handoff](KNOWN-ISSUES-SPRINT7-HANDOFF.md). Corrected after the owner review of `292cd23c` (U04's native
+delivery and lifecycle, R1 and R2), of `e7720f39` (U04's failure containment, R3 and R4) and of `89ace80f` (exact pair
+cleanup, R5). Product-build commit `e54009e9`, clean Release DLL SHA-256
+`851c44d6473210afd82630f33871356681460f2337b95a63a843b8849a7df21d`, MVID `6551bd65-dc7e-4ba5-bbfb-3bf84ed277c2`. Every
+change is a projection of current authoritative state onto native UI; no gameplay, save, grant or scheduling state
+changes. No screen was viewed.
+
+| ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|
+| U01 | After Charge the Move slot is unavailable but still shows usable distance. | UI defect | **Implemented and verified offline** | A prefix on native `CombatAction.UpdateRemainingDistance` shows 0 for the mount's Move and Standard actions once its allocation for the exact live activation records forced travel (the fact that already refuses the travel); the rider-selected fill promises no step then. `TimeMoved`, cooldowns, the allocation and native's Unable state unchanged. Presentation probe: the Sprint 6 build writes 32 ft, this build 0; 13 cases | Not run; not viewed |
+| U02 | The public action slot shows no selection glow while its delivery ability targets. | UI defect | **Implemented and verified offline** | An exact value-identity mapping (slot, its ability data, pair owner, generation and state, owner, public and delivery abilities, delivery data, selection operation), held weakly, recorded by the click postfix and drawn through native's own selected branch in `UpdateSlotInternal`; every selection start or end and every lifecycle boundary clears it. Probe: 12 cases; the Sprint 6 build draws no mark | Not run; not viewed |
+| U03 | The Paladin class panel promises Weapon Bond upgrades to Divine Mount characters. | UI defect | **Implemented and verified offline** | The class block's one `GetClassProgressions` read is replaced by projected copies that omit the six upgrades for a Divine Mount or not-yet-chosen bond, read afresh from the shown descriptor (committed or preview). Unit data, blueprints and grants untouched. Probe: 12 cases on genuine progression data; the Sprint 6 build shows the upgrades. Per-level tooltips and the console screen not changed | Not run; not viewed |
+| U04 | No mounted badge on the rider portrait; hovering a folded mount highlights nothing. | UI omission | **Implemented and verified offline (native delivery and lifecycle corrected after the review of `292cd23c`; failure containment corrected after the review of `e7720f39`; exact pair cleanup after the review of `89ace80f`)** | Identity policies as accepted. The badge is reconciled at the portrait's native per-frame refresh (`UpdateCrippled`; `HealthUpdate` runs only on a hit-point change) and bind (`Initialize`), and hidden and destroyed at load, area unload, world discard, disable and disposal; a badge whose removal fails stays owned as a hidden residue under the same bound of 32 and is retried at every refresh and boundary (R4). The folded mount's world hover (the only source native routes to the tracker; a portrait hover does not reach it) highlights its rider's existing entry under one owned lease (weak tracker, entry and rows; pair identity; hovering unit), released before every native hover pass and at a tracker rebuild, its own pair's cleanup (another pair's cleanup only retries owed cleanup, R5), a generation change and every world boundary; the release is a bounded (4), weak cleanup obligation whose two steps run independently and which is kept until each completes, its target is gone or replaced, or native's own completed pass recomputes that tracker (R3). Native's own hover pass ran detached under the product's real Harmony12 patches. The reviewed `92310c52` fails 41 of the R3/R4 cases; the reviewed `6ff46a2a` fails the 7 unrelated-pair cases of R5 | Not run; not viewed |
+| T09 | `scripts/Test-Finalize2UpgradeReaders.ps1` stops at `PathNotFound`. | Harness needing retained native evidence | **Open investigation** | Its last section reads run r05's `runtime-request.json` from the lab's `runtime-evidence`, absent on this machine. Identical on the Sprint 6 worktree. Found as a U02 neighbour on 2026-11-19 | Not applicable |
+
+## Sprint 8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 7 | U01 | After Charge the Move slot is unavailable but still shows usable distance. | UI defect | Open correction | Implemented and verified offline | [F3 handoff](FINALIZE-F3-REVIEW-HANDOFF.md) |
-| 7 | U02 | The public action slot shows no selection glow while its delivery ability targets. | UI defect | Open correction | Implemented and verified offline | [F2 handoff](FINALIZE-F2-REVIEW-HANDOFF.md) |
-| 7 | U03 | The Paladin class panel promises Weapon Bond upgrades to Divine Mount characters. | UI defect | Open correction | Implemented and verified offline | [SPRINT8-PALADIN-MOUNT](SPRINT8-PALADIN-MOUNT.md) |
-| 7 | U04 | No mounted badge on the rider portrait; hovering a folded mount highlights nothing. | UI omission | Open correction | Implemented and verified offline | [F3 handoff](FINALIZE-F3-REVIEW-HANDOFF.md) |
 | 8 | D01 | Current status is fragmented across dated handoffs and stale entry points. | Documentation | Open correction | This ledger reconciled for every ID | `CURRENT.md`, `AUTONOMOUS-RESUME.md`, `README.md` |
 | 8 | D02 | Support, removal and rollback limits need one current description. | Documentation | Open correction | Documented | `README.md`, [0.2.0 notes](RELEASE-NOTES-0.2.0.md), [deferred items](FINALIZATION-DEFERRED-ITEMS.md), [UI polish handoff](UI-POLISH-REVIEW-HANDOFF.md) |
 | 8 | D03 | Final sprint handoff and completion accounting. | Documentation | Open correction | Delivered | Sprint PRs and this ledger |
