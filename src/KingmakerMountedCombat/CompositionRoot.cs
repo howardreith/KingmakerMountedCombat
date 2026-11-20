@@ -252,6 +252,8 @@ namespace KingmakerMountedCombat
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
             explorationObserver.Reset();
+            Integration.MountedNativeRunScope.Reset();
+            Integration.NativeCommandTerminalBranches.Reset();
             logger.Info("Mounted combat services disabled; native control facts and transient UI removed with no mounted state retained.");
             return true;
         }
@@ -429,6 +431,8 @@ namespace KingmakerMountedCombat
             runtimeAutomation?.Dispose();
             patches.Dispose();
             explorationObserver.Reset();
+            Integration.MountedNativeRunScope.Reset();
+            Integration.NativeCommandTerminalBranches.Reset();
             mountedCombatDefense.Dispose();
             mountedRangedMovement.Dispose();
             riderFalls.Dispose();

@@ -238,6 +238,18 @@ namespace KingmakerMountedCombat.Domain
     }
 
     /// <summary>Only admitted pointer intent owns this state. Cancellation invalidates all prior generations.</summary>
+    // Known issues Sprint 6 (A01, finding 5 of the review of 2ae4cc8b): what one exact native click on a pair actor is to
+    // the retained intent.
+    public enum MountedStockClick
+    {
+        // The same request while it has not dispatched or its dispatched command is live.
+        Continue,
+        // The same request after its dispatched command ended: a fresh request (the only case the A01 counter counts).
+        FreshAfterTerminal,
+        // Another target, turn, actor, weapon or action, or no retained request: the existing replacement path.
+        NewRequest
+    }
+
     public sealed class MountedAttackIntent<TTarget, TTurn> where TTarget : class where TTurn : class
     {
         public TTarget Target { get; private set; }
@@ -285,6 +297,22 @@ namespace KingmakerMountedCombat.Domain
         public bool Owns(TTarget target, long generation)
         {
             return Target != null && ReferenceEquals(Target, target) && Generation == generation;
+        }
+
+        // Known issues Sprint 6 (A01). A same-target click continues this intent only while the request has not dispatched
+        // yet, or while the exact command it dispatched is still live. After that command ended, the intent is only waiting
+        // for the next Update to retire or exhaust it: a deliberate click then is a fresh player request (a new
+        // generation, its own answer), not continuation of work that already finished. Nothing here is timed or stored.
+        public bool IsFreshRequestAfterTerminal(bool dispatchedCommandLive)
+        {
+            return Target != null && hasDispatched && !dispatchedCommandLive;
+        }
+
+        public MountedStockClick ClassifyClick(TTarget target, TTurn turn, bool mountActor, object rider, object mount, object weapon,
+            object mountWeapon, int action, bool dispatchedCommandLive)
+        {
+            if (!CanContinue(target, turn, mountActor, rider, mount, weapon, mountWeapon, action)) return MountedStockClick.NewRequest;
+            return IsFreshRequestAfterTerminal(dispatchedCommandLive) ? MountedStockClick.FreshAfterTerminal : MountedStockClick.Continue;
         }
 
         // A click on the target the brain already chose makes the intent the player's own.

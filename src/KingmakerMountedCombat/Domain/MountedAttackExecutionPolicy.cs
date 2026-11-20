@@ -52,6 +52,18 @@ namespace KingmakerMountedCombat.Domain
             return turnBased ? ExecutionBlock(facts) : MountedActorCapabilityBlock.None;
         }
 
+        // Review of fa533e97 (R18): the condition behind native's UnitState.CanAct being false, for a native branch that
+        // ended a command because its executor could not act. An attack ban is not a CanAct term and is never named here;
+        // a CanAct term this reader does not name (prone, a blocking animation, nausea in turn-based) reads None.
+        public static MountedActorCapabilityBlock CanActBlock(MountedActorCapabilityFacts facts)
+        {
+            if (!facts.Known) return MountedActorCapabilityBlock.None;
+            if (facts.Helpless) return MountedActorCapabilityBlock.Helpless;
+            if (facts.Stunned) return MountedActorCapabilityBlock.Stunned;
+            if (facts.Dazed) return MountedActorCapabilityBlock.Dazed;
+            return facts.CantAct ? MountedActorCapabilityBlock.CantAct : MountedActorCapabilityBlock.None;
+        }
+
         public static string Feedback(string actorName, MountedActorCapabilityBlock block)
         {
             var actor = string.IsNullOrWhiteSpace(actorName) ? "This actor" : actorName;
@@ -90,6 +102,195 @@ namespace KingmakerMountedCombat.Domain
         // The native attack rule ran at least once; a miss or a hit for no damage ran it as well.
         public bool NativeAttackRuleObserved;
         public int CompletedAttackCount;
+    }
+
+    // Known issues Sprint 6 (A02). Why one pair command ended, recorded where it was ended, apart from the actor's
+    // capability snapshot read when it ended. The snapshot is diagnostic evidence; it is the cause only when this says so.
+    public enum MountedAttackEndCause
+    {
+        // Nothing recorded a cause: native ended it (its own interruption, a force-finish, a native order).
+        Unrecorded,
+        // The command's own execution boundary found its action actor blocked (TerminateIfActionActorBlocked).
+        ActorCapability,
+        // The pair controller cancelled it: Stop or Hold, a new order, dismount, a load, area or combat boundary, retirement.
+        Cancelled,
+        // A newer native order on the same actor replaced it (native UnitCommands.Run ended it inside that Run).
+        Replaced,
+        // The command faulted.
+        Fault,
+        // Its target became invalid (died, despawned, changed hostility, became unattackable).
+        TargetInvalid,
+        // Review of 2ae4cc8b (finding 1): its delegated approach failed at the exact movement boundary (the bounded repath
+        // allowance exhausted, or the bounded time exceeded while still approaching after a delegated move began).
+        ApproachFailed
+    }
+
+    // Review of fa533e97 (R18). The exact native branch that ended a command, captured at that branch from native's own
+    // computed values (installed 2.1.7b, UnitActionController):
+    // - TickCommandTurnBased (0600911D) force-finishes an unstarted command with Success when
+    //   !(CanAct && !HasCondition(Nauseated)) or when it has no cooldown slot; the first ForceFinishForTurnBased is that
+    //   branch, the second is the approach-time branch (not captured).
+    // - TickCommand (0600911E) interrupts at three sites: the state site (ShouldBeInterrupted, the target not in state,
+    //   untargetable or a stealthed enemy), the unstarted InterruptAsSoonAsPossible site, and the running site
+    //   ((InterruptAsSoonAsPossible && IsInterruptible) or !CanAct, in that order).
+    // - UnitAttack.ShouldBeInterrupted (0600266D) is (!IsStarted && Target.IsDead) || Executor.HasCondition(CanNotAttack).
+    // Every other native end (the paused previous command, InterruptMove, InterruptAll, a force-finish elsewhere) records
+    // None, and None is never a capability cause.
+    public enum MountedNativeTerminalBranch
+    {
+        None,
+        TurnBasedCannotAct,
+        TurnBasedNoCommandSlot,
+        AttackBanned,
+        AttackTargetDead,
+        TargetUnavailable,
+        InterruptAsSoonAsPossible,
+        RunningInterruptAsSoonAsPossible,
+        RunningCannotAct
+    }
+
+    // Review of dffd3e72 (R21). What native computed, as an exact per-invocation fact. The transpiled native method keeps
+    // each value in a local of its own invocation (dup, Observe..., stloc right after native computes it) and passes that
+    // local to its own terminal call: the facts live and die with the native frame, belong to its own command (ldarg.1),
+    // and are never stored statically, so nothing outlives the tick and no other command or nested observation can read
+    // them. NotObserved, the local's zero default, is the conservative answer: never a capability.
+    public static class MountedNativeTerminalObservation
+    {
+        public const int NotObserved = 0;
+        public const int CanActTrue = 1;
+        public const int CanActFalse = 2;
+        public const int NotInterrupted = 1;
+        public const int InterruptedByOtherTerm = 2;
+        public const int InterruptedByAttackBan = 3;
+
+        public static int ObserveCanAct(bool canAct) => canAct ? CanActTrue : CanActFalse;
+
+        // UnitAttack's CanNotAttack term counts only when it returned the true value of this very ShouldBeInterrupted call.
+        public static int ObserveShouldBeInterrupted(bool value, bool attackBanTerm) =>
+            !value ? NotInterrupted : attackBanTerm ? InterruptedByAttackBan : InterruptedByOtherTerm;
+    }
+
+    // Review of 95ae0b30 (R23). The CanNotAttack term of each wrapped ShouldBeInterrupted call, one scalar frame per call,
+    // innermost last. A call opens its own frame before native's getter runs, the getter's term writes only the innermost
+    // open frame, the call reads its own frame by index and closes it (and anything stranded above it) in a finally. So a
+    // nested call on the same or another command never touches an outer call's term, an exception leaves no frame, and a
+    // getter reading outside any wrapped call changes nothing. Scalars only: no command, actor or delegate is held.
+    public sealed class MountedNativeTermFrames
+    {
+        private bool[] terms = new bool[4];
+        private int depth;
+
+        public int Depth => depth;
+
+        public int Open()
+        {
+            if (depth == terms.Length) System.Array.Resize(ref terms, terms.Length * 2);
+            terms[depth] = false;
+            return depth++;
+        }
+
+        public void SetInnermost(bool term)
+        {
+            if (depth > 0) terms[depth - 1] = term;
+        }
+
+        public bool Term(int frame) => frame >= 0 && frame < depth && terms[frame];
+
+        public void Close(int frame)
+        {
+            if (frame >= 0 && frame < depth) depth = frame;
+        }
+
+        public void Reset() => depth = 0;
+    }
+
+    public static class MountedNativeTerminalBranchPolicy
+    {
+        // The turn-based force-finish site: native's own canAct value, observed in this invocation where native branched on it.
+        public static MountedNativeTerminalBranch TurnBasedForceFinish(int canActObservation) =>
+            canActObservation == MountedNativeTerminalObservation.CanActFalse
+                ? MountedNativeTerminalBranch.TurnBasedCannotAct : MountedNativeTerminalBranch.TurnBasedNoCommandSlot;
+
+        // The TickCommand state site: this invocation's ShouldBeInterrupted value and whether UnitAttack's CanNotAttack term
+        // returned it.
+        public static MountedNativeTerminalBranch StateSite(int shouldBeInterruptedObservation)
+        {
+            if (shouldBeInterruptedObservation == MountedNativeTerminalObservation.InterruptedByAttackBan) return MountedNativeTerminalBranch.AttackBanned;
+            if (shouldBeInterruptedObservation == MountedNativeTerminalObservation.InterruptedByOtherTerm) return MountedNativeTerminalBranch.AttackTargetDead;
+            return MountedNativeTerminalBranch.TargetUnavailable;
+        }
+
+        // The TickCommand running site: !CanAct only when native evaluated CanAct in this invocation and read false; otherwise
+        // the site was reached through InterruptAsSoonAsPossible && IsInterruptible, which short-circuits before CanAct.
+        public static MountedNativeTerminalBranch RunningSite(int canActObservation) =>
+            canActObservation == MountedNativeTerminalObservation.CanActFalse
+                ? MountedNativeTerminalBranch.RunningCannotAct : MountedNativeTerminalBranch.RunningInterruptAsSoonAsPossible;
+
+        public static bool IsCapability(MountedNativeTerminalBranch branch) =>
+            branch == MountedNativeTerminalBranch.TurnBasedCannotAct || branch == MountedNativeTerminalBranch.AttackBanned ||
+            branch == MountedNativeTerminalBranch.RunningCannotAct;
+
+        public static bool IsTarget(MountedNativeTerminalBranch branch) =>
+            branch == MountedNativeTerminalBranch.AttackTargetDead || branch == MountedNativeTerminalBranch.TargetUnavailable;
+
+        // The block that branch proves, read at the branch: the attack ban itself, or the condition behind CanAct.
+        public static MountedActorCapabilityBlock Block(MountedNativeTerminalBranch branch, MountedActorCapabilityFacts facts)
+        {
+            if (branch == MountedNativeTerminalBranch.AttackBanned) return MountedActorCapabilityBlock.CanNotAttack;
+            if (branch == MountedNativeTerminalBranch.TurnBasedCannotAct || branch == MountedNativeTerminalBranch.RunningCannotAct)
+                return MountedActorCapabilityPolicy.CanActBlock(facts);
+            return MountedActorCapabilityBlock.None;
+        }
+    }
+
+    public static class MountedAttackTerminalCausePolicy
+    {
+        // A recorded cause wins; otherwise an end inside a replacing native Run on the command's own actor is a replacement.
+        public static MountedAttackEndCause Resolve(MountedAttackEndCause recorded, bool endedInsideReplacingNativeRun)
+        {
+            if (recorded != MountedAttackEndCause.Unrecorded) return recorded;
+            return endedInsideReplacingNativeRun ? MountedAttackEndCause.Replaced : MountedAttackEndCause.Unrecorded;
+        }
+
+        // The capability block that ended the command, or None (review of fa533e97, R18). A recorded ActorCapability cause
+        // carries the exact block read at the command's own boundary, whatever the later snapshot. With no recorded cause,
+        // only a native capability branch captured where native took it (MountedNativeTerminalBranch) is causal, with the
+        // block read at that branch. Neither the terminal result, nor whether the command started, nor the later terminal
+        // snapshot ever makes a condition the cause; that snapshot stays diagnostic.
+        public static MountedActorCapabilityBlock CausalCapability(MountedAttackEndCause cause, MountedActorCapabilityBlock recordedBlock,
+            MountedNativeTerminalBranch nativeBranch, MountedActorCapabilityBlock nativeBranchBlock)
+        {
+            if (cause == MountedAttackEndCause.ActorCapability) return recordedBlock;
+            if (cause != MountedAttackEndCause.Unrecorded) return MountedActorCapabilityBlock.None;
+            return MountedNativeTerminalBranchPolicy.IsCapability(nativeBranch) ? nativeBranchBlock : MountedActorCapabilityBlock.None;
+        }
+
+        public static bool CapabilityIsCause(MountedAttackEndCause cause, MountedActorCapabilityBlock recordedBlock,
+            MountedNativeTerminalBranch nativeBranch, MountedActorCapabilityBlock nativeBranchBlock) =>
+            CausalCapability(cause, recordedBlock, nativeBranch, nativeBranchBlock) != MountedActorCapabilityBlock.None;
+
+        // The player text for an explicitly ended command; null when the cause has no text of its own.
+        public static string CancellationFeedback(MountedAttackEndCause cause)
+        {
+            switch (cause)
+            {
+                case MountedAttackEndCause.Cancelled: return "Mounted pair attack cancelled.";
+                case MountedAttackEndCause.Replaced: return "Mounted pair attack replaced by a newer order.";
+                default: return null;
+            }
+        }
+
+        // AI-01's reach-only marking is for an automatic approach that failed (known issues Sprint 6, A05, as corrected by the
+        // review of 2ae4cc8b). Only the typed ApproachFailed cause, recorded at the exact movement boundary, counts, and only
+        // with the approach's own evidence: an approach was required at start, a delegated move began, no attack started,
+        // and the terminal was neither a success nor a ranged tail. Unrecorded is never evidence of a failed approach;
+        // target invalidation, capability, cancellation, replacement and faults never mark a target unreachable.
+        public static bool RecordsAutomaticApproachFailure(bool automatic, int childAttackStarts, bool rangedTail, bool nativeSuccess,
+            MountedAttackEndCause cause, bool approachRequiredAtStart, int delegatedMoveStarts)
+        {
+            return automatic && cause == MountedAttackEndCause.ApproachFailed && approachRequiredAtStart && delegatedMoveStarts > 0 &&
+                childAttackStarts == 0 && !rangedTail && !nativeSuccess;
+        }
     }
 
     // Installed 2.1.7b: UnitCommand.ForceFinish stamps Success (and IsActed) on a command that never started, and

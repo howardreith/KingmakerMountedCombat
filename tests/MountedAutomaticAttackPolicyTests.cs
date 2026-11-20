@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("cancellation clears automatic origin for the next intent", CancelClearsOrigin);
             runner.Run("an automatic ranged intent never drags the mount into melee", RangedAutomaticKeepsMountOut);
             runner.Run("a new automatic target cannot create readiness a spent actor lacks", NewTargetGrantsNoReadiness);
+            runner.Run("sprint 6 A04: a rider that cannot attack is not admitted again and again; the next proposal after the condition clears is", CannotAttackProposalsAreNotChurned);
         }
 
         private static MountedAutomaticProposalFacts Ready()
@@ -49,6 +50,34 @@ namespace KingmakerMountedCombat.Tests
                 TargetInRiderReach = true,
                 TargetValid = true
             };
+        }
+
+        // A04. The brain proposes about every 0.3 s while nothing forbids it; native UnitAttack.ShouldBeInterrupted ends every
+        // attack of a CanNotAttack executor. Each admission was one pair command created and retired. The refusal holds no
+        // state: it reads the condition at each proposal, so a cleared condition, a new target or a new pair needs no reset.
+        private static void CannotAttackProposalsAreNotChurned()
+        {
+            var admitted = 0;
+            for (var proposal = 0; proposal < 30; proposal++)
+            {
+                var facts = Ready();
+                facts.RiderCannotAttack = true;
+                if (Refusal(facts) == null) admitted++;
+                else TestRunner.Equal("rider-cannot-attack", Refusal(facts), "The refusal is not named.");
+            }
+            TestRunner.Equal(0, admitted, "A rider that cannot attack was admitted.");
+            TestRunner.True(Refusal(Ready()) == null, "A healthy proposal was refused after the condition cleared.");
+            // Other boundaries keep their own order and names.
+            var stopped = Ready(); stopped.RiderCannotAttack = true; stopped.StopSuppressed = true;
+            TestRunner.Equal("stop-suppressed", Refusal(stopped), "Stop lost its own refusal.");
+            var aiOff = Ready(); aiOff.RiderCannotAttack = true; aiOff.RiderAiEnabled = false;
+            TestRunner.Equal("ai-off", Refusal(aiOff), "AI off lost its own refusal.");
+            var turnBased = Ready(); turnBased.TurnBased = true; turnBased.RiderCannotAttack = true;
+            TestRunner.Equal("turn-based", Refusal(turnBased), "Turn-based admission is not this policy's.");
+            // A live automatic intent on this target is native's to end (its command is interrupted), not refused here.
+            var live = Ready(); live.RiderCannotAttack = true; live.AutomaticIntentLive = true; live.AutomaticIntentOnThisTarget = true;
+            string refusal;
+            TestRunner.True(MountedAutomaticAttackPolicy.Decide(live, out refusal) == MountedAutomaticProposalDecision.ContinueOwnIntent, "A live intent was refused.");
         }
 
         private static string Refusal(MountedAutomaticProposalFacts facts)

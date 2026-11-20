@@ -92,8 +92,7 @@ namespace KingmakerMountedCombat.Integration
             activeCommand = null;
             if (replaced != null && !replaced.IsFinished)
             {
-                pairedCommandScheduler.ObserveExternalInterrupt(replaced, "mounted charge admitted");
-                replaced.Interrupt();
+                InterruptOwnedCommand(replaced, MountedAttackEndCause.Replaced, "mounted charge admitted");
             }
             relationship.Mount.Commands.InterruptAll(existing => true);
         }
@@ -343,7 +342,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                logger.Exception("Mounted charge admission", exception);
+                TryLogException("Mounted charge admission", exception);
                 if (command != null)
                 {
                     // Whether or not the queue admission completed, every owner the attempt may have

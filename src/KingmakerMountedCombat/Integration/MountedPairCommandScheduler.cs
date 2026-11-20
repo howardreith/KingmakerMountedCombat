@@ -225,9 +225,10 @@ namespace KingmakerMountedCombat.Integration
                 LastRejection = PairedCommandSchedulerRejection.None
             };
             lastSnapshot = null;
-            logger.Info("Paired scheduler registered exact command lease: riderId=" + rider.UniqueId +
+            var registered = lease;
+            TryLog(() => "Paired scheduler registered exact command lease: riderId=" + rider.UniqueId +
                 "; mountId=" + mount.UniqueId +
-                "; generation=" + lease.RelationshipGeneration +
+                "; generation=" + registered.RelationshipGeneration +
                 "; turn=" + turnIdentity +
                 "; command=" + commandIdentity + ".");
             return true;
@@ -488,7 +489,7 @@ namespace KingmakerMountedCombat.Integration
             relationship.Dismounting -= HandleDismounting;
             if (lease != null)
             {
-                InterruptExactCommand("scheduler disposal");
+                InterruptExactCommand("scheduler disposal", MountedAttackEndCause.Cancelled);
                 ArchiveAndDispose("scheduler disposal");
             }
             disposed = true;
@@ -602,24 +603,46 @@ namespace KingmakerMountedCombat.Integration
             return lease != null && command != null && ReferenceEquals(lease.Command, command);
         }
 
+        // Review of fa533e97 (R20): the scheduler's fault state, the exact command's typed Fault cause and its interruption
+        // (and, through FailInterruptAndDispose, the archive) all precede the diagnostic, which is best-effort. The lease is
+        // held locally because the interruption re-enters the terminal path. Review of 95ae0b30 (R24): a command that has
+        // already finished (a failed terminal observation) is neither re-ended nor given another cause; only the scheduler's
+        // fault state and interrupt bookkeeping are recorded, and the lease release stays deferred.
         private void FailAndInterrupt(string reason, Exception exception)
         {
-            if (lease == null)
+            var current = lease;
+            if (current == null)
             {
                 return;
             }
 
-            lease.TerminalReason = reason;
+            current.TerminalReason = reason;
+            current.StateMachine.Fault(reason);
+            InterruptExactCommand(reason, MountedAttackEndCause.Fault);
             if (exception == null)
             {
-                logger.Error("Paired scheduler faulted closed: " + reason + ".");
+                TryLog(() => "Paired scheduler faulted closed: " + reason + ".", true);
             }
             else
             {
-                logger.Exception("Paired scheduler faulted closed: " + reason, exception);
+                TryLogException("Paired scheduler faulted closed: " + reason, exception);
             }
-            InterruptExactCommand(reason);
-            lease?.StateMachine.Fault(reason);
+        }
+
+        private void TryLog(Func<string> line, bool error = false)
+        {
+            try
+            {
+                if (error) logger.Error(line());
+                else logger.Info(line());
+            }
+            catch (Exception) { }
+        }
+
+        private void TryLogException(string phase, Exception exception)
+        {
+            try { logger.Exception(phase, exception); }
+            catch (Exception) { }
         }
 
         private void FailInterruptAndDispose(string reason, Exception exception)
@@ -633,7 +656,7 @@ namespace KingmakerMountedCombat.Integration
             ArchiveAndDispose(reason);
         }
 
-        private void InterruptExactCommand(string reason)
+        private void InterruptExactCommand(string reason, MountedAttackEndCause cause)
         {
             if (lease == null || interruptingExactCommand)
             {
@@ -650,11 +673,12 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 interruptingExactCommand = true;
+                command.RecordEndCause(cause, reason);
                 command.Interrupt();
             }
             catch (Exception exception)
             {
-                logger.Exception("Paired scheduler exact-command interrupt", exception);
+                TryLogException("Paired scheduler exact-command interrupt", exception);
             }
             finally
             {
@@ -662,17 +686,40 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Review of fa533e97 (R20): the lease is always released. A failing final observation is reported best-effort and
+        // never keeps a disposed lease registered.
         private void ArchiveAndDispose(string reason)
         {
-            if (lease == null)
+            var current = lease;
+            if (current == null)
             {
                 return;
             }
 
-            RefreshLifecycleAndResources();
-            lease.StateMachine.Dispose(reason);
-            lastSnapshot = CaptureLeaseSnapshot(lease, false);
-            lease = null;
+            try
+            {
+                RefreshLifecycleAndResources();
+            }
+            catch (Exception exception)
+            {
+                TryLogException("Paired scheduler final observation", exception);
+            }
+            finally
+            {
+                try
+                {
+                    current.StateMachine.Dispose(reason);
+                    lastSnapshot = CaptureLeaseSnapshot(current, false);
+                }
+                catch (Exception exception)
+                {
+                    TryLogException("Paired scheduler archive", exception);
+                }
+                finally
+                {
+                    if (ReferenceEquals(lease, current)) lease = null;
+                }
+            }
         }
 
         private MountedPairCommandSchedulerSnapshot CaptureLeaseSnapshot(
@@ -814,7 +861,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            InterruptExactCommand("relationship cleanup " + trigger);
+            InterruptExactCommand("relationship cleanup " + trigger, MountedAttackEndCause.Cancelled);
             ArchiveAndDispose("relationship cleanup " + trigger);
         }
 

@@ -1,3 +1,55 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 6 (CORRECTED AFTER THE REVIEWS OF 2AE4CC8B, FA533E97, DFFD3E72 AND 95AE0B30) — ATTACK REQUESTS AND TERMINALS: A01/A02/A04/A05 CORRECTED, A03 SETTLED; NATIVE NOT RUN (2026-11-18)
+
+Branch `codex/kmc-known-issues-sprint6` (draft PR stacked on `codex/kmc-known-issues-sprint5`, PR #50), from the
+accepted Sprint 5 checkpoint `772543e1`. Read the [Sprint 6 handoff](docs/KNOWN-ISSUES-SPRINT6-HANDOFF.md) and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **A01:** a same-target click after the dispatched command ended is a fresh request (a new generation and its own
+  answer). A click while it runs still continues.
+- **A02:** a typed end cause, or an exact native capability branch, decides whether a condition explains a terminal:
+  Stop, replacement, boundaries, faults and native non-capability ends are no longer "cannot act". Terminal logging
+  and warning delivery are contained.
+- **A03:** settled from decoded assets. Fascinate is `FascinateEffectCombatBuff` (Dazed) from the Lady of Shallows'
+  aura, read by the current reader. Serenity adds no condition. No product change; live state not observed.
+- **A04:** automatic churn for a `CanNotAttack` rider established and refused (stateless, automatic only). The
+  player's real-time wait is unchanged.
+- **A05 (new):** only a typed `ApproachFailed` end, recorded at the exact movement boundary with the approach's own
+  evidence, marks an automatic target unreachable.
+- **Review of `2ae4cc8b` (`ce9b1383`):**
+  - every command end records a typed cause (audit table in the handoff);
+  - start and tick faults record before any diagnostic, and the terminal is always delivered;
+  - the capability boundary's exact block is the durable cause;
+  - native `Run` replacement scopes are token-exact and exception-safe (a transpiler and a `finally`);
+  - the A01 counter counts only the same request after its command ended.
+- **Review of `fa533e97` (`1d0054f0`):**
+  - R18: a native end is a capability end only on the exact native branch that took it (turn-based cannot-act,
+    running cannot-act, attack ban), recorded by capture-and-wrap transpilers on `TickCommandTurnBased`,
+    `TickCommand` and `UnitAttack.ShouldBeInterrupted`; the terminal snapshot is diagnostic only;
+  - R19: only the innermost open native-Run token on the ending command's container decides a replacement;
+  - R20: the retired scheduler records fault state, the typed cause and the interrupt before any diagnostic; the
+    terminal handler and charge cleanup are no-throw.
+- **Review of `dffd3e72` (`0e1125fa`):**
+  - R21 (review-discovered lifecycle defect): the native terminal facts live in the native invocation's own locals;
+    no static owns a command;
+  - R22: the retired scheduler's lease release is deferred, as designed: the lease stays only while the finished
+    command holds the mount's native slot, and the next update after slot removal, relationship cleanup or disposal
+    releases it. The earlier "always releases" wording is withdrawn.
+- **Review of `95ae0b30` (`7898b1a4`):**
+  - R23: the CanNotAttack term of each wrapped `ShouldBeInterrupted` call has its own scalar frame (opened and closed in
+    a `finally` around native's one getter call), so nested and exceptional observations cannot exchange terms;
+  - R24: a failed terminal observation faults the scheduler lease and records the scheduler's interrupt bookkeeping; it does not re-end the already-finished command, interrupt it again, or replace its existing terminal cause.
+- **Checks:**
+  - Fast PASS 13/0 (budget `known-issues-sprint6`).
+  - Components 1399/0; stall-repair probe 273/0. The Sprint 5 build fails 19 Sprint 6 sections; the reviewed
+    `0e1125fa` build fails 4 (R23 behaviourally).
+  - Kingmaker assembly contracts 815/0.
+  - Mutation campaign Q1–Q26: 26/26 caught (serial, isolated).
+  - Product-build commit `7898b1a4`, DLL SHA-256 `7da6d2c006ff3d71b9d51e29db729a514c6beda826f4611768c03347581dbc64`, MVID `19fba84e-efe2-4a0f-a82c-da26f79e60a4`.
+- **Sprint 5 note:** the `MountedRangedMovementTests.Lifetime` wording now describes a temporary applicability gate,
+  not a dismount and reattachment. Ranged-movement behaviour is unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. Sprint 7 was not started.
+- **Not authorized:** merge, release, tag, version bump, install, loader replacement, reviewer request or Sprint 7.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 5 — MOUNTED RANGED MOVEMENT: R01 NOT REPRODUCIBLE, R02 DOCUMENTED; NATIVE NOT RUN (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint5` (draft PR stacked on `codex/kmc-known-issues-sprint3-closeout`, PR #49), from
