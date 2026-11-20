@@ -120,7 +120,7 @@ if ($Tier -eq 'Full') {
         foreach ($testScript in @('Test-Harness.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1')) {
             Add-Step ('CANDIDATE ' + $testScript) (Join-Path $scriptsRoot $testScript) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot $testScript)) { 'present' } else { 'MISSING' })
         }
-        Add-Step ('CANDIDATE assembly ' + $AssemblyTarget) ('Test-AssemblyContracts.ps1 -Target ' + $AssemblyTarget) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test-AssemblyContracts.ps1')) { 'present' } else { 'MISSING' })
+        Add-Step ('CANDIDATE assembly ' + $AssemblyTarget) ('Test-AssemblyContracts.ps1 -Target ' + $AssemblyTarget + ' -Configuration ' + $Configuration) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test-AssemblyContracts.ps1')) { 'present' } else { 'MISSING' })
     }
 }
 $budgetIdResolved = Get-KmcWorkflowBudgetId $BudgetId

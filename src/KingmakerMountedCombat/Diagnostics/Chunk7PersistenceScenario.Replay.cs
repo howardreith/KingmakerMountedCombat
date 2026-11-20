@@ -30,7 +30,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // Subscriber labels across worlds: RuntimeHelpers.GetHashCode is not a unique reference label.
         // F5 r27 observed a repeated Horse subscriber hash; serials avoid relying on its cause.
         private WeakObjectSerials replaySubscriptionSerials;
-        private const string ReplayContract = "chunk7-repeated-worlds-v2";
+        // v3 is v2 (weak-reference subscriber serials) plus the name of the reviewed owned-subscriber set the
+        // producer holds (Chunk7ReplaySubscriberContract.Revision). v1 and v2 evidence never named one.
+        private const string ReplayContract = "chunk7-repeated-worlds-v3";
         private readonly JArray replayWorlds = new JArray(), replayRequests = new JArray();
         private JObject replayArchive, replayLastWorld;
         private SaveInfo replayInput;
@@ -92,7 +94,8 @@ namespace KingmakerMountedCombat.Diagnostics
             replaySelectionIds = originalSelection.Select(a => a.UniqueId).ToArray();
             BindRepeatedLoadedWorld(1, false);
             replayBegun = true;
-            evidence["repeatedWorlds"] = new JObject { ["contract"] = ReplayContract, ["subscriberIdentity"] = WeakObjectSerials.Contract,
+            evidence["repeatedWorlds"] = new JObject { ["contract"] = ReplayContract,
+                ["subscriberContract"] = Chunk7ReplaySubscriberContract.Revision, ["subscriberIdentity"] = WeakObjectSerials.Contract,
                 ["kind"] = RepeatedAreaCase ? "area-transfer" : "native-load",
                 ["requiredNativeLoads"] = RepeatedAreaCase ? 1 : 3, ["requiredAreaTransfers"] = RepeatedAreaCase ? 3 : 0,
                 ["worlds"] = replayWorlds, ["requests"] = replayRequests, ["performanceProof"] = false, ["diagnosticsOffProof"] = false,
@@ -421,37 +424,31 @@ namespace KingmakerMountedCombat.Diagnostics
             var subscriptions = state["subscriptions"];
             Require((bool)subscriptions["executing"] == false, "Settled subscriber inventory overlaps native dispatch.");
             var entries = (JArray)subscriptions["entries"];
-            var horse = "KingmakerMountedCombat.Integration.HorseCompanionAddPet";
-            var lifecycle = "KingmakerMountedCombat.Integration.MountedLifecycleSubscriber";
-            var controlsType = "KingmakerMountedCombat.Integration.NativeMountedControlService";
+            var horse = Chunk7ReplaySubscriberContract.HorseFactType;
             var shape = string.Join(";", entries.Select(e => (string)e["interface"] + "|" + (string)e["type"])
                 .OrderBy(s => s, StringComparer.Ordinal));
             // Every role compares collision-free subscriber serials; the recorded identity hash is context only.
             var horses = entries.Where(e => (string)e["type"] == horse).Select(e => (long)e["serial"]).ToArray();
-            var lifecycleIds = entries.Where(e => (string)e["type"] == lifecycle).Select(e => (long)e["serial"]).Distinct().ToArray();
-            var controlIds = entries.Where(e => (string)e["type"] == controlsType).Select(e => (long)e["serial"]).Distinct().ToArray();
             // One native HorseCompanionAddPet subscriber per KMC Horse owner (b194 x4c); see Chunk7ReplayHorseOwners.
             var expectedHorses = Chunk7ReplayHorseOwners.Count(((JArray)replayArchive["Pairs"]).Select(p => (string)p["ProfileId"]),
                 id => SupportedMountedProfiles.ResolveProfileId(id)?.BlueprintGuid, SupportedMountedProfiles.HorseBlueprintGuid);
             var persistent = entries.Where(e => (string)e["type"] != horse)
                 .Select(e => (string)e["interface"] + "|" + (string)e["type"] + "|" + (long)e["serial"])
                 .OrderBy(s => s, StringComparer.Ordinal).ToArray();
-            Require(expectedHorses >= 1 && expectedHorses <= 2 &&
-                (int)subscriptions["uniqueOwnedSubscribers"] == 2 + expectedHorses &&
-                (int)subscriptions["ownedInterfaceEntries"] == 15 + expectedHorses &&
-                entries.Count == 15 + expectedHorses && entries.Count(e => (string)e["type"] == lifecycle) == 13 &&
-                entries.Count(e => (string)e["type"] == controlsType) == 2 && horses.Length == expectedHorses &&
-                horses.Distinct().Count() == expectedHorses && lifecycleIds.Length == 1 && controlIds.Length == 1 &&
-                lifecycleIds[0] != controlIds[0] && horses.All(id => id != lifecycleIds[0] && id != controlIds[0]) &&
-                entries.Where(e => (string)e["type"] == horse).All(e =>
-                    (string)e["interface"] == "Kingmaker.PubSubSystem.ISceneHandler") && entries.All(e =>
-                    (string)e["type"] == horse || (string)e["type"] == lifecycle || (string)e["type"] == controlsType) &&
+            // The reviewed set decides membership, instances and every count; nothing is derived from the inventory.
+            var violation = Chunk7ReplaySubscriberContract.Violation(entries.Select(e => new Chunk7ReplaySubscriberRow(
+                (string)e["interface"], (string)e["type"], (long)e["serial"])).ToArray(), expectedHorses);
+            var expectedSubscribers = Chunk7ReplaySubscriberContract.ProcessOwned.Count + expectedHorses;
+            var expectedEntries = Chunk7ReplaySubscriberContract.ProcessOwnedEntries + expectedHorses;
+            Require(violation == null &&
+                (int)subscriptions["uniqueOwnedSubscribers"] == expectedSubscribers &&
+                (int)subscriptions["ownedInterfaceEntries"] == expectedEntries && entries.Count == expectedEntries &&
                 (replaySubscriptionShape == null || replaySubscriptionShape == shape),
-                "Repeated world accumulated or lost native KMC subscriber roles: expected Horse owners " + expectedHorses +
-                ", unique " + (int)subscriptions["uniqueOwnedSubscribers"] + ", owned interface entries " + (int)subscriptions["ownedInterfaceEntries"] +
+                "Repeated world accumulated or lost native KMC subscriber roles under " + Chunk7ReplaySubscriberContract.Revision +
+                ": " + (violation ?? "membership exact") + "; expected Horse owners " + expectedHorses +
+                ", unique " + (int)subscriptions["uniqueOwnedSubscribers"] + " of " + expectedSubscribers +
+                ", owned interface entries " + (int)subscriptions["ownedInterfaceEntries"] + " of " + expectedEntries +
                 ", entries " + entries.Count + ", Horse subscribers " + horses.Length + " (distinct " + horses.Distinct().Count() +
-                "), lifecycle " + entries.Count(e => (string)e["type"] == lifecycle) + " (distinct " + lifecycleIds.Length +
-                "), controls " + entries.Count(e => (string)e["type"] == controlsType) + " (distinct " + controlIds.Length +
                 "), shape match " + (replaySubscriptionShape == null || replaySubscriptionShape == shape) + ".");
             if (replayLastWorld != null)
             {

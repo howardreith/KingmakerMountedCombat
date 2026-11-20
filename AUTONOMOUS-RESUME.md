@@ -1,3 +1,30 @@
+# Known issues remediation, Sprint 1 — review checkpoint (2026-11-15)
+
+Branch `codex/kmc-known-issues-sprint1` (draft PR #45); base main `7a5cd2c3` (0.2.11). Read CURRENT.md,
+docs/KNOWN-ISSUES-SPRINT1-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** T01–T03 implemented and verified offline. Fast PASS 11/0. One independent review and one owner
+  review, both corrected. Native
+  NOT RUN. The ledger is started;
+  Sprints 2–8 are carried-forward rows that have not been rechecked.
+- **Seams:**
+  - `Chunk7ReplaySubscriberContract` (producer) and `Get-KmcChunk7ReplaySubscriberContracts` (reader) declare the
+    repeated-world subscriber revisions separately. `Test-Chunk7ReplaySubscriberContract.ps1` holds them to the
+    compiled product. A new production `EventBus` subscriber or interface needs a new revision in both.
+  - `scripts/UmmLoaderContracts.ps1` is the only loader rule. `Test-AssemblyContracts.ps1` calls it for the
+    installed loader; `Test-UmmLoaderContracts.ps1` inspects any other reference, one per process.
+- **Facts for a successor:**
+  - `Kingmaker.Game`'s type initializer throws detached and poisons the type for the process.
+  - The detached `EventBus` accepts uninitialized subscriber objects; the product's
+    `Chunk4SubscriptionSnapshot.Capture` reads it.
+  - Two `UnityModManager` assemblies cannot be reflection-only loaded in one process.
+  - A PowerShell function that returns one element returns a scalar: index with `@(...)[0]`.
+  - PowerShell's `-ceq`, `-cin` and `-ccontains` are culture-sensitive and ignore U+00AD. Use ordinal comparison
+    for names in evidence.
+  - Reflection resolves a member reference whatever its accessibility. Check `IsPublic` and `IsVisible` as well.
+- **Open from this sprint:** T04 (charge probe drift after `AdmitChargeCommand` and
+  `RequireChargeBuffSurface` changed), T05, T06.
+- **Next:** owner review of the draft PR. Sprint 2 (S01, S02) is not started.
 # Mounted attack stall repair — review checkpoint (2026-11-15)
 
 Branch `codex/mounted-attack-stall-repair` (draft PR); base main `474b8667` (0.2.10). Read CURRENT.md and

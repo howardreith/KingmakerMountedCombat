@@ -1,5 +1,10 @@
 [CmdletBinding()]
-param([ValidateSet('Both','Kingmaker','Wrath')][string]$Target='Both')
+param([ValidateSet('Both','Kingmaker','Wrath')][string]$Target='Both',
+    # The reviewed loader profile (planning/UMM-LOADER-PROFILES.json) the installed UnityModManager must be. Default:
+    # UnityModManagerProfile of LocalGamePaths.props, else the reviewed profile the installed loader identifies as.
+    [string]$UmmProfile='',
+    # The product build whose loader member references are bound (bin\<Configuration>); no other build is used.
+    [ValidateSet('Debug','Release')][string]$Configuration='Release')
 
 $ErrorActionPreference='Stop'; Set-StrictMode -Version Latest
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')); $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))
@@ -7,7 +12,8 @@ $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.js
 if($Target -eq 'Both'){
     $totalPass=0
     foreach($childTarget in @('Kingmaker','Wrath')){
-        $output=@(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -Target $childTarget)
+        $childArguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'-Target',$childTarget,'-Configuration',$Configuration);if($childTarget-eq'Kingmaker'-and$UmmProfile){$childArguments+=@('-UmmProfile',$UmmProfile)}
+        $output=@(& powershell.exe @childArguments)
         if($LASTEXITCODE-ne0){$output|ForEach-Object{Write-Host $_};throw "$childTarget assembly-contract child failed."}
         $output|ForEach-Object{Write-Host $_}
         $line=@($output|Where-Object{$_ -match '^TOTAL PASS=(\d+) FAIL=0$'}|Select-Object -Last 1)
@@ -331,37 +337,23 @@ if($Target-eq'Kingmaker'){
         $_.GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Texture2D' -and
         $_.GetParameters()[1].ParameterType.FullName-ceq'System.Byte[]'
     }).Count-ge1) 'ImageConversion.LoadImage exact embedded-texture seam'
+    # Unity Mod Manager. Identity (one selected reviewed profile, exact version, SHA-256 and MVID) and API (the
+    # reference itself, by name and signature) are separate results; see UmmLoaderContracts.ps1. An identity
+    # mismatch is not an API failure, and a passing API never hides one.
+    . (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
     $ummPath=Join-Path $managed 'UnityModManager\UnityModManager.dll'
     $ummAssembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($ummPath)
-    Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $ummPath).Hash.ToLowerInvariant()-ceq'f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9') 'UnityModManager SHA-256'
-    Assert-Contract ($ummAssembly.ManifestModule.ModuleVersionId.ToString()-ceq'914c93ba-b0bd-409f-9d38-84e575289dc2') 'UnityModManager MVID'
-    Assert-Contract ($ummAssembly.GetName().Version.ToString()-ceq'0.33.2.0') 'UnityModManager exact version'
-    # KMC's compile-time UMM binding surface (Main.cs, Logging/UmmLogger.cs), checked by
-    # declaring type, name and exact signature instead of metadata token: a reinstall that
-    # keeps the API passes even when tokens move, while a removed, retyped or readonly
-    # member still fails. The exact identity above stays a separate pin.
-    function Get-UmmContractTypeShape($Type){if($null-eq$Type){return '<null>'};if($Type.IsGenericType){return $Type.GetGenericTypeDefinition().FullName+'['+((@($Type.GetGenericArguments())|ForEach-Object{Get-UmmContractTypeShape $_})-join',')+']'};return [string]$Type.FullName}
-    $ummModEntryName='UnityModManagerNet.UnityModManager+ModEntry'
-    $ummModEntry=$ummAssembly.GetType($ummModEntryName,$false)
-    foreach($expected in @(
-        @('Info','UnityModManagerNet.UnityModManager+ModInfo',$false),
-        @('Logger','UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false),
-        @('OnGUI',('System.Action`1['+$ummModEntryName+']'),$true),
-        @('OnSessionStop',('System.Action`1['+$ummModEntryName+']'),$true),
-        @('OnUpdate',('System.Action`2['+$ummModEntryName+',System.Single]'),$true),
-        @('OnUnload',('System.Func`2['+$ummModEntryName+',System.Boolean]'),$true),
-        @('OnToggle',('System.Func`3['+$ummModEntryName+',System.Boolean,System.Boolean]'),$true))){
-        $field=if($null-eq$ummModEntry){$null}else{$ummModEntry.GetField($expected[0],[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
-        Assert-Contract ($null-ne$field -and $field.IsPublic -and -not $field.IsStatic -and (Get-UmmContractTypeShape $field.FieldType)-ceq$expected[1] -and (-not $expected[2] -or -not $field.IsInitOnly)) ('UMM API ModEntry.'+$expected[0]+' '+$expected[1]+$(if($expected[2]){' assignable'}else{' readable'}))
-    }
-    $ummModInfo=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModInfo',$false)
-    $ummModInfoId=if($null-eq$ummModInfo){$null}else{$ummModInfo.GetField('Id',[Reflection.BindingFlags]'Public,Instance,DeclaredOnly')}
-    Assert-Contract ($null-ne$ummModInfoId -and $ummModInfoId.IsPublic -and -not $ummModInfoId.IsStatic -and $ummModInfoId.FieldType.FullName-ceq'System.String') 'UMM API ModInfo.Id System.String readable'
-    $ummModLogger=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+ModEntry+ModLogger',$false)
-    foreach($expected in @(@('Log','System.String'),@('Warning','System.String'),@('Error','System.String'),@('LogException','System.String,System.Exception'))){
-        $methods=@(if($null-ne$ummModLogger){$ummModLogger.GetMethods([Reflection.BindingFlags]'Public,Instance,DeclaredOnly')|Where-Object{$_.Name-ceq$expected[0] -and ((@($_.GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq$expected[1]}})
-        Assert-Contract ($methods.Count-eq1 -and $methods[0].ReturnType.FullName-ceq'System.Void' -and -not $methods[0].IsGenericMethodDefinition) ('UMM API ModLogger.'+$expected[0]+'('+$expected[1]+') void')
-    }
+    Register-KmcUmmReferenceResolver $ummAssembly
+    $ummIdentity=Get-KmcUmmReferenceIdentity $ummPath $ummAssembly
+    $ummSelected=Resolve-KmcUmmLoaderProfile (Get-KmcUmmLoaderProfiles $repoRoot) $ummIdentity $UmmProfile (Get-KmcUmmLocalSetting $repoRoot 'UnityModManagerProfile')
+    $ummIdentityOk=Invoke-KmcUmmLoaderIdentityChecks $ummAssembly $ummIdentity $ummSelected ${function:Assert-Contract}
+    $ummFailuresBeforeApi=$failures.Count
+    Invoke-KmcUmmLoaderApiChecks $ummAssembly ${function:Assert-Contract}
+    # Every loader member the compiled product references, when a build exists. No build: reported, never passed.
+    $ummProduct=Get-KmcUmmProductAssembly $repoRoot $Configuration;$ummReader=Get-KmcUmmMetadataReaderPath $managed;$ummSweepRan=$null-ne$ummProduct-and[bool]$ummReader
+    # The build that was read is named, so a run can be seen to have inspected the configuration it was given.
+    if($ummSweepRan){[void](Invoke-KmcUmmProductBindingChecks $ummProduct $ummReader ${function:Assert-Contract});Write-Host ("INFO $Target UMM API product binding sweep read the $Configuration build "+$ummProduct.Location+' MVID '+$ummProduct.ManifestModule.ModuleVersionId)}else{Write-Host "UNASSESSED $Target UMM API product binding sweep: no $Configuration build of the product, or no metadata reader"}
+    $ummApiOk=$failures.Count-eq$ummFailuresBeforeApi
     foreach($name in @('Kingmaker.UnitLogic.Parts.UnitPartRider','Kingmaker.UnitLogic.Parts.UnitPartSaddled','Kingmaker.Controllers.Units.SaddledUnitController')){Assert-Contract ($null-eq$assembly.GetType($name,$false)) "mounted type absent: $name"}
     $gameVersionType=$assembly.GetType('Kingmaker.GameVersion',$false)
     $gameVersionMethod=if($null-eq$gameVersionType){$null}else{$gameVersionType.GetMethod('GetVersion',[Reflection.BindingFlags]'Public,Static')}
@@ -1341,14 +1333,7 @@ if($Target-eq'Kingmaker'){
         @('UnityEngine.SceneManagement.SceneManager',0x060019D5,'GetSceneByName'),
         @('UnityEngine.SceneManagement.Scene',0x060019C4,'get_isLoaded'))
     foreach($check in $unityChecks){$type=$unityCore.GetType($check[0],$false);$member=if($null-eq$type){$null}else{@($type.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[1]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name -ceq [string]$check[2]};Assert-Contract $matches "Unity token $($check[1].ToString('X8')) $($check[0]).$($check[2])"}
-    $ummUi=$ummAssembly.GetType('UnityModManagerNet.UnityModManager+UI',$false)
-    Assert-Contract ($null-ne$ummUi -and $ummUi.BaseType.FullName-ceq'UnityEngine.MonoBehaviour') 'UMM UI exact MonoBehaviour capture host'
-    # UMM 0.33.2.0 tokens (0.28.2.0 had 060000CA/060000CB/060000E3); the shape checks are unchanged.
-    $ummUiChecks=@(
-        @(0x06000151,'get_Instance'),
-        @(0x06000152,'get_Opened'),
-        @(0x0600016A,'ToggleWindow'))
-    foreach($check in $ummUiChecks){$member=if($null-eq$ummUi){$null}else{@($ummUi.GetMembers([Reflection.BindingFlags]'Public,NonPublic,Instance,Static')|Where-Object MetadataToken -eq $check[0]|Select-Object -First 1)};$matches=$null-ne$member -and @($member).Count-eq1;if($matches){$matches=[string]@($member)[0].Name-ceq[string]$check[1]};if($matches -and [int]$check[0]-eq 0x06000151){$matches=@($member)[0].IsPublic -and @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'UnityModManagerNet.UnityModManager+UI'};if($matches -and [int]$check[0]-eq 0x06000152){$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Boolean'};if($matches -and [int]$check[0]-eq 0x0600016A){$parameters=@(@($member)[0].GetParameters());$matches=@($member)[0].IsPublic -and -not @($member)[0].IsStatic -and @($member)[0].ReturnType.FullName-ceq'System.Void' -and $parameters.Count-eq1 -and $parameters[0].ParameterType.FullName-ceq'System.Boolean'};Assert-Contract $matches "UMM UI token $($check[0].ToString('X8')) $($check[1]) exact screenshot surface"}
+    # The loader's UI capture host is checked with the loader above: its API by name and signature, its tokens under the identity profile.
     $monoBehaviour=$unityCore.GetType('UnityEngine.MonoBehaviour',$false)
     $waitForEndOfFrame=$unityCore.GetType('UnityEngine.WaitForEndOfFrame',$false)
     $defaultExecutionOrder=$unityCore.GetType('UnityEngine.DefaultExecutionOrder',$false)
@@ -1535,6 +1520,14 @@ if($Target-eq'Kingmaker'){
     $turnFields=if($null-eq$turnType){@()}else{@($turnType.GetFields([Reflection.BindingFlags]'Public,NonPublic,Instance,DeclaredOnly'))}
     Assert-Contract (@('m_Rider','m_Mount','m_RiderCommands','m_MountCommands','m_RiderCombatState','m_MountCombatState','m_RiderCooldown','m_MountCooldown','m_RiderMovementStats','m_MountMovementStats','m_RiderActionState','m_MountActionState' | Where-Object {$name=$_;@($turnFields|Where-Object Name -ceq $name).Count-ne1}).Count-eq0) `
         'TurnController retains distinct rider and mount command combat cooldown movement and action ledgers'
+}
+if($Target-eq'Kingmaker'){
+    # Four separate statements about the loader. None stands in for another.
+    Write-Host ('UMM DECLARED MINIMUM '+(Get-KmcUmmDeclaredMinimum $repoRoot)+' (Info.json ManagerVersion; a support declaration, not assessed by inspecting another version)')
+    Write-Host ('UMM REFERENCE '+$ummIdentity.path+' version '+$ummIdentity.version)
+    Write-Host ('UMM IDENTITY '+$(if($ummIdentityOk){'PASS'}else{'FAIL'})+' profile '+$(if($null-eq$ummSelected.profile){'<none matches>'}else{$ummSelected.profile.id})+' ('+$ummSelected.selection+')')
+    Write-Host ('UMM API '+$(if($ummApiOk){'PASS'}else{'FAIL'})+' reference '+$ummIdentity.version+$(if(-not$ummSweepRan){' for the explicit binding surface only; the compiled product''s own references are UNASSESSED'}else{''}))
+    Write-Host 'UMM NATIVE EXECUTION not run by this check'
 }
 Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
 if($failures.Count-ne0){exit 1}

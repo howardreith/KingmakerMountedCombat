@@ -73,10 +73,13 @@ public static class ChargeOwnershipProbe {
     "compiled command owner check accepts only its captured registration");
    Check(!(bool)Call(a,"get_AllSaveOwnersReady")&&!(bool)Call(a,"get_AllTeardownOwnersReady"),
     "compiled service readiness observes the other owner without a second native save operation");
+   // The capacity bound is exercised by ProbePairCapacity in its own registry. This probe once
+   // asserted a two-pair bound here; under the reviewed six-pair contract two owners leave
+   // capacity, so the neighbouring fact is a read-only admission query that mutates nothing.
    var nativeCapacity=(int)serviceType.GetField("NativePairCapacity",F).GetRawConstantValue();
-   var denied=new object[]{world,campaign,actor(),actor(),1L,b, new Func<bool>(()=>false),new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,nativeCapacity,null};
-   Check(nativeCapacity==2&&!(bool)Call(registry,"TryReserve",denied)&&denied[9]==null,
-    "compiled two-pair native adapter refuses a third reservation without native mutation");
+   Check(Call(registry,"AdmissionRefusal",world,campaign,actor(),actor(),nativeCapacity)==null&&
+    ((Array)Call(registry,"get_Owners")).Length==2&&(int)Call(registry,"get_ActiveCount")==2,
+    "compiled native adapter still admits a third independent pair beside two owners without reserving it");
    var cleanupEvent=serviceType.GetEvent("Dismounting",F);var trigger=cleanupEvent.EventHandlerType.GetGenericArguments()[0];
    var visited=0;var fail=true;
    var failing=new Callback{Action=()=>{if(fail)throw new InvalidOperationException("external subscriber failed");}};
@@ -95,6 +98,182 @@ public static class ChargeOwnershipProbe {
     ReferenceEquals(Call(a,"ResolveActorOwner",ar,true),a),"compiled cleanup retry retires only B after its postconditions settle");
    Set(a,"mountedPairGeneration",2L);
    Check(!(bool)Call(a,"IsCurrentPairOwner",first),"compiled delayed command refuses the replacement generation");
+  }
+  // The reviewed supported limit. It is deliberately a literal: a production capacity change
+  // fails here until it is reviewed, instead of being inherited by the probe.
+  const int ReviewedPairCapacity=6;
+  static bool SameOwners(Array before,Array after){
+   if(before.Length!=after.Length)return false;
+   for(var i=0;i<before.Length;i++)if(!ReferenceEquals(before.GetValue(i),after.GetValue(i)))return false;
+   return true;
+  }
+  // Isolated capacity exercise: its registry, services, actors and session are its own and
+  // nothing is shared with the two-pair probe. It runs the compiled production ownership
+  // implementation: the registry the production service constructor builds (production actor
+  // identity), each pair's compiled GameMountedRelationshipService as its boundary, and the
+  // service's own Dismount for retirement. The bound is the constant the production adapter
+  // passes to that registry, never a number chosen here.
+  // Substituted: logging, the world/campaign session, and the view/movement attachment that
+  // MountRiderOn performs between reservation and commit. The service wrappers that read the
+  // session (TryReserveOwnership, NativeAdmissionRefusal, CaptureNativeRequest) cannot run
+  // detached, because Kingmaker.Game's type initializer needs the Unity player. They are not
+  // executed here; the capacity each compiled wrapper passes to the registry is read from its
+  // IL and must be the capacity this exercise uses.
+  // No native Prepare, action budget, command, view or save is touched.
+  static int? CapacityPassedTo(MethodInfo site,string registryMethod){
+   var one=new System.Collections.Generic.Dictionary<int,System.Reflection.Emit.OpCode>();
+   var two=new System.Collections.Generic.Dictionary<int,System.Reflection.Emit.OpCode>();
+   foreach(var field in typeof(System.Reflection.Emit.OpCodes).GetFields(BindingFlags.Public|BindingFlags.Static)){
+    var known=(System.Reflection.Emit.OpCode)field.GetValue(null);
+    if(known.Size==1)one[known.Value&0xFF]=known;else two[known.Value&0xFF]=known;
+   }
+   var il=site.GetMethodBody().GetILAsByteArray();int? last=null;
+   for(var i=0;i<il.Length;){
+    var code=il[i]==0xFE?two[il[i+1]]:one[il[i]];i+=code.Size;
+    if(code.Name=="ldc.i4.m1")last=-1;
+    else if(code.Name=="ldc.i4.s")last=(sbyte)il[i];
+    else if(code.Name=="ldc.i4")last=BitConverter.ToInt32(il,i);
+    else if(code.Name.StartsWith("ldc.i4."))last=int.Parse(code.Name.Substring(7));
+    else if(code.OperandType==System.Reflection.Emit.OperandType.InlineMethod){
+     var callee=site.Module.ResolveMethod(BitConverter.ToInt32(il,i),site.DeclaringType.GetGenericArguments(),null);
+     // The last integer constant loaded before the registry call is its capacity argument.
+     if(callee.Name==registryMethod&&callee.DeclaringType.Name=="MountedPairRegistry`2")return last;
+    }
+    switch(code.OperandType){
+     case System.Reflection.Emit.OperandType.InlineNone:break;
+     case System.Reflection.Emit.OperandType.ShortInlineBrTarget:
+     case System.Reflection.Emit.OperandType.ShortInlineI:
+     case System.Reflection.Emit.OperandType.ShortInlineVar:i+=1;break;
+     case System.Reflection.Emit.OperandType.InlineVar:i+=2;break;
+     case System.Reflection.Emit.OperandType.InlineI8:
+     case System.Reflection.Emit.OperandType.InlineR:i+=8;break;
+     case System.Reflection.Emit.OperandType.InlineSwitch:i+=4+4*BitConverter.ToInt32(il,i);break;
+     default:i+=4;break;
+    }
+   }
+   return null;
+  }
+  static void ProbePairCapacity(Assembly mod, Assembly native) {
+   var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+   var serviceType=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+   var registryType=mod.GetType("KingmakerMountedCombat.Domain.MountedPairRegistry`2",true).MakeGenericType(unitType,serviceType);
+   var formatType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedSaveFormat",true);
+   var trigger=mod.GetType("KingmakerMountedCombat.Domain.CleanupTrigger",true);
+   var capacity=(int)serviceType.GetField("NativePairCapacity",F).GetRawConstantValue();
+   Check(capacity==ReviewedPairCapacity&&(int)formatType.GetField("NativePairCapacity",F).GetRawConstantValue()==capacity&&
+    (int)registryType.GetField("MaximumActivePairs",F).GetRawConstantValue()==capacity,
+    "production admission, archive and registry all declare the reviewed six-pair capacity");
+   Check(CapacityPassedTo(serviceType.GetMethod("TryReserveOwnership",F),"TryReserve")==capacity&&
+    CapacityPassedTo(serviceType.GetMethod("NativeAdmissionRefusal",F),"AdmissionRefusal")==capacity&&
+    CapacityPassedTo(serviceType.GetMethod("CaptureNativeRequest",F),"CaptureRequest")==capacity,
+    "compiled production reservation, admission and request call sites pass exactly that capacity to the registry");
+   {
+    var world=new object();var campaign=Guid.NewGuid().ToString("N");
+    var logger=new LoggerProxy(mod.GetType("KingmakerMountedCombat.Logging.IModLogger",true)).GetTransparentProxy();
+    var settings=Activator.CreateInstance(mod.GetTypes().Single(t=>t.Name=="DiagnosticSettings"));
+    // The public constructor builds the production registry with the production actor identity.
+    var founder=Activator.CreateInstance(serviceType,new object[]{logger,settings});
+    var registry=Call(founder,"get_Ownership");
+    Check(registry.GetType()==registryType&&((Array)Call(registry,"get_Owners")).Length==0,
+     "production service constructor supplies its own empty registry for this exercise");
+    Func<object> service=()=>Activator.CreateInstance(serviceType,F,null,new[]{logger,settings,registry},null);
+    Func<object> actor=()=>{var value=Blank(unitType);Set(value,"<UniqueId>k__BackingField",Guid.NewGuid().ToString());return value;};
+    // Arguments in the order of the production reservation: the next generation of this
+    // boundary, the boundary itself, and retention read from that boundary's own cleanup state.
+    Func<object,object,object,string> reserve=(boundary,rider,mount)=>{
+     var args=new object[]{world,campaign,rider,mount,checked((long)Get(boundary,"mountedPairGeneration")+1),boundary,
+      new Func<bool>(()=>(bool)Get(boundary,"cleanupRetryRequired")||!(bool)Call(Get(boundary,"runtime"),"get_NoPreparedPairResidue")),
+      new Func<bool>(()=>true),new Func<bool>(()=>true),null,null,capacity,null};
+     if(!(bool)Call(registry,"TryReserve",args))return (string)args[10]??"<refused without a reason>";
+     Set(boundary,"<PairOwner>k__BackingField",args[9]);return null;
+    };
+    Action<object,object,object> commit=(boundary,rider,mount)=>{
+     // What MountRiderOn commits after its external attachment succeeds.
+     var reserved=Call(boundary,"get_PairOwner");
+     Set(boundary,"mountedPairGeneration",(long)Get(reserved,"Generation"));
+     Call(registry,"Commit",reserved);
+     var runtime=Get(boundary,"runtime");Set(runtime,"rider",rider);Set(runtime,"mount",mount);
+    };
+    Func<object,object,object,string> admission=(boundary,rider,mount)=>(string)Call(registry,"AdmissionRefusal",world,campaign,rider,mount,capacity);
+    Func<object,object> find=unit=>Call(registry,"FindOwner",unit);
+    Func<Array> owners=()=>(Array)Call(registry,"get_Owners");
+    Func<int> active=()=>(int)Call(registry,"get_ActiveCount");
+    Func<object,string> stateOf=owner=>Call(owner,"get_State").ToString();
+    Func<object,bool> current=boundary=>(bool)Call(boundary,"IsCurrentPairOwner",Call(boundary,"get_PairOwner"));
+    var services=new object[capacity];var riders=new object[capacity];var mounts=new object[capacity];
+    Action<int> admit=index=>{
+     var refusal=admission(services[index],riders[index],mounts[index]);
+     var reservation=refusal==null?reserve(services[index],riders[index],mounts[index]):refusal;
+     var reserved=reservation==null?Call(services[index],"get_PairOwner"):null;
+     Check(reserved!=null&&stateOf(reserved)=="Reserved"&&ReferenceEquals(find(riders[index]),reserved)&&
+      ReferenceEquals(find(mounts[index]),reserved),
+      "compiled production registry reserves both exact actor roles for pair "+(index+1)+" of "+capacity+": "+(reservation??"reserved"));
+     commit(services[index],riders[index],mounts[index]);
+     Check(stateOf(reserved)=="Active"&&current(services[index])&&active()==index+1&&owners().Length==index+1&&
+      ReferenceEquals(Call(founder,"ResolveActorOwner",riders[index],true),services[index])&&
+      ReferenceEquals(Call(founder,"ResolveActorOwner",mounts[index],true),services[index]),
+      "compiled service owns committed pair "+(index+1)+" of "+capacity+" and routes both roles to its own boundary");
+    };
+    services[0]=founder;riders[0]=actor();mounts[0]=actor();admit(0);
+    services[1]=service();riders[1]=actor();mounts[1]=actor();admit(1);
+    // Overlap while four active slots remain: every refusal below is for ownership, and the
+    // same boundary is admitted with free actors immediately afterwards.
+    var third=service();var freeRider=actor();var freeMount=actor();var beforeOverlap=owners();
+    var riderOverlap=reserve(third,riders[0],freeMount);var mountOverlap=reserve(third,freeRider,mounts[1]);
+    var mountAsRider=reserve(third,mounts[0],freeMount);var riderAsMount=reserve(third,freeRider,riders[1]);
+    Check(active()<capacity&&riderOverlap!=null&&mountOverlap!=null&&mountAsRider!=null&&riderAsMount!=null&&
+     Call(third,"get_PairOwner")==null&&find(freeRider)==null&&find(freeMount)==null&&
+     SameOwners(beforeOverlap,owners())&&active()==2&&current(services[0])&&current(services[1]),
+     "overlapping rider or mount ownership in either role is refused while capacity remains, creating no owner and leaving both registrations exact");
+    services[2]=third;riders[2]=freeRider;mounts[2]=freeMount;admit(2);
+    for(var slot=3;slot<capacity;slot++){services[slot]=service();riders[slot]=actor();mounts[slot]=actor();admit(slot);}
+    var full=owners();var fullIds=full.Cast<object>().Select(owner=>Get(owner,"Id")).ToArray();
+    var fullGenerations=full.Cast<object>().Select(owner=>Get(owner,"Generation")).ToArray();
+    Func<bool> fullUnchanged=()=>SameOwners(full,owners())&&active()==capacity&&
+     full.Cast<object>().Select(owner=>Get(owner,"Id")).SequenceEqual(fullIds)&&
+     full.Cast<object>().Select(owner=>Get(owner,"Generation")).SequenceEqual(fullGenerations)&&
+     full.Cast<object>().All(owner=>stateOf(owner)=="Active")&&services.All(current)&&
+     Enumerable.Range(0,capacity).All(index=>ReferenceEquals(Call(founder,"ResolveActorOwner",riders[index],true),services[index])&&
+      ReferenceEquals(Call(founder,"ResolveActorOwner",mounts[index],true),services[index]));
+    var extra=service();var extraRider=actor();var extraMount=actor();
+    var admissionRefusal=admission(extra,extraRider,extraMount);
+    var extraRequest=Call(registry,"CaptureRequest",world,campaign,extraRider,extraMount,(long)Get(extra,"mountedPairGeneration"),extra,false,capacity);
+    var capacityRefusal=reserve(extra,extraRider,extraMount);
+    Check(admissionRefusal!=null&&extraRequest==null&&capacityRefusal==admissionRefusal&&Call(extra,"get_PairOwner")==null&&
+     find(extraRider)==null&&find(extraMount)==null&&fullUnchanged(),
+     "pair "+(capacity+1)+" is refused before reservation with no owner, request or actor index, and all "+capacity+" registrations are unchanged");
+    Check(capacityRefusal!=riderOverlap&&riderOverlap==mountOverlap&&reserve(extra,riders[0],extraMount)==riderOverlap&&
+     reserve(extra,extraRider,mounts[capacity-1])==riderOverlap&&Call(extra,"get_PairOwner")==null&&fullUnchanged(),
+     "at full capacity an overlapping request is still refused for ownership rather than capacity, and changes nothing");
+    // Legitimate retirement: the production Dismount path, whose own postconditions settle and
+    // release the exact owner. Nothing is removed from the registry by the probe.
+    var retiring=capacity/2;var retiredOwner=Call(services[retiring],"get_PairOwner");
+    var dismounted=Call(services[retiring],"Dismount",Enum.Parse(trigger,"Manual"));
+    Check((bool)Call(dismounted,"get_Succeeded")&&stateOf(retiredOwner)=="Retired"&&Call(services[retiring],"get_PairOwner")==null&&
+     find(riders[retiring])==null&&find(mounts[retiring])==null&&owners().Length==capacity-1&&active()==capacity-1&&
+     !owners().Cast<object>().Any(owner=>ReferenceEquals(owner,retiredOwner))&&
+     Enumerable.Range(0,capacity).Where(index=>index!=retiring).All(index=>current(services[index])&&
+      ReferenceEquals(find(riders[index]),Call(services[index],"get_PairOwner"))),
+     "production dismount retires exactly one settled relationship and leaves the other "+(capacity-1)+" owners active and exact");
+    Check(admission(extra,extraRider,extraMount)==null&&reserve(extra,extraRider,extraMount)==null,
+     "the previously refused pair is admitted into the released capacity");
+    commit(extra,extraRider,extraMount);
+    var replacement=Call(extra,"get_PairOwner");
+    Check(stateOf(replacement)=="Active"&&current(extra)&&active()==capacity&&owners().Length==capacity&&
+     !ReferenceEquals(replacement,retiredOwner)&&!Object.Equals(Get(replacement,"Id"),Get(retiredOwner,"Id"))&&
+     ReferenceEquals(Call(founder,"ResolveActorOwner",extraRider,true),extra)&&
+     Call(founder,"ResolveActorOwner",riders[retiring],false)==null,
+     "the replacement holds its own new owner identity and the retired actors keep no ownership");
+    var overflow=service();
+    Check(reserve(overflow,riders[retiring],mounts[retiring])==capacityRefusal&&Call(overflow,"get_PairOwner")==null&&
+     active()==capacity&&owners().Length==capacity,
+     "the bound still holds after replacement: the retired pair cannot return while "+capacity+" pairs are active");
+    foreach(var remaining in services.Where((value,index)=>index!=retiring).Concat(new[]{extra}))
+     Check((bool)Call(Call(remaining,"Dismount",Enum.Parse(trigger,"Manual")),"get_Succeeded")&&Call(remaining,"get_PairOwner")==null,
+      "production dismount releases each remaining owner");
+    Check(owners().Length==0&&active()==0&&riders.Concat(mounts).Concat(new[]{extraRider,extraMount}).All(unit=>find(unit)==null),
+     "every reservation is released: no owner, active slot or actor index remains");
+   }
   }
    static void ProbeWorldTurnDispatch(Assembly mod, Assembly native) {
     var unitType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
@@ -216,6 +395,7 @@ public static class ChargeOwnershipProbe {
   ProbeRetainedSplit(mod,native);
   ProbeWorldTurnDispatch(mod,native);
   ProbePairOwnership(mod,native);
+  ProbePairCapacity(mod,native);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","pinned native MVID");
   var controlsType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
   var controlKind=mod.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true);

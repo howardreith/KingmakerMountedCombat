@@ -1,3 +1,32 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 1 — VALIDATION TOOLS REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-15)
+
+Branch `codex/kmc-known-issues-sprint1` (draft PR #45) from main `7a5cd2c3` (0.2.11). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT1-HANDOFF.md) and the new [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Scope:** T01–T03 of the owner's Known Issues Remediation Epic, and the ledger. Validation tooling only. No
+  gameplay code changed; T02 changes diagnostic evidence code, so a build of this branch is a new binary.
+- **T01, charge capacity probe:** `Test-ChargeOwnershipContracts.ps1` now states the six-pair contract in an
+  isolated exercise on the compiled product. 71 checks run where 29 did.
+  - The script still exits 1. Behind the old assertion it calls charge members whose shape changed on 2026-11-03
+    (ledger **T04**). That failure is preserved and not repaired here.
+- **T02, repeated-world evidence:** the reader selects a reviewed subscriber contract by evidence contract and
+  producer identity. Historical evidence keeps its 13-interface contract; current evidence is
+  `chunk7-repeated-worlds-v3` declaring `kmc-global-subscribers-r2`. Anything else is refused as unsupported.
+  - The producer's own check had the same stale literals and is corrected with it.
+  - Reader repaired and verified offline. No native repeated-world qualification.
+- **T03, UMM:** loader identity (one selected reviewed profile, exact) and API compatibility (the reference
+  itself) are separate results. Profiles: `planning/UMM-LOADER-PROFILES.json`.
+  - Kingmaker assembly contracts: 810 pass, 0 fail on this machine's genuine 0.33.0 (801 pass, 3 fail before).
+  - The declared minimum stays 0.28.2 and is unassessed: no genuine 0.28.2 binary is available.
+- **Checks:** Fast PASS 9/0 (components 1234/0, Validate-Source 151/0, six focused scripts). Three mutations caught.
+- **Review:** one independent read. No defect in T01 or the T02 producer; five in the T02 reader and T03, all
+  corrected with a check each (the handoff lists them).
+- **Owner review of `fdd93249`:** two T03 findings, corrected in `e52a59f0`. The umbrella now hands its configuration
+  to the assembly checker, and the loader matrix reports an inspection without a result as an error instead of
+  blank cells. Fast PASS 11/0 on that head.
+- **New open items:** T04, and two stale neighbour scripts that fail identically on main (T05, T06).
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Not authorized:** merge, release, tag, install, reviewer request or Sprint 2.
 # RELEASE 0.2.11 (OWNER ORDER, 2026-11-15)
 
 The owner ordered PR #43, the mounted attack stall repair, merged and released. Merge `22945394`, tree identical to the
