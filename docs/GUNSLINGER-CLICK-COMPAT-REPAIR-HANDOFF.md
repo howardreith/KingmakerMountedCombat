@@ -136,7 +136,27 @@ is replaced: `HarmonyLib.PatchTools.DetourMethod` for `OnClick` only, because .N
 
 ### Runtime
 
-Pending: a guarded no-save `mod-load-smoke` of the packaged candidate beside the installed Tabletop Rules Expansion.
+**Not run in the game.** Attempted only as far as the guarded launcher's WhatIf qualification, which refused:
+
+- Package (normal process, `scripts/Package.ps1 -ArtifactQualifier gunslinger-click-compat`, from clean `6bfd8846`):
+  `artifacts/KingmakerMountedCombat-0.2.12-gunslinger-click-compat-diagnostic.zip`, SHA-256
+  `c4b9de6624e2ffdf552462073195d8eadeeba47e7be12e2a1773cf3894d2cec3`, DLL `5d79c78c…d647`, MVID
+  `15d95e93-9806-4dde-a222-7581f38d4ad9`; package validator 11/0. The version label stays 0.2.12 (no bump
+  authorized): identify it by hash, never by label.
+- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 -Scenario mod-load-smoke -PackagePath <that zip> -RunId
+  gunslinger-click-compat-smoke-1 -DevelopmentScopedAudit -WhatIf` (budget `gunslinger-click-compat`) passed source
+  and package validation, then stopped: `Archive root is missing: C:\Dev\KingmakerMountedCombatLab\runtime-backups`.
+  This lab has no `runtime-backups` or `runtime-staging` root and no transaction or qualification state under
+  `runtime-state`. The guard refuses rather than creating them, and they were not created: rebuilding the transaction
+  environment is a decision for the owner. Nothing was staged, installed or launched; the live Mods tree and every
+  save are untouched.
+- Earlier in the session a Kingmaker process from the Tabletop Rules Expansion lab's own game copy
+  (`C:\Dev\KingmakerGunslingerLab\game-copies\loader-compat\Kingmaker.exe`) was running; it was left alone and
+  had exited before the WhatIf.
+- Steam was in Offline Mode on build 6757524, as the launcher requires.
+- This machine's live installation has Tabletop Rules Expansion **0.0.140**, not 0.0.191, and no Mounted Combat. The
+  owner's affected save `Quicksave2` and the incident machine are not here; the local saves are protected human
+  saves and were not touched.
 
 ### Independent review
 
@@ -151,4 +171,27 @@ as dated history.
 
 ## Remaining checks
 
-Pending the runtime step above.
+- **Patch composition repaired: verified offline** (composition, executed slices, contracts, Candidate checks).
+- **Both mods initialising in a fresh game process: not verified.** The smallest check: with the launcher's archive
+  roots restored, run the WhatIf and then the real `mod-load-smoke` above beside the installed Tabletop Rules
+  Expansion (0.0.140 here; 0.0.191 needs that version in the live Mods tree, which only the owner may install). Pass
+  means the UMM log shows both mods `Active`, no `Not loaded`, and Mounted Combat's
+  `Mounted Combat feat selections: ...; failure=none` line (the toggle `3c81f5a0…` is created in that registration).
+- **Owner's save recovery: not verified.** Load an unchanged copy of `Quicksave2` with this build and Tabletop Rules
+  Expansion 0.0.191 installed; pass means no `Failed to load blueprint by guid 3c81f5a02be74d96a4e07d1c92b6f385`, no
+  `PostLoad_Patch2` exception and no `LoadGameException`. Then a mounted cannot-attack click (the mount moves, the
+  rider does not walk alone) and a firearm attack by an unmounted Gunslinger.
+- **Release:** none. A release needs a version bump, release notes and the release process, by owner order.
+
+### Candidate checks (after the review corrections)
+
+Selected Candidate (`-Tier Candidate -AssemblyTarget Kingmaker`, same focused scripts, budget
+`gunslinger-click-compat`): build, components 1411/0, Validate-Source 153/0, composition 21/0, marker contracts 18/0
+passed; `Test-Harness.ps1` then failed 255/26 and the tier stopped. 22 of the 26 were `Runtime state is ambiguous:
+Kingmaker=1` from the foreign game process above. Rerun once with no game process: **278/3**, the three
+baseline-identical failures (two historical package zips absent from `artifacts/`; the `CompositionRoot.cs` source pin
+`if (errors.Length != 0) throw new AggregateException(...)`, absent at `12527350` as well). The steps the tier did not
+reach were run directly: `Test-PairedActivationContracts.ps1` pass (patch construction 40/0), Kingmaker assembly
+contracts 815/0; `Test-RuntimeArtifactManifestContract.ps1` fails reading retained native evidence absent from this lab
+(`runtime-evidence/final105-p08-mammoth-tb/runtime-request.json`), unrelated to this change. Budget spent: about 12 of 90
+minutes.

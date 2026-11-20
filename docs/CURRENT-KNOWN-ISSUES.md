@@ -177,7 +177,7 @@ parent ID and have no row of their own.
 
 | ID | Report | Disposition | Native |
 |---|---|---|---|
-| X01 | 0.2.12 is `Not loaded` beside Tabletop Rules Expansion (`KingmakerGunslinger`) 0.0.191; a save using the Mounted Combat toggle `3c81f5a02be74d96a4e07d1c92b6f385` then fails to load (owner log `output_log(20261120-043652).txt`) | **Repaired on review branch `codex/gunslinger-click-approach-compat`, unreleased.** Cause: the M04 closeout's `ClickUnitHandler.OnClick` transpiler (`cdfbe509`) replaced a native `Run` that the other mod also rewrites; whichever ran second threw. The transpiler now guards the submission instead. Composition repaired and verified offline with both released binaries ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md)) | See the handoff; the owner's save recovery is not verified |
+| X01 | 0.2.12 is `Not loaded` beside Tabletop Rules Expansion (`KingmakerGunslinger`) 0.0.191; a save using the Mounted Combat toggle `3c81f5a02be74d96a4e07d1c92b6f385` then fails to load (owner log `output_log(20261120-043652).txt`) | **Repaired on review branch `codex/gunslinger-click-approach-compat`, unreleased.** Cause: the M04 closeout's `ClickUnitHandler.OnClick` transpiler (`cdfbe509`) replaced a native `Run` that the other mod also rewrites; whichever ran second threw. The transpiler now guards the submission instead. Composition repaired and verified offline with both released binaries ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md)) | NOT RUN (the guarded launcher refused: this lab has no archive roots); the owner's save recovery is not verified |
 
 ## Reconciliation history (superseded by the current status above)
 

@@ -15,7 +15,11 @@ Start here. The sections below this one are dated history, newest first.
   naming the other mod's type (asserted unique).
 - **Evidence:** new `Test-GunslingerClickComposition.ps1` (real transpilers of both mods through the installed loader,
   all four orders, executed composed slice): released 0.2.12 fails with the incident's exception; the repair passes
-  20/0. Fast tier PASS 5/0. Runtime results and remaining checks: see the handoff.
+  21/0 after one independent review (no blocking findings; corrections in `80dc8f78`). Fast 5/0; Candidate checks
+  pass apart from baseline-identical or evidence-absent failures (Test-Harness 278/3 = baseline). Package
+  `KingmakerMountedCombat-0.2.12-gunslinger-click-compat-diagnostic.zip` (SHA-256 `c4b9de66…2cec3`, DLL `5d79c78c…`).
+- **Native: NOT RUN.** The guarded launcher's WhatIf refused: this lab has no `runtime-backups`/`runtime-staging`
+  archive roots or transaction state; they were not recreated (owner decision). Remaining checks are in the handoff.
 - **Not done:** no merge, release, version bump or permanent installation. The owner's affected save was not
   available; save recovery is not verified.
 

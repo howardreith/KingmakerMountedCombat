@@ -5,7 +5,7 @@ Branch `codex/gunslinger-click-approach-compat` (draft PR, no reviewers) from `1
 
 - **State:** the 0.2.12 `ClickUnitHandler.OnClick` transpiler no longer replaces the click command's submission; it
   guards it, so it composes with Tabletop Rules Expansion's rewrite of the same submissions in either order. Offline
-  composition and executed-slice regression pass; runtime status is in the handoff. Unreleased.
+  composition and executed-slice regression pass; native NOT RUN (the launcher's archive roots are absent from this lab). Unreleased.
 - **Rules:**
   - Never make the click approach consume, replace or duplicate a submission another mod may rewrite. The router
     decides; the method's own submission runs or is skipped.
