@@ -254,6 +254,88 @@ public static class KmcPersistenceContractProbe
             "a subsequent (uncompleted) operation still acquires and releases ownership normally");
     }
 
+    // Known issues S01 diagnostics (observation only; the saving report's cause is not established). Drives the actual
+    // compiled save-began report and save-admission hold report on a detached service whose logger throws on every
+    // call, and reads from IL that the began report runs only after the operation owns the save and that the admission
+    // gate reports through one call that cannot change its answer. No game is launched.
+    private static void VerifySaveObservationIsolation(Assembly candidate, MethodInfo read)
+    {
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+        var scopeType=serviceType.GetNestedType("SaveScope",BindingFlags.NonPublic);
+        var loggerType=candidate.GetType("KingmakerMountedCombat.Logging.IModLogger",true);
+        var service=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(serviceType);
+        var throwing=new ThrowingLogger(loggerType);
+        serviceType.GetField("logger",flags).SetValue(service,throwing.GetTransparentProxy());
+        var scope=Activator.CreateInstance(scopeType,true);
+        Exception escaped=null;
+        try { serviceType.GetMethod("ReportBegunSave",flags).Invoke(service,new[]{scope}); } catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(throwing.Calls==1 && escaped==null && (int)serviceType.GetProperty("BegunSaveCount",flags).GetValue(service,null)==1 &&
+            (int)serviceType.GetProperty("BegunSaveReportFailureCount",flags).GetValue(service,null)==1,
+            "a throwing save-began report does not escape the operation's first step; the begin is counted and the failed report is counted");
+        MethodBase begin=null; var reporters=0;
+        foreach(var nested in serviceType.GetNestedTypes(BindingFlags.NonPublic))
+            foreach(var method in nested.GetMethods(BindingFlags.Instance|BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public|BindingFlags.DeclaredOnly))
+            {
+                System.Collections.Generic.List<MethodBase> calls;
+                try { calls=RouteCalls(read,method); } catch(Exception) { continue; }
+                if(RouteIndex(calls,m=>m.Name=="ReportBegunSave")<0) continue;
+                reporters++; begin=method;
+            }
+        var owned=-1; var reported=-1; var index=0;
+        if(begin!=null)
+            foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{begin,null}))
+            {
+                var opcode=(System.Reflection.Emit.OpCode)ins.GetType().GetField("opcode").GetValue(ins);
+                var operand=ins.GetType().GetField("operand").GetValue(ins);
+                var field=operand as FieldInfo; var call=operand as MethodBase;
+                if(opcode==System.Reflection.Emit.OpCodes.Stfld && field!=null && field.Name=="activeSave") owned=index;
+                if(call!=null && call.Name=="ReportBegunSave") reported=index;
+                index++;
+            }
+        Check(reporters==1 && owned>=0 && reported>owned,
+            "the save-began report has one caller, the operation's begin step, and runs only after that step owns the save");
+
+        var hold=serviceType.GetMethod("ObserveSaveAdmissionHold",flags);
+        var holds=serviceType.GetProperty("SaveAdmissionHoldCount",flags);
+        var before=throwing.Calls; escaped=null;
+        try
+        {
+            hold.Invoke(service,new object[]{false,null});
+            Check(throwing.Calls==before && (int)holds.GetValue(service,null)==0, "an open save admission is not reported");
+            hold.Invoke(service,new object[]{true,null}); hold.Invoke(service,new object[]{true,null}); hold.Invoke(service,new object[]{true,null});
+            Check(throwing.Calls==before+1 && (int)holds.GetValue(service,null)==1, "a held save admission is reported once, not per query");
+            hold.Invoke(service,new object[]{false,null}); hold.Invoke(service,new object[]{false,null});
+            Check(throwing.Calls==before+2 && (int)holds.GetValue(service,null)==1, "the end of the hold is reported once");
+        }
+        catch(TargetInvocationException error) { escaped=error.InnerException; }
+        Check(escaped==null,"a throwing logger never escapes the save admission gate: "+(escaped==null?"":escaped.Message));
+        var gate=serviceType.GetMethod("NativeCombatBlocksSave",flags);
+        var gateCalls=RouteCalls(read,gate);
+        var observed=0; foreach(var call in gateCalls) if(call.Name=="ObserveSaveAdmissionHold") observed++;
+        // Every write the observation makes, calls and fields alike: its own transition flag and its own counter only.
+        var writes=new System.Collections.Generic.List<string>();
+        foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{hold,null}))
+        {
+            var opcode=(System.Reflection.Emit.OpCode)ins.GetType().GetField("opcode").GetValue(ins);
+            var operand=ins.GetType().GetField("operand").GetValue(ins);
+            var written=operand as FieldInfo; var called=operand as MethodBase;
+            if((opcode==System.Reflection.Emit.OpCodes.Stfld || opcode==System.Reflection.Emit.OpCodes.Stsfld) && written!=null) writes.Add(written.Name);
+            if(called!=null && called.Name.StartsWith("set_",StringComparison.Ordinal)) writes.Add(called.Name);
+        }
+        writes.Sort(StringComparer.Ordinal);
+        Check(observed==1 && gate.ReturnType==typeof(bool) && hold.ReturnType==typeof(void) &&
+            string.Join(",",writes.ToArray())=="saveAdmissionHoldObserved,set_SaveAdmissionHoldCount",
+            "the native save gate reports through one void observation whose only writes are its own transition flag and counter ("+string.Join(",",writes.ToArray())+")");
+        // The request line's new fields are built apart from it, so a failed read cannot lose the line.
+        var describe=serviceType.GetMethod("DescribeNativeSaveOutcome",BindingFlags.Static|BindingFlags.NonPublic);
+        var requestCalls=RouteCalls(read,serviceType.GetMethod("ObserveSaveRequest",flags));
+        var described=0; foreach(var call in requestCalls) if(call.Name=="DescribeNativeSaveOutcome") described++;
+        var guarded=false;
+        foreach(var clause in describe.GetMethodBody().ExceptionHandlingClauses)
+            if(clause.Flags==ExceptionHandlingClauseOptions.Clause && clause.CatchType==typeof(Exception) && clause.TryOffset==0) guarded=true;
+        Check(described==1 && guarded && (string)describe.Invoke(null,new object[]{null,null,true})=="; nativeOutcome=unknown (no descriptor)",
+            "the save request line takes its native-outcome fields from one helper whose whole body is guarded, and a request without a descriptor still reports");    }
     private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
     {
         var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
@@ -1058,6 +1140,26 @@ public static class KmcPersistenceContractProbe
                 RouteIndex(saveGameCalls,RouteToken(native,0x06008028))>=0 &&
                 RouteIndex(saveGameCalls,RouteToken(native,0x06008029))>RouteIndex(saveGameCalls,RouteToken(native,0x06008028)),
                 "Game.SaveGame consults IsSaveAllowed before it queues SaveRoutine (a refusal there leaves only a UI warning)");
+            // Known issues S01 diagnostic: the refusals after IsSaveAllowed, in the order the request line reports them.
+            // The two settings are fields of the native settings root, so the order is read from every instruction.
+            var saveOrder=new System.Collections.Generic.Dictionary<string,int>(StringComparer.Ordinal);
+            var saveIndex=0;
+            foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{saveGame,null}))
+            {
+                var saveOperand=ins.GetType().GetField("operand").GetValue(ins);
+                var saveMember=saveOperand as MemberInfo;
+                var saveKey=saveMember==null?null:saveMember.DeclaringType.Name+"."+saveMember.Name;
+                if(saveKey!=null && !saveOrder.ContainsKey(saveKey)) saveOrder.Add(saveKey,saveIndex);
+                saveIndex++;
+            }
+            Check(saveOrder.ContainsKey("SettingsListScreen.OnlyOneSave") && saveOrder.ContainsKey("SettingsListScreen.AutosaveEnabled") &&
+                saveOrder["SaveManager.IsSaveAllowed"]<saveOrder["SettingsListScreen.OnlyOneSave"] &&
+                saveOrder["SettingsListScreen.OnlyOneSave"]<saveOrder["SaveManager.IsIronmanSave"] &&
+                saveOrder["SaveManager.IsIronmanSave"]<saveOrder["SaveInfo.set_Type"] &&
+                saveOrder["SaveInfo.set_Type"]<saveOrder["SettingsListScreen.AutosaveEnabled"] &&
+                saveOrder["SettingsListScreen.AutosaveEnabled"]<saveOrder["SaveManager.SaveRoutine"] &&
+                saveOrder["SaveManager.SaveRoutine"]<saveOrder["LoadingProcess.StartLoadingProcess"],
+                "Game.SaveGame decides IsSaveAllowed, then the one-save mode and its single slot, then the autosave setting, all before SaveRoutine is constructed and queued");
             var start=native.ManifestModule.ResolveMethod(0x0600378A);
             var startCalls=RouteCalls(read,start);
             var partyList=RouteIndex(startCalls,RouteToken(native,0x06000DE0));
@@ -1206,6 +1308,7 @@ public static class KmcPersistenceContractProbe
 
             VerifyNativeDeferredOwner(native,candidate);
             VerifySaveCompletionReportIsolation(candidate);
+            VerifySaveObservationIsolation(candidate,read);
             VerifyNativeAbilitySettlement(native,candidate);
             VerifyNativeTouchCommitment(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);

@@ -26,7 +26,9 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool NativeCombatBlocksSave(Player player)
         {
-            if (CombatRestorationPending) return true;
+            var held = CombatRestorationPending;
+            ObserveSaveAdmissionHold(held, player);
+            if (held) return true;
             if (!player.IsInCombat) return false;
             if (!Enabled || !settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn ||
                 settings.EnablePairedCommandScheduler || CombatRestorationPending ||
@@ -36,6 +38,39 @@ namespace KingmakerMountedCombat.Integration
             // game clock. UI admission does not pretend that effects are settled.
             return false;
         }
+
+        private bool saveAdmissionHoldObserved;
+        internal int SaveAdmissionHoldCount { get; private set; }
+
+        // Known issues S01 diagnostic. The native save gate (SaveManager.IsSaveAllowed) asks this service through its
+        // transpiled combat term, also when a menu only decides whether to enable its Save button, so a refusal here can
+        // stop a save before Game.SaveGame is ever called and before the request line can be written. One line when
+        // this service starts refusing saving for its own restoration state and one when it stops; never per call, and
+        // it changes no answer. Ordinary in-combat refusals are not reported here (the request line names them).
+        private void ObserveSaveAdmissionHold(bool held, Player player)
+        {
+            if (held == saveAdmissionHoldObserved) return;
+            saveAdmissionHoldObserved = held;
+            if (held) SaveAdmissionHoldCount++;
+            // The transition is reported even when its detail cannot be read.
+            string detail = null;
+            if (held)
+                try { detail = SaveAdmissionHoldDetail(player); }
+                catch (Exception error) { detail = "detail unavailable (" + error.GetType().Name + ")"; }
+            try
+            {
+                logger.Info(held
+                    ? "Mounted save admission held: this mod refuses saving until its restoration state settles: " + detail + "."
+                    : "Mounted save admission hold ended: this mod no longer refuses saving.");
+            }
+            catch (Exception) { }
+        }
+
+        private string SaveAdmissionHoldDetail(Player player) =>
+            "areaRestoreFailure=" + (areaRestoreFailure ?? "none") + "; abandonedCombat=" + abandonedCombat.Blocks(player) +
+            "; combatRestoreFailure=" + (combatRestoreFailure ?? "none") +
+            "; selectedCombatUnrestored=" + (SelectedCombat != null && restoreLoad != null && !combatRestored) +
+            "; presentationPending=" + ArchiveSmallPresentationPending;
 
         // Save/load repair: the KMC term of the native combat save gate, named (null when KMC does not refuse).
         internal string CombatSaveBlockReason(Player player)
@@ -73,12 +108,40 @@ namespace KingmakerMountedCombat.Integration
                 else nativeTerm = "another native term";
             }
             logger.Info("Mounted save request observed: type=" + (save?.Type.ToString() ?? "none") + "; name=" + (save?.Name ?? "none") +
+                DescribeNativeSaveOutcome(game, save, allowed) +
                 "; nativeAllowed=" + allowed + (nativeTerm != null ? "; refusedBy=" + nativeTerm : "") +
                 "; kmcCombatGate=" + (CombatSaveBlockReason(player) ?? "open") + "; inCombat=" + player.IsInCombat +
                 "; turnBased=" + CombatController.IsInTurnBasedCombat() + "; mode=" + game.CurrentMode +
                 "; saveScope=" + HasActiveSaveScope + "; saveFence=" + HasSaveAdmissionFence + "; saveDraining=" + SaveDraining +
                 "; restoreFailure=" + (areaRestoreFailure != null) + "; loading=" +
                 (Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance?.IsLoadingInProcess ?? false) + ".");
+        }
+
+        // Known issues S01: the refusals that follow IsSaveAllowed in Game.SaveGame are silent in the native log, so a
+        // request that printed nativeAllowed=True could still be refused. Pure reads of the same values, in the native
+        // order (NativeSaveRequestPolicy); the queue state shows what a queued operation waits behind. Isolated: if
+        // any of these reads fails, the request line is still written with the fields it always had.
+        private static string DescribeNativeSaveOutcome(Game game, Kingmaker.EntitySystem.Persistence.SaveInfo save, bool allowed)
+        {
+            try
+            {
+                if (save == null) return "; nativeOutcome=unknown (no descriptor)";
+                var settingsRoot = SettingsRoot.Instance;
+                var onlyOneSave = settingsRoot != null && settingsRoot.OnlyOneSave.CurrentValue;
+                var autosaveEnabled = settingsRoot == null || settingsRoot.AutosaveEnabled.CurrentValue;
+                // Native IsIronmanSave is true for every descriptor until a one-save slot exists, so it is reported
+                // only where native consults it.
+                var oneSaveSlot = onlyOneSave && game.SaveManager.IsIronmanSave(save);
+                var outcome = NativeSaveRequestPolicy.Classify(
+                    save.Type == Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.ForImport, allowed, onlyOneSave, oneSaveSlot,
+                    save.Type == Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.Auto,
+                    save.Type == Kingmaker.EntitySystem.Persistence.SaveInfo.SaveType.IronMan, autosaveEnabled);
+                var loader = Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance;
+                return "; nativeOutcome=" + NativeSaveRequestPolicy.Describe(outcome) + "; onlyOneSave=" + onlyOneSave +
+                    "; oneSaveSlot=" + (onlyOneSave ? oneSaveSlot.ToString() : "n/a") + "; autosaveEnabled=" + autosaveEnabled +
+                    "; queuedBehind=" + (loader == null ? "none" : string.Join(",", loader.QueuedNames.ToArray()));
+            }
+            catch (Exception error) { return "; nativeOutcome=unavailable (" + error.GetType().Name + ")"; }
         }
 
         private UnitEntityData[] CombatActors() =>

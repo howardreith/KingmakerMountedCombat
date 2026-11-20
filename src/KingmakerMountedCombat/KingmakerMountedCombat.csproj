@@ -183,6 +183,7 @@
     <Compile Include="Domain\MountedSceneContinuityPolicy.cs" />
     <Compile Include="Domain\MountedAreaTransferLifecycle.cs" />
     <Compile Include="Domain\MountedWorldBoundaryAdmissionPolicy.cs" />
+    <Compile Include="Domain\NativeSaveRequestPolicy.cs" />
     <Compile Include="Domain\MountedRetainedIntentRecord.cs" />
     <Compile Include="Integration\MountedRetainedIntent.cs" />
     <Compile Include="Integration\MountedExplorationObserver.cs" />

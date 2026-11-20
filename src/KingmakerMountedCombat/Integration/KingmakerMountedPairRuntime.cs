@@ -281,6 +281,33 @@ namespace KingmakerMountedCombat.Integration
             };
         }
 
+        // Known issues S02: a read-only observation of the exact current views for the restore decision. It reads the
+        // same activity values and the same native party selector the mounted invariant reads, and changes no native
+        // view state.
+        internal static string RestoreViewReadinessRefusal(UnitEntityData riderUnit, UnitEntityData mountUnit, out string observed)
+        {
+            var riderObject = riderUnit?.View != null ? riderUnit.View.gameObject : null;
+            var mountObject = mountUnit?.View != null ? mountUnit.View.gameObject : null;
+            if (riderObject == null || mountObject == null)
+            {
+                observed = "riderView=" + (riderObject != null) + ";mountView=" + (mountObject != null);
+                return MountedRestoreViewReadinessPolicy.NotReady;
+            }
+
+            var riderActiveSelf = riderObject.activeSelf;
+            var mountActiveSelf = mountObject.activeSelf;
+            var riderActiveInHierarchy = riderObject.activeInHierarchy;
+            var mountActiveInHierarchy = mountObject.activeInHierarchy;
+            var nativePartySelector = Game.Instance?.UI?.Canvas?.GroupManager;
+            var nativePartySelectorActive = nativePartySelector != null &&
+                nativePartySelector.gameObject.activeSelf && nativePartySelector.gameObject.activeInHierarchy;
+            observed = "riderSelf=" + riderActiveSelf + ";mountSelf=" + mountActiveSelf +
+                ";riderHierarchy=" + riderActiveInHierarchy + ";mountHierarchy=" + mountActiveInHierarchy +
+                ";nativePartySelectorActive=" + nativePartySelectorActive;
+            return MountedRestoreViewReadinessPolicy.Refusal(
+                riderActiveSelf, mountActiveSelf, riderActiveInHierarchy, mountActiveInHierarchy, nativePartySelectorActive);
+        }
+
         public string ValidateMountedInvariants()
         {
             return ValidateMountedInvariants(false);
