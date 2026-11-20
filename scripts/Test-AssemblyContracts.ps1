@@ -388,6 +388,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.EntitySystem.Persistence.LoadingProcess',0x06007FB6,'get_Instance'),@('Kingmaker.SceneName',0x06000E0C,'get_MainMenu'),
         @('Kingmaker.UI.Selection.SelectionManager',0x060034F5,'MultiSelect'),@('SelectionManagerBase',0x060000B9,'Stop'),
         @('SelectionManagerBase',0x060000BA,'Hold'),@('Kingmaker.UnitLogic.Commands.UnitMoveContiniously',0x060026F0,'Init'),
+        @('Kingmaker.UnitLogic.Commands.UnitMoveContiniously',0x060026F2,'OnEnded'),
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008012,'LoadZipSave'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008029,'SaveRoutine'),
         @('Kingmaker.EntitySystem.Persistence.SaveManager',0x0600802C,'LoadRoutine'),@('Kingmaker.EntitySystem.Persistence.SaveManager',0x06008030,'AddCallbackAfterLoad'),
         @('Kingmaker.Game',0x06000CE0,'LoadGame'),@('Kingmaker.Blueprints.BlueprintScriptableObject',0x06009637,'get_AssetGuidThreadSafe'),
@@ -1411,6 +1412,17 @@ if($Target-eq'Kingmaker'){
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060027B5) 0x060027B7) 'native Accelerate re-applies CanAccelerate for every offered command'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060027B7) 0x0600830E) 'native CanAccelerate refuses a speed-affected executor'
     Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x060018B9) 0x060027B4) 'UnitMovementAgent.OnPathComplete offers long-path acceleration'
+    # Known issues sprint 3: the two native read sites answered by the pair's physical mover, and the pointer
+    # placement a carried rider skips (their instruction shape is checked by Test-PhysicalMoverPaceContracts.ps1).
+    $stickLayer=@(Find-Token 'Kingmaker.UI._ConsoleUI.InputLayers.InGameLayer.InGameInputLayer' 0x06005D0C)
+    Assert-Contract ($stickLayer.Count-eq1-and$stickLayer[0].Name-ceq'UpdateMovement'-and$stickLayer[0].ReturnType.FullName-ceq'System.Void'-and
+        @($stickLayer[0].GetParameters()).Count-eq0) 'native gamepad stick member UpdateMovement'
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06005D0C) 0x060027B5) 'the gamepad stick layer offers native Accelerate'
+    $groupMove=@(Find-Token 'Kingmaker.Controllers.Clicks.Handlers.ClickGroundHandler' 0x060093DB)
+    Assert-Contract ($groupMove.Count-eq1-and$groupMove[0].Name-ceq'MoveSelectedUnitsToPoint'-and@($groupMove[0].GetParameters()).Count-eq7) 'native group move member MoveSelectedUnitsToPoint (speed limit site)'
+    $movementStarted=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x0600184E)
+    Assert-Contract ($movementStarted.Count-eq1-and$movementStarted[0].Name-ceq'OnMovementStarted'-and$movementStarted[0].ReturnType.FullName-ceq'System.Void'-and
+        ((@($movementStarted[0].GetParameters())|ForEach-Object{$_.ParameterType.FullName})-join',')-ceq'UnityEngine.Vector3,System.Boolean') 'native destination pointer placement member OnMovementStarted'
     # Cutscene continuity repair: the native scene boundaries the pair's preserved attachment and staging handoff rely on.
     foreach($member in @(
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002779,'get_Cutscene','System.Boolean',''),

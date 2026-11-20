@@ -40,11 +40,18 @@ namespace KingmakerMountedCombat.Integration
         private bool TryReserveOwnership(UnitEntityData rider, UnitEntityData mount, out string refusal)
         {
             RefreshOwnership();
+            // A boundary that still owes stick-movement cleanup takes no new owner (the single-boundary legacy mode reaches
+            // here directly; the archive world never hands such a boundary out).
+            if (ContinuousDriveCleanupPending) { refusal = MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal; return false; }
             MountedPairOwner<UnitEntityData, GameMountedRelationshipService> owner;
             if (!Ownership.TryReserve(Game.Instance?.Player, Game.Instance?.Player?.GameId,
                 rider, mount, checked(mountedPairGeneration + 1), this,
-                () => cleanupRetryRequired || !runtime.NoPreparedPairResidue || retainedCommands() || retainedParticipation(rider, mount),
+                () => RetainsCleanupObligations || retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out owner, out refusal, NativePairCapacity)) return false;
+            // Known issues sprint 3 (review of fe22563a): the same obligations without the stick-movement cleanup the
+            // boundary keeps on its own. Only world boundaries read this; the owner itself retires on the full set.
+            Ownership.DeclareDetachedCleanup(owner,
+                () => RetainsWorldCleanupObligations || retainedCommands() || retainedParticipation(rider, mount));
             PairOwner = owner;
             return true;
         }
@@ -52,15 +59,28 @@ namespace KingmakerMountedCombat.Integration
         internal void ImportSavedOwnership(UnitEntityData rider, UnitEntityData mount, string ownerId,
             long generation, bool mounted)
         {
+            var player = Game.Instance?.Player;
+            ImportSavedOwnershipForSession(player, player?.GameId, rider, mount, ownerId, generation, mounted);
+        }
+
+        // The session is observed once at the native boundary; detached contract probes supply that observation.
+        internal void ImportSavedOwnershipForSession(object session, string campaign, UnitEntityData rider, UnitEntityData mount,
+            string ownerId, long generation, bool mounted)
+        {
             RefreshOwnership();
             if (PairOwner != null || !Guid.TryParse(ownerId, out var id))
                 throw new InvalidOperationException("Saved custody cannot replace an existing owner.");
-            if (!Ownership.TryImport(Game.Instance?.Player, Game.Instance?.Player?.GameId, id, generation,
+            // A pair whose earlier owner still owes its stick-movement cleanup is not imported beside that owner.
+            if (Ownership.HeldForDetachedCleanup(rider, mount, id))
+                throw new InvalidOperationException(MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal);
+            if (!Ownership.TryImport(session, campaign, id, generation,
                 rider, mount, this, mounted,
-                () => importedParticipationOwnership || cleanupRetryRequired || !runtime.NoPreparedPairResidue ||
+                () => importedParticipationOwnership || RetainsCleanupObligations ||
                     retainedCommands() || retainedParticipation(rider, mount),
                 () => pairSaveReady(), () => pairTeardownReady(), out var owner, out var refusal))
                 throw new InvalidOperationException(refusal);
+            Ownership.DeclareDetachedCleanup(owner, () => importedParticipationOwnership || RetainsWorldCleanupObligations ||
+                retainedCommands() || retainedParticipation(rider, mount));
             PairOwner = owner;
             mountedPairGeneration = generation;
             importedMountedOwnership = mounted;
@@ -106,7 +126,7 @@ namespace KingmakerMountedCombat.Integration
             if (rider == null && mount == null) return;
             // Called only for the schema-1/2 UNMOUNTED native adapter, after one
             // shared restore. Mounted archives reserve at RestoreSavedPair instead.
-            if (Ownership.Owners.Length != 0 || !Ownership.TryRetainDetached(Game.Instance?.Player,
+            if (Ownership.Owners.Length != 0 || ContinuousDriveCleanupPending || !Ownership.TryRetainDetached(Game.Instance?.Player,
                 Game.Instance?.Player?.GameId, rider, mount, checked(mountedPairGeneration + 1), this,
                 () => retainedParticipation(rider, mount), () => pairSaveReady(), () => pairTeardownReady(), out var owner))
                 throw new InvalidOperationException("Restored participation conflicts with native pair capacity.");
@@ -125,6 +145,39 @@ namespace KingmakerMountedCombat.Integration
             PairOwner = null;
             importedMountedOwnership = false;
             importedParticipationOwnership = false;
+        }
+
+        // Known issues sprint 3 (review of fe22563a): an area arrival defers a pair still held by its earlier owner's
+        // detached cleanup instead of importing it beside that owner.
+        internal bool PairHeldByDetachedCleanup(UnitEntityData rider, UnitEntityData mount, string ownerId)
+        {
+            RefreshOwnership();
+            return Ownership.HeldForDetachedCleanup(rider, mount, Guid.TryParse(ownerId, out var id) ? id : (Guid?)null);
+        }
+
+        // Known issues sprint 3 (review of 119088ed). Whether an arrival refusal is caused only by this pair's own
+        // retained agent. Two facts, asked separately: the mount's current override is the captured agent, on its captured
+        // view, of a retirement still owed by the exact earlier owner of this pair (same identity, generation, rider and
+        // mount), asked of that owner's own boundary; and that override is the candidate's only refusal.
+        internal bool ArrivalRefusedOnlyForRetainedAgent(UnitEntityData rider, UnitEntityData mount, string ownerId, long generation,
+            MountedPairCandidate candidate)
+        {
+            var view = mount?.View;
+            return ArrivalRefusedOnlyForRetainedAgent(rider, mount, ownerId, generation, candidate,
+                ReferenceEquals(view, null) ? null : view, ReferenceEquals(view, null) ? null : view.AgentOverride);
+        }
+
+        // The current view and override are observed once at the native boundary; detached probes supply them.
+        internal bool ArrivalRefusedOnlyForRetainedAgent(UnitEntityData rider, UnitEntityData mount, string ownerId, long generation,
+            MountedPairCandidate candidate, object currentView, object currentOverride)
+        {
+            if (candidate == null || !Guid.TryParse(ownerId, out var id)) return false;
+            RefreshOwnership();
+            var owner = Ownership.FindHeldOwner(rider, mount, id, generation);
+            var boundary = owner?.Boundary;
+            var owned = boundary != null && ReferenceEquals(boundary.PairOwner, owner) &&
+                boundary.continuousDrive.RetainsCapturedAgent(currentView, currentOverride, owner.Generation);
+            return MountedRetainedIntentPolicy.RefusedOnlyForHeldAgent(owned, owned && candidate.RefusedOnlyForMountAgentOverride());
         }
 
         internal GameMountedRelationshipService ResolveActorOwner(UnitEntityData actor, bool activeOnly = false) =>

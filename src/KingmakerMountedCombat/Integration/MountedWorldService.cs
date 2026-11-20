@@ -253,8 +253,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var pair = pairs.FirstOrDefault(candidate => candidate.AdmissionSession == null &&
                 candidate.Relationship.PairOwner == null && candidate.Relationship.State == RelationshipState.Unmounted &&
-                candidate.Relationship.Runtime.NoPreparedPairResidue && !candidate.Combat.HasRetainedPairCommands &&
-                candidate.Participant.CanReleaseBoundary);
+                candidate.Relationship.Runtime.NoPreparedPairResidue && !candidate.Relationship.ContinuousDriveCleanupPending &&
+                !candidate.Combat.HasRetainedPairCommands && candidate.Participant.CanReleaseBoundary);
             if (pair != null) return pair;
             if (pairs.Count >= MountedPairRegistry<UnitEntityData, GameMountedRelationshipService>.MaximumOwners) return null;
             return ConstructPair();
@@ -278,6 +278,7 @@ namespace KingmakerMountedCombat.Integration
                     pair.Relationship.RefreshRetiredOwnership();
                     if (pair.AdmissionSession == null || pair.Relationship.PairOwner != null ||
                         pair.Relationship.State != RelationshipState.Unmounted || !pair.Relationship.Runtime.NoPreparedPairResidue ||
+                        pair.Relationship.ContinuousDriveCleanupPending ||
                         pair.Combat.HasRetainedPairCommands || !pair.Participant.CanReleaseBoundary ||
                         NativeControls?.HasUnsettledShellFor(pair.Relationship) == true) continue;
                     pair.Participant.ReleaseSettledParticipation();
@@ -290,11 +291,34 @@ namespace KingmakerMountedCombat.Integration
 
         internal void DiscardAdmissionBindings()
         {
-            if (SerializationBusy || Registry.Owners.Any(owner => owner.State != MountedPairOwnershipState.Retired &&
-                (owner.State != MountedPairOwnershipState.Detached || owner.RetainsObligations())))
+            // Known issues sprint 3 (review of fe22563a): a detached owner that owes only the stick-movement cleanup its
+            // boundary keeps does not hold the world; it stays registered, with its actors and identity.
+            if (SerializationBusy || !Registry.SettledForAdmissionDiscard())
                 throw new InvalidOperationException("Old-world custody has not settled before admission discard.");
             NativeControls?.RetireWorldControlBindings();
             ReleaseSettledAdmissions();
+        }
+
+        // A load replaces the world: after the discard, owners that still owe detached cleanup leave the old session,
+        // so the new world's owners are admitted and imported under their own session.
+        internal void DiscardAdmissionBindingsForWorldReplacement()
+        {
+            DiscardAdmissionBindings();
+            var moved = Registry.SetAsideEarlierWorldCleanup();
+            if (moved != 0)
+                logger.Warning("World replacement continues while " + moved + " earlier mounted pair" + (moved == 1 ? " still owes" : "s still owe") +
+                    " stick-movement cleanup; that cleanup keeps its exact references and boundary and retires on its own.");
+        }
+
+        // Some pair still owes the retirement of its stick movement.
+        internal bool AnyContinuousDriveCleanupPending
+        {
+            get
+            {
+                foreach (var pair in PairSnapshot)
+                    if (pair.Relationship.ContinuousDriveCleanupPending) return true;
+                return false;
+            }
         }
 
         internal Exception[] Visit(Action<MountedPairServices> action)

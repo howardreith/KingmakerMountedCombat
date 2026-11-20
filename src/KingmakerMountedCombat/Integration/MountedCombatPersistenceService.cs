@@ -288,12 +288,12 @@ namespace KingmakerMountedCombat.Integration
                 try
                 {
                     owner.CancelSavedOwnershipImport();
-                    if (!owner.GuardBoundary(CleanupTrigger.LoadRequested))
+                    if (!owner.GuardWorldBoundary(CleanupTrigger.LoadRequested))
                         cleanupErrors.Add(new InvalidOperationException("Loaded world cleanup retained mounted references."));
                 }
                 catch (Exception error) { cleanupErrors.Add(error); }
             if (cleanupErrors.Count != 0) throw new AggregateException(cleanupErrors);
-            mountedWorld?.DiscardAdmissionBindings();
+            mountedWorld?.DiscardAdmissionBindingsForWorldReplacement();
             areaRestoreFailure = null;
             combatRestored = false;
             combatRestoreFailure = null;

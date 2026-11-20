@@ -93,7 +93,7 @@ namespace KingmakerMountedCombat.Integration
                     StagingBoundary = stagingBoundary };
                 try
                 {
-                    if (owner.GuardBoundary(CleanupTrigger.EventSuspension)) captured.Add(pair);
+                    if (owner.GuardWorldBoundary(CleanupTrigger.EventSuspension)) captured.Add(pair);
                     else failed = true;
                 }
                 catch (Exception error) { failed = true; logger.Exception("Mounted event suspension retained a pair", error); }
@@ -504,6 +504,13 @@ namespace KingmakerMountedCombat.Integration
             var imported = false;
             try
             {
+                // Known issues sprint 3 (review of fe22563a): a pair still held by its earlier owner's stick-movement
+                // cleanup is refused cleanly before any boundary is acquired for it.
+                if (relationship.PairHeldByDetachedCleanup(rider, mount, pair.OwnerId))
+                {
+                    detail = MountedCleanupCompletionPolicy.HeldByDetachedCleanupRefusal;
+                    return MountedRetainedRestoreOutcome.CleanRefusal;
+                }
                 if (ArchiveNativeEnabled)
                 {
                     // Settled detached owners (this pair's own previous owner included) retire first, so the exact
@@ -567,7 +574,7 @@ namespace KingmakerMountedCombat.Integration
         {
             pair.RegroupAttempts++;
             pair.RegroupStartedAt = gameSeconds;
-            var move = new UnitMoveTo(rider.Position, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres);
+            var move = NewRegroupMove(rider.Position);
             try { mount.Commands.Run(move); }
             catch (Exception error) { logger.Exception("Mounted regroup move was not issued", error); }
             pair.RegroupMove = mount.Commands.Contains(move) ? move : null;
@@ -575,6 +582,14 @@ namespace KingmakerMountedCombat.Integration
             logger.Info("Retained mounted pair regroups natively: rider=" + pair.RiderId + ";mount=" + pair.MountId +
                 ";separation=" + separation.ToString("0.0") + ";attempt=" + pair.RegroupAttempts + ";issued=" + (pair.RegroupMove != null) + ".");
         }
+
+        // Known issues sprint 3 (M04): no player gave this order, so it carries no destination marker. Native shows a
+        // marker for any directly controllable unit's UnitMoveTo that asks for one, and UnitMoveTo asks by default.
+        internal static UnitMoveTo NewRegroupMove(UnityEngine.Vector3 destination) =>
+            new UnitMoveTo(destination, MountedSceneContinuityPolicy.RegroupApproachRadiusMetres)
+            {
+                ShowTargetMarker = MountedDestinationMarkerPolicy.UnorderedMountMoveShowsMarker
+            };
 
         private void InterruptRegroups(AreaTransfer custody, Game game, string reason)
         {

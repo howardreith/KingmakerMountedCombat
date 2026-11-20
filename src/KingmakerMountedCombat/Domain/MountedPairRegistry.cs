@@ -17,6 +17,10 @@ namespace KingmakerMountedCombat.Domain
         internal readonly TActor Rider, Mount;
         internal readonly TBoundary Boundary;
         internal readonly Func<bool> RetainsObligations, SaveReady, TeardownReady;
+        // Known issues sprint 3 (review of fe22563a): what of RetainsObligations holds the pair's world. It differs
+        // only by cleanup the owner's boundary keeps on its own, with its exact references (the stick-movement
+        // command, view and agent). Unless the boundary declares that split, it is RetainsObligations itself.
+        internal Func<bool> RetainsWorldObligations { get; private set; }
         internal MountedPairOwnershipState State { get; private set; }
 
         internal MountedPairOwner(object session, string campaignId, TActor rider, TActor mount,
@@ -27,8 +31,11 @@ namespace KingmakerMountedCombat.Domain
             Session = session; CampaignId = campaignId; Rider = rider; Mount = mount;
             RiderId = riderId; MountId = mountId; Generation = generation; Boundary = boundary;
             RetainsObligations = retainsObligations; SaveReady = saveReady; TeardownReady = teardownReady;
+            RetainsWorldObligations = retainsObligations;
             State = MountedPairOwnershipState.Reserved;
         }
+
+        internal void DeclareDetachedCleanup(Func<bool> retainsWorldObligations) { RetainsWorldObligations = retainsWorldObligations; }
 
         internal void Activate() { State = MountedPairOwnershipState.Active; }
         internal void Detach() { State = MountedPairOwnershipState.Detached; }
@@ -63,12 +70,16 @@ namespace KingmakerMountedCombat.Domain
         private readonly List<MountedPairOwner<TActor, TBoundary>> owners = new List<MountedPairOwner<TActor, TBoundary>>();
         private readonly Dictionary<string, MountedPairOwner<TActor, TBoundary>> actors =
             new Dictionary<string, MountedPairOwner<TActor, TBoundary>>(StringComparer.Ordinal);
+        // Owners of a replaced world that owe nothing but detached cleanup. They are out of the current session's
+        // roster, actor index and identities; they keep their boundary and retire when their cleanup is established.
+        private readonly List<MountedPairOwner<TActor, TBoundary>> earlierWorldCleanup = new List<MountedPairOwner<TActor, TBoundary>>();
         private object session;
         private string campaignId;
 
         internal MountedPairRegistry(Func<TActor, string> actorId)
         { this.actorId = actorId ?? throw new ArgumentNullException(nameof(actorId)); }
         internal MountedPairOwner<TActor, TBoundary>[] Owners => owners.ToArray();
+        internal MountedPairOwner<TActor, TBoundary>[] EarlierWorldCleanupOwners => earlierWorldCleanup.ToArray();
         internal int ActiveCount => owners.Count(o => o.State == MountedPairOwnershipState.Active ||
             o.State == MountedPairOwnershipState.Reserved);
 
@@ -103,8 +114,8 @@ namespace KingmakerMountedCombat.Domain
             // Update checks retirement every frame. Reserved and active owners
             // cannot settle here, so avoid a roster copy, callback and error
             // array until there is actual detached custody to examine.
-            var detached = false;
-            for (var index = 0; index < owners.Count; index++)
+            var detached = earlierWorldCleanup.Count != 0;
+            for (var index = 0; !detached && index < owners.Count; index++)
                 if (owners[index].State == MountedPairOwnershipState.Detached)
                 { detached = true; break; }
             if (!detached) return;
@@ -114,9 +125,84 @@ namespace KingmakerMountedCombat.Domain
                 if (owner.RiderId != null) actors.Remove(owner.RiderId);
                 if (owner.MountId != null) actors.Remove(owner.MountId);
                 owners.Remove(owner); owner.Retire();
-            });
-            if (errors.Length != 0)
+            }).ToList();
+            foreach (var owner in earlierWorldCleanup.ToArray())
+                try
+                {
+                    if (owner.RetainsObligations()) continue;
+                    earlierWorldCleanup.Remove(owner); owner.Retire();
+                }
+                catch (Exception error) { errors.Add(error); }
+            if (errors.Count != 0)
                 throw new AggregateException("Some mounted owners could not establish settled custody.", errors);
+        }
+
+        // Known issues sprint 3 (review of fe22563a). A detached owner whose only remaining obligation is cleanup its
+        // boundary keeps on its own: the pair's world no longer depends on it.
+        internal bool IsDetachedCleanupOnly(MountedPairOwner<TActor, TBoundary> owner) =>
+            owner != null && owner.State == MountedPairOwnershipState.Detached && owner.RetainsObligations() &&
+            !owner.RetainsWorldObligations();
+
+        internal void DeclareDetachedCleanup(MountedPairOwner<TActor, TBoundary> owner, Func<bool> retainsWorldObligations)
+        {
+            if (!Owns(owner) || retainsWorldObligations == null)
+                throw new InvalidOperationException("Only the exact owner can declare its detached cleanup.");
+            owner.DeclareDetachedCleanup(retainsWorldObligations);
+        }
+
+        // Admission bindings of a world may be discarded when every owner is retired, or detached and holding nothing
+        // of that world. Detached cleanup alone does not hold it; everything else does, as before.
+        internal bool SettledForAdmissionDiscard() => owners.All(owner => owner.State == MountedPairOwnershipState.Retired ||
+            owner.State == MountedPairOwnershipState.Detached && !owner.RetainsWorldObligations());
+
+        // The pair is still held by its earlier owner, which owes only detached cleanup: its actors or its exact owner
+        // identity. The pair stays dismounted (or deferred) until that owner retires; it is never admitted beside it.
+        internal bool HeldForDetachedCleanup(TActor rider, TActor mount, Guid? id)
+        {
+            var riderKey = Key(rider); var mountKey = Key(mount);
+            foreach (var owner in owners)
+            {
+                if (!IsDetachedCleanupOnly(owner)) continue;
+                if (id.HasValue && owner.Id == id.Value) return true;
+                foreach (var key in new[] { riderKey, mountKey })
+                    if (key != null && (key == owner.RiderId || key == owner.MountId)) return true;
+            }
+            return false;
+        }
+
+        // Known issues sprint 3 (review of 119088ed): the exact earlier owner of this pair that owes only detached
+        // cleanup: the same identity and generation, the same rider and mount. Null when there is none.
+        internal MountedPairOwner<TActor, TBoundary> FindHeldOwner(TActor rider, TActor mount, Guid id, long generation)
+        {
+            var riderKey = Key(rider); var mountKey = Key(mount);
+            foreach (var owner in owners)
+                if (IsDetachedCleanupOnly(owner) && owner.Id == id && owner.Generation == generation &&
+                    riderKey != null && riderKey == owner.RiderId && mountKey != null && mountKey == owner.MountId) return owner;
+            return null;
+        }
+
+        // World replacement (a load). The old world's custody must have settled as for an admission discard. Owners
+        // that still owe detached cleanup leave this session (roster, actor index, identities) with that obligation
+        // and their boundary, and retire once it is established. A new world session can then begin.
+        internal int SetAsideEarlierWorldCleanup()
+        {
+            if (!SettledForAdmissionDiscard())
+                throw new InvalidOperationException("Old-world custody has not settled before world replacement.");
+            RetireSettled();
+            var moved = 0;
+            foreach (var owner in owners.ToArray())
+            {
+                if (!IsDetachedCleanupOnly(owner)) continue;
+                if (owner.RiderId != null && actors.TryGetValue(owner.RiderId, out var riderOwner) && ReferenceEquals(riderOwner, owner))
+                    actors.Remove(owner.RiderId);
+                if (owner.MountId != null && actors.TryGetValue(owner.MountId, out var mountOwner) && ReferenceEquals(mountOwner, owner))
+                    actors.Remove(owner.MountId);
+                owners.Remove(owner);
+                earlierWorldCleanup.Add(owner);
+                moved++;
+            }
+            // With the roster empty, the next admission begins the new world's session (TryReserve).
+            return moved;
         }
 
         internal string AdmissionRefusal(object world, string campaign, TActor rider, TActor mount,
@@ -130,7 +216,7 @@ namespace KingmakerMountedCombat.Domain
             if (actors.ContainsKey(Key(rider)) || actors.ContainsKey(Key(mount)))
                 return "An actor already has reserved, mounted or unfinished pair ownership.";
             if (nativeCapacity < 1 || nativeCapacity > MaximumActivePairs || ActiveCount >= nativeCapacity ||
-                owners.Count >= MaximumOwners || nativeCapacity == 1 && owners.Count != 0)
+                owners.Count + earlierWorldCleanup.Count >= MaximumOwners || nativeCapacity == 1 && owners.Count != 0)
                 return "Native pair capacity is unavailable until world integration supports another owner.";
             return null;
         }
@@ -168,7 +254,7 @@ namespace KingmakerMountedCombat.Domain
                 importedId.HasValue && (importedId.Value == Guid.Empty || owners.Any(o => o.Id == importedId.Value)) ||
                 rider != null && string.IsNullOrWhiteSpace(riderKey) || mount != null && string.IsNullOrWhiteSpace(mountKey) ||
                 riderKey == null && mountKey == null || riderKey != null && riderKey == mountKey ||
-                owners.Count >= MaximumOwners || owners.Count != 0 && (!ReferenceEquals(world, session) || campaignId != campaign) ||
+                owners.Count + earlierWorldCleanup.Count >= MaximumOwners || owners.Count != 0 && (!ReferenceEquals(world, session) || campaignId != campaign) ||
                 riderKey != null && actors.ContainsKey(riderKey) || mountKey != null && actors.ContainsKey(mountKey)) return false;
             if (owners.Count == 0) { session = world; campaignId = campaign; }
             owner = new MountedPairOwner<TActor, TBoundary>(world, campaign, rider, mount, riderKey, mountKey,

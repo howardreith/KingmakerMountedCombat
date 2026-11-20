@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
@@ -17,7 +18,13 @@ namespace KingmakerMountedCombat.Integration
     internal sealed partial class MountedCombatController
     {
         internal int EntranceCarryCount { get; private set; }
+        internal int EntranceRiderPointerRetiredCount { get; private set; }
+        internal long EntranceRiderPointerSkippedCount { get; private set; }
         internal MountedEntranceCarryDecision LastEntranceCarryDecision { get; private set; }
+
+        // Known issues sprint 3 (M01): the exact member command issued below, for the native group acceleration offer
+        // (MountedCombatController.GroupPace.cs). Identity only; the command stays native in every other respect.
+        private readonly MountedEntranceCarrierWatch entranceCarrier = new MountedEntranceCarrierWatch();
 
         internal void CarryRiderEntranceTransition(UnitCommands container, UnitCommand command)
         {
@@ -52,9 +59,47 @@ namespace KingmakerMountedCombat.Integration
             var carried = new UnitAreaTransition(group, target) { SpeedLimit = command.SpeedLimit, CreatedByPlayer = command.CreatedByPlayer };
             mountCommands.Run(carried);
             var admitted = !carried.IsFinished && (mountCommands.Contains(carried) || mountCommands.Queue.Contains(carried));
-            if (admitted) EntranceCarryCount++;
+            if (admitted)
+            {
+                EntranceCarryCount++;
+                entranceCarrier.Bind(carried, group, relationship.MountedPairGeneration);
+            }
+            // Known issues sprint 3 (M04): the rider keeps its own live member command while the mount walks, and
+            // native shows a unit's old destination pointer, where it was last placed, for as long as the unit holds
+            // one. The pair's marker is the mount's (MountedDestinationMarkerPolicy); the rider's own new placement
+            // is answered by SkipCarriedRiderPointer below.
+            var retired = false;
+            try { retired = MountedDestinationMarkers.RetireRiderPointer(rider, admitted); }
+            catch (Exception error) { logger.Exception("Mounted entrance approach: the rider's old destination pointer was not retired", error); }
+            if (retired) EntranceRiderPointerRetiredCount++;
             logger.Info("Mounted entrance approach: " + (admitted ? "the mount carries the rider as its native group member" :
-                "the mount's member command was not admitted; the rider stays with the native group") + "; " + detail + ".");
+                "the mount's member command was not admitted; the rider stays with the native group") + "; " + detail +
+                "; riderPointerRetired=" + retired + ".");
+        }
+
+        // From the controller's update: a carrier that ended, or that belonged to an earlier mounted pair, is let go.
+        private void ReleaseEntranceCarrier()
+        {
+            var carrier = entranceCarrier.Carrier as UnitCommand;
+            if (carrier == null) return;
+            entranceCarrier.ReleaseIfEnded(carrier.IsFinished, relationship.State == RelationshipState.Mounted, relationship.MountedPairGeneration);
+        }
+
+        // Known issues sprint 3 (M04). From the prefix of native UnitEntityView.OnMovementStarted, whose whole body is
+        // the placement of that unit's destination pointer. True skips it: the unit is this pair's rider and the mount
+        // executes the member command the carry issued for the rider's own live member command.
+        internal bool SkipCarriedRiderPointer(UnitEntityData unit)
+        {
+            if (disposed || unit == null) return false;
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var isRider = ReferenceEquals(unit, rider);
+            var skip = MountedDestinationMarkerPolicy.CarriedRiderPlacesNoPointer(
+                relationship.State == RelationshipState.Mounted && rider != null && mount != null,
+                isRider,
+                isRider && ClassifyMountGroupOrder(rider, mount, out var order) == MountedGroupPaceOrder.CarriedEntranceOrder && !order.IsFinished);
+            if (skip) EntranceRiderPointerSkippedCount++;
+            return skip;
         }
 
         private static string EntranceFormat(Vector3 v) => "(" + v.x.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) + "," +

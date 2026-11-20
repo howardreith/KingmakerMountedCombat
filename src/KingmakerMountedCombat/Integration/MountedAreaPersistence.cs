@@ -239,7 +239,7 @@ namespace KingmakerMountedCombat.Integration
                 foreach (var owner in WorldRelationships)
                     try
                     {
-                        if (!owner.GuardBoundary(CleanupTrigger.AreaSuspension))
+                        if (!owner.GuardWorldBoundary(CleanupTrigger.AreaSuspension))
                             errors.Add(new InvalidOperationException("Area suspension retained mounted references."));
                     }
                     catch (Exception error) { errors.Add(error); }
@@ -328,10 +328,13 @@ namespace KingmakerMountedCombat.Integration
                         var capitalRetirement = false;
                         // Known issues S02: the exact views of an otherwise eligible pair, read only when nothing else refuses.
                         string carriedViewRefusal = null, carriedViews = null;
+                        // Known issues sprint 3 (review of fe22563a): still held by its earlier owner's stick-movement cleanup.
+                        var carriedHeld = false; var carriedHeldAgentOnly = false;
                         try
                         {
                             if (present)
                             {
+                                carriedHeld = relationship.PairHeldByDetachedCleanup(carriedRider, carriedMount, pair.OwnerId);
                                 sameProfile = SupportedMountedProfiles.Resolve(carriedRider, carriedMount)?.Id == pair.ProfileId;
                                 var carriedCandidate = KingmakerMountedPairRuntime.CreateCandidate(carriedRider, carriedMount);
                                 permanent = PermanentlyIneligible(carriedCandidate);
@@ -340,19 +343,24 @@ namespace KingmakerMountedCombat.Integration
                                     IsCapitalControlRetirement(area, carriedRider, carriedMount, carriedCandidate, carriedRefusal);
                                 if (carriedRefusal == null)
                                     carriedViewRefusal = KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(carriedRider, carriedMount, out carriedViews);
+                                // Review of 119088ed: only an override owned by this pair's retained cleanup qualifies.
+                                carriedHeldAgentOnly = carriedHeld && carriedRefusal != null &&
+                                    relationship.ArrivalRefusedOnlyForRetainedAgent(carriedRider, carriedMount, pair.OwnerId, pair.Generation, carriedCandidate);
                             }
                         }
                         catch (Exception classification) { carriedRefusal = classification.Message; }
-                        var arrival = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
+                        var decided = MountedRetainedIntentPolicy.DecideCarriedArrival(arrivalInCombat, present, sameProfile, permanent,
                             carriedRefusal, capitalRetirement, carriedViewRefusal);
+                        var arrival = MountedRetainedIntentPolicy.DeferHeldCarriedArrival(carriedHeld, carriedHeldAgentOnly, decided);
+                        var heldDeferral = MountedRetainedIntentPolicy.HeldCarriedArrivalPlacement(carriedHeld, carriedHeldAgentOnly, decided, arrival);
                         if (arrival == MountedCarriedArrivalDecision.Restore) restore.Add(pair);
                         // The established capital retirement, with its clean-separation checks below; never pending intent.
                         else if (arrival == MountedCarriedArrivalDecision.Retire) retire.Add(pair);
                         else if (arrival == MountedCarriedArrivalDecision.Retain)
                         {
                             carriedRetained.Add(pair);
-                            if (carriedRefusal == null && carriedViewRefusal != null)
-                                MarkArrivalDeferred(transfer, pair, carriedRider, carriedMount, carriedViews);
+                            if (heldDeferral || carriedRefusal == null && carriedViewRefusal != null)
+                                MarkArrivalDeferred(transfer, pair, carriedRider, carriedMount, carriedViews, heldDeferral);
                         }
                         else
                         {
@@ -373,16 +381,25 @@ namespace KingmakerMountedCombat.Integration
                     // retained custody of this same world (its exact owner identity and control rows with it) and restores
                     // through the established in-area retry; every refusal keeps its established outcome.
                     string views = null;
-                    var departing = MountedRetainedIntentPolicy.DecideDepartingArrival(refusal,
+                    // Known issues sprint 3 (review of fe22563a): a pair still held by its earlier owner, which owes only
+                    // its stick-movement cleanup, is deferred like a pair whose views are not active: it joins the
+                    // retained custody with its exact owner identity and restores through the in-area retry once that
+                    // owner has retired. Only Restore, Defer, or a refusal caused solely by an override that its retained
+                    // cleanup owns (its captured view and agent) are deferred.
+                    var held = relationship.PairHeldByDetachedCleanup(rider, mount, pair.OwnerId);
+                    // Review of 119088ed: only an override owned by this pair's retained cleanup qualifies.
+                    var heldAgentOnly = held && refusal != null &&
+                        relationship.ArrivalRefusedOnlyForRetainedAgent(rider, mount, pair.OwnerId, pair.Generation, candidate);
+                    var departing = MountedRetainedIntentPolicy.DeferHeldArrival(held, heldAgentOnly, MountedRetainedIntentPolicy.DecideDepartingArrival(refusal,
                         refusal != null && IsCapitalControlRetirement(area, rider, mount, candidate, refusal),
-                        refusal == null ? KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(rider, mount, out views) : null);
+                        refusal == null ? KingmakerMountedPairRuntime.RestoreViewReadinessRefusal(rider, mount, out views) : null));
                     if (departing == MountedDepartingArrivalDecision.Restore) { restore.Add(pair); continue; }
                     if (departing == MountedDepartingArrivalDecision.Fail)
                         throw new InvalidOperationException("Area relationship was not eligible: " + refusal);
                     if (departing == MountedDepartingArrivalDecision.Retire) { retire.Add(pair); continue; }
                     var deferred = pair.CarriedCopy();
                     carriedRetained.Add(deferred);
-                    MarkArrivalDeferred(transfer, deferred, rider, mount, views);
+                    MarkArrivalDeferred(transfer, deferred, rider, mount, views, held);
                 }
                 foreach (var pair in retire)
                 {
@@ -603,16 +620,30 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal int ArrivalViewDeferralCount { get; private set; }
+        internal int ArrivalCleanupDeferralCount { get; private set; }
 
         // Known issues S02: the pair keeps where native arrival placed its rider and mount, so the in-area retry can tell
         // the arrival placement from a later relocation. Review R1: a save written before the remount carries it (retained
         // intent record version 2), so loading that save judges the pair as the session of the arrival would. One bounded
         // line per deferred pair per arrival (never per frame).
         private void MarkArrivalDeferred(AreaTransfer transfer, AreaPair pair, Kingmaker.EntitySystem.Entities.UnitEntityData rider,
-            Kingmaker.EntitySystem.Entities.UnitEntityData mount, string views)
+            Kingmaker.EntitySystem.Entities.UnitEntityData mount, string views, bool heldByDetachedCleanup)
         {
             pair.Arrival = new MountedRetainedArrivalPlacement(transfer.AreaId, rider.Position.x, rider.Position.y, rider.Position.z,
                 mount.Position.x, mount.Position.y, mount.Position.z);
+            if (heldByDetachedCleanup)
+            {
+                ArrivalCleanupDeferralCount++;
+                try
+                {
+                    logger.Info("Mounted arrival restoration deferred: transfer=" + transfer.Sequence + "; rider=" + pair.RiderId +
+                        "; mount=" + pair.MountId + "; owner=" + (pair.OwnerId ?? "none") + "/" + pair.Generation +
+                        "; the earlier owner still owes its stick-movement cleanup; nothing was attached; the pair restores with that" +
+                        " owner identity once the cleanup is established, under the bounded retained-intent patience.");
+                }
+                catch { }
+                return;
+            }
             ArrivalViewDeferralCount++;
             try
             {

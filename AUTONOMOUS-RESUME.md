@@ -1,3 +1,124 @@
+# Known issues remediation, Sprint 3 and its continuation — review checkpoint (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47); base `1dffc3e0`, the reviewed head of `codex/kmc-known-issues-sprint2`
+(draft PR #46), which the PR targets. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md (last section first)
+and docs/CURRENT-KNOWN-ISSUES.md.
+
+- **State:** M01, M02, M03 and M05 implemented and verified offline; M04 investigation complete, issue unresolved,
+  with two adjacent marker repairs; the group-pace fault report corrected; C04 recorded for Sprint 4. The owner's
+  review of `5e27c9bd` (R1, R2) is corrected. The review of `25cbdbe2` accepted R2; its one R1 lifecycle finding
+  is corrected, the review of `fe22563a` (world boundaries after the guard) is corrected, and the review of
+  `119088ed` (who owns the mount's override at the arrival) is corrected. Fast PASS 11/0. Five independent reviews
+  (Sprint 3, continuation, R1/R2, lifecycle, world boundaries), corrected.
+  Native NOT RUN; gamepad never run.
+- **Seams of the continuation (M05):**
+  - `MountedContinuousDriveOwner` (pure) is the one place that binds, settles and retires a pair's stick movement.
+    It talks to the game only through `IMountedContinuousDriveHost`; the adapter is
+    `GameMountedRelationshipService.ContinuousDriveHost`. Put new decisions in the owner, where tests run them.
+  - It is called from six places only: the `UnitMoveContiniously.Init` postfix (bind), the public
+    `UnitCommands.Run` postfix (admission of the bound command, which must also see a refused Run), the internal
+    `Run` postfix (an admitted rider order, by either route), `ValidateActivePair` before the invariant (settle),
+    `Dismount` (release), and `CompositionRoot.UpdateCore` before its enabled gate (retry of retained cleanup).
+  - Retirement is two separate steps on a residue record: end the command, clean the captured agent on its captured
+    view. A record leaves only through `RetirementEstablished`. Never clear the watch without transferring it.
+  - Lifecycle (review of `25cbdbe2`): `Dismount` reports retained stick cleanup in its result
+    (`MountedCleanupCompletionPolicy.WithRetainedStickMovement`); every gate reads `IsComplete` or
+    `IsWithoutResidue`. Do not set `cleanupRetryRequired` for it, and do not add it to a readiness pre-gate that
+    runs before the cleanup.
+  - Deliberate or automatic recovery is decided in one place, `ReleaseRecoversExplicitly`. A dismount that can
+    repeat every frame must be automatic: `CleanupTrigger.Exception`, or bracketed by `automaticCleanupRetry`.
+  - `ValidateActivePair` must keep calling `Dismount` directly after the invariant;
+    `Test-PostLoadViewReadinessContracts.ps1` pins that.
+  - `GuardBoundary` is strict. `GuardWorldBoundary` (area suspension, load, event suspension only) passes over a
+    stick-only obligation; the owner kept that policy at the review of `fe22563a`.
+  - What follows those guards must agree. Owners declare a world predicate (`DeclareDetachedCleanup`) beside their
+    retained one.
+    - `SettledForAdmissionDiscard` reads the world predicate.
+    - A load calls `DiscardAdmissionBindingsForWorldReplacement`, which sets cleanup-only owners aside
+      (`earlierWorldCleanup`).
+    - The arrival defers a held pair through `DeferHeldArrival` / `DeferHeldCarriedArrival`. Never widen those beyond
+      Restore, Defer and the pair's own retained agent.
+    - "Its own retained agent" is `ArrivalRefusedOnlyForRetainedAgent`. It asks the exact held owner's boundary
+      `RetainsCapturedAgent(current view, current override, generation)`, then the candidate's
+      `RefusedOnlyForMountAgentOverride`. The candidate alone cannot tell a foreign override from the pair's own.
+  - `Test-PostLoadViewReadinessContracts.ps1` pins two `MarkArrivalDeferred` call sites and one view read per
+    arrival decision; the held deferrals share those sites.
+  - `MountedWorldService` can be built offline with a registered owner (see `WorldFixture` in the continuous-drive
+    script). Detach a boundary's `Dismounting` event and `ChargeCleanupBarrier` first: they need the game.
+  - `Test-ChargeOwnershipContracts.ps1` still stops at T04 after 71 checks. Keep it out of a Fast selection that
+    has to pass.
+  - The real `GameMountedRelationshipService` can be constructed offline (a logger proxy and `DiagnosticSettings`)
+    and its `Dismount`, `ValidateActivePair` and `Shutdown` run unmounted. The contract script swaps its private
+    `continuousDrive` field for an owner on the scripted host.
+  - The guard inside native `UnitMoveContiniously.OnEnded` (`EndedContinuousCommandOverride`) is the only thing that
+    keeps a pair-bound command's end from clearing a foreign override. It finds the owner through
+    `continuousDriveCommands`, filled at binding and emptied when a retirement is established.
+  - `KingmakerMountedPairRuntime.MountOverrideOwner` is the invariant's only opening: a mount override is
+    admissible only if the owner says it is the bound live drive. Never widen that test.
+  - `ContinuousDriveTranspilers` holds the two transpilers; each requires its recorded site. `UpdateMovement` and
+    `MoveSelectedUnitsToPoint` are registered through `GamepadMovementTranspiler` and `GroundOrderTranspiler`,
+    which compose them with the Sprint 3 stages.
+  - `ReportGroupPaceFault` goes through `MountedBoundedFaultReport`; every hook of these two sprints uses it.
+  - `scripts/Test-ContinuousDriveContracts.ps1` runs only as a focused selection, like the other two.
+- **Facts for a successor (gamepad):**
+  - `InGameInputLayer.UpdateMovement` is the only creator of `UnitMoveContiniously`. It reads the driven unit once,
+    and returns before that while the party is in combat.
+  - `UnitMoveContiniously.Init` cannot run offline (Unity components); `UnitCommands.Run`'s refusal can, on objects
+    made with `FormatterServices.GetUninitializedObject`.
+  - A continuous command is not `IsMoveUnit`: `InterruptMove` and `CancelMountMovement` do not end it. Only its own
+    tick (stick at zero), an `Interrupt`, or a `Run` that replaces it does.
+  - Native `UnitMoveContiniously.OnEnded` clears the override of the executor's *current* view; the command stores
+    neither view nor agent. `Interrupt` stamps its result before `OnEnded` and never repeats it.
+  - Only the internal `Run(cmd, fromQueue, doNotClearQueue)` puts a command into a slot. Queue promotion calls it
+    directly. A postfix on the public `Run` does not see promoted commands.
+  - A new Move or Standard order ends the commands of both of those slots of the *same* container, or is queued
+    behind an uninterruptible one. The pair's mount and rider are two containers, so that pairing never crosses
+    between them: a stationary rider order survives the mount's movement by design.
+  - `UnitEntityView.AgentOverride = null` destroys the component at the end of the frame; a new `Init` in the same
+    frame adopts the dying one. Compare agents by reference and test liveness separately.
+  - Native code treats a non-null override on the current unit as "stick-driven" (`UpdateMovement`,
+    `MoveSelectedUnitsToPoint`, `UnitEntityData.CurrentSpeedMps`, `UnitMovementAgent.SlowDown`). The last two still
+    read the selected rider.
+  - An internal interface of the product can be implemented from a contract script with a `RealProxy` (a throwing
+    logger, a scripted host).
+- **Seams of Sprint 3:**
+  - `MountedCombatController.ClassifyMountGroupOrder` is the one place that says what the mount's Move-slot
+    command is to the pair (`MountedGroupPacePolicy.ClassifyOrder`: routed ground order, carried entrance order,
+    or none). The acceleration carry, the gamepad follower answer and the marker prefix all go through it. A new
+    owned move of the mount must stay `None` there.
+  - The entrance carrier is bound in `MountedEntranceCarrierWatch` only after its `Run`, and let go by the
+    controller's `Update` (`ReleaseEntranceCarrier`). Both watches answer for one pair generation.
+  - `GroupPaceTranspilers` holds the two transpilers. Each requires exactly its recorded site and throws
+    otherwise, which fails the patch installation. `MoveSelectedUnitsToPoint` now has two stages: the earlier
+    paired-input stage, then `SpeedInputs`.
+  - `MountedPaceActors.Project` is the only projection: a mover per unit, each actor once, nulls kept. The native
+    selection is never changed.
+  - `MountedDestinationMarkers.RetireRiderPointer` is the only write to the native pointer table. The entry is
+    removed before the object is destroyed, because the native per-frame pass dereferences every entry.
+  - `MountedPersistenceService.NewRegroupMove` is the one factory of the scene regroup move.
+  - `scripts/Test-PhysicalMoverPaceContracts.ps1` runs the production transpilers on the installed methods' real
+    instructions and reads the compiled wiring. It runs only as a focused selection, like the Sprint 2 script.
+- **Facts for a successor:**
+  - `UnitEntityView.MoveTo` always plans through the stock agent (`AgentASP.PathTo`), whatever override is
+    installed, and neither `PathTo` nor the path callback tests whether the agent is enabled. A mounted rider's
+    own commands are therefore still planned: their path completion calls `AccelerateIfPathIsLong` and places the
+    rider's destination pointer.
+  - `UnitEntityView.OnMovementStarted` does nothing but place a pointer.
+  - `ClickPointerManager` never removes a pointer and shows one whenever its unit holds a live marker move or
+    `UnitAreaTransition`, wherever it was last placed.
+  - `UnitMoveTo` and `UnitAreaTransition` share the Move slot (`CommandType.Move`).
+  - In gamepad mode `Game.Instance.UI.SelectionManager` is the console `UnitSelectionManager`; the mouse
+    `SelectionManager` and the mod's selection projection are not in play.
+  - `UnitCommands.Run` refuses a command whose executor is another unit, and only logs.
+  - The installed reader yields modern Harmony instructions; a production transpiler takes Harmony 1.2 ones. Build
+    them from the same instruction list you compare against, or local-variable operands will not compare equal.
+  - Run mutation checks in a separate worktree. Then no mutant binary can be left in the tree whose results you
+    report.
+- **Open from this sprint:** M04 (needs the owner's description or a pointer-table log), native acceptance of
+  M01–M03 and M05 (the M05 rows need a gamepad).
+- **Next:** owner review of the draft PR. Sprint 4 is not started; its order is C04, C01, C02, C03 (C04, the
+  Candlemere crossing while mounted, was added by the owner on 2026-11-16 and is recorded in the ledger).
+
 # Known issues remediation, Sprint 2 — review checkpoint (2026-11-16, after owner review R1 and R2)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46); base `b62c59a8`, the reviewed head of

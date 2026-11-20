@@ -1,3 +1,251 @@
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 119088ed: ARRIVAL OVERRIDE OWNERSHIP CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `119088ed`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted at `119088ed` (source review):** the registry, admission-discard and load-session correction.
+  Unchanged.
+- **The finding, corrected (`7a657838`, `29f987b8`, `f6e86858`):** the arrival's override-only exception took any
+  installed mount override for the pair's own retained agent. A foreign agent (on the captured view, or on a
+  replacement view while the captured agent was still held) turned a departing Fail into Defer, so another eligible
+  pair restored, and gave a carried pair the cleanup placement.
+  - Now two distinct facts are required. First, the mount's current view and override must be the captured view and
+    agent of a retirement still owed by the pair's exact earlier owner (identity, generation, rider, mount). That is
+    asked of that owner's own stick-movement owner (`RetainsCapturedAgent`; the residue keeps its binding generation).
+    Second, that override must be the only refusal.
+  - `OwnsMountOverride` (the invariant's live-drive question) is unchanged and still owns no residue.
+- **Owned and foreign cases:**
+  - The owned agent on its captured view defers, keeps its cleanup custody, and imports with its identity and
+    generation afterwards.
+  - Foreign B on the captured view, or on V2, keeps the departing Fail. With an eligible neighbour, the all-pair
+    failure stands and neither pair is attached.
+  - A carried pair with B keeps its ordinary Retain without the cleanup placement.
+- **Checks:** Fast PASS 11/0 (components 1338/0, Validate-Source 151/0, continuous drive 59, physical mover pace 27,
+  post-load view readiness 26, persistence 223, world boundary 8, paired activation, world ownership 29, command
+  slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head fails 2 of the 59 continuous-drive checks. With its own compiled parts, its classification
+    defers both foreign cases and grants the carried placement on B.
+  - 11 targeted mutations removing parts of the ownership distinction, run in a separate worktree, each fail.
+- **Executed vs modelled:**
+  - Executed: the real world service, a registered owner, and the production ownership question.
+  - Scripted: the native interrupt and end, and the views and agents.
+  - Modelled and pinned from IL: the arrival's all-pair preflight and attachment.
+- **Wording corrected:** an installed override does not prove ownership, and an ownership import is not a full
+  restoration.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed.
+- **Next:** Sprint 4, ordered C04 (Candlemere's "wade through" failure), C01, C02, C03. Not started.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF fe22563a: WORLD BOUNDARIES AFTER THE GUARD CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `fe22563a`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Accepted by the owner at `fe22563a`:** the lifecycle correction (retained stick cleanup in `Dismount`'s result,
+  strict disable/shutdown/guard removal, recovery before the update gate, the pending runtime-error stop, owner
+  retention, bounded retries). R2 stays accepted. Stationary rider actions stay deliberately preserved.
+- **The remaining P2, corrected (`7fa9f74e`, `ee8cca11`; tests `56cae55f`, `1ad306ce`):** the world-boundary guard passed, but the
+  admission discard right after it refused the pair's retained owner. Area suspension latched a failed transfer and
+  load housekeeping threw.
+  - The registry tells detached stick cleanup apart from what holds a world. Owners declare a second predicate: their
+    obligations without the stick cleanup the boundary keeps with its exact references.
+  - The admission discard accepts an owner that owes only that cleanup. The owner stays registered, holding its
+    actors and identity, and the pair stays dismounted.
+  - The arrival defers a pair still held this way (departing or carried), with its owner identity and arrival
+    placement. Only Restore, Defer, or a refusal by its own retained agent defer it (ownership fact added at the
+    review of `119088ed`); any other refusal keeps the
+    all-pair failure, and the capital rule still retires.
+  - The in-area retry restores it once the owner retires, with the same identity, generation, session and campaign.
+    Until then the true reason is given.
+  - A load sets such owners aside from the old session. The new world imports its pairs (same characters, same
+    identities) under its own session. The old cleanup touches only old objects and retires its owner when done.
+- **Unchanged:** disable, shutdown and guard removal are strict on every boundary; retries are bounded; voluntary
+  dismount results stay strict (their wording is a non-blocking refinement left as it is).
+- **Checks:** Fast PASS 11/0 (components 1337/0, Validate-Source 151/0, continuous drive 58, physical mover pace 27,
+  post-load view readiness 26, persistence 223, world boundary 8, paired activation, world ownership 29, command
+  slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head `fe22563a` fails 5 of the 58 continuous-drive checks. On the real world service with a
+    registered owner, the admission discard after the guard refuses for the area, the load and the persistent case.
+  - 37 mutations of the correction, run in a separate worktree, each fail the suite (one only after the IL pin of `1ad306ce`).
+- **What ran, what was modelled:**
+  - Ran: the real `MountedWorldService` offline, with its real registry and boundaries, the production import seam
+    and the actual retained-obligation predicate.
+  - Modelled and pinned from IL: the persistence service's area, arrival, retry, event and load sequence.
+- **Review:** one independent read. No blocker; the major point (a held pair overrode unrelated refusals) and the
+  minor ones were corrected.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 25cbdbe2: R1 LIFECYCLE CORRECTED OFFLINE, R2 ACCEPTED; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `25cbdbe2`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its last section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R2: accepted** by the owner at `25cbdbe2`. Unchanged.
+- **R1, the remaining finding, corrected (`f4369506`, `899fe393`):** the stick-movement owner kept a failed
+  cleanup, but the lifecycle around it could report the cleanup complete and stop the only path that retried it.
+  - `Dismount` now reports retained stick-movement cleanup in its result. The disable, the runtime-error cleanup,
+    shutdown, Harmony guard removal, owner settlement and boundary reuse all read it and wait.
+  - The root retries retained cleanup before its enabled gate, so recovery does not depend on the ordinary pair
+    update. A runtime-error stop held back by this cleanup alone is taken again once it is established.
+  - A readiness refusal (the charge barrier) still retries retained cleanup. No pre-gate that runs before the
+    cleanup reads the obligation.
+  - A record past the automatic limit still leaves once the facts establish its retirement. Nothing latches.
+- **Retry rule (wording corrected):** three automatic attempts per failing retirement, counting the first.
+  Settlements, the root's retry, new bindings and every dismount that can repeat per frame stay within that limit.
+  Explicit releases (disable, shutdown, guard removal, a boundary, a voluntary dismount) retry deliberately.
+- **For the owner to confirm:** area suspension, load and event suspension are **not** failed by a stick-only
+  obligation (`GuardWorldBoundary`). Failing them would latch a failed area transfer or throw after the old world
+  is unloaded. The reviewed head passed them too. Making them strict is three call sites.
+- **Deliberately preserved (owner decision):** a stationary rider order runs on while the stick moves the mount.
+  The native Move/Standard pairing is not mirrored onto the rider. Not an open question.
+- **Unchanged:** the earlier R1 and R2 corrections (`e98eac31`), the M05 routing repair, follower acceleration, M01,
+  M03, the two marker corrections, the bounded fault report, and C04 (first in Sprint 4; order C04, C01, C02, C03).
+  M04's original report stays unresolved.
+- **Checks:** Fast PASS 11/0 (components 1332/0, Validate-Source 151/0, continuous drive 52, physical mover pace 27,
+  post-load view readiness 26, persistence contracts 223, world boundary, paired activation, world ownership,
+  command slot 24). Kingmaker assembly contracts 815/0.
+  - The reviewed head `25cbdbe2` fails 8 of the 52 continuous-drive checks. Its real `Dismount` returns a complete
+    result with one obligation retained, for the disable and for the runtime-error cleanup.
+  - Two failed Fast runs are kept. One caught a real conflict with an existing post-load contract (fixed in
+    `899fe393` without touching that contract). The other is the ledgered T04, unchanged.
+  - 35 mutations of the correction, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** the real `GameMountedRelationshipService` ran offline, unmounted, with its
+  stick-movement owner on a scripted host: `Dismount`, `ValidateActivePair`, both guards, `Shutdown`, boundary
+  recycling. The real ownership registry ran in the component tests. The composition root and the lifecycle
+  subscriber cannot be constructed offline: their sequence is modelled and their IL is pinned.
+- **Review:** one independent read. No blocker; two major points corrected (a per-frame dismount that would have
+  retried deliberately; world boundaries latching a session failure), two minor ones applied.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — OWNER REVIEW OF 5e27c9bd: R1 AND R2 CORRECTED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `5e27c9bd`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), its review section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **R1, corrected (`e98eac31`):** retiring the pair's owned stick movement no longer clears a foreign override.
+  - Native ends a continuous command by clearing the override of its executor's *current* view. The reviewed
+    release could clear an unrelated override on a replaced mount view, and a command abandoned after its agent
+    was replaced later cleared the foreign override.
+  - Now a guard inside that native method lets a pair-bound command clear only the agent it was bound with, on the
+    view it was bound on. The command and its captured agent are retired separately.
+  - The record is kept, with its exact command, view and agent, until the retirement is established, and
+    retried. A terminal command alone is not taken as proof that its override is gone.
+- **R2, corrected (`e98eac31`):** a rider order admitted through native queue promotion now ends the stick
+  movement, exactly once. Admission is observed after the internal `Run` that the public `Run` and promotion both
+  reach. Enqueueing alone, a refused promotion, a Free order and another unit's order change nothing.
+- **Kept on purpose:** a stationary rider Standard order runs on while the stick drives the mount, as beside a
+  routed ground order. The native slot rules were read and pinned first; the test model, not the product, had
+  been wrong.
+- **Unchanged:** the M05 routing repair, follower acceleration, M01, M03, the two marker corrections, the bounded
+  fault report, and C04 (first in Sprint 4; order C04, C01, C02, C03). M04's original report stays unresolved.
+- **Checks:** Fast PASS 9/0 (components 1326/0, Validate-Source 151/0, continuous drive 43, physical mover pace 27,
+  post-load view readiness 26, persistence contracts 223, world boundary 8, paired activation). Kingmaker assembly
+  contracts 815/0.
+  - The reviewed head `5e27c9bd` fails 12 of the 43 continuous-drive checks. Its compiled owner fails both required
+    reproductions: the release clears the unrelated override, and the abandoned command later clears the foreign
+    one.
+  - 27 mutations of the corrections, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** the compiled owner ran both reproductions and the retry cases on a scripted host;
+  the compiled guard ran with its command table; native queue promotion ran on a genuine `UnitCommands` container;
+  the native interrupt and slot rules were read from IL. The guarded native write and the adapter's answers that
+  need a live pair were not executed.
+- **Review:** one independent read of the corrections. No blocker; its hardening points (re-entrancy, a record
+  superseded while bound, forgetting finished commands) were applied.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 3 CONTINUATION — DIRECT GAMEPAD CONTROL OF A MOUNTED PAIR REPAIRED OFFLINE; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), continued from the reviewed head `1223eb2f`, still on the
+Sprint 2 head `1dffc3e0` and still targeting `codex/kmc-known-issues-sprint2` (draft PR #46, open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md), continuation section first, and the
+[current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Owner decision:** direct gamepad control of a mounted pair is in scope. M05 stays its own item.
+- **M05: implemented and verified offline (`99b632f2`).**
+  - The defect, by source: stick input for a mounted rider was refused by native `Run`, left the mount an
+    override nothing owned, dismounted the pair and blocked remounting.
+  - The correction: the stick drives the pair's mount, on which native initialises, runs, looks up, accelerates
+    and ends its command. The mount's continuous agent is admitted by the mounted invariant only as the override
+    of that exact command, for that pair generation, while it runs in the mount's Move slot.
+  - Anything else is retired or still rejected: a command `Run` did not admit, combat, a new rider order,
+    dismount and disposal each end the owned movement; a foreign or stale override is still a fault.
+  - Also corrected, same root: gamepad ground orders now reach a mounted current unit that is not being driven.
+- **M02: implemented and verified offline, in two parts** (a following pair, Sprint 3; a directly driven pair,
+  through M05). M01, M03 and M04 are unchanged; M04's original report stays unresolved.
+- **Fault report (`b65977d8`):** a logger that throws can no longer stop a hook from returning its native
+  fallback.
+- **C04 recorded (`8e4e3a69`):** the Candlemere crossing while mounted, open investigation, first in Sprint 4.
+  Sprint 4's order is C04, C01, C02, C03. The owner's `output_log(9).txt` is not on this machine.
+- **Checks:** Fast PASS 9/0 (components 1313/0, Validate-Source 151/0, continuous drive 32, physical mover
+  pace 27, post-load view readiness 26, persistence contracts 223, world boundary 8, paired activation).
+  Kingmaker assembly contracts 814/0.
+  - At the reviewed head `1223eb2f`: components 1290/0; that build fails 20 of the new script's product
+    checks, the throwing-logger one with the logger's own exception.
+  - 30 mutations of the new production code, run in a separate worktree, each fail the suite.
+- **What ran and what was read:** native `UnitCommands.Run`'s refusal was executed offline on genuine engine
+  objects. The production transpilers, hooks, ownership code and fault report were executed. The rest of the native
+  chain and the game adapter were read from IL. The component tests drive production code through a model of the
+  native chain.
+- **Review:** one independent read. It found a drive that would have lingered into turn-based combat and four
+  smaller gaps; all were corrected, and the tests now execute the production ownership code instead of a copy.
+- **Open:** native acceptance of M01–M03 and M05; M04; T04–T08 unchanged.
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No gamepad session has ever been run in this
+  project.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
+# KNOWN ISSUES REMEDIATION, SPRINT 3 — MOUNTED PACE REPAIRED OFFLINE; MARKER REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
+
+Branch `codex/kmc-known-issues-sprint3` (draft PR #47), created from the reviewed Sprint 2 head `1dffc3e0` and targeting
+`codex/kmc-known-issues-sprint2` (draft PR #46, still open). Read the
+[handoff](docs/KNOWN-ISSUES-SPRINT3-HANDOFF.md) and the [current issue ledger](docs/CURRENT-KNOWN-ISSUES.md).
+
+- **Scope:** M01–M04 of the owner's Known Issues Remediation Epic. Gameplay code changed: three native pace reads
+  are answered with a mounted pair's mount, one native marker placement is skipped for a carried rider, and one
+  internal move lost its marker request. A build of this branch is a new binary. No save format changed.
+- **M01, entrance and exit orders: implemented and verified offline.** The mount's carried entrance command now
+  gets the same native `Accelerate()` offer its selected rider's order gets. The carrier is issued as before.
+- **M02, gamepad: implemented and verified offline for a following pair.** The native follower pass now reaches
+  the mount that executes a following rider's order.
+- **M05 (new at this head): the stick-driven mounted pair.** By source, stick input for a mounted rider moves
+  nothing and dismounts the pair: native `Run` refuses the continuous command the mod redirected. Never observed;
+  not repaired at this head. Repaired offline by the continuation above.
+- **M03, group pace: implemented and verified offline.** The native group speed limit reads each pair's mount
+  instead of its rider. The native minimum, the 30 ft floor and the selection are untouched, so a mover slower than
+  30 ft is still bounded by its own speed while the party walks at the floor.
+- **M04, the marker report: investigation complete, issue unresolved.**
+  - The report's original log is not available and no cause is established.
+  - Two adjacent defects were found in the installed marker contract and repaired: a second, rider-keyed marker
+    during a carried entrance approach, and a marker under the rider for the scene regroup walk.
+  - Neither is shown to be what the owner saw. Needed: when the marker appears, or a log of the native pointer
+    table at that moment.
+- **Checks:** Fast PASS 7/0 (components 1290/0, Validate-Source 151/0, physical mover pace 27, post-load view
+  readiness 26, persistence contracts 223, world boundary 8). Kingmaker assembly contracts 814/0.
+  - At the reviewed base `1dffc3e0`: components 1257/0; the base build fails 16 of the 27 pace contract checks.
+  - Fourteen mutations of the new decisions and wiring, run in a separate worktree, each fail the suite.
+- **Review:** one independent read of the diff. No production defect; its points on test strength, a missing
+  generation check and a retained reference were corrected or recorded (the handoff lists each).
+- **Open:** M04, M05; T04–T08 unchanged (none blocked a Sprint 3 check).
+- **Native:** NOT RUN. Nothing was launched, staged or installed. No fixture exists on this machine.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 4.
+
 # KNOWN ISSUES REMEDIATION, SPRINT 2 — POST-LOAD DISMOUNT REPAIRED OFFLINE; SAVING REPORT UNRESOLVED; NATIVE NOT RUN (2026-11-16)
 
 Branch `codex/kmc-known-issues-sprint2` (draft PR #46), created from the reviewed Sprint 1 head `b62c59a8` and

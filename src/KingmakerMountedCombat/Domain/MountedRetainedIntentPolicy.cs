@@ -253,6 +253,39 @@ namespace KingmakerMountedCombat.Domain
         // A pair mounted at departure, at its arrival placement. Every refusal keeps its established outcome (the native
         // capital rule retires, anything else fails the all-pair restoration); only an eligible pair whose exact views
         // are not active yet is deferred to the retained custody instead of being attached to inactive views.
+        // Known issues sprint 3 (review of fe22563a): a departing pair still held by its earlier owner, which owes only
+        // its stick-movement cleanup, is deferred when the arrival would restore or defer it, or when its only refusal is
+        // the mount's installed movement-agent override (the one refusal that pair's own retained agent causes). It joins
+        // the retained custody with its exact owner identity and restores through the in-area retry once that owner has
+        // retired. Any other refusal keeps its established outcome: the capital rule retires it, anything else fails
+        // the all-pair restoration.
+        public static MountedDepartingArrivalDecision DeferHeldArrival(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedDepartingArrivalDecision decision) =>
+            heldByDetachedCleanup && (decision == MountedDepartingArrivalDecision.Restore || decision == MountedDepartingArrivalDecision.Defer ||
+                refusedOnlyForHeldAgent) ? MountedDepartingArrivalDecision.Defer : decision;
+
+        // Known issues sprint 3 (review of 119088ed). The override-only exception needs two distinct facts: the mount's
+        // current override is owned by this pair's retained cleanup (its captured view and agent), and that override is
+        // the only eligibility refusal. A foreign override, on the captured view or another one, never qualifies.
+        public static bool RefusedOnlyForHeldAgent(bool overrideOwnedByRetainedCleanup, bool refusedOnlyForMountOverride) =>
+            overrideOwnedByRetainedCleanup && refusedOnlyForMountOverride;
+
+        // Whether a held carried pair takes the arrival placement for its cleanup: it is retained only because of that
+        // cleanup (it would have restored, or its only refusal is its own retained agent). Any other retention keeps the
+        // placement rules it already had.
+        public static bool HeldCarriedArrivalPlacement(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedCarriedArrivalDecision decided, MountedCarriedArrivalDecision arrival) =>
+            arrival == MountedCarriedArrivalDecision.Retain && heldByDetachedCleanup &&
+            (decided == MountedCarriedArrivalDecision.Restore || refusedOnlyForHeldAgent);
+
+        // The same for carried intent (world-map travel, an earlier event): a held pair that would restore, or that is
+        // retained only for its own retained agent (RefusedOnlyForHeldAgent), is retained with its arrival placement. Drop and the capital
+        // retirement keep their outcome.
+        public static MountedCarriedArrivalDecision DeferHeldCarriedArrival(bool heldByDetachedCleanup, bool refusedOnlyForHeldAgent,
+            MountedCarriedArrivalDecision decision) =>
+            heldByDetachedCleanup && (decision == MountedCarriedArrivalDecision.Restore ||
+                decision == MountedCarriedArrivalDecision.Retain && refusedOnlyForHeldAgent) ? MountedCarriedArrivalDecision.Retain : decision;
+
         public static MountedDepartingArrivalDecision DecideDepartingArrival(string eligibilityRefusal, bool capitalControlRetirement,
             string viewReadinessRefusal)
         {

@@ -20,9 +20,13 @@ namespace KingmakerMountedCombat.Integration
         private MovementPositionPhaseTracker positionPhaseTracker = new MovementPositionPhaseTracker();
         private MovementYawPhaseTracker yawPhaseTracker = new MovementYawPhaseTracker();
 
-        public override bool WantsToMove => configured && mount?.View?.AgentASP != null && mount.View.AgentASP.WantsToMove;
+        // The agent that moves the mount: native UnitEntityView.MovementAgent, which is the stock agent unless the
+        // pair's own stick movement installed the native continuous agent (known issues M05).
+        private UnitMovementAgentBase MountMover => mount?.View != null ? mount.View.MovementAgent : null;
 
-        public override bool IsReallyMoving => configured && mount?.View?.AgentASP != null && mount.View.AgentASP.IsReallyMoving;
+        public override bool WantsToMove => configured && MountMover != null && MountMover.WantsToMove;
+
+        public override bool IsReallyMoving => configured && MountMover != null && MountMover.IsReallyMoving;
 
         public override Path Path { get; protected set; }
 
@@ -259,7 +263,7 @@ namespace KingmakerMountedCombat.Integration
             var authoritativeYawAdvance = latestYaw == null
                 ? double.MaxValue
                 : MovementTelemetrySample.CalculateAngleDelta(latestYaw.CurrentAuthoritativeYawDegrees, expectedRotation.eulerAngles.y);
-            var mountAgent = mount.View.AgentASP;
+            var mountAgent = MountMover;
             return new MovementSynchronizationBoundarySnapshot(
                 viewPositionResidual,
                 entityPositionResidual,
@@ -344,7 +348,7 @@ namespace KingmakerMountedCombat.Integration
 
         public override void UpdateVelocity()
         {
-            var mountAgent = mount?.View?.AgentASP;
+            var mountAgent = MountMover;
             if (!configured || mountAgent == null)
             {
                 ResetVelocity();

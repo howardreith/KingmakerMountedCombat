@@ -308,6 +308,9 @@ namespace KingmakerMountedCombat.Integration
                 riderActiveSelf, mountActiveSelf, riderActiveInHierarchy, mountActiveInHierarchy, nativePartySelectorActive);
         }
 
+        // Set by the pair's relationship service: whether an override of the mount is its bound live stick movement.
+        internal Func<object, bool> MountOverrideOwner { get; set; }
+
         public string ValidateMountedInvariants()
         {
             return ValidateMountedInvariants(false);
@@ -413,7 +416,12 @@ namespace KingmakerMountedCombat.Integration
                 return "Owned rider movement-authority state no longer matches the mounted invariant.";
             }
 
-            if (mountView.AgentASP == null || !mountView.AgentASP.enabled || mountView.AgentOverride != null)
+            // Known issues sprint 3 continuation (M05): the one override the mount may carry is the continuous agent of
+            // this pair's bound, live stick movement (MountedContinuousDriveWatch). Any other override is still a fault.
+            var mountOverride = mountView.AgentOverride;
+            if (mountView.AgentASP == null || !mountView.AgentASP.enabled ||
+                !MountedContinuousDrivePolicy.MountOverrideAdmissible(mountOverride != null,
+                    mountOverride != null && MountOverrideOwner != null && MountOverrideOwner(mountOverride)))
             {
                 return "The authoritative mount movement agent changed.";
             }
