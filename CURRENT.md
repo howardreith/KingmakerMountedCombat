@@ -25,6 +25,9 @@ Start here. The sections below this one are dated history, newest first.
   six-pair combat).
 - **Not run in the game before release.** No known-issues fix, gamepad session or interface screen was checked
   natively. Owner/HUMAN PLAY acceptance remains pending.
+- **Package limit (owner decision):** packaging first failed: the DLL (9,488,896 bytes) exceeded the validator's 9 MiB
+  DLL entry bound, which the epic's growth had crossed (0.2.11 was 9,352,704). The owner raised the bound to 10 MiB in
+  `scripts/Validate-Package.ps1` and its harness guard; the 5 MiB ZIP bound, allowlist and hashes are unchanged.
 - **Not done:** no install, staging or loader replacement.
 
 # KNOWN ISSUES REMEDIATION EPIC MERGED INTO MAIN, BEFORE RELEASE 0.2.12 (2026-11-19); RELEASE THEN v0.2.11; NATIVE NOT RUN

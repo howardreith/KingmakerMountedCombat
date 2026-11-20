@@ -167,7 +167,9 @@ parent ID and have no row of their own.
 - **Baseline-identical failures:** `Test-Harness.ps1` fails 4 of 281 at Sprint 7 and at the Sprint 6 base (two need a
   historical package zip, one source pin absent at the base, one package-size check);
   `Test-Chunk7CapitalArrivalEvidence.ps1` fails 3 of 165, which need native evidence for batches 196–198. Not
-  harness defects established by this epic; not investigated.
+  harness defects established by this epic; not investigated. **Corrected 2026-11-19 (release 0.2.12):** the package-size failure was not unrelated to the epic. Its DLL grew
+  from 9,352,704 bytes (0.2.11) past the validator's 9 MiB DLL entry bound (9,488,896 bytes), which blocked packaging.
+  The owner raised the bound to 10 MiB for release 0.2.12; the other three failures are unchanged.
 
 ## Reconciliation history (superseded by the current status above)
 

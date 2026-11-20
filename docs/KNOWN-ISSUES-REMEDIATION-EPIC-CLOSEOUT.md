@@ -140,7 +140,9 @@ Only checks actually run. Each handoff has the commands, durations and logs.
   Sprint 6 base under matched conditions: two need a historical package zip absent from the lab, one pins a source
   string absent at the base, one is the package validator's size check. `Test-Chunk7CapitalArrivalEvidence.ps1` 162
   pass, 3 fail: the three need native evidence for batches 196–198 not on this machine. Neither involves a
-  known-issues change; neither was investigated.
+  known-issues change; neither was investigated. **Corrected 2026-11-19 (release 0.2.12):** the package-size failure was not unrelated to the epic. Its DLL grew
+  from 9,352,704 bytes (0.2.11) past the validator's 9 MiB DLL entry bound (9,488,896 bytes), which blocked packaging.
+  The owner raised the bound to 10 MiB for release 0.2.12; the other three failures are unchanged.
 - **Native runs genuinely performed:** in historical work before this epic (the Chunk 7 F7 qualification, the
   finalization sprints F1–F6, the UI polish review). Their verdicts stay in their own handoffs.
 - **Native runs not performed:** none by Sprints 1–8. No release from 0.2.3 to 0.2.11 was run in the game before
