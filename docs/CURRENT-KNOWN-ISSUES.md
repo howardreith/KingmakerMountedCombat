@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-17, the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
+- **Last updated:** 2026-11-17, Sprint 5 (R01 closed as not reproducible, R02 documented), after the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
   entry: a live background cutscene's commands and a TranslocateUnit inside a cutscene's scope), after the review of
   `e1c0c7ad` (R7 C02 standalone rider turn, R8 C02 whole-pair writes from
   CommandTeleportParty's proven target set, R9 contained success logging in the C02 and C04 loops), after the review
@@ -23,7 +23,11 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
   [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md),
-  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md).
+  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md), [Sprint 5](KNOWN-ISSUES-SPRINT5-HANDOFF.md).
+- **Sprint 5 (2026-11-17):** R01 closed as not reproducible at the accepted base: under the qualified paired authority
+  a mounted pair's mount never moves on its own initiative slot, so a mount's own record only ever holds riderless or
+  pre-mount travel. No product change. R02 closed as intentional adaptation documented. Branch
+  `codex/kmc-known-issues-sprint5`, stacked on the Sprint 3 closeout (PR #49).
 - **Sprint 3 closeout (2026-11-17):** M04 is closed as "engineering investigation complete; all identified product
   marker defects repaired". The original incident is not attributable; native and manual verification remain.
   Sprint 3 engineering is closed. Branch `codex/kmc-known-issues-sprint3-closeout`, stacked on Sprint 4. After the
@@ -32,7 +36,7 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
 - **Sprint 3 accepted (owner, 2026-11-16, at `e5b92474`):** a review checkpoint of offline work. M01–M03 and M05 are
   implemented and verified offline, and their native acceptance is still not run. M04's original report stays
   unresolved; S01 and T04–T08 keep their dispositions. The acceptance does not mark every Sprint 3 report resolved.
-- **Reconciled so far:** T01–T08, S01, S02, M01–M05 and C01–C04. Every row of Sprints 5–8 is a *carried-forward planning
+- **Reconciled so far:** T01–T08, S01, S02, M01–M05, C01–C04, R01 and R02. Every row of Sprints 6–8 is a *carried-forward planning
   finding*: it is copied from the epic's audit of 2026-11-15 and has not been rechecked against the source since.
   A sprint reconciles its own rows when it starts.
 - **Native status is a separate column.** Nothing in this ledger was run in the game by Sprints 1 to 4.
@@ -407,14 +411,22 @@ Capturing and restoring a live activation is not established as the only possibl
 existing native split with a separate deferred remount intent would need its own investigation and verification.
 C01 remains unsupported, not fixed.
 
-## Sprints 5–8 — carried forward, pending reconciliation
+## Sprint 5 — mounted ranged movement (reconciled 2026-11-17)
+
+Record: [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md). No product change: the product build stays `cdfbe509`
+(clean Release DLL SHA-256 `f584c1c6e0678a9447a6082552dda57c5fcc4a95e475430c20fb5a93210f5035`, MVID `6cb7b950-e97c-4c14-9d83-764b074a3439`).
+
+| ID | Symptom | Classification | Status | Implementation and offline evidence | Native |
+|---|---|---|---|---|---|
+| R01 | Carried travel in a separate initiative slot gives no ranged-movement contribution. | Planned omission, not reproduced | **Closed: not reproducible; no reachable instance; no product change** | Under the qualified authority the mount's candidate is suppressed while the pair's unsplit activation exists. The only split is the dismount's, which never leaves the pair Mounted. A combat mount forms only on the rider's turn, and a retained partner is ended. A mount's own `native:` record is therefore always riderless or pre-mount, and stays excluded. `95fd7120`: 2 production-executed tests; `Test-MountedRangedMovementContracts.ps1` 5/0; S1–S11 mutations caught | Not run |
+| R02 | The accepted ranged rules need precise documentation. | Intentional adaptations | **Intentional adaptation documented** | Exact rule in the Sprint 5 handoff and the Mounted Archery handoff's superseding section. README: steps and Charge do not count. Feat text unchanged | Not run |
+
+## Sprints 6–8 — carried forward, pending reconciliation
 
 Each row is the epic's finding as planned. "Planned closure" is what the epic expects, not a result.
 
 | Sprint | ID | Symptom or purpose | Classification | Status | Planned closure | Source |
 |---|---|---|---|---|---|---|
-| 5 | R01 | Carried travel in a separate initiative slot gives no ranged-movement contribution. | Conservative omission | Open correction | Implemented offline, or documented unresolved design fact | [MOUNTED-ARCHERY handoff](MOUNTED-ARCHERY-HANDOFF.md) |
-| 5 | R02 | The accepted ranged rules (3.25 s threshold, native difficulty floor, turn-based only, per roll, no Run) need precise documentation. | Intentional adaptations | Open correction | Intentional limit documented | [MOUNTED-ARCHERY handoff](MOUNTED-ARCHERY-HANDOFF.md) |
 | 6 | A01 | A fresh same-target click just after attack completion gets inconsistent feedback. | One-frame feedback edge | Open correction | Implemented and verified offline | [ATTACK-COMPLETION handoff](ATTACK-COMPLETION-WARNINGS-HANDOFF.md) |
 | 6 | A02 | Terminal feedback can describe a player cancellation as "cannot act". | Diagnostic ambiguity | Open correction | Implemented and verified offline | [ATTACK-STALL handoff](MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md) |
 | 6 | A03 | The Serenity or Fascinate condition that stopped the rider is unidentified. | Open explanation | Open investigation | Investigation complete; explanation open unless evidence settles it | [ATTACK-STALL handoff](MOUNTED-ATTACK-STALL-REPAIR-HANDOFF.md) |

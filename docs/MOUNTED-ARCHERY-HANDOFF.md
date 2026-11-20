@@ -1,5 +1,23 @@
 # Mounted Archery — handoff (2026-11-13)
 
+## Sprint 5 reconciliation (2026-11-17), superseding
+
+Read with the [Sprint 5 handoff](KNOWN-ISSUES-SPRINT5-HANDOFF.md), which states the exact current rule. Nothing below
+this section is rewritten.
+
+- **"Mount on its own separate-initiative turn: not counted" / "no contribution while a pair acts on separate
+  initiative slots":** under the qualified paired authority, a mounted pair's mount never takes its own initiative
+  slot while carrying its rider. Its candidate is suppressed while the activation exists unsplit, and the only split
+  is the dismount's. A mount's own `native:` record therefore only ever holds riderless or pre-mount travel, and
+  excluding it is the complete and correct behaviour. There is no conservative omission to correct (R01, closed as
+  not reproducible).
+- **"Legal reattachment to the same allocation: its travel still counts":** this is a saved pair restored at load
+  (the same activation identity and record). A dismount followed by a remount is a new activation, so the earlier
+  travel never counts.
+- **No inferred travel:** the rule reads only the allocation's recorded native movement time.
+- The rule, the 3.25 s threshold, −4 / −2, the seams and the labels are unchanged (R02, intentional adaptation
+  documented).
+
 Branch `codex/mounted-archery` from main `6b6a3e6a` (release 0.2.8, the research pin of the owner's
 Mounted_Archery_Mission_Packet, checksums verified). Mission: add the Mounted Archery combat feat, with the supplied
 original icon, and the missing mounted ranged-movement penalty that it reduces.

@@ -25,8 +25,9 @@ The folder, mod ID and DLL are still named `KingmakerMountedCombat`; only the di
   clear straight line. The game's usual Charge requirements still apply.
 - **Mounted Combat** (the feat) has its own in-game toggle, **Mounted Combat Reaction**.
 - **Shooting from the saddle (turn-based only):** a mounted rider's ranged weapon attacks take -4 once the mount has
-  moved more than one move action's worth this turn, judged when each attack is made. The **Mounted Archery** feat
-  (Mobility 1 rank and Mounted Combat) reduces this to -2. Real-time combat is unaffected.
+  moved more than one move action's worth this turn, judged when each attack is made. Five-foot steps and Charge do not
+  count. The **Mounted Archery** feat (Mobility 1 rank and Mounted Combat) reduces this to -2. Real-time combat is
+  unaffected.
 - **Renaming a companion:** open the character sheet on your animal companion and press **Rename**, at the right end of
   its name. Type the new name and press **Rename** to keep it, or **Cancel** (or Esc) to leave the name as it was. Each
   companion's name is its own and is saved with your game. An empty name is refused; to go back to the original name,

@@ -1,3 +1,18 @@
+# Known issues remediation, Sprint 5 — review checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint5` (draft PR targeting `codex/kmc-known-issues-sprint3-closeout`), from
+`af5b2bc7`. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT5-HANDOFF.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 6 bases on
+this branch after review.
+
+- **State:** R01 closed as not reproducible (no product change), R02 documented. Fast PASS 8/0 (0.82 min). Native NOT RUN.
+- **Rules:**
+  - The ranged-movement authority is the pair's current shared paired grant only. A mount's own `native:` record is
+    riderless or pre-mount and never counts.
+  - Do not add a "same horse this round" rule.
+  - If a future change lets a mounted mount take its own slot, `Test-MountedRangedMovementContracts.ps1` fails, and
+    the separate-initiative question reopens with that new path.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 6.
+
 # Known issues remediation, Sprint 3 closeout — review checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint3-closeout` (draft PR targeting `codex/kmc-known-issues-sprint4`), from
