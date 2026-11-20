@@ -34,11 +34,13 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 - **Dependencies:** none. `Info.json` `Requirements` is empty. The historical native lab ran with its fixture's own
   Call of the Wild and Craft Magic Items; neither a KMC-only game nor a full personal mod stack was verified end to end
   ([0.2.0 notes](RELEASE-NOTES-0.2.0.md#supported)).
-- **Known incompatibility in 0.2.12 (X01):** with Tabletop Rules Expansion (mod id `KingmakerGunslinger`) installed —
+- **Tabletop Rules Expansion (X01):** with Tabletop Rules Expansion (mod id `KingmakerGunslinger`) installed —
   reproduced with 0.0.191 and 0.0.140 — `v0.2.12` fails to load (`Not loaded`), and a campaign that uses Mounted
-  Combat content then fails to load while it is absent. 0.2.11 does not have this conflict. A repair is on review
-  branch `codex/gunslinger-click-approach-compat`, unreleased
-  ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md), [ledger](CURRENT-KNOWN-ISSUES.md#after-release-0212)).
+  Combat content then fails to load while it is absent. 0.2.11 does not have this conflict. **Fixed in 0.2.13**:
+  verified offline with both versions' released binaries; startup checked in the game beside 0.0.140 only; 0.0.191
+  natively, the reported save and gameplay are not verified
+  ([notes](RELEASE-NOTES-0.2.13.md), [handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md),
+  [ledger](CURRENT-KNOWN-ISSUES.md#after-release-0212)).
 
 ### Riders, mounts and pairs
 
@@ -261,8 +263,8 @@ The same set as the [ledger](CURRENT-KNOWN-ISSUES.md#every-id):
   defect is repaired (since 0.2.12).
 - **C01:** in-combat scripted movement of a seated rider, an unsupported path (see
   [Cutscenes](#cutscenes-dialogues-and-scene-staging)).
-- **X01 (after release):** 0.2.12 does not load beside Tabletop Rules Expansion; repaired on a review branch,
-  unreleased (see [Game, loader and dependencies](#game-loader-and-dependencies)).
+- **X01 (after release 0.2.12):** fixed in 0.2.13; native verification beside 0.0.191, the reported save and
+  gameplay remain open (see [Game, loader and dependencies](#game-loader-and-dependencies)).
 - **T04–T08:** stale developer test harnesses (open correction). **T09:** a harness that needs retained native
   evidence (open investigation). Neither affects play.
 

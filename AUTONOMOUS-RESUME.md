@@ -1,7 +1,12 @@
-# Tabletop Rules Expansion startup conflict — review branch (2026-11-20)
+# Release 0.2.13 (owner order, 2026-11-20)
 
-Branch `codex/gunslinger-click-approach-compat` (draft PR, no reviewers) from `12527350` (`v0.2.12`). Read CURRENT.md
-(its first section) and docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md.
+0.2.13 releases only the X01 repair (PR #55, merged as `a4d25e45`). Read CURRENT.md (its first section),
+docs/RELEASE-NOTES-0.2.13.md and docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md. Open: 0.0.191 natively, the owner's
+save recovery, mounted-click and firearm gameplay; the UMM 0.33.0/0.33.2 platform pin (owner decision).
+
+# Tabletop Rules Expansion startup conflict — repair (2026-11-20)
+
+Branch `codex/gunslinger-click-approach-compat` from `12527350` (`v0.2.12`), PR #55, merged and released in 0.2.13.
 
 - **State:** the 0.2.12 `ClickUnitHandler.OnClick` transpiler no longer replaces the click command's submission; it
   guards it, so it composes with Tabletop Rules Expansion's rewrite of the same submissions in either order. Offline
@@ -17,7 +22,7 @@ Branch `codex/gunslinger-click-approach-compat` (draft PR, no reviewers) from `1
     `using` or saved identity of that mod.
   - `scripts/Test-GunslingerClickComposition.ps1` needs the released 0.0.191 DLL at
     `<lab>/compatibility-binaries/KingmakerGunslinger-0.0.191/` (SHA-256 pinned); never commit it.
-- **Not authorized:** merge, release, tag, version bump, permanent install, loader replacement, reviewer request.
+- **Not authorized:** permanent install, loader replacement.
 
 # Release 0.2.12 (owner order, 2026-11-19)
 

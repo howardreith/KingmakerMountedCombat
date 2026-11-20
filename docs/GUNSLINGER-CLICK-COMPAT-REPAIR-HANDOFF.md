@@ -3,7 +3,8 @@
 Release-blocking compatibility defect in **0.2.12**: with Mr. Bard's Tabletop Rules Expansion (mod id
 `KingmakerGunslinger`) **0.0.191** installed, Mounted Combat fails to load, and a save that references Mounted
 Combat content then fails to load. Branch `codex/gunslinger-click-approach-compat`, from `origin/main` =
-`12527350` (the tagged `v0.2.12` merge). Not installed.
+`12527350` (the tagged `v0.2.12` merge). PR #55, merged into main as `a4d25e45`; released in 0.2.13 by owner order
+([notes](RELEASE-NOTES-0.2.13.md)). Not installed.
 
 ## Incident
 

@@ -1,13 +1,28 @@
-# CURRENT STATE — 0.2.12 STARTUP CONFLICT WITH TABLETOP RULES EXPANSION: REPAIRED ON A REVIEW BRANCH, UNRELEASED (2026-11-20)
+# CURRENT STATE — RELEASE 0.2.13: TABLETOP RULES EXPANSION STARTUP CONFLICT (X01) FIXED (2026-11-20)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.13, by owner order on 2026-11-20, from main after PR #55 (merged as `a4d25e45`). Notes:
+  [docs/RELEASE-NOTES-0.2.13.md](docs/RELEASE-NOTES-0.2.13.md). The package identity (zip and DLL SHA-256, MVID,
+  release-source commit, tagged merge) is recorded on the GitHub release.
+- **Version:** 0.2.13 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0.
+- **Content:** only the X01 repair (below) and records. Save format unchanged from 0.2.12.
+- **Previous release:** `v0.2.12`, merge `12527350`. It does not load beside Tabletop Rules Expansion.
+- **Native:** the release binary itself was not run in the game. The reviewed repair build (same source apart from the
+  version number) passed a fresh-process startup beside Tabletop Rules Expansion 0.0.140 on the game side; the harness
+  verdict failed only on the UMM 0.33.0/0.33.2 platform pin. Not verified: 0.0.191 natively, the owner's
+  `Quicksave2`, mounted-click and firearm gameplay.
+- **Not done:** no install, staging or loader replacement.
+
+# 0.2.12 STARTUP CONFLICT WITH TABLETOP RULES EXPANSION: REPAIRED, MERGED AS PR #55 (2026-11-20)
 
 - **Defect (release-blocking, in released 0.2.12):** with Tabletop Rules Expansion (mod id `KingmakerGunslinger`)
   installed, 0.2.12 is `Not loaded`: both mods transpile `ClickUnitHandler.OnClick`'s command submissions and
   whichever runs second throws. A save that references Mounted Combat content (toggle
   `3c81f5a02be74d96a4e07d1c92b6f385`) then fails to load in that session. Reproduced offline with the released 0.2.12
   DLL and Tabletop Rules Expansion 0.0.191 (and 0.0.140). 0.2.11 and earlier are not affected (prefix only).
-- **Repair:** branch `codex/gunslinger-click-approach-compat` from `12527350` (`v0.2.12`), draft PR for owner review.
+- **Repair:** branch `codex/gunslinger-click-approach-compat` from `12527350` (`v0.2.12`), PR #55, merged into main
+  as `a4d25e45` and released in 0.2.13.
   The transpiler guards the submission instead of replacing it; both submission shapes are recognised exactly; both
   Harmony orders compose to the same method. Read the
   [repair handoff](docs/GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md).
