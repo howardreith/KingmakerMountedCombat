@@ -8,10 +8,12 @@ Start here. The sections below this one are dated history, newest first.
 - **Version:** 0.2.13 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0.
 - **Content:** only the X01 repair (below) and records. Save format unchanged from 0.2.12.
 - **Previous release:** `v0.2.12`, merge `12527350`. It does not load beside Tabletop Rules Expansion.
-- **Native:** the release binary itself was not run in the game. The reviewed repair build (same source apart from the
-  version number) passed a fresh-process startup beside Tabletop Rules Expansion 0.0.140 on the game side; the harness
-  verdict failed only on the UMM 0.33.0/0.33.2 platform pin. Not verified: 0.0.191 natively, the owner's
-  `Quicksave2`, mounted-click and firearm gameplay.
+- **Native (startup only, beside the installed Tabletop Rules Expansion 0.0.140):** the release DLL `197053e3…`
+  (MVID `401084a4…`), packaged deterministically at the release commit on a local `codex/mounted-combat-*` alias
+  branch, run `release-0.2.13-smoke-140`: game-side PASS, all 17 mods `Active`, `failure=none`, no structural
+  exception; harness verdict FAIL only on the UMM 0.33.0/0.33.2 platform pin (owner decision; not re-pinned);
+  restoration exact. The reviewed repair build gave the same result (`gunslinger-click-compat-smoke-140b`). Not
+  verified: 0.0.191 natively, the owner's `Quicksave2`, mounted-click and firearm gameplay.
 - **Not done:** no install, staging or loader replacement.
 
 # 0.2.12 STARTUP CONFLICT WITH TABLETOP RULES EXPANSION: REPAIRED, MERGED AS PR #55 (2026-11-20)

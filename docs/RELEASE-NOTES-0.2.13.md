@@ -47,15 +47,16 @@ rule and the still-open items listed there.
   is submitted once, and firearm attacks and casts reach Tabletop Rules Expansion unchanged. Released 0.2.12 fails it
   with the reported error (2 pass, 5 fail); the fix passes 21/0. The game's ground-order handling and the actual
   running of orders are simulated in that check, so it does not show firearm gameplay.
-- **In the game, startup only:** with the reviewed fix and the Tabletop Rules Expansion **0.0.140** installed on this
-  machine, a fresh game process loaded both mods `Active` and Mounted Combat registered its feats with no failure.
-  The guarded test harness recorded that run as failed for one reason: this machine runs Unity Mod Manager 0.33.0,
-  while the harness pins 0.33.2. 0.33.0 is also the version in the reported log.
+- **In the game, startup only:** this release's own DLL, and before it the reviewed fix, each started in a fresh game
+  process beside the Tabletop Rules Expansion **0.0.140** installed on this machine. Both mods loaded `Active` and
+  Mounted Combat registered its feats with no failure. The guarded test harness recorded both runs as failed for one
+  reason: this machine runs Unity Mod Manager 0.33.0, while the harness pins 0.33.2. 0.33.0 is also the version in
+  the reported log.
 - **Not tested in the game:** startup beside Tabletop Rules Expansion **0.0.191** (the reported version), loading the
   reported save, a mounted click, and a firearm attack.
 - **Package:** this release's DLL is rebuilt with the new version number, so its hash differs from the reviewed test
   build (`5d79c78c…`). The source is the same except for the version number. The release package's hashes are on the
-  GitHub release.
+  GitHub release; the DLL started in the game above is that release DLL.
 
 **Engineering record:** [the repair handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md) (PR #55, merged into main as
 `a4d25e45`).
