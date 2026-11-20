@@ -3,7 +3,7 @@
 The current issue ledger for Mr. Bard's Kingmaker Mounted Combat. It was started by Sprint 1 of the Mounted Combat
 Known Issues Remediation Epic (owner document of 2026-11-15, prepared against main `7a5cd2c3`, release 0.2.11).
 
-- **Last updated:** 2026-11-17, the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
+- **Last updated:** 2026-11-17, the Sprint 3 closeout (M04 destination-marker ownership) and its review of `b1a88b4e` (R1–R3), after the review of `813d00a1` (R10 C02 scene ownership of the exact operation, captured at
   entry: a live background cutscene's commands and a TranslocateUnit inside a cutscene's scope), after the review of
   `e1c0c7ad` (R7 C02 standalone rider turn, R8 C02 whole-pair writes from
   CommandTeleportParty's proven target set, R9 contained success logging in the C02 and C04 loops), after the review
@@ -22,7 +22,13 @@ Known Issues Remediation Epic (owner document of 2026-11-15, prepared against ma
   stacked on Sprint 2 (branch `codex/kmc-known-issues-sprint2`, draft PR #46, reviewed head `1dffc3e0`), which is
   stacked on Sprint 1 (branch `codex/kmc-known-issues-sprint1`, draft PR #45).
 - **Sprint records:** [Sprint 1](KNOWN-ISSUES-SPRINT1-HANDOFF.md), [Sprint 2](KNOWN-ISSUES-SPRINT2-HANDOFF.md),
-  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md).
+  [Sprint 3](KNOWN-ISSUES-SPRINT3-HANDOFF.md), [Sprint 4](KNOWN-ISSUES-SPRINT4-HANDOFF.md),
+  [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md).
+- **Sprint 3 closeout (2026-11-17):** M04 is closed as "engineering investigation complete; all identified product
+  marker defects repaired". The original incident is not attributable; native and manual verification remain.
+  Sprint 3 engineering is closed. Branch `codex/kmc-known-issues-sprint3-closeout`, stacked on Sprint 4. After the
+  review of `b1a88b4e`, the cannot-attack routing is bound to its one native call site, runs the original native
+  command, and placements are recorded at `AddPointer` (`cdfbe509`).
 - **Sprint 3 accepted (owner, 2026-11-16, at `e5b92474`):** a review checkpoint of offline work. M01–M03 and M05 are
   implemented and verified offline, and their native acceptance is still not run. M04's original report stays
   unresolved; S01 and T04–T08 keep their dispositions. The acceptance does not mark every Sprint 3 report resolved.
@@ -254,7 +260,7 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
 | M01 | Entrance and exit orders do not receive the native acceleration offer. | Source-established omission | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M01 | Commit `c5b52387`. The mount's carried member command is classified beside the routed ground order and gets the same native `Accelerate()` call. 8 component tests; contract script 27 pass (the base build fails its 16 product checks); mutants A, H and N fail. | **Not run.** |
 | M02 | Gamepad stick acceleration does not reach the mounted mover. | Source-established omission | **Implemented and verified offline, in two parts.** A following pair: the native follower pass reaches its mount (`c5b52387`). A directly driven pair: native accelerates and decelerates the mount's own continuous command once M05 lets it run (`99b632f2`). | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M02 | Commit `c5b52387`. The native follower pass is answered with the mount that executes the selected rider's routed order. 6 component tests; the production transpiler run on the installed `UpdateMovement`; mutants B, G and L fail. | **Not run.** No gamepad session has ever been run in this project. |
 | M03 | Group pace is computed from the rider's speed, not the horse's. | Source-established mismatch | **Implemented and verified offline** | [HORSE-GROUP-PACE handoff](HORSE-GROUP-PACE-REPAIR-HANDOFF.md); epic M03 | Commit `c5b52387`. The native speed selection reads each pair's mount, each actor once; the native selector, `Min`, 30 ft floor and selection are untouched. 8 component tests; the production transpiler run on the installed `MoveSelectedUnitsToPoint`; mutants C, F and M fail. | **Not run.** |
-| M04 | An extra or stale green movement marker. | Reported defect, cause unknown | **Investigation complete, issue unresolved.** Two adjacent marker defects are implemented and verified offline. | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md); epic M04 | Commit `26b4169e`. See "M04" below. 11 component tests; 7 contract checks; mutants D, E, I, J and K fail. | **Not run.** |
+| M04 | An extra or stale green movement marker. | Reported defect, cause unknown | **Engineering investigation complete; all identified product marker defects repaired** (Sprint 3 closeout). The original incident is not attributable; native and manual verification only. | [EXPLORATION handoff](EXPLORATION-REPAIR-HANDOFF.md); epic M04; [closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md) | Sprint 3 `26b4169e` (entrance, regroup); closeout `c64c695f` (door approach marker; the cannot-attack click approach given to the pair; ownership classification and bounded observation) and review `cdfbe509` (call-site authority, the original native command, the `AddPointer` placement record). 26 component tests; `Test-MarkerOwnershipContracts.ps1` 18/0; six closure and eleven review mutations caught. | **Not run.** |
 | M05 | Stick input for a mounted rider moves nothing, and by source dismounts the pair and blocks remounting. | Source-established defect, never observed | **Implemented and verified offline** | Found while reconciling M02 on 2026-11-16; owner put direct gamepad control in scope the same day | Commits `99b632f2`; after the owner's review of `5e27c9bd`, `e98eac31` (R1, R2); after the review of `25cbdbe2`, `f4369506` and `899fe393` (the lifecycle around retained cleanup); after the review of `fe22563a`, `7fa9f74e`, `ee8cca11`, `56cae55f` and `1ad306ce` (world boundaries after the guard); after the review of `119088ed`, `7a657838`, `29f987b8` and `f6e86858` (who owns the mount's override at the arrival). The stick drives the pair's mount; the mount's continuous agent is owned by the exact command that installed it; retiring that command never clears a foreign override. See "M05" below. 47 component tests; contract script 59 / 0 (head `5e27c9bd` fails 12 of its 43, both required reproductions among them; head `25cbdbe2` fails 8 of 52, the disable and runtime-error regressions among them; head `fe22563a` fails 5 of 58, the registered-owner area, load and persistent-cleanup regressions among them; head `119088ed` fails 2 of the 59, its classification taking foreign overrides for the pair's own agent); 27 mutants of the R1/R2 corrections, 35 of the lifecycle correction and 37 of the world-boundary correction fail. | **Not run.** No gamepad session has ever been run in this project. |
 
 ### M01–M03 — what changed and what it rests on
@@ -274,6 +280,10 @@ Full record: [KNOWN-ISSUES-SPRINT3-HANDOFF.md](KNOWN-ISSUES-SPRINT3-HANDOFF.md).
   installation of the new patches was not run. Nothing ran in the game.
 
 ### M04 — what is established, and what is not
+
+**Superseded by the [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md) (2026-11-17).** The closeout found and repaired two more
+product marker defects, classified every native and product marker path, and closed M04 as engineering complete. The
+paragraphs below are the Sprint 3 state.
 
 - **The report's cause is not established.** Its original log is not available. Three later owner logs (0.2.3 to
   0.2.5) hold 119 mount pace summaries, no "stopped short" line, and one rider-held entrance command (0.2.3, the

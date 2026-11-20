@@ -142,6 +142,7 @@
     <Compile Include="MountedGroupPacePolicyTests.cs" />
     <Compile Include="MountedPhysicalMoverPaceTests.cs" />
     <Compile Include="MountedDestinationMarkerTests.cs" />
+    <Compile Include="MountedClickApproachAuthorityTests.cs" />
     <Compile Include="MountedBoundedFaultReportTests.cs" />
     <Compile Include="MountedContinuousDriveTests.cs" />
     <Compile Include="CandlemereCrossingTests.cs" />
@@ -362,6 +363,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs"><Link>Shared\Domain\MountedStabilizationPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedGroupPacePolicy.cs"><Link>Shared\Domain\MountedGroupPacePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedDestinationMarkerPolicy.cs"><Link>Shared\Domain\MountedDestinationMarkerPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPointerPlacementLedger.cs"><Link>Shared\Domain\MountedPointerPlacementLedger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedBoundedFaultReport.cs"><Link>Shared\Domain\MountedBoundedFaultReport.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedContinuousDrivePolicy.cs"><Link>Shared\Domain\MountedContinuousDrivePolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCleanupCompletionPolicy.cs"><Link>Shared\Domain\MountedCleanupCompletionPolicy.cs</Link></Compile>

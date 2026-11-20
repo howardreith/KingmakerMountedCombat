@@ -262,10 +262,12 @@ namespace KingmakerMountedCombat.Domain
 
         // The exact unit the ground click itself ran: approaches for attacks, spells, traps, doors or recovery are
         // UnitMoveTo as well, and may carry CreatedByPlayer for native routing, but never pass through the ground click.
-        public static bool IsExplicitGroundMove(bool groundOrderOpen, bool exactMoveType, bool createdByPlayer, bool aiOrigin,
+        // playerOrder: CreatedByPlayer, or (known issues M04 closeout) the exact native cannot-attack click approach the
+        // ground order itself is running, which native never marks CreatedByPlayer.
+        public static bool IsExplicitGroundMove(bool groundOrderOpen, bool exactMoveType, bool playerOrder, bool aiOrigin,
             bool ranOnPairMover, bool admitted)
         {
-            return groundOrderOpen && exactMoveType && createdByPlayer && !aiOrigin && ranOnPairMover && admitted;
+            return groundOrderOpen && exactMoveType && playerOrder && !aiOrigin && ranOnPairMover && admitted;
         }
 
         public void Bind(object move, long pairGeneration)

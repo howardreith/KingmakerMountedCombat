@@ -371,10 +371,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Mount Move slot is not idle for exact door approach.");
             }
+            // Known issues M04 closeout: no destination marker; a native door click shows none.
             delegatedMove = new MountedDoorApproachMove(NativeApproachPoint, approachRadius, GetTargetLOSObjectId())
             {
                 CreatedByPlayer = true,
-                ShowTargetMarker = true
+                ShowTargetMarker = MountedDestinationMarkerPolicy.DelegatedInteractionApproachShowsMarker
             };
             delegatedMoveStartCount++;
             mountMoveSlotRestored = false;

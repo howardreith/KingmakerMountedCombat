@@ -19,7 +19,10 @@ namespace KingmakerMountedCombat.Tests
     //       planned by the stock agent whether or not that agent is enabled. So a mounted rider, which cannot walk,
     //       still gets its own pointer placed for any command it holds itself.
     // The model is a reading of the native code, not native evidence. SprintThree = false keeps the behaviours this
-    // sprint changed as they were on the reviewed base.
+    // sprint changed as they were on the reviewed base. Known issues M04 closeout: CloseOut = false keeps the behaviours
+    // the closeout changed as they are on the accepted Sprint 4 build (14f1b474): the door approach asks for a marker,
+    // and the native cannot-attack click approach stays on the rider. ClickUnitCannotAttack is native
+    // ClickUnitHandler.OnClick's one UnitMoveTo (its CanNotAttack branch), read from the installed IL.
     internal static class MountedDestinationMarkerTests
     {
         public static void Register(TestRunner runner)
@@ -35,6 +38,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("known issues M04: the rider's placement is skipped only while the mount executes that command's carrier", SkipEndsWithTheCarrier);
             runner.Run("known issues M04: the scene regroup walk asks for no marker (the native default showed one on the reviewed base)", RegroupWalkShowsNoMarker);
             runner.Run("known issues M04: no other unit's pointer is ever skipped or retired", OtherPointersUntouched);
+            runner.Run("M04 closeout (routing decision production): a mounted rider's native cannot-attack click approach is the pair's ground order, one marker, and no rider marker left behind under a later order; on the accepted Sprint 4 build it stayed on the rider", CannotAttackClickApproachIsThePairs);
+            runner.Run("M04 closeout: the click-approach routing is the exact native click's UnitMoveTo on the mounted rider only", ClickApproachRoutingControls);
+            runner.Run("M04 closeout: a mounted door click's approach shows no marker, as a native door click shows none; on the accepted Sprint 4 build it showed one", DoorApproachShowsNoMarker);
+            runner.Run("M04 closeout (ownership policy production): every pointer state is classified; hidden is never stale; a live blocked move is expected; a pending placement inside the bound is a transition", MarkerClassification);
+            runner.Run("M04 closeout (ownership policy production): duplicate pair markers, a rider-held order, a pointer placed for an earlier command past the bound, a visible pointer with no command and an unordered marker move are anomalies; two pairs and unrelated units are independent", MarkerAnomalies);
         }
 
         private static void RoutedClickShowsOneMarker()
@@ -241,6 +249,120 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!MountedDestinationMarkerPolicy.CarriedRiderPlacesNoPointer(true, false, true), "A unit that is not the rider had its placement skipped.");
         }
 
+        private static void CannotAttackClickApproachIsThePairs()
+        {
+            foreach (var closeOut in new[] { true, false })
+            {
+                var world = new World { CloseOut = closeOut };
+                world.ClickUnitCannotAttack(55f, world.Rider);
+                world.Frame();
+                if (closeOut)
+                {
+                    TestRunner.True(world.Rider.Slot == null && world.Mount.Slot != null && world.Mount.Slot.Destination == 55f,
+                        "The cannot-attack approach was not given to the mount.");
+                    TestRunner.True(world.IsVisible(world.Mount) && !world.HasPointer(world.Rider) && world.Visible().Count == 1,
+                        "The pair's approach does not show exactly the mount's marker.");
+                    TestRunner.Equal(MountedPlayerMoveOutcome.Pending, world.ObserveWatch(), "The pair's approach is not the watched ground order.");
+                }
+                else
+                {
+                    TestRunner.True(world.Rider.Slot != null && !world.Rider.Slot.Finished && world.IsVisible(world.Rider),
+                        "Setup (accepted Sprint 4 build): the approach should have stayed on the rider with its marker.");
+                }
+                // A later routed ground order: the pair walks elsewhere.
+                world.ClickGround(80f, world.Rider);
+                world.Frame();
+                if (closeOut)
+                    TestRunner.True(world.Visible().Count == 1 && world.IsVisible(world.Mount) && world.MarkerAt(world.Mount) == 80f && !world.HasPointer(world.Rider),
+                        "A marker other than the pair's current one is visible after the next order.");
+                else
+                    TestRunner.True(world.IsVisible(world.Rider) && world.MarkerAt(world.Rider) == 55f && world.Visible().Count == 2,
+                        "Setup (accepted Sprint 4 build): the rider's stale marker should still show at the clicked unit.");
+            }
+        }
+
+        private static void ClickApproachRoutingControls()
+        {
+            TestRunner.True(MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, false, false), "The exact click approach was not routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(false, true, true, false, true, false, false), "An unmounted rider's approach was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, false, true, false, true, false, false), "Another unit's approach was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, false, false, true, false, false), "A UnitMoveTo subclass or another command was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, true, true, false, false), "An AI order was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, false, false, false), "An order outside the native click was routed.");
+            TestRunner.True(!MountedDestinationMarkerPolicy.RoutesRiderClickApproach(true, true, true, false, true, true, false), "A simulated click was routed.");
+            // Outside the click the rider-held order keeps what native gives it (BypassedRiderOrderKeepsNativeMarker).
+            var world = new World();
+            world.RunOnRiderUnrouted(60f);
+            world.Frame();
+            TestRunner.True(world.IsVisible(world.Rider) && world.Rider.Slot != null, "An order outside the click was rerouted or hidden.");
+            // An unmounted rider's click approach is native.
+            var unmounted = new World { Mounted = false };
+            unmounted.ClickUnitCannotAttack(30f, unmounted.Rider);
+            unmounted.Frame();
+            TestRunner.True(unmounted.Rider.Slot != null && unmounted.IsVisible(unmounted.Rider) && unmounted.Mount.Slot == null, "An unmounted rider's click approach was rerouted.");
+            // Another selected unit's approach is its own.
+            var companion = new World();
+            companion.ClickUnitCannotAttack(30f, companion.Rider, companion.Companion);
+            companion.Frame();
+            TestRunner.True(companion.Companion.Slot != null && companion.IsVisible(companion.Companion) && companion.Mount.Slot != null && companion.Rider.Slot == null,
+                "A companion's approach was touched, or the rider's was not routed.");
+        }
+
+        private static void DoorApproachShowsNoMarker()
+        {
+            foreach (var closeOut in new[] { true, false })
+            {
+                var world = new World { CloseOut = closeOut };
+                world.DoorClick(25f);
+                world.Frame();
+                if (closeOut) TestRunner.Equal(0, world.Visible().Count, "The mount's door approach shows a destination marker.");
+                else TestRunner.True(world.IsVisible(world.Mount) && world.MarkerAt(world.Mount) == 25f, "Setup (accepted Sprint 4 build): the door approach should have shown a marker.");
+                TestRunner.True(world.Mount.Slot != null && !world.Mount.Slot.Finished, "The door approach itself was not issued.");
+            }
+            TestRunner.True(!MountedDestinationMarkerPolicy.DelegatedInteractionApproachShowsMarker, "A delegated interaction approach asks for a marker.");
+        }
+
+        private static MountedMarkerFacts Facts(bool exists = true, bool visible = true, bool live = true, bool unordered = false, bool placed = true,
+            float seen = 0.5f, bool moving = true) =>
+            new MountedMarkerFacts { PointerExists = exists, PointerVisible = visible, QualifyingCommandLive = live, QualifyingCommandUnordered = unordered,
+                PlacedForCurrentCommand = placed, SecondsSinceCommandSeen = seen, Moving = moving };
+
+        private static void MarkerClassification()
+        {
+            TestRunner.Equal(MountedMarkerClass.NoPointer, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts(exists: false)), "No pointer.");
+            TestRunner.Equal(MountedMarkerClass.HiddenPointer, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts(visible: false, live: false)), "A hidden pointer.");
+            TestRunner.Equal(MountedMarkerClass.HiddenPointer, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts(visible: false, placed: false, seen: 99f)), "A hidden pointer counted as stale.");
+            TestRunner.Equal(MountedMarkerClass.ExpectedPhysicalMover, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts()), "The physical mover's own marker.");
+            TestRunner.Equal(MountedMarkerClass.ExpectedUnfinishedMove, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts(moving: false, seen: 99f)), "A live blocked move's marker.");
+            TestRunner.Equal(MountedMarkerClass.PlacementPending, MountedMarkerOwnershipPolicy.ClassifyUnit(Facts(placed: false, seen: 1f)), "A transition inside the bound.");
+            TestRunner.True(!MountedMarkerOwnershipPolicy.IsAnomaly(MountedMarkerClass.ExpectedUnfinishedMove) && !MountedMarkerOwnershipPolicy.IsAnomaly(MountedMarkerClass.PlacementPending) &&
+                !MountedMarkerOwnershipPolicy.IsAnomaly(MountedMarkerClass.HiddenPointer), "A native state was called an anomaly.");
+            // The routed pair: the mount's marker, the rider's pointer hidden or absent.
+            TestRunner.Equal(MountedMarkerClass.ExpectedPhysicalMover, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(visible: false, live: false), Facts()), "The routed pair.");
+            TestRunner.Equal(MountedMarkerClass.ExpectedPhysicalMover, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(exists: false), Facts()), "The routed pair, no rider pointer.");
+        }
+
+        private static void MarkerAnomalies()
+        {
+            TestRunner.Equal(MountedMarkerClass.DuplicatePairMarkers, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(), Facts()), "Duplicate pair markers.");
+            TestRunner.Equal(MountedMarkerClass.RiderHeldWhileMountMoves, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(), Facts(visible: false, live: false)), "A rider-held order.");
+            TestRunner.Equal(MountedMarkerClass.PlacedForEarlierCommand, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(exists: false), Facts(placed: false, seen: 4f)),
+                "A pointer placed for an earlier command past the bound.");
+            TestRunner.Equal(MountedMarkerClass.VisibleWithoutQualifyingCommand, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(exists: false), Facts(live: false)),
+                "A visible pointer with no command.");
+            TestRunner.Equal(MountedMarkerClass.InternalMoveRequestsMarker, MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(exists: false), Facts(unordered: true)),
+                "An unordered move asking for a marker.");
+            foreach (var c in new[] { MountedMarkerClass.DuplicatePairMarkers, MountedMarkerClass.RiderHeldWhileMountMoves, MountedMarkerClass.PlacedForEarlierCommand,
+                MountedMarkerClass.VisibleWithoutQualifyingCommand, MountedMarkerClass.InternalMoveRequestsMarker })
+                TestRunner.True(MountedMarkerOwnershipPolicy.IsAnomaly(c), c + " was not an anomaly.");
+            // Two pairs are classified separately: one pair's anomaly says nothing of the other's.
+            var first = MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(), Facts());
+            var second = MountedMarkerOwnershipPolicy.ClassifyPair(true, Facts(exists: false), Facts());
+            TestRunner.True(first == MountedMarkerClass.DuplicatePairMarkers && second == MountedMarkerClass.ExpectedPhysicalMover, "Two pairs influenced each other.");
+            // An unmounted unit's own native marker is its physical mover's.
+            TestRunner.Equal(MountedMarkerClass.ExpectedPhysicalMover, MountedMarkerOwnershipPolicy.ClassifyPair(false, Facts(), Facts(exists: false)), "An unmounted rider's own marker.");
+        }
+
         // ---- model -------------------------------------------------------------------------------------------------
 
         private sealed class Order
@@ -264,7 +386,7 @@ namespace KingmakerMountedCombat.Tests
             private readonly MountedPlayerMoveWatch watch = new MountedPlayerMoveWatch();
             private readonly MountedEntranceCarrierWatch carrier = new MountedEntranceCarrierWatch();
             internal readonly ModelUnit Rider = new ModelUnit { Name = "rider" }, Mount = new ModelUnit { Name = "mount" }, Companion = new ModelUnit { Name = "companion" };
-            internal bool Mounted = true, SprintThree = true, MountIsGroupMember = true;
+            internal bool Mounted = true, SprintThree = true, MountIsGroupMember = true, CloseOut = true;
             internal long Generation = 1;
             internal int Orders, Retired, Skipped;
 
@@ -387,6 +509,36 @@ namespace KingmakerMountedCombat.Tests
                 }
                 // The plans complete after the click, the rider's own included.
                 foreach (var unit in ran) PathCompleted(unit);
+            }
+
+            // Native ClickUnitHandler.OnClick for selected units that cannot attack: each gets a UnitMoveTo toward the clicked
+            // unit. The closeout routes the mounted rider's through the ground-order lifecycle (CommandRouter, the watch).
+            internal void ClickUnitCannotAttack(float destination, params ModelUnit[] selected)
+            {
+                var ran = new List<ModelUnit>();
+                foreach (var unit in selected)
+                {
+                    var routes = CloseOut && MountedDestinationMarkerPolicy.RoutesRiderClickApproach(Mounted, ReferenceEquals(unit, Rider), true, false, true, false, false);
+                    if (routes)
+                    {
+                        var route = CommandRouter.RouteGroundMove(new MountedPair(Rider.Name, Mount.Name), unit.Name);
+                        var executor = route.Action == CommandRoutingAction.RewriteRiderToMount ? Mount : unit;
+                        var order = Run(executor, new Order { Destination = destination });
+                        watch.Bind(order, 1);
+                        ran.Add(executor);
+                        continue;
+                    }
+                    Run(unit, new Order { Destination = destination });
+                    ran.Add(unit);
+                }
+                foreach (var unit in ran) PathCompleted(unit);
+            }
+
+            // A mounted door click: the rider holds the door interaction (not a move), the mount walks the delegated approach.
+            internal void DoorClick(float destination)
+            {
+                Run(Mount, new Order { Destination = destination, ShowMarker = CloseOut ? MountedDestinationMarkerPolicy.DelegatedInteractionApproachShowsMarker : true });
+                PathCompleted(Mount);
             }
 
             // The scene regroup walk: a move the pair gives its mount for no player order.

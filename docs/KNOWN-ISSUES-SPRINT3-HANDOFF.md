@@ -1,5 +1,8 @@
 # Known issues remediation, Sprint 3 — mounted pace and the marker report (2026-11-16)
 
+> **M04 later closed:** see the [Sprint 3 closeout](KNOWN-ISSUES-SPRINT3-CLOSEOUT.md) (2026-11-17), which supersedes what this
+> handoff says about M04 being unresolved. Nothing below is rewritten.
+
 Sprint 3 of the owner's Mounted Combat Known Issues Remediation Epic: **M01** (entrance acceleration), **M02**
 (gamepad acceleration), **M03** (group pace inputs) and **M04** (the extra or stale green marker). The current state
 of every issue is in [CURRENT-KNOWN-ISSUES.md](CURRENT-KNOWN-ISSUES.md).

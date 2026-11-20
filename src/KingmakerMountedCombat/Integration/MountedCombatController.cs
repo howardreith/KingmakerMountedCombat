@@ -431,7 +431,7 @@ namespace KingmakerMountedCombat.Integration
                 ? float.PositiveInfinity
                 : Kingmaker.Utility.GeometryUtils.MechanicsDistance(viewPosition, command.Target);
             var exactPlayerCreatedMountMove = command != null &&
-                command.GetType() == typeof(UnitMoveTo) && command.CreatedByPlayer &&
+                command.GetType() == typeof(UnitMoveTo) && IsPairPlayerOrder(command) &&
                 command.Executor == mount && !command.IsFinished &&
                 mount != null && !mount.Commands.Queue.Contains(command);
             var exactMoveSlot = command != null &&
@@ -1584,6 +1584,7 @@ namespace KingmakerMountedCombat.Integration
         private void ClearObservedStockRequest()
         {
             observedStockRequest.Clear();
+            groundOrderClickApproach = null;
         }
 
         private void ShowStockFeedback()
@@ -1645,11 +1646,29 @@ namespace KingmakerMountedCombat.Integration
             groundOrderOpen = true;
         }
 
+        // Known issues M04 closeout (review of b1a88b4e, R2): the open ground order is running the exact native
+        // cannot-attack click approach, as the original command object, on the mount. Native never sets its
+        // CreatedByPlayer, so the order's own checks recognise it by identity instead. Held only while the order is
+        // open: CompleteGroundCommandAdmission (always reached, from the hook's finally) clears it.
+        internal void BindGroundOrderClickApproach(UnitCommand command)
+        {
+            if (groundOrderOpen && !disposed) groundOrderClickApproach = command;
+        }
+
+        private UnitCommand groundOrderClickApproach;
+
+        // A player order of this pair: CreatedByPlayer, or the exact native cannot-attack click approach the pair's ground
+        // order ran (native never marks it CreatedByPlayer): by identity while that order is open, afterwards as the
+        // watched explicit move. The watch was bound only for CreatedByPlayer moves before, so no other command changes.
+        internal bool IsPairPlayerOrder(UnitCommand command) =>
+            command != null && (command.CreatedByPlayer || ReferenceEquals(command, groundOrderClickApproach) ||
+                playerMove.IsCurrent(command, relationship.MountedPairGeneration));
+
         internal void ObserveGroundOrderRun(UnitCommands commands, UnitCommand command)
         {
             if (!groundOrderOpen || disposed || relationship.State != RelationshipState.Mounted) return;
             if (!MountedPlayerMoveWatch.IsExplicitGroundMove(groundOrderOpen, command != null && command.GetType() == typeof(UnitMoveTo),
-                command != null && command.CreatedByPlayer, command?.AiAction != null,
+                IsPairPlayerOrder(command), command?.AiAction != null,
                 commands != null && commands == relationship.Mount?.Commands,
                 commands != null && (commands.Contains(command) || commands.Queue.Contains(command)))) return;
             playerMove.Bind(command, relationship.MountedPairGeneration);
@@ -1870,6 +1889,8 @@ namespace KingmakerMountedCombat.Integration
         public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)
         {
             groundOrderOpen = false;
+            var clickApproach = groundOrderClickApproach;
+            groundOrderClickApproach = null;
             if (!riderTurnGroundMoveAdmissionPending)
             {
                 return;
@@ -1879,7 +1900,7 @@ namespace KingmakerMountedCombat.Integration
             if (!relationship.IsCurrentPairOwner(groundMoveOwner)) { groundMoveOwner = null; return; }
             var command = groundMoveOwner.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
             if (routedUnit != relationship.Mount || command == null || command.Executor != relationship.Mount ||
-                !command.CreatedByPlayer || relationship.Mount.Commands.Queue.Contains(command))
+                !(command.CreatedByPlayer || ReferenceEquals(command, clickApproach)) || relationship.Mount.Commands.Queue.Contains(command))
             {
                 if (command != null && !command.IsFinished)
                 {
@@ -2459,7 +2480,7 @@ namespace KingmakerMountedCombat.Integration
                 MountedCarriedApproachPolicy.Classify(false, ClassifyCarriedInteraction(command, interaction)) != MountedCarriedCommandKind.ContainerInteraction)
                 return;
             var mountMove = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
-            var ownTravel = mountMove is UnitMoveTo && mountMove.CreatedByPlayer && !mountMove.IsFinished && !(mountMove is MountedDoorApproachMove) &&
+            var ownTravel = mountMove is UnitMoveTo && IsPairPlayerOrder(mountMove) && !mountMove.IsFinished && !(mountMove is MountedDoorApproachMove) &&
                 !HasActiveCommand && !HasActiveDoorInteraction && chargeOwner == null && !OwnsExactPairedNativeCommand(mountMove);
             containerOrderCommand = command;
             containerOrderTravel = ownTravel ? mountMove : null;
@@ -2492,7 +2513,7 @@ namespace KingmakerMountedCombat.Integration
             public bool IsMountContainer(object container) => container != null && ReferenceEquals(container, owner.relationship.Mount?.Commands);
             public bool IsCarriedCommand(object approach, object command) => command != null && ReferenceEquals((approach as MountedCarriedApproach)?.Command, command);
             public bool IsDelegatedMove(object approach, object command) => command != null && ReferenceEquals((approach as MountedCarriedApproach)?.DelegatedMove, command);
-            public bool IsPlayerRequest(object command) => command is UnitCommand unit && unit.CreatedByPlayer && unit.AiAction == null;
+            public bool IsPlayerRequest(object command) => command is UnitCommand unit && owner.IsPairPlayerOrder(unit) && unit.AiAction == null;
 
             public bool CarriedCommandDisplaced(object approach)
             {
@@ -2602,7 +2623,7 @@ namespace KingmakerMountedCombat.Integration
                 return MountedDoorAdmissionDisposition.RejectMountBusy;
             }
             var mountMove = mountCommands.GetCommand(UnitCommand.CommandType.Move);
-            var mountMoveIsPlayerMove = mountMove is UnitMoveTo && mountMove.CreatedByPlayer &&
+            var mountMoveIsPlayerMove = mountMove is UnitMoveTo && IsPairPlayerOrder(mountMove) &&
                 !(mountMove is MountedDoorApproachMove) && !mountMove.IsFinished;
             var otherSlotOccupied = mountCommands.Standard != null ||
                 mountCommands.GetCommand(UnitCommand.CommandType.Free) != null ||

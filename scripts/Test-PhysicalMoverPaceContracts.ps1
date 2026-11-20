@@ -536,10 +536,17 @@ public static class KmcPhysicalMoverPaceProbe
                 foreach(var ins in skip)
                     if(Is(ins,null,"Accelerate") || Is(ins,null,"Run") || Is(ins,null,"Interrupt") || Is(ins,null,"Remove") || Is(ins,null,"Destroy") ||
                         Is(ins,null,"AddPointer") || Is(ins,null,"SetVisible")) throw new InvalidOperationException("the decision calls "+ins.Call.Name);
-                var prefix=(MethodInfo)Method(patchMethods,"CarriedRiderPointerPrefix",1);
+                // M04 closeout: the prefix also reports, through Harmony's __state, whether it skipped the placement (the
+                // placement-record postfix reads it); a native placement that runs reports false.
+                var prefix=(MethodInfo)(Method(patchMethods,"CarriedRiderPointerPrefix",2) ?? Method(patchMethods,"CarriedRiderPointerPrefix",1));
                 var uninitialised=FormatterServices.GetUninitializedObject(view);
+                Func<object,bool> lets=candidate=>{
+                    var args=prefix.GetParameters().Length==2 ? new object[]{candidate,null} : new object[]{candidate};
+                    var ran=(bool)prefix.Invoke(null,args);
+                    return ran && (args.Length==1 || (bool)args[1]==false);
+                };
                 return Count(skip,"MountedDestinationMarkerPolicy","CarriedRiderPlacesNoPointer")==1 && Count(skip,"MountedCombatController","ClassifyMountGroupOrder")==1 &&
-                    prefix.ReturnType==typeof(bool) && (bool)prefix.Invoke(null,new object[]{null}) && (bool)prefix.Invoke(null,new object[]{uninitialised});
+                    prefix.ReturnType==typeof(bool) && lets(null) && lets(uninitialised);
             });
         Check("PRODUCT M04 the scene regroup walk is made by one factory that asks for no destination marker",
             ()=>{

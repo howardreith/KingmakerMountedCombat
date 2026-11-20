@@ -1,3 +1,24 @@
+# Known issues remediation, Sprint 3 closeout — review checkpoint (2026-11-17)
+
+Branch `codex/kmc-known-issues-sprint3-closeout` (draft PR targeting `codex/kmc-known-issues-sprint4`), from
+`14f1b474`. Read CURRENT.md, docs/KNOWN-ISSUES-SPRINT3-CLOSEOUT.md and docs/CURRENT-KNOWN-ISSUES.md. Sprint 5 bases on
+this closeout after review.
+
+- **State:** M04 closed as engineering complete (two closeout repairs, full path inventory, bounded observation).
+  Review of `b1a88b4e` (R1–R3) addressed in `cdfbe509`. Fast PASS 13/0 (0.59 min). Native NOT RUN.
+- **Rules:**
+  - Every product-built `UnitMoveTo` or `UnitAreaTransition` must be in the inventory pinned by
+    `Test-MarkerOwnershipContracts.ps1`. A new one that asks for a marker fails it.
+  - A pair operation's delegated move asks for no marker.
+  - A native order that a mounted rider cannot walk goes through the ground-order lifecycle, or is refused. It is
+    never hidden or completed.
+  - Such routing is bound to the exact native call site that runs the order (a transpiler on that one `Run`), never
+    to a frame or a flag. The original command object is what the mount runs, recognised by identity
+    (`IsPairPlayerOrder`), never a copy.
+  - A pointer placement is recorded only from the `AddPointer` call itself.
+  - The marker observer writes on anomaly transitions only, contained, with no strong references.
+- **Not authorized:** merge, release, tag, install, loader replacement, reviewer request or Sprint 5.
+
 # Known issues remediation, Sprint 4 — review of 813d00a1 checkpoint (2026-11-17)
 
 Branch `codex/kmc-known-issues-sprint4` (draft PR #48), continued from the reviewed head `813d00a1`. Read CURRENT.md,
