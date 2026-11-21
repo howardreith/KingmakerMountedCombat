@@ -94,9 +94,9 @@ namespace KingmakerMountedCombat.Integration
     }
     internal sealed class Controls
     {
-        internal int ResumeCalls, SlotRestores;
+        internal int ResumeCalls, SlotRestores, LoadedWorldSlotRestores;
         internal void ResumeAreaControls() { ResumeCalls++; }
-        internal void RestorePersistentSlots(object slots) { SlotRestores++; }
+        internal void RestorePersistentSlots(object slots, bool loadedWorld) { SlotRestores++; if (loadedWorld) LoadedWorldSlotRestores++; }
     }
     internal sealed partial class MountedPersistenceService
     {
@@ -186,7 +186,8 @@ internal static class Program
         Check(accepted.failedAreaTransfer == null && accepted.AreaResumeCount == 2 && accepted.mountedWorld.Creates == 2 &&
             KingmakerMountedCombat.Integration.Relationship.Imports == 2 && KingmakerMountedCombat.Integration.Relationship.Restores == 2 &&
             KingmakerMountedCombat.Integration.Relationship.Completes == 2 && KingmakerMountedCombat.Integration.Participant.Restores == 2 &&
-            accepted.controls.SlotRestores == 1 && accepted.controls.ResumeCalls == 2 && actors.All(a => a.NativeDebt == 2.5),
+            accepted.controls.SlotRestores == 1 && accepted.controls.LoadedWorldSlotRestores == 0 &&
+            accepted.controls.ResumeCalls == 2 && actors.All(a => a.NativeDebt == 2.5),
             "two eligible pairs restore exactly once without native budget mutation");
         accepted.RestoreAreaPair();
         Check(accepted.AreaResumeCount == 2 && accepted.mountedWorld.Creates == 2, "successful restore is idempotent");

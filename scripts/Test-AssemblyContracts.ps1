@@ -1536,6 +1536,11 @@ if($Target-eq'Kingmaker'){
     $cleanupBad=$uiSettings.GetMethod('CleanupBadSlots',$cityFlags)
     Assert-Contract ($null-ne$abilitySlotIsBad-and$null-ne$baseSlotIsBad-and(Test-MethodIlContainsToken $getSlot $baseSlotIsBad.MetadataToken)-and
         (Test-MethodIlContainsToken $cleanupBad $baseSlotIsBad.MetadataToken)) 'toolbar: UnitUISettings.GetSlot and CleanupBadSlots replace slots that IsBad reports'
+    # KMC postfixes the exact override (MountedPatchController.NativeAbilitySlotIsBadToken) to observe that decision.
+    $abilityIsBadToken=if($null-eq$abilitySlotIsBad){0}else{$abilitySlotIsBad.MetadataToken}
+    Assert-Contract ($null-ne$abilitySlotIsBad-and-not$abilitySlotIsBad.IsStatic-and$abilitySlotIsBad.ReturnType.FullName-ceq'System.Boolean'-and
+        $abilitySlotIsBad.GetParameters().Count-eq0-and$abilitySlotIsBad.DeclaringType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility'-and
+        $abilityIsBadToken-eq0x06002F6E) ('toolbar: MechanicActionBarSlotAbility.IsBad is an instance bool override, token '+$abilityIsBadToken.ToString('X8'))
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

@@ -93,9 +93,10 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class Settings { internal bool EnablePairedActivation = true, EnableUnifiedMountedTurn, EnablePairedCommandScheduler; }
     internal sealed class Controls
     {
-        internal int Restores; internal SavedMountedSlot[] Slots;
-        internal SavedMountedSlot[] CapturePersistentSlots() => Slots;
-        internal void RestorePersistentSlots(SavedMountedSlot[] slots) { Restores++; Slots = slots; }
+        internal int Restores, LoadedWorldRestores, AbsentIntentCaptures; internal SavedMountedSlot[] Slots;
+        internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false, bool includeAbsentIntent = false)
+        { if (includeAbsentIntent && !legacySchema) AbsentIntentCaptures++; return Slots; }
+        internal void RestorePersistentSlots(SavedMountedSlot[] slots, bool loadedWorld) { Restores++; if (loadedWorld) LoadedWorldRestores++; Slots = slots; }
     }
     internal sealed class WorldScope { internal int Closes; internal bool CanPresent(Player world) => true; internal void Close() { Closes++; } }
     internal sealed class LoadScope { internal WorldScope World = new WorldScope(); }
@@ -123,7 +124,9 @@ namespace KingmakerMountedCombat.Integration
         private bool PreflightArchivePresentation() => true; private void ClearArchivePresentationReadiness() { }
         private void RetrySaveRelease() { } private void DrainAbandonedSave() { } private void ReplayDeferredResetIfSettled() { }
         private void ContinueWorldRelease() { } private void CompleteAreaTransitionIfReady() { } private void TryRestoreCombat() { }
-        private void Report(string message) { Reports.Add(message); }
+        private void Report(string message, bool routine = false) { Reports.Add(message); }
+        // Later Update steps (scene placement attribution, retained remount) are outside this fixture's archive loop.
+        private void ObserveScenePlacements() { } private void TryRestoreRetainedIntent() { }
         private SavedNativeActor CaptureActor(UnitEntityData actor) => actor.Native;
         private SavedCombatData CaptureCombat(bool archive) => throw new Exception("combat not selected by this fixture");
         private static string OwnerKey(string id) => Guid.Parse(id).ToString("N");
@@ -174,7 +177,9 @@ internal static class Program
             "actual archive loop imports and presents all six exact owners once");
         Check(s.PresentationRestoreCount == 6 && s.controls.Restores == 1 && s.controls.Slots.Length == 12 && s.restoreLoad.World.Closes == 1,
             "actual Update restores twelve actor slots once and closes the admitted load");
+        Check(s.controls.LoadedWorldRestores == 1, "actual archive presentation restores its control rows as a freshly loaded world");
         var captured = s.Capture();
+        Check(s.controls.AbsentIntentCaptures == 1, "actual archive capture asks for absent riders' arrangements");
         Check(MountedArchiveCodec.Encode(captured) == original && captured.Pairs.SelectMany(p => new[] { p.Rider, p.Mount }).Count() == 12,
             "actual capture preserves all six owner IDs/generations/profiles and twelve saved budgets without truncation");
         for (var i = 0; i < 10; i++) s.Update();

@@ -64,8 +64,24 @@ reads and writes the bar:
 is not a candidate and keeps the placement record. Pre-F2 builds already read any kind 6/7 archive as invalid KMC
 metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, as before.
 
-**Residual (code-level).** A public fact switched off and back on within one frame, with native bad-slot cleanup in
-between, is not observed as an absence; every multi-frame absence is.
+**Round 2 additions.**
+- *Native cleanup observed when it decides (R1-F3):* an exact-token postfix on `MechanicActionBarSlotAbility.IsBad`
+  (token `06002F6E`) reports `true` for a slot holding the public control to
+  `NativeMountedControlService.ObserveInvalidatedPublicSlot`, which records a temporary absence. Native `GetSlot` and
+  `CleanupBadSlots` call `IsBad` before replacing a slot (pinned contract), so a slot native empties is never later read
+  as the player's removal, even when the fact is active again before the next update. Every other slot is ignored.
+  The earlier "within one frame" residual is closed. The remaining native whole-bar reset is respec
+  (`UnitUISettings.CleanupSlots`, called by `Player` respec), which also replaces the pet.
+- *Archive header before the next update (R2-F1):* `CapturePersistentSlots(includeAbsentIntent: true)` first classifies
+  each reconciled rider's bar and fact (binding by blueprint even if its fact is inactive; a not-leaseable fact is a
+  temporary absence unless the pet link proves loss), and a rider whose live control waits to return writes its slot
+  row with one placement record.
+- *Roster departure (R2-F2):* the departure loop observes the departing rider's bar before recording the absence and
+  emptying its slots.
+- *Unresolved pet (R2-F3):* a reconciled rider that is not leaseable right now keeps its arrangement unless its
+  persistent pet link (`PetUniqueId`) is cleared or names another unit.
+- *Lease release (R2-F4):* restoring the public control from a save-scope lease records the rebind (`ObserveBound`), so a
+  removal right after the save is the player's.
 
 ## 2. Animal companions in the city's inventory and character screens
 
@@ -141,12 +157,21 @@ The reported weapon and the enemy's state are not identifiable from available ev
 | F8 fixture description | corrected (this document, "Native checks") | — |
 | F9 conscious prone not traced | traced (section 3); native legs NOT RUN with prerequisites | — |
 
-Affected neighbours examined: `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` and
-`chunk7\Test-Chunk7AreaRestorePreflightAdapter.ps1` extract the actual `CaptureArchive` / `RestoreArchivePresentation`
-/ `RestoreAreaPair` methods and compile them against typed facades. Run once on this branch, both fail to compile for
-reasons that predate it: the facades lack members later features added (F2's `MountedControlSlotPolicy`, already
-referenced by `MountedArchiveData`; `MountedAreaControlRule`; retained-intent types and counters; `Report(string,bool)`).
-Classified pre-existing (by the missing members, not re-run at main); they are not selected and not edited here.
+Affected neighbours (round 2, R2-F5): both actual-method adapters' facades now implement the candidate's signatures
+(`CapturePersistentSlots(legacySchema, includeAbsentIntent)`, `RestorePersistentSlots(rows, loadedWorld)`) and assert
+the modes. `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` also received the facade members its current actual methods
+call (`Report(string,bool)`, no-op `ObserveScenePlacements` / `TryRestoreRetainedIntent`, outside its archive loop) and
+the domain sources `MountedArchiveData` needs (`MountedControlSlotPolicy.cs`, `NativeMountedControl.cs`); it now
+compiles and passes (22/0, including "actual archive presentation restores its control rows as a freshly loaded world"
+and "actual archive capture asks for absent riders' arrangements") and is selected in the focused wrapper.
+`chunk7\Test-Chunk7AreaRestorePreflightAdapter.ps1` still does not compile; its errors are base-tree errors: at base
+`dbf63702`, `RestoreAreaPair` and `MountedPairCandidate` use `transfer.Lifecycle`, `AreaTransfer`/`AreaPair` and the
+retained-intent members, `PairHeldByDetachedCleanup` and `MountedAreaControlRule` (`git grep` at `dbf63702`), none of which
+its facade (last changed 2026-10-19, `b81dc5f8`) or its source list defines. The candidate diagnostic run
+(`Test-Tiers.ps1 -Tier Fast -SkipBuild -Focused chunk7\Test-Chunk7AreaRestorePreflightAdapter.ps1`) reported 63 compile
+errors (CS0103/CS1061/CS0246/CS1503/CS0117 against those members), none naming `RestorePersistentSlots` or
+`loadedWorld`; the facade's new in-world assertion therefore is not executed. Repairing that facade is outside this mission; it is not
+selected.
 `Test-Finalize2UpgradeReaders.ps1`'s source locator now matches the stable `CapturePersistentSlots` signature prefix;
 that reader remains known-broken (T09, retained r05 evidence absent on this machine) and pins a historical source tree,
 so it is not selected.
@@ -156,18 +181,21 @@ so it is not selected.
 | Command | Result | Limits |
 | --- | --- | --- |
 | `.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1` (local run before commit; the controller `focused` gate receipt is bound to the reported candidate) | PASS | Build, components, Validate-Source, focused wrapper; about 1 minute |
-| components (`bin\Tests`) | 1429/0 | 9 toolbar, 6 city-roster and 3 downed-target tests |
+| components (`bin\Tests`) | 1434/0 | 14 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 819/0 | reflection-only contracts; Wrath not selected |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
+| `Test-CityArchiveRowBound.ps1` (via wrapper) | 3/0 | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
+| `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
 
 `Test-CityToolbarProneFocused.ps1` is the repository-owned wrapper (the controller's focused gate takes one script
-name) that runs exactly the two checks named in it; nothing broader.
+name) that runs exactly the four checks named in it; nothing broader.
 
 ## Acceptance record
 
 Evidence types: UNIT = component test with labeled test doubles of native slots/units, decisions from production
-domain code; CONTRACT = installed-assembly
+domain code; ARCHIVE = production archive DTO, validator and codec compiled from this worktree; ADAPTER = actual
+production methods compiled against typed facades; CONTRACT = installed-assembly
 reflection; COMPOSITION = real transpilers, substituted engine boundaries; TRACE = source/decompilation reading;
 NATIVE = in-game structured evidence.
 
@@ -182,8 +210,15 @@ NATIVE = in-game structured evidence.
 | Toolbar persistence | In-world replay never resurrects a removed/moved control; fresh rider still restored | PASS | UNIT |
 | Toolbar persistence | Permanent pet loss in reserve retires; kept pet round-trips; different pet not reused | PASS | UNIT |
 | Toolbar persistence | Occupied slot, another rider, unrelated slots | PASS | UNIT |
-| Toolbar persistence | Archive row bound: exact fit kept, 127 + an absent rider's 2 rows refused (validator predicate) | PASS | UNIT |
-| Toolbar persistence | Actual capture/restore methods through the archive adapters | NOT RUN | adapters pre-existing broken (see above) |
+| Toolbar persistence | Native cleanup with the fact active again before the update returns the slot once; live removal stays | PASS | UNIT |
+| Toolbar persistence | Save header before the next update keeps a just-invalidated binding (6 + one 7); live removal saves 7 only; cold restore | PASS | UNIT |
+| Toolbar persistence | Move or removal right before a roster departure is what the reserve save and the return keep | PASS | UNIT |
+| Toolbar persistence | Same pet link briefly unresolved keeps the slot; cleared link retires it | PASS | UNIT |
+| Toolbar persistence | Removal right after a save scope's lease release stays removed through save and load | PASS | UNIT |
+| Toolbar persistence | Archive: 128 rows round-trip ids/indices/kinds; 127 + 2 refused ("Owned archive control slots are not bounded."); off-bar record round-trips | PASS | ARCHIVE (production DTO/validator/codec) |
+| Toolbar persistence | Actual archive capture requests absent arrangements; archive presentation restores as a loaded world | PASS | ADAPTER (six-pair, 22/0) |
+| Toolbar persistence | Actual area restore replays in-world | NOT RUN | adapter does not compile at base or candidate (base-tree errors) |
+| Toolbar persistence | `MechanicActionBarSlotAbility.IsBad` override identity and its use by GetSlot/CleanupBadSlots | PASS | CONTRACT |
 | Toolbar persistence | Native bad-slot replacement this relies on | PASS | CONTRACT |
 | Toolbar persistence | Save/load in and out of the real capital, forced dismount, pet unavailability in game | NOT RUN | NATIVE (prerequisites below) |
 | City companion UI | Owner/pet mapping, order, exact instance, multiple pets, no duplicates, repeated opening | PASS | UNIT |

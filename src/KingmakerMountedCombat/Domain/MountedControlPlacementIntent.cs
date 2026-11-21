@@ -63,6 +63,10 @@ namespace KingmakerMountedCombat.Domain
             if (entries.TryGetValue(actorId, out entry)) entry.Interrupted = true;
         }
 
+        // Native bad-slot cleanup decided this actor's public-control slot is bad (its fact was gone or inactive): a
+        // temporary absence, whatever the fact's state by the next reconciliation.
+        public void ObserveNativeSlotInvalidated(string actorId) => ObserveAbsent(actorId, MountedControlAbsence.Temporary);
+
         // A saved arrangement: a slot row (index >= 0) or a placement record without a slot (OffBar). A freshly loaded
         // world takes it as is. A replay of rows captured earlier in the same world (area transfer, retained remount)
         // never overrides what has been observed since: it is used only for an actor with no arrangement yet.
@@ -114,7 +118,11 @@ namespace KingmakerMountedCombat.Domain
             if (actorId == null) return -1;
             if (!controlLive)
             {
-                ObserveAbsent(actorId, controlDesired ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+                // Not leaseable now is not proof of loss: a pet that does not resolve this update, or whose reciprocal
+                // link is momentarily unavailable, keeps the arrangement while the persistent pet link (petId) still
+                // names the same companion. A cleared or different link retires it (Revalidate).
+                if (!controlDesired && !Revalidate(actorId, true, true, petId)) return -1;
+                ObserveAbsent(actorId, MountedControlAbsence.Temporary);
                 return -1;
             }
             // Recorded before the arrangement is read: a replacement is a return from absence, never a removal.
@@ -128,9 +136,14 @@ namespace KingmakerMountedCombat.Domain
 
         // At a boundary that empties the slots (a save scope or an area unload), before they are emptied: the
         // arrangement on the bar now is authoritative (a move or removal since the last update included).
+        // Also at a roster departure, before the departing rider's KMC slots are emptied. A slot still holding the public
+        // control is the player's choice even if its fact is momentarily inactive. No slot holding it is the player's
+        // removal unless an absence is already recorded: native bad-slot cleanup is observed as an absence when it
+        // decides (ObserveNativeSlotInvalidated), and KMC's own slot clearing records one, so neither reaches here as a
+        // removal. controlLive is kept for the caller's record; the decision does not depend on it.
         public void ObserveAtBoundary(string actorId, bool controlLive, int boundIndex, bool alreadyPlaced, string petId)
         {
-            if (actorId == null || !controlLive) return;
+            if (actorId == null) return;
             if (boundIndex >= 0) ObserveBound(actorId, boundIndex, petId);
             else ObserveUnboundAtBoundary(actorId, alreadyPlaced, petId);
         }

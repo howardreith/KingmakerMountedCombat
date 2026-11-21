@@ -39,6 +39,8 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedPatchController : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
+        // Kingmaker 2.1.7b MechanicActionBarSlotAbility.IsBad override, pinned in Test-AssemblyContracts.ps1.
+        internal const int NativeAbilitySlotIsBadToken = 0x06002F6E;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -159,6 +161,9 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "OnClick", 0x06002F5D,
                     Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
+                // Toolbar persistence: native bad-slot cleanup's decision on the public control's slot (observation only).
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "IsBad", NativeAbilitySlotIsBadToken,
+                    Type.EmptyTypes, null, nameof(PatchMethods.PublicSlotBadPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
@@ -572,6 +577,11 @@ namespace KingmakerMountedCombat.Integration
             internal static void CharacterSheetNamePostfix(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController __instance)
             {
                 CompanionNameService.Current?.Sheet.Refresh(__instance);
+            }
+
+            internal static void PublicSlotBadPostfix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance, bool __result)
+            {
+                if (__result) PatchBridge.NativeControls?.ObserveInvalidatedPublicSlot(__instance);
             }
 
             internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)

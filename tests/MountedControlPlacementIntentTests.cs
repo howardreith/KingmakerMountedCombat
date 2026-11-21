@@ -28,6 +28,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: permanent pet loss in reserve retires the arrangement; a kept pet round-trips", PermanentLossInReserve);
             runner.Run("toolbar: occupied slots, other riders and unrelated slots are never overwritten", OccupiedAndIndependent);
             runner.Run("toolbar: absent arrangement rows are exactly a slot row and a record, or a record alone", AbsentRows);
+            runner.Run("toolbar: native cleanup with the fact active again before the next update still returns the slot once", NativeCleanupReactivated);
+            runner.Run("toolbar: a save header before the next update keeps a just-invalidated binding; a live removal saves a record only", HeaderBeforeUpdate);
+            runner.Run("toolbar: a move or removal right before a roster departure is what the reserve keeps", DepartureEditIsAuthoritative);
+            runner.Run("toolbar: a party rider whose same pet link briefly does not resolve keeps its slot; a cleared link retires it", UnresolvedPetKeepsArrangement);
+            runner.Run("toolbar: removing the shortcut right after a save scope returns it stays removed through save and load", RemovalAfterLeaseRelease);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -40,13 +45,16 @@ namespace KingmakerMountedCombat.Tests
             internal HashSet<string> Placed;
             internal readonly string[] Slots = new string[140];
             internal bool Candidate = true, OnRoster = true, FactLive, Autofill = true;
+            // PetId: the persistent pet link (UnitDescriptor.PetUniqueId); PetResolves: the pet object and its reciprocal
+            // master resolve this update (what ShouldLease needs).
             internal string PetId = "horse-1";
+            internal bool PetResolves = true;
             private readonly List<int> leases = new List<int>();
 
             internal Rider(string id, MountedControlPlacementIntent intent, HashSet<string> placed)
             { Id = id; Intent = intent; Placed = placed; }
 
-            internal bool Desired => PetId != null;
+            internal bool Desired => PetId != null && PetResolves;
             internal int Find() => Array.IndexOf(Slots, Control);
             internal int Count() => Slots.Count(s => s == Control);
 
@@ -69,8 +77,15 @@ namespace KingmakerMountedCombat.Tests
                 }
             }
 
-            // Native bad-slot cleanup after the fact went inactive or was replaced by native, rider still a candidate.
-            internal void NativeInvalidate() { FactLive = false; var at = Find(); if (at >= 0) Slots[at] = null; }
+            // Native bad-slot cleanup: the fact went inactive (or was replaced natively), native IsBad answered true for
+            // the public slot (the production postfix records ObserveNativeSlotInvalidated) and the slot was emptied.
+            // reactivated: the fact is active again before the next KMC update.
+            internal void NativeInvalidate(bool reactivated = false)
+            {
+                var at = Find();
+                if (at >= 0) { Intent.ObserveNativeSlotInvalidated(Id); Slots[at] = null; }
+                FactLive = reactivated;
+            }
 
             // KMC removes the facts and empties the KMC slots (area unload) after observing the bar at the boundary.
             internal void AreaUnload()
@@ -80,60 +95,61 @@ namespace KingmakerMountedCombat.Tests
                 FactLive = false; Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
             }
 
-            // The capital moves the rider to the reserve roster: it leaves the candidates, KMC empties its slots.
+            // The capital moves the rider to the reserve roster: the departure loop observes its bar, records the
+            // absence, then KMC empties its slots and removes its facts.
             internal void ToReserve()
             {
-                Candidate = false; FactLive = false;
+                Intent.ObserveAtBoundary(Id, FactLive, Find(), Placed.Contains(Id), PetId);
                 Intent.ObserveAbsent(Id, OnRoster ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
                 var at = Find(); if (at >= 0) Slots[at] = null;
+                Candidate = false; FactLive = false;
             }
 
             internal void ToParty() { Candidate = true; }
 
-            // The owned archive rows this rider contributes to a save (CaptureLiveSlots, then CaptureAbsentIntent).
+            // CapturePersistentSlots(includeAbsentIntent: true) at the archive header, before the save scope:
+            // ClassifyArrangementsForCapture, CaptureLiveSlots, then CaptureAbsentIntent with one placement record.
             internal List<SavedRow> Capture()
             {
                 var rows = new List<SavedRow>();
-                if (Candidate && FactLive)
+                var written = false;
+                if (Candidate)
                 {
-                    var at = Find();
-                    if (at >= 0) rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState });
-                    if (Placed.Contains(Id)) rows.Add(new SavedRow { Actor = Id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
-                    return rows;
+                    Intent.ObserveAtBoundary(Id, FactLive, Find(), Placed.Contains(Id), PetId);
+                    if (!FactLive && (Desired || Intent.Revalidate(Id, true, true, PetId)))
+                        Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
+                    if (FactLive)
+                    {
+                        var at = Find();
+                        if (at >= 0) { rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState }); written = true; }
+                        if (Placed.Contains(Id)) rows.Add(new SavedRow { Actor = Id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
+                    }
                 }
-                Intent.Revalidate(Id, true, OnRoster, PetId);
+                else Intent.Revalidate(Id, true, OnRoster, PetId);
                 int index;
-                if (Intent.TryGetArrangement(Id, out index))
-                    rows.AddRange(MountedControlSlotPolicy.AbsentArrangementRows(index).Select(r => new SavedRow { Actor = Id, Index = r.Key, Kind = r.Value }));
+                if (!written && Intent.TryGetArrangement(Id, out index))
+                    foreach (var r in MountedControlSlotPolicy.AbsentArrangementRows(index))
+                        if (r.Value != MountedControlSlotPolicy.SavedPlacementRecord || !rows.Any(x => x.Kind == MountedControlSlotPolicy.SavedPlacementRecord))
+                            rows.Add(new SavedRow { Actor = Id, Index = r.Key, Kind = r.Value });
                 return rows;
             }
 
-            // A save: boundary observation, leases, fact removal, capture, then release (re-lease, reconcile, restore).
+            // A save, in production order: the archive header capture, then the save scope (boundary observation,
+            // leases, fact removal), its release (re-lease and reconcile with the leases pending), then the lease
+            // restore, which records the rebind. No extra update follows.
             internal List<SavedRow> Save()
             {
+                var rows = Capture();
                 if (Candidate)
                 {
                     Intent.ObserveAtBoundary(Id, FactLive, Find(), Placed.Contains(Id), PetId);
                     var at = Find(); if (at >= 0) { leases.Add(at); Slots[at] = null; }
-                }
-                var rows = CaptureWithLeases();
-                if (Candidate)
-                {
                     FactLive = false; Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
                     Frame();
-                    foreach (var at in leases) if (Slots[at] == null && FactLive) Slots[at] = Control;
+                    foreach (var leased in leases)
+                        if (Slots[leased] == null && FactLive) { Slots[leased] = Control; Intent.ObserveBound(Id, leased, PetId); }
                     leases.Clear();
-                    Frame();
                 }
-                return rows;
-            }
-
-            // The archive capture of a live rider reads the bar as it stood at the boundary (leased slots included).
-            private List<SavedRow> CaptureWithLeases()
-            {
-                foreach (var at in leases) Slots[at] = Control;
-                var rows = Capture();
-                foreach (var at in leases) Slots[at] = null;
                 return rows;
             }
 
@@ -156,7 +172,7 @@ namespace KingmakerMountedCombat.Tests
             internal Rider Load(List<SavedRow> rows)
             {
                 var loaded = new Rider(Id, new MountedControlPlacementIntent(), new HashSet<string>(StringComparer.Ordinal))
-                { Candidate = Candidate, OnRoster = OnRoster, PetId = PetId, Autofill = Autofill };
+                { Candidate = Candidate, OnRoster = OnRoster, PetId = PetId, PetResolves = PetResolves, Autofill = Autofill };
                 for (var i = 0; i < Slots.Length; i++) if (Slots[i] != Control) loaded.Slots[i] = Slots[i];
                 loaded.Restore(rows, true);
                 return loaded;
@@ -318,6 +334,84 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(second.Find() == 2 && second.Slots[9] == "Bow", "Another rider's bar changed.");
             first.Slots[9] = null; first.AreaUnload(); first.Frame();
             TestRunner.Equal(-1, first.Find(), "A slot given up to another ability was used later.");
+        }
+
+        private static void NativeCleanupReactivated()
+        {
+            var rider = PlacedAt(9);
+            rider.NativeInvalidate(reactivated: true);
+            TestRunner.True(rider.Find() == -1 && rider.FactLive, "The double did not model an off/cleanup/on cycle before the update.");
+            rider.Frame(); rider.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "A slot emptied by native cleanup was taken for a removal once the fact was back.");
+            // Control: a manual removal on a continuously active fact stays removed.
+            rider.Slots[9] = null; rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "A manual removal on a continuously active fact was reversed.");
+        }
+
+        private static void HeaderBeforeUpdate()
+        {
+            foreach (var reactivated in new[] { false, true })
+            {
+                var rider = PlacedAt(9);
+                rider.NativeInvalidate(reactivated);
+                var rows = rider.Save(); // the archive header runs before any control update
+                TestRunner.True(rows.Count(r => r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Kind == 7) == 1 && rows.Count == 2,
+                    "A save before the next update omitted the just-invalidated binding (reactivated=" + reactivated + ").");
+                var loaded = rider.Load(rows); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "Cold restore did not return the control to slot 9 (reactivated=" + reactivated + ").");
+            }
+            var remover = PlacedAt(9);
+            remover.Slots[9] = null; // live manual removal, no update before the save
+            var removalRows = remover.Save();
+            TestRunner.True(removalRows.Count == 1 && removalRows[0].Kind == 7, "A live manual removal saved a slot row.");
+        }
+
+        private static void DepartureEditIsAuthoritative()
+        {
+            var mover = PlacedAt(9);
+            mover.Slots[9] = null; mover.Slots[3] = Control; // no update before the departure
+            mover.ToReserve();
+            var rows = mover.Save();
+            TestRunner.True(rows.Count(r => r.Kind == 6) == 1 && rows.Single(r => r.Kind == 6).Index == 3, "The reserve save kept the old slot after a move.");
+            mover.ToParty(); mover.Frame();
+            TestRunner.True(mover.Find() == 3 && mover.Count() == 1 && mover.Slots[9] == null, "The returning rider did not get the moved slot.");
+            var remover = PlacedAt(9, "remover");
+            remover.Slots[9] = null;
+            remover.ToReserve();
+            var removalRows = remover.Save();
+            TestRunner.True(removalRows.Count == 1 && removalRows[0].Kind == 7, "The reserve save of a removal carried a slot row.");
+            remover.ToParty(); remover.Frame(); remover.Frame();
+            TestRunner.Equal(-1, remover.Find(), "The removed control came back after the reserve roster.");
+        }
+
+        private static void UnresolvedPetKeepsArrangement()
+        {
+            var rider = PlacedAt(9);
+            rider.PetResolves = false; // same PetUniqueId, the pet object or its reciprocal link unavailable this update
+            rider.NativeInvalidate();
+            rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "The control stayed on the bar without a leaseable fact.");
+            rider.PetResolves = true; rider.Frame(); rider.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The briefly unresolved pet lost the chosen slot.");
+            // Confirmed permanent loss: the pet link is cleared while unresolved.
+            var lost = PlacedAt(9, "lost");
+            lost.PetResolves = false; lost.PetId = null; lost.NativeInvalidate(); lost.Frame();
+            lost.PetId = "horse-1"; lost.PetResolves = true; lost.Frame(); lost.Frame();
+            TestRunner.Equal(-1, lost.Find(), "A cleared pet link kept the old arrangement.");
+        }
+
+        private static void RemovalAfterLeaseRelease()
+        {
+            var rider = PlacedAt(9);
+            rider.Save();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The save scope did not restore the leased slot.");
+            rider.Slots[9] = null; // removed before the first control update after the scope
+            rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "A removal right after the save scope was reversed.");
+            var rows = rider.Save();
+            TestRunner.True(rows.Count == 1 && rows[0].Kind == 7, "The next save carried a slot row for a removed control.");
+            var loaded = rider.Load(rows); loaded.Frame();
+            TestRunner.Equal(-1, loaded.Find(), "Loading resurrected the removed control.");
         }
 
         private static void AbsentRows()

@@ -1762,7 +1762,11 @@ namespace KingmakerMountedCombat.Integration
                 // character that is present now (a new load keeps actor ids) records nothing about that character.
                 var presentNow = prior.UniqueId != null && candidates.Any(unit => unit != null && unit.UniqueId == prior.UniqueId);
                 if (!presentNow)
+                {
+                    // Its bar as the player last left it (a move or removal since the last update included).
+                    ObserveArrangementOnBar(prior);
                     RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+                }
                 RemoveManagedFacts(prior, true, !presentNow);
                 observedUnits.Remove(prior);
             }
@@ -1887,6 +1891,22 @@ namespace KingmakerMountedCombat.Integration
                 "; slot=" + index + ".");
         }
 
+        // Native MechanicActionBarSlotAbility.IsBad answered true for a slot holding the public control: native
+        // UnitUISettings.GetSlot / CleanupBadSlots is about to replace (or rebind) it because its fact is gone or
+        // inactive. That is never the player's removal, even if the fact is active again by the next update. Only the
+        // public control is observed; every other slot is ignored.
+        internal void ObserveInvalidatedPublicSlot(MechanicActionBarSlotAbility slot)
+        {
+            if (disposed || mountStateAbility == null || slot == null ||
+                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility)) return;
+            var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
+            if (unit?.UniqueId == null) return;
+            placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId);
+            NativeSlotInvalidationCount++;
+        }
+
+        internal long NativeSlotInvalidationCount { get; private set; }
+
         private bool HasPendingSerializationLease(UnitEntityData unit) =>
             hotbarSerializationLeases.Any(lease => ReferenceEquals(lease.Unit, unit));
 
@@ -1895,16 +1915,20 @@ namespace KingmakerMountedCombat.Integration
         private void ObserveArrangementsAtBoundary()
         {
             if (mountStateAbility == null) return;
-            foreach (var unit in CollectCurrentCandidateUnits())
-            {
-                var id = unit?.UniqueId;
-                var slots = unit?.UISettings?.Slots;
-                var control = unit?.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-                if (id == null || slots == null || control == null || !control.Active) continue;
-                var bound = Array.FindIndex(slots, slot =>
-                    ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
-                placementIntent.ObserveAtBoundary(id, true, bound, placementRecorded.Contains(id), unit.Descriptor?.PetUniqueId);
-            }
+            foreach (var unit in CollectCurrentCandidateUnits()) ObserveArrangementOnBar(unit);
+        }
+
+        // One rider's bar as it stands now (binding by blueprint, whatever its fact's state), before KMC empties it.
+        private void ObserveArrangementOnBar(UnitEntityData unit)
+        {
+            var id = unit?.UniqueId;
+            var slots = unit?.UISettings?.Slots;
+            if (id == null || slots == null || mountStateAbility == null) return;
+            var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+            var bound = Array.FindIndex(slots, slot =>
+                ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+            placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
+                unit.Descriptor?.PetUniqueId);
         }
 
         private void RecordAbsence(UnitEntityData unit, MountedControlAbsence absence)
@@ -2099,9 +2123,30 @@ namespace KingmakerMountedCombat.Integration
         {
             var result = new List<SavedMountedSlot>();
             if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();
+            // The archive header can run before the next control update: classify the bar and the fact first, so a
+            // binding native cleanup just invalidated, or a fact that is momentarily unavailable, is captured as the
+            // remembered slot rather than omitted, and a live control the player removed stays a removal.
+            if (includeAbsentIntent && !legacySchema && enabled) ClassifyArrangementsForCapture();
             var written = CaptureLiveSlots(result, legacySchema);
             if (includeAbsentIntent && !legacySchema && enabled) CaptureAbsentIntent(result, written);
             return result.ToArray();
+        }
+
+        private void ClassifyArrangementsForCapture()
+        {
+            if (mountStateAbility == null) return;
+            foreach (var unit in CollectCurrentCandidateUnits())
+            {
+                var id = unit?.UniqueId;
+                if (id == null) continue;
+                ObserveArrangementOnBar(unit);
+                var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+                if (control != null && control.Active) continue;
+                // The same rule as an update: not leaseable now retires the arrangement only on pet-link evidence.
+                var petId = unit.Descriptor?.PetUniqueId;
+                if (!ShouldLease(unit, NativeMountedControlKind.MountState) && !placementIntent.Revalidate(id, true, true, petId)) continue;
+                placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+            }
         }
 
         // An absent rider's arrangement: its chosen slot (kind 6) and its placement record (kind 7), or the placement
@@ -2120,11 +2165,16 @@ namespace KingmakerMountedCombat.Integration
                     !MountedSaveData.ActorId(actorId) ||
                     characters.Count(unit => unit != null && unit.UniqueId == actorId) != 1) continue;
                 foreach (var row in MountedControlSlotPolicy.AbsentArrangementRows(index))
+                {
+                    // A live rider whose control waits to return already wrote its placement record: one per actor.
+                    if (row.Value == MountedControlSlotPolicy.SavedPlacementRecord &&
+                        result.Any(saved => saved.ActorId == actorId && saved.Kind == MountedControlSlotPolicy.SavedPlacementRecord)) continue;
                     result.Add(new SavedMountedSlot { ActorId = actorId, Index = row.Key, Kind = row.Value });
+                }
             }
         }
 
-        // Returns the actors that already have a live public-control row.
+        // Returns the actors that already have a live public-control slot row (kind 6 or its legacy shell kind).
         private HashSet<string> CaptureLiveSlots(List<SavedMountedSlot> result, bool legacySchema)
         {
             var written = new HashSet<string>(StringComparer.Ordinal);
@@ -2156,7 +2206,6 @@ namespace KingmakerMountedCombat.Integration
                 {
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = 0,
                         Kind = MountedControlSlotPolicy.SavedPlacementRecord });
-                    written.Add(unit.UniqueId);
                 }
             }
             return written;
@@ -2300,6 +2349,9 @@ namespace KingmakerMountedCombat.Integration
                     lease.Unit.UISettings.SetSlot(
                         new MechanicActionBarSlotAbility { Unit = lease.Unit, Ability = fact.Data },
                         lease.Index);
+                    // The public control is live in its slot again: a removal from now on is the player's.
+                    if (ReferenceEquals(lease.Blueprint, mountStateAbility) && lease.Unit.UniqueId != null)
+                        placementIntent.ObserveBound(lease.Unit.UniqueId, lease.Index, lease.Unit.Descriptor?.PetUniqueId);
                 }
             }
             hotbarSerializationLeases.Clear();
