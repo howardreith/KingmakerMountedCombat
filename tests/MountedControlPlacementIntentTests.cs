@@ -68,6 +68,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: saving a live older alias before migration writes the chosen index once with unique archive keys", LiveAliasSaveFirst);
             runner.Run("toolbar: a leased older alias is not restored for a companion that replaced the old one during the scope", AliasLeaseAfterCompanionChange);
             runner.Run("toolbar: native cleanup of an inactive older alias before any update keeps its index for the same pet", AliasNativeCleanupFirst);
+            runner.Run("toolbar: a mixed bar saved first (live alias at 3, canonical at 9, current or stale) restores one control at 9", MixedBarSaveFirst);
+            runner.Run("toolbar: a live alias with the canonical fact inactive saves its binding and its placement record", LiveAliasCanonicalInactive);
+            runner.Run("toolbar: removing an alias the save scope returned, before the next update, stays removed through save and load", AliasRemovedAfterLeaseRelease);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -252,6 +255,9 @@ namespace KingmakerMountedCombat.Tests
             internal bool PetResolves = true;
             // A mounted or faulted relationship still grants the public control (Dismount), whatever the pet link says.
             internal bool RelationshipGrants;
+            // The older Mount / Dismount shell fact's activity, independent of the canonical public fact when set.
+            internal bool? ShellLiveOverride;
+            internal bool ShellLive => ShellLiveOverride ?? FactLive;
             // The rider's own stock Charge fact is available.
             internal bool HasStockCharge = true;
             internal int DataVersion = 1;
@@ -360,19 +366,16 @@ namespace KingmakerMountedCombat.Tests
             // CaptureLiveSlots: only callable live data is written.
             internal void CaptureLive(List<SavedRow> rows, HashSet<string> written)
             {
-                if (!FactLive) return;
-                var at = Find();
-                if (at >= 0 && Slots[at] == Data && Desired) { rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState }); written.Add(Id); }
-                // A live older alias (bound to its leased shell) is written with its own kind, and it is the public binding.
-                for (var i = 0; i < Slots.Length && i <= 127; i++)
+                // Production slot order and precedence (MountedControlSlotPolicy.LivePublicRows): the canonical binding is
+                // callable when it holds the live data; an older alias when its own shell fact is live.
+                var kinds = Slots.Select(Service.KindOf).ToArray();
+                foreach (var r in MountedControlSlotPolicy.LivePublicRows(kinds,
+                    i => Desired && (kinds[i] == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive),
+                    S.Placed.Contains(Id), FactLive))
                 {
-                    var kind = Service.KindOf(Slots[i]);
-                    if (MountedControlSlotPolicy.RepairLiveSlot(kind) != MountedControlSlotRepair.MountState || !Desired) continue;
-                    var saved = kind == NativeMountedControlKind.MountCompanion ? MountedControlSlotPolicy.SavedMountCompanion : MountedControlSlotPolicy.SavedDismount;
-                    rows.Add(new SavedRow { Actor = Id, Index = i, Kind = saved });
-                    if (MountedControlSlotPolicy.IsPublicBindingRow(saved)) written.Add(Id);
+                    rows.Add(new SavedRow { Actor = Id, Index = r.Key, Kind = r.Value });
+                    if (r.Value == MountedControlSlotPolicy.SavedMountState) written.Add(Id);
                 }
-                if (S.Placed.Contains(Id)) rows.Add(new SavedRow { Actor = Id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
             }
 
             // CaptureAndClearManagedHotbarSlots: every KMC binding (the public control and an older alias) is leased.
@@ -396,8 +399,10 @@ namespace KingmakerMountedCombat.Tests
                     var at = lease.Key;
                     if (Slots[at] != null || !FactLive || World != S.Current || !InParty) continue;
                     if (MountedControlSlotPolicy.IsPublicControlKind(lease.Value) && !Intent.AllowsLeaseRestore(Id, at, PetId)) continue;
-                    if (lease.Value == NativeMountedControlKind.MountState) { Slots[at] = Data; Intent.ObserveBound(Id, at, PetId); }
+                    if (lease.Value == NativeMountedControlKind.MountState) Slots[at] = Data;
                     else Slots[at] = (lease.Value == NativeMountedControlKind.MountCompanion ? "KMC_Mount#" : "KMC_Dismount#") + DataVersion;
+                    // The public control, or the alias standing for it, is live in its slot again.
+                    if (MountedControlSlotPolicy.IsPublicControlKind(lease.Value)) Intent.ObserveBound(Id, at, PetId);
                 }
                 leases.Clear();
             }
@@ -1476,6 +1481,80 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(fenced.AbandonLoad(owner), "The owning scope could not abandon its load.");
             outgoing.PetResolves = true; fenced.Frame(); fenced.Frame();
             TestRunner.True(outgoing.Find() == 9 && outgoing.Count() == 1, "The abandoned load lost the alias index recorded while fenced.");
+        }
+
+        private static void MixedBarSaveFirst()
+        {
+            foreach (var stale in new[] { false, true })
+            {
+                // A party rider before migration: a callable older Mount at 3 (lower index), the canonical control at 9
+                // (current data, or stale AbilityData from an earlier fact), unrelated slots around them.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                rider.Slots[0] = "Attack";
+                rider.Slots[5] = "Potion";
+                rider.Slots[3] = "KMC_Mount#1";
+                rider.Slots[9] = stale ? Control + "#0" : rider.Data;
+                var rows = service.Save();
+                var label = " (stale=" + stale + ")";
+                TestRunner.True(UniqueArchiveKeys(rows) && rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                    rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 9, "The archive did not choose the canonical index 9" + label + ".");
+                // The world that saved keeps the same choice after the scope and the next update.
+                service.Frame();
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.Slots[3] == null, "The saving world moved the control off 9" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1 && loaded.Slots[3] == null && loaded.KmcCount() == 1,
+                    "The cold load did not restore one control at 9 with slot 3 empty" + label + ".");
+                TestRunner.True(loaded.Slots[0] == "Attack" && loaded.Slots[5] == "Potion", "An unrelated slot changed" + label + ".");
+            }
+        }
+
+        private static void LiveAliasCanonicalInactive()
+        {
+            foreach (var alias in new[] { "KMC_Mount#1", "KMC_Dismount#1" })
+            {
+                // The eligible rider's older shell is live while the canonical public fact is inactive or missing; no prior
+                // placement record; the save header runs before migration.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = false, ShellLiveOverride = true, Autofill = false };
+                rider.Slots[9] = alias;
+                var rows = service.Save();
+                var label = " (" + alias + ")";
+                TestRunner.True(UniqueArchiveKeys(rows) && rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                    rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind) && r.Index == 9) == 1 &&
+                    rows.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1 && rows.Count == 2,
+                    "The archive did not hold one binding at 9 and one placement record" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "The reload did not restore one control at 9" + label + ".");
+            }
+        }
+
+        private static void AliasRemovedAfterLeaseRelease()
+        {
+            // The scope ends with the same pet and returns the alias at 9; the player removes it before the next update.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+            rider.Slots[0] = "Attack";
+            rider.Slots[9] = "KMC_Mount#0";
+            rider.Save(() => { rider.PetResolves = true; });
+            TestRunner.True(Service.KindOf(rider.Slots[9]) == NativeMountedControlKind.MountCompanion, "The scope did not return the alias at 9.");
+            rider.Slots[9] = null;                       // removed before migration
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == -1 && rider.KmcCount() == 0 && rider.Slots[0] == "Attack", "The next update put the removed shortcut back.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count == 1 && rows[0].Kind == MountedControlSlotPolicy.SavedPlacementRecord, "The save after the removal carried more than the placement record.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.Equal(-1, loaded.Find(), "Loading resurrected the removed shortcut.");
+            // Control: the untouched returned alias migrates once at 9.
+            var kept = new Service();
+            var untouched = new Rider("rider", kept, kept.Current) { PetResolves = false, Autofill = false };
+            untouched.Slots[9] = "KMC_Mount#0";
+            untouched.Save(() => { untouched.PetResolves = true; });
+            kept.Frame(); kept.Frame();
+            TestRunner.True(untouched.Find() == 9 && untouched.Count() == 1 && untouched.KmcCount() == 1, "The untouched alias did not migrate once at 9.");
         }
 
         private static void RemovalAfterLeaseRelease()

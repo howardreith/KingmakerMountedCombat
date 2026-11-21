@@ -87,37 +87,84 @@ internal static class ArchiveControlRowBoundTests
             True(absent.Length == 1 && absent[0].Kind == MountedControlSlotPolicy.SavedPlacementRecord && absent[0].Index == 0,
                 "An off-bar arrangement did not round-trip as one placement record.");
         });
-        foreach (var aliasKind in new[] { MountedControlSlotPolicy.SavedMountCompanion, MountedControlSlotPolicy.SavedDismount })
+        foreach (var alias in new[] { NativeMountedControlKind.MountCompanion, NativeMountedControlKind.Dismount })
         {
-            Check("save-first capture of a live older alias (kind " + aliasKind + ") at 9 passes the production codec with one public binding at 9", () =>
+            Check("a live older alias (" + alias + ") at 9 with the canonical fact inactive and no prior record emits one binding and one record through the production codec", () =>
             {
-                // CaptureLiveSlots: the live alias row and the placement record; then CaptureAbsentIntent's rows for the
-                // same actor's recovered arrangement (interrupted at 9) come from MountedControlSlotPolicy.AbsentRowsAfterLive.
-                var actor = ActorId(300);
-                var rows = new[]
-                {
-                    new SavedMountedSlot { ActorId = actor, Index = 9, Kind = aliasKind },
-                    new SavedMountedSlot { ActorId = actor, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
-                }.ToList();
-                foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(9, rows.Select(r => r.Kind)))
-                    rows.Add(new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value });
-                var read = MountedArchiveCodec.Decode(MountedArchiveCodec.Encode(Archive(rows.ToArray())));
-                True(read.Kind == MountedSaveReadKind.Current && read.Data != null, "The archive did not round-trip: " + read.Feedback);
-                var decoded = read.Data.Slots;
-                True(decoded.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
-                    decoded.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 9 &&
-                    MountedControlSlotPolicy.RestoreSavedSlot(decoded.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Kind) == MountedControlSlotRepair.MountState &&
-                    decoded.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1 && decoded.Length == 2,
-                    "The archive does not hold exactly one restorable public binding at 9 and one placement record.");
+                // CaptureLiveSlots' public rows (MountedControlSlotPolicy.LivePublicRows) for a bar in production slot
+                // order: the alias at 9 is callable (its shell is live), the canonical fact is inactive, and the placement
+                // was recorded only by the alias recovery. Then CaptureAbsentIntent's rows for the recovered arrangement.
+                var kinds = Bar(9, alias);
+                var rows = Emit(ActorId(300), kinds, i => i == 9, placementRecorded: true, publicControlActive: false, absentIndex: 9);
+                var decoded = RoundTrip(rows);
+                ExpectOnePublicBinding(decoded, 9);
                 // Control: the duplicate-key check is intact; the same choice written twice is refused.
-                var twice = rows.Concat(new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState } }).ToArray();
-                string error = null;
-                try { MountedArchiveCodec.Encode(Archive(twice)); }
-                catch (InvalidDataException refusal) { error = refusal.Message; }
-                True(error != null && error.Contains("Invalid or duplicate owned archive control slot."), "The duplicate-key check did not refuse a repeated index: " + error);
+                ExpectDuplicateRefused(rows.Concat(new[] { new SavedMountedSlot { ActorId = ActorId(300), Index = 9, Kind = (int)alias } }).ToArray());
+            });
+        }
+        foreach (var stale in new[] { false, true })
+        {
+            Check("a mixed bar (live alias at 3, canonical at 9" + (stale ? " with stale data" : "") + ") saved first restores the canonical index 9 through the production codec", () =>
+            {
+                // Production slot order: the alias comes first. Its shell is callable; the canonical binding is callable
+                // unless its AbilityData is stale (then classification carries 9 as the remembered slot).
+                var kinds = Bar(3, NativeMountedControlKind.MountCompanion, 9, NativeMountedControlKind.MountState);
+                var rows = Emit(ActorId(301), kinds, i => i == 3 || (i == 9 && !stale), placementRecorded: true, publicControlActive: true,
+                    absentIndex: stale ? 9 : (int?)null);
+                var decoded = RoundTrip(rows);
+                ExpectOnePublicBinding(decoded, 9);
+                True(!decoded.Any(r => r.Index == 3 && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The alias slot 3 was written as a binding.");
             });
         }
         Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);
         return failed == 0 ? 0 : 1;
+    }
+
+    private static NativeMountedControlKind[] Bar(int index, NativeMountedControlKind kind, int secondIndex = -1,
+        NativeMountedControlKind secondKind = NativeMountedControlKind.None)
+    {
+        var kinds = new NativeMountedControlKind[140];
+        kinds[index] = kind;
+        if (secondIndex >= 0) kinds[secondIndex] = secondKind;
+        return kinds;
+    }
+
+    // NativeMountedControlService.CapturePersistentSlots for one rider: the live public rows, then (absentIndex: the
+    // remembered arrangement classification recorded) the remembered rows composed after them.
+    private static SavedMountedSlot[] Emit(string actor, NativeMountedControlKind[] kinds, Func<int, bool> callable, bool placementRecorded,
+        bool publicControlActive, int? absentIndex)
+    {
+        var rows = MountedControlSlotPolicy.LivePublicRows(kinds, callable, placementRecorded, publicControlActive)
+            .Select(row => new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value }).ToList();
+        var writtenBinding = rows.Any(r => r.Kind == MountedControlSlotPolicy.SavedMountState);
+        if (absentIndex.HasValue && !writtenBinding)
+            foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(absentIndex.Value, rows.Select(r => r.Kind).ToArray()))
+                rows.Add(new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value });
+        return rows.ToArray();
+    }
+
+    private static SavedMountedSlot[] RoundTrip(SavedMountedSlot[] rows)
+    {
+        var read = MountedArchiveCodec.Decode(MountedArchiveCodec.Encode(Archive(rows)));
+        True(read.Kind == MountedSaveReadKind.Current && read.Data != null, "The archive did not round-trip: " + read.Feedback);
+        return read.Data.Slots;
+    }
+
+    // RestorePersistentSlots seeds the first public-binding row per actor: it must be the only one, at the expected index.
+    private static void ExpectOnePublicBinding(SavedMountedSlot[] decoded, int index)
+    {
+        var bindings = decoded.Where(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).ToArray();
+        True(bindings.Length == 1 && bindings[0].Index == index &&
+            MountedControlSlotPolicy.RestoreSavedSlot(bindings[0].Kind) == MountedControlSlotRepair.MountState,
+            "The archive does not hold exactly one restorable public binding at " + index + ".");
+        True(decoded.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1, "The archive does not hold exactly one placement record.");
+    }
+
+    private static void ExpectDuplicateRefused(SavedMountedSlot[] rows)
+    {
+        string error = null;
+        try { MountedArchiveCodec.Encode(Archive(rows)); }
+        catch (InvalidDataException refusal) { error = refusal.Message; }
+        True(error != null && error.Contains("Invalid or duplicate owned archive control slot."), "The duplicate-key check did not refuse a repeated index: " + error);
     }
 }

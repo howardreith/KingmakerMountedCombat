@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
@@ -69,6 +70,25 @@ namespace KingmakerMountedCombat.Domain
         // live writer emits the alias kind while a live alias awaits migration, or the legacy schema's shell kinds).
         public static bool IsPublicBindingRow(int savedKind) =>
             savedKind != SavedPlacementRecord && RestoreSavedSlot(savedKind) == MountedControlSlotRepair.MountState;
+
+        // The current archive's live public rows for one rider. The public binding is chosen before anything is
+        // emitted, with ReconcilePublicControlSlots' precedence (RecoveredPublicSlot): the bar's first canonical binding
+        // when one is there, otherwise its first exact older alias. Only that one slot is written, as kind 6, and only
+        // when it is callable live data. A stale canonical binding is not written here (the remembered-row writer
+        // carries its index), and an alias never stands in for a canonical binding on the same bar. The placement
+        // record is accounted separately: written when the rider has it and either the public control is live or this
+        // capture wrote the public binding (a live alias with the canonical fact still inactive).
+        public static IList<KeyValuePair<int, int>> LivePublicRows(IList<NativeMountedControlKind> kinds, Func<int, bool> callable,
+            bool placementRecorded, bool publicControlActive)
+        {
+            var result = new List<KeyValuePair<int, int>>();
+            var at = RecoveredPublicSlot(kinds);
+            if (at >= 0 && IsValidSavedRow(at, SavedMountState) && callable != null && callable(at))
+                result.Add(new KeyValuePair<int, int>(at, SavedMountState));
+            if (placementRecorded && (publicControlActive || result.Count > 0))
+                result.Add(new KeyValuePair<int, int>(0, SavedPlacementRecord));
+            return result;
+        }
 
         // The rows an absent arrangement adds for one actor after the live writer ran, given the kinds it already wrote
         // for that actor. None when the live writer already wrote the actor's public binding (the effective choice; the

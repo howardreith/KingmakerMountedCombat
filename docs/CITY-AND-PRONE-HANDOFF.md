@@ -215,6 +215,20 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   While a selected load fences the world, the index goes to the load scope's outgoing records
   (`MountedControlLoadFence.AdmitOutgoingSurvivingBinding`).
 
+**Round 11 additions.**
+- *The current archive chooses the public binding first (R11-F1, R10-F1):* in the current schema `CaptureLiveSlots`
+  no longer emits public bindings slot by slot. `MountedControlSlotPolicy.LivePublicRows` chooses one slot with the
+  repair precedence (`RecoveredPublicSlot`: the canonical binding when the bar has one, otherwise the first exact
+  older alias). It writes that slot as kind 6 only when the binding is callable live data. A stale canonical binding
+  is carried by the remembered-row writer at its own index, and an alias never stands in for a canonical binding on
+  the same bar. The placement record is accounted separately: it is written when the rider has one and either the
+  public control is live or this capture wrote the binding, which covers a live alias with the canonical fact still
+  inactive. The held legacy-schema writer keeps its per-slot shell rows, and restore reads every older archive as
+  before.
+- *Removal of a returned alias (R2-F4):* when the save scope's lease release returns an older alias, it now records
+  the live arrangement at that slot (`ObserveBound`), as it already did for the canonical control. Removing the alias
+  before its migration is the player's removal.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -352,12 +366,23 @@ passed: components 1461/0 with the three new tests passing, Validate-Source 153/
 alias-codec checks, focused 5/5. A mutation run then made two decisions canonical-only again: `AbsentRowsAfterLive`'s
 public-binding check and `IsPublicControlKind`. It exited 1 (FAIL lines truncated), and the decisions were restored
 before commit. The toolbar double models the live alias writer, alias leases and alias cleanup; the native `IsBad`
-call order on older bars is not exercised offline. The controller gate on the round-10 commit is the result of record.
-| components (`bin\Tests`) | 1461/0 | 41 toolbar, 6 city-roster and 3 downed-target tests |
+call order on older bars is not exercised offline. The controller gate then passed on `ddbe460f` in 47.7 s.
+Round 11: the first local Fast run failed on a wrong assertion in the new mixed-bar test (it checked the earlier world's
+rider object after a load, which departure cleanup empties by design). To see the failing check, PASS output was
+silenced temporarily in `tests/TestRunner.cs`; that change was reverted before commit and is absent from the diff.
+The assertion was moved before the load. The next run passed: components 1464/0, archive bound 7/0, focused 5/5.
+Mutation runs with FAIL lines visible:
+- Slot-order binding choice plus a placement record tied to the canonical fact failed exactly "a mixed bar saved first
+  ... restores one control at 9" and "a live alias with the canonical fact inactive saves its binding and its
+  placement record".
+- Removing the alias `ObserveBound` from the double's lease release (the pre-fix production line) failed exactly
+  "removing an alias the save scope returned ... stays removed".
+All mutations were reverted. The controller gate on the round-11 commit is the result of record.
+| components (`bin\Tests`) | 1464/0 | 44 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
-| `Test-CityArchiveRowBound.ps1` (via wrapper) | 5/0 (adds both live-alias codec checks) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
+| `Test-CityArchiveRowBound.ps1` (via wrapper) | 7/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
 | `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 

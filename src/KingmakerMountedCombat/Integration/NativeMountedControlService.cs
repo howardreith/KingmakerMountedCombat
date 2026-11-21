@@ -2473,6 +2473,17 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Callable live data of an exact KMC binding: the rider still gets that control, its fact is active, and the slot
+        // holds that fact's own data cast by the rider. Native hotbars can retain AbilityData after its runtime fact was
+        // removed by a real dismount; that is not a live binding and must not require inventing a fact after loading.
+        private bool IsCallableLiveBinding(UnitEntityData unit, MechanicActionBarSlotAbility slot, NativeMountedControlKind kind)
+        {
+            var ability = slot?.Ability;
+            if (unit == null || ability == null || kind == NativeMountedControlKind.None || !ShouldLease(unit, kind)) return false;
+            var fact = unit.Descriptor?.Abilities?.GetAbility(ability.Blueprint);
+            return fact != null && fact.Active && ReferenceEquals(fact.Data, ability) && ability.Caster?.Unit == unit;
+        }
+
         // Exactly the conditions under which CaptureLiveSlots writes a public-control slot row (non-legacy schema).
         private bool LiveCaptureWritesPublicSlot(UnitEntityData unit, MechanicActionBarSlotAbility slot)
         {
@@ -2497,31 +2508,31 @@ namespace KingmakerMountedCombat.Integration
             {
                 var slots = unit?.UISettings?.Slots;
                 if (slots == null) continue;
+                var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
                 // Saved indices are bounded to 0-127 by the archive contract; a binding further out is not persisted.
                 for (var i = 0; i < slots.Length && i <= 127; i++)
                 {
-                    var ability = (slots[i] as MechanicActionBarSlotAbility)?.Ability;
-                    var kind = ResolveKind(ability?.Blueprint);
-                    if (kind == NativeMountedControlKind.None || !ShouldLease(unit, kind)) continue;
-                    var fact = unit.Descriptor.Abilities.GetAbility(ability.Blueprint);
-                    // Native hotbars can retain AbilityData after its runtime fact
-                    // was removed by a real dismount. That is not a live control
-                    // binding and must not require inventing a fact after loading.
-                    if (fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability) || ability.Caster?.Unit != unit) continue;
+                    var kind = kinds[i];
+                    // The current schema writes the public binding once, chosen below; the held legacy writer keeps its
+                    // per-slot shell rows.
+                    if (!legacySchema && MountedControlSlotPolicy.IsPublicControlKind(kind)) continue;
+                    if (!IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kind)) continue;
                     var savedKind = legacySchema && kind == NativeMountedControlKind.MountState
                         ? (int)ResolveMountStateIntent(unit) : (int)kind;
                     if (legacySchema && savedKind > MountedControlSlotPolicy.SavedMountPrimary) continue;
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = savedKind });
-                    // A live older Mount / Dismount alias is the public binding too (it restores as the public control).
-                    if (MountedControlSlotPolicy.IsPublicBindingRow(savedKind) && unit.UniqueId != null) written.Add(unit.UniqueId);
                 }
-                // The one-placement record travels with a live public control only, so a disabled or removed KMC writes none.
+                if (legacySchema || unit.UniqueId == null) continue;
+                // The public binding (canonical first, else the first exact older alias; callable only) and the placement
+                // record, accounted separately (MountedControlSlotPolicy.LivePublicRows). A disabled or removed KMC writes
+                // no placement record.
                 var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-                if (!legacySchema && enabled && publicControl != null && publicControl.Active && unit.UniqueId != null &&
-                    placementRecorded.Contains(unit.UniqueId))
+                foreach (var row in MountedControlSlotPolicy.LivePublicRows(kinds,
+                    i => IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kinds[i]),
+                    enabled && placementRecorded.Contains(unit.UniqueId), publicControl != null && publicControl.Active))
                 {
-                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = 0,
-                        Kind = MountedControlSlotPolicy.SavedPlacementRecord });
+                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = row.Key, Kind = row.Value });
+                    if (row.Value == MountedControlSlotPolicy.SavedMountState) written.Add(unit.UniqueId);
                 }
             }
             return written;
@@ -2673,8 +2684,9 @@ namespace KingmakerMountedCombat.Integration
                     lease.Unit.UISettings.SetSlot(
                         new MechanicActionBarSlotAbility { Unit = lease.Unit, Ability = fact.Data },
                         lease.Index);
-                    // The public control is live in its slot again: a removal from now on is the player's.
-                    if (ReferenceEquals(lease.Blueprint, mountStateAbility) && lease.Unit.UniqueId != null)
+                    // The public control, or the older alias standing for it, is live in its slot again: a removal from now
+                    // on is the player's (before the alias's migration too).
+                    if (MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(lease.Blueprint)) && lease.Unit.UniqueId != null)
                         placementIntent.ObserveBound(lease.Unit.UniqueId, lease.Index, lease.Unit.Descriptor?.PetUniqueId);
                 }
             }
