@@ -44,6 +44,11 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
+        // A slot binding that stands for the rider's one public Mount / Dismount control: the public control itself, or
+        // an older exact Mount or Dismount binding that repair turns into it.
+        public static bool IsPublicControlBinding(NativeMountedControlKind kind) =>
+            kind == NativeMountedControlKind.MountState || RepairLiveSlot(kind) == MountedControlSlotRepair.MountState;
+
         public static MountedControlSlotRepair RestoreSavedSlot(int savedKind)
         {
             switch (savedKind)

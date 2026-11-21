@@ -36,64 +36,113 @@ namespace KingmakerMountedCombat.Domain
 
         private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>(StringComparer.Ordinal);
 
+        // Actors whose arrangement was retired on evidence of permanent loss in this world (companion removed or
+        // replaced, rider gone from the roster) and that have had no new arrangement observed since. Rows captured
+        // earlier in the same world (an area transfer, a retained remount) predate the retirement and never recreate
+        // it; a freshly loaded world starts without any.
+        private readonly HashSet<string> retired = new HashSet<string>(StringComparer.Ordinal);
+
         public int Count => entries.Count;
 
         public bool Has(string actorId) => actorId != null && entries.ContainsKey(actorId);
 
+        public bool IsRetired(string actorId) => actorId != null && retired.Contains(actorId);
+
         // The live control was seen in this slot: this is the player's current arrangement (a move updates it).
+        // An empty pet link never overwrites the companion identity already known for this actor.
         public void ObserveBound(string actorId, int index, string petId)
         {
             if (actorId == null || index < 0) return;
-            entries[actorId] = new Entry { Index = index, Interrupted = false, PetId = petId };
+            entries[actorId] = new Entry { Index = index, Interrupted = false, PetId = KnownPetId(actorId, petId) };
+            retired.Remove(actorId);
         }
 
         // The live control is on no slot by the player's choice (or the placement found a full bar).
         public void ObserveOffBar(string actorId, string petId)
         {
             if (actorId == null) return;
-            entries[actorId] = new Entry { Index = OffBar, Interrupted = false, PetId = petId };
+            entries[actorId] = new Entry { Index = OffBar, Interrupted = false, PetId = KnownPetId(actorId, petId) };
+            retired.Remove(actorId);
+        }
+
+        private string KnownPetId(string actorId, string petId)
+        {
+            Entry entry;
+            return string.IsNullOrEmpty(petId) && entries.TryGetValue(actorId, out entry) ? entry.PetId : petId;
         }
 
         // The control is not live for this actor. Temporary absence keeps the arrangement; permanent loss forgets it.
         public void ObserveAbsent(string actorId, MountedControlAbsence absence)
         {
             if (actorId == null) return;
-            if (absence == MountedControlAbsence.Permanent) { entries.Remove(actorId); return; }
+            if (absence == MountedControlAbsence.Permanent) { Retire(actorId); return; }
             Entry entry;
             if (entries.TryGetValue(actorId, out entry)) entry.Interrupted = true;
+        }
+
+        // Positive evidence that the companion an arrangement belongs to is gone, checked before any observation can
+        // overwrite the stored identity: the pet link names a different companion (always), or it is cleared while
+        // the rider no longer gets the control (a mounted rider whose relationship faulted still gets it and keeps its
+        // slot). controlDesired: the rider still gets the public control now; barHoldsControl: a slot on its bar holds
+        // the public control. Retires the arrangement (and blocks older in-world rows); the caller then clears the
+        // rider's public-control slots. Returns true when it retired something.
+        public bool RetireOnCompanionLoss(string actorId, string petId, bool controlDesired, bool barHoldsControl)
+        {
+            if (actorId == null) return false;
+            var replaced = PetLinkChanged(actorId, petId);
+            var cleared = !controlDesired && string.IsNullOrEmpty(petId) && (entries.ContainsKey(actorId) || barHoldsControl);
+            if (!replaced && !cleared) return false;
+            Retire(actorId);
+            return true;
         }
 
         // Native bad-slot cleanup decided the public-control slot at slotIndex on this actor's bar is bad (its fact was
         // gone or inactive): that slot is the player's current choice (a move or first manual placement since the last
         // update included), and its emptying is a temporary absence, whatever the fact's state by the next update.
-        // The companion identity is checked first, before anything overwrites the stored pet link: a cleared link, or one
-        // naming another companion, is positive evidence that the companion the slot belonged to was removed, so the
-        // arrangement is retired (a later companion cannot inherit it). Returns true when the slot was remembered.
-        public bool ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId)
+        // The companion identity is checked first (RetireOnCompanionLoss), before anything could overwrite the stored
+        // pet link, so a later companion cannot inherit the slot. Returns true when the slot was remembered.
+        public bool ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId, bool controlDesired)
         {
             if (actorId == null || slotIndex < 0) return false;
-            if (string.IsNullOrEmpty(petId) || PetLinkChanged(actorId, petId)) { entries.Remove(actorId); return false; }
+            if (RetireOnCompanionLoss(actorId, petId, controlDesired, true)) return false;
             ObserveBound(actorId, slotIndex, petId);
             ObserveAbsent(actorId, MountedControlAbsence.Temporary);
             return true;
         }
 
+        // An older save: a current-world rider that is not reconciled now (the reserve roster) still carries a native
+        // public-control binding in slotIndex, with no arrangement of its own. The binding is the player's choice
+        // (recovered as a return from absence) when the rider's pet link names a companion; a cleared or different link
+        // retires instead. An arrangement already known, or retired in this world, wins over the binding. Returns true
+        // when the slot was recovered; the caller clears the binding either way (it has no fact behind it).
+        public bool AdmitSurvivingBinding(string actorId, int slotIndex, string petId)
+        {
+            if (actorId == null || slotIndex < 0) return false;
+            if (string.IsNullOrEmpty(petId) || PetLinkChanged(actorId, petId)) { Retire(actorId); return false; }
+            if (entries.ContainsKey(actorId) || retired.Contains(actorId)) return false;
+            entries[actorId] = new Entry { Index = slotIndex, Interrupted = true, PetId = petId };
+            return true;
+        }
+
         // A saved arrangement: a slot row (index >= 0) or a placement record without a slot (OffBar). A freshly loaded
         // world takes it as is. A replay of rows captured earlier in the same world (area transfer, retained remount)
-        // never overrides what has been observed since: it is used only for an actor with no arrangement yet.
+        // never overrides what has been observed since: it is used only for an actor with no arrangement yet, and
+        // never for one whose arrangement was retired since (the rows predate that loss).
         public void Seed(string actorId, int index, bool loadedWorld)
         {
             if (actorId == null || index < OffBar) return;
-            if (!loadedWorld && entries.ContainsKey(actorId)) return;
+            if (!loadedWorld && (entries.ContainsKey(actorId) || retired.Contains(actorId))) return;
             entries[actorId] = new Entry { Index = index, Interrupted = true, PetId = null };
+            retired.Remove(actorId);
         }
 
         // Whether a saved slot row may be written into this slot now: only when it is the actor's current arrangement
-        // (or the actor has none). A later observed move or removal wins over an older row.
+        // (or the actor has none and none was retired). A later observed move, removal or loss wins over an older row.
         public bool AllowsSavedSlot(string actorId, int index)
         {
             Entry entry;
-            return actorId != null && (!entries.TryGetValue(actorId, out entry) || entry.Index == index);
+            if (actorId == null || retired.Contains(actorId)) return false;
+            return !entries.TryGetValue(actorId, out entry) || entry.Index == index;
         }
 
         // The control is live but no slot holds it. Returns the slot to put it back in, or -1. Only a return from
@@ -181,7 +230,7 @@ namespace KingmakerMountedCombat.Domain
             if (!onPlayerRoster || string.IsNullOrEmpty(currentPetId) ||
                 entry.PetId != null && !string.Equals(entry.PetId, currentPetId, StringComparison.Ordinal))
             {
-                entries.Remove(actorId);
+                Retire(actorId);
                 return false;
             }
             if (entry.PetId == null) entry.PetId = currentPetId;
@@ -227,16 +276,19 @@ namespace KingmakerMountedCombat.Domain
             var copy = new MountedControlPlacementIntent();
             foreach (var pair in entries)
                 copy.entries[pair.Key] = new Entry { Index = pair.Value.Index, Interrupted = pair.Value.Interrupted, PetId = pair.Value.PetId };
+            copy.retired.UnionWith(retired);
             return copy;
         }
 
-        // Replaces every arrangement with an exact copy of another record set.
+        // Replaces every arrangement (and retirement) with an exact copy of another record set.
         public void ReplaceWith(MountedControlPlacementIntent other)
         {
             entries.Clear();
+            retired.Clear();
             if (other == null) return;
             foreach (var pair in other.entries)
                 entries[pair.Key] = new Entry { Index = pair.Value.Index, Interrupted = pair.Value.Interrupted, PetId = pair.Value.PetId };
+            retired.UnionWith(other.retired);
         }
 
         public IEnumerable<string> ActorIds => entries.Keys;
@@ -246,7 +298,15 @@ namespace KingmakerMountedCombat.Domain
             if (actorId != null) entries.Remove(actorId);
         }
 
-        public void Clear() => entries.Clear();
+        // Forgets the arrangement on evidence of permanent loss; older in-world rows cannot recreate it.
+        public void Retire(string actorId)
+        {
+            if (actorId == null) return;
+            entries.Remove(actorId);
+            retired.Add(actorId);
+        }
+
+        public void Clear() { entries.Clear(); retired.Clear(); }
     }
 
     // The load boundary of the placement records. A selected load clears them when its native iterator starts
@@ -316,10 +376,10 @@ namespace KingmakerMountedCombat.Domain
         // current): the observation goes to the outgoing records the scope keeps, so an abandoned load gets the slot
         // back exactly; a successful replacement drops it with them. False (nothing recorded) when not fenced on
         // currentWorld or when the observation proves the companion was removed.
-        public bool ObserveOutgoingSlotInvalidated(object currentWorld, string actorId, int slotIndex, string petId)
+        public bool ObserveOutgoingSlotInvalidated(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired)
         {
             if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
-            return outgoingIntent.ObserveNativeSlotInvalidated(actorId, slotIndex, petId);
+            return outgoingIntent.ObserveNativeSlotInvalidated(actorId, slotIndex, petId, controlDesired);
         }
 
         public void Reset() => Release();

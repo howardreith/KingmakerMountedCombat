@@ -147,6 +147,23 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   slot returns once in the surviving world; a successful world replacement drops them with the rest of the outgoing
   records.
 
+**Round 7 additions.**
+- *Companion loss at every boundary (R4-F2):* `RetireOnCompanionLoss` (domain `MountedControlPlacementIntent`
+  method of the same name) replaces the pet-change check at each update, every bar observation (save header, area
+  suspension, departures) and the native cleanup report. It retires on a link naming another companion (as before),
+  and also on a cleared link while the rider no longer gets the control. A mounted rider whose relationship faulted
+  still gets the control and keeps its slot. An empty link never overwrites the companion identity already stored.
+  A retired actor is remembered for the rest of the world. An in-world replay (area transfer, retained remount) of
+  rows captured before the retirement neither seeds nor writes that slot. A freshly loaded world starts with none.
+  Same-id temporary non-resolution keeps and restores the slot as before.
+- *Older capital saves (R7-F1):* `AdmitReserveBindings` runs at each update, at the save header's classification and
+  at the save scope. Once per unit object it looks at current-world riders on the reserve or detached roster that are
+  neither candidates nor still observed. An identifiable public-control binding (the public control, or an older exact
+  Mount or Dismount binding) of a rider whose pet link names a companion is recovered as its chosen slot, with its
+  placement record. Every KMC binding on that bar is then cleared, since no fact stands behind it, and unrelated slots
+  are untouched. A cleared link recovers nothing and still clears the binding. The save scope also leases any KMC
+  binding still on a reserve or detached bar. Disable and disposal clear those bindings too.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -264,8 +281,13 @@ fence ignored the outgoing cleanup, the cleanup observer re-recorded an empty li
 runs, with and without build; the tool output was truncated before the FAIL lines, and the only changes from the
 all-pass round-5 tree were those two tests and the stub). After the fix, one local Fast run (with build) on the
 uncommitted tree passed (components 1449/0 with both new tests passing, Validate-Source 153/0, focused 5/5, area
-comparison against the previous HEAD); the controller gate on the round-6 commit is the result of record.
-| components (`bin\Tests`) | 1449/0 | 29 toolbar, 6 city-roster and 3 downed-target tests |
+comparison against the previous HEAD); the controller gate then passed on `d27728b3` in 23.7 s. Round 7: one local
+Fast run (with build) on the fixed, uncommitted tree passed (components 1452/0 with the three new tests passing,
+Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD). A mutation run on the same tree then
+reverted four of the new domain decisions: the cleared-link retirement, the replay block, the reserve recovery and
+the identity preservation. That run exited 1; the tool output was truncated before the FAIL lines. The fix was
+restored before commit. The controller gate on the round-7 commit is the result of record.
+| components (`bin\Tests`) | 1452/0 | 32 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
@@ -370,7 +392,10 @@ Current prerequisites, per case (none run on this candidate):
    Save and load inside the capital and outside; the slot holds.
 2. Remove the shortcut from the bar; visit the capital, save there, load, leave: it does not come back. Move it to
    another slot and save at once; load: it is in the new slot only. Put another ability where it was before a visit:
-   it is not overwritten.
+   it is not overwritten. If an older capital save exists in which a reserve companion still shows Mount / Dismount
+   on its bar, load it, save at once in the capital, reload and bring that companion into the party: the shortcut
+   comes back in the same slot, once. With a second, dismounted rider, release or replace its Horse just before an
+   area transition (while another pair is mounted): its old slot stays empty for the new companion.
 3. A mercenary/custom companion with a Horse: in the capital open Inventory (I) and Character (C): the Horse appears
    after its owner; select it, check its name, statistics and barding/neck slots, equip and unequip an item; close and
    reopen; save, load and reopen. No duplicate portraits. Disable Mounted Combat in UMM: the Horse is no longer listed;

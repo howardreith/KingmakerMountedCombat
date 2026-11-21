@@ -55,6 +55,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a superseded load releases only its own fence; an unstarted replacement leaves controls running", SupersededLoadFence);
             runner.Run("toolbar: native cleanup with a cleared pet link, then a new pet before any update, retires the old slot", ClearedLinkCleanupThenNewPet);
             runner.Run("toolbar: native cleanup during a load that is abandoned returns the slot in the surviving world", CleanupDuringAbandonedLoad);
+            runner.Run("toolbar: a pet link cleared at area suspension, then a new pet before resume, leaves the old slot retired", SuspensionClearedLinkThenNewPet);
+            runner.Run("toolbar: an area replay captured before a change of pets never gives the old slot to the new pet", ReplayAfterPetChangeDuringSuspension);
+            runner.Run("toolbar: an older capital save's surviving reserve binding is saved as its slot, never serialized, and cleared on disable", OlderCapitalSaveReserveBinding);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -75,9 +78,56 @@ namespace KingmakerMountedCombat.Tests
             internal IEnumerable<Rider> CurrentWorld => Riders.Where(r => r.World == Current);
             internal List<Rider> Candidates => CurrentWorld.Where(r => r.InParty).ToList();
 
+            // AdmitReserveBindings: once per rider object, a never-observed reserve rider's surviving public binding (an
+            // older save) is recovered when its pet link names a companion; its KMC bindings are cleared either way.
+            internal readonly HashSet<Rider> Scanned = new HashSet<Rider>();
+            internal IEnumerable<Rider> Reserve => CurrentWorld.Where(r => !r.InParty && r.OnRoster);
+            internal void AdmitReserve()
+            {
+                if (!Accepts) return;
+                foreach (var reserve in Reserve.ToList())
+                {
+                    if (Observed.Contains(reserve) || !Scanned.Add(reserve)) continue;
+                    var at = reserve.Find();
+                    if (at < 0) continue;
+                    if (Intent.AdmitSurvivingBinding(reserve.Id, at, reserve.PetId)) Placed.Add(reserve.Id);
+                    reserve.ClearControlSlots();
+                }
+            }
+
+            // KMC bindings on any current-world bar while the save serializes (after the leases).
+            internal int SerializedKmcSlots = -1;
+
+            // An in-world replay of rows captured earlier (area transfer): RestorePersistentSlots(rows, false) seeds,
+            // runs an update, then writes the allowed slots.
+            internal void Replay(List<SavedRow> rows)
+            {
+                foreach (var rider in CurrentWorld.ToList()) rider.Restore(rows, false);
+                Frame();
+                foreach (var rider in CurrentWorld.ToList()) rider.WriteRestoredSlot(rows);
+            }
+
+            // The live capture an area transfer keeps in memory (no absent intent).
+            internal List<SavedRow> CaptureTransfer()
+            {
+                var rows = new List<SavedRow>();
+                var written = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var rider in Candidates) rider.CaptureLive(rows, written);
+                return rows;
+            }
+
+            // SetEnabled(false): reserve bindings cleared, then every candidate and observed unit's facts and KMC slots.
+            internal void Disable()
+            {
+                foreach (var reserve in Reserve.ToList()) reserve.ClearControlSlots();
+                foreach (var rider in Candidates.Concat(Observed).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: true);
+                Observed.Clear(); Placed.Clear(); Intent.Clear(); Fence.Reset(); Scanned.Clear();
+            }
+
             internal void Frame()
             {
                 if (!Accepts) return; // Update returns before ReconcileFacts while a selected load's outgoing world is current
+                AdmitReserve();
                 var candidates = Candidates;
                 foreach (var rider in candidates) { rider.Reconcile(); if (!Observed.Contains(rider)) Observed.Add(rider); }
                 foreach (var prior in Observed.Where(r => !candidates.Contains(r)).ToList())
@@ -100,6 +150,7 @@ namespace KingmakerMountedCombat.Tests
             // A save in production order; returns the owned archive rows.
             internal List<SavedRow> Save()
             {
+                AdmitReserve();
                 var candidates = Candidates;
                 foreach (var prior in Observed.Where(r => !candidates.Contains(r)).ToList()) ObserveDeparture(prior, candidates);
                 foreach (var rider in candidates) rider.Classify();
@@ -117,10 +168,12 @@ namespace KingmakerMountedCombat.Tests
                         if (r.Value != MountedControlSlotPolicy.SavedPlacementRecord || !rows.Any(x => x.Actor == id && x.Kind == r.Value))
                             rows.Add(new SavedRow { Actor = id, Index = r.Key, Kind = r.Value });
                 }
-                // The save scope over candidates and still-observed units.
-                foreach (var rider in candidates) Intent.ObserveAtBoundary(rider.Id, rider.FactLive, rider.Find(), Placed.Contains(rider.Id), rider.PetId);
+                // The save scope over candidates and still-observed units (reserve riders' bindings are leased too).
+                AdmitReserve();
+                foreach (var rider in candidates) rider.ObserveBar();
                 var scoped = candidates.Concat(Observed).Distinct().ToList();
-                foreach (var rider in scoped) rider.Lease();
+                foreach (var rider in scoped.Concat(Reserve).Distinct().ToList()) rider.Lease();
+                SerializedKmcSlots = CurrentWorld.Sum(r => r.Count());
                 foreach (var rider in scoped) rider.KmcRemove(clearSlots: false, interrupt: rider.World == Current);
                 Frame();
                 foreach (var rider in scoped) rider.ReleaseLeases();
@@ -179,13 +232,18 @@ namespace KingmakerMountedCombat.Tests
 
             internal void Frame() => S.Frame();
 
+            internal void ClearControlSlots()
+            {
+                for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
+            }
+
             // One candidate's reconciliation in ReconcileFacts.
-            // RetireOnPetChange: a different nonempty pet link retires the arrangement and clears the public slots.
+            // RetireOnCompanionLoss: a different pet link, or a cleared one while the rider no longer gets the control,
+            // retires the arrangement and clears the public slots.
             internal bool RetireOnPetChange()
             {
-                if (!Intent.PetLinkChanged(Id, PetId)) return false;
+                if (!Intent.RetireOnCompanionLoss(Id, PetId, Desired, Find() >= 0)) return false;
                 for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
-                Intent.Forget(Id);
                 return true;
             }
 
@@ -216,7 +274,7 @@ namespace KingmakerMountedCombat.Tests
 
             internal void ObserveBar()
             {
-                RetireOnPetChange();
+                if (RetireOnPetChange()) return;
                 Intent.ObserveAtBoundary(Id, FactLive, Find(), S.Placed.Contains(Id), PetId);
             }
 
@@ -275,8 +333,8 @@ namespace KingmakerMountedCombat.Tests
                 if (at >= 0)
                 {
                     // While a selected load fences this world, the observation goes to the scope's outgoing records.
-                    if (!S.Accepts) S.Fence.ObserveOutgoingSlotInvalidated(S.Current, Id, at, PetId);
-                    else if (!RetireOnPetChange()) Intent.ObserveNativeSlotInvalidated(Id, at, PetId);
+                    if (!S.Accepts) S.Fence.ObserveOutgoingSlotInvalidated(S.Current, Id, at, PetId, Desired);
+                    else if (!RetireOnPetChange()) Intent.ObserveNativeSlotInvalidated(Id, at, PetId, Desired);
                     Slots[at] = null;
                 }
                 FactLive = reactivated;
@@ -892,6 +950,118 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(replaced.Save().Count == 0, "The loaded world kept the outgoing world's cleanup.");
             reserve.ToParty(); replaced.Frame(); replaced.Frame();
             TestRunner.Equal(-1, reserve.Find(), "The loaded world reproduced the outgoing slot.");
+        }
+
+        private static void SuspensionClearedLinkThenNewPet()
+        {
+            foreach (var resolvesAtResume in new[] { true, false })
+            {
+                var service = new Service();
+                var mounted = PlacedAt(5, "mounted", service);  // the mounted pair keeps area suspension relevant
+                var rider = PlacedAt(9, "rider", service);      // dismounted, pet A's control in slot 9
+                rider.PetId = null; rider.PetResolves = false;  // the link clears before the area unloads
+                service.SuspendArea();
+                rider.PetId = "horse-2"; rider.PetResolves = resolvesAtResume; // pet B linked before resume
+                service.Frame();                                 // resume
+                rider.PetResolves = true; service.Frame(); service.Frame();
+                TestRunner.True(rider.Find() == -1 && rider.Slots[9] == null && rider.Slots[0] == "Attack",
+                    "Pet B received pet A's slot 9 after suspension, or another slot changed (resolvesAtResume=" + resolvesAtResume + ").");
+                var rows = service.Save();
+                TestRunner.True(!rows.Any(r => r.Actor == "rider" && r.Kind == 6), "The next save carried a slot row for pet B (resolvesAtResume=" + resolvesAtResume + ").");
+                TestRunner.True(mounted.Find() == 5 && mounted.Count() == 1, "The mounted rider's slot changed.");
+            }
+            // Control: pet A's unchanged id, briefly unresolved across the suspension, returns to slot 9 once.
+            var same = new Service();
+            var sameMounted = PlacedAt(5, "mounted", same);
+            var sameRider = PlacedAt(9, "rider", same);
+            sameRider.PetResolves = false;
+            same.SuspendArea();
+            same.Frame();
+            sameRider.PetResolves = true; same.Frame(); same.Frame();
+            TestRunner.True(sameRider.Find() == 9 && sameRider.Count() == 1, "The same pet id lost slot 9 across suspension.");
+            var sameRows = same.Save();
+            TestRunner.True(sameRows.Count(r => r.Actor == "rider" && r.Kind == 6 && r.Index == 9) == 1, "The same pet's save lost the row at 9.");
+            TestRunner.True(sameMounted.Find() == 5 && sameMounted.Count() == 1, "The mounted rider's slot changed (control).");
+        }
+
+        private static void ReplayAfterPetChangeDuringSuspension()
+        {
+            foreach (var updateBeforeReplay in new[] { true, false })
+            {
+                var service = new Service();
+                var mounted = PlacedAt(5, "mounted", service);
+                var rider = PlacedAt(9, "rider", service);
+                var rows = service.CaptureTransfer();           // the transfer capture holds pet A's row at 9
+                TestRunner.True(rows.Count(r => r.Actor == "rider" && r.Kind == 6 && r.Index == 9) == 1, "The fixture capture lacks pet A's row.");
+                service.SuspendArea();
+                rider.PetId = "horse-2"; rider.PetResolves = false; // pet B linked during suspension, not resolving yet
+                if (updateBeforeReplay) service.Frame();        // resume runs an update first
+                service.Replay(rows);                           // then the transfer rows replay in the same world
+                rider.PetResolves = true; service.Frame(); service.Frame();
+                TestRunner.True(rider.Find() == -1 && rider.Slots[9] == null,
+                    "The replayed row gave pet A's slot 9 to pet B (updateBeforeReplay=" + updateBeforeReplay + ").");
+                var saved = service.Save();
+                TestRunner.True(!saved.Any(r => r.Actor == "rider" && r.Kind == 6), "The next save carried a slot row for pet B (updateBeforeReplay=" + updateBeforeReplay + ").");
+                TestRunner.True(mounted.Find() == 5 && mounted.Count() == 1, "The mounted rider's slot changed.");
+            }
+            // Control: the same capture and replay with pet A's unchanged id briefly unresolved returns to slot 9 once.
+            var same = new Service();
+            PlacedAt(5, "mounted", same);
+            var sameRider = PlacedAt(9, "rider", same);
+            var sameRows = same.CaptureTransfer();
+            same.SuspendArea();
+            sameRider.PetResolves = false;
+            same.Frame();
+            same.Replay(sameRows);
+            sameRider.PetResolves = true; same.Frame(); same.Frame();
+            TestRunner.True(sameRider.Find() == 9 && sameRider.Count() == 1, "The same pet id lost slot 9 through the replay.");
+            TestRunner.True(same.Save().Count(r => r.Actor == "rider" && r.Kind == 6 && r.Index == 9) == 1, "The same pet's save lost the row at 9.");
+        }
+
+        private static Rider StaleReserve(Service service, string petId = "horse-1")
+        {
+            // A fresh world: a reserve owner with its pet link, a native public-control binding left by an older save at 9,
+            // no owned rows and no observation yet.
+            var reserve = new Rider("reserve", service, service.Current) { InParty = false, Autofill = false, PetId = petId };
+            reserve.Slots[0] = "Attack";
+            reserve.Slots[9] = Control + "#0";
+            return reserve;
+        }
+
+        private static void OlderCapitalSaveReserveBinding()
+        {
+            // Save before opening the rider's bar or returning it to the party (no update in between).
+            var service = new Service();
+            var reserve = StaleReserve(service);
+            var rows = service.Save();
+            TestRunner.True(rows.Count(r => r.Actor == "reserve" && r.Kind == 6 && r.Index == 9) == 1 &&
+                rows.Count(r => r.Actor == "reserve" && r.Kind == 7) == 1 && rows.Count == 2,
+                "The resave did not carry exactly the recovered slot row at 9 and one placement record.");
+            TestRunner.Equal(0, service.SerializedKmcSlots, "A KMC binding was on a bar during serialization.");
+            TestRunner.True(reserve.Find() == -1 && reserve.Slots[0] == "Attack", "The surviving binding stayed, or an unrelated slot changed.");
+            // Cold return: the resave loaded into a new world, then the rider rejoins the party.
+            var loaded = reserve.Load(rows);
+            loaded.Frame();
+            loaded.ToParty(); loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1 && loaded.Slots[0] == "Attack", "The cold return did not restore slot 9 once.");
+            // In-world return after the first update admitted the binding.
+            var inWorld = new Service();
+            var returning = StaleReserve(inWorld);
+            inWorld.Frame();
+            TestRunner.True(returning.Find() == -1 && inWorld.Intent.Has("reserve"), "The first update did not recover and clear the binding.");
+            returning.ToParty(); inWorld.Frame(); inWorld.Frame();
+            TestRunner.True(returning.Find() == 9 && returning.Count() == 1, "The returning rider did not get slot 9 once.");
+            // Disable before the rider rejoins clears the surviving binding and keeps unrelated slots.
+            var disabled = new Service();
+            var cleared = StaleReserve(disabled);
+            disabled.Disable();
+            TestRunner.True(cleared.Find() == -1 && cleared.Slots[0] == "Attack", "Disable left the surviving binding, or cleared an unrelated slot.");
+            // Negative: a cleared pet link recovers nothing; the binding is still cleared.
+            var noPet = new Service();
+            var orphan = StaleReserve(noPet, null);
+            var orphanRows = noPet.Save();
+            TestRunner.True(orphanRows.Count == 0 && orphan.Find() == -1 && noPet.SerializedKmcSlots == 0,
+                "A reserve binding without a companion was recovered or serialized.");
         }
 
         private static void RemovalAfterLeaseRelease()

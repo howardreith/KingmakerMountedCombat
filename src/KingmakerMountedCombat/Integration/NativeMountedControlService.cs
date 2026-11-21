@@ -889,6 +889,8 @@ namespace KingmakerMountedCombat.Integration
             else
             {
                 ClearTargetingPresentation("disabled");
+                ClearReserveBindings();
+                reserveScanned.Clear(); reserveScanWorld = null;
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -1239,6 +1241,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             serializationSuspended = true;
+            AdmitReserveBindings();
             ObserveArrangementsAtBoundary();
             CaptureAndClearManagedHotbarSlots();
             RemoveAllManagedFacts(false);
@@ -1447,6 +1450,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             ClearTargetingPresentation("disposed");
+            ClearReserveBindings();
+            reserveScanned.Clear(); reserveScanWorld = null;
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
             loadFence.Reset();
@@ -1741,15 +1746,16 @@ namespace KingmakerMountedCombat.Integration
 
         private void ReconcileFacts()
         {
+            AdmitReserveBindings();
             var candidates = CollectCurrentCandidateUnits();
             foreach (var unit in candidates)
             {
                 RememberUnit(unit);
                 ReconcileRetiredPrimaryReferences(unit);
                 var publicFactReplaced = false;
-                // A direct change of pets retires the old arrangement and its slots before anything below can overwrite
-                // the stored pet link (observation or a stale-slot rebind).
-                RetireOnPetChange(unit);
+                // A removed or replaced companion retires the old arrangement and its slots before anything below can
+                // overwrite the stored pet link (observation or a stale-slot rebind).
+                RetireOnCompanionLoss(unit);
                 // Before this update withdraws, replaces or re-leases the public fact (active or already inactive), the bar
                 // as the player last left it is the arrangement: a removal since the last update stays a removal, while an
                 // absence already recorded (native cleanup, KMC suspension, a load) stays pending. Nothing is observed
@@ -1955,36 +1961,108 @@ namespace KingmakerMountedCombat.Integration
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
             var petId = unit.Descriptor?.PetUniqueId;
+            var desired = ShouldLease(unit, NativeMountedControlKind.MountState);
             if (!ArrangementsAccepted)
             {
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
                 // world, so the observation is kept with the load scope's outgoing records. An abandoned load returns
                 // the slot; a replaced world drops it.
-                if (loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, index, petId))
+                if (loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, index, petId, desired))
                     NativeSlotInvalidationCount++;
                 return;
             }
-            // A slot of a previous companion is not the new companion's choice: it is retired, not remembered.
-            if (RetireOnPetChange(unit)) return;
-            // A cleared pet link retires the arrangement here too, before the stored identity could be overwritten.
-            if (placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, petId)) NativeSlotInvalidationCount++;
+            // A slot of a removed or replaced companion is not the next companion's choice: it is retired, not remembered.
+            if (RetireOnCompanionLoss(unit)) return;
+            if (placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, petId, desired)) NativeSlotInvalidationCount++;
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
 
-        // The persistent pet link now names a different companion than the rider's arrangement was observed with: that
-        // arrangement is retired and the rider's public-control slots are cleared (even on an uninspected bar), so the
-        // new companion cannot inherit the old slot. Returns true when it retired something.
-        private bool RetireOnPetChange(UnitEntityData unit)
+        // Positive evidence that the companion the rider's arrangement belongs to is gone (MountedControlPlacementIntent.
+        // RetireOnCompanionLoss: the pet link names a different companion, or it is cleared while the rider no longer
+        // gets the control). Checked before any observation can overwrite the stored identity (each update, every bar
+        // observation at a boundary, the native cleanup report). The arrangement is retired, older in-world rows cannot
+        // recreate it, and the rider's public-control slots are cleared (even on an uninspected bar), so the next
+        // companion cannot inherit the old slot. Returns true when it retired something.
+        private bool RetireOnCompanionLoss(UnitEntityData unit)
         {
             var id = unit?.UniqueId;
-            if (id == null || mountStateAbility == null || !ArrangementsAccepted ||
-                !placementIntent.PetLinkChanged(id, unit.Descriptor?.PetUniqueId)) return false;
+            if (id == null || mountStateAbility == null || !ArrangementsAccepted) return false;
             var slots = unit.UISettings?.Slots;
+            var barHolds = slots != null && slots.Any(slot =>
+                ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+            if (!placementIntent.RetireOnCompanionLoss(id, unit.Descriptor?.PetUniqueId,
+                ShouldLease(unit, NativeMountedControlKind.MountState), barHolds)) return false;
             if (slots != null) ClearPublicControlSlots(unit, slots);
-            placementIntent.Forget(id);
             return true;
         }
+
+        // An older save can leave a native public-control binding (and other exact KMC bindings) on a current-world
+        // rider that is not reconciled now: a reserve or detached companion that has never been observed in this world.
+        // No fact stands behind such a binding. Once per unit object: an identifiable public-control binding of a
+        // rider whose pet link names a companion is recovered as its chosen slot (a return from absence, with its
+        // placement record); every KMC binding on that bar is then cleared, so neither native serialization nor a
+        // disabled KMC keeps the runtime reference. Unrelated slots keep their content and position. Still-observed
+        // former candidates are left to their departure classification.
+        private void AdmitReserveBindings()
+        {
+            if (disposed || !enabled || mountStateAbility == null || !ArrangementsAccepted) return;
+            var player = Game.Instance?.Player;
+            if (player == null) return;
+            if (!ReferenceEquals(reserveScanWorld, player)) { reserveScanned.Clear(); reserveScanWorld = player; }
+            foreach (var unit in ReserveRosterUnits(CollectCurrentCandidateUnits()))
+            {
+                if (observedUnits.Contains(unit) || !reserveScanned.Add(unit)) continue;
+                var slots = unit.UISettings?.Slots;
+                if (slots == null || CountManagedHotbarSlots(unit) == 0) continue;
+                var bound = Array.FindIndex(slots, slot => MountedControlSlotPolicy.IsPublicControlBinding(
+                    ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)));
+                if (bound >= 0 && placementIntent.AdmitSurvivingBinding(unit.UniqueId, bound, unit.Descriptor?.PetUniqueId))
+                {
+                    placementRecorded.Add(unit.UniqueId);
+                    ReserveBindingsRecovered++;
+                    logger.Info("Surviving Mount / Dismount binding of a reserve rider recovered as its chosen slot: unitId=" +
+                        unit.UniqueId + "; slot=" + bound + ".");
+                }
+                ClearManagedHotbarSlots(unit);
+                MarkBarChanged(unit);
+            }
+        }
+
+        internal long ReserveBindingsRecovered { get; private set; }
+
+        // Disable and disposal: every exact KMC binding on a current-world rider that is not reconciled is cleared too.
+        private void ClearReserveBindings()
+        {
+            foreach (var unit in ReserveRosterUnits(CollectCurrentCandidateUnits()))
+            {
+                if (CountManagedHotbarSlots(unit) == 0) continue;
+                ClearManagedHotbarSlots(unit);
+                MarkBarChanged(unit);
+            }
+        }
+
+        // The current world's player characters on the reserve (remote) roster or detached, that are not candidates now.
+        private static List<UnitEntityData> ReserveRosterUnits(List<UnitEntityData> candidates)
+        {
+            var result = new List<UnitEntityData>();
+            var player = Game.Instance?.Player;
+            if (player == null) return result;
+            foreach (var list in new[] { player.RemoteCompanions, player.DetachedPartyCharacters })
+            {
+                if (list == null) continue;
+                foreach (var reference in list)
+                {
+                    var unit = reference.Value;
+                    if (unit?.UniqueId == null || candidates.Contains(unit) || result.Contains(unit) || !IsOnPlayerRoster(unit)) continue;
+                    result.Add(unit);
+                }
+            }
+            return result;
+        }
+
+        private object reserveScanWorld;
+        private readonly HashSet<UnitEntityData> reserveScanned = new HashSet<UnitEntityData>(new ReferenceIdentity<UnitEntityData>());
 
         // Only slots holding the public control; every other slot keeps its content and position.
         private void ClearPublicControlSlots(UnitEntityData unit, MechanicActionBarSlot[] slots)
@@ -2018,7 +2096,8 @@ namespace KingmakerMountedCombat.Integration
             var id = unit?.UniqueId;
             var slots = unit?.UISettings?.Slots;
             if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
-            RetireOnPetChange(unit);
+            // A removed or replaced companion is retired before the boundary observation could overwrite its identity.
+            if (RetireOnCompanionLoss(unit)) return;
             var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
             var bound = Array.FindIndex(slots, slot =>
                 ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
@@ -2262,6 +2341,8 @@ namespace KingmakerMountedCombat.Integration
         private void ClassifyArrangementsForCapture()
         {
             if (mountStateAbility == null) return;
+            // An older save's surviving binding on a never-observed reserve rider is its chosen slot (captured below).
+            AdmitReserveBindings();
             var candidates = CollectCurrentCandidateUnits();
             // A rider that already left the travelling roster but whose departure cleanup has not run yet: its last bar
             // and its departure classification, exactly as that cleanup will record them.
@@ -2455,7 +2536,10 @@ namespace KingmakerMountedCombat.Integration
         private void CaptureAndClearManagedHotbarSlots()
         {
             hotbarSerializationLeases.Clear();
-            foreach (var unit in CollectCandidateUnits())
+            // Reserve and detached riders too: a binding still on such a bar (none once admitted) is never serialized.
+            var units = CollectCandidateUnits();
+            foreach (var reserve in ReserveRosterUnits(CollectCurrentCandidateUnits())) AddUnique(units, reserve);
+            foreach (var unit in units)
             {
                 var slots = unit?.UISettings?.Slots;
                 if (slots == null)
