@@ -341,6 +341,31 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   report retires the outgoing arrangement (`MountedControlLoadFence.RetireOutgoingOnCompanionLoss`) and clears the
   rider's public bindings at once. An abandoned load cannot hand the rebound binding to the new companion.
 
+**Round 18 additions.**
+- *Copies end when they are emptied (R15-F1, R17-F1):* when native empties a recorded copy, the outcome depends on
+  the chosen slot. If the chosen slot is free, the copy is dropped, so a later placement in that slot is the
+  player's. If the chosen slot is occupied, the copy was the surviving fallback and becomes the interrupted choice,
+  so the same pet's control returns there. `ObserveNativeSlotInvalidated` makes this decision with the chosen-slot
+  state captured at report time (`PendingSlotInvalidation.ChosenFree`). Copies whose slot no longer holds a public
+  binding are also pruned at every observation and repair (`PruneCopies`).
+- *Aborted native operations (R17-F2):* the `GetSlot` bracket now covers only its own slot index (the prefix binds
+  `index`, which is pinned in the contract row). A report counts only if native actually replaced the slot object.
+  Reports left by an operation that never returned are dropped at the next update, never applied, so a standalone
+  read inside a stale scope followed by a player removal changes nothing.
+- *Retired rider batches (R17-F3):* a native report for a retired actor with no arrangement never recreates one
+  (`ObserveNativeSlotInvalidated` and the rebound branch). A second report in the same cleanup batch, fenced or not,
+  therefore cannot give pet A's shortcut to pet B.
+- *All copies removed in repair (R18-F1):* `ReconcilePublicControlSlots` removes every surviving secondary copy,
+  not only the first, before returning the control to the chosen slot.
+- *Secondary aliases (R18-F2):* an alias report counts only when that alias is the bar's selected alias
+  (`LegacyAliasIndex` equals the reported index), in the live and the outgoing records alike.
+- *Target-liveness assertion (R18-F3):* `Test-Harness.ps1` now checks the delegated life rule
+  (`inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget)`, the helper's
+  delegation and `UnifiedMountedStockAttackPolicy.TargetLifeAdmits`). It keeps the termination-policy, attack-completion,
+  in-state and finished-child checks. `scripts/Test-CityTargetLiveness.ps1` evaluates that predicate against this
+  worktree in the focused wrapper, which now has six children. The behavioural controls are
+  `tests/MountedDownedTargetOrderTests.cs`.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -528,8 +553,15 @@ new controller version. Round 17: the `GetSlot` token was read from a passing co
 bound 9/0, focused 5/5. A combined mutation run then reverted five decisions: in the domain, the rebound-copy check,
 recorded copies, the occupied-slot promotion and the fenced retirement; in the double, the native-operation gate,
 which mirrors production. It failed exactly the five new regressions. All mutations were reverted. The controller
-gate on the round-17 commit is the result of record.
-| components (`bin\Tests`) | 1488/0 | 68 toolbar, 6 city-roster and 3 downed-target tests |
+gate then passed on `352c12ac` in 47.2 s. Round 18: one local run on the fixed tree, with PASS lines temporarily
+silenced in `tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1494/0, assembly contracts
+823/0, archive bound 9/0, target liveness 3/0, focused 6/6. A combined mutation run then reverted six decisions:
+- in the domain, copy dropping and fallback promotion, and the retired-actor guard;
+- in the double, each mirroring the production line: discard-on-abort, removal of all copies and the selected-alias
+  check.
+It failed exactly the six new toolbar regressions. All mutations were reverted. The controller gate on the round-18
+commit is the result of record.
+| components (`bin\Tests`) | 1494/0 | 74 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 823/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
@@ -538,7 +570,8 @@ gate on the round-17 commit is the result of record.
 | `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 
 `Test-CityToolbarProneFocused.ps1` is the repository-owned wrapper (the controller's focused gate takes one script
-name) that runs exactly the five checks named in it; nothing broader.
+name) that runs exactly the six checks named in it (the sixth, `Test-CityTargetLiveness.ps1`, added in round 18); nothing
+broader.
 
 ## Acceptance record
 

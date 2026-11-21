@@ -171,7 +171,7 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // GetSlot replaces a bad slot too; an IsBad report counts only inside one of these two native operations.
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "GetSlot", NativeGetSlotToken,
-                    new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
+                    new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.SlotReadPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
@@ -594,6 +594,10 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
                 PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
+
+            // GetSlot(int index, UnitEntityData unit): only that slot belongs to the operation.
+            internal static void SlotReadPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, int index) =>
+                PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance, index);
 
             internal static void BadSlotCleanupPostfix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
                 PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__instance);

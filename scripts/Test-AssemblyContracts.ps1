@@ -1552,7 +1552,7 @@ if($Target-eq'Kingmaker'){
     $getSlotToken=if($null-eq$getSlotExact){0}else{$getSlotExact.MetadataToken}
     $emptyCtorForGetSlot=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false).GetConstructor([Type[]]@())
     Assert-Contract ($null-ne$getSlotExact-and-not$getSlotExact.IsStatic-and$getSlotExact.ReturnType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot'-and
-        $getSlotToken-eq0x06002FFE-and(Test-MethodIlContainsToken $getSlotExact $emptyCtorForGetSlot.MetadataToken)) ('toolbar: UnitUISettings.GetSlot(int, UnitEntityData) replaces a bad slot with a new empty slot, token '+$getSlotToken.ToString('X8'))
+        $getSlotToken-eq0x06002FFE-and$getSlotExact.GetParameters()[0].Name-ceq'index'-and(Test-MethodIlContainsToken $getSlotExact $emptyCtorForGetSlot.MetadataToken)) ('toolbar: UnitUISettings.GetSlot(int index, UnitEntityData) replaces a bad slot with a new empty slot, token '+$getSlotToken.ToString('X8'))
     # What a successful rebind writes (NativeMountedControlService.ResolvePendingBadSlots relies on the resulting live data,
     # not on object identity): CleanupBadSlots constructs one new MechanicActionBarSlotAbility, stores the fact's data in
     # its Ability field and passes it to SetSlot; its other outcome constructs a MechanicActionBarSlotEmpty for SetSlot.

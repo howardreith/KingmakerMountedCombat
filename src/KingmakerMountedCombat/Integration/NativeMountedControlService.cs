@@ -926,11 +926,12 @@ namespace KingmakerMountedCombat.Integration
             ObservePendingRiderPrimaryOutcome();
             ReleaseStaleReserveScan();
             // A native CleanupBadSlots that did not return normally still has its slots resolved.
-            // (Update never runs inside a native slot operation, so an open bracket here was left by an exception.)
+            // (Update never runs inside a native slot operation, so an open bracket here was left by an exception: its
+            // scope is closed and its reports dropped, never attributed to a native write.)
             if (activeNativeSlotOperation != null || nativeSlotOperationDepth != 0 || pendingBadSlots.Count > 0)
             {
                 nativeSlotOperationDepth = 0;
-                ResolvePendingBadSlots();
+                DiscardPendingBadSlots();
             }
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
@@ -1891,9 +1892,12 @@ namespace KingmakerMountedCombat.Integration
             var publicActive = publicControl != null && publicControl.Active;
             // An older alias is emptied below while the control is not live: its index is recorded first.
             if (!publicActive) RecoverLegacyAlias(unit, slots);
-            // A secondary copy of an interrupted choice (decided before the repair below rebinds or migrates it).
+            // Secondary copies of an interrupted choice (decided before the repair below rebinds or migrates them).
+            if (unit.UniqueId != null && ArrangementsAccepted)
+                placementIntent.PruneCopies(unit.UniqueId, i => i >= 0 && i < slots.Length && IsPublicBindingSlot(slots[i]));
             var preSelected = PublicBindingIndex(slots);
             var preSecondary = IsSecondaryPublicSlot(unit, slots, preSelected);
+            var secondaryCopies = Enumerable.Range(0, slots.Length).Where(i => IsPublicBindingSlot(slots[i]) && IsSecondaryPublicSlot(unit, slots, i)).ToList();
             var boundIndex = -1;
             for (var index = 0; index < slots.Length; index++)
             {
@@ -1929,15 +1933,20 @@ namespace KingmakerMountedCombat.Integration
             // The migrated or rebound secondary copy does not become the choice: when the interrupted chosen slot is free,
             // the copy is removed and the control returns to the chosen slot below (one shortcut). If the chosen slot was
             // taken meanwhile, the surviving copy stays as the arrangement.
+            // Every surviving copy goes (not only the first), so recovery leaves exactly one shortcut.
             int chosen;
             if (publicActive && preSecondary && boundIndex == preSelected && unit.UniqueId != null &&
                 placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen) && chosen < slots.Length &&
                 (slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty))
             {
-                unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, boundIndex);
+                foreach (var copy in secondaryCopies)
+                {
+                    if (copy == chosen || !IsPublicBindingSlot(slots[copy])) continue;
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, copy);
+                    logger.Info("Secondary Mount / Dismount copy removed in favour of the chosen slot: unitId=" + unit.UniqueId +
+                        "; copy=" + copy + "; chosen=" + chosen + ".");
+                }
                 MarkBarChanged(unit);
-                logger.Info("Secondary Mount / Dismount copy removed in favour of the chosen slot: unitId=" + unit.UniqueId +
-                    "; copy=" + boundIndex + "; chosen=" + chosen + ".");
                 boundIndex = -1;
             }
             ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex, publicFactReplaced);
@@ -1998,6 +2007,8 @@ namespace KingmakerMountedCombat.Integration
             // both bracketed) counts; a standalone validity query (for example a diagnostic reading the bar) changes
             // nothing.
             if (activeNativeSlotOperation == null || !ReferenceEquals(activeNativeSlotOperation, unit.UISettings)) return;
+            // GetSlot(index) handles exactly one slot: a report for any other slot is not part of it.
+            if (activeNativeSlotIndex >= 0 && activeNativeSlotIndex != index) return;
             var pending = new PendingSlotInvalidation
             {
                 World = Game.Instance?.Player, Kind = ResolveKind(slot.Ability?.Blueprint),
@@ -2007,13 +2018,16 @@ namespace KingmakerMountedCombat.Integration
                 AliasIndex = -1,
                 // The other public bindings on the bar when this slot is handed to native: copies of the choice, never
                 // a later placement.
-                Copies = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i])).ToList()
+                Copies = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i])).ToList(),
+                // Whether an interrupted choice's slot is free at this moment (a copy then yields to it).
+                ChosenFree = !HasInterruptedChoice(unit) || ChosenSlotFree(unit, slots)
             };
             if (pending.Alias)
             {
-                // An older exact Mount / Dismount alias: its bar's chosen alias index (a canonical binding wins).
+                // An older exact Mount / Dismount alias: only the bar's selected alias (a canonical binding wins, then the
+                // first alias) is the choice; a report for a secondary alias is never attributed to it.
                 pending.AliasIndex = LegacyAliasIndex(slots);
-                if (pending.AliasIndex < 0) return;
+                if (pending.AliasIndex < 0 || pending.AliasIndex != index) return;
             }
             // A secondary canonical copy (not the bar's selected public binding) never replaces the choice.
             else if (!MountedControlSlotPolicy.IsSelectedPublicReport(PublicBindingIndex(slots), index)) return;
@@ -2034,21 +2048,35 @@ namespace KingmakerMountedCombat.Integration
             internal MechanicActionBarSlotAbility Slot;
             internal int Index, AliasIndex;
             internal string PetId;
-            internal bool Desired, Alias;
+            internal bool Desired, Alias, ChosenFree;
             internal List<int> Copies;
         }
 
         private Kingmaker.UI.UnitSettings.UnitUISettings activeNativeSlotOperation;
+        private int activeNativeSlotIndex = -1;
         private int nativeSlotOperationDepth;
         private readonly List<PendingSlotInvalidation> pendingBadSlots = new List<PendingSlotInvalidation>();
 
-        // Native UnitUISettings.GetSlot / CleanupBadSlots begins (exact prefixes). A nested native call is part of the
-        // outer operation, which resolves its reports when it returns.
-        internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
+        internal long NativeSlotReportsDiscarded { get; private set; }
+
+        // Native UnitUISettings.GetSlot(index) / CleanupBadSlots begins (exact prefixes; slotIndex -1 for the whole bar). A
+        // nested native call is part of the outer operation, which resolves its reports when it returns.
+        internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings, int slotIndex = -1)
         {
             if (nativeSlotOperationDepth++ > 0) return;
-            if (pendingBadSlots.Count > 0) ResolvePendingBadSlots();
+            if (pendingBadSlots.Count > 0) DiscardPendingBadSlots();
             activeNativeSlotOperation = disposed || !enabled ? null : settings;
+            activeNativeSlotIndex = slotIndex;
+        }
+
+        // An operation that never returned (its postfix did not run): its reports cannot be attributed to a native write
+        // (the slot may since have been edited by the player), so they are dropped, never applied.
+        private void DiscardPendingBadSlots()
+        {
+            NativeSlotReportsDiscarded += pendingBadSlots.Count;
+            pendingBadSlots.Clear();
+            activeNativeSlotOperation = null;
+            activeNativeSlotIndex = -1;
         }
 
         internal void EndNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
@@ -2067,13 +2095,18 @@ namespace KingmakerMountedCombat.Integration
         private void ResolvePendingBadSlots()
         {
             activeNativeSlotOperation = null;
+            activeNativeSlotIndex = -1;
             if (pendingBadSlots.Count == 0) return;
             var pending = pendingBadSlots.ToArray();
             pendingBadSlots.Clear();
             foreach (var item in pending)
             {
                 var slots = item.Unit?.UISettings?.Slots;
-                var now = slots == null || item.Index >= slots.Length ? null : slots[item.Index] as MechanicActionBarSlotAbility;
+                var current = slots == null || item.Index >= slots.Length ? null : slots[item.Index];
+                // Only a slot native actually wrote counts; an untouched slot (the reported object still there) is not
+                // an emptying.
+                if (ReferenceEquals(current, item.Slot)) { NativeSlotReportsDiscarded++; continue; }
+                var now = current as MechanicActionBarSlotAbility;
                 var kindNow = ResolveKind(now?.Ability?.Blueprint);
                 var fact = now?.Ability == null ? null : item.Unit.Descriptor?.Abilities?.GetAbility(now.Ability.Blueprint);
                 var live = fact != null && fact.Active && ReferenceEquals(fact.Data, now.Ability);
@@ -2104,9 +2137,10 @@ namespace KingmakerMountedCombat.Integration
                     return;
                 }
                 var recorded = item.Alias && !rebound
-                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies)
+                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies,
+                        item.ChosenFree)
                     : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired, rebound,
-                        item.Copies, item.Alias);
+                        item.Copies, item.Alias, item.ChosenFree);
                 if (recorded && rebound) NativeSlotReboundCount++;
                 else if (recorded) NativeSlotInvalidationCount++;
                 return;
@@ -2117,7 +2151,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A rebind of a recorded copy of an interrupted choice (for example the surviving older alias) keeps the
                 // choice; a rebind at the chosen slot or of anything else is the live arrangement.
-                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true, item.Copies, item.Alias))
+                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true, item.Copies, item.Alias,
+                    item.ChosenFree))
                 {
                     placementRecorded.Add(unit.UniqueId);
                     NativeSlotReboundCount++;
@@ -2128,7 +2163,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A recorded placement (for example an alias a save scope returned) is invalidated as a temporary
                 // absence at its index; an unrecorded older alias is recovered by the reserve rule before it is lost.
-                if (placementIntent.ObserveNativeAliasInvalidated(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies))
+                if (placementIntent.ObserveNativeAliasInvalidated(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies, item.ChosenFree))
                 {
                     placementRecorded.Add(unit.UniqueId);
                     NativeSlotInvalidationCount++;
@@ -2137,7 +2172,7 @@ namespace KingmakerMountedCombat.Integration
             }
             // The player's canonical shortcut was seen: its one-time placement is satisfied even though native emptied it
             // (no autofill copy if its chosen slot is taken before the control returns).
-            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false, item.Copies))
+            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false, item.Copies, false, item.ChosenFree))
             {
                 placementRecorded.Add(unit.UniqueId);
                 NativeSlotInvalidationCount++;
@@ -2245,6 +2280,12 @@ namespace KingmakerMountedCombat.Integration
         private bool IsSecondaryPublicSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, int index) =>
             unit?.UniqueId != null && slots != null && index >= 0 && index < slots.Length &&
             placementIntent.IsSecondaryBinding(unit.UniqueId, index, IsStaleOrAlias(unit, slots[index])) && ChosenSlotFree(unit, slots);
+
+        private bool HasInterruptedChoice(UnitEntityData unit)
+        {
+            int chosen;
+            return unit?.UniqueId != null && placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen);
+        }
 
         private bool ChosenSlotFree(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
@@ -2355,6 +2396,8 @@ namespace KingmakerMountedCombat.Integration
             // The visible public binding: canonical first, else an older alias still on the bar (for example one a save
             // scope returned), which is the player's current choice, never an empty slot. A public binding the player
             // placed also satisfies the one-time placement (no autofill copy may follow it).
+            // A recorded copy whose slot no longer holds a public binding is no longer a copy.
+            placementIntent.PruneCopies(id, i => i >= 0 && i < slots.Length && IsPublicBindingSlot(slots[i]));
             var bound = PublicBindingIndex(slots);
             if (bound >= 0) placementRecorded.Add(id);
             // A surviving secondary copy (an older alias or a stale canonical copy) never overrides a choice already
