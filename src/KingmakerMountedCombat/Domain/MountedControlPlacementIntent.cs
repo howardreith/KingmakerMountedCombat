@@ -114,10 +114,20 @@ namespace KingmakerMountedCombat.Domain
         {
             if (actorId == null || slotIndex < 0) return false;
             if (RetireOnCompanionLoss(actorId, petId, controlDesired, true)) return false;
-            if (HoldsInterruptedChoiceElsewhere(actorId, slotIndex) && reportIsCopy && chosenSlotFree) return false;
+            if (reportIsCopy && CopyYields(actorId, slotIndex, chosenSlotFree)) return false;
             ObserveBound(actorId, slotIndex, petId);
             ObserveAbsent(actorId, MountedControlAbsence.Temporary);
             return true;
+        }
+
+        // A copy (identified by the caller) at slotIndex is not the arrangement: the arrangement is at another slot and is
+        // either live there (a fallback that became live, or the player's own binding native rebound), or interrupted with
+        // its chosen slot free. Only an interrupted choice whose slot is occupied lets the copy become the fallback.
+        private bool CopyYields(string actorId, int slotIndex, bool chosenSlotFree)
+        {
+            Entry entry;
+            if (actorId == null || !entries.TryGetValue(actorId, out entry) || entry.Index < 0 || entry.Index == slotIndex) return false;
+            return !entry.Interrupted || chosenSlotFree;
         }
 
         // The surviving fallback copy at slotIndex becomes the interrupted choice (the chosen slot is occupied): KMC is about
@@ -134,15 +144,15 @@ namespace KingmakerMountedCombat.Domain
         // a live fact of the same blueprint into that slot) makes that slot the live arrangement, so a later removal is
         // the player's; emptied is the ordinary invalidation (a temporary absence that returns to the slot). The
         // companion identity is checked first either way. Returns true when an arrangement was recorded.
-        // A rebind of a copy of an interrupted choice (reportIsCopy) keeps the choice while the chosen slot is free: native
-        // repairing the copy is not the player choosing it.
+        // A rebind of a copy (reportIsCopy) keeps the arrangement where it is (CopyYields): native repairing the copy is not
+        // the player choosing it.
         public bool ObserveNativeCleanupOutcome(string actorId, int slotIndex, string petId, bool controlDesired, bool rebound,
             bool reportIsCopy = false, bool chosenSlotFree = true)
         {
             if (actorId == null || slotIndex < 0) return false;
             if (!rebound) return ObserveNativeSlotInvalidated(actorId, slotIndex, petId, controlDesired, reportIsCopy, chosenSlotFree);
             if (RetireOnCompanionLoss(actorId, petId, controlDesired, true)) return false;
-            if (chosenSlotFree && IsSecondaryBinding(actorId, slotIndex, reportIsCopy)) return false;
+            if (reportIsCopy && CopyYields(actorId, slotIndex, chosenSlotFree)) return false;
             ObserveBound(actorId, slotIndex, petId);
             return true;
         }
@@ -154,14 +164,16 @@ namespace KingmakerMountedCombat.Domain
         // An arrangement already interrupted in this absence (for example the canonical slot native cleanup emptied a
         // moment earlier in the same pass) is the remembered choice and wins: a later report for a secondary alias never
         // replaces it.
-        // An older alias is never a placement the player made since (no live control produces one): it is a copy.
+        // An older alias is never a placement the player made since (no live control produces one): it is a copy of a choice
+        // interrupted elsewhere, and of any arrangement when the caller recorded it as a copy (recordedCopy).
         public bool ObserveNativeAliasInvalidated(string actorId, int aliasIndex, string petId, bool controlDesired,
-            bool chosenSlotFree = true)
+            bool chosenSlotFree = true, bool recordedCopy = false)
         {
             Entry entry;
             if (actorId == null || aliasIndex < 0) return false;
             if (!entries.TryGetValue(actorId, out entry)) return AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
-            return ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired, true, chosenSlotFree);
+            return ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired,
+                recordedCopy || HoldsInterruptedChoiceElsewhere(actorId, aliasIndex), chosenSlotFree);
         }
 
         private bool HoldsInterruptedChoiceElsewhere(string actorId, int slotIndex)
@@ -642,11 +654,11 @@ namespace KingmakerMountedCombat.Domain
         // this fence holds: recovered into the outgoing records (with their placement record) by the same rule as the
         // live records, so an abandoned load keeps the chosen slot and a replaced world drops it.
         public bool AdmitOutgoingSurvivingBinding(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired,
-            bool chosenSlotFree = true)
+            bool chosenSlotFree = true, bool recordedCopy = false)
         {
             if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
             // The same distinction as the live records: a recorded placement is invalidated, an unrecorded alias recovered.
-            if (!outgoingIntent.ObserveNativeAliasInvalidated(actorId, slotIndex, petId, controlDesired, chosenSlotFree)) return false;
+            if (!outgoingIntent.ObserveNativeAliasInvalidated(actorId, slotIndex, petId, controlDesired, chosenSlotFree, recordedCopy)) return false;
             outgoingPlaced?.Add(actorId);
             return true;
         }

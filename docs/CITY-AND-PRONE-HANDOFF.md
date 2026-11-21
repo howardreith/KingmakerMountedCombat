@@ -411,6 +411,29 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   the same native operation stale (`retiredInNativeOperation`). A later operation's report for a new placement, for
   example pet B's first manual shortcut, establishes the arrangement.
 
+**Round 20 additions.**
+- *A rebind of the player's own slot keeps the copies (R19-F2):* when native rebinds the effective binding, such as
+  the shortcut moved to 11, `TrackCopies` no longer forgets the registry. The surviving copy at 7 stays identified,
+  so repair removes it and capture skips it. Copies are released when repair removes them, when another object
+  replaces them (`PruneCopies`, at every repair), or when KMC clears the rider's bindings.
+- *Writes to identified copies keep being followed (R18-F1):*
+  - A report for a recorded copy is accepted even after the choice turned live again, for example when a fallback
+    rebound earlier in the same pass is now the selected binding.
+  - A copy of a live arrangement elsewhere yields, whether native empties or rebinds it (`CopyYields`). Only an
+    interrupted choice whose slot is occupied lets a copy become the fallback.
+  - With Fireball at 3, a pass that rebinds both 7 and 9 leaves only 7, and removing 7 saves a placement record only.
+  - An older alias reaches that rule only as a copy of an interrupted choice, or when it was recorded as a copy
+    (`ObserveNativeAliasInvalidated`'s `recordedCopy`).
+- *Completed writes before the first boundary (R17-F2):* an aborted native scope is now closed, keeping only native's
+  own write, when the archive header is captured (`CapturePersistentSlots`). The same happens when the save scope
+  begins and at area suspension, not only at the next update or slot operation. A save taken at once after a pass
+  that emptied 9 and threw carries kind 6 at 9. A report followed by the player's removal still saves only the
+  placement record.
+- *Departed riders release their copies (R20-F1):* `ClearManagedHotbarSlots` and `ClearPublicControlSlots` release
+  the rider's copy objects. Those calls cover roster departure, area unload, disable and companion retirement. An
+  earlier world's object never touches the current registry. The placement records keep the chosen index and pet
+  identity, so a reserve return restores the slot once.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -618,7 +641,20 @@ bound 9/0, target liveness 3/0, focused 6/6. Two production mutation runs follow
 - The second made every binding a copy, in `IsSecondaryBinding` and `ObserveNativeSlotInvalidated`. Exactly R15-F1,
   R19-F2 and R19-F3 failed, plus two earlier new-placement tests.
 The controller gate on the round-19 commit is the result of record.
-| components (`bin\Tests`) | 1501/0 | 81 toolbar, 6 city-roster and 3 downed-target tests |
+
+Round 20: three regressions were extended and one was added:
+- the move-to-11 and Fireball-at-3 fixtures each gained a live-replacement `CleanupBadSlots` pass that rebinds both
+  stale controls;
+- `ExceptionalNativeOperations` gained an immediate save and an immediate-save removal control;
+- `DepartedRiderReleasesCopies` is new.
+One local Fast run on the fixed tree, with PASS lines temporarily silenced (reverted), passed: components 1502/0 and
+Validate-Source 153/0. A combined mutation run then reverted four decisions:
+- in the domain, the live-arrangement case of `CopyYields`;
+- in the double, each mirroring the production line: keeping copies on a rebind, closing the scope at capture, and
+  releasing copies on clear.
+It failed exactly the four targeted regressions. All mutations were reverted. The controller gate on the round-20
+commit is the result of record.
+| components (`bin\Tests`) | 1502/0 | 82 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
