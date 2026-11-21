@@ -143,12 +143,15 @@ namespace KingmakerMountedCombat.Domain
             originWorld != null && ReferenceEquals(originWorld, currentWorld) && riderStillOnRoster;
 
         // The bar's effective public binding, for observation, capture and repair alike. Bindings are taken in the repair
-        // precedence (canonical bindings by index, then older aliases by index). The first one that is not a copy of an
-        // interrupted choice (isCopy) is the player's binding and wins, wherever it is. When only copies remain, they
-        // yield to the interrupted choice while its slot is free (returns -1 with onlyYieldingCopies), and the first copy
-        // becomes the fallback when the chosen slot is occupied. -1 without onlyYieldingCopies: no public binding at all.
-        public static int EffectiveBindingIndex(IList<NativeMountedControlKind> kinds, Func<int, bool> isCopy, bool chosenSlotFree,
-            out bool onlyYieldingCopies)
+        // precedence (canonical bindings by index, then older aliases by index). The first one that is not a copy (isCopy)
+        // is the player's binding and wins, wherever it is. When only copies remain:
+        // - a choice is interrupted (choiceInterrupted) and its slot is free: they yield to it (-1 with onlyYieldingCopies);
+        // - a choice is interrupted and its slot is occupied: the first copy becomes the fallback;
+        // - no choice is interrupted (the arrangement was live, and the player removed its binding): copies of it are not a
+        //   binding at all (-1 without onlyYieldingCopies), so the removal stands and repair discards them.
+        // -1 without onlyYieldingCopies: no public binding at all.
+        public static int EffectiveBindingIndex(IList<NativeMountedControlKind> kinds, Func<int, bool> isCopy, bool choiceInterrupted,
+            bool chosenSlotFree, out bool onlyYieldingCopies)
         {
             onlyYieldingCopies = false;
             if (kinds == null) return -1;
@@ -161,7 +164,7 @@ namespace KingmakerMountedCombat.Domain
                     if (first < 0) first = index;
                     if (isCopy == null || !isCopy(index)) return index;
                 }
-            if (first < 0) return -1;
+            if (first < 0 || !choiceInterrupted) return -1;
             if (chosenSlotFree) { onlyYieldingCopies = true; return -1; }
             return first;
         }

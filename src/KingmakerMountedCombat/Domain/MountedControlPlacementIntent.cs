@@ -123,6 +123,8 @@ namespace KingmakerMountedCombat.Domain
         // A copy (identified by the caller) at slotIndex is not the arrangement: the arrangement is at another slot and is
         // either live there (a fallback that became live, or the player's own binding native rebound), or interrupted with
         // its chosen slot free. Only an interrupted choice whose slot is occupied lets the copy become the fallback.
+        // chosenSlotFree, as the callers pass it: the chosen slot is free, or the player holds a newer binding of its own
+        // elsewhere on the bar (a copy never becomes the fallback over the player's binding).
         private bool CopyYields(string actorId, int slotIndex, bool chosenSlotFree)
         {
             Entry entry;

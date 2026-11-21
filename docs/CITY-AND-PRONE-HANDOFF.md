@@ -434,6 +434,27 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   earlier world's object never touches the current registry. The placement records keep the chosen index and pet
   identity, so a reserve return restores the slot once.
 
+**Round 21 additions.**
+- *No fallback over the player's binding (R19-F2):* a report's `ChosenFree` is also true while the player holds a
+  canonical binding of its own elsewhere on the bar (`PlayerBindingElsewhere`: not a recorded copy). A copy then
+  yields instead of becoming the fallback. With Fireball at 3, the pass that rebinds 7 and 11 leaves the move at 11
+  as the only live and saved binding.
+- *A removed live choice discards its copies (R18-F1):* `EffectiveBindingIndex` takes `choiceInterrupted`. Copies
+  yield to a free chosen slot, or one becomes the fallback for an occupied slot, only while a choice is interrupted.
+  Copies of a live choice the player removed are no binding at all, so repair discards them and save-first keeps the
+  removal. The arrangement's own slot is never a copy of it (`IsPublicCopyAt`).
+- *One shortcut after KMC's own repair (R21-F1):* while the control is live, `ReconcilePublicControlSlots` removes
+  every public binding other than the effective one, not only recorded copies. The effective one is the first
+  canonical binding when nothing was recorded. A stale binding at 3 and a current one at 9 leave one callable
+  shortcut at 3 update-first, as save-first already did.
+- *Reserve migration releases copies (R20-F1):* `AdmitReserveBindings` releases a rider's copy objects when it first
+  scans that rider's bar, including a rider first encountered in reserve.
+- *No world held by an empty registry (R21-F2):* a registry lookup never acquires a world. `recordedCopiesWorld` is
+  set only while copies are stored (`RecordCopies`) and cleared once the registry is empty or another world is
+  current, so a disabled save keeps no player reference.
+- *Acceptance evidence (R21-F3):* the negative-control row is split. The brain-proposal and downed-ally controls are
+  UNIT. The Charge and replacement-target filters are TRACE, with the source checks named.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -654,6 +675,20 @@ Validate-Source 153/0. A combined mutation run then reverted four decisions:
   releasing copies on clear.
 It failed exactly the four targeted regressions. All mutations were reverted. The controller gate on the round-20
 commit is the result of record.
+
+Round 21 extended five existing tests:
+- `MoveBeyondSurvivingCopy` with an occupied slot 3;
+- `OccupiedChosenSlotWithTwoCopies` with an immediate removal of the live fallback, update-first and save-first;
+- `StaleThenCurrentCanonical` with an update-first case, a removal and a reload;
+- `DepartedRiderReleasesCopies` with a first-time reserve scan;
+- `DisabledSaveIsolation` with registry lifetime assertions.
+One local Fast run, with PASS lines temporarily silenced (reverted), passed: components 1502/0 and Validate-Source
+153/0. A combined mutation run then reverted five decisions:
+- in the domain, `choiceInterrupted`;
+- in the double, each mirroring the production line: `PlayerBindingElsewhere`, removal of every non-effective
+  binding, reserve-scan release, and a world-free lookup.
+It failed exactly the five targeted regressions. All mutations were reverted. The controller gate on the round-21
+commit is the result of record.
 | components (`bin\Tests`) | 1502/0 | 82 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
@@ -717,7 +752,8 @@ NATIVE = in-game structured evidence.
 | Prone ranged attack | Rider's own shot dispatched, no mount substitution (RT and TB decisions) | PASS | UNIT |
 | Prone ranged attack | Conscious prone enemy: click, admission, approach, range/LoS and firing stages | PASS (no divergence found) | TRACE |
 | Prone ranged attack | Matched mounted/dismounted, standing/conscious-prone/unconscious, RT/TB, near and normal distance | NOT RUN | NATIVE (prerequisites below) |
-| Negative controls | Brain proposals, Charge and continuation keep the conscious-only rule; downed ally refused | PASS | UNIT |
+| Negative controls | Brain proposals never carry the explicit-order allowance (automatic proposal, promotion, cancellation, later conscious order); downed ally and out-of-state downed targets refused by `IsValidTarget` | PASS | UNIT (`MountedDownedTargetOrderTests`: `OnlyPlayerOrders`, `ExplicitOrderAdmitsDowned`) |
+| Negative controls | Charge keeps the conscious-only rule at admission and revalidation (`TargetValid` requires `IsConscious && !IsFinallyDead`: `MountedCombatController.Charge.cs` request construction, `MountedPairAttackCommand` charge revalidation request); continuation replacement candidates are filtered to conscious, not finally dead enemies (`MountedPairAttackCommand` continuation candidate query); the automatic-gate target check stays conscious-only (`MountedCombatController` automatic `TargetValid`) | PASS | TRACE (the component tests feed these paths preclassified target-valid / target-down inputs; no focused execution passes an unconscious unit through these filters) |
 | Negative controls | Blocked LoS, unavailable actions, out-of-range approach, standing targets, unmounted ranged, mounted melee, mounted penalties | NOT RUN | NATIVE (paths unchanged in code; owner steps in playtest item 5) |
 | Shared regressions | Tabletop Rules Expansion click composition, both orders | PASS | COMPOSITION |
 | Shared regressions | Existing component suite | PASS | UNIT |

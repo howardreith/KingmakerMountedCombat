@@ -1940,22 +1940,26 @@ namespace KingmakerMountedCombat.Integration
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
                     "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
             }
-            // Copies of an interrupted choice never stay beside the effective binding: every copy other than it goes (one
-            // shortcut). The effective binding is the player's own binding wherever it is (a move or a new placement);
-            // when only copies were left, they yield to the free chosen slot (the control returns there below), or the
-            // first copy is the fallback while the chosen slot is occupied.
-            if (publicActive && copies.Count > 0)
+            // One shortcut: nothing stays beside the effective binding, neither a copy of an interrupted choice nor a second
+            // canonical binding (for example a stale one KMC just rebound beside an already current one). The effective
+            // binding is the player's own binding wherever it is (a move or a new placement), otherwise the first canonical
+            // binding; when only copies were left, they yield to the free chosen slot (the control returns there below),
+            // the first copy is the fallback while the chosen slot is occupied, and copies of a live choice the player
+            // removed are discarded.
+            if (publicActive)
             {
-                foreach (var copy in copies)
+                var removed = false;
+                for (var index = 0; index < slots.Length; index++)
                 {
-                    if (copy == effective || !IsPublicBindingSlot(slots[copy])) continue;
-                    unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, copy);
-                    logger.Info("Secondary Mount / Dismount copy removed: unitId=" + unit.UniqueId + "; copy=" + copy +
-                        "; kept=" + effective + ".");
+                    if (index == effective || !IsPublicBindingSlot(slots[index])) continue;
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, index);
+                    removed = true;
+                    logger.Info("Extra Mount / Dismount binding removed: unitId=" + unit.UniqueId + "; slot=" + index +
+                        "; copy=" + copies.Contains(index) + "; kept=" + effective + ".");
                 }
-                MarkBarChanged(unit);
+                if (removed) MarkBarChanged(unit);
                 boundIndex = effective >= 0 && ResolveKind((slots[effective] as MechanicActionBarSlotAbility)?.Ability?.Blueprint) ==
-                    NativeMountedControlKind.MountState ? effective : onlyYieldingCopies ? -1 : FirstMountStateIndex(slots);
+                    NativeMountedControlKind.MountState ? effective : -1;
             }
             ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex, publicFactReplaced);
             // Once no choice is interrupted any more, nothing on the bar is a copy of one.
@@ -2040,8 +2044,10 @@ namespace KingmakerMountedCombat.Integration
                 // The other public bindings on the bar right now: the copies, should this report interrupt the choice.
                 CopySlots = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i]))
                     .Select(i => new KeyValuePair<int, MechanicActionBarSlot>(i, slots[i])).ToList(),
-                // Whether the owning arrangement's chosen slot is free at this moment (a copy then yields to it).
-                ChosenFree = !hasChoice || chosen >= slots.Length || slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty
+                // Whether the owning arrangement's chosen slot is free at this moment (a copy then yields to it), or the
+                // player holds a newer binding of its own elsewhere (a copy never becomes the fallback over it).
+                ChosenFree = !hasChoice || chosen >= slots.Length || slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty ||
+                    PlayerBindingElsewhere(unit, slots, index)
             };
             // Without an interrupted choice, only the bar's selected binding (or a recorded copy, as a copy) is reported: a
             // report for any other canonical binding or alias is not attributed to the choice (the canonical binding wins,
@@ -2155,12 +2161,26 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<string, List<KeyValuePair<int, MechanicActionBarSlot>>>(StringComparer.Ordinal);
         private object recordedCopiesWorld;
 
+        // A lookup never acquires a world: the registry names its world only while it holds copies (RecordCopies), and drops
+        // both once another world is current. An empty registry (for example during a disabled save) references nothing.
         private List<KeyValuePair<int, MechanicActionBarSlot>> CopiesOf(string actorId)
         {
-            var world = Game.Instance?.Player;
-            if (!ReferenceEquals(world, recordedCopiesWorld)) { recordedCopies.Clear(); recordedCopiesWorld = world; }
+            if (recordedCopiesWorld != null && !ReferenceEquals(Game.Instance?.Player, recordedCopiesWorld))
+            {
+                recordedCopies.Clear();
+                recordedCopiesWorld = null;
+            }
             List<KeyValuePair<int, MechanicActionBarSlot>> copies;
             return actorId != null && recordedCopies.TryGetValue(actorId, out copies) ? copies : null;
+        }
+
+        private void RecordCopies(string actorId, List<KeyValuePair<int, MechanicActionBarSlot>> copies)
+        {
+            if (actorId == null) return;
+            CopiesOf(null);
+            if (copies == null || copies.Count == 0) { ForgetCopies(actorId); return; }
+            recordedCopies[actorId] = copies;
+            recordedCopiesWorld = Game.Instance?.Player;
         }
 
         private bool IsRecordedCopyAt(string actorId, int index, MechanicActionBarSlot slot)
@@ -2253,16 +2273,18 @@ namespace KingmakerMountedCombat.Integration
                 // A copy that became the fallback (its chosen slot occupied) is the choice now; the other copies stay copies.
                 if (rebound && !recorded) copies[at] = new KeyValuePair<int, MechanicActionBarSlot>(item.Index, written);
                 else copies.RemoveAt(at);
+                if (copies.Count == 0) ForgetCopies(id);
                 return;
             }
             if (!recorded || rebound) return;
-            recordedCopies[id] = new List<KeyValuePair<int, MechanicActionBarSlot>>(item.CopySlots ??
-                new List<KeyValuePair<int, MechanicActionBarSlot>>());
+            RecordCopies(id, new List<KeyValuePair<int, MechanicActionBarSlot>>(item.CopySlots ??
+                new List<KeyValuePair<int, MechanicActionBarSlot>>()));
         }
 
         private void ForgetCopies(string actorId)
         {
             if (actorId != null) recordedCopies.Remove(actorId);
+            if (recordedCopies.Count == 0) recordedCopiesWorld = null;
         }
 
         // A recorded copy whose index no longer holds that exact slot object (removed, replaced or moved) is released.
@@ -2317,6 +2339,9 @@ namespace KingmakerMountedCombat.Integration
             foreach (var unit in reserveUnits)
             {
                 if (observedUnits.Contains(unit) || !reserveScan.MarkFirst(unit)) continue;
+                // Every KMC binding on this bar leaves it below (or none is there): the copy registry releases its slot
+                // objects. The chosen index and pet identity stay in the placement records.
+                ForgetCopies(unit.UniqueId);
                 var slots = unit.UISettings?.Slots;
                 if (slots == null || CountManagedHotbarSlots(unit) == 0) continue;
                 var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
@@ -2374,7 +2399,10 @@ namespace KingmakerMountedCombat.Integration
         private bool IsPublicCopyAt(UnitEntityData unit, MechanicActionBarSlot[] slots, int index)
         {
             if (unit?.UniqueId == null || slots == null || index < 0 || index >= slots.Length || !IsPublicBindingSlot(slots[index])) return false;
-            if (IsRecordedCopyAt(unit.UniqueId, index, slots[index])) return true;
+            // The arrangement's own slot is never a copy of it (for example a fallback a boundary has just observed there).
+            int arranged;
+            if (IsRecordedCopyAt(unit.UniqueId, index, slots[index]))
+                return !(placementIntent.TryGetArrangement(unit.UniqueId, out arranged) && arranged == index);
             var alias = !ReferenceEquals((slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility);
             return placementIntent.IsSecondaryBinding(unit.UniqueId, index, alias);
         }
@@ -2387,12 +2415,23 @@ namespace KingmakerMountedCombat.Integration
             onlyYieldingCopies = false;
             if (slots == null) return -1;
             var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
-            return MountedControlSlotPolicy.EffectiveBindingIndex(kinds, i => IsPublicCopyAt(unit, slots, i), ChosenSlotFree(unit, slots),
-                out onlyYieldingCopies);
+            int chosen;
+            var interrupted = unit?.UniqueId != null && placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen);
+            return MountedControlSlotPolicy.EffectiveBindingIndex(kinds, i => IsPublicCopyAt(unit, slots, i), interrupted,
+                ChosenSlotFree(unit, slots), out onlyYieldingCopies);
         }
 
-        private int FirstMountStateIndex(MechanicActionBarSlot[] slots) => slots == null ? -1 :
-            Array.FindIndex(slots, slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint) == NativeMountedControlKind.MountState);
+        // A canonical binding at another index that is not a recorded copy: the player's own binding (aliases are never one).
+        private bool PlayerBindingElsewhere(UnitEntityData unit, MechanicActionBarSlot[] slots, int index)
+        {
+            for (var i = 0; i < slots.Length; i++)
+            {
+                if (i == index || ResolveKind((slots[i] as MechanicActionBarSlotAbility)?.Ability?.Blueprint) != NativeMountedControlKind.MountState) continue;
+                if (!IsRecordedCopyAt(unit.UniqueId, i, slots[i])) return true;
+            }
+            return false;
+        }
+
 
         private bool ChosenSlotFree(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
