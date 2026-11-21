@@ -896,6 +896,7 @@ namespace KingmakerMountedCombat.Integration
                 placementRecorded.Clear();
                 // Disable is cleanup, not a temporary absence: nothing is put back from a remembered slot afterwards.
                 placementIntent.Clear();
+                loadFence.Reset();
             }
         }
 
@@ -1448,6 +1449,7 @@ namespace KingmakerMountedCombat.Integration
             ClearTargetingPresentation("disposed");
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
+            loadFence.Reset();
             ClearSerializationHotbarLeases(false);
             EnsureUnsubscribed();
             RemoveRegisteredBlueprints();
@@ -1723,14 +1725,19 @@ namespace KingmakerMountedCombat.Integration
         // for the incoming world, and the outgoing player object, still current here, writes nothing until native loading
         // replaces it (or the load is abandoned). BeginLoadedWorld alone stays fence-free for the diagnostics that re-arm
         // the first placement within one world.
-        internal void BeginSelectedLoad()
+        // loadOwner: the load scope; only it can abandon this fence. The outgoing records are moved aside, not discarded.
+        internal void BeginSelectedLoad(object loadOwner)
         {
-            BeginLoadedWorld();
-            loadFence.Begin(Game.Instance?.Player);
+            ClearTargetingPresentation("load");
+            initialPlacements.Clear();
+            loadFence.Begin(Game.Instance?.Player, loadOwner, placementIntent, placementRecorded);
         }
 
-        // The selected load was canceled or failed before replacing the player: the outgoing world continues.
-        internal void AbandonLoadedWorld() => loadFence.Abandon();
+        // The owning load scope ended without native completion (canceled, failed or superseded). If its outgoing world
+        // is still current, that world's records (reserve slots, deliberate removals, placement records) come back
+        // exactly and reconciliation resumes; another scope's fence is never released.
+        internal void AbandonLoadedWorld(object loadOwner) =>
+            loadFence.Abandon(loadOwner, Game.Instance?.Player, placementIntent, placementRecorded);
 
         private void ReconcileFacts()
         {
@@ -1740,16 +1747,20 @@ namespace KingmakerMountedCombat.Integration
                 RememberUnit(unit);
                 ReconcileRetiredPrimaryReferences(unit);
                 var publicFactReplaced = false;
-                // Before this update withdraws or replaces a live public fact, the bar as the player last left it is the
-                // arrangement (a removal since the last update stays a removal); an absence native cleanup already
-                // reported stays pending. Nothing is observed while the fact is live and stays as it is.
+                // A direct change of pets retires the old arrangement and its slots before anything below can overwrite
+                // the stored pet link (observation or a stale-slot rebind).
+                RetireOnPetChange(unit);
+                // Before this update withdraws, replaces or re-leases the public fact (active or already inactive), the bar
+                // as the player last left it is the arrangement: a removal since the last update stays a removal, while an
+                // absence already recorded (native cleanup, KMC suspension, a load) stays pending. Nothing is observed
+                // while the fact is live and stays as it is, or while there is nothing to change.
                 if (mountStateAbility != null)
                 {
                     var publicFacts = unit?.Descriptor?.Abilities?.Enumerable
                         .Where(item => ReferenceEquals(item.Blueprint, mountStateAbility)).ToList() ?? new List<Ability>();
-                    if (publicFacts.Any(fact => fact.Active) &&
-                        !(publicFacts.Count == 1 && ShouldLease(unit, NativeMountedControlKind.MountState)))
-                        ObserveArrangementOnBar(unit);
+                    var publicDesired = ShouldLease(unit, NativeMountedControlKind.MountState);
+                    var unchanged = publicDesired && publicFacts.Count == 1 && publicFacts[0].Active;
+                    if (!unchanged && (publicFacts.Count > 0 || publicDesired)) ObserveArrangementOnBar(unit);
                 }
                 foreach (var ability in EnumerateBlueprints())
                 {
@@ -1943,11 +1954,27 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
+            // A slot of a previous companion is not the new companion's choice: it is retired, not remembered.
+            if (RetireOnPetChange(unit)) return;
             placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, unit.Descriptor?.PetUniqueId);
             NativeSlotInvalidationCount++;
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
+
+        // The persistent pet link now names a different companion than the rider's arrangement was observed with: that
+        // arrangement is retired and the rider's public-control slots are cleared (even on an uninspected bar), so the
+        // new companion cannot inherit the old slot. Returns true when it retired something.
+        private bool RetireOnPetChange(UnitEntityData unit)
+        {
+            var id = unit?.UniqueId;
+            if (id == null || mountStateAbility == null || !ArrangementsAccepted ||
+                !placementIntent.PetLinkChanged(id, unit.Descriptor?.PetUniqueId)) return false;
+            var slots = unit.UISettings?.Slots;
+            if (slots != null) ClearPublicControlSlots(unit, slots);
+            placementIntent.Forget(id);
+            return true;
+        }
 
         // Only slots holding the public control; every other slot keeps its content and position.
         private void ClearPublicControlSlots(UnitEntityData unit, MechanicActionBarSlot[] slots)
@@ -1981,6 +2008,7 @@ namespace KingmakerMountedCombat.Integration
             var id = unit?.UniqueId;
             var slots = unit?.UISettings?.Slots;
             if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
+            RetireOnPetChange(unit);
             var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
             var bound = Array.FindIndex(slots, slot =>
                 ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));

@@ -206,6 +206,34 @@ namespace KingmakerMountedCombat.Domain
                 !string.Equals(entry.PetId, currentPetId, StringComparison.Ordinal);
         }
 
+        // The persistent pet link now names a different, nonempty companion than the one this arrangement was observed
+        // with (a direct change of pets, with no cleared link in between). Checked before any observation can overwrite
+        // the stored link; the caller then retires the arrangement and clears the rider's public-control slots.
+        public bool PetLinkChanged(string actorId, string currentPetId)
+        {
+            Entry entry;
+            return actorId != null && !string.IsNullOrEmpty(currentPetId) && entries.TryGetValue(actorId, out entry) &&
+                entry.PetId != null && !string.Equals(entry.PetId, currentPetId, StringComparison.Ordinal);
+        }
+
+        // An exact copy of every arrangement (for a load boundary that may be abandoned).
+        public MountedControlPlacementIntent Copy()
+        {
+            var copy = new MountedControlPlacementIntent();
+            foreach (var pair in entries)
+                copy.entries[pair.Key] = new Entry { Index = pair.Value.Index, Interrupted = pair.Value.Interrupted, PetId = pair.Value.PetId };
+            return copy;
+        }
+
+        // Replaces every arrangement with an exact copy of another record set.
+        public void ReplaceWith(MountedControlPlacementIntent other)
+        {
+            entries.Clear();
+            if (other == null) return;
+            foreach (var pair in other.entries)
+                entries[pair.Key] = new Entry { Index = pair.Value.Index, Interrupted = pair.Value.Interrupted, PetId = pair.Value.PetId };
+        }
+
         public IEnumerable<string> ActorIds => entries.Keys;
 
         public void Forget(string actorId)
@@ -222,18 +250,65 @@ namespace KingmakerMountedCombat.Domain
     // that replacement no observation may write into the cleared records: the outgoing world's riders still pass
     // every current-world check. The fence lifts by itself once the current world differs from the fenced one, or when
     // the load is abandoned and the outgoing world stays.
+    //
+    // The fence belongs to the load scope that armed it (owner). Its outgoing records are kept, not discarded: an
+    // abandoned load whose outgoing world is still current gets them back (reserve slots and deliberate removals the bar
+    // cannot reconstruct); a replaced world drops them. Only the owning scope can abandon its fence, so an older scope's
+    // disposal never releases a newer scope's fence, and a superseded scope releases its own.
     public sealed class MountedControlLoadFence
     {
-        private object fencedWorld;
+        private object fencedWorld, owner;
+        private MountedControlPlacementIntent outgoingIntent;
+        private HashSet<string> outgoingPlaced;
 
-        public void Begin(object outgoingWorld) { fencedWorld = outgoingWorld; }
+        public bool Fenced => fencedWorld != null;
 
-        public void Abandon() { fencedWorld = null; }
+        // Arms the fence for one load scope and moves the outgoing records aside (the live sets are cleared).
+        public void Begin(object outgoingWorld, object loadOwner, MountedControlPlacementIntent intent, ISet<string> placed)
+        {
+            if (fencedWorld != null && ReferenceEquals(fencedWorld, outgoingWorld))
+            {
+                // A newer scope starts while an older one still fences the same world: the records moved aside by the
+                // older scope are still the outgoing world's; the newer scope takes ownership of them.
+                intent?.Clear(); placed?.Clear();
+                owner = loadOwner;
+                return;
+            }
+            outgoingIntent = intent?.Copy();
+            outgoingPlaced = placed == null ? null : new HashSet<string>(placed, StringComparer.Ordinal);
+            intent?.Clear(); placed?.Clear();
+            fencedWorld = outgoingWorld; owner = loadOwner;
+            if (fencedWorld == null) Release();
+        }
 
+        // The owning scope ended without native completion. If its outgoing world is still current, the outgoing records
+        // come back exactly; otherwise they are dropped. Returns false (and changes nothing) for any other scope.
+        public bool Abandon(object loadOwner, object currentWorld, MountedControlPlacementIntent intent, ISet<string> placed)
+        {
+            if (fencedWorld == null || !ReferenceEquals(owner, loadOwner)) return false;
+            if (ReferenceEquals(currentWorld, fencedWorld))
+            {
+                intent?.ReplaceWith(outgoingIntent);
+                if (placed != null)
+                {
+                    placed.Clear();
+                    if (outgoingPlaced != null) foreach (var id in outgoingPlaced) placed.Add(id);
+                }
+            }
+            Release();
+            return true;
+        }
+
+        // False while the fenced outgoing world is still current; a different current world releases the fence and drops
+        // the outgoing records (the incoming world owns its own).
         public bool Accepts(object currentWorld)
         {
-            if (fencedWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) fencedWorld = null;
+            if (fencedWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) Release();
             return fencedWorld == null;
         }
+
+        public void Reset() => Release();
+
+        private void Release() { fencedWorld = null; owner = null; outgoingIntent = null; outgoingPlaced = null; }
     }
 }

@@ -49,6 +49,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: confirmed pet loss clears an uninspected public slot; a different pet cannot revive it", PermanentLossClearsSlot);
             runner.Run("toolbar: area suspension classifies a departed rider's recent move or removal before emptying its bar", SuspensionObservesDeparted);
             runner.Run("toolbar: observations while a selected load's outgoing world is still current write nothing", LoadFenceProductionOrder);
+            runner.Run("toolbar: a removal stays removed when native deactivates the fact before the next update", RemovalThenDeactivation);
+            runner.Run("toolbar: a direct change of pets retires the old slot in update-first and save-first order", DirectPetChange);
+            runner.Run("toolbar: an abandoned load returns reserve slots and deliberate removals the bar cannot reconstruct", AbandonedLoadRestores);
+            runner.Run("toolbar: a superseded load releases only its own fence; an unstarted replacement leaves controls running", SupersededLoadFence);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -132,8 +136,11 @@ namespace KingmakerMountedCombat.Tests
                 Observed.Clear();
             }
 
-            // BeginSelectedLoad at the native iterator's first step: records cleared, the outgoing world fenced.
-            internal void BeginLoad() { Intent.Clear(); Placed.Clear(); Fence.Begin(Current); }
+            // BeginSelectedLoad(owner) at the native iterator's first step: records moved aside, the outgoing world fenced.
+            internal void BeginLoad(object owner = null) => Fence.Begin(Current, owner ?? new object(), Intent, Placed);
+
+            // AbandonLoadedWorld(owner): the owning scope ended without native completion.
+            internal bool AbandonLoad(object owner) => Fence.Abandon(owner, Current, Intent, Placed);
 
             // Native loading replaces the player object; the incoming world's riders are added by the caller first.
             internal void InstallAndRestore(World incoming, List<SavedRow> rows)
@@ -171,10 +178,21 @@ namespace KingmakerMountedCombat.Tests
             internal void Frame() => S.Frame();
 
             // One candidate's reconciliation in ReconcileFacts.
+            // RetireOnPetChange: a different nonempty pet link retires the arrangement and clears the public slots.
+            internal bool RetireOnPetChange()
+            {
+                if (!Intent.PetLinkChanged(Id, PetId)) return false;
+                for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
+                Intent.Forget(Id);
+                return true;
+            }
+
             internal void Reconcile()
             {
-                // The bar is observed before a live public fact is withdrawn (one fact here, so only withdrawal applies).
-                if (FactLive && !Desired) ObserveBar();
+                RetireOnPetChange();
+                // The bar is observed before the public fact is withdrawn, replaced or re-leased (one fact here:
+                // withdrawal of a live fact, or a missing/inactive fact the rider still gets).
+                if ((FactLive && !Desired) || (!FactLive && Desired)) ObserveBar();
                 var replaced = false;
                 if (Desired && !FactLive) { FactLive = true; DataVersion++; replaced = true; }
                 if (!Desired) FactLive = false;
@@ -194,7 +212,14 @@ namespace KingmakerMountedCombat.Tests
                 }
             }
 
-            internal void ObserveBar() => Intent.ObserveAtBoundary(Id, FactLive, Find(), S.Placed.Contains(Id), PetId);
+            internal void ObserveBar()
+            {
+                RetireOnPetChange();
+                Intent.ObserveAtBoundary(Id, FactLive, Find(), S.Placed.Contains(Id), PetId);
+            }
+
+            // Native deactivates the fact (no slot holds it, so native cleanup reports nothing).
+            internal void NativeDeactivate() { FactLive = false; }
 
             // ClassifyArrangementsForCapture for a candidate.
             internal void Classify()
@@ -245,7 +270,7 @@ namespace KingmakerMountedCombat.Tests
             internal void NativeInvalidate(bool reactivated = false)
             {
                 var at = Find();
-                if (at >= 0) { if (S.Accepts) Intent.ObserveNativeSlotInvalidated(Id, at, PetId); Slots[at] = null; }
+                if (at >= 0) { if (S.Accepts && !RetireOnPetChange()) Intent.ObserveNativeSlotInvalidated(Id, at, PetId); Slots[at] = null; }
                 FactLive = reactivated;
             }
 
@@ -697,10 +722,97 @@ namespace KingmakerMountedCombat.Tests
             // An abandoned load lifts the fence and the outgoing world continues normally.
             var abandoned = new Service();
             var stays = PlacedAt(9, "rider", abandoned);
-            abandoned.BeginLoad();
-            abandoned.Fence.Abandon();
+            var owner = new object();
+            abandoned.BeginLoad(owner);
+            abandoned.AbandonLoad(owner);
             stays.Frame();
             TestRunner.True(abandoned.Intent.Has("rider") && stays.Find() == 9, "An abandoned load left the world fenced.");
+        }
+
+        private static void RemovalThenDeactivation()
+        {
+            var rider = PlacedAt(9);
+            rider.Slots[9] = null;     // removed while the fact is live, not yet observed
+            rider.NativeDeactivate();  // native deactivates the fact before the next update; no slot holds it, so no IsBad
+            rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "A removal was undone when the fact was deactivated before the update.");
+            var rows = rider.Save();
+            TestRunner.True(rows.Count == 1 && rows[0].Kind == 7, "The save after the removal carried a slot row.");
+            // Control: native cleanup of a bound slot still restores it once.
+            var cleaned = PlacedAt(9, "cleaned");
+            cleaned.NativeInvalidate();
+            cleaned.Frame(); cleaned.Frame();
+            TestRunner.True(cleaned.Find() == 9 && cleaned.Count() == 1, "Native cleanup of slot 9 no longer restored it once.");
+        }
+
+        private static void DirectPetChange()
+        {
+            // Update first: the link changes A -> B (B not yet resolving), the old slot still on an uninspected bar.
+            var rider = PlacedAt(9);
+            rider.PetId = "horse-2"; rider.PetResolves = false;
+            rider.Frame();
+            TestRunner.True(rider.Find() == -1 && rider.Slots[0] == "Attack", "The old slot survived a direct change of pets, or another slot changed.");
+            rider.PetResolves = true; rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "The new pet inherited the old slot (update first).");
+            // Save first: the header runs before any update after the change.
+            var saver = PlacedAt(9, "saver");
+            saver.PetId = "horse-2"; saver.PetResolves = false;
+            var rows = saver.Save();
+            TestRunner.True(!rows.Any(r => r.Kind == 6) && saver.Slots[0] == "Attack", "The save carried the old pet's slot or cleared another slot.");
+            saver.PetResolves = true; saver.Frame(); saver.Frame();
+            TestRunner.Equal(-1, saver.Find(), "The new pet inherited the old slot (save first).");
+            // Control: the same pet id temporarily unresolved still restores slot 9.
+            var same = PlacedAt(9, "same");
+            same.PetResolves = false; same.Frame();
+            same.PetResolves = true; same.Frame();
+            TestRunner.True(same.Find() == 9 && same.Count() == 1, "The same pet lost slot 9.");
+        }
+
+        private static void AbandonedLoadRestores()
+        {
+            var service = new Service();
+            var reserve = PlacedAt(9, "reserve", service);
+            reserve.ToReserve();                       // its only record of slot 9 is the remembered arrangement
+            var offBar = PlacedAt(4, "offbar", service);
+            offBar.Slots[4] = null; offBar.Frame();    // deliberately off the bar, autofill enabled
+            TestRunner.True(reserve.Find() == -1 && offBar.Autofill, "The fixture is not a bar-less reserve slot and an autofill off-bar rider.");
+            var owner = new object();
+            service.BeginLoad(owner);                  // load starts while the outgoing player is current
+            TestRunner.True(!service.Intent.Has("reserve") && !service.Placed.Contains("offbar"), "The records were not moved aside.");
+            TestRunner.True(service.AbandonLoad(owner), "The owning scope could not abandon its load.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count(r => r.Actor == "reserve" && r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Actor == "offbar" && r.Kind == 6) == 0 &&
+                rows.Count(r => r.Actor == "offbar" && r.Kind == 7) == 1, "The abandoned load lost the reserve slot or the deliberate removal.");
+            reserve.ToParty(); service.Frame(); service.Frame();
+            TestRunner.True(reserve.Find() == 9 && reserve.Count() == 1 && offBar.Find() == -1, "Party return or autofill reversed a choice after the abandoned load.");
+        }
+
+        private static void SupersededLoadFence()
+        {
+            // A started, B queued; A disposed (superseded), then B disposed without starting.
+            var service = new Service();
+            var reserve = PlacedAt(9, "reserve", service);
+            reserve.ToReserve();
+            var loadA = new object(); var loadB = new object();
+            service.BeginLoad(loadA);
+            TestRunner.True(service.AbandonLoad(loadA), "The superseded scope could not release its own fence.");
+            // B is disposed without MoveNext: its begin never ran, so there is nothing for it to release.
+            TestRunner.True(!service.Fence.Fenced, "Controls stayed fenced after the unstarted replacement.");
+            reserve.ToParty(); service.Frame();
+            TestRunner.True(reserve.Find() == 9 && reserve.Count() == 1, "Reconciliation did not resume after supersession.");
+            // B starts before A is disposed: A's disposal cannot release B's fence.
+            var second = new Service();
+            var rider = PlacedAt(9, "rider", second);
+            rider.ToReserve();
+            var olderA = new object(); var newerB = new object();
+            second.BeginLoad(olderA);
+            second.BeginLoad(newerB);
+            TestRunner.True(!second.AbandonLoad(olderA) && second.Fence.Fenced, "The older scope released the newer scope's fence.");
+            rider.ToParty(); second.Frame();
+            TestRunner.True(rider.Find() == -1 && !second.Intent.Has("rider"), "The outgoing world wrote while the newer scope was fenced.");
+            TestRunner.True(second.AbandonLoad(newerB) && !second.Fence.Fenced, "The newer scope could not abandon its own load.");
+            second.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The original records did not come back after the newer scope was abandoned.");
         }
 
         private static void RemovalAfterLeaseRelease()

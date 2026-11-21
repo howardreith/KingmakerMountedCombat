@@ -728,16 +728,18 @@ namespace KingmakerMountedCombat.Integration
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();
-                controls?.BeginSelectedLoad();
+                controls?.BeginSelectedLoad(scope);
                 relationship?.World?.Presentation?.ReleaseAtWorldBoundary("load");
                 SelectLoad(save);
             }, () =>
             {
-                if (scope.Sequence != loadSequence) { scope.World.Close(); return; }
+                // A superseded scope still releases its own control fence (a newer started scope owns its own; an
+                // unstarted one armed none), so the continuing world never stays fenced.
+                if (scope.Sequence != loadSequence) { controls?.AbandonLoadedWorld(scope); scope.World.Close(); return; }
                 if (!scope.World.NativeCompleted)
                 {
                     FenceAbandonedCombat();
-                    controls?.AbandonLoadedWorld();
+                    controls?.AbandonLoadedWorld(scope);
                     scope.World.Close();
                     presentationPending = false;
                     restoredActors.Clear();

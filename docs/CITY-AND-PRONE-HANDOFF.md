@@ -119,6 +119,22 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   differs, or when the load is abandoned (`MountedPersistenceService` calls `AbandonLoadedWorld`). `BeginLoadedWorld`
   alone stays fence-free for the two diagnostics that re-arm the first placement within one world.
 
+**Round 5 additions.**
+- *Observe before any fact change (R4-F1):* the pre-update observation now runs whenever the update will withdraw,
+  replace or re-lease the public fact, including a fact native already deactivated (no slot, so no `IsBad`); a removal
+  made while the fact was live stays a removal, and absences already recorded (native cleanup, KMC suspension, a load)
+  stay pending.
+- *Direct change of pets (R4-F2):* `RetireOnPetChange` runs before anything can overwrite the stored pet link (start of
+  each candidate's reconciliation, every bar observation including the save header and departures, and the native
+  cleanup report): a nonempty link naming a different companion (`PetLinkChanged`) retires the arrangement and clears
+  the rider's public-control slots. The same id temporarily unresolved still keeps and restores the slot.
+- *Abandoned and superseded loads (R5-F1, R5-F2):* `MountedControlLoadFence` now belongs to its load scope
+  (`BeginSelectedLoad(scope)`) and moves the outgoing records (arrangements and placement records) aside instead of
+  discarding them. `AbandonLoadedWorld(scope)` from the owning scope restores them exactly when the outgoing world is
+  still current (reserve slots and deliberate removals the bar cannot reconstruct), and drops them after a world
+  replacement. A superseded scope's end callback now abandons its own fence; another scope's fence is never released;
+  a newer scope that starts on the same fenced world takes ownership of the records already moved aside.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -228,9 +244,11 @@ build) on the uncommitted tree failed in the focused step (`Test-CityAreaAdapter
 helper named like `git`); three `-SkipBuild` retries followed: one failed (a single-element array unrolled to a string),
 one failed (an empty-difference wrapping artifact), one passed; the controller gate then passed on `29ffa3a5` in 25.7 s.
 Round 4: one local Fast run (with build) on the uncommitted tree passed (components 1443/0, Validate-Source 153/0,
-focused 5/5; its area-adapter comparison read the previous commit as HEAD); the controller gate on the round-4 commit
-is the result of record (final report).
-| components (`bin\Tests`) | 1443/0 | 23 toolbar, 6 city-roster and 3 downed-target tests |
+focused 5/5; its area-adapter comparison read the previous commit as HEAD); the controller gate then passed on
+`9ce8b7c1` in 22.4 s. Round 5: one local Fast run (with build) on the uncommitted tree passed (components 1447/0,
+Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD); the controller gate on the round-5
+commit is the result of record (final report).
+| components (`bin\Tests`) | 1447/0 | 27 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
@@ -277,6 +295,10 @@ NATIVE = in-game structured evidence.
 | Toolbar persistence | Removal just before the fact lease is lost stays removed when the same pet returns; native invalidation control returns | PASS | UNIT |
 | Toolbar persistence | Confirmed pet loss clears an uninspected public slot; a different pet cannot revive it; same-pet absence keeps it | PASS | UNIT |
 | Toolbar persistence | Area suspension classifies a departed rider's recent move (3) or removal before emptying its bar | PASS | UNIT |
+| Toolbar persistence | Removal then native deactivation before the update stays removed (save: record only); native cleanup control restores 9 | PASS | UNIT |
+| Toolbar persistence | Direct pet change A -> B (B unresolved), update-first and save-first: B never inherits 9; same-id control restores | PASS | UNIT |
+| Toolbar persistence | Abandoned load restores a bar-less reserve slot and an autofill off-bar removal (save and party return) | PASS | UNIT |
+| Toolbar persistence | Superseded load releases its own fence; unstarted replacement leaves controls running; older scope cannot release a newer fence | PASS | UNIT |
 | Toolbar persistence | `MechanicActionBarSlotAbility.IsBad` override identity and its use by GetSlot/CleanupBadSlots | PASS | CONTRACT |
 | Toolbar persistence | Native bad-slot replacement this relies on | PASS | CONTRACT |
 | Toolbar persistence | Save/load in and out of the real capital, forced dismount, pet unavailability in game | NOT RUN | NATIVE (prerequisites below) |
@@ -341,8 +363,15 @@ Current prerequisites, per case (none run on this candidate):
    only available rider has extra attacks, keep them and use the matched control instead: the mounted routine must have
    the same number of rolls and the same action cost as the same rider's unmounted routine in the same mode, position
    and target (a legal native full attack then passes; an additional routine or a second action spend fails). In turn
-   based, read the action bar's spent actions after each click. In real time, watch from the click until the first
-   attack resolves or one round (6 game seconds) passes, then pause and read the log. Kingmaker 2.1.7b does not track
+   based, read the action bar's spent actions after each click; the routine ends when the action bar shows the action
+   spent and no further roll follows before you act again. In real time, use one counting window for every run,
+   mounted and dismounted alike: start the game paused, click, unpause, note the game time of the first roll in the
+   log, let the game run until about 5.5 game seconds after that first roll (just under one real-time round of
+   6 seconds: the routine of that round falls inside it, the next automatic round's first roll does not), then pause
+   and count the rolls logged inside the window. Rolls after the window belong to the next automatic round and are not
+   counted. Pass: under setup S, exactly one roll in the window; with the
+   fallback, the same number of rolls as the dismounted run's window. Fail: a roll more (or fewer) than the matched
+   count inside the window, including a delayed extra roll after the first one. Kingmaker 2.1.7b does not track
    arrows for an ordinary bow; if your setup does show an ammunition count (another mod), it must drop by exactly the
    number of rolls, otherwise ammunition is not compared.
 4. Combat with setup S, mounted, at about 10 ft and about 40 ft, real time and turn based, each against: a standing
@@ -362,8 +391,9 @@ Current prerequisites, per case (none run on this candidate):
      horse's own actions unchanged. Fail: a second roll in the same turn.
    - **Beyond firing range:** start farther from the enemy than the longbow reaches and click it. Pass: the ordinary
      approach (the horse moves toward the target with the pair's own movement) and at most the setup-S routine once in
-     range; in turn based, if the movement runs out first, no roll and no Standard spent. In real time stop after one
-     round of approach without a shot and note it. Fail: a roll from out of range, or an action spent without a shot.
+     range; in turn based, if the movement runs out first, no roll and no Standard spent. In real time, once in range,
+     count with the setup-S window; if no roll occurs within 12 game seconds of the click, pause and note it. Fail: a
+     roll from out of range, or an action spent without a shot.
    - **Mounted melee:** switch the rider to a single-attack melee weapon and click an adjacent standing enemy. Pass: the
      rider's melee routine and action cost as on 0.2.13 with the same rider and positions (the horse attacks only on its
      own opportunity, as before). Fail: no roll, or a routine or action spend 0.2.13 does not show.
