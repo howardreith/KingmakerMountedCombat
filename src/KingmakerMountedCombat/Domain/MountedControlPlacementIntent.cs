@@ -127,12 +127,29 @@ namespace KingmakerMountedCombat.Domain
         // arrangement (for example an alias a save scope returned and recorded as live) that alias is the live
         // placement being invalidated: the slot is remembered as a temporary absence (ObserveNativeSlotInvalidated).
         // For an actor with none it is the discovery of an older unrecorded alias (AdmitSurvivingBinding).
+        // An arrangement already interrupted in this absence (for example the canonical slot native cleanup emptied a
+        // moment earlier in the same pass) is the remembered choice and wins: a later report for a secondary alias never
+        // replaces it.
         public bool ObserveNativeAliasInvalidated(string actorId, int aliasIndex, string petId, bool controlDesired)
         {
+            Entry entry;
             if (actorId == null || aliasIndex < 0) return false;
-            return entries.ContainsKey(actorId)
-                ? ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired)
-                : AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
+            if (!entries.TryGetValue(actorId, out entry)) return AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
+            if (entry.Interrupted && entry.Index != aliasIndex)
+            {
+                RetireOnCompanionLoss(actorId, petId, controlDesired, true);
+                return false;
+            }
+            return ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired);
+        }
+
+        // The remembered slot now belongs to another binding (a save boundary found it occupied): the shortcut is off the
+        // bar from now on, in the continuing world as in the save, and the rider keeps its one-time placement.
+        public void GiveUpOccupiedSlot(string actorId)
+        {
+            Entry entry;
+            if (actorId == null || !entries.TryGetValue(actorId, out entry) || entry.Index == OffBar) return;
+            ObserveOffBar(actorId, entry.PetId);
         }
 
         // An older save's binding that has no fact behind it now: a reserve rider's surviving public-control binding,
@@ -407,8 +424,17 @@ namespace KingmakerMountedCombat.Domain
         public bool Fenced => fencedWorld != null;
 
         // Arms the fence for one load scope and moves the outgoing records aside (the live sets are cleared).
-        public void Begin(object outgoingWorld, object loadOwner, MountedControlPlacementIntent intent, ISet<string> placed)
+        // controlsActive: the control service is enabled. A disabled service holds no records to protect (disable cleared
+        // them) and never reaches the update that would lift the fence on world replacement, so it arms none and keeps
+        // no reference to the outgoing world.
+        public void Begin(object outgoingWorld, object loadOwner, MountedControlPlacementIntent intent, ISet<string> placed,
+            bool controlsActive = true)
         {
+            if (!controlsActive)
+            {
+                Release();
+                return;
+            }
             if (fencedWorld != null && ReferenceEquals(fencedWorld, outgoingWorld))
             {
                 // A newer scope starts while an older one still fences the same world: the records moved aside by the
@@ -456,8 +482,18 @@ namespace KingmakerMountedCombat.Domain
         // currentWorld or when the observation proves the companion was removed.
         public bool ObserveOutgoingSlotInvalidated(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired)
         {
+            return ObserveOutgoingCleanupOutcome(currentWorld, actorId, slotIndex, petId, controlDesired, false);
+        }
+
+        // Native CleanupBadSlots' outcome for an outgoing-world slot while this fence holds: rebound makes that slot the
+        // live arrangement, emptied is the ordinary invalidation; either way the outgoing placement record is set, so an
+        // abandoned load returns exactly that state and a replaced world drops it.
+        public bool ObserveOutgoingCleanupOutcome(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired, bool rebound)
+        {
             if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
-            return outgoingIntent.ObserveNativeSlotInvalidated(actorId, slotIndex, petId, controlDesired);
+            if (!outgoingIntent.ObserveNativeCleanupOutcome(actorId, slotIndex, petId, controlDesired, rebound)) return false;
+            outgoingPlaced?.Add(actorId);
+            return true;
         }
 
         // An older Mount / Dismount alias on an outgoing-world rider's bar that native cleanup is about to empty while

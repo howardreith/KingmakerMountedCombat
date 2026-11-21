@@ -1742,7 +1742,9 @@ namespace KingmakerMountedCombat.Integration
             initialPlacements.Clear();
             // The outgoing world's scan bookkeeping goes with it (an abandoned load rescans, which is idempotent).
             reserveScan.Reset();
-            loadFence.Begin(Game.Instance?.Player, loadOwner, placementIntent, placementRecorded);
+            // A disabled service holds no records to protect (disable cleared them) and never reaches the update that
+            // would release a fence, so it arms none and keeps no reference to the outgoing player.
+            loadFence.Begin(Game.Instance?.Player, loadOwner, placementIntent, placementRecorded, enabled && !disposed);
         }
 
         // The owning load scope ended without native completion (canceled, failed or superseded). If its outgoing world
@@ -1960,7 +1962,8 @@ namespace KingmakerMountedCombat.Integration
         // public control is observed; every other slot is ignored.
         internal void ObserveInvalidatedPublicSlot(MechanicActionBarSlotAbility slot)
         {
-            if (disposed || mountStateAbility == null || slot == null ||
+            // A disabled service acquires no placement intent from native toolbar cleanup.
+            if (disposed || !enabled || mountStateAbility == null || slot == null ||
                 !MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(slot.Ability?.Blueprint))) return;
             var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
             // Only a current-world rider's own bar: the exact slot object must still be on it (native reads it from the
@@ -2015,7 +2018,7 @@ namespace KingmakerMountedCombat.Integration
         internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
         {
             ResolvePendingBadSlots();
-            activeBadSlotCleanup = settings;
+            activeBadSlotCleanup = disposed || !enabled ? null : settings;
         }
 
         internal void EndNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
@@ -2060,11 +2063,13 @@ namespace KingmakerMountedCombat.Integration
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
                 // world, so an emptied slot is kept with the load scope's outgoing records (an abandoned load returns
                 // it; a replaced world drops it). A rebound slot is still on the bar for the next update to observe.
-                if (rebound) return;
-                var recorded = item.Alias
+                // A rebound slot is recorded live in those outgoing records too, so an abandoned load returns the live
+                // state (a later removal stays the player's).
+                var recorded = item.Alias && !rebound
                     ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired)
-                    : loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired);
-                if (recorded) NativeSlotInvalidationCount++;
+                    : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired, rebound);
+                if (recorded && rebound) NativeSlotReboundCount++;
+                else if (recorded) NativeSlotInvalidationCount++;
                 return;
             }
             // A slot of a removed or replaced companion is not the next companion's choice: it is retired, not remembered.
@@ -2089,8 +2094,13 @@ namespace KingmakerMountedCombat.Integration
                 }
                 return;
             }
+            // The player's canonical shortcut was seen: its one-time placement is satisfied even though native emptied it
+            // (no autofill copy if its chosen slot is taken before the control returns).
             if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false))
+            {
+                placementRecorded.Add(unit.UniqueId);
                 NativeSlotInvalidationCount++;
+            }
         }
 
         // Positive evidence that the companion the rider's arrangement belongs to is gone (MountedControlPlacementIntent.
@@ -2592,6 +2602,13 @@ namespace KingmakerMountedCombat.Integration
                 var ownerSlots = owner.UISettings?.Slots;
                 var occupied = index >= 0 && ownerSlots != null && index < ownerSlots.Length && ownerSlots[index] != null &&
                     !(ownerSlots[index] is MechanicActionBarSlotEmpty) && !IsPublicBindingSlot(ownerSlots[index]);
+                // The same decision governs the continuing game: the shortcut is off the bar from now on (clearing the
+                // occupant later does not bring it back, exactly as reloading this save would not).
+                if (MountedControlSlotPolicy.RememberedSlotTaken(index, liveRows, occupied))
+                {
+                    placementIntent.GiveUpOccupiedSlot(actorId);
+                    placementRecorded.Add(actorId);
+                }
                 foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(index, liveRows, occupied))
                     result.Add(new SavedMountedSlot { ActorId = actorId, Index = row.Key, Kind = row.Value });
             }

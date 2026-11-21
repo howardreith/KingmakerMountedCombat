@@ -79,6 +79,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a save before the first update never autofills a second copy of a manual placement", SaveReleaseNoAutofillCopy);
             runner.Run("toolbar: a remembered slot occupied by another live binding is saved off the bar with unique archive keys", RememberedSlotOccupied);
             runner.Run("toolbar: deferred native cleanup from a replaced world is discarded; an abandoned load still applies it", DeferredCleanupAcrossWorlds);
+            runner.Run("toolbar: native emptying of a first manual shortcut satisfies placement; a filled slot gets no autofill copy", FirstManualCleanupNoAutofill);
+            runner.Run("toolbar: one cleanup pass emptying a canonical slot then an older alias keeps the canonical index", MixedCleanupPassKeepsCanonical);
+            runner.Run("toolbar: a slot given up as occupied at a save stays given up in the continuing game and after reload", OccupiedSlotGivenUpEverywhere);
+            runner.Run("toolbar: a disabled service arms no load fence, keeps no outgoing world and records no native cleanup", DisabledLifecycle);
+            runner.Run("toolbar: a native rebind during a fenced load is the live state an abandoned load returns", FencedRebindAbandoned);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -187,10 +192,12 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var reserve in Reserve.ToList()) reserve.ClearControlSlots();
                 foreach (var rider in Candidates.Concat(Observed).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: true);
                 Observed.Clear(); Placed.Clear(); Intent.Clear(); Fence.Reset(); Scanned.Clear();
+                Enabled = false;
             }
 
             internal void Frame()
             {
+                if (!Enabled) return; // Update returns at once while the service is disabled
                 if (!Accepts) return; // Update returns before ReconcileFacts while a selected load's outgoing world is current
                 AdmitReserve();
                 var candidates = Candidates;
@@ -233,8 +240,10 @@ namespace KingmakerMountedCombat.Tests
                     if (!Intent.TryGetArrangement(id, out index)) continue;
                     // The remembered slot belongs to another binding on the bar there now: saved off the bar.
                     var occupied = index >= 0 && owner.Slots[index] != null && !MountedControlSlotPolicy.IsPublicControlKind(KindOf(owner.Slots[index]));
-                    foreach (var r in MountedControlSlotPolicy.AbsentRowsAfterLive(index,
-                        rows.Where(x => x.Actor == id).Select(x => new KeyValuePair<int, int>(x.Index, x.Kind)), occupied))
+                    var liveRows = rows.Where(x => x.Actor == id).Select(x => new KeyValuePair<int, int>(x.Index, x.Kind)).ToList();
+                    // The same decision governs the continuing arrangement.
+                    if (MountedControlSlotPolicy.RememberedSlotTaken(index, liveRows, occupied)) { Intent.GiveUpOccupiedSlot(id); Placed.Add(id); }
+                    foreach (var r in MountedControlSlotPolicy.AbsentRowsAfterLive(index, liveRows, occupied))
                         rows.Add(new SavedRow { Actor = id, Index = r.Key, Kind = r.Value });
                 }
                 // The save scope over candidates and still-observed units (reserve riders' bindings are leased too).
@@ -262,7 +271,10 @@ namespace KingmakerMountedCombat.Tests
             }
 
             // BeginSelectedLoad(owner) at the native iterator's first step: records moved aside, the outgoing world fenced.
-            internal void BeginLoad(object owner = null) => Fence.Begin(Current, owner ?? new object(), Intent, Placed);
+            internal void BeginLoad(object owner = null) => Fence.Begin(Current, owner ?? new object(), Intent, Placed, Enabled);
+
+            // NativeMountedControlService.enabled (SetEnabled); a disabled service observes no native toolbar cleanup.
+            internal bool Enabled = true;
 
             // AbandonLoadedWorld(owner): the owning scope ended without native completion.
             internal bool AbandonLoad(object owner) => Fence.Abandon(owner, Current, Intent, Placed);
@@ -482,10 +494,41 @@ namespace KingmakerMountedCombat.Tests
                 {
                     // While a selected load fences this world, the observation goes to the scope's outgoing records.
                     if (!S.Accepts) S.Fence.ObserveOutgoingSlotInvalidated(S.Current, Id, at, PetId, Desired);
-                    else if (!RetireOnPetChange()) Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, false);
+                    else if (S.Enabled && !RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, false)) S.Placed.Add(Id);
                     Slots[at] = null;
                 }
                 FactLive = reactivated;
+            }
+
+            // One native CleanupBadSlots pass over a mixed bar whose public facts are all inactive: it empties each bad
+            // public slot in index order; each IsBad report is held and resolved, in order, when the call returns.
+            internal void NativeCleanupPass()
+            {
+                var pending = new List<Tuple<int, NativeMountedControlKind, int>>();
+                for (var i = 0; i < Slots.Length; i++)
+                {
+                    var kind = Service.KindOf(Slots[i]);
+                    if (!MountedControlSlotPolicy.IsPublicControlKind(kind)) continue;
+                    var aliasIndex = -1;
+                    if (kind != NativeMountedControlKind.MountState)
+                    {
+                        var kinds = Slots.Select(Service.KindOf).ToArray();
+                        var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+                        aliasIndex = chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState ? chosen : -1;
+                        if (aliasIndex < 0) { Slots[i] = null; continue; }
+                    }
+                    pending.Add(Tuple.Create(i, kind, aliasIndex));
+                    Slots[i] = null;
+                }
+                if (!S.Enabled || !S.Accepts) return;
+                foreach (var item in pending)
+                {
+                    if (RetireOnPetChange()) return;
+                    var recorded = item.Item2 == NativeMountedControlKind.MountState
+                        ? Intent.ObserveNativeCleanupOutcome(Id, item.Item1, PetId, Desired, false)
+                        : Intent.ObserveNativeAliasInvalidated(Id, item.Item3, PetId, Desired);
+                    if (recorded) S.Placed.Add(Id);
+                }
             }
 
             // Native CleanupBadSlots on the stale canonical binding: it writes a new binding holding the live fact's data
@@ -499,7 +542,10 @@ namespace KingmakerMountedCombat.Tests
                 var reported = Service.KindOf(Slots[at]);
                 Slots[at] = FactLive ? Data : null;                           // native's rebind or emptying
                 var rebound = MountedControlSlotPolicy.IsNativeRebind(reported, Service.KindOf(Slots[at]), FactLive && Slots[at] == Data);
-                if (S.Accepts && !RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, rebound) && rebound) S.Placed.Add(Id);
+                if (!S.Enabled) return;
+                // While a selected load fences this world, the outcome goes to the scope's outgoing records.
+                if (!S.Accepts) S.Fence.ObserveOutgoingCleanupOutcome(S.Current, Id, at, PetId, Desired, rebound);
+                else if (!RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, rebound)) S.Placed.Add(Id);
             }
 
             // Native bad-slot cleanup of an older alias whose shell fact is gone: the production observer records the
@@ -511,7 +557,7 @@ namespace KingmakerMountedCombat.Tests
                 if (at < 0) return;
                 var kinds = Slots.Select(Service.KindOf).ToArray();
                 var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
-                if (chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState)
+                if (S.Enabled && chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState)
                 {
                     // ApplySlotInvalidation: a recorded placement is invalidated, an unrecorded alias recovered.
                     if (!S.Accepts) S.Fence.AdmitOutgoingSurvivingBinding(S.Current, Id, chosen, PetId, Desired);
@@ -1844,6 +1890,143 @@ namespace KingmakerMountedCombat.Tests
             kept.ResolvePendingNative();
             kept.Frame(); kept.Frame();
             TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The surviving world lost the slot native cleanup emptied.");
+        }
+
+        private static void FirstManualCleanupNoAutofill()
+        {
+            // A manually placed canonical shortcut at 9 (no placement record, autofill on); the pet becomes unavailable and
+            // native cleanup empties the slot before any regular observation; the player puts another ability at 9.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = true };
+            rider.Slots[9] = rider.Data;
+            rider.PetResolves = false;
+            rider.NativeInvalidate();
+            rider.Slots[9] = "Fireball";
+            service.Frame();
+            rider.PetResolves = true; service.Frame(); service.Frame();
+            TestRunner.True(rider.Slots[9] == "Fireball" && rider.Count() == 0, "The shortcut came back elsewhere or over the new ability.");
+            var rows = service.Save();
+            TestRunner.True(!rows.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) && rows.Count(r => r.Kind == 7) == 1,
+                "The save carried a shortcut or no placement record.");
+            service.Frame();
+            TestRunner.True(rider.Count() == 0 && rider.Slots[9] == "Fireball", "The save scope added a shortcut.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Count() == 0 && loaded.Slots[9] == "Fireball", "The reload added a shortcut or lost the ability.");
+        }
+
+        private static void MixedCleanupPassKeepsCanonical()
+        {
+            // A stale canonical binding at 4 and a stale older Mount alias at 9, neither fact live; one native cleanup pass
+            // empties 4 and then 9.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+            rider.Slots[4] = Control + "#0";
+            rider.Slots[9] = "KMC_Mount#0";
+            rider.NativeCleanupPass();
+            TestRunner.True(rider.Slots[4] == null && rider.Slots[9] == null, "The fixture did not empty both slots.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 4, "The save did not keep the canonical index 4.");
+            var loaded = rider.Load(rows);
+            loaded.Frame();
+            loaded.PetResolves = true; loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 4 && loaded.Count() == 1 && loaded.Slots[9] == null, "The reload did not restore one binding at 4.");
+        }
+
+        private static void OccupiedSlotGivenUpEverywhere()
+        {
+            foreach (var reload in new[] { false, true })
+            {
+                // The same pet is temporarily unavailable and its interrupted slot 9 holds another ability at the save.
+                var service = new Service();
+                var rider = PlacedAt(9, "rider", service);
+                rider.PetResolves = false;
+                rider.NativeInvalidate();
+                rider.Slots[9] = "Fireball";
+                var rows = service.Save();
+                TestRunner.True(!rows.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) && rows.Count(r => r.Kind == 7) == 1,
+                    "The save did not record the shortcut off the bar.");
+                var current = reload ? rider.Load(rows) : rider;
+                current.Frame();
+                current.Slots[9] = null;               // the player clears the occupant before the pet returns
+                current.PetResolves = true; current.Frame(); current.Frame();
+                TestRunner.Equal(-1, current.Find(), "The given-up shortcut came back (reload=" + reload + ").");
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference BeginFence(MountedControlLoadFence fence, bool controlsActive)
+        {
+            var world = new object();
+            fence.Begin(world, new object(), new MountedControlPlacementIntent(), new HashSet<string>(), controlsActive);
+            return new WeakReference(world);
+        }
+
+        private static void DisabledLifecycle()
+        {
+            // The production fence for a disabled service arms nothing and holds no outgoing world.
+            var fence = new MountedControlLoadFence();
+            var outgoing = BeginFence(fence, false);
+            Collect();
+            TestRunner.True(!fence.Fenced && !outgoing.IsAlive, "A disabled service's load fence kept the outgoing world.");
+            var enabledFence = new MountedControlLoadFence();
+            var held = BeginFence(enabledFence, true);
+            Collect();
+            TestRunner.True(enabledFence.Fenced && held.IsAlive, "An enabled service's load fence did not hold the outgoing world.");
+            // A disabled service completes a load from world A to world B without arming a fence.
+            var service = new Service();
+            var rider = PlacedAt(9, "rider", service);
+            var rows = service.Save();
+            service.Disable();
+            rider.Load(rows);
+            TestRunner.True(!service.Fence.Fenced, "The load while disabled left a fence on the outgoing world.");
+            // Native cleanup while disabled records nothing.
+            var quiet = new Service();
+            var alias = new Rider("alias", quiet, quiet.Current) { PetResolves = false, Autofill = false };
+            var canonical = new Rider("canonical", quiet, quiet.Current) { Autofill = false };
+            quiet.Disable();
+            alias.Slots[9] = "KMC_Mount#0";             // a surviving legacy slot seen while disabled
+            canonical.FactLive = true;
+            canonical.Slots[3] = canonical.Data;
+            alias.NativeInvalidateAlias();
+            canonical.NativeInvalidate();
+            TestRunner.True(!quiet.Intent.Has("alias") && !quiet.Intent.Has("canonical") && quiet.Placed.Count == 0,
+                "Native cleanup while disabled created a placement record.");
+        }
+
+        private static void FencedRebindAbandoned()
+        {
+            // Interrupted intent with stale data at 9; a selected load fences the world; native cleanup rebinds the slot;
+            // the load is abandoned; the player removes the repaired shortcut before reconciliation.
+            var service = new Service();
+            var rider = PlacedAt(9, "rider", service);
+            rider.DataVersion++;
+            service.Intent.ObserveAbsent("rider", MountedControlAbsence.Temporary);
+            var owner = new object();
+            service.BeginLoad(owner);
+            rider.NativeCleanupBadSlots();
+            TestRunner.True(rider.Slots[9] == rider.Data && !service.Intent.Has("rider"), "The fixture did not rebind while fenced, or wrote live records.");
+            TestRunner.True(service.AbandonLoad(owner), "The owning scope could not abandon its load.");
+            rider.Slots[9] = null;
+            service.Frame(); service.Frame();
+            TestRunner.Equal(-1, rider.Find(), "The abandoned load reversed the removal of the repaired shortcut.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count == 1 && rows[0].Kind == 7, "The save after the removal carried more than the placement record.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.Equal(-1, loaded.Find(), "The reload resurrected the removed shortcut.");
+            // Isolation control: the same fenced rebind followed by a completed replacement leaves the new world its own.
+            var replaced = new Service();
+            var outgoing = PlacedAt(9, "rider", replaced);
+            outgoing.DataVersion++;
+            replaced.BeginLoad(new object());
+            outgoing.NativeCleanupBadSlots();
+            var incoming = new World();
+            var reserve = new Rider("rider", replaced, incoming) { InParty = false, Autofill = false };
+            replaced.InstallAndRestore(incoming, new List<SavedRow>());
+            reserve.ToParty(); replaced.Frame(); replaced.Frame();
+            TestRunner.Equal(-1, reserve.Find(), "The completed replacement took the outgoing world's rebind.");
         }
 
         private static void RemovalAfterLeaseRelease()

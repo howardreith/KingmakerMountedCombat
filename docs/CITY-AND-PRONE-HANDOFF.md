@@ -269,6 +269,26 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   (`MountedControlSlotPolicy.DeferredObservationApplies`, checked before the fence can be released). Work from a
   replaced world is discarded, and an abandoned load still applies it.
 
+**Round 14 additions.**
+- *Native emptying satisfies the one-time placement (R14-F1):* a recorded canonical invalidation now also sets
+  `placementRecorded`, in the live records and, through `MountedControlLoadFence.ObserveOutgoingCleanupOutcome`, in
+  a fenced world's outgoing records. If the chosen slot is filled before the control returns, the shortcut stays off
+  the bar and autofill adds no copy.
+- *Canonical precedence through one cleanup pass (R14-F2):* `ObserveNativeAliasInvalidated` never replaces an
+  arrangement already interrupted at another index, for example the canonical slot emptied earlier in the same pass.
+  A later report for a secondary alias keeps the canonical choice. A live recorded alias (R13-F1) is still
+  invalidated at its own index.
+- *An occupied slot is given up everywhere (R14-F3):* when the save boundary finds the remembered slot taken
+  (`MountedControlSlotPolicy.RememberedSlotTaken`), `MountedControlPlacementIntent.GiveUpOccupiedSlot` moves the
+  continuing arrangement off the bar too, with the placement record kept. Clearing the occupant later does not bring
+  it back, in the continuing game or after a reload.
+- *Disabled lifecycle (R14-F4):* `MountedControlLoadFence.Begin` takes the controls' active state. A disabled service
+  arms no fence and keeps no reference to the outgoing player, because it never reaches the update that would lift
+  one. The `IsBad` observer and the `CleanupBadSlots` bracket record nothing while disabled.
+- *Fenced rebind (R14-F5):* a native rebind observed while a selected load fences the world is recorded live in the
+  scope's outgoing records (`ObserveOutgoingCleanupOutcome`). An abandoned load returns the live state, so a later
+  removal stays the player's, and a completed replacement drops it.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -430,9 +450,14 @@ absent from the diff), passed: components 1472/0, assembly contracts 822/0 (rebi
 `MechanicActionBarSlotAbility` x1, stfld `Ability` x1, `SetSlot` calls 3, empty-slot newobj x1), archive bound 9/0,
 focused 5/5. A combined mutation run then reverted five decisions: the rebind classifier, recorded-alias
 invalidation, occupancy, the deferred-world check, and in the double the observed and leased placement record. It
-failed exactly the five targeted regressions. All mutations were reverted. The controller gate on the round-13
-commit is the result of record.
-| components (`bin\Tests`) | 1472/0 | 52 toolbar, 6 city-roster and 3 downed-target tests |
+failed exactly the five targeted regressions. All mutations were reverted. The controller gate then passed on
+`9fd90f6b` in 63.7 s. Round 14: one local run on the fixed tree, with PASS lines temporarily silenced in
+`tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1477/0, assembly contracts 822/0, archive
+bound 9/0, focused 5/5. A combined mutation run then reverted five decisions: in the domain, the interrupted-alias
+rule, the occupied give-up, the disabled fence and the outgoing rebind; in the double, the placement record on
+canonical emptying. It failed exactly the five new regressions. All mutations were reverted. The controller gate on
+the round-14 commit is the result of record.
+| components (`bin\Tests`) | 1477/0 | 57 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 822/0 (adds the `IsBad` override, `CleanupBadSlots` token and rebind-shape rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

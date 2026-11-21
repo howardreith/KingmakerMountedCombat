@@ -103,12 +103,24 @@ namespace KingmakerMountedCombat.Domain
             var live = liveRowsForActor == null ? new List<KeyValuePair<int, int>>() : new List<KeyValuePair<int, int>>(liveRowsForActor);
             var result = new List<KeyValuePair<int, int>>();
             if (live.Exists(row => IsPublicBindingRow(row.Value))) return result;
-            var occupied = rememberedSlotOccupied ||
-                live.Exists(row => row.Value != SavedPlacementRecord && row.Key == index);
+            var occupied = RememberedSlotTaken(index, live, rememberedSlotOccupied);
             var hasRecord = live.Exists(row => row.Value == SavedPlacementRecord);
             foreach (var row in AbsentArrangementRows(occupied ? -1 : index))
                 if (row.Value != SavedPlacementRecord || !hasRecord) result.Add(row);
             return result;
+        }
+
+        // Whether a remembered slot belongs to something else now: another binding on the bar there, or another row the
+        // live writer emitted at that index. The save then records the shortcut off the bar, and so does the continuing
+        // arrangement (MountedControlPlacementIntent.GiveUpOccupiedSlot).
+        public static bool RememberedSlotTaken(int index, IEnumerable<KeyValuePair<int, int>> liveRowsForActor, bool rememberedSlotOccupied)
+        {
+            if (index < 0) return false;
+            if (rememberedSlotOccupied) return true;
+            if (liveRowsForActor == null) return false;
+            foreach (var row in liveRowsForActor)
+                if (row.Value != SavedPlacementRecord && row.Key == index) return true;
+            return false;
         }
 
         // Native UnitUISettings.CleanupBadSlots' outcome for a bad slot it was handed, from what the slot holds when the
