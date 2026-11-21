@@ -79,6 +79,10 @@ namespace KingmakerMountedCombat.Integration
                 // PET-01: the sheet's name line offers Rename Companion for the companion it is showing.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController), "SetupInfo", 0x060049BE,
                     new[] { typeof(bool) }, null, nameof(PatchMethods.CharacterSheetNamePostfix));
+                // City companion inspection: the capital's full-screen Inventory/Character/Spellbook roster lists the
+                // reserve owners' own animal companions (a UI projection only; see CityCompanionRosterProjection).
+                PatchExact(typeof(Kingmaker.UI.Common.UIUtility), "GetGroup", CityCompanionRosterAdapter.NativeGetGroupToken,
+                    new[] { typeof(bool), typeof(bool) }, null, nameof(PatchMethods.CityCompanionRosterPostfix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -568,6 +572,11 @@ namespace KingmakerMountedCombat.Integration
             internal static void CharacterSheetNamePostfix(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController __instance)
             {
                 CompanionNameService.Current?.Sheet.Refresh(__instance);
+            }
+
+            internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
+            {
+                __result = CityCompanionRosterAdapter.Project(__result, withRemote, withPet, PatchBridge.Logger);
             }
 
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)

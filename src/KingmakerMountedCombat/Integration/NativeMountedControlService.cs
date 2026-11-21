@@ -116,6 +116,10 @@ namespace KingmakerMountedCombat.Integration
         // CTRL-03: actors that had their one automatic placement, placed or migrated a control, or removed it. Belongs to
         // the loaded world; saved as archive placement records and cleared when a new load begins.
         private readonly HashSet<string> placementRecorded = new HashSet<string>(StringComparer.Ordinal);
+        // The player's chosen slot of each rider's public control, kept while its fact is temporarily absent (area
+        // change, save scope, capital reserve roster, out of the game). Actor ids and indices only; belongs to the loaded
+        // world like the placement records, cleared on a new load, disable and disposal.
+        private readonly MountedControlPlacementIntent placementIntent = new MountedControlPlacementIntent();
         private bool restoringSlots;
         private bool registered;
         private bool enabled;
@@ -168,6 +172,11 @@ namespace KingmakerMountedCombat.Integration
         internal long InitialPlacementFullBarCount { get; private set; }
 
         internal long LegacySlotRepairCount { get; private set; }
+
+        // Public controls returned to the player's chosen slot after a temporary absence.
+        internal long PlacementIntentRestoreCount { get; private set; }
+
+        internal int PlacementIntentCount => placementIntent.Count;
 
         internal long PublicControlCommandRefusedCount { get; private set; }
 
@@ -879,6 +888,8 @@ namespace KingmakerMountedCombat.Integration
                 EnsureUnsubscribed();
                 // KMC itself emptied the public slots here, which is not the player's removal: placement may run once more.
                 placementRecorded.Clear();
+                // Disable is cleanup, not a temporary absence: nothing is put back from a remembered slot afterwards.
+                placementIntent.Clear();
             }
         }
 
@@ -1418,6 +1429,7 @@ namespace KingmakerMountedCombat.Integration
 
             ClearTargetingPresentation("disposed");
             RemoveAllManagedFacts(true);
+            placementIntent.Clear();
             ClearSerializationHotbarLeases(false);
             EnsureUnsubscribed();
             RemoveRegisteredBlueprints();
@@ -1685,6 +1697,7 @@ namespace KingmakerMountedCombat.Integration
         {
             ClearTargetingPresentation("load");
             placementRecorded.Clear();
+            placementIntent.Clear();
             initialPlacements.Clear();
         }
 
@@ -1732,7 +1745,12 @@ namespace KingmakerMountedCombat.Integration
                 {
                     continue;
                 }
-                RemoveManagedFacts(prior, false);
+                // A rider that left the candidate roster but is still the player's (the capital moves companions to the
+                // reserve roster) keeps its chosen slot for its return; anything else lost eligibility for good. Its
+                // KMC slots are emptied either way: native would empty a slot whose fact is gone (IsBad), and a native
+                // save must never hold a KMC identity of a unit KMC no longer reconciles.
+                RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+                RemoveManagedFacts(prior, true);
                 observedUnits.Remove(prior);
             }
         }
@@ -1772,6 +1790,7 @@ namespace KingmakerMountedCombat.Integration
             if (slots == null || abilities == null || mountStateAbility == null) return;
             var publicControl = abilities.GetAbility(mountStateAbility);
             var publicActive = publicControl != null && publicControl.Active;
+            var boundIndex = -1;
             for (var index = 0; index < slots.Length; index++)
             {
                 var bound = (slots[index] as MechanicActionBarSlotAbility)?.Ability;
@@ -1779,6 +1798,7 @@ namespace KingmakerMountedCombat.Integration
                 if (kind == NativeMountedControlKind.MountState)
                 {
                     if (!publicActive) continue;
+                    if (boundIndex < 0) boundIndex = index;
                     if (unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
                     if (!ReferenceEquals(bound, publicControl.Data))
                     {
@@ -1797,14 +1817,63 @@ namespace KingmakerMountedCombat.Integration
                     : new MechanicActionBarSlotAbility { Unit = unit, Ability = replacement }, index);
                 MarkBarChanged(unit);
                 if (repair == MountedControlSlotRepair.MountState && unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
+                if (replacement != null && publicActive && ReferenceEquals(replacement, publicControl.Data) && boundIndex < 0) boundIndex = index;
                 LegacySlotRepairCount++;
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
                     "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
             }
+            ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex);
             var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
             if (autoUse == NativeMountedControlKind.MountCompanion || autoUse == NativeMountedControlKind.Dismount ||
                 autoUse == NativeMountedControlKind.MountedCharge || autoUse == NativeMountedControlKind.MountState)
                 unit.AutoUseAbility = null;
+        }
+
+        // The player's arrangement of the public control. A live control in a slot is the current choice (a move updates
+        // it). A live control in no slot returns to the remembered slot only after a temporary absence and only into an
+        // empty slot; the player removing it while it was live, or filling that slot, is respected. An owner that is still
+        // reconciled but no longer gets the control has lost eligibility for good.
+        private void ReconcileChosenSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, Ability livePublicControl, int boundIndex)
+        {
+            var id = unit?.UniqueId;
+            if (id == null) return;
+            if (livePublicControl == null)
+            {
+                RecordAbsence(unit, ShouldLease(unit, NativeMountedControlKind.MountState)
+                    ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+                return;
+            }
+            if (boundIndex >= 0)
+            {
+                placementIntent.ObserveBound(id, boundIndex);
+                return;
+            }
+            var index = placementIntent.ResolveUnbound(id, i => i >= 0 && i < slots.Length &&
+                (slots[i] == null || slots[i] is MechanicActionBarSlotEmpty));
+            if (index < 0) return;
+            unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = livePublicControl.Data }, index);
+            MarkBarChanged(unit);
+            placementRecorded.Add(id);
+            placementIntent.ObserveBound(id, index);
+            PlacementIntentRestoreCount++;
+            logger.Info("Mount / Dismount returned to the player's chosen slot after a temporary absence: unitId=" + id +
+                "; slot=" + index + ".");
+        }
+
+        private void RecordAbsence(UnitEntityData unit, MountedControlAbsence absence)
+        {
+            if (unit?.UniqueId != null) placementIntent.ObserveAbsent(unit.UniqueId, absence);
+        }
+
+        // Still one of the player's characters: in the party, its detached part, or the reserve (remote) roster the
+        // capital moves companions to. Ex-companions and units gone from every roster are not.
+        private static bool IsStillOnPlayerRoster(UnitEntityData unit)
+        {
+            var player = Game.Instance?.Player;
+            if (player == null || unit == null) return false;
+            bool Holds(List<UnitReference> list) => list != null && list.Any(reference => ReferenceEquals(reference.Value, unit));
+            return !Holds(player.ExCompanions) &&
+                (Holds(player.PartyCharacters) || Holds(player.RemoteCompanions) || Holds(player.DetachedPartyCharacters));
         }
 
         // CTRL-03: the native new-ability placement, once per actor, into an empty main-bar slot. Never over a slot;
@@ -1953,6 +2022,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            // Every KMC removal of the facts (area unload, save scope, disable, roster departure) interrupts the public
+            // control; a remembered slot survives it unless the caller already recorded a permanent loss.
+            RecordAbsence(unit, MountedControlAbsence.Temporary);
             foreach (var blueprint in EnumerateBlueprints())
             {
                 foreach (var fact in abilities.Enumerable
@@ -1969,10 +2041,43 @@ namespace KingmakerMountedCombat.Integration
 
         // legacySchema: the held schema-2 writer only knows kinds 1-4, so the public control is written as the shell it
         // runs now and F2's placement records are omitted.
-        internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false)
+        // includeAbsentIntent: the owned save archive also carries the remembered slot of a rider whose control is
+        // temporarily absent (for example a companion on the capital's reserve roster), as the same kind-6 row and
+        // placement record a live control writes, so loading that save returns the control to the player's slot. Only
+        // a rider that resolves uniquely among the player's characters now is written (the archive's actor graph
+        // requires it on load). Area transfers keep that intent in memory and do not need it.
+        internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false, bool includeAbsentIntent = false)
         {
             var result = new List<SavedMountedSlot>();
             if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();
+            var written = CaptureLiveSlots(result, legacySchema);
+            if (includeAbsentIntent && !legacySchema && enabled) CaptureAbsentIntent(result, written);
+            return result.ToArray();
+        }
+
+        private void CaptureAbsentIntent(List<SavedMountedSlot> result, HashSet<string> written)
+        {
+            var characters = Game.Instance?.Player?.AllCharacters;
+            if (characters == null) return;
+            foreach (var actorId in placementIntent.ActorIds.OrderBy(id => id, StringComparer.Ordinal).ToArray())
+            {
+                int index;
+                if (written.Contains(actorId) || !placementIntent.TryGetInterrupted(actorId, out index) ||
+                    !MountedControlSlotPolicy.IsValidSavedRow(index, MountedControlSlotPolicy.SavedMountState) ||
+                    !MountedSaveData.ActorId(actorId) ||
+                    characters.Count(unit => unit != null && unit.UniqueId == actorId) != 1) continue;
+                // The archive bounds rows to 128; a remembered slot that does not fit is not written.
+                if (result.Count + 2 > 128) break;
+                result.Add(new SavedMountedSlot { ActorId = actorId, Index = index, Kind = MountedControlSlotPolicy.SavedMountState });
+                if (!result.Any(row => row.ActorId == actorId && row.Kind == MountedControlSlotPolicy.SavedPlacementRecord))
+                    result.Add(new SavedMountedSlot { ActorId = actorId, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
+            }
+        }
+
+        // Returns the actors that already have a live public-control row.
+        private HashSet<string> CaptureLiveSlots(List<SavedMountedSlot> result, bool legacySchema)
+        {
+            var written = new HashSet<string>(StringComparer.Ordinal);
             foreach (var unit in CollectCurrentCandidateUnits())
             {
                 var slots = unit?.UISettings?.Slots;
@@ -1992,15 +2097,19 @@ namespace KingmakerMountedCombat.Integration
                         ? (int)ResolveMountStateIntent(unit) : (int)kind;
                     if (legacySchema && savedKind > MountedControlSlotPolicy.SavedMountPrimary) continue;
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = savedKind });
+                    if (kind == NativeMountedControlKind.MountState && unit.UniqueId != null) written.Add(unit.UniqueId);
                 }
                 // The one-placement record travels with a live public control only, so a disabled or removed KMC writes none.
                 var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
                 if (!legacySchema && enabled && publicControl != null && publicControl.Active && unit.UniqueId != null &&
                     placementRecorded.Contains(unit.UniqueId))
+                {
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = 0,
                         Kind = MountedControlSlotPolicy.SavedPlacementRecord });
+                    written.Add(unit.UniqueId);
+                }
             }
-            return result.ToArray();
+            return written;
         }
 
         internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
@@ -2008,6 +2117,17 @@ namespace KingmakerMountedCombat.Integration
             // Records first, so the placement that Update may otherwise attempt cannot run ahead of this load's bindings.
             foreach (var binding in bindings)
                 if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) placementRecorded.Add(binding.ActorId);
+            // The first saved public-control slot of each actor is its chosen slot, remembered as returning from an
+            // absence: the control goes back there when it is live (now, or when a reserve rider returns), never over
+            // anything the slot holds by then. A control already live elsewhere keeps its current slot.
+            var seeded = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var binding in bindings)
+                if (binding.ActorId != null && MountedControlSlotPolicy.RestoreSavedSlot(binding.Kind) == MountedControlSlotRepair.MountState &&
+                    seeded.Add(binding.ActorId))
+                {
+                    placementIntent.Seed(binding.ActorId, binding.Index);
+                    placementRecorded.Add(binding.ActorId);
+                }
             restoringSlots = true;
             try
             {

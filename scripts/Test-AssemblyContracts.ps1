@@ -1510,6 +1510,30 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ((Test-MethodIlContainsToken $tickMovement 0x060018BD)-and(Test-MethodIlContainsToken $tickMovement 0x06000C5A)) 'TurnController.TickMovement clamps to the remaining allowance except within NearTheEnd'
     [byte[]]$timeTick=$assembly.ManifestModule.ResolveMethod(0x060090CF).GetMethodBody().GetILAsByteArray(); $timeIl=($timeTick|ForEach-Object{$_.ToString('X2')})-join''
     Assert-Contract ($timeIl.Contains('2200004040')-and$timeIl.Contains('2200004041')) 'TimeController.Tick clamps the TB time scale to 3 and the tick to scale/12'
+    # City companion roster: the capital's full-screen Inventory/Character/Spellbook roster is GroupController ->
+    # UIUtility.GetGroup(withRemote, withPet), whose pets come from Player.ControllableCharacters only. KMC postfixes
+    # that exact GetGroup (CityCompanionRosterAdapter).
+    $cityFlags=[Reflection.BindingFlags]'Public,NonPublic,Static,Instance,DeclaredOnly'
+    $uiUtility=$assembly.GetType('Kingmaker.UI.Common.UIUtility',$false)
+    $getGroup=if($null-eq$uiUtility){$null}else{$uiUtility.GetMethod('GetGroup',$cityFlags,$null,[Type[]]@([bool],[bool]),$null)}
+    $getGroupToken=if($null-eq$getGroup){0}else{$getGroup.MetadataToken}
+    Assert-Contract ($null-ne$getGroup-and$getGroup.IsStatic-and$getGroupToken-eq0x06004281-and
+        $getGroup.ReturnType.FullName-like'System.Collections.Generic.List`1`[`[Kingmaker.EntitySystem.Entities.UnitEntityData,*') `
+        ('city roster: UIUtility.GetGroup(bool withRemote, bool withPet) is static, returns List<UnitEntityData>, token '+$getGroupToken.ToString('X8'))
+    $groupController=$assembly.GetType('Kingmaker.UI.Group.GroupController',$false)
+    $setGroup=if($null-eq$groupController){$null}else{$groupController.GetMethod('SetGroup',$cityFlags,$null,[Type[]]@(),$null)}
+    $controllable=$assembly.GetType('Kingmaker.Player',$false).GetMethod('get_ControllableCharacters',$cityFlags)
+    Assert-Contract ($getGroupToken-ne0-and(Test-MethodIlContainsToken $setGroup $getGroupToken)) 'city roster: GroupController.SetGroup builds its portraits from UIUtility.GetGroup'
+    Assert-Contract ($null-ne$controllable-and(Test-MethodIlContainsToken $getGroup $controllable.MetadataToken)) 'city roster: GetGroup takes pets from Player.ControllableCharacters'
+    # Toolbar persistence: native UnitUISettings.GetSlot and CleanupBadSlots empty an ability slot that IsBad reports
+    # (its fact removed or inactive), which is why the chosen slot of a temporarily absent control is kept by KMC.
+    $uiSettings=$assembly.GetType('Kingmaker.UI.UnitSettings.UnitUISettings',$false)
+    $abilitySlotIsBad=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility',$false).GetMethod('IsBad',$cityFlags)
+    $baseSlotIsBad=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlot',$false).GetMethod('IsBad',$cityFlags)
+    $getSlot=$uiSettings.GetMethod('GetSlot',$cityFlags)
+    $cleanupBad=$uiSettings.GetMethod('CleanupBadSlots',$cityFlags)
+    Assert-Contract ($null-ne$abilitySlotIsBad-and$null-ne$baseSlotIsBad-and(Test-MethodIlContainsToken $getSlot $baseSlotIsBad.MetadataToken)-and
+        (Test-MethodIlContainsToken $cleanupBad $baseSlotIsBad.MetadataToken)) 'toolbar: UnitUISettings.GetSlot and CleanupBadSlots replace slots that IsBad reports'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

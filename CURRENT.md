@@ -1,6 +1,17 @@
-# CURRENT STATE — RELEASE 0.2.13: TABLETOP RULES EXPANSION STARTUP CONFLICT (X01) FIXED (2026-11-20)
+# IN REVIEW — CITY TOOLBAR, CITY COMPANION ACCESS AND PRONE RANGED TARGET (2026-11-21, DRAFT PR #57)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13); writer/reviewer controller
+  enrollment. Development candidate only: no merge, release, install or native run.
+- **Fixes:** Mount / Dismount keeps the player's chosen toolbar slot through temporary absence (area changes, the
+  capital's reserve roster, saves there); the capital's Inventory/Character/Spellbook roster lists reserve owners'
+  own animal companions (UI projection of `UIUtility.GetGroup`); a mounted player order on an enemy already
+  unconscious (lying prone) is kept as native `UnitAttack` keeps it. Save format unchanged.
+- **Read:** [the handoff and acceptance record](docs/CITY-AND-PRONE-HANDOFF.md). Native cases are deferred to owner
+  verification there, with the playtest steps.
+
+# RELEASE 0.2.13: TABLETOP RULES EXPANSION STARTUP CONFLICT (X01) FIXED (2026-11-20)
 
 - **Release:** 0.2.13, by owner order on 2026-11-20, from main after PR #55 (merged as `a4d25e45`). Notes:
   [docs/RELEASE-NOTES-0.2.13.md](docs/RELEASE-NOTES-0.2.13.md). The package identity (zip and DLL SHA-256, MVID,

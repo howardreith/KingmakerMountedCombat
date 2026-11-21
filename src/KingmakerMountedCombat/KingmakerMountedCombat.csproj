@@ -541,6 +541,9 @@
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\NativeMountedControl.cs" />
     <Compile Include="Domain\MountedControlSlotPolicy.cs" />
+    <Compile Include="Domain\MountedControlPlacementIntent.cs" />
+    <Compile Include="Domain\CityCompanionRosterProjection.cs" />
+    <Compile Include="Integration\CityCompanionRosterAdapter.cs" />
     <Compile Include="Domain\NativeShellBindingPolicy.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedFeedbackPresentationPolicy.cs" />

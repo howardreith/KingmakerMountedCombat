@@ -399,6 +399,25 @@ namespace KingmakerMountedCombat.Integration
         internal MountedPairSingleAttack ChildAttack => childAttack;
         internal bool NativeSequenceStarted => transaction.ChildAttackStartCount != 0;
 
+        // Native UnitAttack explicit-order rule (m_IsUnconsciousAtStartOfCommand): the player ordered this attack on an
+        // enemy that was already unconscious, so that exact target stays valid while it lives. Charge never sets it.
+        private UnitEntityData unconsciousOrderedTarget;
+
+        internal void AdmitTargetUnconsciousWhenOrdered()
+        {
+            var state = attackTarget?.Descriptor?.State;
+            if (!chargeMode && state != null && state.IsUnconscious) unconsciousOrderedTarget = attackTarget;
+        }
+
+        internal bool TargetUnconsciousWhenOrdered => unconsciousOrderedTarget != null;
+
+        private bool TargetLifeAdmits(UnitEntityData unit)
+        {
+            var state = unit?.Descriptor?.State;
+            return state != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(state.IsConscious, state.IsDead,
+                state.IsFinallyDead, unconsciousOrderedTarget != null && ReferenceEquals(unit, unconsciousOrderedTarget));
+        }
+
         internal UnitMoveTo DelegatedMove => delegatedMove;
         // A Hold that arrived while this command waited in the native queue: it attacks from where the pair stands or not at all.
         internal void ForbidApproach() { allowApproach = false; }
@@ -684,10 +703,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool ValidateNativeSequenceTarget()
         {
             TryContinueRoutineOnNextTarget();
-            var state = attackTarget.Descriptor?.State;
-            var targetValid = Target == attackTarget && attackTarget.IsInState && state != null &&
-                state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) &&
-                actionActor.CanAttack(attackTarget);
+            var targetValid = Target == attackTarget && attackTarget.IsInState && TargetLifeAdmits(attackTarget) &&
+                actionActor.IsEnemy(attackTarget) && actionActor.CanAttack(attackTarget);
             var admission = targetValid ? EvaluateCurrentNativeAdmission() : MountedPairNativeAdmissionState.Unavailable;
             // Observe the existing native UpdateTarget rejection. Only a rejection
             // inside this native tick can classify its synchronous terminal event;
@@ -703,8 +720,8 @@ namespace KingmakerMountedCombat.Integration
         // the routine's remaining planned attacks are the upper bound.
         private void TryContinueRoutineOnNextTarget()
         {
-            var state = attackTarget?.Descriptor?.State;
-            var targetDown = attackTarget == null || !attackTarget.IsInState || state == null || state.IsDead || !state.IsConscious;
+            // As native UpdateTarget: a target ordered while already unconscious is down only once it dies.
+            var targetDown = attackTarget == null || !attackTarget.IsInState || !TargetLifeAdmits(attackTarget);
             var planned = PlannedAttack;
             if (!MountedRoutineContinuationPolicy.MayContinue(chargeMode, transaction.State == MountedCombatTransactionState.Attacking,
                     IsActed && LastAttackRule != null, planned != null, targetDown) || Executor?.View == null || actionActor?.Group == null)
@@ -747,9 +764,8 @@ namespace KingmakerMountedCombat.Integration
         {
             if (mount?.View == null || attackTarget?.View == null || actionActor == null) return false;
             var completed = GetAttackIndex();
-            var state = attackTarget.Descriptor?.State;
-            var targetValid = Target == attackTarget && attackTarget.IsInState && state != null &&
-                state.IsConscious && !state.IsFinallyDead && actionActor.IsEnemy(attackTarget) && actionActor.CanAttack(attackTarget) &&
+            var targetValid = Target == attackTarget && attackTarget.IsInState && TargetLifeAdmits(attackTarget) &&
+                actionActor.IsEnemy(attackTarget) && actionActor.CanAttack(attackTarget) &&
                 actionActor.Descriptor.State.IsConscious && actionActor.Descriptor.State.CanAct;
             var distance = mount.DistanceTo(attackTarget);
             var bodyRadius = mount.View.Corpulence + attackTarget.View.Corpulence;
@@ -923,8 +939,7 @@ namespace KingmakerMountedCombat.Integration
 
                 if (transaction.State == MountedCombatTransactionState.Attacking && !IsFinished)
                 {
-                    if (attackTarget.IsInState && attackTarget.Descriptor.State.IsConscious &&
-                        !attackTarget.Descriptor.State.IsFinallyDead)
+                    if (attackTarget.IsInState && TargetLifeAdmits(attackTarget))
                     {
                         childAttack.TurnToTarget();
                     }
@@ -945,8 +960,7 @@ namespace KingmakerMountedCombat.Integration
             var targetState = attackTarget?.Descriptor?.State;
             var inState = attackTarget != null && attackTarget.IsInState;
             var hostile = inState && actionActor.IsEnemy(attackTarget);
-            var targetValid = inState && targetState != null && targetState.IsConscious &&
-                !targetState.IsFinallyDead && hostile && actionActor.CanAttack(attackTarget);
+            var targetValid = inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget);
             var decision = MountedTargetTerminationPolicy.Decide(
                 targetValid, inState, hostile,
                 childAttack != null && childAttack.IsActed && childAttack.LastAttackRule != null,
