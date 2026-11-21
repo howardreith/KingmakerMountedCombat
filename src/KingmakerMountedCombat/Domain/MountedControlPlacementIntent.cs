@@ -63,9 +63,15 @@ namespace KingmakerMountedCombat.Domain
             if (entries.TryGetValue(actorId, out entry)) entry.Interrupted = true;
         }
 
-        // Native bad-slot cleanup decided this actor's public-control slot is bad (its fact was gone or inactive): a
-        // temporary absence, whatever the fact's state by the next reconciliation.
-        public void ObserveNativeSlotInvalidated(string actorId) => ObserveAbsent(actorId, MountedControlAbsence.Temporary);
+        // Native bad-slot cleanup decided the public-control slot at slotIndex on this actor's bar is bad (its fact was
+        // gone or inactive): that slot is the player's current choice (a move or first manual placement since the last
+        // update included), and its emptying is a temporary absence, whatever the fact's state by the next update.
+        public void ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId)
+        {
+            if (actorId == null || slotIndex < 0) return;
+            ObserveBound(actorId, slotIndex, petId);
+            ObserveAbsent(actorId, MountedControlAbsence.Temporary);
+        }
 
         // A saved arrangement: a slot row (index >= 0) or a placement record without a slot (OffBar). A freshly loaded
         // world takes it as is. A replay of rows captured earlier in the same world (area transfer, retained remount)

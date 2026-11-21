@@ -2,7 +2,9 @@
 param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 # Focused selection for the mounted city toolbar, city companion roster and prone-target mission
 # (docs/MOUNTED-COMBAT-CITY-AND-PRONE-MISSION.md). The controller's focused gate accepts one -Focused script name, so this
-# wrapper declares exactly four checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
+# wrapper declares exactly five checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
+#   5. Test-CityAreaAdapterBaseline.ps1: the area-restore adapter's own compile step on base dbf63702 and on the committed
+#      candidate, with normalized diagnostics compared (the candidate may add none).
 #   3. Test-CityArchiveRowBound.ps1: the production archive DTO, validator and codec compiled from this worktree
 #      (128-row round-trip, 129-row refusal, off-bar record).
 #   4. chunk7\Test-Chunk7SixPairArchiveAdapter.ps1: the actual CaptureArchive / RestoreArchivePresentation / Update methods
@@ -30,11 +32,11 @@ Write-Host 'CITY-TOOLBAR-PRONE CHILD Test-GunslingerClickComposition.ps1'
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-GunslingerClickComposition.ps1') -Configuration $Configuration
 if($LASTEXITCODE -ne 0){$failed.Add('Test-GunslingerClickComposition.ps1')}
 
-foreach($child in @('Test-CityArchiveRowBound.ps1','chunk7\Test-Chunk7SixPairArchiveAdapter.ps1')){
+foreach($child in @('Test-CityArchiveRowBound.ps1','chunk7\Test-Chunk7SixPairArchiveAdapter.ps1','Test-CityAreaAdapterBaseline.ps1')){
     Write-Host ('CITY-TOOLBAR-PRONE CHILD '+$child)
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot $child)
     if($LASTEXITCODE -ne 0){$failed.Add($child)}
 }
 
 if($failed.Count -ne 0){Write-Host ('CITY-TOOLBAR-PRONE FOCUSED FAIL: '+($failed -join ', '));exit 1}
-Write-Host 'CITY-TOOLBAR-PRONE FOCUSED PASS (4 of 4 children)'
+Write-Host 'CITY-TOOLBAR-PRONE FOCUSED PASS (5 of 5 children)'

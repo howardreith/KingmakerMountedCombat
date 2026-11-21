@@ -83,6 +83,23 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
 - *Lease release (R2-F4):* restoring the public control from a save-scope lease records the rebind (`ObserveBound`), so a
   removal right after the save is the player's.
 
+**Round 3 additions.**
+- *Exact invalidated slot (R1-F3):* `ObserveInvalidatedPublicSlot` locates the reported slot object on the rider's own
+  bar (reference identity, before native replaces it) and records that index as the chosen slot plus the absence; a
+  move or a first manual placement since the last update is therefore what returns. Slot objects not on a current-world
+  rider's bar are ignored.
+- *Stale binding at the header (R2-F1):* when the public fact is active but the slot holding the public control still
+  carries older data (replaced fact, slot not yet rebound), the live capture cannot write it (callable live data only);
+  the classification records it as the remembered slot, so the archive carries kind 6 at that slot plus one kind 7,
+  and restore binds the current data.
+- *Departure before cleanup (R2-F2):* the save header also handles still-observed current-world riders that left the
+  candidate roster but whose departure cleanup has not run (`ObserveDeparture`, shared with that cleanup): their last
+  bar is observed and the departure classified before rows are emitted.
+- *World boundary (R3-F1):* each observed unit records the player world it was first reconciled in. An earlier world's
+  object (a load replaces the world and its objects, keeping actor ids) is cleaned up but never observed into, never
+  marks an absence for, and is never reported by native cleanup into the loaded world's arrangements; roster membership
+  is checked by exact instance.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -164,6 +181,11 @@ call (`Report(string,bool)`, no-op `ObserveScenePlacements` / `TryRestoreRetaine
 the domain sources `MountedArchiveData` needs (`MountedControlSlotPolicy.cs`, `NativeMountedControl.cs`); it now
 compiles and passes (22/0, including "actual archive presentation restores its control rows as a freshly loaded world"
 and "actual archive capture asks for absent riders' arrangements") and is selected in the focused wrapper.
+Round 3 (R2-F5): `Test-CityAreaAdapterBaseline.ps1` (in the focused wrapper) performs that adapter's own compile step
+— the same `RestoreAreaPair` extraction, template substitution, csc, flags and source list, guarded against drift by
+pinning the adapter script's compile line — once on base `dbf63702` (`git show`) and once on the committed candidate
+(`git show HEAD`), records each input's blob id, normalizes diagnostics (tree root and line/column removed) and
+compares them as multisets; see the validation table for the counts. Earlier note:
 `chunk7\Test-Chunk7AreaRestorePreflightAdapter.ps1` still does not compile; its errors are base-tree errors: at base
 `dbf63702`, `RestoreAreaPair` and `MountedPairCandidate` use `transfer.Lifecycle`, `AreaTransfer`/`AreaPair` and the
 retained-intent members, `PairHeldByDetachedCleanup` and `MountedAreaControlRule` (`git grep` at `dbf63702`), none of which
@@ -181,15 +203,16 @@ so it is not selected.
 | Command | Result | Limits |
 | --- | --- | --- |
 | `.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1` (local run before commit; the controller `focused` gate receipt is bound to the reported candidate) | PASS | Build, components, Validate-Source, focused wrapper; about 1 minute |
-| components (`bin\Tests`) | 1434/0 | 14 toolbar, 6 city-roster and 3 downed-target tests |
+| components (`bin\Tests`) | 1438/0 | 18 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
 | `Test-CityArchiveRowBound.ps1` (via wrapper) | 3/0 | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
+| `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 
 `Test-CityToolbarProneFocused.ps1` is the repository-owned wrapper (the controller's focused gate takes one script
-name) that runs exactly the four checks named in it; nothing broader.
+name) that runs exactly the five checks named in it; nothing broader.
 
 ## Acceptance record
 
@@ -217,7 +240,11 @@ NATIVE = in-game structured evidence.
 | Toolbar persistence | Removal right after a save scope's lease release stays removed through save and load | PASS | UNIT |
 | Toolbar persistence | Archive: 128 rows round-trip ids/indices/kinds; 127 + 2 refused ("Owned archive control slots are not bounded."); off-bar record round-trips | PASS | ARCHIVE (production DTO/validator/codec) |
 | Toolbar persistence | Actual archive capture requests absent arrangements; archive presentation restores as a loaded world | PASS | ADAPTER (six-pair, 22/0) |
-| Toolbar persistence | Actual area restore replays in-world | NOT RUN | adapter does not compile at base or candidate (base-tree errors) |
+| Toolbar persistence | Actual area restore replays in-world | NOT RUN | adapter does not compile at base or candidate; matched comparison: identical 63 diagnostics |
+| Toolbar persistence | Native cleanup after a move or a first manual placement returns the cleaned slot | PASS | UNIT |
+| Toolbar persistence | Header with a replacement fact and a stale slot: kind 6 at the slot + one kind 7; restore binds new data once | PASS | UNIT |
+| Toolbar persistence | Reserve save between the roster change and departure cleanup: unchanged, moved and removed arrangements | PASS | UNIT |
+| Toolbar persistence | An earlier world's rider object authors nothing in the loaded world (no row, explicit off-bar record) | PASS | UNIT |
 | Toolbar persistence | `MechanicActionBarSlotAbility.IsBad` override identity and its use by GetSlot/CleanupBadSlots | PASS | CONTRACT |
 | Toolbar persistence | Native bad-slot replacement this relies on | PASS | CONTRACT |
 | Toolbar persistence | Save/load in and out of the real capital, forced dismount, pet unavailability in game | NOT RUN | NATIVE (prerequisites below) |
@@ -230,7 +257,7 @@ NATIVE = in-game structured evidence.
 | Prone ranged attack | Conscious prone enemy: click, admission, approach, range/LoS and firing stages | PASS (no divergence found) | TRACE |
 | Prone ranged attack | Matched mounted/dismounted, standing/conscious-prone/unconscious, RT/TB, near and normal distance | NOT RUN | NATIVE (prerequisites below) |
 | Negative controls | Brain proposals, Charge and continuation keep the conscious-only rule; downed ally refused | PASS | UNIT |
-| Negative controls | Blocked LoS, unavailable actions, out-of-range approach, standing targets, unmounted ranged, mounted melee, mounted penalties | NOT RUN | NATIVE (paths unchanged in code) |
+| Negative controls | Blocked LoS, unavailable actions, out-of-range approach, standing targets, unmounted ranged, mounted melee, mounted penalties | NOT RUN | NATIVE (paths unchanged in code; owner steps in playtest item 5) |
 | Shared regressions | Tabletop Rules Expansion click composition, both orders | PASS | COMPOSITION |
 | Shared regressions | Existing component suite | PASS | UNIT |
 
@@ -282,5 +309,27 @@ Current prerequisites, per case (none run on this candidate):
    unconscious enemy. Expect an attack roll in the log each time (the unconscious one only when clicked after it fell),
    no horse walking into melee. Repeat dismounted with the same weapon and positions. Note any case where the click
    becomes a move.
+
+5. Negative controls and neighbours (all NOT RUN in this enrollment), with the step-4 rider mounted, a longbow and
+   arrows equipped, against one hostile enemy; the combat log shows each attack roll with its modifiers (hover the
+   roll):
+   - **Wall:** place the pair so a solid wall stands between rider and a standing enemy within bow range (no line of
+     sight). Click the enemy. Pass: never a roll through the wall; either an ordinary approach until line of sight
+     exists followed by one roll, or no attack and no action spent. Fail: a roll while the wall still blocks the line.
+   - **Spent action:** turn based, use the rider's Standard action on a first shot, then click the enemy again. Pass: no
+     second roll, a "no Standard action" refusal (KMC's text is "… has no Standard action left this turn"), and the
+     horse's own actions unchanged. Fail: a second roll in the same turn.
+   - **Beyond firing range:** start farther from the enemy than the longbow reaches and click it. Pass: the ordinary
+     approach (the horse moves toward the target with the pair's own movement) and at most one roll once in range; in
+     turn based, if the movement runs out first, no roll and no Standard spent. Fail: a roll from out of range, or an
+     action spent without a shot.
+   - **Mounted melee:** switch the rider to a melee weapon and click an adjacent standing enemy. Pass: the rider's melee
+     roll as on 0.2.13 (the horse attacks only on its own opportunity, as before). Fail: no roll, or extra rolls.
+   - **Unmounted ranged:** dismount and repeat the near standing shot. Pass: one roll, as on 0.2.13.
+   - **Penalties and expenditure:** compare the hover breakdown of a mounted ranged roll on 0.2.13 and on this build
+     at the same distance and movement: the same mounted ranged penalty lines appear (this change does not touch
+     them); against a prone target the native prone modifier line appears. The arrow count drops by one per shot and
+     the turn-based Standard action (or full attack) is spent exactly once. The unconscious enemy stays prone, and no
+     extra attack is granted.
 
 Restoration: no native transaction ran.

@@ -1759,16 +1759,11 @@ namespace KingmakerMountedCombat.Integration
                 // reserve roster) keeps its chosen slot for its return; anything else lost eligibility for good. Its
                 // KMC slots are emptied either way: native would empty a slot whose fact is gone (IsBad), and a native
                 // save must never hold a KMC identity of a unit KMC no longer reconciles. A replaced object of a
-                // character that is present now (a new load keeps actor ids) records nothing about that character.
-                var presentNow = prior.UniqueId != null && candidates.Any(unit => unit != null && unit.UniqueId == prior.UniqueId);
-                if (!presentNow)
-                {
-                    // Its bar as the player last left it (a move or removal since the last update included).
-                    ObserveArrangementOnBar(prior);
-                    RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
-                }
-                RemoveManagedFacts(prior, true, !presentNow);
+                // character that is present now (a new load keeps actor ids), or an earlier world's object, records nothing.
+                var recorded = ObserveDeparture(prior, candidates);
+                RemoveManagedFacts(prior, true, recorded);
                 observedUnits.Remove(prior);
+                observedWorlds.Remove(prior);
             }
             RevalidateAbsentArrangements(candidates);
         }
@@ -1786,7 +1781,7 @@ namespace KingmakerMountedCombat.Integration
                 var matches = characters == null ? new UnitEntityData[0] :
                     characters.Where(unit => unit != null && unit.UniqueId == actorId).Take(2).ToArray();
                 var unitNow = matches.Length == 1 ? matches[0] : null;
-                placementIntent.Revalidate(actorId, unitNow != null, unitNow != null && IsStillOnPlayerRoster(unitNow),
+                placementIntent.Revalidate(actorId, unitNow != null, unitNow != null && IsOnPlayerRoster(unitNow),
                     unitNow?.Descriptor?.PetUniqueId);
             }
         }
@@ -1900,8 +1895,13 @@ namespace KingmakerMountedCombat.Integration
             if (disposed || mountStateAbility == null || slot == null ||
                 !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility)) return;
             var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
-            if (unit?.UniqueId == null) return;
-            placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId);
+            // Only a current-world rider's own bar: the exact slot object must still be on it (native reads it from the
+            // array before replacing it); any other slot object is ignored.
+            if (unit?.UniqueId == null || !IsOnPlayerRoster(unit)) return;
+            var slots = unit.UISettings?.Slots;
+            var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
+            if (index < 0) return;
+            placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, unit.Descriptor?.PetUniqueId);
             NativeSlotInvalidationCount++;
         }
 
@@ -1936,17 +1936,47 @@ namespace KingmakerMountedCombat.Integration
             if (unit?.UniqueId != null) placementIntent.ObserveAbsent(unit.UniqueId, absence);
         }
 
-        // Still one of the player's characters: in the party, its detached part, or the reserve (remote) roster the
-        // capital moves companions to. Ex-companions and units gone from every roster are not. Matched by actor id, so
-        // an earlier world's object of a character the current world still holds is not read as a loss.
-        private static bool IsStillOnPlayerRoster(UnitEntityData unit)
+        // This exact unit instance is one of the current world's player characters: in the party, its detached part, or
+        // the reserve (remote) roster the capital moves companions to. Ex-companions, units gone from every roster and an
+        // earlier world's objects (a load replaces them, keeping actor ids) are not.
+        private static bool IsOnPlayerRoster(UnitEntityData unit)
         {
             var player = Game.Instance?.Player;
-            var id = unit?.UniqueId;
-            if (player == null || id == null) return false;
-            bool Holds(List<UnitReference> list) => list != null && list.Any(reference => reference.Value?.UniqueId == id);
+            if (player == null || unit == null) return false;
+            bool Holds(List<UnitReference> list) => list != null && list.Any(reference => ReferenceEquals(reference.Value, unit));
             return !Holds(player.ExCompanions) &&
                 (Holds(player.PartyCharacters) || Holds(player.RemoteCompanions) || Holds(player.DetachedPartyCharacters));
+        }
+
+        // The player world each observed unit was first reconciled in. A load replaces the world and its unit objects;
+        // an earlier world's object is cleaned up but never authors an arrangement fact for the current world.
+        private readonly Dictionary<UnitEntityData, object> observedWorlds =
+            new Dictionary<UnitEntityData, object>(new ReferenceIdentity<UnitEntityData>());
+
+        private sealed class ReferenceIdentity<T> : IEqualityComparer<T> where T : class
+        {
+            public bool Equals(T left, T right) => ReferenceEquals(left, right);
+            public int GetHashCode(T value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
+        }
+
+        private bool IsCurrentWorldUnit(UnitEntityData unit)
+        {
+            object world;
+            return unit != null && (!observedWorlds.TryGetValue(unit, out world) || ReferenceEquals(world, Game.Instance?.Player));
+        }
+
+        // A still-observed unit of the current world that is no longer reconciled (it left the travelling roster): its
+        // bar as the player last left it is observed, then the departure is classified (still on the player's roster:
+        // temporary; otherwise permanent). Shared by the departure cleanup and the save header, so a save between the
+        // roster change and that cleanup carries the same arrangement. Returns false (and records nothing) for an
+        // earlier world's object or a character that is present now under another object.
+        private bool ObserveDeparture(UnitEntityData prior, IList<UnitEntityData> candidates)
+        {
+            if (prior?.UniqueId == null || !IsCurrentWorldUnit(prior) ||
+                candidates.Any(unit => unit != null && unit.UniqueId == prior.UniqueId)) return false;
+            ObserveArrangementOnBar(prior);
+            RecordAbsence(prior, IsOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+            return true;
         }
 
         // CTRL-03: the native new-ability placement, once per actor, into an empty main-bar slot. Never over a slot;
@@ -2067,6 +2097,7 @@ namespace KingmakerMountedCombat.Integration
             if (cleanupSlots)
             {
                 observedUnits.Clear();
+                observedWorlds.Clear();
             }
         }
 
@@ -2096,8 +2127,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             // Every KMC removal of the facts (area unload, save scope, disable, roster departure) interrupts the public
-            // control; a remembered slot survives it unless the caller already recorded a permanent loss.
-            if (interruptsControl) RecordAbsence(unit, MountedControlAbsence.Temporary);
+            // control; a remembered slot survives it unless the caller already recorded a permanent loss. An earlier
+            // world's object never touches the current world's arrangements.
+            if (interruptsControl && IsCurrentWorldUnit(unit)) RecordAbsence(unit, MountedControlAbsence.Temporary);
             foreach (var blueprint in EnumerateBlueprints())
             {
                 foreach (var fact in abilities.Enumerable
@@ -2135,13 +2167,31 @@ namespace KingmakerMountedCombat.Integration
         private void ClassifyArrangementsForCapture()
         {
             if (mountStateAbility == null) return;
-            foreach (var unit in CollectCurrentCandidateUnits())
+            var candidates = CollectCurrentCandidateUnits();
+            // A rider that already left the travelling roster but whose departure cleanup has not run yet: its last bar
+            // and its departure classification, exactly as that cleanup will record them.
+            foreach (var prior in observedUnits.ToArray())
+                if (prior != null && !candidates.Contains(prior)) ObserveDeparture(prior, candidates);
+            foreach (var unit in candidates)
             {
                 var id = unit?.UniqueId;
                 if (id == null) continue;
                 ObserveArrangementOnBar(unit);
                 var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-                if (control != null && control.Active) continue;
+                if (control != null && control.Active)
+                {
+                    // A slot still bound to older data of the public control (the fact was replaced and the slot not yet
+                    // rebound) cannot be written by the live capture, which writes only callable live data: it is the
+                    // player's slot waiting for repair, carried as the remembered slot and rebound on restore.
+                    var slots = unit.UISettings?.Slots;
+                    var stale = slots != null && slots.Any(slot =>
+                    {
+                        var data = (slot as MechanicActionBarSlotAbility)?.Ability;
+                        return ReferenceEquals(data?.Blueprint, mountStateAbility) && !ReferenceEquals(data, control.Data);
+                    }) && !slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability, control.Data));
+                    if (stale) placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+                    continue;
+                }
                 // The same rule as an update: not leaseable now retires the arrangement only on pet-link evidence.
                 var petId = unit.Descriptor?.PetUniqueId;
                 if (!ShouldLease(unit, NativeMountedControlKind.MountState) && !placementIntent.Revalidate(id, true, true, petId)) continue;
@@ -2782,6 +2832,7 @@ namespace KingmakerMountedCombat.Integration
             if (unit != null && !observedUnits.Contains(unit))
             {
                 observedUnits.Add(unit);
+                observedWorlds[unit] = Game.Instance?.Player;
             }
         }
 
