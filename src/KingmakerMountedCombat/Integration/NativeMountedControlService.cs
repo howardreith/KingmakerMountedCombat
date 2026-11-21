@@ -891,7 +891,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearTargetingPresentation("disabled");
                 ClearReserveBindings();
                 reserveScan.Reset();
-                pendingBadSlots.Clear(); activeNativeSlotOperation = null; nativeSlotOperationDepth = 0;
+                DropNativeSlotObservations();
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -925,14 +925,11 @@ namespace KingmakerMountedCombat.Integration
         {
             ObservePendingRiderPrimaryOutcome();
             ReleaseStaleReserveScan();
-            // A native CleanupBadSlots that did not return normally still has its slots resolved.
-            // (Update never runs inside a native slot operation, so an open bracket here was left by an exception: its
-            // scope is closed and its reports dropped, never attributed to a native write.)
-            if (activeNativeSlotOperation != null || nativeSlotOperationDepth != 0 || pendingBadSlots.Count > 0)
-            {
-                nativeSlotOperationDepth = 0;
-                DiscardPendingBadSlots();
-            }
+            // Update never runs inside a native slot operation, so an open scope here was left by an exception: it is closed,
+            // keeping only a write native completed before throwing (CloseNativeSlotScope).
+            if (nativeSlotScope.Open) CloseNativeSlotScope();
+            // The copy registry keeps only the current world's slot objects.
+            CopiesOf(null);
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
@@ -1462,7 +1459,7 @@ namespace KingmakerMountedCombat.Integration
             ClearTargetingPresentation("disposed");
             ClearReserveBindings();
             reserveScan.Reset();
-            pendingBadSlots.Clear(); activeNativeSlotOperation = null; nativeSlotOperationDepth = 0;
+            DropNativeSlotObservations();
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
             loadFence.Reset();
@@ -1890,14 +1887,23 @@ namespace KingmakerMountedCombat.Integration
             if (slots == null || abilities == null || mountStateAbility == null) return;
             var publicControl = abilities.GetAbility(mountStateAbility);
             var publicActive = publicControl != null && publicControl.Active;
-            // An older alias is emptied below while the control is not live: its index is recorded first.
-            if (!publicActive) RecoverLegacyAlias(unit, slots);
-            // Secondary copies of an interrupted choice (decided before the repair below rebinds or migrates them).
-            if (unit.UniqueId != null && ArrangementsAccepted)
-                placementIntent.PruneCopies(unit.UniqueId, i => i >= 0 && i < slots.Length && IsPublicBindingSlot(slots[i]));
-            var preSelected = PublicBindingIndex(slots);
-            var preSecondary = IsSecondaryPublicSlot(unit, slots, preSelected);
-            var secondaryCopies = Enumerable.Range(0, slots.Length).Where(i => IsPublicBindingSlot(slots[i]) && IsSecondaryPublicSlot(unit, slots, i)).ToList();
+            // The player's effective binding and the copies of an interrupted choice, decided before the repair below
+            // rebinds or migrates anything (EffectivePublicIndex: the same decision observation and capture use).
+            bool onlyYieldingCopies;
+            var effective = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
+            var copies = Enumerable.Range(0, slots.Length).Where(i => IsPublicCopyAt(unit, slots, i)).ToList();
+            if (!publicActive)
+            {
+                // An older alias is emptied below while the control is not live: its index is recorded first. A surviving
+                // copy that is the fallback (its interrupted chosen slot is occupied) becomes the choice before KMC's own
+                // migration clears it, exactly as a save taken first would keep it.
+                if (effective >= 0 && copies.Contains(effective) && ArrangementsAccepted)
+                {
+                    placementIntent.PromoteFallback(unit.UniqueId, effective, unit.Descriptor?.PetUniqueId);
+                    placementRecorded.Add(unit.UniqueId);
+                }
+                else RecoverLegacyAlias(unit, slots);
+            }
             var boundIndex = -1;
             for (var index = 0; index < slots.Length; index++)
             {
@@ -1930,26 +1936,28 @@ namespace KingmakerMountedCombat.Integration
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
                     "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
             }
-            // The migrated or rebound secondary copy does not become the choice: when the interrupted chosen slot is free,
-            // the copy is removed and the control returns to the chosen slot below (one shortcut). If the chosen slot was
-            // taken meanwhile, the surviving copy stays as the arrangement.
-            // Every surviving copy goes (not only the first), so recovery leaves exactly one shortcut.
-            int chosen;
-            if (publicActive && preSecondary && boundIndex == preSelected && unit.UniqueId != null &&
-                placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen) && chosen < slots.Length &&
-                (slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty))
+            // Copies of an interrupted choice never stay beside the effective binding: every copy other than it goes (one
+            // shortcut). The effective binding is the player's own binding wherever it is (a move or a new placement);
+            // when only copies were left, they yield to the free chosen slot (the control returns there below), or the
+            // first copy is the fallback while the chosen slot is occupied.
+            if (publicActive && copies.Count > 0)
             {
-                foreach (var copy in secondaryCopies)
+                foreach (var copy in copies)
                 {
-                    if (copy == chosen || !IsPublicBindingSlot(slots[copy])) continue;
+                    if (copy == effective || !IsPublicBindingSlot(slots[copy])) continue;
                     unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, copy);
-                    logger.Info("Secondary Mount / Dismount copy removed in favour of the chosen slot: unitId=" + unit.UniqueId +
-                        "; copy=" + copy + "; chosen=" + chosen + ".");
+                    logger.Info("Secondary Mount / Dismount copy removed: unitId=" + unit.UniqueId + "; copy=" + copy +
+                        "; kept=" + effective + ".");
                 }
                 MarkBarChanged(unit);
-                boundIndex = -1;
+                boundIndex = effective >= 0 && ResolveKind((slots[effective] as MechanicActionBarSlotAbility)?.Ability?.Blueprint) ==
+                    NativeMountedControlKind.MountState ? effective : onlyYieldingCopies ? -1 : FirstMountStateIndex(slots);
             }
             ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex, publicFactReplaced);
+            // Once no choice is interrupted any more, nothing on the bar is a copy of one.
+            int chosen;
+            if (unit.UniqueId != null && ArrangementsAccepted && !placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen))
+                ForgetCopies(unit.UniqueId);
             var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
             if (autoUse == NativeMountedControlKind.MountCompanion || autoUse == NativeMountedControlKind.Dismount ||
                 autoUse == NativeMountedControlKind.MountedCharge || autoUse == NativeMountedControlKind.MountState)
@@ -2003,37 +2011,38 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
-            // Only a report made inside a native operation that replaces the slot on this bar (GetSlot or CleanupBadSlots,
-            // both bracketed) counts; a standalone validity query (for example a diagnostic reading the bar) changes
-            // nothing.
-            if (activeNativeSlotOperation == null || !ReferenceEquals(activeNativeSlotOperation, unit.UISettings)) return;
-            // GetSlot(index) handles exactly one slot: a report for any other slot is not part of it.
-            if (activeNativeSlotIndex >= 0 && activeNativeSlotIndex != index) return;
+            // Only a report inside a native operation that replaces the slot on this bar (GetSlot or CleanupBadSlots) counts
+            // (MountedNativeSlotScope); a standalone validity query changes nothing. Native wrote the previous reported slot
+            // before moving on to this one: that outcome is applied first, so this report is read against it.
+            var settled = new List<PendingSlotInvalidation>();
+            if (!nativeSlotScope.Settle(unit.UISettings, index, Time.frameCount, settled)) return;
+            ApplyConfirmedSlotReports(settled);
+            // The arrangement this report belongs to: the live records, or the load scope's outgoing records while fenced.
+            int chosen;
+            var hasChoice = OwnerInterruptedChoice(unit, out chosen);
+            var alias = !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility);
             var pending = new PendingSlotInvalidation
             {
                 World = Game.Instance?.Player, Kind = ResolveKind(slot.Ability?.Blueprint),
                 Unit = unit, Slot = slot, Index = index, PetId = unit.Descriptor?.PetUniqueId,
                 Desired = ShouldLease(unit, NativeMountedControlKind.MountState),
-                Alias = !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility),
-                AliasIndex = -1,
-                // The other public bindings on the bar when this slot is handed to native: copies of the choice, never
-                // a later placement.
-                Copies = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i])).ToList(),
-                // Whether an interrupted choice's slot is free at this moment (a copy then yields to it).
-                ChosenFree = !HasInterruptedChoice(unit) || ChosenSlotFree(unit, slots)
+                Alias = alias, AliasIndex = alias ? index : -1,
+                // A copy of an interrupted choice, by identity: the exact binding recorded at its index when the choice was
+                // interrupted (or an older alias, which no live control produces). A later placement or move is not.
+                Copy = hasChoice && (alias || IsRecordedCopyAt(unit.UniqueId, index, slot)),
+                // The other public bindings on the bar right now: the copies, should this report interrupt the choice.
+                CopySlots = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i]))
+                    .Select(i => new KeyValuePair<int, MechanicActionBarSlot>(i, slots[i])).ToList(),
+                // Whether the owning arrangement's chosen slot is free at this moment (a copy then yields to it).
+                ChosenFree = !hasChoice || chosen >= slots.Length || slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty
             };
-            if (pending.Alias)
-            {
-                // An older exact Mount / Dismount alias: only the bar's selected alias (a canonical binding wins, then the
-                // first alias) is the choice; a report for a secondary alias is never attributed to it.
-                pending.AliasIndex = LegacyAliasIndex(slots);
-                if (pending.AliasIndex < 0 || pending.AliasIndex != index) return;
-            }
-            // A secondary canonical copy (not the bar's selected public binding) never replaces the choice.
-            else if (!MountedControlSlotPolicy.IsSelectedPublicReport(PublicBindingIndex(slots), index)) return;
-            // The outcome is decided when the native operation returns (EndNativeSlotOperation): CleanupBadSlots rebinds
-            // the slot to a live fact of the same blueprint or empties it; GetSlot empties it.
-            pendingBadSlots.Add(pending);
+            // Without an interrupted choice, only the bar's selected binding is the choice: a report for a secondary
+            // canonical copy or alias is not attributed to it (the canonical binding wins, then the first alias).
+            if (!hasChoice && (alias ? LegacyAliasIndex(slots) != index :
+                !MountedControlSlotPolicy.IsSelectedPublicReport(PublicBindingIndex(slots), index))) return;
+            // Held until native confirms it wrote the slot: its next report, its normal return, or native's own write found
+            // when an aborted scope closes.
+            nativeSlotScope.Report(unit.UISettings, index, Time.frameCount, pending, null);
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
@@ -2048,81 +2057,133 @@ namespace KingmakerMountedCombat.Integration
             internal MechanicActionBarSlotAbility Slot;
             internal int Index, AliasIndex;
             internal string PetId;
-            internal bool Desired, Alias, ChosenFree;
-            internal List<int> Copies;
+            internal bool Desired, Alias, ChosenFree, Copy;
+            internal List<KeyValuePair<int, MechanicActionBarSlot>> CopySlots;
         }
 
-        private Kingmaker.UI.UnitSettings.UnitUISettings activeNativeSlotOperation;
-        private int activeNativeSlotIndex = -1;
-        private int nativeSlotOperationDepth;
-        private readonly List<PendingSlotInvalidation> pendingBadSlots = new List<PendingSlotInvalidation>();
+        private readonly MountedNativeSlotScope<PendingSlotInvalidation> nativeSlotScope = new MountedNativeSlotScope<PendingSlotInvalidation>();
+        // Riders whose arrangement a report of the current native operation retired: its later reports (the same stale
+        // batch) are not applied; a later operation's reports (a genuine new placement) are.
+        private readonly HashSet<string> retiredInNativeOperation = new HashSet<string>(StringComparer.Ordinal);
 
-        internal long NativeSlotReportsDiscarded { get; private set; }
+        internal long NativeSlotReportsDiscarded => nativeSlotScope.Discarded;
 
         // Native UnitUISettings.GetSlot(index) / CleanupBadSlots begins (exact prefixes; slotIndex -1 for the whole bar). A
-        // nested native call is part of the outer operation, which resolves its reports when it returns.
+        // previous operation that never returned is closed first (CloseNativeSlotScope).
         internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings, int slotIndex = -1)
         {
-            if (nativeSlotOperationDepth++ > 0) return;
-            if (pendingBadSlots.Count > 0) DiscardPendingBadSlots();
-            activeNativeSlotOperation = disposed || !enabled ? null : settings;
-            activeNativeSlotIndex = slotIndex;
+            CloseNativeSlotScope();
+            retiredInNativeOperation.Clear();
+            nativeSlotScope.Begin(disposed || !enabled ? null : settings, slotIndex, Time.frameCount);
         }
 
-        // An operation that never returned (its postfix did not run): its reports cannot be attributed to a native write
-        // (the slot may since have been edited by the player), so they are dropped, never applied.
-        private void DiscardPendingBadSlots()
+        // An operation that never returned (it threw): its last report is applied only when the slot holds native's own
+        // write (NativeWroteReportedSlot); otherwise it is dropped. Also run by the next update.
+        private void CloseNativeSlotScope()
         {
-            NativeSlotReportsDiscarded += pendingBadSlots.Count;
-            pendingBadSlots.Clear();
-            activeNativeSlotOperation = null;
-            activeNativeSlotIndex = -1;
+            var recovered = new List<PendingSlotInvalidation>();
+            nativeSlotScope.Close(NativeWroteReportedSlot, recovered);
+            if (recovered.Count > 0 && enabled && !disposed) ApplyConfirmedSlotReports(recovered);
+            retiredInNativeOperation.Clear();
+        }
+
+        // What native writes into a reported slot: GetSlot and CleanupBadSlots empty it with a new MechanicActionBarSlotEmpty
+        // bound to the rider (Unit = unit / Owner.Unit, contract rows), or CleanupBadSlots rebinds it to the live fact of the
+        // same blueprint (IsNativeRebind). The player's removal on the action bar writes null (ActionBarIndexSlot.TryToSet),
+        // and another ability is neither, so neither is mistaken for native's write.
+        private bool NativeWroteReportedSlot(PendingSlotInvalidation item)
+        {
+            var slots = item?.Unit?.UISettings?.Slots;
+            var current = slots == null || item.Index >= slots.Length ? null : slots[item.Index];
+            if (current == null || ReferenceEquals(current, item.Slot)) return false;
+            var empty = current as MechanicActionBarSlotEmpty;
+            if (empty != null) return ReferenceEquals(empty.Unit, item.Unit);
+            var now = current as MechanicActionBarSlotAbility;
+            var fact = now?.Ability == null ? null : item.Unit.Descriptor?.Abilities?.GetAbility(now.Ability.Blueprint);
+            return MountedControlSlotPolicy.IsNativeRebind(item.Kind, ResolveKind(now?.Ability?.Blueprint),
+                fact != null && fact.Active && ReferenceEquals(fact.Data, now.Ability));
         }
 
         internal void EndNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
         {
-            if (nativeSlotOperationDepth > 0 && --nativeSlotOperationDepth > 0) return;
-            nativeSlotOperationDepth = 0;
-            if (activeNativeSlotOperation == null && pendingBadSlots.Count == 0) return;
-            ResolvePendingBadSlots();
+            ApplyConfirmedSlotReports(nativeSlotScope.End(settings));
         }
 
-        // Each slot native CleanupBadSlots was handed, classified from what the slot holds now
-        // (MountedControlSlotPolicy.IsNativeRebind): a binding of the same KMC kind holding the live fact's own data is
-        // native's rebind (the pinned build writes a new MechanicActionBarSlotAbility for it, contract
-        // 'CleanupBadSlots rebinds a bad ability slot with a new slot object'); anything else is an emptying. Object
-        // identity is not relied on. Also run at the next update if the native call did not return normally.
-        private void ResolvePendingBadSlots()
+        // Each confirmed report, classified from what the slot holds now (MountedControlSlotPolicy.IsNativeRebind): a
+        // binding of the same KMC kind holding the live fact's own data is native's rebind (the pinned build writes a new
+        // MechanicActionBarSlotAbility for it, contract 'CleanupBadSlots rebinds a bad ability slot with a new slot object');
+        // anything else written there is an emptying. A slot still holding the reported object was not written.
+        private void ApplyConfirmedSlotReports(List<PendingSlotInvalidation> confirmed)
         {
-            activeNativeSlotOperation = null;
-            activeNativeSlotIndex = -1;
-            if (pendingBadSlots.Count == 0) return;
-            var pending = pendingBadSlots.ToArray();
-            pendingBadSlots.Clear();
-            foreach (var item in pending)
+            if (confirmed == null) return;
+            foreach (var item in confirmed)
             {
-                var slots = item.Unit?.UISettings?.Slots;
+                if (item?.Unit?.UniqueId == null || retiredInNativeOperation.Contains(item.Unit.UniqueId)) continue;
+                var slots = item.Unit.UISettings?.Slots;
                 var current = slots == null || item.Index >= slots.Length ? null : slots[item.Index];
-                // Only a slot native actually wrote counts; an untouched slot (the reported object still there) is not
-                // an emptying.
-                if (ReferenceEquals(current, item.Slot)) { NativeSlotReportsDiscarded++; continue; }
+                if (ReferenceEquals(current, item.Slot)) continue;
                 var now = current as MechanicActionBarSlotAbility;
                 var kindNow = ResolveKind(now?.Ability?.Blueprint);
                 var fact = now?.Ability == null ? null : item.Unit.Descriptor?.Abilities?.GetAbility(now.Ability.Blueprint);
                 var live = fact != null && fact.Active && ReferenceEquals(fact.Data, now.Ability);
-                ApplySlotInvalidation(item, MountedControlSlotPolicy.IsNativeRebind(item.Kind, kindNow, live));
+                if (ApplySlotInvalidation(item, MountedControlSlotPolicy.IsNativeRebind(item.Kind, kindNow, live), current))
+                    retiredInNativeOperation.Add(item.Unit.UniqueId);
             }
+        }
+
+        // Disable and dispose: an open scope's reports are dropped (nothing is recorded any more) and no slot object or world
+        // is kept.
+        private void DropNativeSlotObservations()
+        {
+            nativeSlotScope.Close();
+            retiredInNativeOperation.Clear();
+            recordedCopies.Clear();
+            recordedCopiesWorld = null;
+        }
+
+        // Copies of each rider's interrupted choice, by identity: (index, slot object) pairs recorded when native
+        // interrupted the choice. Kept for the current player world only.
+        private readonly Dictionary<string, List<KeyValuePair<int, MechanicActionBarSlot>>> recordedCopies =
+            new Dictionary<string, List<KeyValuePair<int, MechanicActionBarSlot>>>(StringComparer.Ordinal);
+        private object recordedCopiesWorld;
+
+        private List<KeyValuePair<int, MechanicActionBarSlot>> CopiesOf(string actorId)
+        {
+            var world = Game.Instance?.Player;
+            if (!ReferenceEquals(world, recordedCopiesWorld)) { recordedCopies.Clear(); recordedCopiesWorld = world; }
+            List<KeyValuePair<int, MechanicActionBarSlot>> copies;
+            return actorId != null && recordedCopies.TryGetValue(actorId, out copies) ? copies : null;
+        }
+
+        private bool IsRecordedCopyAt(string actorId, int index, MechanicActionBarSlot slot)
+        {
+            var copies = CopiesOf(actorId);
+            return copies != null && slot != null && copies.Exists(pair => pair.Key == index && ReferenceEquals(pair.Value, slot));
+        }
+
+        // The interrupted choice of the arrangement a report belongs to: the live records, or the load scope's outgoing
+        // records while a selected load fences the current world.
+        private bool OwnerInterruptedChoice(UnitEntityData unit, out int index)
+        {
+            index = MountedControlPlacementIntent.OffBar;
+            if (unit?.UniqueId == null) return false;
+            return ArrangementsAccepted
+                ? placementIntent.TryGetInterruptedChoice(unit.UniqueId, out index)
+                : loadFence.TryGetOutgoingInterruptedChoice(Game.Instance?.Player, unit.UniqueId, out index);
         }
 
         // rebound: native put a live fact of the same blueprint into the slot (the live arrangement there); otherwise the
         // slot was emptied: never the player's removal, the chosen slot returns after the absence.
-        private void ApplySlotInvalidation(PendingSlotInvalidation item, bool rebound)
+        // Returns true when the report retired the rider's arrangement (the batch's later reports are then stale).
+        private bool ApplySlotInvalidation(PendingSlotInvalidation item, bool rebound, MechanicActionBarSlot written)
         {
-            if (disposed || item?.Unit?.UniqueId == null) return;
+            if (disposed || item?.Unit?.UniqueId == null) return false;
             var unit = item.Unit;
+            var id = unit.UniqueId;
             // Only in the world that produced the report and for the same rider instance, still on its roster: work
             // left over from a replaced world is discarded (checked before the fence can be released by the new world).
-            if (!MountedControlSlotPolicy.DeferredObservationApplies(item.World, Game.Instance?.Player, IsOnPlayerRoster(unit))) return;
+            if (!MountedControlSlotPolicy.DeferredObservationApplies(item.World, Game.Instance?.Player, IsOnPlayerRoster(unit))) return false;
+            bool recorded;
             if (!ArrangementsAccepted)
             {
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
@@ -2130,53 +2191,69 @@ namespace KingmakerMountedCombat.Integration
                 // replaced world drops it). A confirmed companion loss retires the outgoing arrangement and clears the
                 // rider's public bindings at once, so an abandoned load cannot hand the old binding to the new companion.
                 var outgoingSlots = unit.UISettings?.Slots;
-                if (loadFence.RetireOutgoingOnCompanionLoss(Game.Instance?.Player, unit.UniqueId, item.PetId, item.Desired,
+                if (loadFence.RetireOutgoingOnCompanionLoss(Game.Instance?.Player, id, item.PetId, item.Desired,
                     outgoingSlots != null && outgoingSlots.Any(IsPublicBindingSlot)))
                 {
                     if (outgoingSlots != null) ClearPublicControlSlots(unit, outgoingSlots);
-                    return;
+                    ForgetCopies(id);
+                    return true;
                 }
-                var recorded = item.Alias && !rebound
-                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies,
-                        item.ChosenFree)
-                    : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired, rebound,
-                        item.Copies, item.Alias, item.ChosenFree);
-                if (recorded && rebound) NativeSlotReboundCount++;
-                else if (recorded) NativeSlotInvalidationCount++;
+                recorded = item.Alias && !rebound
+                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, id, item.AliasIndex, item.PetId, item.Desired, item.ChosenFree)
+                    : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, id, item.Index, item.PetId, item.Desired, rebound,
+                        item.Copy, item.ChosenFree);
+            }
+            else
+            {
+                // A slot of a removed or replaced companion is not the next companion's choice: it is retired, not remembered.
+                if (RetireOnCompanionLoss(unit)) { ForgetCopies(id); return true; }
+                // rebound: a rebind of a recorded copy keeps the interrupted choice while its slot is free; a rebind of
+                // anything else is the live arrangement. Emptied: a copy of the interrupted choice is simply gone while the
+                // chosen slot is free (the fallback when it is occupied); any other binding (the selected one, or a
+                // placement the player made since) becomes the interrupted choice. An older alias with no arrangement is
+                // recovered by the reserve rule (ObserveNativeAliasInvalidated).
+                recorded = rebound
+                    ? placementIntent.ObserveNativeCleanupOutcome(id, item.Index, item.PetId, item.Desired, true, item.Copy, item.ChosenFree)
+                    : item.Alias
+                        ? placementIntent.ObserveNativeAliasInvalidated(id, item.AliasIndex, item.PetId, item.Desired, item.ChosenFree)
+                        : placementIntent.ObserveNativeSlotInvalidated(id, item.Index, item.PetId, item.Desired, item.Copy, item.ChosenFree);
+                // The player's shortcut was seen: its one-time placement is satisfied even though native emptied it (no
+                // autofill copy if its chosen slot is taken before the control returns).
+                if (recorded) placementRecorded.Add(id);
+            }
+            if (recorded && rebound) NativeSlotReboundCount++;
+            else if (recorded) NativeSlotInvalidationCount++;
+            TrackCopies(item, rebound, recorded, written);
+            return false;
+        }
+
+        // The copy registry after one applied report. A report that became the interrupted choice (emptied, not a copy
+        // yielding to it) makes the other public bindings on the bar at that moment its copies; a copy native emptied is no
+        // longer one (a later placement at its index is the player's); a copy native rebound stays one, as the new slot
+        // object native wrote; a rebind that became the live arrangement ends the copy set.
+        private void TrackCopies(PendingSlotInvalidation item, bool rebound, bool recorded, MechanicActionBarSlot written)
+        {
+            var id = item.Unit.UniqueId;
+            var copies = CopiesOf(id);
+            if (item.Copy)
+            {
+                if (copies == null) return;
+                var at = copies.FindIndex(pair => pair.Key == item.Index && ReferenceEquals(pair.Value, item.Slot));
+                if (at < 0) return;
+                // A copy that became the fallback (its chosen slot occupied) is the choice now; the other copies stay copies.
+                if (rebound && !recorded) copies[at] = new KeyValuePair<int, MechanicActionBarSlot>(item.Index, written);
+                else copies.RemoveAt(at);
                 return;
             }
-            // A slot of a removed or replaced companion is not the next companion's choice: it is retired, not remembered.
-            if (RetireOnCompanionLoss(unit)) return;
-            if (rebound)
-            {
-                // A rebind of a recorded copy of an interrupted choice (for example the surviving older alias) keeps the
-                // choice; a rebind at the chosen slot or of anything else is the live arrangement.
-                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true, item.Copies, item.Alias,
-                    item.ChosenFree))
-                {
-                    placementRecorded.Add(unit.UniqueId);
-                    NativeSlotReboundCount++;
-                }
-                return;
-            }
-            if (item.Alias)
-            {
-                // A recorded placement (for example an alias a save scope returned) is invalidated as a temporary
-                // absence at its index; an unrecorded older alias is recovered by the reserve rule before it is lost.
-                if (placementIntent.ObserveNativeAliasInvalidated(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies, item.ChosenFree))
-                {
-                    placementRecorded.Add(unit.UniqueId);
-                    NativeSlotInvalidationCount++;
-                }
-                return;
-            }
-            // The player's canonical shortcut was seen: its one-time placement is satisfied even though native emptied it
-            // (no autofill copy if its chosen slot is taken before the control returns).
-            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false, item.Copies, false, item.ChosenFree))
-            {
-                placementRecorded.Add(unit.UniqueId);
-                NativeSlotInvalidationCount++;
-            }
+            if (!recorded) return;
+            if (rebound) { ForgetCopies(id); return; }
+            recordedCopies[id] = new List<KeyValuePair<int, MechanicActionBarSlot>>(item.CopySlots ??
+                new List<KeyValuePair<int, MechanicActionBarSlot>>());
+        }
+
+        private void ForgetCopies(string actorId)
+        {
+            if (actorId != null) recordedCopies.Remove(actorId);
         }
 
         // Positive evidence that the companion the rider's arrangement belongs to is gone (MountedControlPlacementIntent.
@@ -2263,29 +2340,34 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        // An older alias, or a canonical binding that does not hold the active public fact's own data: never a binding the
-        // player just placed from the live control.
-        private bool IsStaleOrAlias(UnitEntityData unit, MechanicActionBarSlot slot)
+
+        // A copy of the rider's interrupted choice at index, by identity: the exact binding recorded there when native
+        // interrupted the choice (it stays a copy until it leaves the bar or the copies are forgotten, so a boundary that
+        // has already observed the effective binding reads the same bar the same way), or an older alias while the choice is
+        // interrupted elsewhere (MountedControlPlacementIntent.IsSecondaryBinding; no live control produces one). A binding
+        // the player placed or moved since is a new slot object or another index, so it is never a copy.
+        private bool IsPublicCopyAt(UnitEntityData unit, MechanicActionBarSlot[] slots, int index)
         {
-            var ability = (slot as MechanicActionBarSlotAbility)?.Ability;
-            var kind = ResolveKind(ability?.Blueprint);
-            if (kind != NativeMountedControlKind.MountState) return MountedControlSlotPolicy.IsPublicControlKind(kind);
-            var fact = unit?.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-            return fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability);
+            if (unit?.UniqueId == null || slots == null || index < 0 || index >= slots.Length || !IsPublicBindingSlot(slots[index])) return false;
+            if (IsRecordedCopyAt(unit.UniqueId, index, slots[index])) return true;
+            var alias = !ReferenceEquals((slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility);
+            return placementIntent.IsSecondaryBinding(unit.UniqueId, index, alias);
         }
 
-        // A surviving secondary copy of an interrupted choice (MountedControlPlacementIntent.IsSecondaryBinding) that yields
-        // to it: only while the chosen slot is free. When the chosen slot is occupied, the surviving copy is the
-        // arrangement in live repair, capture and lease release alike.
-        private bool IsSecondaryPublicSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, int index) =>
-            unit?.UniqueId != null && slots != null && index >= 0 && index < slots.Length &&
-            placementIntent.IsSecondaryBinding(unit.UniqueId, index, IsStaleOrAlias(unit, slots[index])) && ChosenSlotFree(unit, slots);
-
-        private bool HasInterruptedChoice(UnitEntityData unit)
+        // The bar's effective public binding (MountedControlSlotPolicy.EffectiveBindingIndex): the player's own binding
+        // wins wherever it is; copies yield to a free chosen slot (onlyYieldingCopies) or the first is the fallback while
+        // it is occupied. Live repair, boundary observation, capture classification and the live archive writer all use it.
+        private int EffectivePublicIndex(UnitEntityData unit, MechanicActionBarSlot[] slots, out bool onlyYieldingCopies)
         {
-            int chosen;
-            return unit?.UniqueId != null && placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen);
+            onlyYieldingCopies = false;
+            if (slots == null) return -1;
+            var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
+            return MountedControlSlotPolicy.EffectiveBindingIndex(kinds, i => IsPublicCopyAt(unit, slots, i), ChosenSlotFree(unit, slots),
+                out onlyYieldingCopies);
         }
+
+        private int FirstMountStateIndex(MechanicActionBarSlot[] slots) => slots == null ? -1 :
+            Array.FindIndex(slots, slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint) == NativeMountedControlKind.MountState);
 
         private bool ChosenSlotFree(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
@@ -2396,16 +2478,15 @@ namespace KingmakerMountedCombat.Integration
             // The visible public binding: canonical first, else an older alias still on the bar (for example one a save
             // scope returned), which is the player's current choice, never an empty slot. A public binding the player
             // placed also satisfies the one-time placement (no autofill copy may follow it).
-            // A recorded copy whose slot no longer holds a public binding is no longer a copy.
-            placementIntent.PruneCopies(id, i => i >= 0 && i < slots.Length && IsPublicBindingSlot(slots[i]));
-            var bound = PublicBindingIndex(slots);
-            if (bound >= 0) placementRecorded.Add(id);
-            // A surviving secondary copy (an older alias or a stale canonical copy) never overrides a choice already
-            // interrupted elsewhere; a binding holding the live data (a player placement) is the arrangement.
+            // The effective binding (EffectivePublicIndex, the decision live repair makes): the player's own binding wherever
+            // it is, or the fallback copy while the chosen slot is occupied. Copies that yield to a free chosen slot leave
+            // the interrupted choice as it is.
+            bool onlyYieldingCopies;
+            var bound = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
+            if (bound >= 0 || onlyYieldingCopies) placementRecorded.Add(id);
             if (bound >= 0)
-                placementIntent.ObserveBindingAtBoundary(id, bound, IsStaleOrAlias(unit, slots[bound]), placementRecorded.Contains(id),
-                    unit.Descriptor?.PetUniqueId, ChosenSlotFree(unit, slots));
-            else
+                placementIntent.ObserveAtBoundary(id, true, bound, placementRecorded.Contains(id), unit.Descriptor?.PetUniqueId);
+            else if (!onlyYieldingCopies)
                 placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
                     unit.Descriptor?.PetUniqueId);
         }
@@ -2678,13 +2759,14 @@ namespace KingmakerMountedCombat.Integration
                     // the player's slot waiting for repair or for its pet: carried as the remembered slot while the rider
                     // still gets the control or its pet link still names the same companion; restore binds the current
                     // fact. A removed control (no slot) stays a removal.
-                    // The same selected index the live writer uses (PublicBindingIndex / LivePublicRows), and the
+                    // The same effective index the live writer uses (EffectivePublicIndex / LivePublicRows), and the
                     // callability of that exact slot: when the writer skips it, its index is carried as remembered.
+                    // Copies that yield to a free chosen slot write nothing: the interrupted choice is carried.
                     var slots = unit.UISettings?.Slots;
-                    var selected = PublicBindingIndex(slots);
-                    var bound = selected >= 0;
-                    var written = bound && MountedControlSlotPolicy.IsValidSavedRow(selected, MountedControlSlotPolicy.SavedMountState) &&
-                        !IsSecondaryPublicSlot(unit, slots, selected) &&
+                    bool onlyYieldingCopies;
+                    var selected = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
+                    var bound = selected >= 0 || onlyYieldingCopies;
+                    var written = selected >= 0 && MountedControlSlotPolicy.IsValidSavedRow(selected, MountedControlSlotPolicy.SavedMountState) &&
                         IsCallableLiveBinding(unit, slots[selected] as MechanicActionBarSlotAbility,
                             ResolveKind((slots[selected] as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
                     if (bound && !written && (ShouldLease(unit, NativeMountedControlKind.MountState) ||
@@ -2781,10 +2863,13 @@ namespace KingmakerMountedCombat.Integration
                 // record, accounted separately (MountedControlSlotPolicy.LivePublicRows). A disabled or removed KMC writes
                 // no placement record.
                 var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-                // A secondary copy of an interrupted choice is never written live (the remembered writer carries the choice).
+                // Only the effective binding is written (EffectivePublicIndex, the decision live repair makes): copies that
+                // yield to a free chosen slot write nothing (the remembered writer carries the choice).
+                bool onlyYieldingCopies;
+                var effective = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
                 foreach (var row in MountedControlSlotPolicy.LivePublicRows(kinds,
-                    i => !IsSecondaryPublicSlot(unit, slots, i) && IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kinds[i]),
-                    enabled && placementRecorded.Contains(unit.UniqueId), publicControl != null && publicControl.Active))
+                    i => IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kinds[i]),
+                    enabled && placementRecorded.Contains(unit.UniqueId), publicControl != null && publicControl.Active, effective))
                 {
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = row.Key, Kind = row.Value });
                     if (row.Value == MountedControlSlotPolicy.SavedMountState) written.Add(unit.UniqueId);

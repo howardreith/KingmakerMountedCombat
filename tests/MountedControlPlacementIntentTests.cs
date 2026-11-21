@@ -101,6 +101,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a cleanup batch for a retired rider cannot recreate the arrangement, fenced or not", RetiredRiderCleanupBatch);
             runner.Run("toolbar: repair removes every surviving canonical copy and leaves one shortcut at the chosen slot", RepairRemovesAllCopies);
             runner.Run("toolbar: emptying a secondary legacy alias is never attributed to the selected alias", SecondaryAliasReport);
+            runner.Run("toolbar: copies read out of index order (3, 9, 7) leave a later placement at 9 the player's", OutOfOrderCopyReads);
+            runner.Run("toolbar: an abandoned load keeps the fallback native emptied while the outgoing chosen slot is occupied", AbandonedLoadFallbackOccupied);
+            runner.Run("toolbar: an aborted native operation never absorbs a later successful one or a write it completed", ExceptionalNativeOperations);
+            runner.Run("toolbar: an occupied chosen slot keeps its occupant and exactly one of two surviving copies", OccupiedChosenSlotWithTwoCopies);
+            runner.Run("toolbar: KMC's own alias migration while the pet is unresolved keeps the fallback for an occupied slot", FallbackBeforeOwnMigration);
+            runner.Run("toolbar: a move past a surviving lower copy is the arrangement live, in the save and after reload", MoveBeyondSurvivingCopy);
+            runner.Run("toolbar: native emptying of a new placement before any update keeps that placement, after retirement too", NativeEmptiesNewPlacement);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -157,34 +164,176 @@ namespace KingmakerMountedCombat.Tests
                 return NativeMountedControlKind.None;
             }
 
-            // Deferred native cleanup reports (PendingSlotInvalidation): the world, the rider instance and the slot index.
-            internal readonly List<Tuple<World, Rider, int>> PendingNative = new List<Tuple<World, Rider, int>>();
+            // PendingSlotInvalidation: one native bad-slot report.
+            internal sealed class NativeReport
+            {
+                internal World World; internal Rider Rider; internal int Index; internal string Slot;
+                internal NativeMountedControlKind Kind; internal bool Alias, Copy, ChosenFree, Desired; internal string PetId;
+                internal List<KeyValuePair<int, string>> CopySlots;
+            }
 
-            // Native CleanupBadSlots empties the rider's public slot after IsBad reported it, and its postfix never runs.
+            // The production observation scope of one native slot operation (nativeSlotScope; the owner is the rider's bar,
+            // the frame Time.frameCount, advanced by each update here) and the riders a report of the current operation
+            // retired (retiredInNativeOperation).
+            internal readonly MountedNativeSlotScope<NativeReport> Scope = new MountedNativeSlotScope<NativeReport>();
+            internal int FrameNo;
+            private readonly HashSet<string> retiredInOperation = new HashSet<string>(StringComparer.Ordinal);
+
+            // recordedCopies: copies of each rider's interrupted choice by identity, (index, slot object) pairs, for the
+            // current world only. Slot strings are distinct instances per placement, so ReferenceEquals is object identity.
+            private readonly Dictionary<string, List<KeyValuePair<int, string>>> copies = new Dictionary<string, List<KeyValuePair<int, string>>>(StringComparer.Ordinal);
+            private World copiesWorld;
+
+            internal List<KeyValuePair<int, string>> CopiesOf(string id)
+            {
+                if (!ReferenceEquals(Current, copiesWorld)) { copies.Clear(); copiesWorld = Current; }
+                List<KeyValuePair<int, string>> list;
+                return id != null && copies.TryGetValue(id, out list) ? list : null;
+            }
+
+            internal bool IsRecordedCopyAt(string id, int index, string slot)
+            {
+                var list = CopiesOf(id);
+                return list != null && slot != null && list.Exists(pair => pair.Key == index && ReferenceEquals(pair.Value, slot));
+            }
+
+            internal void ForgetCopies(string id) { if (id != null) copies.Remove(id); }
+
+            // BeginNativeBadSlotCleanup: a previous operation that never returned is closed first.
+            internal void BeginNative(Rider rider, int index = -1)
+            {
+                CloseNative();
+                foreach (var each in Riders) each.NativeEmptied.Clear();
+                retiredInOperation.Clear();
+                Scope.Begin(Enabled ? rider : null, index, FrameNo);
+            }
+
+            internal void EndNative(Rider rider) => ApplyConfirmed(Scope.End(rider));
+
+            // CloseNativeSlotScope: an aborted operation's last report is applied only when the slot holds native's own write.
+            internal void CloseNative()
+            {
+                var recovered = new List<NativeReport>();
+                Scope.Close(NativeWrote, recovered);
+                if (recovered.Count > 0 && Enabled) ApplyConfirmed(recovered);
+                retiredInOperation.Clear();
+            }
+
+            // NativeWroteReportedSlot: native's emptying (the empty slot it binds to the rider; the player's removal writes a
+            // plain null here, which carries no native tag) or its rebind to the live data of the same kind.
+            private bool NativeWrote(NativeReport item)
+            {
+                var current = item.Rider.Slots[item.Index];
+                if (ReferenceEquals(current, item.Slot)) return false;
+                if (current == null) return item.Rider.NativeEmptied.Contains(item.Index);
+                return MountedControlSlotPolicy.IsNativeRebind(item.Kind, KindOf(current), item.Rider.HoldsLiveData(item.Index));
+            }
+
+            // ObserveInvalidatedPublicSlot: IsBad answered true for the public binding at index.
+            internal void ReportNative(Rider rider, int index)
+            {
+                var slot = rider.Slots[index];
+                var kind = KindOf(slot);
+                if (!Enabled || !MountedControlSlotPolicy.IsPublicControlKind(kind) || rider.World != Current || !rider.OnRoster) return;
+                var settled = new List<NativeReport>();
+                if (!Scope.Settle(rider, index, FrameNo, settled)) return;
+                ApplyConfirmed(settled);
+                int chosen;
+                var hasChoice = Accepts ? Intent.TryGetInterruptedChoice(rider.Id, out chosen) : Fence.TryGetOutgoingInterruptedChoice(Current, rider.Id, out chosen);
+                var alias = kind != NativeMountedControlKind.MountState;
+                var report = new NativeReport
+                {
+                    World = Current, Rider = rider, Index = index, Slot = slot, Kind = kind, Alias = alias, PetId = rider.PetId, Desired = rider.Desired,
+                    Copy = hasChoice && (alias || IsRecordedCopyAt(rider.Id, index, slot)),
+                    CopySlots = Enumerable.Range(0, rider.Slots.Length).Where(i => i != index && MountedControlSlotPolicy.IsPublicControlKind(KindOf(rider.Slots[i])))
+                        .Select(i => new KeyValuePair<int, string>(i, rider.Slots[i])).ToList(),
+                    ChosenFree = !hasChoice || rider.Slots[chosen] == null
+                };
+                if (!hasChoice && (alias ? rider.LegacyAliasIndex() != index :
+                    !MountedControlSlotPolicy.IsSelectedPublicReport(rider.PublicIndex(), index))) return;
+                Scope.Report(rider, index, FrameNo, report, null);
+            }
+
+            // ApplyConfirmedSlotReports.
+            private void ApplyConfirmed(List<NativeReport> confirmed)
+            {
+                foreach (var item in confirmed)
+                {
+                    if (retiredInOperation.Contains(item.Rider.Id)) continue;
+                    var current = item.Rider.Slots[item.Index];
+                    if (ReferenceEquals(current, item.Slot)) continue;
+                    var rebound = MountedControlSlotPolicy.IsNativeRebind(item.Kind, KindOf(current), current != null && item.Rider.HoldsLiveData(item.Index));
+                    if (ApplySlotInvalidation(item, rebound, current)) retiredInOperation.Add(item.Rider.Id);
+                }
+            }
+
+            // ApplySlotInvalidation: only in the originating world, for the same rider instance; the load scope's outgoing
+            // records while fenced. Returns true when it retired the arrangement.
+            private bool ApplySlotInvalidation(NativeReport item, bool rebound, string written)
+            {
+                var rider = item.Rider;
+                if (!MountedControlSlotPolicy.DeferredObservationApplies(item.World, Current, rider.World == Current && rider.OnRoster)) return false;
+                bool recorded;
+                if (!Accepts)
+                {
+                    if (Fence.RetireOutgoingOnCompanionLoss(Current, rider.Id, item.PetId, item.Desired, rider.Slots.Any(s => MountedControlSlotPolicy.IsPublicControlKind(KindOf(s)))))
+                    {
+                        rider.ClearPublicSlots();
+                        ForgetCopies(rider.Id);
+                        return true;
+                    }
+                    recorded = item.Alias && !rebound
+                        ? Fence.AdmitOutgoingSurvivingBinding(Current, rider.Id, item.Index, item.PetId, item.Desired, item.ChosenFree)
+                        : Fence.ObserveOutgoingCleanupOutcome(Current, rider.Id, item.Index, item.PetId, item.Desired, rebound, item.Copy, item.ChosenFree);
+                }
+                else
+                {
+                    if (rider.RetireOnPetChange()) { ForgetCopies(rider.Id); return true; }
+                    recorded = rebound
+                        ? Intent.ObserveNativeCleanupOutcome(rider.Id, item.Index, item.PetId, item.Desired, true, item.Copy, item.ChosenFree)
+                        : item.Alias
+                            ? Intent.ObserveNativeAliasInvalidated(rider.Id, item.Index, item.PetId, item.Desired, item.ChosenFree)
+                            : Intent.ObserveNativeSlotInvalidated(rider.Id, item.Index, item.PetId, item.Desired, item.Copy, item.ChosenFree);
+                    if (recorded) Placed.Add(rider.Id);
+                }
+                TrackCopies(item, rebound, recorded, written);
+                return false;
+            }
+
+            // TrackCopies.
+            private void TrackCopies(NativeReport item, bool rebound, bool recorded, string written)
+            {
+                var id = item.Rider.Id;
+                var list = CopiesOf(id);
+                if (item.Copy)
+                {
+                    if (list == null) return;
+                    var at = list.FindIndex(pair => pair.Key == item.Index && ReferenceEquals(pair.Value, item.Slot));
+                    if (at < 0) return;
+                    if (rebound && !recorded) list[at] = new KeyValuePair<int, string>(item.Index, written);
+                    else list.RemoveAt(at);
+                    return;
+                }
+                if (!recorded) return;
+                if (rebound) { ForgetCopies(id); return; }
+                copies[id] = new List<KeyValuePair<int, string>>(item.CopySlots);
+            }
+
+            // Native CleanupBadSlots empties the rider's public slot after IsBad reported it, then throws on a later slot:
+            // its postfix never runs.
             internal void QueueNativeInvalidation(Rider rider)
             {
                 var at = rider.Find();
                 if (at < 0) return;
-                PendingNative.Add(Tuple.Create(Current, rider, at));
-                rider.Slots[at] = null;
+                BeginNative(rider);
+                ReportNative(rider, at);
+                rider.NativeWrite(at, null);
             }
 
-            // ResolvePendingBadSlots / ApplySlotInvalidation: only in the originating world, for the same rider instance.
-            internal void ResolvePendingNative()
-            {
-                foreach (var item in PendingNative.ToArray())
-                {
-                    var rider = item.Item2;
-                    if (!MountedControlSlotPolicy.DeferredObservationApplies(item.Item1, Current, rider.World == Current && rider.OnRoster)) continue;
-                    if (!Accepts) Fence.ObserveOutgoingSlotInvalidated(Current, rider.Id, item.Item3, rider.PetId, rider.Desired);
-                    else if (!rider.RetireOnPetChange()) Intent.ObserveNativeCleanupOutcome(rider.Id, item.Item3, rider.PetId, rider.Desired, false);
-                }
-                PendingNative.Clear();
-            }
-
-            // Update after an operation that never returned: the open scope is closed and its queued reports are dropped,
-            // never applied (DiscardPendingBadSlots).
-            internal void DiscardAbortedNativeReports() => PendingNative.Clear();
+            // The next update closes the aborted scope (CloseNativeSlotScope): native's completed write is applied, in the
+            // originating world only; a report native never acted on is dropped.
+            internal void ResolvePendingNative() => CloseNative();
+            internal void DiscardAbortedNativeReports() => CloseNative();
 
             // KMC bindings on any current-world bar while the save serializes (after the leases).
             internal int SerializedKmcSlots = -1;
@@ -213,11 +362,17 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var reserve in Reserve.ToList()) reserve.ClearControlSlots();
                 foreach (var rider in Candidates.Concat(Observed).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: true);
                 Observed.Clear(); Placed.Clear(); Intent.Clear(); Fence.Reset(); Scanned.Clear();
+                // DropNativeSlotObservations.
+                Scope.Close(); retiredInOperation.Clear(); copies.Clear(); copiesWorld = null;
                 Enabled = false;
             }
 
             internal void Frame()
             {
+                FrameNo++;
+                // An open scope here was left by an exception (CloseNativeSlotScope); the copy registry keeps the current world.
+                if (Scope.Open) CloseNative();
+                CopiesOf(null);
                 if (!Enabled) return; // Update returns at once while the service is disabled
                 if (!Accepts) return; // Update returns before ReconcileFacts while a selected load's outgoing world is current
                 AdmitReserve();
@@ -368,22 +523,52 @@ namespace KingmakerMountedCombat.Tests
             // PublicBindingIndex: the canonical binding first, else the first exact older alias.
             internal int PublicIndex() => MountedControlSlotPolicy.RecoveredPublicSlot(Slots.Select(Service.KindOf).ToArray());
 
-            // IsStaleOrAlias: an older alias, or a canonical binding without the live fact's data.
-            internal bool StaleOrAlias(int i)
+            // LegacyAliasIndex: the first exact older alias when no canonical binding is on the bar, else -1.
+            internal int LegacyAliasIndex()
             {
-                var kind = Service.KindOf(Slots[i]);
-                if (kind != NativeMountedControlKind.MountState) return MountedControlSlotPolicy.IsPublicControlKind(kind);
-                return !(FactLive && Slots[i] == Data);
+                var kinds = Slots.Select(Service.KindOf).ToArray();
+                if (kinds.Contains(NativeMountedControlKind.MountState)) return -1;
+                return Array.FindIndex(kinds, k => MountedControlSlotPolicy.RepairLiveSlot(k) == MountedControlSlotRepair.MountState);
             }
 
-            // IsSecondaryPublicSlot: a secondary copy of an interrupted choice.
-            internal bool Secondary(int i) => i >= 0 && Intent.IsSecondaryBinding(Id, i, StaleOrAlias(i)) && ChosenFree();
+            // IsPublicCopyAt: a copy of the interrupted choice by identity (the exact recorded binding at its index), or an
+            // older alias.
+            internal bool IsCopyAt(int i) => IsPublic(Slots[i]) && (S.IsRecordedCopyAt(Id, i, Slots[i]) ||
+                Intent.IsSecondaryBinding(Id, i, Service.KindOf(Slots[i]) != NativeMountedControlKind.MountState));
+
+            // EffectivePublicIndex (MountedControlSlotPolicy.EffectiveBindingIndex).
+            internal int Effective(out bool onlyYieldingCopies) =>
+                MountedControlSlotPolicy.EffectiveBindingIndex(Slots.Select(Service.KindOf).ToArray(), IsCopyAt, ChosenFree(), out onlyYieldingCopies);
 
             // ChosenSlotFree: the interrupted chosen slot is empty (a copy yields only to a free chosen slot).
             internal bool ChosenFree()
             {
                 int chosen;
                 return Intent.TryGetInterruptedChoice(Id, out chosen) && Slots[chosen] == null;
+            }
+
+            // The slot holds the live fact's own data of its kind (native's rebind writes exactly that).
+            internal bool HoldsLiveData(int i)
+            {
+                var kind = Service.KindOf(Slots[i]);
+                if (kind == NativeMountedControlKind.MountState) return FactLive && Slots[i] == Data;
+                if (kind == NativeMountedControlKind.MountCompanion) return ShellLive && Slots[i] == "KMC_Mount#" + DataVersion;
+                if (kind == NativeMountedControlKind.Dismount) return ShellLive && Slots[i] == "KMC_Dismount#" + DataVersion;
+                return false;
+            }
+
+            // Indices native emptied in the current operation (native's empty slot bound to the rider).
+            internal readonly HashSet<int> NativeEmptied = new HashSet<int>();
+
+            internal void NativeWrite(int i, string value)
+            {
+                Slots[i] = value;
+                if (value == null) NativeEmptied.Add(i); else NativeEmptied.Remove(i);
+            }
+
+            internal void ClearPublicSlots()
+            {
+                for (var i = 0; i < Slots.Length; i++) if (IsPublic(Slots[i])) Slots[i] = null;
             }
 
             // IsCallableLiveBinding for the selected public slot.
@@ -399,32 +584,50 @@ namespace KingmakerMountedCombat.Tests
                 var replaced = false;
                 if (Desired && !FactLive) { FactLive = true; DataVersion++; replaced = true; }
                 if (!Desired) FactLive = false;
-                // ReconcilePublicControlSlots: an older alias becomes the live control in its slot, or is emptied (its
-                // index recorded first) while the control is not live.
-                if (!FactLive) RecoverAlias();
-                // Secondary copies of an interrupted choice, decided before the repair rebinds or migrates them.
-                if (S.Accepts) Intent.PruneCopies(Id, i => IsPublic(Slots[i]));
-                var preSelected = PublicIndex();
-                var preSecondary = Secondary(preSelected);
-                var secondaryCopies = Enumerable.Range(0, Slots.Length).Where(i => IsPublic(Slots[i]) && Secondary(i)).ToList();
+                // ReconcilePublicControlSlots. The effective binding and the copies are decided before the repair rebinds
+                // or migrates anything.
+                bool onlyYieldingCopies;
+                var effective = Effective(out onlyYieldingCopies);
+                var copies = Enumerable.Range(0, Slots.Length).Where(IsCopyAt).ToList();
+                if (!FactLive)
+                {
+                    // A fallback copy (chosen slot occupied) becomes the choice before KMC's own migration clears it;
+                    // otherwise an older alias is recorded (its index) before it is emptied.
+                    if (effective >= 0 && copies.Contains(effective) && S.Accepts) { Intent.PromoteFallback(Id, effective, PetId); S.Placed.Add(Id); }
+                    else RecoverAlias();
+                }
                 for (var i = 0; i < Slots.Length; i++)
                 {
-                    if (MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(Slots[i])) != MountedControlSlotRepair.MountState) continue;
+                    var kind = Service.KindOf(Slots[i]);
+                    if (kind == NativeMountedControlKind.MountState)
+                    {
+                        if (!FactLive) continue;
+                        S.Placed.Add(Id);
+                        if (Slots[i] != Data) Slots[i] = Data; // a stale binding is rebound (a new slot object)
+                        continue;
+                    }
+                    if (MountedControlSlotPolicy.RepairLiveSlot(kind) != MountedControlSlotRepair.MountState) continue;
                     Slots[i] = FactLive && Find() < 0 ? Data : null;
                     S.Placed.Add(Id);
                 }
                 var bound = Find();
-                if (FactLive && bound >= 0 && Slots[bound] != Data) Slots[bound] = Data; // stale binding rebound
-                // The copy is removed when the interrupted chosen slot is free; the control returns there below.
-                int chosen;
-                if (FactLive && preSecondary && bound == preSelected && Intent.TryGetInterruptedChoice(Id, out chosen) && Slots[chosen] == null)
-                    foreach (var copy in secondaryCopies) if (copy != chosen) Slots[copy] = null; // every copy, not only the first
+                // Every copy other than the effective binding goes (one shortcut); copies that yield leave the control to
+                // return to the free chosen slot below; the first copy is the fallback while that slot is occupied.
+                if (FactLive && copies.Count > 0)
+                {
+                    foreach (var copy in copies) if (copy != effective && IsPublic(Slots[copy])) Slots[copy] = null;
+                    bound = effective >= 0 && Service.KindOf(Slots[effective]) == NativeMountedControlKind.MountState ? effective
+                        : onlyYieldingCopies ? -1 : Find();
+                }
                 // Confirmed permanent loss clears the public-control slots.
                 if (!FactLive && !Desired && Intent.ProvesPermanentLoss(Id, PetId))
                     for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
-                var index = Intent.Reconcile(Id, FactLive, Desired, replaced, Find(), i => Slots[i] == null,
+                var index = Intent.Reconcile(Id, FactLive, Desired, replaced, bound, i => Slots[i] == null,
                     leases.Count != 0, S.Placed.Contains(Id), PetId);
                 if (index >= 0) { Slots[index] = Data; S.Placed.Add(Id); Intent.ObserveBound(Id, index, PetId); }
+                // Once no choice is interrupted, nothing is a copy of one.
+                int chosen;
+                if (S.Accepts && !Intent.TryGetInterruptedChoice(Id, out chosen)) S.ForgetCopies(Id);
                 // TryInitialPlacement: a pending lease of a public binding already satisfies the one-time placement.
                 if (leases.Any(lease => MountedControlSlotPolicy.IsPublicControlKind(lease.Value))) S.Placed.Add(Id);
                 if (FactLive && !S.Placed.Contains(Id) && Autofill)
@@ -441,12 +644,12 @@ namespace KingmakerMountedCombat.Tests
                 if (!S.Enabled) return;            // a disabled service records nothing
                 if (RetireOnPetChange()) return;
                 RecoverAlias();
-                Intent.PruneCopies(Id, i => IsPublic(Slots[i]));
-                var bound = PublicIndex();
-                if (bound >= 0) S.Placed.Add(Id); // an observed public binding satisfies the one-time placement
-                // A surviving secondary copy never overrides a choice already interrupted elsewhere.
-                if (bound >= 0) Intent.ObserveBindingAtBoundary(Id, bound, StaleOrAlias(bound), S.Placed.Contains(Id), PetId, ChosenFree());
-                else Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
+                // The effective binding (the decision live repair makes); copies that yield keep the interrupted choice.
+                bool onlyYieldingCopies;
+                var bound = Effective(out onlyYieldingCopies);
+                if (bound >= 0 || onlyYieldingCopies) S.Placed.Add(Id); // an observed public binding satisfies the one-time placement
+                if (bound >= 0) Intent.ObserveAtBoundary(Id, true, bound, S.Placed.Contains(Id), PetId);
+                else if (!onlyYieldingCopies) Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
             }
 
             // RecoverLegacyAlias: an older exact Mount / Dismount alias (no canonical public binding) is recorded as the
@@ -473,9 +676,10 @@ namespace KingmakerMountedCombat.Tests
                     // A bound public slot the live capture will not write (stale data, or the rider no longer gets the
                     // control) is carried while the rider still gets it or its pet link names the same companion.
                     // The live writer's selected index and the callability of that exact slot.
-                    var at = PublicIndex();
-                    var written = at >= 0 && at <= 127 && !Secondary(at) && Callable(at);
-                    if (at >= 0 && !written && (Desired || Intent.Revalidate(Id, true, true, PetId)))
+                    bool onlyYieldingCopies;
+                    var at = Effective(out onlyYieldingCopies);
+                    var written = at >= 0 && at <= 127 && Callable(at);
+                    if ((at >= 0 || onlyYieldingCopies) && !written && (Desired || Intent.Revalidate(Id, true, true, PetId)))
                         Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
                     return;
                 }
@@ -488,9 +692,11 @@ namespace KingmakerMountedCombat.Tests
                 // Production slot order and precedence (MountedControlSlotPolicy.LivePublicRows): the canonical binding is
                 // callable when it holds the live data; an older alias when its own shell fact is live.
                 var kinds = Slots.Select(Service.KindOf).ToArray();
+                bool onlyYieldingCopies;
+                var effective = Effective(out onlyYieldingCopies);
                 foreach (var r in MountedControlSlotPolicy.LivePublicRows(kinds,
-                    i => !Secondary(i) && Desired && (kinds[i] == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive),
-                    S.Placed.Contains(Id), FactLive))
+                    i => Desired && (kinds[i] == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive),
+                    S.Placed.Contains(Id), FactLive, effective))
                 {
                     rows.Add(new SavedRow { Actor = Id, Index = r.Key, Kind = r.Value });
                     if (r.Value == MountedControlSlotPolicy.SavedMountState) written.Add(Id);
@@ -541,185 +747,108 @@ namespace KingmakerMountedCombat.Tests
 
             // Native bad-slot cleanup: IsBad answered true for the slot holding the control (the production postfix
             // reports that exact index), the slot is emptied; reactivated: the fact is active again before the update.
-            // The other public bindings on the bar when slot i is handed to native (PendingSlotInvalidation.Copies).
-            internal List<int> CopiesBesides(int i) => Enumerable.Range(0, Slots.Length).Where(j => j != i && IsPublic(Slots[j])).ToList();
+            // Native GetSlot(index): IsBad reports the slot to the production observer (ReportNative) inside the operation's
+            // scope, native empties it (its empty slot bound to the rider), and the call returns unless it throws.
+            internal void NativeGetSlot(int index, bool returns = true)
+            {
+                S.BeginNative(this, index);
+                S.ReportNative(this, index);
+                NativeWrite(index, null);
+                if (returns) S.EndNative(this);
+            }
 
+            // Native bad-slot cleanup of the slot holding the control; reactivated: the fact is active again before the
+            // update.
             internal void NativeInvalidate(bool reactivated = false)
             {
                 var at = Find();
-                if (at >= 0)
-                {
-                    var copies = CopiesBesides(at);
-                    // While a selected load fences this world, the observation goes to the scope's outgoing records.
-                    if (!S.Accepts) S.Fence.ObserveOutgoingCleanupOutcome(S.Current, Id, at, PetId, Desired, false, copies);
-                    else if (S.Enabled && !RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, false, copies)) S.Placed.Add(Id);
-                    Slots[at] = null;
-                }
+                if (at >= 0) NativeGetSlot(at);
                 FactLive = reactivated;
             }
 
-            // Native GetSlot(index) empties one bad canonical slot; the report counts only for the bar's selected public
-            // binding (IsSelectedPublicReport), so a secondary copy never replaces the choice.
+            // Native GetSlot(index) empties one bad canonical slot.
             internal void NativeInvalidateAt(int index)
             {
                 if (Service.KindOf(Slots[index]) != NativeMountedControlKind.MountState) return;
-                var selected = MountedControlSlotPolicy.IsSelectedPublicReport(PublicIndex(), index);
-                var chosenFree = ChosenFreeOrNone();
-                if (selected && S.Enabled && S.Accepts && !RetireOnPetChange() &&
-                    Intent.ObserveNativeCleanupOutcome(Id, index, PetId, Desired, false, CopiesBesides(index), false, chosenFree)) S.Placed.Add(Id);
-                Slots[index] = null;
+                NativeGetSlot(index);
             }
 
-            // PendingSlotInvalidation.ChosenFree: no interrupted choice, or its slot is free.
-            internal bool ChosenFreeOrNone()
-            {
-                int chosen;
-                return !Intent.TryGetInterruptedChoice(Id, out chosen) || Slots[chosen] == null;
-            }
-
-            // Native GetSlot(index) on an older alias: only the bar's selected alias (canonical first, then the first
-            // alias) is attributed to the choice; a report for a secondary alias is ignored.
+            // Native GetSlot(index) on an older alias.
             internal void NativeInvalidateAliasAt(int index)
             {
                 if (MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(Slots[index])) != MountedControlSlotRepair.MountState) return;
-                var kinds = Slots.Select(Service.KindOf).ToArray();
-                var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
-                var selected = chosen == index && kinds[chosen] != NativeMountedControlKind.MountState;
-                var copies = CopiesBesides(index);
-                var chosenFree = ChosenFreeOrNone();
-                if (selected && S.Enabled && S.Accepts && !RetireOnPetChange() &&
-                    Intent.ObserveNativeAliasInvalidated(Id, index, PetId, Desired, copies, chosenFree)) S.Placed.Add(Id);
-                Slots[index] = null;
+                NativeGetSlot(index);
             }
 
-            // A native operation aborted before its postfix; a standalone IsBad read then falls inside its still-open
-            // scope and is queued. The next update closes the scope and drops the queued reports (DiscardPendingBadSlots).
+            // A native operation throws before its postfix (without reporting); a standalone IsBad read of the stale slot in
+            // the same frame then falls inside its still-open scope.
             internal void AbortedOperationThenQuery()
             {
+                S.BeginNative(this);
                 var at = Find();
-                if (at >= 0) S.PendingNative.Add(Tuple.Create(S.Current, this, at));
+                if (at >= 0) S.ReportNative(this, at);
             }
 
-            // A standalone IsBad query (outside GetSlot / CleanupBadSlots, for example a diagnostic reading the bar): the
-            // production observer records a report only inside a native slot operation, so nothing changes and the slot
-            // stays.
+            // A standalone IsBad query (outside GetSlot / CleanupBadSlots, for example a diagnostic reading the bar): no
+            // scope is open, so the production observer records nothing and the slot stays.
             internal void QueryIsBadOnly() => ReportBad(Find(), insideNativeOperation: false);
 
-            // ObserveInvalidatedPublicSlot's gate and the emptying outcome it records.
+            // An IsBad report: inside a native GetSlot (which then empties the slot and returns), or standalone.
             internal void ReportBad(int at, bool insideNativeOperation)
             {
-                if (at < 0 || !insideNativeOperation || !S.Enabled || !S.Accepts) return;
-                if (!RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, false, CopiesBesides(at))) S.Placed.Add(Id);
+                if (at < 0) return;
+                if (insideNativeOperation) NativeGetSlot(at);
+                else S.ReportNative(this, at);
             }
 
-            // Native CleanupBadSlots repairs the surviving older alias with a live shell fact of its blueprint; the outcome
-            // is a rebind of that alias (production: ObserveNativeCleanupOutcome with aliasReport).
+            // Native CleanupBadSlots repairs the surviving older alias with a live shell fact of its blueprint (a new binding
+            // holding that fact's data); the production classifier reads it as a rebind.
             internal void NativeCleanupRebindAlias()
             {
                 var at = Array.FindIndex(Slots, s => MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(s)) == MountedControlSlotRepair.MountState);
                 if (at < 0) return;
-                var copies = CopiesBesides(at);
-                Slots[at] = "KMC_Mount#" + DataVersion;               // the live shell's data
-                if (!S.Enabled || !S.Accepts || RetireOnPetChange()) return;
-                if (Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, true, copies, aliasReport: true)) S.Placed.Add(Id);
+                var prefix = Service.KindOf(Slots[at]) == NativeMountedControlKind.Dismount ? "KMC_Dismount#" : "KMC_Mount#";
+                S.BeginNative(this);
+                S.ReportNative(this, at);
+                NativeWrite(at, prefix + DataVersion);               // the live shell's data
+                S.EndNative(this);
             }
 
-            // One native CleanupBadSlots pass over a mixed bar whose public facts are all inactive: it empties each bad
-            // public slot in index order; each IsBad report is held and resolved, in order, when the call returns.
-            internal void NativeCleanupPass()
+            // One native CleanupBadSlots pass over a bar whose public facts are all inactive: every public slot is bad and
+            // is reported (ReportNative) and emptied in index order; the call returns unless it throws. throwAfter: the
+            // pass throws on a later (non-KMC) slot after writing this index.
+            internal void NativeCleanupPass(int throwAfter = -1)
             {
-                var pending = new List<Tuple<int, NativeMountedControlKind, int>>();
+                S.BeginNative(this);
                 for (var i = 0; i < Slots.Length; i++)
                 {
-                    var kind = Service.KindOf(Slots[i]);
-                    if (!MountedControlSlotPolicy.IsPublicControlKind(kind)) continue;
-                    var aliasIndex = -1;
-                    if (kind != NativeMountedControlKind.MountState)
-                    {
-                        var kinds = Slots.Select(Service.KindOf).ToArray();
-                        var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
-                        aliasIndex = chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState ? chosen : -1;
-                        if (aliasIndex < 0) { Slots[i] = null; continue; }
-                    }
-                    pending.Add(Tuple.Create(i, kind, aliasIndex));
-                    copiesAt[i] = CopiesBesides(i);
-                    chosenFreeAt[i] = ChosenFreeOrNone();
-                    Slots[i] = null;
+                    if (!IsPublic(Slots[i])) continue;
+                    S.ReportNative(this, i);
+                    NativeWrite(i, null);
+                    if (i == throwAfter) return;
                 }
-                if (!S.Enabled) return;
-                // Each queued report is applied in order, as ApplySlotInvalidation does: a retirement by an earlier report
-                // leaves the later ones nothing to recreate (the retired actor's stale reports are refused).
-                foreach (var item in pending)
-                {
-                    if (!S.Accepts)
-                    {
-                        if (S.Fence.RetireOutgoingOnCompanionLoss(S.Current, Id, PetId, Desired, Slots.Any(IsPublic)))
-                        {
-                            for (var i = 0; i < Slots.Length; i++) if (IsPublic(Slots[i])) Slots[i] = null;
-                            continue;
-                        }
-                        if (item.Item2 == NativeMountedControlKind.MountState)
-                            S.Fence.ObserveOutgoingCleanupOutcome(S.Current, Id, item.Item1, PetId, Desired, false, copiesAt[item.Item1], false, chosenFreeAt[item.Item1]);
-                        else
-                            S.Fence.AdmitOutgoingSurvivingBinding(S.Current, Id, item.Item3, PetId, Desired, copiesAt[item.Item1], chosenFreeAt[item.Item1]);
-                        continue;
-                    }
-                    if (RetireOnPetChange()) continue;
-                    var recorded = item.Item2 == NativeMountedControlKind.MountState
-                        ? Intent.ObserveNativeCleanupOutcome(Id, item.Item1, PetId, Desired, false, copiesAt[item.Item1], false, chosenFreeAt[item.Item1])
-                        : Intent.ObserveNativeAliasInvalidated(Id, item.Item3, PetId, Desired, copiesAt[item.Item1], chosenFreeAt[item.Item1]);
-                    if (recorded) S.Placed.Add(Id);
-                }
+                S.EndNative(this);
             }
 
-            private readonly Dictionary<int, bool> chosenFreeAt = new Dictionary<int, bool>();
-
-            private readonly Dictionary<int, List<int>> copiesAt = new Dictionary<int, List<int>>();
-
             // Native CleanupBadSlots on the stale canonical binding: it writes a new binding holding the live fact's data
-            // when a live fact of the same blueprint exists (its rebind), otherwise an empty slot. The service classifies
-            // the outcome from the slot when the call returns, with the production classifier
-            // (MountedControlSlotPolicy.IsNativeRebind), and records it (ObserveNativeCleanupOutcome).
+            // when a live fact of the same blueprint exists (its rebind), otherwise an empty slot; the production classifier
+            // (MountedControlSlotPolicy.IsNativeRebind) reads the outcome.
             internal void NativeCleanupBadSlots()
             {
                 var at = Find();
                 if (at < 0 || FactLive && Slots[at] == Data) return;          // only a bad slot is handed over
-                var reported = Service.KindOf(Slots[at]);
-                var copies = CopiesBesides(at);
-                Slots[at] = FactLive ? Data : null;                           // native's rebind or emptying
-                var rebound = MountedControlSlotPolicy.IsNativeRebind(reported, Service.KindOf(Slots[at]), FactLive && Slots[at] == Data);
-                if (!S.Enabled) return;
-                if (!S.Accepts)
-                {
-                    // While a selected load fences this world: a confirmed companion loss retires the outgoing arrangement
-                    // and clears the public bindings at once; otherwise the outcome goes to the scope's outgoing records.
-                    if (S.Fence.RetireOutgoingOnCompanionLoss(S.Current, Id, PetId, Desired, Slots.Any(IsPublic)))
-                    {
-                        for (var i = 0; i < Slots.Length; i++) if (IsPublic(Slots[i])) Slots[i] = null;
-                        return;
-                    }
-                    S.Fence.ObserveOutgoingCleanupOutcome(S.Current, Id, at, PetId, Desired, rebound, copies);
-                }
-                else if (!RetireOnPetChange() && Intent.ObserveNativeCleanupOutcome(Id, at, PetId, Desired, rebound, copies)) S.Placed.Add(Id);
+                S.BeginNative(this);
+                S.ReportNative(this, at);
+                NativeWrite(at, FactLive ? Data : null);                      // native's rebind or emptying
+                S.EndNative(this);
             }
 
-            // Native bad-slot cleanup of an older alias whose shell fact is gone: the production observer records the
-            // bar's chosen alias index (canonical precedence, companion rules; the load scope's records while fenced),
-            // then native empties the slot.
+            // Native GetSlot of an older alias whose shell fact is gone.
             internal void NativeInvalidateAlias()
             {
                 var at = Array.FindIndex(Slots, s => MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(s)) == MountedControlSlotRepair.MountState);
                 if (at < 0) return;
-                var kinds = Slots.Select(Service.KindOf).ToArray();
-                var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
-                if (S.Enabled && chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState)
-                {
-                    // ApplySlotInvalidation: a recorded placement is invalidated, an unrecorded alias recovered.
-                    var copies = CopiesBesides(at);
-                    if (!S.Accepts) S.Fence.AdmitOutgoingSurvivingBinding(S.Current, Id, chosen, PetId, Desired, copies);
-                    else if (!RetireOnPetChange() && Intent.ObserveNativeAliasInvalidated(Id, chosen, PetId, Desired, copies)) S.Placed.Add(Id);
-                }
-                Slots[at] = null;
+                NativeGetSlot(at);
             }
 
             internal void AreaUnload()
@@ -2642,6 +2771,224 @@ namespace KingmakerMountedCombat.Tests
             kept.NativeInvalidateAliasAt(4);
             recovered.Frame(); recovered.Frame();
             TestRunner.True(kept.Find() == 4 && kept.Count() == 1, "An actual emptying of the selected alias was not recovered.");
+        }
+
+        private static int PublicRowIndex(List<SavedRow> rows) =>
+            rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 ? rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index : -2;
+
+        private static bool MarkerOnly(List<SavedRow> rows) => rows.Count == 1 && rows[0].Kind == MountedControlSlotPolicy.SavedPlacementRecord;
+
+        private static void OutOfOrderCopyReads()
+        {
+            foreach (var saveFirst in new[] { false, true })
+            {
+                // Stale canonical bindings at 3, 7 and 9; native GetSlot reads 3, then 9, then 7; the player then places the
+                // current control at 9.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                service.Placed.Add("rider");
+                rider.Slots[3] = Control + "#0";
+                rider.Slots[7] = Control + "#0";
+                rider.Slots[9] = Control + "#0";
+                rider.NativeInvalidateAt(3);
+                rider.NativeInvalidateAt(9);
+                rider.NativeInvalidateAt(7);
+                TestRunner.True(rider.Count() == 0, "The fixture did not empty all three bindings.");
+                rider.Slots[9] = rider.Data;
+                var label = " (saveFirst=" + saveFirst + ")";
+                List<SavedRow> rows;
+                if (saveFirst) { rows = service.Save(); service.Frame(); service.Frame(); }
+                else { service.Frame(); service.Frame(); rows = service.Save(); }
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The placement at 9 was undone or duplicated" + label + ".");
+                TestRunner.Equal(9, PublicRowIndex(rows), "The save did not carry exactly 9" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "The cold restore did not give one shortcut at 9" + label + ".");
+            }
+        }
+
+        private static void AbandonedLoadFallbackOccupied()
+        {
+            // Mixed older bar: GetSlot empties 4, the player puts Fireball at 4, a selected load starts, native empties the
+            // alias at 9 while the outgoing records are fenced, and the load is abandoned.
+            var service = new Service();
+            var rider = MixedOlderBar(service);
+            rider.NativeInvalidateAt(4);
+            rider.Slots[4] = "Fireball";
+            var owner = new object();
+            service.BeginLoad(owner);
+            rider.NativeInvalidateAliasAt(9);
+            TestRunner.True(rider.Slots[9] == null, "The fixture did not empty the alias.");
+            TestRunner.True(service.AbandonLoad(owner), "The owning scope could not abandon its load.");
+            rider.PetResolves = true;
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.Slots[4] == "Fireball", "The fallback at 9 was lost or Fireball moved.");
+            var rows = service.Save();
+            TestRunner.Equal(9, PublicRowIndex(rows), "The save did not carry 9.");
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.Slots[4] == "Fireball", "The save scope changed the bar.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1 && loaded.Slots[4] == "Fireball", "The reload did not restore 9 with Fireball at 4.");
+        }
+
+        private static void ExceptionalNativeOperations()
+        {
+            // An operation reports the stale slot at 9 and throws before writing it or returning; a successful GetSlot(9)
+            // follows before the next update.
+            var service = new Service();
+            var rider = PlacedAt(9, "rider", service);
+            rider.DataVersion++;
+            rider.AbortedOperationThenQuery();
+            TestRunner.True(rider.Slots[9] != null, "The aborted operation wrote the slot.");
+            rider.NativeInvalidateAt(9);
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The successful GetSlot after an aborted operation was not recovered.");
+            var rows = service.Save();
+            TestRunner.Equal(9, PublicRowIndex(rows), "The save after the recovered GetSlot did not carry 9.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "The reload did not restore 9 after the recovered GetSlot.");
+            // A CleanupBadSlots pass reports and empties 9, then throws on a later unrelated slot (its postfix never runs).
+            var thrown = new Service();
+            var passRider = PlacedAt(9, "rider", thrown);
+            passRider.Slots[12] = "Bow";
+            passRider.DataVersion++;
+            passRider.NativeCleanupPass(throwAfter: 9);
+            TestRunner.True(passRider.Slots[9] == null && thrown.Scope.Open, "The fixture did not leave the pass open after writing 9.");
+            thrown.Frame(); thrown.Frame();
+            TestRunner.True(passRider.Find() == 9 && passRider.Count() == 1 && passRider.Slots[12] == "Bow",
+                "The write the pass completed before throwing was not recovered.");
+            var passRows = thrown.Save();
+            TestRunner.Equal(9, PublicRowIndex(passRows), "The save after the thrown pass did not carry 9.");
+            var passLoaded = passRider.Load(passRows);
+            passLoaded.Frame(); passLoaded.Frame();
+            TestRunner.True(passLoaded.Find() == 9 && passLoaded.Count() == 1, "The reload did not restore 9 after the thrown pass.");
+            // Control: the aborted operation's report, then the player's own removal (null, not native's empty slot), stays
+            // a removal.
+            var control = new Service();
+            var removed = PlacedAt(9, "rider", control);
+            removed.DataVersion++;
+            removed.AbortedOperationThenQuery();
+            removed.Slots[9] = null;
+            control.Frame(); control.Frame();
+            TestRunner.Equal(-1, removed.Find(), "The player's removal after an aborted operation was undone.");
+            TestRunner.True(MarkerOnly(control.Save()), "The save after the removal carried more than the placement record.");
+        }
+
+        private static void OccupiedChosenSlotWithTwoCopies()
+        {
+            // The chosen stale binding at 3 and two live canonical copies at 7 and 9; GetSlot empties 3 and the player puts
+            // Fireball there before any update.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+            service.Placed.Add("rider");
+            rider.Slots[3] = Control + "#0";
+            rider.Slots[7] = rider.Data;
+            rider.Slots[9] = rider.Data;
+            rider.NativeInvalidateAt(3);
+            rider.Slots[3] = "Fireball";
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Count() == 1 && rider.Find() == 7 && rider.Slots[3] == "Fireball", "Repair did not leave exactly one fallback at 7 beside Fireball.");
+            var rows = service.Save();
+            TestRunner.Equal(7, PublicRowIndex(rows), "The save did not carry the one fallback.");
+            TestRunner.True(rider.Count() == 1 && rider.Find() == 7, "The save scope changed the fallback.");
+            rider.Slots[7] = null;                    // the player removes the fallback
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Count() == 0 && rider.Slots[3] == "Fireball", "Removing the fallback promoted another copy or moved Fireball.");
+            var after = service.Save();
+            TestRunner.True(MarkerOnly(after), "The save after removing the fallback carried more than the placement record.");
+            var loaded = rider.Load(after);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Count() == 0 && loaded.Slots[3] == "Fireball", "The reload resurrected a removed shortcut.");
+        }
+
+        private static void FallbackBeforeOwnMigration()
+        {
+            foreach (var saveFirst in new[] { false, true })
+            {
+                // Mixed older bar: GetSlot empties 4, the player puts Fireball there, and KMC runs an update (or a save) while
+                // the pet is still unresolved, before native reads the alias at 9; the same pet then returns.
+                var service = new Service();
+                var rider = MixedOlderBar(service);
+                rider.NativeInvalidateAt(4);
+                rider.Slots[4] = "Fireball";
+                if (saveFirst) service.Save(); else service.Frame();
+                rider.PetResolves = true;
+                service.Frame(); service.Frame();
+                var label = " (saveFirst=" + saveFirst + ")";
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.Slots[4] == "Fireball", "The fallback at 9 was lost or Fireball moved" + label + ".");
+                var rows = service.Save();
+                TestRunner.Equal(9, PublicRowIndex(rows), "The save did not carry 9" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1 && loaded.Slots[4] == "Fireball", "The reload did not keep 9 and Fireball" + label + ".");
+            }
+        }
+
+        private static void MoveBeyondSurvivingCopy()
+        {
+            foreach (var mode in new[] { "update", "save" })
+            {
+                // A stale binding at 3 and live copies at 7 and 9; GetSlot empties 3; the player moves 9 to 11.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                service.Placed.Add("rider");
+                rider.Slots[3] = Control + "#0";
+                rider.Slots[7] = rider.Data;
+                rider.Slots[9] = rider.Data;
+                rider.NativeInvalidateAt(3);
+                rider.Slots[11] = rider.Slots[9]; rider.Slots[9] = null;
+                var label = " (" + mode + "-first)";
+                List<SavedRow> rows;
+                if (mode == "save") { rows = service.Save(); service.Frame(); service.Frame(); }
+                else { service.Frame(); service.Frame(); rows = service.Save(); }
+                TestRunner.True(rider.Find() == 11 && rider.Count() == 1 && rider.Slots[3] == null, "The move to 11 did not win" + label + ".");
+                TestRunner.Equal(11, PublicRowIndex(rows), "The save did not carry 11" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 11 && loaded.Count() == 1, "The cold restore did not give one shortcut at 11" + label + ".");
+            }
+        }
+
+        private static void NativeEmptiesNewPlacement()
+        {
+            // Native empties 3 (no other public binding), the player places the current control at 9, and native empties 9
+            // too before any update.
+            var service = new Service();
+            var rider = PlacedAt(3, "rider", service);
+            rider.DataVersion++;
+            rider.NativeInvalidateAt(3);
+            rider.Slots[9] = rider.Data;
+            rider.DataVersion++;
+            rider.NativeInvalidateAt(9);
+            TestRunner.True(rider.Count() == 0, "The fixture did not empty both slots.");
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The new placement at 9 was discarded for the older choice.");
+            var rows = service.Save();
+            TestRunner.Equal(9, PublicRowIndex(rows), "The save did not carry 9.");
+            var loaded = rider.Load(rows);
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "The reload did not restore 9.");
+            // After companion retirement: the rider now links to pet B and native empties pet A's stale shortcut at 3, which
+            // retires A's arrangement; the player then places the current control at 9 by hand and a later native operation
+            // empties it before any update. (The stale batch of A's own reports stays rejected: RetiredRiderCleanupBatch.)
+            var fresh = new Service();
+            var changed = PlacedAt(3, "rider", fresh);
+            changed.PetId = "horse-2";
+            changed.DataVersion++;
+            changed.NativeInvalidateAt(3);
+            TestRunner.True(changed.Count() == 0 && fresh.Intent.IsRetired("rider"), "The fixture did not retire pet A's shortcut.");
+            changed.Slots[9] = changed.Data;
+            changed.DataVersion++;
+            changed.NativeInvalidateAt(9);
+            TestRunner.True(changed.Count() == 0, "The fixture did not empty the new placement.");
+            fresh.Frame(); fresh.Frame();
+            TestRunner.True(changed.Find() == 9 && changed.Count() == 1, "Pet B's first manual placement was discarded.");
+            var freshRows = fresh.Save();
+            TestRunner.Equal(9, PublicRowIndex(freshRows), "The save did not carry pet B's 9.");
+            var freshLoaded = changed.Load(freshRows);
+            freshLoaded.Frame(); freshLoaded.Frame();
+            TestRunner.True(freshLoaded.Find() == 9 && freshLoaded.Count() == 1, "The reload did not restore pet B's 9.");
         }
 
         private static void RemovalAfterLeaseRelease()

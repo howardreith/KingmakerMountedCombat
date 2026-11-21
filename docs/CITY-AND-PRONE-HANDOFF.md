@@ -366,6 +366,51 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   worktree in the focused wrapper, which now has six children. The behavioural controls are
   `tests/MountedDownedTargetOrderTests.cs`.
 
+**Round 19 additions.** These replace the round 16–18 copy mechanics: `Entry.Copies`, `PruneCopies`,
+`IsStaleOrAlias`, `ObserveBindingAtBoundary`/`ObserveAliasAtBoundary` and the depth-counted bracket are gone.
+- *Copies by identity (R15-F1, R19-F2, R19-F3):* the service keeps a registry of copies for the current world only
+  (`recordedCopies`). Each entry is the exact slot object at its index.
+  - Copies are recorded when a native report interrupts the choice: the other public bindings on the bar at that
+    moment.
+  - A copy native empties leaves the registry, whatever its read order, so a later placement at its index is the
+    player's (3, 9, 7 regression).
+  - A copy native rebinds is re-recorded as the new object native wrote.
+  - The registry is cleared once no choice is interrupted, on world change, on disable and on dispose.
+  - A moved shortcut (another index) and a new placement (a new object) are never copies. Neither is any binding when
+    no copies were recorded, so `ObserveNativeSlotInvalidated` drops a report only when the caller identified a copy
+    (`reportIsCopy`).
+  - An older alias is still treated as a copy while a choice is interrupted elsewhere.
+- *One effective binding everywhere (R18-F1, R19-F2):* live repair, boundary observation, capture classification and
+  the live writer use one decision, `MountedControlSlotPolicy.EffectiveBindingIndex` (with `LivePublicRows`'s new
+  `selectedIndex`):
+  - the first binding that is not a copy wins, wherever it is;
+  - if only copies are left, they yield to a free chosen slot;
+  - otherwise the first copy is the fallback.
+  Repair removes every copy other than the effective binding before it records the arrangement. With Fireball in the
+  chosen slot and copies at 7 and 9, one fallback remains at 7, and removing it saves a placement record only. A
+  move from 9 to 11 past a surviving copy at 7 is the arrangement update-first, save-first and after cold restore.
+- *Fallback before KMC's own migration (R19-F1):* while the public control is not live,
+  `ReconcilePublicControlSlots` first promotes a surviving fallback copy, for an occupied chosen slot, to the
+  interrupted choice (`PromoteFallback`). Only then does migration clear that older alias. The update-first and
+  save-first orders agree.
+- *Owner occupancy during a load (R17-F1):* a report's copy status and chosen-slot occupancy come from the arrangement
+  that owns it. That is the outgoing records while a selected load fences the world
+  (`MountedControlLoadFence.TryGetOutgoingInterruptedChoice`). An abandoned load therefore keeps fallback 9 beside
+  Fireball at 4.
+- *Observation bound to native writes (R17-F2):* every operation has a `MountedNativeSlotScope` with owner, slot index
+  and frame. `Begin` closes any earlier scope first.
+  - A report is confirmed when native moves on to a later slot (`Settle`, applied before the next report is
+    interpreted) or when the operation returns normally.
+  - An operation that threw keeps its last report only if the slot now holds what native itself writes: an empty slot
+    bound to the rider, or the live rebind.
+  - The player's drag-off removal writes null through `SetSlot` before `GetSlot` rebuilds the slot inside a new scope.
+    Two new contract rows pin these premises, so a standalone read followed by a removal stays a removal.
+  - An aborted call no longer absorbs a later successful `GetSlot(9)`, and a pass that writes 9 and then throws on a
+    later slot recovers 9.
+- *Retirement scoped to its batch (R17-F3, R19-F3):* a report that retires the rider makes only the later reports of
+  the same native operation stale (`retiredInNativeOperation`). A later operation's report for a new placement, for
+  example pet B's first manual shortcut, establishes the arrangement.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -561,9 +606,21 @@ silenced in `tests/TestRunner.cs` (reverted, absent from the diff), passed: comp
   check.
 It failed exactly the six new toolbar regressions. All mutations were reverted. The controller gate on the round-18
 commit is the result of record.
-| components (`bin\Tests`) | 1494/0 | 74 toolbar, 6 city-roster and 3 downed-target tests |
+
+Round 19: the test double now drives the production `MountedNativeSlotScope` and `EffectiveBindingIndex`, and it
+mirrors the service's report, apply and copy-registry order. All 74 earlier toolbar tests passed unchanged against it
+before the seven new regressions were added. One local run on the fixed tree, with PASS lines temporarily silenced in
+`tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1501/0, assembly contracts 825/0, archive
+bound 9/0, target liveness 3/0, focused 6/6. Two production mutation runs followed, all reverted afterwards:
+- The first reverted four decisions: the native-write keep on `Close`, `PromoteFallback`, the outgoing interrupted
+  choice, and the first-copy fallback. Exactly the R17-F2, R18-F1, R19-F1 and R17-F1 regressions failed, plus two
+  earlier tests covering the same decisions.
+- The second made every binding a copy, in `IsSecondaryBinding` and `ObserveNativeSlotInvalidated`. Exactly R15-F1,
+  R19-F2 and R19-F3 failed, plus two earlier new-placement tests.
+The controller gate on the round-19 commit is the result of record.
+| components (`bin\Tests`) | 1501/0 | 81 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 823/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows) | reflection-only contracts; Wrath not selected |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
 | `Test-CityArchiveRowBound.ps1` (via wrapper) | 9/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; stale canonical at 3 before current at 9; remembered slot occupied by a live Mounted Charge; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |

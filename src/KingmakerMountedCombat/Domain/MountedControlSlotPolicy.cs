@@ -78,11 +78,13 @@ namespace KingmakerMountedCombat.Domain
         // carries its index), and an alias never stands in for a canonical binding on the same bar. The placement
         // record is accounted separately: written when the rider has it and either the public control is live or this
         // capture wrote the public binding (a live alias with the canonical fact still inactive).
+        // selectedIndex: the effective binding the caller chose (EffectiveBindingIndex; -1 for none); by default the repair
+        // precedence (RecoveredPublicSlot).
         public static IList<KeyValuePair<int, int>> LivePublicRows(IList<NativeMountedControlKind> kinds, Func<int, bool> callable,
-            bool placementRecorded, bool publicControlActive)
+            bool placementRecorded, bool publicControlActive, int selectedIndex = int.MinValue)
         {
             var result = new List<KeyValuePair<int, int>>();
-            var at = RecoveredPublicSlot(kinds);
+            var at = selectedIndex == int.MinValue ? RecoveredPublicSlot(kinds) : selectedIndex;
             if (at >= 0 && IsValidSavedRow(at, SavedMountState) && callable != null && callable(at))
                 result.Add(new KeyValuePair<int, int>(at, SavedMountState));
             if (placementRecorded && (publicControlActive || result.Count > 0))
@@ -139,6 +141,30 @@ namespace KingmakerMountedCombat.Domain
         // rider instance is still on that world's roster; work from a replaced world is discarded.
         public static bool DeferredObservationApplies(object originWorld, object currentWorld, bool riderStillOnRoster) =>
             originWorld != null && ReferenceEquals(originWorld, currentWorld) && riderStillOnRoster;
+
+        // The bar's effective public binding, for observation, capture and repair alike. Bindings are taken in the repair
+        // precedence (canonical bindings by index, then older aliases by index). The first one that is not a copy of an
+        // interrupted choice (isCopy) is the player's binding and wins, wherever it is. When only copies remain, they
+        // yield to the interrupted choice while its slot is free (returns -1 with onlyYieldingCopies), and the first copy
+        // becomes the fallback when the chosen slot is occupied. -1 without onlyYieldingCopies: no public binding at all.
+        public static int EffectiveBindingIndex(IList<NativeMountedControlKind> kinds, Func<int, bool> isCopy, bool chosenSlotFree,
+            out bool onlyYieldingCopies)
+        {
+            onlyYieldingCopies = false;
+            if (kinds == null) return -1;
+            var first = -1;
+            foreach (var canonical in new[] { true, false })
+                for (var index = 0; index < kinds.Count; index++)
+                {
+                    var kind = kinds[index];
+                    if (canonical ? kind != NativeMountedControlKind.MountState : RepairLiveSlot(kind) != MountedControlSlotRepair.MountState) continue;
+                    if (first < 0) first = index;
+                    if (isCopy == null || !isCopy(index)) return index;
+                }
+            if (first < 0) return -1;
+            if (chosenSlotFree) { onlyYieldingCopies = true; return -1; }
+            return first;
+        }
 
         // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
         // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.

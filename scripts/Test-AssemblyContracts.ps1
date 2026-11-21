@@ -1553,7 +1553,7 @@ if($Target-eq'Kingmaker'){
     $emptyCtorForGetSlot=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false).GetConstructor([Type[]]@())
     Assert-Contract ($null-ne$getSlotExact-and-not$getSlotExact.IsStatic-and$getSlotExact.ReturnType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot'-and
         $getSlotToken-eq0x06002FFE-and$getSlotExact.GetParameters()[0].Name-ceq'index'-and(Test-MethodIlContainsToken $getSlotExact $emptyCtorForGetSlot.MetadataToken)) ('toolbar: UnitUISettings.GetSlot(int index, UnitEntityData) replaces a bad slot with a new empty slot, token '+$getSlotToken.ToString('X8'))
-    # What a successful rebind writes (NativeMountedControlService.ResolvePendingBadSlots relies on the resulting live data,
+    # What a successful rebind writes (NativeMountedControlService.ApplyConfirmedSlotReports relies on the resulting live data,
     # not on object identity): CleanupBadSlots constructs one new MechanicActionBarSlotAbility, stores the fact's data in
     # its Ability field and passes it to SetSlot; its other outcome constructs a MechanicActionBarSlotEmpty for SetSlot.
     function Find-IlTokenPositions([byte[]]$Il,[int]$Opcode,[int]$Token){
@@ -1578,6 +1578,41 @@ if($Target-eq'Kingmaker'){
         @($setSlotCalls|Where-Object{$_-gt$rebindStore[0]}).Count-ge1-and$emptyNew.Count-ge1-and$abilitySlotField.FieldType.FullName-ceq'Kingmaker.UnitLogic.Abilities.AbilityData'
     Assert-Contract $rebindShape ('toolbar: CleanupBadSlots rebinds a bad ability slot with a new slot object (newobj MechanicActionBarSlotAbility x'+$rebindNew.Count+
         ', stfld Ability x'+$rebindStore.Count+', SetSlot calls '+$setSlotCalls.Count+', empty-slot newobj x'+$emptyNew.Count+')')
+    # What native writes when it empties a reported slot (NativeMountedControlService.NativeWroteReportedSlot keeps the
+    # outcome of an operation that threw only when the slot holds native's own write): GetSlot and CleanupBadSlots bind
+    # every empty slot they construct to the unit (stfld MechanicActionBarSlot.Unit within the object initializer that
+    # follows the newobj: dup, the unit argument or this.Owner.Unit, stfld).
+    $slotUnitField=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlot',$false).GetField('Unit',$cityFlags)
+    function Test-EmptySlotsBoundToUnit($Method){
+        if($null-eq$Method-or$null-eq$emptySlotCtor-or$null-eq$slotUnitField){return $false}
+        [byte[]]$il=$Method.GetMethodBody().GetILAsByteArray()
+        $news=Find-IlTokenPositions $il 0x73 $emptySlotCtor.MetadataToken
+        $stores=Find-IlTokenPositions $il 0x7D $slotUnitField.MetadataToken
+        if($news.Count-lt1){return $false}
+        foreach($at in $news){if(@($stores|Where-Object{$_-gt$at-and$_-lt($at+24)}).Count-lt1){return $false}}
+        return $true
+    }
+    Assert-Contract ((Test-EmptySlotsBoundToUnit $getSlotExact)-and(Test-EmptySlotsBoundToUnit $cleanupBad)) 'toolbar: GetSlot and CleanupBadSlots bind every empty slot they write to the unit'
+    # The player's drag-off removal on the action bar writes null, not such an empty slot: ActionBarIndexSlot.EndDrag passes
+    # null to TryToSet, which calls UnitUISettings.SetSlot and only then Set, whose GetSlot (a new bracketed native scope,
+    # closing any earlier one first) creates the empty slot.
+    $indexSlotType=$assembly.GetType('Kingmaker.UI.ActionBar.ActionBarIndexSlot',$false)
+    $unitEntityType=$assembly.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData',$false)
+    $endDrag=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('EndDrag',$cityFlags)}
+    $tryToSet=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('TryToSet',$cityFlags)}
+    $indexSet=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('Set',$cityFlags,$null,[Type[]]@($unitEntityType),$null)}
+    $removalShape=$false
+    if($null-ne$endDrag-and$null-ne$tryToSet-and$null-ne$indexSet-and$null-ne$setSlotMethod-and$null-ne$getSlotExact){
+        [byte[]]$endDragIl=$endDrag.GetMethodBody().GetILAsByteArray()
+        $tryToSetCalls=Find-IlTokenPositions $endDragIl -1 $tryToSet.MetadataToken
+        $nullRemovals=@($tryToSetCalls|Where-Object{[int]$_-ge2-and$endDragIl[[int]$_-2]-eq0x14})
+        [byte[]]$tryToSetIl=$tryToSet.GetMethodBody().GetILAsByteArray()
+        $setSlotAt=Find-IlTokenPositions $tryToSetIl -1 $setSlotMethod.MetadataToken
+        $setAt=Find-IlTokenPositions $tryToSetIl -1 $indexSet.MetadataToken
+        $removalShape=$nullRemovals.Count-ge1-and$setSlotAt.Count-eq1-and$setAt.Count-eq1-and$setSlotAt[0]-lt$setAt[0]-and
+            (Test-MethodIlContainsToken $indexSet $getSlotExact.MetadataToken)
+    }
+    Assert-Contract $removalShape 'toolbar: the action bar drag-off removal writes null through SetSlot before GetSlot rebuilds the slot'
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'
