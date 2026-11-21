@@ -304,6 +304,23 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   clears any live placement records (`MountedControlLoadFence.Begin` with `controlsActive` false), so the next world
   starts with its own arrangement.
 
+**Round 16 additions.**
+- *Secondary copies of an interrupted choice (R14-F2, R15-F1):* while a chosen slot is interrupted, a surviving
+  binding at another index is a secondary copy if it is an older alias or a canonical copy without the live fact's
+  data (`MountedControlPlacementIntent.IsSecondaryBinding` with `IsStaleOrAlias`). A binding holding live data, which
+  is what a player placement holds, is never secondary. A secondary copy:
+  - never becomes the arrangement at a boundary (`ObserveBindingAtBoundary`);
+  - is never written live and is never treated as written by classification, so the remembered writer carries the
+    choice;
+  - in `ReconcilePublicControlSlots`, after migration or rebinding, is removed when the chosen slot is free, so the
+    control returns to the chosen slot as one shortcut. If the chosen slot was taken meanwhile, the copy stays as the
+    arrangement.
+  A save between native reads, a return before saving, and a callable alias at the header all keep the first
+  canonical index.
+- *Initial placement identity (R16-F1):* `TryInitialPlacement` records the placed slot and its companion at once
+  (`ObserveBound`, or `ObserveOffBar` for a full bar). A direct change of companions before the next observation then
+  retires it.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -478,8 +495,14 @@ interrupted-choice rule, the selected-report rule and the disabled-load clearing
 observation guards. It failed exactly four regressions: the three new ones and round 14's mixed cleanup pass, which
 now relies on the same interrupted-choice rule. Each test stops at its first failed assertion, so later sub-cases
 (such as the 9-then-3 order) were not separately exercised under mutation. All mutations were reverted. The
-controller gate on the round-15 commit is the result of record.
-| components (`bin\Tests`) | 1480/0 | 60 toolbar, 6 city-roster and 3 downed-target tests |
+controller gate then passed on `b37d4fb2` in 54.2 s. Round 16: one local run on the fixed tree, with PASS lines
+temporarily silenced in `tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1483/0,
+assembly contracts 822/0, archive bound 9/0, focused 5/5. A mutation run forced `IsSecondaryBinding` false in the
+domain and removed the initial-placement record in the double. It failed exactly four regressions: the three new
+ones and round 15's save-between-reads test. The initial-placement test's fixture check was then loosened, so the
+mutation reports the inheritance itself ("Pet B inherited pet A's automatic placement"). All mutations were reverted.
+The controller gate on the round-16 commit is the result of record.
+| components (`bin\Tests`) | 1483/0 | 63 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 822/0 (adds the `IsBad` override, `CleanupBadSlots` token and rebind-shape rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

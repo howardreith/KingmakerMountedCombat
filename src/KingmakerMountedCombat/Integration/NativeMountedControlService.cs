@@ -1886,6 +1886,9 @@ namespace KingmakerMountedCombat.Integration
             var publicActive = publicControl != null && publicControl.Active;
             // An older alias is emptied below while the control is not live: its index is recorded first.
             if (!publicActive) RecoverLegacyAlias(unit, slots);
+            // A secondary copy of an interrupted choice (decided before the repair below rebinds or migrates it).
+            var preSelected = PublicBindingIndex(slots);
+            var preSecondary = IsSecondaryPublicSlot(unit, slots, preSelected);
             var boundIndex = -1;
             for (var index = 0; index < slots.Length; index++)
             {
@@ -1917,6 +1920,20 @@ namespace KingmakerMountedCombat.Integration
                 LegacySlotRepairCount++;
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
                     "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
+            }
+            // The migrated or rebound secondary copy does not become the choice: when the interrupted chosen slot is free,
+            // the copy is removed and the control returns to the chosen slot below (one shortcut). If the chosen slot was
+            // taken meanwhile, the surviving copy stays as the arrangement.
+            int chosen;
+            if (publicActive && preSecondary && boundIndex == preSelected && unit.UniqueId != null &&
+                placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen) && chosen < slots.Length &&
+                (slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty))
+            {
+                unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, boundIndex);
+                MarkBarChanged(unit);
+                logger.Info("Secondary Mount / Dismount copy removed in favour of the chosen slot: unitId=" + unit.UniqueId +
+                    "; copy=" + boundIndex + "; chosen=" + chosen + ".");
+                boundIndex = -1;
             }
             ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex, publicFactReplaced);
             var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
@@ -2189,6 +2206,22 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        // An older alias, or a canonical binding that does not hold the active public fact's own data: never a binding the
+        // player just placed from the live control.
+        private bool IsStaleOrAlias(UnitEntityData unit, MechanicActionBarSlot slot)
+        {
+            var ability = (slot as MechanicActionBarSlotAbility)?.Ability;
+            var kind = ResolveKind(ability?.Blueprint);
+            if (kind != NativeMountedControlKind.MountState) return MountedControlSlotPolicy.IsPublicControlKind(kind);
+            var fact = unit?.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+            return fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability);
+        }
+
+        // A surviving secondary copy of an interrupted choice (MountedControlPlacementIntent.IsSecondaryBinding).
+        private bool IsSecondaryPublicSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, int index) =>
+            unit?.UniqueId != null && slots != null && index >= 0 && index < slots.Length &&
+            placementIntent.IsSecondaryBinding(unit.UniqueId, index, IsStaleOrAlias(unit, slots[index]));
+
         private bool IsPublicBindingSlot(MechanicActionBarSlot slot) =>
             MountedControlSlotPolicy.IsPublicControlKind(ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
 
@@ -2293,9 +2326,11 @@ namespace KingmakerMountedCombat.Integration
             // placed also satisfies the one-time placement (no autofill copy may follow it).
             var bound = PublicBindingIndex(slots);
             if (bound >= 0) placementRecorded.Add(id);
-            // A surviving older alias never overrides a canonical choice already interrupted elsewhere.
-            if (bound >= 0 && !ReferenceEquals((slots[bound] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility))
-                placementIntent.ObserveAliasAtBoundary(id, bound, placementRecorded.Contains(id), unit.Descriptor?.PetUniqueId);
+            // A surviving secondary copy (an older alias or a stale canonical copy) never overrides a choice already
+            // interrupted elsewhere; a binding holding the live data (a player placement) is the arrangement.
+            if (bound >= 0)
+                placementIntent.ObserveBindingAtBoundary(id, bound, IsStaleOrAlias(unit, slots[bound]), placementRecorded.Contains(id),
+                    unit.Descriptor?.PetUniqueId);
             else
                 placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
                     unit.Descriptor?.PetUniqueId);
@@ -2383,10 +2418,15 @@ namespace KingmakerMountedCombat.Integration
             if (chosen < 0)
             {
                 InitialPlacementFullBarCount++;
+                // Off the bar, with the companion it was decided for.
+                placementIntent.ObserveOffBar(unit.UniqueId, unit.Descriptor?.PetUniqueId);
                 logger.Info("Mount / Dismount was not placed: the main action bar is full; unitId=" + unit.UniqueId + ".");
                 return;
             }
             unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, chosen);
+            // The live arrangement and the companion it was placed for, recorded at once: a direct change of companions
+            // before the next observation retires it (RetireOnCompanionLoss).
+            placementIntent.ObserveBound(unit.UniqueId, chosen, unit.Descriptor?.PetUniqueId);
             MarkBarChanged(unit);
             InitialPlacementCount++;
             logger.Info("Mount / Dismount placed once on the main action bar: unitId=" + unit.UniqueId + "; slot=" + chosen + ".");
@@ -2570,6 +2610,7 @@ namespace KingmakerMountedCombat.Integration
                     var selected = PublicBindingIndex(slots);
                     var bound = selected >= 0;
                     var written = bound && MountedControlSlotPolicy.IsValidSavedRow(selected, MountedControlSlotPolicy.SavedMountState) &&
+                        !IsSecondaryPublicSlot(unit, slots, selected) &&
                         IsCallableLiveBinding(unit, slots[selected] as MechanicActionBarSlotAbility,
                             ResolveKind((slots[selected] as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
                     if (bound && !written && (ShouldLease(unit, NativeMountedControlKind.MountState) ||
@@ -2666,8 +2707,9 @@ namespace KingmakerMountedCombat.Integration
                 // record, accounted separately (MountedControlSlotPolicy.LivePublicRows). A disabled or removed KMC writes
                 // no placement record.
                 var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+                // A secondary copy of an interrupted choice is never written live (the remembered writer carries the choice).
                 foreach (var row in MountedControlSlotPolicy.LivePublicRows(kinds,
-                    i => IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kinds[i]),
+                    i => !IsSecondaryPublicSlot(unit, slots, i) && IsCallableLiveBinding(unit, slots[i] as MechanicActionBarSlotAbility, kinds[i]),
                     enabled && placementRecorded.Contains(unit.UniqueId), publicControl != null && publicControl.Active))
                 {
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = row.Key, Kind = row.Value });

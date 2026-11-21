@@ -145,7 +145,24 @@ namespace KingmakerMountedCombat.Domain
         private bool HoldsInterruptedChoiceElsewhere(string actorId, int slotIndex)
         {
             Entry entry;
-            return entries.TryGetValue(actorId, out entry) && entry.Interrupted && entry.Index >= 0 && entry.Index != slotIndex;
+            return actorId != null && entries.TryGetValue(actorId, out entry) && entry.Interrupted && entry.Index >= 0 && entry.Index != slotIndex;
+        }
+
+        // While a chosen slot is interrupted (this absence), a surviving binding at another index that does not hold the
+        // live fact's data (a stale canonical copy or an older alias: never something the player just placed) is a
+        // secondary copy: observation, migration and capture keep the interrupted choice. stale: the binding is an
+        // older alias or holds no live data.
+        public bool IsSecondaryBinding(string actorId, int slotIndex, bool stale) =>
+            stale && slotIndex >= 0 && HoldsInterruptedChoiceElsewhere(actorId, slotIndex);
+
+        // The chosen slot of an interrupted arrangement, or false.
+        public bool TryGetInterruptedChoice(string actorId, out int index)
+        {
+            Entry entry;
+            index = OffBar;
+            if (actorId == null || !entries.TryGetValue(actorId, out entry) || !entry.Interrupted || entry.Index < 0) return false;
+            index = entry.Index;
+            return true;
         }
 
         // At a boundary, the bar's visible public binding is an older alias (no canonical binding on the bar). It is the
@@ -154,9 +171,16 @@ namespace KingmakerMountedCombat.Domain
         // canonical choice wins over the secondary alias.
         public void ObserveAliasAtBoundary(string actorId, int aliasIndex, bool alreadyPlaced, string petId)
         {
-            if (actorId == null || aliasIndex < 0) return;
-            if (HoldsInterruptedChoiceElsewhere(actorId, aliasIndex)) return;
-            ObserveAtBoundary(actorId, true, aliasIndex, alreadyPlaced, petId);
+            ObserveBindingAtBoundary(actorId, aliasIndex, true, alreadyPlaced, petId);
+        }
+
+        // At a boundary, the bar's visible public binding (stale: an older alias or a copy without live data). A secondary
+        // copy keeps the interrupted choice; anything else is the player's current arrangement.
+        public void ObserveBindingAtBoundary(string actorId, int boundIndex, bool stale, bool alreadyPlaced, string petId)
+        {
+            if (actorId == null || boundIndex < 0) return;
+            if (IsSecondaryBinding(actorId, boundIndex, stale)) return;
+            ObserveAtBoundary(actorId, true, boundIndex, alreadyPlaced, petId);
         }
 
         // The remembered slot now belongs to another binding (a save boundary found it occupied): the shortcut is off the

@@ -87,6 +87,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a save between native reads of a canonical slot and an older alias keeps the canonical index", SaveBetweenNativeReads);
             runner.Run("toolbar: cleanup of two canonical bindings keeps the first, in one pass or slot by slot in either order", TwoCanonicalCleanup);
             runner.Run("toolbar: a save while disabled sanitizes without recording intent; another world starts with its own", DisabledSaveIsolation);
+            runner.Run("toolbar: a surviving older alias never replaces an interrupted canonical choice through migration or capture", SurvivingAliasAfterCanonicalCleanup);
+            runner.Run("toolbar: a save or a return between reads of two canonical copies keeps the first canonical index", SurvivingCanonicalCopyAfterCleanup);
+            runner.Run("toolbar: a first automatic placement records its companion; a direct change of companions retires it", InitialPlacementCompanionChange);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -350,6 +353,17 @@ namespace KingmakerMountedCombat.Tests
             // PublicBindingIndex: the canonical binding first, else the first exact older alias.
             internal int PublicIndex() => MountedControlSlotPolicy.RecoveredPublicSlot(Slots.Select(Service.KindOf).ToArray());
 
+            // IsStaleOrAlias: an older alias, or a canonical binding without the live fact's data.
+            internal bool StaleOrAlias(int i)
+            {
+                var kind = Service.KindOf(Slots[i]);
+                if (kind != NativeMountedControlKind.MountState) return MountedControlSlotPolicy.IsPublicControlKind(kind);
+                return !(FactLive && Slots[i] == Data);
+            }
+
+            // IsSecondaryPublicSlot: a secondary copy of an interrupted choice.
+            internal bool Secondary(int i) => i >= 0 && Intent.IsSecondaryBinding(Id, i, StaleOrAlias(i));
+
             // IsCallableLiveBinding for the selected public slot.
             internal bool Callable(int i) => i >= 0 && Desired &&
                 (Service.KindOf(Slots[i]) == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive);
@@ -366,6 +380,9 @@ namespace KingmakerMountedCombat.Tests
                 // ReconcilePublicControlSlots: an older alias becomes the live control in its slot, or is emptied (its
                 // index recorded first) while the control is not live.
                 if (!FactLive) RecoverAlias();
+                // A secondary copy of an interrupted choice, decided before the repair rebinds or migrates it.
+                var preSelected = PublicIndex();
+                var preSecondary = Secondary(preSelected);
                 for (var i = 0; i < Slots.Length; i++)
                 {
                     if (MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(Slots[i])) != MountedControlSlotRepair.MountState) continue;
@@ -374,6 +391,10 @@ namespace KingmakerMountedCombat.Tests
                 }
                 var bound = Find();
                 if (FactLive && bound >= 0 && Slots[bound] != Data) Slots[bound] = Data; // stale binding rebound
+                // The copy is removed when the interrupted chosen slot is free; the control returns there below.
+                int chosen;
+                if (FactLive && preSecondary && bound == preSelected && Intent.TryGetInterruptedChoice(Id, out chosen) && Slots[chosen] == null)
+                    Slots[bound] = null;
                 // Confirmed permanent loss clears the public-control slots.
                 if (!FactLive && !Desired && Intent.ProvesPermanentLoss(Id, PetId))
                     for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
@@ -386,7 +407,8 @@ namespace KingmakerMountedCombat.Tests
                 {
                     S.Placed.Add(Id);
                     var empty = Enumerable.Range(0, 14).FirstOrDefault(i => Slots[i] == null);
-                    if (Slots[empty] == null && Find() < 0) Slots[empty] = Data;
+                    // TryInitialPlacement records the placement with the companion it was made for.
+                    if (Slots[empty] == null && Find() < 0) { Slots[empty] = Data; Intent.ObserveBound(Id, empty, PetId); }
                 }
             }
 
@@ -397,11 +419,9 @@ namespace KingmakerMountedCombat.Tests
                 RecoverAlias();
                 var bound = PublicIndex();
                 if (bound >= 0) S.Placed.Add(Id); // an observed public binding satisfies the one-time placement
-                // A surviving older alias never overrides a canonical choice already interrupted elsewhere.
-                if (bound >= 0 && Service.KindOf(Slots[bound]) != NativeMountedControlKind.MountState)
-                    Intent.ObserveAliasAtBoundary(Id, bound, S.Placed.Contains(Id), PetId);
-                else
-                    Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
+                // A surviving secondary copy never overrides a choice already interrupted elsewhere.
+                if (bound >= 0) Intent.ObserveBindingAtBoundary(Id, bound, StaleOrAlias(bound), S.Placed.Contains(Id), PetId);
+                else Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
             }
 
             // RecoverLegacyAlias: an older exact Mount / Dismount alias (no canonical public binding) is recorded as the
@@ -429,7 +449,7 @@ namespace KingmakerMountedCombat.Tests
                     // control) is carried while the rider still gets it or its pet link names the same companion.
                     // The live writer's selected index and the callability of that exact slot.
                     var at = PublicIndex();
-                    var written = at >= 0 && at <= 127 && Callable(at);
+                    var written = at >= 0 && at <= 127 && !Secondary(at) && Callable(at);
                     if (at >= 0 && !written && (Desired || Intent.Revalidate(Id, true, true, PetId)))
                         Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
                     return;
@@ -444,7 +464,7 @@ namespace KingmakerMountedCombat.Tests
                 // callable when it holds the live data; an older alias when its own shell fact is live.
                 var kinds = Slots.Select(Service.KindOf).ToArray();
                 foreach (var r in MountedControlSlotPolicy.LivePublicRows(kinds,
-                    i => Desired && (kinds[i] == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive),
+                    i => !Secondary(i) && Desired && (kinds[i] == NativeMountedControlKind.MountState ? FactLive && Slots[i] == Data : ShellLive),
                     S.Placed.Contains(Id), FactLive))
                 {
                     rows.Add(new SavedRow { Actor = Id, Index = r.Key, Kind = r.Value });
@@ -2137,6 +2157,102 @@ namespace KingmakerMountedCombat.Tests
             service.Enabled = true;
             loaded.Frame(); loaded.Frame();
             TestRunner.True(loaded.Find() == -1 && loaded.Slots[9] == null, "The previous world's shortcut appeared in the loaded world.");
+        }
+
+        private static void SurvivingAliasAfterCanonicalCleanup()
+        {
+            // GetSlot empties the stale canonical binding at 4; the older alias at 9 survives; the same pet resolves and
+            // KMC updates before any save.
+            var service = new Service();
+            var rider = MixedOlderBar(service);
+            rider.NativeInvalidateAt(4);
+            rider.PetResolves = true;
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == 4 && rider.Count() == 1 && rider.Slots[9] == null && rider.KmcCount() == 1,
+                "Migration made the surviving alias the chosen slot instead of 4.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 4, "The resave did not carry one public row at 4.");
+            // Capture while the surviving alias is callable (its shell live) before any update.
+            var capture = new Service();
+            var callable = MixedOlderBar(capture);
+            callable.NativeInvalidateAt(4);
+            callable.PetResolves = true; callable.FactLive = true; callable.ShellLiveOverride = true;
+            var captured = capture.Save();
+            TestRunner.True(captured.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                captured.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 4 && UniqueArchiveKeys(captured),
+                "Capture wrote the callable alias instead of the canonical choice 4.");
+            capture.Frame(); capture.Frame();
+            TestRunner.True(callable.Find() == 4 && callable.Count() == 1 && callable.Slots[9] == null, "The continuing world did not settle on one shortcut at 4.");
+            // Control: an alias-only bar still migrates in place.
+            var aliasOnly = new Service();
+            var only = new Rider("rider", aliasOnly, aliasOnly.Current) { PetResolves = false, Autofill = false };
+            only.Slots[9] = "KMC_Mount#0";
+            aliasOnly.Frame();
+            only.PetResolves = true; aliasOnly.Frame(); aliasOnly.Frame();
+            TestRunner.True(only.Find() == 9 && only.Count() == 1, "An alias-only bar did not migrate at 9.");
+        }
+
+        private static void SurvivingCanonicalCopyAfterCleanup()
+        {
+            foreach (var saveFirst in new[] { true, false })
+            {
+                // Canonical bindings at 3 and 9; the same pet becomes unavailable; GetSlot empties 3 only.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                service.Placed.Add("rider");
+                rider.Slots[3] = rider.Data;
+                rider.Slots[9] = rider.Data;
+                rider.PetResolves = false; rider.FactLive = false;
+                rider.NativeInvalidateAt(3);
+                var label = " (saveFirst=" + saveFirst + ")";
+                if (saveFirst)
+                {
+                    var rows = service.Save();
+                    TestRunner.True(rows.Count(r => r.Kind == 6) == 1 && rows.Single(r => r.Kind == 6).Index == 3, "The save between the reads recorded the secondary index" + label + ".");
+                    var loaded = rider.Load(rows);
+                    loaded.Frame();
+                    loaded.PetResolves = true; loaded.Frame(); loaded.Frame();
+                    TestRunner.True(loaded.Find() == 3 && loaded.Count() == 1, "The reload did not restore one shortcut at 3" + label + ".");
+                }
+                else
+                {
+                    rider.PetResolves = true; service.Frame(); service.Frame();
+                    TestRunner.True(rider.Find() == 3 && rider.Count() == 1 && rider.Slots[9] == null, "The return did not settle on one shortcut at 3" + label + ".");
+                    var rows = service.Save();
+                    TestRunner.True(rows.Count(r => r.Kind == 6) == 1 && rows.Single(r => r.Kind == 6).Index == 3, "The resave did not carry 3" + label + ".");
+                }
+            }
+        }
+
+        private static void InitialPlacementCompanionChange()
+        {
+            foreach (var saveFirst in new[] { false, true })
+            {
+                // An eligible rider gets its first automatic placement for pet A; the link switches directly to eligible
+                // pet B before the next reconciliation.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { Autofill = true };
+                rider.Slots[0] = "Attack";
+                service.Frame();
+                var placedAt = rider.Find();
+                TestRunner.True(placedAt >= 0, "The fixture did not auto-place the control.");
+                rider.PetId = "horse-2";
+                var label = " (saveFirst=" + saveFirst + ")";
+                var rows = saveFirst ? service.Save() : null;
+                service.Frame(); service.Frame();
+                rows = rows ?? service.Save();
+                TestRunner.True(rider.Find() == -1 && rider.Slots[0] == "Attack", "Pet B inherited pet A's automatic placement" + label + ".");
+                TestRunner.True(!rows.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The archive carried a public row for pet B" + label + ".");
+            }
+            // Control: the same pet A temporarily unavailable keeps its automatic placement and gets it back once.
+            var same = new Service();
+            var kept = new Rider("rider", same, same.Current) { Autofill = true };
+            same.Frame();
+            var at = kept.Find();
+            kept.PetResolves = false; same.Frame();
+            kept.PetResolves = true; same.Frame(); same.Frame();
+            TestRunner.True(at >= 0 && kept.Find() == at && kept.Count() == 1, "The same pet lost its automatic placement.");
         }
 
         private static void RemovalAfterLeaseRelease()
