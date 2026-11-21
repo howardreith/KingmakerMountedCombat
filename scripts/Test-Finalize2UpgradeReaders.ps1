@@ -196,7 +196,7 @@ $isolation=Src 'src/KingmakerMountedCombat/Diagnostics/PersistenceIsolationBoots
 $gameResult=Src 'scripts/runtime/Test-RuntimeGameResult.ps1'
 $requestValidator=Src 'scripts/runtime/Test-RuntimeRequest.ps1'
 $runner=Src 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'
-$capture=$controls.Substring($controls.IndexOf('internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false)'))
+$capture=$controls.Substring($controls.IndexOf('internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false'))
 Check ($capture.Substring(0,400).Contains('if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();')) 'removal safeguard: the slot capture emits no control or placement row while suppressed, before any row is built'
 Check ($composition.Contains('nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;')) 'removal safeguard: suppression is bound to the removal cleanup save'
 Check ($removal.Contains('internal bool CleanupSaveInFlight => State == RemovalPreparationState.Saving && pendingSave != null &&') -and $removal.Contains('ReferenceEquals(persistence.ActiveSaveRequested, pendingSave);')) 'removal safeguard: only the exact cleanup save in flight suppresses rows'

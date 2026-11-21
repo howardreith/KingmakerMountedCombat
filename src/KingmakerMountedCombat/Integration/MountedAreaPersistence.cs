@@ -448,7 +448,7 @@ namespace KingmakerMountedCombat.Integration
                     retainedIntentKind = transfer.CarriedKind;
                     ResetRetainedSettle();
                 }
-                controls.RestorePersistentSlots(transfer.Slots.Where(s => !droppedActors.Contains(s.ActorId)).ToArray());
+                controls.RestorePersistentSlots(transfer.Slots.Where(s => !droppedActors.Contains(s.ActorId)).ToArray(), false);
                 AreaRetiredPairCount += retire.Count;
                 RetainedDropCount += carriedDropped.Count;
                 if (carriedDropped.Count != 0)

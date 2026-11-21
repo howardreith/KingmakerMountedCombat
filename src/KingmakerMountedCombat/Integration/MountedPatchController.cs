@@ -39,6 +39,9 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedPatchController : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
+        // Kingmaker 2.1.7b MechanicActionBarSlotAbility.IsBad override, pinned in Test-AssemblyContracts.ps1.
+        internal const int NativeAbilitySlotIsBadToken = 0x06002F6E;
+        internal const int NativeCleanupBadSlotsToken = 0x06003004;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -79,6 +82,10 @@ namespace KingmakerMountedCombat.Integration
                 // PET-01: the sheet's name line offers Rename Companion for the companion it is showing.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController), "SetupInfo", 0x060049BE,
                     new[] { typeof(bool) }, null, nameof(PatchMethods.CharacterSheetNamePostfix));
+                // City companion inspection: the capital's full-screen Inventory/Character/Spellbook roster lists the
+                // reserve owners' own animal companions (a UI projection only; see CityCompanionRosterProjection).
+                PatchExact(typeof(Kingmaker.UI.Common.UIUtility), "GetGroup", CityCompanionRosterAdapter.NativeGetGroupToken,
+                    new[] { typeof(bool), typeof(bool) }, null, nameof(PatchMethods.CityCompanionRosterPostfix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -155,6 +162,12 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "OnClick", 0x06002F5D,
                     Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
+                // Toolbar persistence: native bad-slot cleanup's decision on the public control's slot (observation only).
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "IsBad", NativeAbilitySlotIsBadToken,
+                    Type.EmptyTypes, null, nameof(PatchMethods.PublicSlotBadPostfix));
+                // Its outcome inside CleanupBadSlots: a rebind to a live fact of the same blueprint, or an empty slot.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
+                    Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
@@ -568,6 +581,23 @@ namespace KingmakerMountedCombat.Integration
             internal static void CharacterSheetNamePostfix(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController __instance)
             {
                 CompanionNameService.Current?.Sheet.Refresh(__instance);
+            }
+
+            internal static void PublicSlotBadPostfix(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility __instance, bool __result)
+            {
+                if (__result) PatchBridge.NativeControls?.ObserveInvalidatedPublicSlot(__instance);
+            }
+
+            internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
+                PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
+
+            internal static void BadSlotCleanupPostfix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
+                PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__instance);
+
+            internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
+            {
+                __result = CityCompanionRosterAdapter.Project(__result, withRemote, withPet,
+                    PatchBridge.NativeControls?.IsActive == true, PatchBridge.Logger);
             }
 
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)
