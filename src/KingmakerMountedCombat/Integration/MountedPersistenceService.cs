@@ -886,7 +886,7 @@ namespace KingmakerMountedCombat.Integration
             }
             if (!data.Mounted)
             {
-                controls.RestorePersistentSlots(data.Slots);
+                controls.RestorePersistentSlots(data.Slots, true);
                 Report("Native unmounted save restored without inventing a pair.", true);
                 return;
             }
@@ -906,7 +906,7 @@ namespace KingmakerMountedCombat.Integration
                 Report("Saved relationship was not eligible: " + string.Join("; ", result.Errors));
                 return;
             }
-            controls.RestorePersistentSlots(data.Slots);
+            controls.RestorePersistentSlots(data.Slots, true);
             PresentationRestoreCount++;
             Report("Saved mounted relationship restored once without Mount execution or a new activation.", true);
         }

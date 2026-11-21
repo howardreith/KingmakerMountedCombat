@@ -20,17 +20,19 @@ namespace KingmakerMountedCombat.Integration
 
         internal static long ProjectedPetCount { get; private set; }
 
-        internal static List<UnitEntityData> Project(List<UnitEntityData> nativeGroup, bool withRemote, bool withPet, IModLogger logger)
+        // modEnabled: Mounted Combat's services are enabled (UMM toggle on). A disabled mod returns the native list.
+        internal static List<UnitEntityData> Project(List<UnitEntityData> nativeGroup, bool withRemote, bool withPet,
+            bool modEnabled, IModLogger logger)
         {
+            if (nativeGroup == null || !modEnabled || !withRemote || !withPet) return nativeGroup;
             try
             {
                 var game = Game.Instance;
                 var player = game?.Player;
-                if (nativeGroup == null || player == null ||
-                    !CityCompanionRosterProjection.AppliesTo(game.CurrentlyLoadedArea?.IsCapital == true, withRemote, withPet))
-                    return nativeGroup;
+                if (player == null) return nativeGroup;
                 var characters = player.AllCharacters;
-                var projected = CityCompanionRosterProjection.Project(nativeGroup, owner =>
+                var projected = CityCompanionRosterProjection.ProjectRoster(nativeGroup, modEnabled,
+                    game.CurrentlyLoadedArea?.IsCapital == true, withRemote, withPet, owner =>
                 {
                     var pet = owner.Descriptor?.Pet;
                     var link = new CityCompanionRosterProjection.PetLink

@@ -425,7 +425,7 @@ namespace KingmakerMountedCombat.Integration
                 PresentationRestoreCount++;
             }
             foreach (var owner in archiveOwners.Values) owner.Relationship.CompleteSavedParticipationImport();
-            controls.RestorePersistentSlots(data.Slots);
+            controls.RestorePersistentSlots(data.Slots, true);
             ClearArchivePresentationReadiness();
             var retainedRiders = RetainedNativeReentryPolicy.SpentPendingRiders(data);
             retainedPendingReentry = retainedRiders.Length == 0 ? null : new RetainedPendingReentry {

@@ -576,7 +576,8 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
             {
-                __result = CityCompanionRosterAdapter.Project(__result, withRemote, withPet, PatchBridge.Logger);
+                __result = CityCompanionRosterAdapter.Project(__result, withRemote, withPet,
+                    PatchBridge.NativeControls?.IsActive == true, PatchBridge.Logger);
             }
 
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)

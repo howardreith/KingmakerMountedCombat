@@ -38,7 +38,15 @@ namespace KingmakerMountedCombat.Domain
 
         // Only the capital's full-screen pet roster is projected: the Vendor roster (withRemote without pets), the field
         // roster (pets without remote) and every other caller keep the native list unchanged.
-        public static bool AppliesTo(bool areaIsCapital, bool withRemote, bool withPet) => areaIsCapital && withRemote && withPet;
+        // A disabled Mounted Combat (UMM toggle off; its patches stay installed until disposal) leaves every roster native.
+        public static bool AppliesTo(bool modEnabled, bool areaIsCapital, bool withRemote, bool withPet) =>
+            modEnabled && areaIsCapital && withRemote && withPet;
+
+        // One native GetGroup result: the same list object when the projection does not apply, otherwise a new list.
+        public static List<T> ProjectRoster<T>(List<T> nativeGroup, bool modEnabled, bool areaIsCapital, bool withRemote,
+            bool withPet, Func<T, T> eligiblePetOf) where T : class =>
+            nativeGroup == null || !AppliesTo(modEnabled, areaIsCapital, withRemote, withPet)
+                ? nativeGroup : Project(nativeGroup, eligiblePetOf);
 
         // nativeGroup: the list one native call returned, in its order. eligiblePetOf: the owner's own pet when
         // IsEligiblePet admits it, otherwise null. Returns a new list; a pet already listed is never repeated.

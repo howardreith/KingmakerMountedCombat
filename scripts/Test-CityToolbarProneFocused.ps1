@@ -2,7 +2,10 @@
 param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 # Focused selection for the mounted city toolbar, city companion roster and prone-target mission
 # (docs/MOUNTED-COMBAT-CITY-AND-PRONE-MISSION.md). The controller's focused gate accepts one -Focused script name, so this
-# wrapper declares exactly two existing checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
+# wrapper declares exactly two existing checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening).
+# Not selected: chunk7\Test-Chunk7SixPairArchiveAdapter.ps1 and chunk7\Test-Chunk7AreaRestorePreflightAdapter.ps1, whose
+# typed facades no longer compile against the current product (missing members added by later features, e.g. F2's
+# MountedControlSlotPolicy in MountedArchiveData, retained-intent and area-control types); a pre-existing failure.
 #   1. Test-AssemblyContracts.ps1 -Target Kingmaker: the installed Kingmaker 2.1.7b contracts, including the rows this
 #      mission relies on (UIUtility.GetGroup token and pet source, GroupController.SetGroup, UnitUISettings bad-slot
 #      replacement). Wrath is not selected.

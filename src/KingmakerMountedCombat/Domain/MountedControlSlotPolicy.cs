@@ -67,6 +67,21 @@ namespace KingmakerMountedCombat.Domain
             kind >= SavedMountCompanion && kind <= MaximumSavedKind &&
             (kind == SavedPlacementRecord ? index == 0 : index >= 0 && index <= 127);
 
+        // The owned archive's control-row bound (MountedArchiveData.ValidateSlots). A capture that needs more rows fails
+        // that validation, the archive's bounded failure path, rather than dropping any row.
+        public const int MaximumArchiveRows = 128;
+
+        public static bool FitsArchive(int rowCount) => rowCount >= 0 && rowCount <= MaximumArchiveRows;
+
+        // The archive rows of an absent rider's arrangement (index, kind): its chosen slot when it fits the saved bound,
+        // and always its placement record, so a rider that left the control off the bar is never placed again.
+        public static IEnumerable<KeyValuePair<int, int>> AbsentArrangementRows(int chosenIndex)
+        {
+            if (IsValidSavedRow(chosenIndex, SavedMountState))
+                yield return new KeyValuePair<int, int>(chosenIndex, SavedMountState);
+            yield return new KeyValuePair<int, int>(0, SavedPlacementRecord);
+        }
+
         // Native SetSlotInternal fills the first empty slot of all 140. The public control goes only to the visible main
         // bar, and never over anything: -1 when that bar is full.
         public static int SelectInitialPlacementIndex(IList<bool> slotIsEmpty)

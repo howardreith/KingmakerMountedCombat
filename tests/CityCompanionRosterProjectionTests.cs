@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("city roster excludes summons, non-reciprocal links, foreign animals and ineligible owners", Exclusions);
             runner.Run("city roster projection applies only to the capital's full-screen pet roster", AppliesOnlyToCapitalPetRoster);
             runner.Run("city roster projection is repeatable and leaves the native list untouched", RepeatableAndPure);
+            runner.Run("city roster projection stops on UMM disable and resumes on re-enable", DisableReturnsNativeRoster);
         }
 
         private sealed class Unit
@@ -97,11 +98,24 @@ namespace KingmakerMountedCombat.Tests
 
         private static void AppliesOnlyToCapitalPetRoster()
         {
-            TestRunner.True(CityCompanionRosterProjection.AppliesTo(true, true, true), "The capital's Inventory/Character roster was not projected.");
-            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, true, false), "The capital Vendor roster gained pets.");
-            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(false, false, true), "The field roster was changed.");
-            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(false, true, true), "A non-capital caller was projected.");
-            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, false, false), "The plain party roster was changed.");
+            TestRunner.True(CityCompanionRosterProjection.AppliesTo(true, true, true, true), "The capital's Inventory/Character roster was not projected.");
+            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, true, true, false), "The capital Vendor roster gained pets.");
+            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, false, false, true), "The field roster was changed.");
+            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, false, true, true), "A non-capital caller was projected.");
+            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(true, true, false, false), "The plain party roster was changed.");
+            TestRunner.True(!CityCompanionRosterProjection.AppliesTo(false, true, true, true), "A disabled mod still projected the capital roster.");
+        }
+
+        private static void DisableReturnsNativeRoster()
+        {
+            var main = Owner("Main"); var merc = Owner("Merc"); WithPet(merc, "MercPet");
+            var native = new List<Unit> { main, merc };
+            var enabled = CityCompanionRosterProjection.ProjectRoster(native, true, true, true, true, EligiblePet);
+            TestRunner.Equal("Main,Merc,MercPet", Names(enabled), "The enabled call did not list the reserve owner's pet.");
+            var disabled = CityCompanionRosterProjection.ProjectRoster(native, false, true, true, true, EligiblePet);
+            TestRunner.True(ReferenceEquals(disabled, native) && Names(disabled) == "Main,Merc", "The disabled call did not return the native list itself.");
+            var reenabled = CityCompanionRosterProjection.ProjectRoster(native, true, true, true, true, EligiblePet);
+            TestRunner.Equal("Main,Merc,MercPet", Names(reenabled), "The re-enabled call did not list the pet exactly once.");
         }
 
         private static void RepeatableAndPure()

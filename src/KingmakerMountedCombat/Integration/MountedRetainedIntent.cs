@@ -476,7 +476,7 @@ namespace KingmakerMountedCombat.Integration
             if (restored.Count != 0)
             {
                 var ids = new HashSet<string>(restored.SelectMany(p => new[] { p.RiderId, p.MountId }), StringComparer.Ordinal);
-                try { controls.RestorePersistentSlots(custody.Slots.Where(s => ids.Contains(s.ActorId)).ToArray()); }
+                try { controls.RestorePersistentSlots(custody.Slots.Where(s => ids.Contains(s.ActorId)).ToArray(), false); }
                 catch (Exception error) { logger.Exception("Mounted control slots were not restored after retained remount", error); }
             }
             RetainedRestoreCount += restored.Count;

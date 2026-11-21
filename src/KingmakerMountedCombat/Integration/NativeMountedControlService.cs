@@ -197,6 +197,9 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool SerializationSuspended => serializationSuspended;
 
+        // Mounted Combat's services are enabled (CompositionRoot.SetEnabled drives SetEnabled) and not disposed.
+        internal bool IsActive => enabled && !disposed;
+
         // ATTACK-01: Rider Primary and Mount Primary are retired from gameplay. Their definitions stay registered so an
         // older reference resolves; the facts are leased only for a runtime scenario that explicitly selected them.
         internal bool RetiredPrimaryHelpersSelected { get; set; }
@@ -898,6 +901,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
             areaSuspended = true;
+            ObserveArrangementsAtBoundary();
             ClearTargetingPresentation("area-unloading");
             RemoveAllManagedFacts(true);
         }
@@ -1221,6 +1225,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             serializationSuspended = true;
+            ObserveArrangementsAtBoundary();
             CaptureAndClearManagedHotbarSlots();
             RemoveAllManagedFacts(false);
             logger.Info("Native mounted control facts and exact KMC hotbar bindings suspended before save serialization.");
@@ -1708,6 +1713,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 RememberUnit(unit);
                 ReconcileRetiredPrimaryReferences(unit);
+                var publicFactReplaced = false;
                 foreach (var ability in EnumerateBlueprints())
                 {
                     var kind = ResolveKind(ability);
@@ -1719,6 +1725,10 @@ namespace KingmakerMountedCombat.Integration
                     {
                         continue;
                     }
+                    // The public fact is missing, inactive or duplicated while the rider still gets it: native toolbar
+                    // cleanup may already have emptied its slot, so the replacement below is a return from a temporary
+                    // absence, never mistaken for the player removing a continuously live control.
+                    if (desired && ReferenceEquals(ability, mountStateAbility)) publicFactReplaced = true;
                     foreach (var fact in facts)
                     {
                         unit.Descriptor.Abilities.RemoveFact(fact);
@@ -1735,7 +1745,7 @@ namespace KingmakerMountedCombat.Integration
                     logger.Info("Native mounted control fact leased: ability=" + ability.name +
                         "; unitId=" + unit.UniqueId + ".");
                 }
-                ReconcilePublicControlSlots(unit);
+                ReconcilePublicControlSlots(unit, publicFactReplaced);
                 TryInitialPlacement(unit);
             }
 
@@ -1755,6 +1765,25 @@ namespace KingmakerMountedCombat.Integration
                     RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
                 RemoveManagedFacts(prior, true, !presentNow);
                 observedUnits.Remove(prior);
+            }
+            RevalidateAbsentArrangements(candidates);
+        }
+
+        // An arrangement kept for a rider that is not reconciled now (the reserve roster) is retired on positive
+        // evidence of permanent loss: the rider left the player's roster, or its pet link was cleared or now names
+        // another unit. A rider that cannot be resolved proves nothing and keeps its arrangement.
+        private void RevalidateAbsentArrangements(IList<UnitEntityData> candidates)
+        {
+            if (placementIntent.Count == 0) return;
+            var characters = Game.Instance?.Player?.AllCharacters;
+            foreach (var actorId in placementIntent.ActorIds.ToArray())
+            {
+                if (candidates.Any(unit => unit != null && unit.UniqueId == actorId)) continue;
+                var matches = characters == null ? new UnitEntityData[0] :
+                    characters.Where(unit => unit != null && unit.UniqueId == actorId).Take(2).ToArray();
+                var unitNow = matches.Length == 1 ? matches[0] : null;
+                placementIntent.Revalidate(actorId, unitNow != null, unitNow != null && IsStillOnPlayerRoster(unitNow),
+                    unitNow?.Descriptor?.PetUniqueId);
             }
         }
 
@@ -1786,7 +1815,7 @@ namespace KingmakerMountedCombat.Integration
         // F2: an exact old Mount, Dismount or Mounted Charge binding becomes the public control it now stands for, in
         // the same slot; every other slot keeps its content and position. A stale binding of the public control is
         // rebound to the live fact. Idempotent every update; nothing is matched by display name.
-        private void ReconcilePublicControlSlots(UnitEntityData unit)
+        private void ReconcilePublicControlSlots(UnitEntityData unit, bool publicFactReplaced = false)
         {
             var slots = unit?.UISettings?.Slots;
             var abilities = unit?.Descriptor?.Abilities;
@@ -1825,7 +1854,7 @@ namespace KingmakerMountedCombat.Integration
                 logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
                     "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
             }
-            ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex);
+            ReconcileChosenSlot(unit, slots, publicActive ? publicControl : null, boundIndex, publicFactReplaced);
             var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
             if (autoUse == NativeMountedControlKind.MountCompanion || autoUse == NativeMountedControlKind.Dismount ||
                 autoUse == NativeMountedControlKind.MountedCharge || autoUse == NativeMountedControlKind.MountState)
@@ -1836,31 +1865,46 @@ namespace KingmakerMountedCombat.Integration
         // it). A live control in no slot returns to the remembered slot only after a temporary absence and only into an
         // empty slot; the player removing it while it was live, or filling that slot, is respected. An owner that is still
         // reconciled but no longer gets the control has lost eligibility for good.
-        private void ReconcileChosenSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, Ability livePublicControl, int boundIndex)
+        // The decisions and their order are MountedControlPlacementIntent.Reconcile (tested); this reads and writes the bar.
+        private void ReconcileChosenSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, Ability livePublicControl, int boundIndex,
+            bool publicFactReplaced)
         {
             var id = unit?.UniqueId;
             if (id == null) return;
-            if (livePublicControl == null)
-            {
-                RecordAbsence(unit, ShouldLease(unit, NativeMountedControlKind.MountState)
-                    ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
-                return;
-            }
-            if (boundIndex >= 0)
-            {
-                placementIntent.ObserveBound(id, boundIndex);
-                return;
-            }
-            var index = placementIntent.ResolveUnbound(id, i => i >= 0 && i < slots.Length &&
-                (slots[i] == null || slots[i] is MechanicActionBarSlotEmpty));
+            var petId = unit.Descriptor?.PetUniqueId;
+            var index = placementIntent.Reconcile(id, livePublicControl != null,
+                livePublicControl != null || ShouldLease(unit, NativeMountedControlKind.MountState), publicFactReplaced, boundIndex,
+                i => i >= 0 && i < slots.Length && (slots[i] == null || slots[i] is MechanicActionBarSlotEmpty),
+                // A save scope's own leases put the slots it emptied back once it ends; until then they are the authority.
+                HasPendingSerializationLease(unit), placementRecorded.Contains(id), petId);
             if (index < 0) return;
             unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = livePublicControl.Data }, index);
             MarkBarChanged(unit);
             placementRecorded.Add(id);
-            placementIntent.ObserveBound(id, index);
+            placementIntent.ObserveBound(id, index, petId);
             PlacementIntentRestoreCount++;
             logger.Info("Mount / Dismount returned to the player's chosen slot after a temporary absence: unitId=" + id +
                 "; slot=" + index + ".");
+        }
+
+        private bool HasPendingSerializationLease(UnitEntityData unit) =>
+            hotbarSerializationLeases.Any(lease => ReferenceEquals(lease.Unit, unit));
+
+        // The arrangement on the bar at a boundary that empties the slots (a save scope) is authoritative: a move or a
+        // removal made since the last update is observed here, before the slots are leased and the facts removed.
+        private void ObserveArrangementsAtBoundary()
+        {
+            if (mountStateAbility == null) return;
+            foreach (var unit in CollectCurrentCandidateUnits())
+            {
+                var id = unit?.UniqueId;
+                var slots = unit?.UISettings?.Slots;
+                var control = unit?.Descriptor?.Abilities?.GetAbility(mountStateAbility);
+                if (id == null || slots == null || control == null || !control.Active) continue;
+                var bound = Array.FindIndex(slots, slot =>
+                    ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+                placementIntent.ObserveAtBoundary(id, true, bound, placementRecorded.Contains(id), unit.Descriptor?.PetUniqueId);
+            }
         }
 
         private void RecordAbsence(UnitEntityData unit, MountedControlAbsence absence)
@@ -2060,22 +2104,23 @@ namespace KingmakerMountedCombat.Integration
             return result.ToArray();
         }
 
+        // An absent rider's arrangement: its chosen slot (kind 6) and its placement record (kind 7), or the placement
+        // record alone when the player left the control off the bar. Retired first on positive evidence of permanent
+        // loss. Every required row is written: more than the archive's 128 rows fails its own validation (the existing
+        // bounded failure path) instead of silently dropping a rider's arrangement.
         private void CaptureAbsentIntent(List<SavedMountedSlot> result, HashSet<string> written)
         {
             var characters = Game.Instance?.Player?.AllCharacters;
             if (characters == null) return;
+            RevalidateAbsentArrangements(CollectCurrentCandidateUnits());
             foreach (var actorId in placementIntent.ActorIds.OrderBy(id => id, StringComparer.Ordinal).ToArray())
             {
                 int index;
-                if (written.Contains(actorId) || !placementIntent.TryGetInterrupted(actorId, out index) ||
-                    !MountedControlSlotPolicy.IsValidSavedRow(index, MountedControlSlotPolicy.SavedMountState) ||
+                if (written.Contains(actorId) || !placementIntent.TryGetArrangement(actorId, out index) ||
                     !MountedSaveData.ActorId(actorId) ||
                     characters.Count(unit => unit != null && unit.UniqueId == actorId) != 1) continue;
-                // The archive bounds rows to 128; a remembered slot that does not fit is not written.
-                if (result.Count + 2 > 128) break;
-                result.Add(new SavedMountedSlot { ActorId = actorId, Index = index, Kind = MountedControlSlotPolicy.SavedMountState });
-                if (!result.Any(row => row.ActorId == actorId && row.Kind == MountedControlSlotPolicy.SavedPlacementRecord))
-                    result.Add(new SavedMountedSlot { ActorId = actorId, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
+                foreach (var row in MountedControlSlotPolicy.AbsentArrangementRows(index))
+                    result.Add(new SavedMountedSlot { ActorId = actorId, Index = row.Key, Kind = row.Value });
             }
         }
 
@@ -2117,22 +2162,29 @@ namespace KingmakerMountedCombat.Integration
             return written;
         }
 
-        internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
+        // loadedWorld: the rows of a freshly loaded save, which initialise the arrangements. Otherwise the rows replay
+        // a capture made earlier in this same world (area transfer, retained remount): an arrangement observed since
+        // (a move, or the player removing the control) wins over them.
+        internal void RestorePersistentSlots(SavedMountedSlot[] bindings, bool loadedWorld)
         {
             // Records first, so the placement that Update may otherwise attempt cannot run ahead of this load's bindings.
             foreach (var binding in bindings)
                 if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) placementRecorded.Add(binding.ActorId);
             // The first saved public-control slot of each actor is its chosen slot, remembered as returning from an
             // absence: the control goes back there when it is live (now, or when a reserve rider returns), never over
-            // anything the slot holds by then. A control already live elsewhere keeps its current slot.
+            // anything the slot holds by then. A placement record without a slot is a rider that left the control off
+            // the bar. A control already live elsewhere keeps its current slot.
             var seeded = new HashSet<string>(StringComparer.Ordinal);
             foreach (var binding in bindings)
                 if (binding.ActorId != null && MountedControlSlotPolicy.RestoreSavedSlot(binding.Kind) == MountedControlSlotRepair.MountState &&
                     seeded.Add(binding.ActorId))
                 {
-                    placementIntent.Seed(binding.ActorId, binding.Index);
+                    placementIntent.Seed(binding.ActorId, binding.Index, loadedWorld);
                     placementRecorded.Add(binding.ActorId);
                 }
+            foreach (var binding in bindings)
+                if (binding.ActorId != null && binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord && seeded.Add(binding.ActorId))
+                    placementIntent.Seed(binding.ActorId, MountedControlPlacementIntent.OffBar, loadedWorld);
             restoringSlots = true;
             try
             {
@@ -2149,6 +2201,9 @@ namespace KingmakerMountedCombat.Integration
                     var current = slots[binding.Index];
                     var repair = MountedControlSlotPolicy.RestoreSavedSlot(binding.Kind);
                     if (repair == MountedControlSlotRepair.MountState) placementRecorded.Add(binding.ActorId);
+                    // The public control goes only where the actor's current arrangement puts it (the reconciliation
+                    // above already placed it there); an older row never resurrects a moved or removed control.
+                    if (repair == MountedControlSlotRepair.MountState && !placementIntent.AllowsSavedSlot(binding.ActorId, binding.Index)) continue;
                     var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
                     if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
                     if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;

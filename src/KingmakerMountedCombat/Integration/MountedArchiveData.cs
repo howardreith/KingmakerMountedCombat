@@ -95,7 +95,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void ValidateSlots()
         {
-            Require(Slots != null && Slots.Length <= 128, "Owned archive control slots are not bounded.");
+            Require(Slots != null && KingmakerMountedCombat.Domain.MountedControlSlotPolicy.FitsArchive(Slots.Length),
+                "Owned archive control slots are not bounded.");
             var slots = new HashSet<string>(StringComparer.Ordinal);
             // F2 adds kind 6 (the Mount / Dismount slot) and kind 7 (one placement record per actor, index 0).
             foreach (var slot in Slots)
