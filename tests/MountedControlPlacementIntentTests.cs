@@ -44,6 +44,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: an earlier world's rider object never authors an arrangement in the loaded world", OutgoingWorldAuthorsNothing);
             runner.Run("toolbar: a party rider whose same pet link briefly does not resolve keeps its slot; a cleared link retires it", UnresolvedPetKeepsArrangement);
             runner.Run("toolbar: removing the shortcut right after a save scope returns it stays removed through save and load", RemovalAfterLeaseRelease);
+            runner.Run("toolbar: a save header while the pet briefly does not resolve keeps the live slot; a removal saves a record only", HeaderUnresolvedPet);
+            runner.Run("toolbar: a removal made just before the fact lease is lost stays removed when the same pet returns", RemovalBeforeLeaseLoss);
+            runner.Run("toolbar: confirmed pet loss clears an uninspected public slot; a different pet cannot revive it", PermanentLossClearsSlot);
+            runner.Run("toolbar: area suspension classifies a departed rider's recent move or removal before emptying its bar", SuspensionObservesDeparted);
+            runner.Run("toolbar: observations while a selected load's outgoing world is still current write nothing", LoadFenceProductionOrder);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -53,8 +58,10 @@ namespace KingmakerMountedCombat.Tests
         private sealed class Service
         {
             internal readonly MountedControlPlacementIntent Intent = new MountedControlPlacementIntent();
+            internal readonly MountedControlLoadFence Fence = new MountedControlLoadFence();
             internal readonly HashSet<string> Placed = new HashSet<string>(StringComparer.Ordinal);
             internal World Current = new World();
+            internal bool Accepts => Fence.Accepts(Current);
             internal readonly List<Rider> Riders = new List<Rider>();
             // observedUnits with the world each was first reconciled in (observedWorlds).
             internal readonly List<Rider> Observed = new List<Rider>();
@@ -64,6 +71,7 @@ namespace KingmakerMountedCombat.Tests
 
             internal void Frame()
             {
+                if (!Accepts) return; // Update returns before ReconcileFacts while a selected load's outgoing world is current
                 var candidates = Candidates;
                 foreach (var rider in candidates) { rider.Reconcile(); if (!Observed.Contains(rider)) Observed.Add(rider); }
                 foreach (var prior in Observed.Where(r => !candidates.Contains(r)).ToList())
@@ -113,15 +121,31 @@ namespace KingmakerMountedCombat.Tests
                 return rows;
             }
 
-            // A cold load of rows into a new world; the riders of the new world are added by the caller first.
-            internal void Load(World incoming, List<SavedRow> rows)
+            // SuspendAreaControls: departed riders classified, candidates observed, then every candidate and observed
+            // unit has its facts removed and KMC slots emptied (RemoveAllManagedFacts(true) also clears observedUnits).
+            internal void SuspendArea()
+            {
+                var candidates = Candidates;
+                foreach (var prior in Observed.Where(r => !candidates.Contains(r)).ToList()) ObserveDeparture(prior, candidates);
+                foreach (var rider in candidates) rider.ObserveBar();
+                foreach (var rider in candidates.Concat(Observed).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: rider.World == Current);
+                Observed.Clear();
+            }
+
+            // BeginSelectedLoad at the native iterator's first step: records cleared, the outgoing world fenced.
+            internal void BeginLoad() { Intent.Clear(); Placed.Clear(); Fence.Begin(Current); }
+
+            // Native loading replaces the player object; the incoming world's riders are added by the caller first.
+            internal void InstallAndRestore(World incoming, List<SavedRow> rows)
             {
                 Current = incoming;
-                Intent.Clear(); Placed.Clear();
                 foreach (var rider in CurrentWorld.ToList()) rider.Restore(rows, true);
                 Frame();
                 foreach (var rider in CurrentWorld.ToList()) rider.WriteRestoredSlot(rows);
             }
+
+            // A cold load of rows into a new world.
+            internal void Load(World incoming, List<SavedRow> rows) { BeginLoad(); InstallAndRestore(incoming, rows); }
         }
 
         private sealed class Rider
@@ -149,11 +173,16 @@ namespace KingmakerMountedCombat.Tests
             // One candidate's reconciliation in ReconcileFacts.
             internal void Reconcile()
             {
+                // The bar is observed before a live public fact is withdrawn (one fact here, so only withdrawal applies).
+                if (FactLive && !Desired) ObserveBar();
                 var replaced = false;
                 if (Desired && !FactLive) { FactLive = true; DataVersion++; replaced = true; }
                 if (!Desired) FactLive = false;
                 var bound = Find();
                 if (FactLive && bound >= 0 && Slots[bound] != Data) Slots[bound] = Data; // stale binding rebound
+                // Confirmed permanent loss clears the public-control slots.
+                if (!FactLive && !Desired && Intent.ProvesPermanentLoss(Id, PetId))
+                    for (var i = 0; i < Slots.Length; i++) if (Slots[i] != null && Slots[i].StartsWith(Control, StringComparison.Ordinal)) Slots[i] = null;
                 var index = Intent.Reconcile(Id, FactLive, Desired, replaced, Find(), i => Slots[i] == null,
                     leases.Count != 0, S.Placed.Contains(Id), PetId);
                 if (index >= 0) { Slots[index] = Data; S.Placed.Add(Id); Intent.ObserveBound(Id, index, PetId); }
@@ -173,8 +202,12 @@ namespace KingmakerMountedCombat.Tests
                 ObserveBar();
                 if (FactLive)
                 {
+                    // A bound public slot the live capture will not write (stale data, or the rider no longer gets the
+                    // control) is carried while the rider still gets it or its pet link names the same companion.
                     var at = Find();
-                    if (at >= 0 && Slots[at] != Data) Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
+                    var written = at >= 0 && Slots[at] == Data && Desired;
+                    if (at >= 0 && !written && (Desired || Intent.Revalidate(Id, true, true, PetId)))
+                        Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
                     return;
                 }
                 if (Desired || Intent.Revalidate(Id, true, true, PetId)) Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
@@ -185,7 +218,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 if (!FactLive) return;
                 var at = Find();
-                if (at >= 0 && Slots[at] == Data) { rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState }); written.Add(Id); }
+                if (at >= 0 && Slots[at] == Data && Desired) { rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState }); written.Add(Id); }
                 if (S.Placed.Contains(Id)) rows.Add(new SavedRow { Actor = Id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
             }
 
@@ -212,7 +245,7 @@ namespace KingmakerMountedCombat.Tests
             internal void NativeInvalidate(bool reactivated = false)
             {
                 var at = Find();
-                if (at >= 0) { Intent.ObserveNativeSlotInvalidated(Id, at, PetId); Slots[at] = null; }
+                if (at >= 0) { if (S.Accepts) Intent.ObserveNativeSlotInvalidated(Id, at, PetId); Slots[at] = null; }
                 FactLive = reactivated;
             }
 
@@ -566,6 +599,108 @@ namespace KingmakerMountedCombat.Tests
             lost.PetResolves = false; lost.PetId = null; lost.NativeInvalidate(); lost.Frame();
             lost.PetId = "horse-1"; lost.PetResolves = true; lost.Frame(); lost.Frame();
             TestRunner.Equal(-1, lost.Find(), "A cleared pet link kept the old arrangement.");
+        }
+
+        private static void HeaderUnresolvedPet()
+        {
+            var rider = PlacedAt(9);
+            rider.PetResolves = false; // same PetUniqueId; the old public fact and slot data still live at the header
+            TestRunner.True(rider.FactLive && rider.Slots[9] == rider.Data, "The fixture did not keep the live fact and slot data.");
+            var rows = rider.Save();
+            TestRunner.True(rows.Count(r => r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Kind == 7) == 1 && rows.Count == 2,
+                "The header dropped the live slot of a rider whose pet briefly did not resolve.");
+            var loaded = rider.Load(rows);
+            loaded.Frame();
+            loaded.PetResolves = true; loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "Restoring the same pet did not bind slot 9 once.");
+            var remover = PlacedAt(9, "remover");
+            remover.Slots[9] = null; remover.PetResolves = false;
+            var removalRows = remover.Save();
+            TestRunner.True(removalRows.Count == 1 && removalRows[0].Kind == 7, "A deliberate removal saved a slot row.");
+        }
+
+        private static void RemovalBeforeLeaseLoss()
+        {
+            var rider = PlacedAt(9);
+            rider.Slots[9] = null;      // live removal, not yet observed
+            rider.PetResolves = false;  // the same pet stops resolving before the next update
+            rider.Frame();
+            rider.PetResolves = true; rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "The removal was undone when the same pet returned.");
+            var rows = rider.Save();
+            TestRunner.True(rows.Count == 1 && rows[0].Kind == 7, "The save after the removal carried a slot row.");
+            var loaded = rider.Load(rows); loaded.Frame();
+            TestRunner.Equal(-1, loaded.Find(), "Loading resurrected the removed control.");
+            // Control: native invalidation followed by the same lease loss still returns to slot 9.
+            var cleaned = PlacedAt(9, "cleaned");
+            cleaned.NativeInvalidate(reactivated: true);
+            cleaned.PetResolves = false; cleaned.Frame();
+            cleaned.PetResolves = true; cleaned.Frame(); cleaned.Frame();
+            TestRunner.True(cleaned.Find() == 9 && cleaned.Count() == 1, "A native invalidation no longer returned to slot 9.");
+        }
+
+        private static void PermanentLossClearsSlot()
+        {
+            var rider = PlacedAt(9);   // an unselected party rider: native UI never inspects its bar
+            rider.PetId = null;        // the pet link is cleared (companion released)
+            rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "The managed public slot survived a confirmed permanent loss.");
+            TestRunner.True(rider.Slots[0] == "Attack", "An unrelated slot was cleared.");
+            rider.PetId = "horse-2"; rider.Frame(); rider.Frame();
+            TestRunner.True(rider.Find() == -1 && rider.Slots[9] == null, "A different pet revived the old binding.");
+            // Same-pet temporary absence keeps the binding on the bar and rebinds it when the pet returns.
+            var stays = PlacedAt(9, "stays");
+            stays.PetResolves = false; stays.Frame();
+            TestRunner.True(stays.Slots[9] != null, "A temporary absence cleared the slot.");
+            stays.PetResolves = true; stays.Frame();
+            TestRunner.True(stays.Find() == 9 && stays.Count() == 1 && stays.Slots[9] == stays.Data, "The same pet did not rebind slot 9 once.");
+        }
+
+        private static void SuspensionObservesDeparted()
+        {
+            foreach (var remove in new[] { false, true })
+            {
+                var service = new Service();
+                var mountedRider = PlacedAt(5, "mounted", service); // keeps area suspension relevant
+                var second = PlacedAt(9, "second", service);
+                if (remove) second.Slots[9] = null;
+                else { var data = second.Slots[9]; second.Slots[9] = null; second.Slots[3] = data; }
+                second.LeaveParty();          // reserve roster, departure cleanup not run yet
+                service.SuspendArea();        // area unload before the departure loop
+                service.Frame();              // resume
+                second.ToParty(); service.Frame(); service.Frame();
+                if (remove) TestRunner.Equal(-1, second.Find(), "Area suspension undid a removal of a departed rider.");
+                else TestRunner.True(second.Find() == 3 && second.Count() == 1 && second.Slots[9] == null, "Area suspension restored the older slot.");
+                TestRunner.True(mountedRider.Find() == 5 && mountedRider.Count() == 1, "The mounted rider's slot changed.");
+            }
+        }
+
+        private static void LoadFenceProductionOrder()
+        {
+            foreach (var offBarRecord in new[] { false, true })
+            {
+                var service = new Service();
+                var outgoing = PlacedAt(9, "rider", service);
+                service.BeginLoad();                       // iterator entry: records cleared, outgoing player still current
+                outgoing.Frame();                          // an update in the interval
+                outgoing.NativeInvalidate(reactivated: true); // a slot invalidation in the interval
+                TestRunner.True(!service.Intent.Has("rider") && service.Placed.Count == 0, "The outgoing world wrote into the cleared records.");
+                var incoming = new World();
+                var reserve = new Rider("rider", service, incoming) { InParty = false, Autofill = false };
+                var rows = offBarRecord ? new List<SavedRow> { new SavedRow { Actor = "rider", Index = 0, Kind = 7 } } : new List<SavedRow>();
+                service.InstallAndRestore(incoming, rows);  // native loading replaced the player object
+                var saved = service.Save();
+                TestRunner.True(!saved.Any(r => r.Kind == 6) && saved.Count == (offBarRecord ? 1 : 0), "Resave reproduced the outgoing slot (offBarRecord=" + offBarRecord + ").");
+                reserve.ToParty(); service.Frame(); service.Frame();
+                TestRunner.Equal(-1, reserve.Find(), "Party return reproduced the outgoing choice (offBarRecord=" + offBarRecord + ").");
+            }
+            // An abandoned load lifts the fence and the outgoing world continues normally.
+            var abandoned = new Service();
+            var stays = PlacedAt(9, "rider", abandoned);
+            abandoned.BeginLoad();
+            abandoned.Fence.Abandon();
+            stays.Frame();
+            TestRunner.True(abandoned.Intent.Has("rider") && stays.Find() == 9, "An abandoned load left the world fenced.");
         }
 
         private static void RemovalAfterLeaseRelease()

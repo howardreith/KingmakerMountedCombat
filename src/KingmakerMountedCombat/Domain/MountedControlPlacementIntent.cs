@@ -195,6 +195,17 @@ namespace KingmakerMountedCombat.Domain
             return entry.Interrupted || entry.Index == OffBar;
         }
 
+        // Positive evidence, for a reconciled rider that no longer gets the control, that the loss is permanent: its pet
+        // link is cleared, or names another unit than the one its arrangement was observed with. The caller then also
+        // clears the rider's public-control slots, so a later companion cannot revive the old binding.
+        public bool ProvesPermanentLoss(string actorId, string currentPetId)
+        {
+            Entry entry;
+            if (string.IsNullOrEmpty(currentPetId)) return true;
+            return actorId != null && entries.TryGetValue(actorId, out entry) && entry.PetId != null &&
+                !string.Equals(entry.PetId, currentPetId, StringComparison.Ordinal);
+        }
+
         public IEnumerable<string> ActorIds => entries.Keys;
 
         public void Forget(string actorId)
@@ -203,5 +214,26 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public void Clear() => entries.Clear();
+    }
+
+    // The load boundary of the placement records. A selected load clears them when its native iterator starts
+    // (NativeMountedControlService.BeginLoadedWorld), while the outgoing player object is still current; native loading
+    // replaces Game.Instance.State.PlayerState only later (2.1.7b ThreadedGameLoader deserializes a new Player). Until
+    // that replacement no observation may write into the cleared records: the outgoing world's riders still pass
+    // every current-world check. The fence lifts by itself once the current world differs from the fenced one, or when
+    // the load is abandoned and the outgoing world stays.
+    public sealed class MountedControlLoadFence
+    {
+        private object fencedWorld;
+
+        public void Begin(object outgoingWorld) { fencedWorld = outgoingWorld; }
+
+        public void Abandon() { fencedWorld = null; }
+
+        public bool Accepts(object currentWorld)
+        {
+            if (fencedWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) fencedWorld = null;
+            return fencedWorld == null;
+        }
     }
 }

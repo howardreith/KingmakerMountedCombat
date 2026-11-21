@@ -728,7 +728,7 @@ namespace KingmakerMountedCombat.Integration
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();
-                controls?.BeginLoadedWorld();
+                controls?.BeginSelectedLoad();
                 relationship?.World?.Presentation?.ReleaseAtWorldBoundary("load");
                 SelectLoad(save);
             }, () =>
@@ -737,6 +737,7 @@ namespace KingmakerMountedCombat.Integration
                 if (!scope.World.NativeCompleted)
                 {
                     FenceAbandonedCombat();
+                    controls?.AbandonLoadedWorld();
                     scope.World.Close();
                     presentationPending = false;
                     restoredActors.Clear();

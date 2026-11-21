@@ -120,6 +120,9 @@ namespace KingmakerMountedCombat.Integration
         // change, save scope, capital reserve roster, out of the game). Actor ids and indices only; belongs to the loaded
         // world like the placement records, cleared on a new load, disable and disposal.
         private readonly MountedControlPlacementIntent placementIntent = new MountedControlPlacementIntent();
+        // From a selected load's start until native loading replaces the player object, the outgoing world writes nothing.
+        private readonly MountedControlLoadFence loadFence = new MountedControlLoadFence();
+        private bool ArrangementsAccepted => loadFence.Accepts(Game.Instance?.Player);
         private bool restoringSlots;
         private bool registered;
         private bool enabled;
@@ -901,6 +904,9 @@ namespace KingmakerMountedCombat.Integration
         {
             if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
             areaSuspended = true;
+            // RemoveAllManagedFacts(true) below empties still-observed former candidates as well: their departure is
+            // classified first, from their bar as the player last left it (the save header's rule).
+            ObserveDepartedRiders(CollectCurrentCandidateUnits());
             ObserveArrangementsAtBoundary();
             ClearTargetingPresentation("area-unloading");
             RemoveAllManagedFacts(true);
@@ -930,6 +936,13 @@ namespace KingmakerMountedCombat.Integration
 
             // A locale change replaces the native pack; the owned keys are registered again on the new one.
             if (!ReferenceEquals(LocalizationManager.CurrentPack, localizedPack) && !EnsureLocalization())
+            {
+                return;
+            }
+
+            // The outgoing world of a selected load reconciles nothing (its placement records were cleared for the
+            // incoming world, and its riders still pass the current-world checks until native loading replaces them).
+            if (!ArrangementsAccepted)
             {
                 return;
             }
@@ -1706,6 +1719,19 @@ namespace KingmakerMountedCombat.Integration
             initialPlacements.Clear();
         }
 
+        // A selected native load begins (MountedPersistenceService, at its iterator's first step): the records are cleared
+        // for the incoming world, and the outgoing player object, still current here, writes nothing until native loading
+        // replaces it (or the load is abandoned). BeginLoadedWorld alone stays fence-free for the diagnostics that re-arm
+        // the first placement within one world.
+        internal void BeginSelectedLoad()
+        {
+            BeginLoadedWorld();
+            loadFence.Begin(Game.Instance?.Player);
+        }
+
+        // The selected load was canceled or failed before replacing the player: the outgoing world continues.
+        internal void AbandonLoadedWorld() => loadFence.Abandon();
+
         private void ReconcileFacts()
         {
             var candidates = CollectCurrentCandidateUnits();
@@ -1714,6 +1740,17 @@ namespace KingmakerMountedCombat.Integration
                 RememberUnit(unit);
                 ReconcileRetiredPrimaryReferences(unit);
                 var publicFactReplaced = false;
+                // Before this update withdraws or replaces a live public fact, the bar as the player last left it is the
+                // arrangement (a removal since the last update stays a removal); an absence native cleanup already
+                // reported stays pending. Nothing is observed while the fact is live and stays as it is.
+                if (mountStateAbility != null)
+                {
+                    var publicFacts = unit?.Descriptor?.Abilities?.Enumerable
+                        .Where(item => ReferenceEquals(item.Blueprint, mountStateAbility)).ToList() ?? new List<Ability>();
+                    if (publicFacts.Any(fact => fact.Active) &&
+                        !(publicFacts.Count == 1 && ShouldLease(unit, NativeMountedControlKind.MountState)))
+                        ObserveArrangementOnBar(unit);
+                }
                 foreach (var ability in EnumerateBlueprints())
                 {
                     var kind = ResolveKind(ability);
@@ -1869,10 +1906,15 @@ namespace KingmakerMountedCombat.Integration
             bool publicFactReplaced)
         {
             var id = unit?.UniqueId;
-            if (id == null) return;
+            if (id == null || !ArrangementsAccepted) return;
             var petId = unit.Descriptor?.PetUniqueId;
+            var desired = livePublicControl != null || ShouldLease(unit, NativeMountedControlKind.MountState);
+            // Confirmed permanent loss (pet link cleared or naming another unit): the rider's public-control slots go
+            // too, even on a bar native UI never inspected, so a later companion cannot revive the old binding.
+            if (livePublicControl == null && !desired && placementIntent.ProvesPermanentLoss(id, petId))
+                ClearPublicControlSlots(unit, slots);
             var index = placementIntent.Reconcile(id, livePublicControl != null,
-                livePublicControl != null || ShouldLease(unit, NativeMountedControlKind.MountState), publicFactReplaced, boundIndex,
+                desired, publicFactReplaced, boundIndex,
                 i => i >= 0 && i < slots.Length && (slots[i] == null || slots[i] is MechanicActionBarSlotEmpty),
                 // A save scope's own leases put the slots it emptied back once it ends; until then they are the authority.
                 HasPendingSerializationLease(unit), placementRecorded.Contains(id), petId);
@@ -1893,7 +1935,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ObserveInvalidatedPublicSlot(MechanicActionBarSlotAbility slot)
         {
             if (disposed || mountStateAbility == null || slot == null ||
-                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility)) return;
+                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility) || !ArrangementsAccepted) return;
             var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
             // Only a current-world rider's own bar: the exact slot object must still be on it (native reads it from the
             // array before replacing it); any other slot object is ignored.
@@ -1906,6 +1948,21 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
+
+        // Only slots holding the public control; every other slot keeps its content and position.
+        private void ClearPublicControlSlots(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            var cleared = false;
+            for (var index = 0; index < slots.Length; index++)
+            {
+                if (!ReferenceEquals((slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility)) continue;
+                unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, index);
+                cleared = true;
+            }
+            if (!cleared) return;
+            MarkBarChanged(unit);
+            logger.Info("Mount / Dismount slot cleared after the companion was permanently lost: unitId=" + unit.UniqueId + ".");
+        }
 
         private bool HasPendingSerializationLease(UnitEntityData unit) =>
             hotbarSerializationLeases.Any(lease => ReferenceEquals(lease.Unit, unit));
@@ -1923,7 +1980,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var id = unit?.UniqueId;
             var slots = unit?.UISettings?.Slots;
-            if (id == null || slots == null || mountStateAbility == null) return;
+            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
             var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
             var bound = Array.FindIndex(slots, slot =>
                 ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
@@ -1933,7 +1990,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void RecordAbsence(UnitEntityData unit, MountedControlAbsence absence)
         {
-            if (unit?.UniqueId != null) placementIntent.ObserveAbsent(unit.UniqueId, absence);
+            if (unit?.UniqueId != null && ArrangementsAccepted) placementIntent.ObserveAbsent(unit.UniqueId, absence);
         }
 
         // This exact unit instance is one of the current world's player characters: in the party, its detached part, or
@@ -2170,8 +2227,7 @@ namespace KingmakerMountedCombat.Integration
             var candidates = CollectCurrentCandidateUnits();
             // A rider that already left the travelling roster but whose departure cleanup has not run yet: its last bar
             // and its departure classification, exactly as that cleanup will record them.
-            foreach (var prior in observedUnits.ToArray())
-                if (prior != null && !candidates.Contains(prior)) ObserveDeparture(prior, candidates);
+            ObserveDepartedRiders(candidates);
             foreach (var unit in candidates)
             {
                 var id = unit?.UniqueId;
@@ -2180,16 +2236,18 @@ namespace KingmakerMountedCombat.Integration
                 var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
                 if (control != null && control.Active)
                 {
-                    // A slot still bound to older data of the public control (the fact was replaced and the slot not yet
-                    // rebound) cannot be written by the live capture, which writes only callable live data: it is the
-                    // player's slot waiting for repair, carried as the remembered slot and rebound on restore.
+                    // A slot holding the public control that the live capture will not write (it writes only callable
+                    // live data of a rider that still gets the control: ShouldLease, active fact, exact data, caster) is
+                    // the player's slot waiting for repair or for its pet: carried as the remembered slot while the rider
+                    // still gets the control or its pet link still names the same companion; restore binds the current
+                    // fact. A removed control (no slot) stays a removal.
                     var slots = unit.UISettings?.Slots;
-                    var stale = slots != null && slots.Any(slot =>
-                    {
-                        var data = (slot as MechanicActionBarSlotAbility)?.Ability;
-                        return ReferenceEquals(data?.Blueprint, mountStateAbility) && !ReferenceEquals(data, control.Data);
-                    }) && !slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability, control.Data));
-                    if (stale) placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+                    var bound = slots != null && slots.Any(slot =>
+                        ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+                    var written = slots != null && slots.Any(slot => LiveCaptureWritesPublicSlot(unit, slot as MechanicActionBarSlotAbility));
+                    if (bound && !written && (ShouldLease(unit, NativeMountedControlKind.MountState) ||
+                            placementIntent.Revalidate(id, true, true, unit.Descriptor?.PetUniqueId)))
+                        placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
                     continue;
                 }
                 // The same rule as an update: not leaseable now retires the arrangement only on pet-link evidence.
@@ -2222,6 +2280,22 @@ namespace KingmakerMountedCombat.Integration
                     result.Add(new SavedMountedSlot { ActorId = actorId, Index = row.Key, Kind = row.Value });
                 }
             }
+        }
+
+        // Exactly the conditions under which CaptureLiveSlots writes a public-control slot row (non-legacy schema).
+        private bool LiveCaptureWritesPublicSlot(UnitEntityData unit, MechanicActionBarSlotAbility slot)
+        {
+            var ability = slot?.Ability;
+            if (unit == null || ability == null || !ReferenceEquals(ability.Blueprint, mountStateAbility) ||
+                !ShouldLease(unit, NativeMountedControlKind.MountState)) return false;
+            var fact = unit.Descriptor?.Abilities?.GetAbility(ability.Blueprint);
+            return fact != null && fact.Active && ReferenceEquals(fact.Data, ability) && ability.Caster?.Unit == unit;
+        }
+
+        private void ObserveDepartedRiders(List<UnitEntityData> candidates)
+        {
+            foreach (var prior in observedUnits.ToArray())
+                if (prior != null && !candidates.Contains(prior)) ObserveDeparture(prior, candidates);
         }
 
         // Returns the actors that already have a live public-control slot row (kind 6 or its legacy shell kind).

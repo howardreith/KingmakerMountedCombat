@@ -100,6 +100,25 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   marks an absence for, and is never reported by native cleanup into the loaded world's arrangements; roster membership
   is checked by exact instance.
 
+**Round 4 additions.**
+- *Header vs live writer (R2-F1):* the header carries a bound public slot as the remembered slot whenever the live
+  capture will not write it, using the writer's own conditions (`LiveCaptureWritesPublicSlot`: ShouldLease, active
+  fact, exact data, caster) — including a rider whose pet briefly does not resolve while its old fact is still active —
+  as long as the rider still gets the control or its pet link names the same companion.
+- *Before withdrawal (R4-F1):* when an update is about to withdraw or replace a live public fact, the bar is observed
+  first, so a removal made since the last update stays a removal; an absence native cleanup already reported stays.
+- *Permanent loss clears the slot (R4-F2):* when a reconciled rider no longer gets the control and its pet link is
+  cleared or names another unit (`ProvesPermanentLoss`), its public-control slots are emptied, even on a bar native UI
+  never inspected; other slots and same-pet temporary absence are untouched.
+- *Area suspension (R4-F3):* `SuspendAreaControls` classifies still-observed former candidates (`ObserveDeparture`, the
+  save header's rule) before `RemoveAllManagedFacts(true)` empties their bars.
+- *Load fence (R3-F1):* the production load path now calls `BeginSelectedLoad`, which clears the records and fences
+  the outgoing player object (`MountedControlLoadFence`): until native loading replaces
+  `Game.Instance.State.PlayerState` (2.1.7b `ThreadedGameLoader` deserializes a new `Player`), `Update` reconciles
+  nothing and no observation (native cleanup, bar observation, absence) writes; the fence lifts when the player object
+  differs, or when the load is abandoned (`MountedPersistenceService` calls `AbandonLoadedWorld`). `BeginLoadedWorld`
+  alone stays fence-free for the two diagnostics that re-arm the first placement within one world.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -202,8 +221,16 @@ so it is not selected.
 
 | Command | Result | Limits |
 | --- | --- | --- |
-| `.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1` (local run before commit; the controller `focused` gate receipt is bound to the reported candidate) | PASS | Build, components, Validate-Source, focused wrapper; about 1 minute |
-| components (`bin\Tests`) | 1438/0 | 18 toolbar, 6 city-roster and 3 downed-target tests |
+| Controller `focused` gate (`agent_review.py verify --gate focused -- -Tier Fast -Focused Test-CityToolbarProneFocused.ps1`) on the reported candidate commit | the PASS of record (receipt bound to that commit; see the final report for commit and duration) | Build, components, Validate-Source, focused wrapper. The rows below are that run's counts |
+
+Local runs before each commit are development runs, not results of record. Round 3: the first local Fast run (with
+build) on the uncommitted tree failed in the focused step (`Test-CityAreaAdapterBaseline.ps1`: call-depth overflow, a
+helper named like `git`); three `-SkipBuild` retries followed: one failed (a single-element array unrolled to a string),
+one failed (an empty-difference wrapping artifact), one passed; the controller gate then passed on `29ffa3a5` in 25.7 s.
+Round 4: one local Fast run (with build) on the uncommitted tree passed (components 1443/0, Validate-Source 153/0,
+focused 5/5; its area-adapter comparison read the previous commit as HEAD); the controller gate on the round-4 commit
+is the result of record (final report).
+| components (`bin\Tests`) | 1443/0 | 23 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
@@ -245,6 +272,11 @@ NATIVE = in-game structured evidence.
 | Toolbar persistence | Header with a replacement fact and a stale slot: kind 6 at the slot + one kind 7; restore binds new data once | PASS | UNIT |
 | Toolbar persistence | Reserve save between the roster change and departure cleanup: unchanged, moved and removed arrangements | PASS | UNIT |
 | Toolbar persistence | An earlier world's rider object authors nothing in the loaded world (no row, explicit off-bar record) | PASS | UNIT |
+| Toolbar persistence | Load fence in production order: update and native cleanup while the outgoing player is current write nothing; abandoned load lifts it | PASS | UNIT |
+| Toolbar persistence | Header while the pet briefly does not resolve: kind 6 at 9 + one kind 7; restore binds 9 once; removal record only | PASS | UNIT |
+| Toolbar persistence | Removal just before the fact lease is lost stays removed when the same pet returns; native invalidation control returns | PASS | UNIT |
+| Toolbar persistence | Confirmed pet loss clears an uninspected public slot; a different pet cannot revive it; same-pet absence keeps it | PASS | UNIT |
+| Toolbar persistence | Area suspension classifies a departed rider's recent move (3) or removal before emptying its bar | PASS | UNIT |
 | Toolbar persistence | `MechanicActionBarSlotAbility.IsBad` override identity and its use by GetSlot/CleanupBadSlots | PASS | CONTRACT |
 | Toolbar persistence | Native bad-slot replacement this relies on | PASS | CONTRACT |
 | Toolbar persistence | Save/load in and out of the real capital, forced dismount, pet unavailability in game | NOT RUN | NATIVE (prerequisites below) |
@@ -304,32 +336,42 @@ Current prerequisites, per case (none run on this candidate):
    after its owner; select it, check its name, statistics and barding/neck slots, equip and unequip an item; close and
    reopen; save, load and reopen. No duplicate portraits. Disable Mounted Combat in UMM: the Horse is no longer listed;
    re-enable: it is listed once.
-4. Combat, mounted with a longbow, at about 10 ft and about 40 ft, real time and turn based, each against: a standing
+   **Combat setup S (items 4 and 5).** The rider is a single-attack longbow user: base attack bonus below +6, no
+   Rapid Shot, Manyshot or haste effect, and no other extra-attack source, so one attack action is one roll. If the
+   only available rider has extra attacks, keep them and use the matched control instead: the mounted routine must have
+   the same number of rolls and the same action cost as the same rider's unmounted routine in the same mode, position
+   and target (a legal native full attack then passes; an additional routine or a second action spend fails). In turn
+   based, read the action bar's spent actions after each click. In real time, watch from the click until the first
+   attack resolves or one round (6 game seconds) passes, then pause and read the log. Kingmaker 2.1.7b does not track
+   arrows for an ordinary bow; if your setup does show an ammunition count (another mod), it must drop by exactly the
+   number of rolls, otherwise ammunition is not compared.
+4. Combat with setup S, mounted, at about 10 ft and about 40 ft, real time and turn based, each against: a standing
    enemy, a tripped but conscious enemy (click the enemy's standing footprint and, separately, the lying body), and an
-   unconscious enemy. Expect an attack roll in the log each time (the unconscious one only when clicked after it fell),
-   no horse walking into melee. Repeat dismounted with the same weapon and positions. Note any case where the click
-   becomes a move.
+   unconscious enemy. Pass: the rider's own routine (one roll under setup S) each time (the unconscious enemy only when
+   clicked after it fell), no horse walking into melee for the shot. Repeat dismounted with the same weapon and
+   positions; the mounted and dismounted routines must match. Note any case where the click becomes a move.
 
-5. Negative controls and neighbours (all NOT RUN in this enrollment), with the step-4 rider mounted, a longbow and
-   arrows equipped, against one hostile enemy; the combat log shows each attack roll with its modifiers (hover the
-   roll):
+5. Negative controls and neighbours (all NOT RUN in this enrollment), with the setup-S rider mounted and a longbow
+   equipped, against one hostile enemy; the combat log shows each attack roll with its modifiers (hover the roll):
    - **Wall:** place the pair so a solid wall stands between rider and a standing enemy within bow range (no line of
      sight). Click the enemy. Pass: never a roll through the wall; either an ordinary approach until line of sight
-     exists followed by one roll, or no attack and no action spent. Fail: a roll while the wall still blocks the line.
+     exists followed by the setup-S routine, or no attack and no action spent. Fail: a roll while the wall still blocks
+     the line.
    - **Spent action:** turn based, use the rider's Standard action on a first shot, then click the enemy again. Pass: no
      second roll, a "no Standard action" refusal (KMC's text is "… has no Standard action left this turn"), and the
      horse's own actions unchanged. Fail: a second roll in the same turn.
    - **Beyond firing range:** start farther from the enemy than the longbow reaches and click it. Pass: the ordinary
-     approach (the horse moves toward the target with the pair's own movement) and at most one roll once in range; in
-     turn based, if the movement runs out first, no roll and no Standard spent. Fail: a roll from out of range, or an
-     action spent without a shot.
-   - **Mounted melee:** switch the rider to a melee weapon and click an adjacent standing enemy. Pass: the rider's melee
-     roll as on 0.2.13 (the horse attacks only on its own opportunity, as before). Fail: no roll, or extra rolls.
-   - **Unmounted ranged:** dismount and repeat the near standing shot. Pass: one roll, as on 0.2.13.
+     approach (the horse moves toward the target with the pair's own movement) and at most the setup-S routine once in
+     range; in turn based, if the movement runs out first, no roll and no Standard spent. In real time stop after one
+     round of approach without a shot and note it. Fail: a roll from out of range, or an action spent without a shot.
+   - **Mounted melee:** switch the rider to a single-attack melee weapon and click an adjacent standing enemy. Pass: the
+     rider's melee routine and action cost as on 0.2.13 with the same rider and positions (the horse attacks only on its
+     own opportunity, as before). Fail: no roll, or a routine or action spend 0.2.13 does not show.
+   - **Unmounted ranged:** dismount and repeat the near standing shot. Pass: the setup-S routine, as on 0.2.13.
    - **Penalties and expenditure:** compare the hover breakdown of a mounted ranged roll on 0.2.13 and on this build
      at the same distance and movement: the same mounted ranged penalty lines appear (this change does not touch
-     them); against a prone target the native prone modifier line appears. The arrow count drops by one per shot and
-     the turn-based Standard action (or full attack) is spent exactly once. The unconscious enemy stays prone, and no
-     extra attack is granted.
+     them); against a prone target the native prone modifier line appears. The turn-based action spent by the routine
+     (Standard, or full round for a full attack) is spent exactly once; ammunition as in setup S. The unconscious enemy
+     stays prone, and no extra attack is granted.
 
 Restoration: no native transaction ran.
