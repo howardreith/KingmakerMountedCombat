@@ -189,8 +189,10 @@ namespace KingmakerMountedCombat.Domain
             if (factReplaced) ObserveAbsent(actorId, MountedControlAbsence.Temporary);
             if (boundIndex >= 0) { ObserveBound(actorId, boundIndex, petId); return -1; }
             if (leasePending) return -1;
-            // A different companion than the one the arrangement was made with is not the same arrangement.
-            Revalidate(actorId, true, true, petId);
+            // A different companion than the one the arrangement was made with is not the same arrangement. The control
+            // is live, so the rider is still entitled to it: an empty link (a mounted or faulted relationship still
+            // granting Dismount) is not evidence of loss and keeps the known identity and the interrupted slot.
+            if (!string.IsNullOrEmpty(petId)) Revalidate(actorId, true, true, petId);
             return ResolveUnbound(actorId, slotIsEmpty, alreadyPlaced, petId);
         }
 

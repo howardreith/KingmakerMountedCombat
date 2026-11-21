@@ -164,6 +164,19 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   are untouched. A cleared link recovers nothing and still clears the binding. The save scope also leases any KMC
   binding still on a reserve or detached bar. Disable and disposal clear those bindings too.
 
+**Round 8 additions.**
+- *Older reserve bars follow the migration rules (R8-F1):* reserve recovery now uses
+  `MountedControlSlotPolicy.RecoveredPublicSlot`, the same precedence as `ReconcilePublicControlSlots`. An existing
+  public Mount / Dismount binding wins over an older Mount or Dismount alias, and the first exact alias is used only
+  when no public binding exists. While the KMC bindings are cleared, an older Mounted Charge becomes the rider's own
+  stock Charge in the same slot (`ResolveStockChargeForSlot`: only when that Charge is available and not already on the
+  bar, one per bar). Every other KMC binding is emptied and unrelated slots are untouched.
+- *A still-entitled rider keeps its interrupted slot (R8-F2):* in live, unbound reconciliation
+  (`MountedControlPlacementIntent.Reconcile`) an empty pet link no longer revalidates the arrangement away. The control
+  is live, so a mounted or faulted relationship still grants Dismount. The known identity and the interrupted index
+  are kept, and the control returns to its chosen empty slot. A link naming another companion still retires the
+  arrangement there, and a cleared link after entitlement ends still retires it (`RetireOnCompanionLoss`).
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -286,8 +299,13 @@ Fast run (with build) on the fixed, uncommitted tree passed (components 1452/0 w
 Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD). A mutation run on the same tree then
 reverted four of the new domain decisions: the cleared-link retirement, the replay block, the reserve recovery and
 the identity preservation. That run exited 1; the tool output was truncated before the FAIL lines. The fix was
-restored before commit. The controller gate on the round-7 commit is the result of record.
-| components (`bin\Tests`) | 1452/0 | 32 toolbar, 6 city-roster and 3 downed-target tests |
+restored before commit. The controller gate then passed on `9cec5c5d` in 50.4 s. Round 8: a mutation run restored the
+two old decisions, the unconditional revalidation and the first-match recovery precedence; it exited 1 (FAIL lines
+truncated in the tool output). After restoring the fix, one local Fast run (with build) passed: components 1454/0
+with the two new tests passing, Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD. The
+Charge migration in the toolbar double mirrors the service's loop; the service's `ResolveStockChargeForSlot` itself
+is exercised only in native play. The controller gate on the round-8 commit is the result of record.
+| components (`bin\Tests`) | 1454/0 | 34 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

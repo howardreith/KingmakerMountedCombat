@@ -44,10 +44,18 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
-        // A slot binding that stands for the rider's one public Mount / Dismount control: the public control itself, or
-        // an older exact Mount or Dismount binding that repair turns into it.
-        public static bool IsPublicControlBinding(NativeMountedControlKind kind) =>
-            kind == NativeMountedControlKind.MountState || RepairLiveSlot(kind) == MountedControlSlotRepair.MountState;
+        // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
+        // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
+        // -1 when the bar holds neither.
+        public static int RecoveredPublicSlot(IList<NativeMountedControlKind> kinds)
+        {
+            if (kinds == null) return -1;
+            for (var index = 0; index < kinds.Count; index++)
+                if (kinds[index] == NativeMountedControlKind.MountState) return index;
+            for (var index = 0; index < kinds.Count; index++)
+                if (RepairLiveSlot(kinds[index]) == MountedControlSlotRepair.MountState) return index;
+            return -1;
+        }
 
         public static MountedControlSlotRepair RestoreSavedSlot(int savedKind)
         {

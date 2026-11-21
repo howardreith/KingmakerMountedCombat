@@ -2015,8 +2015,9 @@ namespace KingmakerMountedCombat.Integration
                 if (observedUnits.Contains(unit) || !reserveScanned.Add(unit)) continue;
                 var slots = unit.UISettings?.Slots;
                 if (slots == null || CountManagedHotbarSlots(unit) == 0) continue;
-                var bound = Array.FindIndex(slots, slot => MountedControlSlotPolicy.IsPublicControlBinding(
-                    ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)));
+                var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
+                // ReconcilePublicControlSlots' precedence: the public control wins over an older Mount / Dismount alias.
+                var bound = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
                 if (bound >= 0 && placementIntent.AdmitSurvivingBinding(unit.UniqueId, bound, unit.Descriptor?.PetUniqueId))
                 {
                     placementRecorded.Add(unit.UniqueId);
@@ -2024,7 +2025,18 @@ namespace KingmakerMountedCombat.Integration
                     logger.Info("Surviving Mount / Dismount binding of a reserve rider recovered as its chosen slot: unitId=" +
                         unit.UniqueId + "; slot=" + bound + ".");
                 }
-                ClearManagedHotbarSlots(unit);
+                // Every KMC binding goes; an older Mounted Charge becomes the rider's own stock Charge in the same slot
+                // (the existing migration: only when that Charge is available and not already on the bar).
+                for (var index = 0; index < slots.Length; index++)
+                {
+                    if (kinds[index] == NativeMountedControlKind.None) continue;
+                    var replacement = MountedControlSlotPolicy.RepairLiveSlot(kinds[index]) == MountedControlSlotRepair.StockCharge
+                        ? ResolveStockChargeForSlot(unit, slots) : null;
+                    unit.UISettings.SetSlot(replacement == null
+                        ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = unit }
+                        : new MechanicActionBarSlotAbility { Unit = unit, Ability = replacement }, index);
+                    if (replacement != null) LegacySlotRepairCount++;
+                }
                 MarkBarChanged(unit);
             }
         }

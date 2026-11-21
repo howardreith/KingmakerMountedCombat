@@ -58,6 +58,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a pet link cleared at area suspension, then a new pet before resume, leaves the old slot retired", SuspensionClearedLinkThenNewPet);
             runner.Run("toolbar: an area replay captured before a change of pets never gives the old slot to the new pet", ReplayAfterPetChangeDuringSuspension);
             runner.Run("toolbar: an older capital save's surviving reserve binding is saved as its slot, never serialized, and cleared on disable", OlderCapitalSaveReserveBinding);
+            runner.Run("toolbar: an older reserve bar keeps the public slot over a legacy alias and migrates its Mounted Charge to stock Charge", OlderReserveBarMigration);
+            runner.Run("toolbar: native cleanup while a faulted relationship still grants Dismount with an empty pet link keeps the slot", FaultedRiderKeepsInterruptedSlot);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -88,11 +90,30 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var reserve in Reserve.ToList())
                 {
                     if (Observed.Contains(reserve) || !Scanned.Add(reserve)) continue;
-                    var at = reserve.Find();
-                    if (at < 0) continue;
-                    if (Intent.AdmitSurvivingBinding(reserve.Id, at, reserve.PetId)) Placed.Add(reserve.Id);
-                    reserve.ClearControlSlots();
+                    if (reserve.KmcCount() == 0) continue;
+                    var kinds = reserve.Slots.Select(KindOf).ToArray();
+                    var at = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+                    if (at >= 0 && Intent.AdmitSurvivingBinding(reserve.Id, at, reserve.PetId)) Placed.Add(reserve.Id);
+                    // Every KMC binding goes; an older Mounted Charge becomes the stock Charge when available and absent.
+                    for (var i = 0; i < kinds.Length; i++)
+                    {
+                        if (kinds[i] == NativeMountedControlKind.None) continue;
+                        reserve.Slots[i] = MountedControlSlotPolicy.RepairLiveSlot(kinds[i]) == MountedControlSlotRepair.StockCharge
+                            ? reserve.ResolveStockCharge() : null;
+                    }
                 }
+            }
+
+            // Slot strings: "KMC_MountState#n" the public control, "KMC_Mount#n" / "KMC_Dismount#n" older aliases,
+            // "KMC_Charge#n" the older Mounted Charge, "Charge" the rider's stock Charge.
+            internal static NativeMountedControlKind KindOf(string slot)
+            {
+                if (slot == null) return NativeMountedControlKind.None;
+                if (slot.StartsWith(Control, StringComparison.Ordinal)) return NativeMountedControlKind.MountState;
+                if (slot.StartsWith("KMC_Mount#", StringComparison.Ordinal)) return NativeMountedControlKind.MountCompanion;
+                if (slot.StartsWith("KMC_Dismount#", StringComparison.Ordinal)) return NativeMountedControlKind.Dismount;
+                if (slot.StartsWith("KMC_Charge#", StringComparison.Ordinal)) return NativeMountedControlKind.MountedCharge;
+                return NativeMountedControlKind.None;
             }
 
             // KMC bindings on any current-world bar while the save serializes (after the leases).
@@ -173,7 +194,7 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var rider in candidates) rider.ObserveBar();
                 var scoped = candidates.Concat(Observed).Distinct().ToList();
                 foreach (var rider in scoped.Concat(Reserve).Distinct().ToList()) rider.Lease();
-                SerializedKmcSlots = CurrentWorld.Sum(r => r.Count());
+                SerializedKmcSlots = CurrentWorld.Sum(r => r.KmcCount());
                 foreach (var rider in scoped) rider.KmcRemove(clearSlots: false, interrupt: rider.World == Current);
                 Frame();
                 foreach (var rider in scoped) rider.ReleaseLeases();
@@ -219,6 +240,10 @@ namespace KingmakerMountedCombat.Tests
             internal bool InParty = true, OnRoster = true, FactLive, Autofill = true;
             internal string PetId = "horse-1";
             internal bool PetResolves = true;
+            // A mounted or faulted relationship still grants the public control (Dismount), whatever the pet link says.
+            internal bool RelationshipGrants;
+            // The rider's own stock Charge fact is available.
+            internal bool HasStockCharge = true;
             internal int DataVersion = 1;
             private readonly List<int> leases = new List<int>();
 
@@ -226,9 +251,12 @@ namespace KingmakerMountedCombat.Tests
 
             internal MountedControlPlacementIntent Intent => S.Intent;
             internal string Data => Control + "#" + DataVersion;
-            internal bool Desired => PetId != null && PetResolves;
+            internal bool Desired => RelationshipGrants || PetId != null && PetResolves;
             internal int Find() => Array.FindIndex(Slots, s => s != null && s.StartsWith(Control, StringComparison.Ordinal));
             internal int Count() => Slots.Count(s => s != null && s.StartsWith(Control, StringComparison.Ordinal));
+            internal int KmcCount() => Slots.Count(s => Service.KindOf(s) != NativeMountedControlKind.None);
+            // ResolveStockChargeForSlot: the rider's own stock Charge unless it is already on the bar.
+            internal string ResolveStockCharge() => HasStockCharge && !Slots.Contains("Charge") ? "Charge" : null;
 
             internal void Frame() => S.Frame();
 
@@ -377,7 +405,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 var incoming = new World();
                 var loaded = new Rider(Id, S, incoming) { InParty = InParty, OnRoster = OnRoster, PetId = PetId, PetResolves = PetResolves, Autofill = Autofill };
-                for (var i = 0; i < Slots.Length; i++) if (Slots[i] == null || !Slots[i].StartsWith(Control, StringComparison.Ordinal)) loaded.Slots[i] = Slots[i];
+                for (var i = 0; i < Slots.Length; i++) if (Service.KindOf(Slots[i]) == NativeMountedControlKind.None) loaded.Slots[i] = Slots[i];
                 S.Load(incoming, rows);
                 return loaded;
             }
@@ -1062,6 +1090,85 @@ namespace KingmakerMountedCombat.Tests
             var orphanRows = noPet.Save();
             TestRunner.True(orphanRows.Count == 0 && orphan.Find() == -1 && noPet.SerializedKmcSlots == 0,
                 "A reserve binding without a companion was recovered or serialized.");
+        }
+
+        private static void OlderReserveBarMigration()
+        {
+            foreach (var chargeAlreadyBound in new[] { false, true })
+            {
+                // An unobserved reserve rider of an older save: legacy Mount at 3, legacy Mounted Charge at 5, the public
+                // control at 9, its stock Charge available (optionally already at 7), no owned rows.
+                var service = new Service();
+                var reserve = new Rider("reserve", service, service.Current) { InParty = false, Autofill = false };
+                reserve.Slots[0] = "Attack";
+                reserve.Slots[3] = "KMC_Mount#0";
+                reserve.Slots[5] = "KMC_Charge#0";
+                reserve.Slots[9] = Control + "#0";
+                if (chargeAlreadyBound) reserve.Slots[7] = "Charge";
+                var rows = service.Save();                      // immediate city resave
+                var label = " (chargeAlreadyBound=" + chargeAlreadyBound + ")";
+                TestRunner.True(rows.Count(r => r.Actor == "reserve" && r.Kind == 6) == 1 && rows.Count(r => r.Actor == "reserve" && r.Kind == 6 && r.Index == 9) == 1 &&
+                    rows.Count(r => r.Actor == "reserve" && r.Kind == 7) == 1, "The resave did not keep the public slot at 9 over the legacy alias" + label + ".");
+                TestRunner.Equal(0, service.SerializedKmcSlots, "A KMC binding was on a bar during serialization" + label + ".");
+                if (chargeAlreadyBound)
+                    TestRunner.True(reserve.Slots[5] == null && reserve.Slots[7] == "Charge" && reserve.Slots.Count(s => s == "Charge") == 1,
+                        "The existing stock Charge moved or was duplicated" + label + ".");
+                else
+                    TestRunner.True(reserve.Slots[5] == "Charge" && reserve.Slots.Count(s => s == "Charge") == 1,
+                        "The legacy Mounted Charge did not become the stock Charge at 5" + label + ".");
+                TestRunner.True(reserve.Slots[3] == null && reserve.Slots[0] == "Attack", "The legacy alias stayed, or an unrelated slot changed" + label + ".");
+                // Reload and return: the public control at 9 once, the Charge where the migration put it.
+                var loaded = reserve.Load(rows);
+                loaded.Frame();
+                loaded.ToParty(); loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1 && loaded.Slots[3] == null, "The return did not restore one public control at 9" + label + ".");
+                TestRunner.True(loaded.Slots.Count(s => s == "Charge") == 1 && loaded.Slots[chargeAlreadyBound ? 7 : 5] == "Charge",
+                    "The stock Charge did not survive the reload once" + label + ".");
+            }
+            // Fallback: with no public binding, the first exact legacy Mount / Dismount supplies the slot.
+            var fallback = new Service();
+            var aliasOnly = new Rider("alias", fallback, fallback.Current) { InParty = false, Autofill = false };
+            aliasOnly.Slots[4] = "KMC_Dismount#0";
+            var aliasRows = fallback.Save();
+            TestRunner.True(aliasRows.Count(r => r.Kind == 6 && r.Index == 4) == 1 && aliasRows.Count(r => r.Kind == 6) == 1,
+                "The legacy alias did not supply the slot when no public binding existed.");
+            TestRunner.Equal(0, aliasOnly.KmcCount(), "The legacy alias stayed on the bar.");
+            // No stock Charge available: the legacy Mounted Charge is only cleared.
+            var noCharge = new Service();
+            var bare = new Rider("bare", noCharge, noCharge.Current) { InParty = false, Autofill = false, HasStockCharge = false };
+            bare.Slots[5] = "KMC_Charge#0";
+            noCharge.Save();
+            TestRunner.True(bare.Slots[5] == null && bare.KmcCount() == 0, "A legacy Mounted Charge without a stock Charge was not cleared.");
+        }
+
+        private static void FaultedRiderKeepsInterruptedSlot()
+        {
+            foreach (var reactivated in new[] { false, true })
+            {
+                // Pet A's control in slot 9; the pet link clears while the mounted / faulted relationship still grants
+                // Dismount; native cleanup invalidates slot 9; the live control is reconciled.
+                var rider = PlacedAt(9);
+                rider.RelationshipGrants = true;
+                rider.PetId = null; rider.PetResolves = false;
+                rider.NativeInvalidate(reactivated);
+                rider.Frame(); rider.Frame();
+                var label = " (reactivated=" + reactivated + ")";
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The still-entitled rider lost slot 9 after native cleanup" + label + ".");
+                var rows = rider.Save();
+                TestRunner.True(rows.Count(r => r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Kind == 6) == 1,
+                    "The save did not carry exactly one slot row at 9" + label + ".");
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The save scope changed the slot" + label + ".");
+                // Entitlement ends with the link still cleared: the arrangement retires and the slot is cleared.
+                rider.RelationshipGrants = false; rider.Frame(); rider.Frame();
+                TestRunner.True(rider.Find() == -1 && !rider.Intent.Has(rider.Id), "A cleared link after entitlement ended kept the slot" + label + ".");
+            }
+            // Control: the same entitled rider whose link names a different companion still retires the old slot.
+            var replaced = PlacedAt(9, "replaced");
+            replaced.RelationshipGrants = true;
+            replaced.PetId = "horse-2";
+            replaced.NativeInvalidate();
+            replaced.Frame(); replaced.Frame();
+            TestRunner.Equal(-1, replaced.Find(), "A different companion inherited slot 9 while the relationship granted the control.");
         }
 
         private static void RemovalAfterLeaseRelease()
