@@ -65,6 +65,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a save-scope lease does not restore a slot retired for a companion replaced during the scope", LeaseReleaseAfterCompanionChange);
             runner.Run("toolbar: reserve scan bookkeeping releases removed units and a disposed world, and never repeats a scan", ReserveScanLedgerLifetime);
             runner.Run("toolbar: a party rider's older alias survives a temporarily unresolved pet in update-first and save-first order", LegacyAliasWhilePetUnresolved);
+            runner.Run("toolbar: saving a live older alias before migration writes the chosen index once with unique archive keys", LiveAliasSaveFirst);
+            runner.Run("toolbar: a leased older alias is not restored for a companion that replaced the old one during the scope", AliasLeaseAfterCompanionChange);
+            runner.Run("toolbar: native cleanup of an inactive older alias before any update keeps its index for the same pet", AliasNativeCleanupFirst);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -192,9 +195,8 @@ namespace KingmakerMountedCombat.Tests
                     var owner = CurrentWorld.Single(r => r.Id == id);
                     if (!owner.InParty && !Intent.Revalidate(id, true, owner.OnRoster, owner.PetId)) continue;
                     if (!Intent.TryGetArrangement(id, out index)) continue;
-                    foreach (var r in MountedControlSlotPolicy.AbsentArrangementRows(index))
-                        if (r.Value != MountedControlSlotPolicy.SavedPlacementRecord || !rows.Any(x => x.Actor == id && x.Kind == r.Value))
-                            rows.Add(new SavedRow { Actor = id, Index = r.Key, Kind = r.Value });
+                    foreach (var r in MountedControlSlotPolicy.AbsentRowsAfterLive(index, rows.Where(x => x.Actor == id).Select(x => x.Kind)))
+                        rows.Add(new SavedRow { Actor = id, Index = r.Key, Kind = r.Value });
                 }
                 // The save scope over candidates and still-observed units (reserve riders' bindings are leased too).
                 AdmitReserve();
@@ -253,7 +255,7 @@ namespace KingmakerMountedCombat.Tests
             // The rider's own stock Charge fact is available.
             internal bool HasStockCharge = true;
             internal int DataVersion = 1;
-            private readonly List<int> leases = new List<int>();
+            private readonly List<KeyValuePair<int, NativeMountedControlKind>> leases = new List<KeyValuePair<int, NativeMountedControlKind>>();
 
             internal Rider(string id, Service service, World world) { Id = id; S = service; World = world; S.Riders.Add(this); }
 
@@ -361,16 +363,42 @@ namespace KingmakerMountedCombat.Tests
                 if (!FactLive) return;
                 var at = Find();
                 if (at >= 0 && Slots[at] == Data && Desired) { rows.Add(new SavedRow { Actor = Id, Index = at, Kind = MountedControlSlotPolicy.SavedMountState }); written.Add(Id); }
+                // A live older alias (bound to its leased shell) is written with its own kind, and it is the public binding.
+                for (var i = 0; i < Slots.Length && i <= 127; i++)
+                {
+                    var kind = Service.KindOf(Slots[i]);
+                    if (MountedControlSlotPolicy.RepairLiveSlot(kind) != MountedControlSlotRepair.MountState || !Desired) continue;
+                    var saved = kind == NativeMountedControlKind.MountCompanion ? MountedControlSlotPolicy.SavedMountCompanion : MountedControlSlotPolicy.SavedDismount;
+                    rows.Add(new SavedRow { Actor = Id, Index = i, Kind = saved });
+                    if (MountedControlSlotPolicy.IsPublicBindingRow(saved)) written.Add(Id);
+                }
                 if (S.Placed.Contains(Id)) rows.Add(new SavedRow { Actor = Id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
             }
 
-            internal void Lease() { var at = Find(); if (at >= 0) { leases.Add(at); Slots[at] = null; } }
+            // CaptureAndClearManagedHotbarSlots: every KMC binding (the public control and an older alias) is leased.
+            internal void Lease()
+            {
+                for (var i = 0; i < Slots.Length; i++)
+                {
+                    var kind = Service.KindOf(Slots[i]);
+                    if (kind == NativeMountedControlKind.None) continue;
+                    leases.Add(new KeyValuePair<int, NativeMountedControlKind>(i, kind));
+                    Slots[i] = null;
+                }
+            }
 
+            // ClearSerializationHotbarLeases: a leased binding returns while its fact is live; a public binding (the
+            // control or an alias standing for it) only while the slot is still the arrangement for this companion.
             internal void ReleaseLeases()
             {
-                foreach (var at in leases)
-                    if (Slots[at] == null && FactLive && World == S.Current && InParty && Intent.AllowsLeaseRestore(Id, at, PetId))
-                    { Slots[at] = Data; Intent.ObserveBound(Id, at, PetId); }
+                foreach (var lease in leases)
+                {
+                    var at = lease.Key;
+                    if (Slots[at] != null || !FactLive || World != S.Current || !InParty) continue;
+                    if (MountedControlSlotPolicy.IsPublicControlKind(lease.Value) && !Intent.AllowsLeaseRestore(Id, at, PetId)) continue;
+                    if (lease.Value == NativeMountedControlKind.MountState) { Slots[at] = Data; Intent.ObserveBound(Id, at, PetId); }
+                    else Slots[at] = (lease.Value == NativeMountedControlKind.MountCompanion ? "KMC_Mount#" : "KMC_Dismount#") + DataVersion;
+                }
                 leases.Clear();
             }
 
@@ -397,6 +425,23 @@ namespace KingmakerMountedCombat.Tests
                 FactLive = reactivated;
             }
 
+            // Native bad-slot cleanup of an older alias whose shell fact is gone: the production observer records the
+            // bar's chosen alias index (canonical precedence, companion rules; the load scope's records while fenced),
+            // then native empties the slot.
+            internal void NativeInvalidateAlias()
+            {
+                var at = Array.FindIndex(Slots, s => MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(s)) == MountedControlSlotRepair.MountState);
+                if (at < 0) return;
+                var kinds = Slots.Select(Service.KindOf).ToArray();
+                var chosen = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+                if (chosen >= 0 && kinds[chosen] != NativeMountedControlKind.MountState)
+                {
+                    if (!S.Accepts) S.Fence.AdmitOutgoingSurvivingBinding(S.Current, Id, chosen, PetId, Desired);
+                    else RecoverAlias();
+                }
+                Slots[at] = null;
+            }
+
             internal void AreaUnload()
             {
                 ObserveBar();
@@ -414,14 +459,14 @@ namespace KingmakerMountedCombat.Tests
             {
                 var mine = rows.Where(r => r.Actor == Id).ToList();
                 if (mine.Any(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord)) S.Placed.Add(Id);
-                var slotRow = mine.FirstOrDefault(r => r.Kind == MountedControlSlotPolicy.SavedMountState);
+                var slotRow = mine.FirstOrDefault(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind));
                 if (slotRow != null) { Intent.Seed(Id, slotRow.Index, loadedWorld); S.Placed.Add(Id); }
                 else if (mine.Any()) Intent.Seed(Id, MountedControlPlacementIntent.OffBar, loadedWorld);
             }
 
             internal void WriteRestoredSlot(List<SavedRow> rows)
             {
-                var slotRow = rows.FirstOrDefault(r => r.Actor == Id && r.Kind == MountedControlSlotPolicy.SavedMountState);
+                var slotRow = rows.FirstOrDefault(r => r.Actor == Id && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind));
                 if (slotRow != null && InParty && FactLive && Intent.AllowsSavedSlot(Id, slotRow.Index) && Slots[slotRow.Index] == null && Find() < 0)
                     Slots[slotRow.Index] = Data;
             }
@@ -1330,6 +1375,107 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!orphanRows.Any(r => r.Kind == 6) && orphan.KmcCount() == 0, "A cleared link recovered the alias index.");
             orphan.PetId = "horse-1"; orphan.PetResolves = true; cleared.Frame(); cleared.Frame();
             TestRunner.Equal(-1, orphan.Find(), "A later pet received the alias slot recovered from a cleared link.");
+        }
+
+        // MountedArchiveData.ValidateSlots' key: actor and index (one placement record per actor).
+        private static bool UniqueArchiveKeys(List<SavedRow> rows) =>
+            rows.Select(r => MountedControlSlotPolicy.SavedRowKey(r.Actor, r.Index, r.Kind)).Distinct().Count() == rows.Count;
+
+        private static void LiveAliasSaveFirst()
+        {
+            foreach (var alias in new[] { "KMC_Mount#1", "KMC_Dismount#1" })
+            {
+                // An eligible party rider, a live exact alias at 9 bound to its leased shell, no canonical binding and no
+                // placement record; the archive header runs before any bar repair.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                rider.Slots[0] = "Attack";
+                rider.Slots[9] = alias;
+                var rows = service.Save();
+                var label = " (" + alias + ")";
+                TestRunner.True(UniqueArchiveKeys(rows), "The archive rows repeat an actor/index key" + label + ".");
+                TestRunner.True(rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                    rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind) && r.Index == 9) == 1 && rows.Count(r => r.Kind == 7) == 1,
+                    "The save did not hold one public binding at 9 and one placement record" + label + ".");
+                service.Frame(); // the update after the scope migrates the restored alias
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.KmcCount() == 1, "The alias did not migrate to one public control at 9" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.FactLive = false;
+                loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 9 && loaded.Count() == 1, "The reload did not restore one public binding at 9" + label + ".");
+            }
+        }
+
+        private static void AliasLeaseAfterCompanionChange()
+        {
+            // Pet A temporarily unresolved, its older Mount alias at 9; save before the first update; pet B (eligible)
+            // replaces A while the alias is leased; the scope releases; reconcile and resave.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+            rider.Slots[0] = "Attack";
+            rider.Slots[9] = "KMC_Mount#0";
+            rider.Save(() => { rider.PetId = "horse-2"; rider.PetResolves = true; });
+            TestRunner.True(rider.Slots[9] == null && rider.KmcCount() == 0, "The leased alias came back for pet B.");
+            service.Frame(); service.Frame();
+            TestRunner.True(rider.Find() == -1 && rider.KmcCount() == 0 && rider.Slots[0] == "Attack", "Pet B received pet A's slot 9.");
+            var rows = service.Save();
+            TestRunner.True(!rows.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The resave carried a public binding for pet B.");
+            // Control: pet A retained and now resolving gets exactly one public binding back at 9.
+            var same = new Service();
+            var kept = new Rider("rider", same, same.Current) { PetResolves = false, Autofill = false };
+            kept.Slots[9] = "KMC_Mount#0";
+            kept.Save(() => { kept.PetResolves = true; });
+            same.Frame(); same.Frame();
+            TestRunner.True(kept.Find() == 9 && kept.Count() == 1 && kept.KmcCount() == 1, "The same companion did not get one public binding at 9.");
+            TestRunner.True(same.Save().Count(r => r.Kind == 6 && r.Index == 9) == 1, "The same companion's resave lost the row at 9.");
+        }
+
+        private static void AliasNativeCleanupFirst()
+        {
+            foreach (var alias in new[] { "KMC_Mount#0", "KMC_Dismount#0" })
+            {
+                // No owned rows, an unresolved linked pet, an inactive older alias at 9; native cleanup reaches it before
+                // any update or capture and empties the slot.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+                rider.Slots[0] = "Attack";
+                rider.Slots[9] = alias;
+                rider.NativeInvalidateAlias();
+                TestRunner.True(rider.Slots[9] == null, "The fixture did not empty the alias slot.");
+                var label = " (" + alias + ")";
+                var rows = service.Save();
+                TestRunner.True(rows.Count(r => r.Kind == 6 && r.Index == 9) == 1 && UniqueArchiveKeys(rows), "The resave lost the alias index" + label + ".");
+                rider.PetResolves = true; service.Frame(); service.Frame();
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1 && rider.Slots[0] == "Attack", "The same pet's return did not restore one public binding at 9" + label + ".");
+            }
+            // Control: a canonical binding elsewhere wins over the alias.
+            var canonical = new Service();
+            var both = new Rider("rider", canonical, canonical.Current) { PetResolves = false, Autofill = false };
+            both.Slots[4] = Control + "#0";
+            both.Slots[9] = "KMC_Mount#0";
+            both.NativeInvalidateAlias();
+            TestRunner.True(!canonical.Intent.Has("rider"), "The alias was recorded although a canonical binding was on the bar.");
+            both.PetResolves = true; canonical.Frame(); canonical.Frame();
+            TestRunner.True(both.Find() == 4 && both.Count() == 1 && both.Slots[9] == null, "The canonical binding did not win over the alias.");
+            // Control: a cleared pet link recovers nothing.
+            var cleared = new Service();
+            var orphan = new Rider("rider", cleared, cleared.Current) { PetId = null, PetResolves = false, Autofill = false };
+            orphan.Slots[9] = "KMC_Mount#0";
+            orphan.NativeInvalidateAlias();
+            TestRunner.True(!cleared.Save().Any(r => r.Kind == 6), "A cleared link recovered the alias index.");
+            orphan.PetId = "horse-1"; orphan.PetResolves = true; cleared.Frame(); cleared.Frame();
+            TestRunner.Equal(-1, orphan.Find(), "A later pet received the alias slot.");
+            // Load fence: cleanup while a selected load fences the world, then the load is abandoned.
+            var fenced = new Service();
+            var outgoing = new Rider("rider", fenced, fenced.Current) { PetResolves = false, Autofill = false };
+            outgoing.Slots[9] = "KMC_Dismount#0";
+            var owner = new object();
+            fenced.BeginLoad(owner);
+            outgoing.NativeInvalidateAlias();
+            TestRunner.True(!fenced.Intent.Has("rider"), "The fenced world wrote into the live records.");
+            TestRunner.True(fenced.AbandonLoad(owner), "The owning scope could not abandon its load.");
+            outgoing.PetResolves = true; fenced.Frame(); fenced.Frame();
+            TestRunner.True(outgoing.Find() == 9 && outgoing.Count() == 1, "The abandoned load lost the alias index recorded while fenced.");
         }
 
         private static void RemovalAfterLeaseRelease()

@@ -60,6 +60,30 @@ namespace KingmakerMountedCombat.Domain
             return NativeMountedControlKind.None;
         }
 
+        // A binding that stands for the rider's one public Mount / Dismount control: the public control itself, or an
+        // older exact Mount or Dismount alias that repair turns into it.
+        public static bool IsPublicControlKind(NativeMountedControlKind kind) =>
+            kind == NativeMountedControlKind.MountState || RepairLiveSlot(kind) == MountedControlSlotRepair.MountState;
+
+        // An archive row that restores as the rider's public control: kind 6, or an older Mount / Dismount kind (the
+        // live writer emits the alias kind while a live alias awaits migration, or the legacy schema's shell kinds).
+        public static bool IsPublicBindingRow(int savedKind) =>
+            savedKind != SavedPlacementRecord && RestoreSavedSlot(savedKind) == MountedControlSlotRepair.MountState;
+
+        // The rows an absent arrangement adds for one actor after the live writer ran, given the kinds it already wrote
+        // for that actor. None when the live writer already wrote the actor's public binding (the effective choice; the
+        // archive keys rows by actor and index, so the same choice is never written twice); otherwise
+        // AbsentArrangementRows, without a second placement record.
+        public static IList<KeyValuePair<int, int>> AbsentRowsAfterLive(int index, IEnumerable<int> liveKindsForActor)
+        {
+            var live = liveKindsForActor == null ? new List<int>() : new List<int>(liveKindsForActor);
+            var result = new List<KeyValuePair<int, int>>();
+            if (live.Exists(IsPublicBindingRow)) return result;
+            foreach (var row in AbsentArrangementRows(index))
+                if (row.Value != SavedPlacementRecord || !live.Contains(SavedPlacementRecord)) result.Add(row);
+            return result;
+        }
+
         // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
         // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
         // -1 when the bar holds neither.

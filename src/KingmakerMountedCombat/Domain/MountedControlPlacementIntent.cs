@@ -435,6 +435,17 @@ namespace KingmakerMountedCombat.Domain
             return outgoingIntent.ObserveNativeSlotInvalidated(actorId, slotIndex, petId, controlDesired);
         }
 
+        // An older Mount / Dismount alias on an outgoing-world rider's bar that native cleanup is about to empty while
+        // this fence holds: recovered into the outgoing records (with their placement record) by the same rule as the
+        // live records, so an abandoned load keeps the chosen slot and a replaced world drops it.
+        public bool AdmitOutgoingSurvivingBinding(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired)
+        {
+            if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
+            if (!outgoingIntent.AdmitSurvivingBinding(actorId, slotIndex, petId, controlDesired)) return false;
+            outgoingPlaced?.Add(actorId);
+            return true;
+        }
+
         public void Reset() => Release();
 
         private void Release() { fencedWorld = null; owner = null; outgoingIntent = null; outgoingPlaced = null; }

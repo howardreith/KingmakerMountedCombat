@@ -198,6 +198,23 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   reserve rule: a different companion, or a cleared link while the rider no longer gets the control, recovers
   nothing, and an existing arrangement wins.
 
+**Round 10 additions.**
+- *One row for a live alias saved before migration (R10-F1):* the live writer now counts an older Mount / Dismount
+  row it writes (kind 1 or 2, still restored as the public control) as the actor's public binding
+  (`MountedControlSlotPolicy.IsPublicBindingRow`). The remembered-row writer adds rows only through
+  `AbsentRowsAfterLive`, which adds nothing when the live writer already wrote that binding and never adds a second
+  placement record. The archive gets the chosen index once and one placement record. Its duplicate-key validation is
+  unchanged; `Test-CityArchiveRowBound.ps1` checks both alias kinds through the production codec, with a duplicate
+  control refused.
+- *Leased aliases honor retirement (R9-F2):* the save-scope lease release applies `AllowsLeaseRestore` to every
+  public binding (`IsPublicControlKind`): the canonical control and an older Mount / Dismount alias. A slot retired for
+  a replaced companion stays empty. The same companion's alias comes back and the next update migrates it.
+- *Native cleanup of an inactive alias (R9-F4):* the `IsBad` observer now also handles an older exact Mount /
+  Dismount alias. Before native empties it, the bar's chosen alias index is recorded through `RecoverLegacyAlias`,
+  with the same precedence (a canonical binding on the bar wins), companion rules and existing-arrangement rule.
+  While a selected load fences the world, the index goes to the load scope's outgoing records
+  (`MountedControlLoadFence.AdmitOutgoingSurvivingBinding`).
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -330,12 +347,17 @@ is exercised only in native play. The controller gate then passed on `a3462521` 
 focused 5/5. A mutation run then reverted three domain decisions: the null-blueprint rule, the lease-restore check and
 the ledger's pruning and release. It exited 1 (FAIL lines truncated in the tool output), and the decisions were
 restored before commit. The alias recovery's call sites are service code, mirrored by the toolbar double. The
-controller gate on the round-9 commit is the result of record.
-| components (`bin\Tests`) | 1458/0 | 38 toolbar, 6 city-roster and 3 downed-target tests |
+controller gate then passed on `c856b4e2` in 45.9 s. Round 10: one local Fast run (with build) on the fixed tree
+passed: components 1461/0 with the three new tests passing, Validate-Source 153/0, archive bound 5/0 with the two new
+alias-codec checks, focused 5/5. A mutation run then made two decisions canonical-only again: `AbsentRowsAfterLive`'s
+public-binding check and `IsPublicControlKind`. It exited 1 (FAIL lines truncated), and the decisions were restored
+before commit. The toolbar double models the live alias writer, alias leases and alias cleanup; the native `IsBad`
+call order on older bars is not exercised offline. The controller gate on the round-10 commit is the result of record.
+| components (`bin\Tests`) | 1461/0 | 41 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
-| `Test-CityArchiveRowBound.ps1` (via wrapper) | 3/0 | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
+| `Test-CityArchiveRowBound.ps1` (via wrapper) | 5/0 (adds both live-alias codec checks) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
 | `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 

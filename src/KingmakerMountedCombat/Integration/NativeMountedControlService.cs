@@ -1957,7 +1957,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ObserveInvalidatedPublicSlot(MechanicActionBarSlotAbility slot)
         {
             if (disposed || mountStateAbility == null || slot == null ||
-                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility)) return;
+                !MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(slot.Ability?.Blueprint))) return;
             var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
             // Only a current-world rider's own bar: the exact slot object must still be on it (native reads it from the
             // array before replacing it); any other slot object is ignored.
@@ -1967,6 +1967,23 @@ namespace KingmakerMountedCombat.Integration
             if (index < 0) return;
             var petId = unit.Descriptor?.PetUniqueId;
             var desired = ShouldLease(unit, NativeMountedControlKind.MountState);
+            if (!ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility))
+            {
+                // An older exact Mount / Dismount alias whose shell fact is gone (for example while the pet does not
+                // resolve): its index is the chosen slot, recorded before native empties it, with the migration's
+                // precedence (a canonical binding on the bar wins) and the companion-loss rules. A fenced outgoing
+                // world records it with the load scope's outgoing records.
+                var at = LegacyAliasIndex(slots);
+                if (at < 0) return;
+                if (!ArrangementsAccepted)
+                {
+                    if (loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, at, petId, desired))
+                        NativeSlotInvalidationCount++;
+                    return;
+                }
+                if (RecoverLegacyAlias(unit, slots)) NativeSlotInvalidationCount++;
+                return;
+            }
             if (!ArrangementsAccepted)
             {
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
@@ -2055,17 +2072,27 @@ namespace KingmakerMountedCombat.Integration
         // alias is emptied, so its index is recorded first (update-first and save-first alike) as a return from absence,
         // by the reserve rule: a different companion, or a cleared link while the rider no longer gets the control,
         // recovers nothing; an arrangement already known wins.
-        private void RecoverLegacyAlias(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        private bool RecoverLegacyAlias(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
             var id = unit?.UniqueId;
-            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
-            var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
-            var at = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
-            if (at < 0 || kinds[at] == NativeMountedControlKind.MountState) return;
+            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return false;
+            var at = LegacyAliasIndex(slots);
+            if (at < 0) return false;
             if (!placementIntent.AdmitSurvivingBinding(id, at, unit.Descriptor?.PetUniqueId,
-                ShouldLease(unit, NativeMountedControlKind.MountState))) return;
+                ShouldLease(unit, NativeMountedControlKind.MountState))) return false;
             placementRecorded.Add(id);
             logger.Info("Older Mount / Dismount binding recorded as the chosen slot: unitId=" + id + "; slot=" + at + ".");
+            return true;
+        }
+
+        // The index of the bar's first exact older Mount / Dismount alias, or -1 when a canonical public binding is on
+        // the bar (it wins) or no alias is.
+        private int LegacyAliasIndex(MechanicActionBarSlot[] slots)
+        {
+            if (slots == null) return -1;
+            var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
+            var at = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+            return at < 0 || kinds[at] == NativeMountedControlKind.MountState ? -1 : at;
         }
 
         // Disable and disposal: every exact KMC binding on a current-world rider that is not reconciled is cleared too.
@@ -2438,13 +2465,11 @@ namespace KingmakerMountedCombat.Integration
                 if (written.Contains(actorId) || !placementIntent.TryGetArrangement(actorId, out index) ||
                     !MountedSaveData.ActorId(actorId) ||
                     characters.Count(unit => unit != null && unit.UniqueId == actorId) != 1) continue;
-                foreach (var row in MountedControlSlotPolicy.AbsentArrangementRows(index))
-                {
-                    // A live rider whose control waits to return already wrote its placement record: one per actor.
-                    if (row.Value == MountedControlSlotPolicy.SavedPlacementRecord &&
-                        result.Any(saved => saved.ActorId == actorId && saved.Kind == MountedControlSlotPolicy.SavedPlacementRecord)) continue;
+                // The live writer's rows for this actor decide: a public binding it already wrote (kind 6, or a live
+                // older alias awaiting migration) is the choice, and one placement record per actor.
+                var liveKinds = result.Where(saved => saved.ActorId == actorId).Select(saved => saved.Kind).ToArray();
+                foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(index, liveKinds))
                     result.Add(new SavedMountedSlot { ActorId = actorId, Index = row.Key, Kind = row.Value });
-                }
             }
         }
 
@@ -2487,7 +2512,8 @@ namespace KingmakerMountedCombat.Integration
                         ? (int)ResolveMountStateIntent(unit) : (int)kind;
                     if (legacySchema && savedKind > MountedControlSlotPolicy.SavedMountPrimary) continue;
                     result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = savedKind });
-                    if (kind == NativeMountedControlKind.MountState && unit.UniqueId != null) written.Add(unit.UniqueId);
+                    // A live older Mount / Dismount alias is the public binding too (it restores as the public control).
+                    if (MountedControlSlotPolicy.IsPublicBindingRow(savedKind) && unit.UniqueId != null) written.Add(unit.UniqueId);
                 }
                 // The one-placement record travels with a live public control only, so a disabled or removed KMC writes none.
                 var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
@@ -2637,9 +2663,10 @@ namespace KingmakerMountedCombat.Integration
                     continue;
                 }
                 var fact = lease.Unit.Descriptor?.Abilities?.GetAbility(lease.Blueprint);
-                // The public control goes back only while this slot is still the rider's arrangement for its current
-                // companion: the update that ended the scope may have retired it (companion removed or replaced).
-                var arrangementHolds = !ReferenceEquals(lease.Blueprint, mountStateAbility) ||
+                // The public control, or an older Mount / Dismount alias standing for it, goes back only while this slot
+                // is still the rider's arrangement for its current companion: the update that ended the scope may have
+                // retired it (companion removed or replaced).
+                var arrangementHolds = !MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(lease.Blueprint)) ||
                     placementIntent.AllowsLeaseRestore(lease.Unit.UniqueId, lease.Index, lease.Unit.Descriptor?.PetUniqueId);
                 if (restore && fact != null && fact.Active && arrangementHolds)
                 {
