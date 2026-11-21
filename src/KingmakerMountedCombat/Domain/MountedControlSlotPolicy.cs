@@ -130,6 +130,11 @@ namespace KingmakerMountedCombat.Domain
         public static bool IsNativeRebind(NativeMountedControlKind reportedKind, NativeMountedControlKind kindNow, bool nowHoldsLiveFactData) =>
             reportedKind != NativeMountedControlKind.None && kindNow == reportedKind && nowHoldsLiveFactData;
 
+        // A native report for a canonical slot counts for the arrangement only when that slot is the bar's selected public
+        // binding (RecoveredPublicSlot: the first canonical binding); a report for a secondary copy never replaces it.
+        public static bool IsSelectedPublicReport(int selectedIndex, int reportedIndex) =>
+            reportedIndex >= 0 && selectedIndex == reportedIndex;
+
         // A deferred native observation applies only in the player world that produced it and only while the reporting
         // rider instance is still on that world's roster; work from a replaced world is discarded.
         public static bool DeferredObservationApplies(object originWorld, object currentWorld, bool riderStillOnRoster) =>

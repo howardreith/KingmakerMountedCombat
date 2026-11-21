@@ -289,6 +289,21 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   scope's outgoing records (`ObserveOutgoingCleanupOutcome`). An abandoned load returns the live state, so a later
   removal stays the player's, and a completed replacement drops it.
 
+**Round 15 additions.**
+- *Canonical choice survives a save between native reads (R14-F2):* at a boundary, a visible older alias goes
+  through `ObserveAliasAtBoundary`. That never overrides a chosen slot already interrupted at another index, for
+  example the canonical slot `GetSlot` emptied a moment earlier. An alias-only bar and a returned alias are still
+  recognized.
+- *First of two canonical bindings (R15-F1):* a native report for a canonical slot counts only when that slot is the
+  bar's selected public binding (`MountedControlSlotPolicy.IsSelectedPublicReport`). `ObserveNativeSlotInvalidated`
+  also never replaces a chosen slot already interrupted at another index. A cleanup pass, or `GetSlot` calls in
+  either order, keeps the first canonical index, as capture before cleanup would. A single manually moved shortcut
+  (a live arrangement) is still recognized at its new slot.
+- *Disabled save isolation (R15-F2):* while disabled, bar observation, absence recording, alias recovery and lease
+  release record nothing; save sanitation still leases and clears every KMC binding. A disabled selected load also
+  clears any live placement records (`MountedControlLoadFence.Begin` with `controlsActive` false), so the next world
+  starts with its own arrangement.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -455,9 +470,16 @@ failed exactly the five targeted regressions. All mutations were reverted. The c
 `tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1477/0, assembly contracts 822/0, archive
 bound 9/0, focused 5/5. A combined mutation run then reverted five decisions: in the domain, the interrupted-alias
 rule, the occupied give-up, the disabled fence and the outgoing rebind; in the double, the placement record on
-canonical emptying. It failed exactly the five new regressions. All mutations were reverted. The controller gate on
-the round-14 commit is the result of record.
-| components (`bin\Tests`) | 1477/0 | 57 toolbar, 6 city-roster and 3 downed-target tests |
+canonical emptying. It failed exactly the five new regressions. All mutations were reverted. The controller gate then
+passed on `83c2aaad` in 56.4 s. Round 15: one local run on the fixed tree, with PASS lines temporarily silenced in
+`tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1480/0, assembly contracts 822/0, archive
+bound 9/0, focused 5/5. A combined mutation run then reverted the alias-at-boundary rule, the
+interrupted-choice rule, the selected-report rule and the disabled-load clearing, and in the double the disabled
+observation guards. It failed exactly four regressions: the three new ones and round 14's mixed cleanup pass, which
+now relies on the same interrupted-choice rule. Each test stops at its first failed assertion, so later sub-cases
+(such as the 9-then-3 order) were not separately exercised under mutation. All mutations were reverted. The
+controller gate on the round-15 commit is the result of record.
+| components (`bin\Tests`) | 1480/0 | 60 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 822/0 (adds the `IsBad` override, `CleanupBadSlots` token and rebind-shape rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

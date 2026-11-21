@@ -101,10 +101,14 @@ namespace KingmakerMountedCombat.Domain
         // update included), and its emptying is a temporary absence, whatever the fact's state by the next update.
         // The companion identity is checked first (RetireOnCompanionLoss), before anything could overwrite the stored
         // pet link, so a later companion cannot inherit the slot. Returns true when the slot was remembered.
+        // A chosen slot already interrupted in this absence (the first public binding native cleanup emptied, for example
+        // the first of two canonical bindings in one pass) wins over a later report for another slot: only a live
+        // arrangement (a move since the last observation) is replaced by the reported slot.
         public bool ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId, bool controlDesired)
         {
             if (actorId == null || slotIndex < 0) return false;
             if (RetireOnCompanionLoss(actorId, petId, controlDesired, true)) return false;
+            if (HoldsInterruptedChoiceElsewhere(actorId, slotIndex)) return false;
             ObserveBound(actorId, slotIndex, petId);
             ObserveAbsent(actorId, MountedControlAbsence.Temporary);
             return true;
@@ -135,12 +139,24 @@ namespace KingmakerMountedCombat.Domain
             Entry entry;
             if (actorId == null || aliasIndex < 0) return false;
             if (!entries.TryGetValue(actorId, out entry)) return AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
-            if (entry.Interrupted && entry.Index != aliasIndex)
-            {
-                RetireOnCompanionLoss(actorId, petId, controlDesired, true);
-                return false;
-            }
             return ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired);
+        }
+
+        private bool HoldsInterruptedChoiceElsewhere(string actorId, int slotIndex)
+        {
+            Entry entry;
+            return entries.TryGetValue(actorId, out entry) && entry.Interrupted && entry.Index >= 0 && entry.Index != slotIndex;
+        }
+
+        // At a boundary, the bar's visible public binding is an older alias (no canonical binding on the bar). It is the
+        // player's current choice (for example an alias a save scope returned), unless a chosen slot is already
+        // interrupted elsewhere in this absence (the canonical slot native cleanup emptied a moment earlier): that
+        // canonical choice wins over the secondary alias.
+        public void ObserveAliasAtBoundary(string actorId, int aliasIndex, bool alreadyPlaced, string petId)
+        {
+            if (actorId == null || aliasIndex < 0) return;
+            if (HoldsInterruptedChoiceElsewhere(actorId, aliasIndex)) return;
+            ObserveAtBoundary(actorId, true, aliasIndex, alreadyPlaced, petId);
         }
 
         // The remembered slot now belongs to another binding (a save boundary found it occupied): the shortcut is off the
@@ -432,6 +448,8 @@ namespace KingmakerMountedCombat.Domain
         {
             if (!controlsActive)
             {
+                // Nothing of the outgoing world may survive into the incoming one either.
+                intent?.Clear(); placed?.Clear();
                 Release();
                 return;
             }

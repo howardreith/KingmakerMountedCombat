@@ -1986,6 +1986,8 @@ namespace KingmakerMountedCombat.Integration
                 pending.AliasIndex = LegacyAliasIndex(slots);
                 if (pending.AliasIndex < 0) return;
             }
+            // A secondary canonical copy (not the bar's selected public binding) never replaces the choice.
+            else if (!MountedControlSlotPolicy.IsSelectedPublicReport(PublicBindingIndex(slots), index)) return;
             // Inside native CleanupBadSlots on this bar the outcome is not decided yet: native rebinds the slot to a live
             // fact of the same blueprint, or empties it. It is resolved when that call returns (EndNativeBadSlotCleanup).
             // GetSlot always empties the slot, so it is applied now.
@@ -2177,7 +2179,7 @@ namespace KingmakerMountedCombat.Integration
         private bool RecoverLegacyAlias(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
             var id = unit?.UniqueId;
-            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return false;
+            if (id == null || slots == null || mountStateAbility == null || !enabled || !ArrangementsAccepted) return false;
             var at = LegacyAliasIndex(slots);
             if (at < 0) return false;
             if (!placementIntent.AdmitSurvivingBinding(id, at, unit.Descriptor?.PetUniqueId,
@@ -2279,7 +2281,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var id = unit?.UniqueId;
             var slots = unit?.UISettings?.Slots;
-            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
+            // A disabled service (for example its save scope still sanitizing surviving bindings) records nothing.
+            if (id == null || slots == null || mountStateAbility == null || !enabled || !ArrangementsAccepted) return;
             // A removed or replaced companion is retired before the boundary observation could overwrite its identity.
             if (RetireOnCompanionLoss(unit)) return;
             // An older alias stands for the public control (archive capture can precede the first update).
@@ -2290,13 +2293,17 @@ namespace KingmakerMountedCombat.Integration
             // placed also satisfies the one-time placement (no autofill copy may follow it).
             var bound = PublicBindingIndex(slots);
             if (bound >= 0) placementRecorded.Add(id);
-            placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
-                unit.Descriptor?.PetUniqueId);
+            // A surviving older alias never overrides a canonical choice already interrupted elsewhere.
+            if (bound >= 0 && !ReferenceEquals((slots[bound] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility))
+                placementIntent.ObserveAliasAtBoundary(id, bound, placementRecorded.Contains(id), unit.Descriptor?.PetUniqueId);
+            else
+                placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
+                    unit.Descriptor?.PetUniqueId);
         }
 
         private void RecordAbsence(UnitEntityData unit, MountedControlAbsence absence)
         {
-            if (unit?.UniqueId != null && ArrangementsAccepted) placementIntent.ObserveAbsent(unit.UniqueId, absence);
+            if (unit?.UniqueId != null && enabled && ArrangementsAccepted) placementIntent.ObserveAbsent(unit.UniqueId, absence);
         }
 
         // This exact unit instance is one of the current world's player characters: in the party, its detached part, or
@@ -2818,7 +2825,7 @@ namespace KingmakerMountedCombat.Integration
                         lease.Index);
                     // The public control, or the older alias standing for it, is live in its slot again: a removal from now
                     // on is the player's (before the alias's migration too).
-                    if (MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(lease.Blueprint)) && lease.Unit.UniqueId != null)
+                    if (enabled && MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(lease.Blueprint)) && lease.Unit.UniqueId != null)
                         placementIntent.ObserveBound(lease.Unit.UniqueId, lease.Index, lease.Unit.Descriptor?.PetUniqueId);
                 }
             }

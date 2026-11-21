@@ -84,6 +84,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a slot given up as occupied at a save stays given up in the continuing game and after reload", OccupiedSlotGivenUpEverywhere);
             runner.Run("toolbar: a disabled service arms no load fence, keeps no outgoing world and records no native cleanup", DisabledLifecycle);
             runner.Run("toolbar: a native rebind during a fenced load is the live state an abandoned load returns", FencedRebindAbandoned);
+            runner.Run("toolbar: a save between native reads of a canonical slot and an older alias keeps the canonical index", SaveBetweenNativeReads);
+            runner.Run("toolbar: cleanup of two canonical bindings keeps the first, in one pass or slot by slot in either order", TwoCanonicalCleanup);
+            runner.Run("toolbar: a save while disabled sanitizes without recording intent; another world starts with its own", DisabledSaveIsolation);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -110,7 +113,7 @@ namespace KingmakerMountedCombat.Tests
             internal IEnumerable<Rider> Reserve => CurrentWorld.Where(r => !r.InParty && r.OnRoster);
             internal void AdmitReserve()
             {
-                if (!Accepts) return;
+                if (!Enabled || !Accepts) return;
                 foreach (var reserve in Reserve.ToList())
                 {
                     if (Observed.Contains(reserve) || !Scanned.Add(reserve)) continue;
@@ -389,11 +392,16 @@ namespace KingmakerMountedCombat.Tests
 
             internal void ObserveBar()
             {
+                if (!S.Enabled) return;            // a disabled service records nothing
                 if (RetireOnPetChange()) return;
                 RecoverAlias();
                 var bound = PublicIndex();
                 if (bound >= 0) S.Placed.Add(Id); // an observed public binding satisfies the one-time placement
-                Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
+                // A surviving older alias never overrides a canonical choice already interrupted elsewhere.
+                if (bound >= 0 && Service.KindOf(Slots[bound]) != NativeMountedControlKind.MountState)
+                    Intent.ObserveAliasAtBoundary(Id, bound, S.Placed.Contains(Id), PetId);
+                else
+                    Intent.ObserveAtBoundary(Id, FactLive, bound, S.Placed.Contains(Id), PetId);
             }
 
             // RecoverLegacyAlias: an older exact Mount / Dismount alias (no canonical public binding) is recorded as the
@@ -413,6 +421,7 @@ namespace KingmakerMountedCombat.Tests
             // ClassifyArrangementsForCapture for a candidate.
             internal void Classify()
             {
+                if (!S.Enabled) return;            // CapturePersistentSlots classifies only while enabled
                 ObserveBar();
                 if (FactLive)
                 {
@@ -472,7 +481,7 @@ namespace KingmakerMountedCombat.Tests
                     if (lease.Value == NativeMountedControlKind.MountState) Slots[at] = Data;
                     else Slots[at] = (lease.Value == NativeMountedControlKind.MountCompanion ? "KMC_Mount#" : "KMC_Dismount#") + DataVersion;
                     // The public control, or the alias standing for it, is live in its slot again.
-                    if (MountedControlSlotPolicy.IsPublicControlKind(lease.Value)) Intent.ObserveBound(Id, at, PetId);
+                    if (S.Enabled && MountedControlSlotPolicy.IsPublicControlKind(lease.Value)) Intent.ObserveBound(Id, at, PetId);
                 }
                 leases.Clear();
             }
@@ -481,7 +490,7 @@ namespace KingmakerMountedCombat.Tests
             internal void KmcRemove(bool clearSlots, bool interrupt)
             {
                 FactLive = false;
-                if (interrupt) Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
+                if (interrupt && S.Enabled) Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary);
                 if (clearSlots) { var at = Find(); if (at >= 0) Slots[at] = null; }
             }
 
@@ -498,6 +507,17 @@ namespace KingmakerMountedCombat.Tests
                     Slots[at] = null;
                 }
                 FactLive = reactivated;
+            }
+
+            // Native GetSlot(index) empties one bad canonical slot; the report counts only for the bar's selected public
+            // binding (IsSelectedPublicReport), so a secondary copy never replaces the choice.
+            internal void NativeInvalidateAt(int index)
+            {
+                if (Service.KindOf(Slots[index]) != NativeMountedControlKind.MountState) return;
+                var selected = MountedControlSlotPolicy.IsSelectedPublicReport(PublicIndex(), index);
+                if (selected && S.Enabled && S.Accepts && !RetireOnPetChange() &&
+                    Intent.ObserveNativeCleanupOutcome(Id, index, PetId, Desired, false)) S.Placed.Add(Id);
+                Slots[index] = null;
             }
 
             // One native CleanupBadSlots pass over a mixed bar whose public facts are all inactive: it empties each bad
@@ -2027,6 +2047,96 @@ namespace KingmakerMountedCombat.Tests
             replaced.InstallAndRestore(incoming, new List<SavedRow>());
             reserve.ToParty(); replaced.Frame(); replaced.Frame();
             TestRunner.Equal(-1, reserve.Find(), "The completed replacement took the outgoing world's rebind.");
+        }
+
+        private static Rider MixedOlderBar(Service service)
+        {
+            // A stale canonical binding at 4 and a stale older Mount alias at 9; the pet temporarily does not resolve.
+            var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+            rider.Slots[4] = Control + "#0";
+            rider.Slots[9] = "KMC_Mount#0";
+            return rider;
+        }
+
+        private static void SaveBetweenNativeReads()
+        {
+            // Native GetSlot empties only the canonical slot 4; a save starts before native reads the alias at 9.
+            var service = new Service();
+            var rider = MixedOlderBar(service);
+            rider.NativeInvalidateAt(4);
+            TestRunner.True(rider.Slots[4] == null && Service.KindOf(rider.Slots[9]) == NativeMountedControlKind.MountCompanion, "The fixture is not 4 emptied, 9 surviving.");
+            var rows = service.Save();
+            TestRunner.True(rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 4, "The save replaced the canonical index 4 with the alias.");
+            var loaded = rider.Load(rows);
+            loaded.Frame();
+            loaded.PetResolves = true; loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == 4 && loaded.Count() == 1 && loaded.Slots[9] == null, "The reload did not restore one shortcut at 4.");
+            // Controls: the full pass (MixedCleanupPassKeepsCanonical) and the alias-only bar (AliasNativeCleanupFirst)
+            // still hold; the continuing world returns the shortcut at 4 too.
+            var continuing = new Service();
+            var stays = MixedOlderBar(continuing);
+            stays.NativeInvalidateAt(4);
+            continuing.Save();
+            stays.PetResolves = true; continuing.Frame(); continuing.Frame();
+            TestRunner.True(stays.Find() == 4 && stays.Count() == 1, "The continuing world did not return one shortcut at 4.");
+        }
+
+        private static void TwoCanonicalCleanup()
+        {
+            foreach (var order in new[] { "pass", "3-then-9", "9-then-3" })
+            {
+                // Canonical bindings at 3 and 9; the same pet becomes temporarily unavailable; native cleanup empties both
+                // before capture.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { FactLive = true, Autofill = false };
+                service.Placed.Add("rider");
+                rider.Slots[3] = rider.Data;
+                rider.Slots[9] = rider.Data;
+                rider.PetResolves = false; rider.FactLive = false;
+                if (order == "pass") rider.NativeCleanupPass();
+                else if (order == "3-then-9") { rider.NativeInvalidateAt(3); rider.NativeInvalidateAt(9); }
+                else { rider.NativeInvalidateAt(9); rider.NativeInvalidateAt(3); }
+                TestRunner.True(rider.Slots[3] == null && rider.Slots[9] == null, "The fixture did not empty both slots (" + order + ").");
+                var rows = service.Save();
+                TestRunner.True(rows.Count(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) == 1 &&
+                    rows.Single(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Index == 3, "The save did not keep the first canonical index 3 (" + order + ").");
+                var loaded = rider.Load(rows);
+                loaded.Frame();
+                loaded.PetResolves = true; loaded.Frame(); loaded.Frame();
+                TestRunner.True(loaded.Find() == 3 && loaded.Count() == 1, "The reload did not restore one shortcut at 3 (" + order + ").");
+            }
+            // Control: a single manually moved shortcut (live entry at 9, moved to 3 unobserved) is still recognized.
+            var moved = PlacedAt(9, "moved");
+            var data = moved.Slots[9]; moved.Slots[9] = null; moved.Slots[3] = data;
+            moved.PetResolves = false; moved.FactLive = false;
+            moved.NativeInvalidateAt(3);
+            moved.PetResolves = true; moved.Frame(); moved.Frame();
+            TestRunner.True(moved.Find() == 3 && moved.Count() == 1, "The moved shortcut did not return at its new slot 3.");
+        }
+
+        private static void DisabledSaveIsolation()
+        {
+            // KMC is disabled; an older world has a surviving canonical shortcut at 9 on a party rider (no fact behind it)
+            // and the player saves before native UI cleanup.
+            var service = new Service();
+            var rider = new Rider("rider", service, service.Current) { Autofill = false };
+            service.Disable();
+            rider.Slots[9] = Control + "#0";
+            rider.Slots[0] = "Attack";
+            service.Save();
+            TestRunner.True(rider.Slots[9] == null && rider.Slots[0] == "Attack", "Disabled save sanitation left the binding or changed another slot.");
+            TestRunner.True(service.Intent.Count == 0 && service.Placed.Count == 0, "Disabled save sanitation recorded placement state.");
+            // Another world with the same rider and pet ids and no shortcut rows is loaded while still disabled; then KMC is
+            // enabled with autofill off.
+            service.Intent.Seed("rider", 9, true);   // stray outgoing state a disabled load must not carry
+            service.Placed.Add("rider");
+            var loaded = rider.Load(new List<SavedRow>());
+            TestRunner.True(service.Intent.Count == 0 && service.Placed.Count == 0 && !service.Fence.Fenced,
+                "The disabled load carried outgoing placement state or armed a fence.");
+            service.Enabled = true;
+            loaded.Frame(); loaded.Frame();
+            TestRunner.True(loaded.Find() == -1 && loaded.Slots[9] == null, "The previous world's shortcut appeared in the loaded world.");
         }
 
         private static void RemovalAfterLeaseRelease()
