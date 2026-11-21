@@ -1517,8 +1517,10 @@ if($Target-eq'Kingmaker'){
     $uiUtility=$assembly.GetType('Kingmaker.UI.Common.UIUtility',$false)
     $getGroup=if($null-eq$uiUtility){$null}else{$uiUtility.GetMethod('GetGroup',$cityFlags,$null,[Type[]]@([bool],[bool]),$null)}
     $getGroupToken=if($null-eq$getGroup){0}else{$getGroup.MetadataToken}
-    Assert-Contract ($null-ne$getGroup-and$getGroup.IsStatic-and$getGroupToken-eq0x06004281-and
-        $getGroup.ReturnType.FullName-like'System.Collections.Generic.List`1`[`[Kingmaker.EntitySystem.Entities.UnitEntityData,*') `
+    $getGroupReturn=if($null-eq$getGroup){$null}else{$getGroup.ReturnType}
+    Assert-Contract ($null-ne$getGroup-and$getGroup.IsStatic-and$getGroupToken-eq0x06004281-and$getGroupReturn.IsGenericType-and
+        $getGroupReturn.GetGenericTypeDefinition().FullName-ceq'System.Collections.Generic.List`1'-and
+        $getGroupReturn.GetGenericArguments()[0].FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
         ('city roster: UIUtility.GetGroup(bool withRemote, bool withPet) is static, returns List<UnitEntityData>, token '+$getGroupToken.ToString('X8'))
     $groupController=$assembly.GetType('Kingmaker.UI.Group.GroupController',$false)
     $setGroup=if($null-eq$groupController){$null}else{$groupController.GetMethod('SetGroup',$cityFlags,$null,[Type[]]@(),$null)}

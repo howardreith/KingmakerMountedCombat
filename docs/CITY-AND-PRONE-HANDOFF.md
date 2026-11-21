@@ -35,7 +35,8 @@ remembers each rider's chosen slot by actor id and index only. `NativeMountedCon
   empty slot; a player who removed the live control, or filled that slot meanwhile, is respected and the record is
   forgotten; one copy only;
 - forgets the record on permanent loss (owner no longer gets the control; rider gone from every roster), on disable,
-  disposal and a new load;
+  disposal and a new load; roster membership is matched by actor id, and an earlier world's unit object of a
+  character present now records nothing, so a load's replaced objects never erase a record seeded from the save;
 - empties the KMC slots of a rider that leaves the roster (native would, and no native save holds a KMC identity);
 - writes the remembered slot of a temporarily absent rider into the owned save archive as the existing kind-6 row plus
   placement record (only for a rider that resolves uniquely in `Player.AllCharacters`), and seeds records from saved
@@ -96,10 +97,15 @@ combat-log presentation. The reported weapon is not identifiable from the availa
 
 | Command | Result | Limits |
 | --- | --- | --- |
-| `.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1` | see the final receipt | Build, components, Validate-Source, focused wrapper |
-| components (`bin\Tests`) | 1427/0 before the token pin | includes the 16 new tests |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | new rows pass; GetGroup token pinned `06004281` | reflection-only contracts |
+| `.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1` (controller `focused` gate on the reported candidate) | PASS; receipt bound to the candidate commit | Build, components, Validate-Source, focused wrapper; about 1 minute |
+| components (`bin\Tests`) | 1427/0 | includes the 16 new tests |
+| Validate-Source | 153/0 | source/payload rules |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 819/0, including the 4 new rows; GetGroup token `06004281` | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
+
+The first focused runs failed for two harness reasons, both corrected before the candidate: a Windows PowerShell 5.1
+grandchild inherited a PowerShell 7 `PSModulePath` (the wrapper now clears it for its children), and the new GetGroup
+row first carried a placeholder token and a wrong return-type wildcard (the installed token was read from that run).
 
 `Test-CityToolbarProneFocused.ps1` is a new repository-owned wrapper (the controller's focused gate takes one script
 name) that runs exactly the two checks above; nothing broader.

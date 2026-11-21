@@ -1748,9 +1748,12 @@ namespace KingmakerMountedCombat.Integration
                 // A rider that left the candidate roster but is still the player's (the capital moves companions to the
                 // reserve roster) keeps its chosen slot for its return; anything else lost eligibility for good. Its
                 // KMC slots are emptied either way: native would empty a slot whose fact is gone (IsBad), and a native
-                // save must never hold a KMC identity of a unit KMC no longer reconciles.
-                RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
-                RemoveManagedFacts(prior, true);
+                // save must never hold a KMC identity of a unit KMC no longer reconciles. A replaced object of a
+                // character that is present now (a new load keeps actor ids) records nothing about that character.
+                var presentNow = prior.UniqueId != null && candidates.Any(unit => unit != null && unit.UniqueId == prior.UniqueId);
+                if (!presentNow)
+                    RecordAbsence(prior, IsStillOnPlayerRoster(prior) ? MountedControlAbsence.Temporary : MountedControlAbsence.Permanent);
+                RemoveManagedFacts(prior, true, !presentNow);
                 observedUnits.Remove(prior);
             }
         }
@@ -1866,12 +1869,14 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Still one of the player's characters: in the party, its detached part, or the reserve (remote) roster the
-        // capital moves companions to. Ex-companions and units gone from every roster are not.
+        // capital moves companions to. Ex-companions and units gone from every roster are not. Matched by actor id, so
+        // an earlier world's object of a character the current world still holds is not read as a loss.
         private static bool IsStillOnPlayerRoster(UnitEntityData unit)
         {
             var player = Game.Instance?.Player;
-            if (player == null || unit == null) return false;
-            bool Holds(List<UnitReference> list) => list != null && list.Any(reference => ReferenceEquals(reference.Value, unit));
+            var id = unit?.UniqueId;
+            if (player == null || id == null) return false;
+            bool Holds(List<UnitReference> list) => list != null && list.Any(reference => reference.Value?.UniqueId == id);
             return !Holds(player.ExCompanions) &&
                 (Holds(player.PartyCharacters) || Holds(player.RemoteCompanions) || Holds(player.DetachedPartyCharacters));
         }
@@ -2015,7 +2020,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void RemoveManagedFacts(UnitEntityData unit, bool cleanupSlots)
+        private void RemoveManagedFacts(UnitEntityData unit, bool cleanupSlots, bool interruptsControl = true)
         {
             var abilities = unit?.Descriptor?.Abilities;
             if (abilities == null)
@@ -2024,7 +2029,7 @@ namespace KingmakerMountedCombat.Integration
             }
             // Every KMC removal of the facts (area unload, save scope, disable, roster departure) interrupts the public
             // control; a remembered slot survives it unless the caller already recorded a permanent loss.
-            RecordAbsence(unit, MountedControlAbsence.Temporary);
+            if (interruptsControl) RecordAbsence(unit, MountedControlAbsence.Temporary);
             foreach (var blueprint in EnumerateBlueprints())
             {
                 foreach (var fact in abilities.Enumerable
